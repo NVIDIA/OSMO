@@ -55,7 +55,9 @@
 # =============================================================================
 # Stage 1: Dependencies (cached unless package.json/pnpm-lock.yaml change)
 # =============================================================================
-FROM node:22-slim AS deps
+ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/node:24-v4.0.2
+
+FROM ${NODE_DISTROLESS_IMAGE} AS deps
 
 # Enable corepack for pnpm (reads version from package.json packageManager field)
 RUN corepack enable
@@ -75,7 +77,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # =============================================================================
 # Stage 2: Build (rebuilds when source changes, but deps are cached)
 # =============================================================================
-FROM node:22-slim AS builder
+FROM ${NODE_DISTROLESS_IMAGE} AS builder
 
 RUN corepack enable
 
@@ -102,7 +104,7 @@ COPY --from=deps /app/public/ ./public/
 # Example: docker build --build-arg NEXT_PUBLIC_BASE_PATH="" .
 #
 # BasePath for UI deployment (e.g., /v2 for dual deployment, "" for canonical)
-ARG NEXT_PUBLIC_BASE_PATH=/v2
+ARG NEXT_PUBLIC_BASE_PATH=
 
 # Enable source maps in production (disabled by default for faster builds)
 ARG ENABLE_SOURCE_MAPS=false
@@ -135,7 +137,7 @@ RUN --mount=type=cache,target=/app/.next/cache-turbo \
 # =============================================================================
 # Stage 2.5: Prepare cache directory (has shell for mkdir/chown)
 # =============================================================================
-FROM node:22-slim AS cache-prep
+FROM ${NODE_DISTROLESS_IMAGE} AS cache-prep
 
 # Create cache directory with correct ownership
 # Using UID 1000 to match Kubernetes deployment's runAsUser setting
@@ -146,8 +148,7 @@ RUN mkdir -p /cache && \
 # =============================================================================
 # Stage 3: Production image (same base as legacy UI)
 # =============================================================================
-# Uses same NVIDIA distroless image as legacy UI (see external/MODULE.bazel:295-303)
-FROM nvcr.io/nvidia/distroless/node:22-v3.1.1 AS runner
+FROM ${NODE_DISTROLESS_IMAGE} AS runner
 
 WORKDIR /app
 
