@@ -54,7 +54,7 @@ import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel-header";
 import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/status-hover-card";
 import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-timeline";
-import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
+import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/views/timeline";
 import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 import { WorkflowTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-tasks-tab";
@@ -63,7 +63,7 @@ import { LogViewerContainer } from "@/components/log-viewer/components/LogViewer
 // Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)
 // Saves ~92 KB from initial bundle (CodeMirror + YAML parser + Lezer)
 const WorkflowSpecViewer = dynamic(
-  () => import("./spec/WorkflowSpecViewer").then((m) => ({ default: m.WorkflowSpecViewer })),
+  () => import("./spec/workflow-spec-viewer").then((m) => ({ default: m.WorkflowSpecViewer })),
   {
     loading: () => (
       <div className="space-y-3 p-4">

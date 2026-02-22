@@ -18,7 +18,7 @@
 
 import { memo, useMemo } from "react";
 import type { TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-import { Timeline, type TimelinePhase } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
+import { Timeline, type TimelinePhase } from "@/app/(dashboard)/workflows/[name]/components/panel/views/timeline";
 import {
   useTimelineSetup,
   parseCommonTimestamps,

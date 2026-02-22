@@ -32,7 +32,7 @@ import {
   Timeline,
   type TimelinePhase,
   parseTime,
-} from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
+} from "@/app/(dashboard)/workflows/[name]/components/panel/views/timeline";
 import { useTick } from "@/hooks/use-tick";
 
 // ============================================================================

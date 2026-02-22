@@ -33,10 +33,10 @@ import { ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/
 import {
   WorkflowEdgeStrip,
   type QuickAction,
-} from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowEdgeStrip";
+} from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-edge-strip";
 
 // Eager imports - panel views are always needed, dynamic imports add 100-300ms flash
-import { WorkflowDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowDetails";
+import { WorkflowDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-details";
 import { GroupDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/group/group-details";
 import { TaskDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-details";
 import { ContentSlideWrapper } from "@/app/(dashboard)/workflows/[name]/components/panel/views/content-slide-wrapper";

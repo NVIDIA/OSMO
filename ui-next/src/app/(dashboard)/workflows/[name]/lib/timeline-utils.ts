@@ -29,7 +29,7 @@ import {
   createPhaseDurationCalculator,
   finalizeTimelinePhases,
   type TimelineFinalizeContext,
-} from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
+} from "@/app/(dashboard)/workflows/[name]/components/panel/views/timeline";
 
 /**
  * Status flags derived from a status string.
