@@ -55,10 +55,10 @@ import {
 } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
 import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
-import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskTimeline";
-import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DependencyPills";
+import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-timeline";
+import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/dependency-pills";
 import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
-import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
+import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
 import { StatusDot } from "@/components/shell/components/StatusDot";
 import { useShellSession } from "@/components/shell/lib/shell-cache";
 import type {

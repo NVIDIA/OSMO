@@ -43,7 +43,7 @@ import { PANEL_CONSTRAINTS } from "@/app/(dashboard)/workflows/[name]/lib/panel-
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
-import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
+import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
 import { WorkflowDetailLayout } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDetailLayout";
 import { WorkflowDAGContent } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDAGContent";
 import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanel";

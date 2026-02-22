@@ -33,7 +33,7 @@ import { Button } from "@/components/shadcn/button";
 import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
 import { SpecSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/SpecSection";
 import { PoolSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/PoolSection";
-import { PrioritySection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/PrioritySection";
+import { PrioritySection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/priority-section";
 import { useResubmitForm } from "@/app/(dashboard)/workflows/[name]/components/resubmit/hooks/useResubmitForm";
 
 // =============================================================================

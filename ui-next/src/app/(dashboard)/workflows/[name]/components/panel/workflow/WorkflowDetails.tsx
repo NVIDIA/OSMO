@@ -53,11 +53,11 @@ import { TaskGroupStatus } from "@/lib/api/generated";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
 import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
-import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTimeline";
+import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-timeline";
 import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";
 import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
-import { WorkflowTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowTasksTab";
+import { WorkflowTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-tasks-tab";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
 
 // Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)

@@ -27,7 +27,7 @@ import { SidePanel } from "@/components/panel/side-panel";
 import { cn } from "@/lib/utils";
 import type { DetailsPanelProps } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
 import { useAnnouncer } from "@/hooks/use-announcer";
-import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
+import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
 import { usePanelResize } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 import { ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 import {
@@ -39,7 +39,7 @@ import {
 import { WorkflowDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowDetails";
 import { GroupDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/group/group-details";
 import { TaskDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskDetails";
-import { ContentSlideWrapper } from "@/app/(dashboard)/workflows/[name]/components/panel/views/ContentSlideWrapper";
+import { ContentSlideWrapper } from "@/app/(dashboard)/workflows/[name]/components/panel/views/content-slide-wrapper";
 
 export const DetailsPanel = memo(function DetailsPanel({
   view,

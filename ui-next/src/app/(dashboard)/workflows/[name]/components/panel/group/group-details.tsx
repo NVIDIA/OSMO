@@ -45,7 +45,7 @@ import type { TaskWithDuration } from "@/app/(dashboard)/workflows/[name]/lib/wo
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
 import { useTick } from "@/hooks/use-tick";
 import type { BreadcrumbSegment } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
-import { GroupOverviewTab } from "@/app/(dashboard)/workflows/[name]/components/panel/group/GroupOverviewTab";
+import { GroupOverviewTab } from "@/app/(dashboard)/workflows/[name]/components/panel/group/group-overview-tab";
 import { GroupTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/group/GroupTasksTab";
 import type { GroupTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 
