@@ -21,9 +21,9 @@ import { Server } from "lucide-react";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
-import { SelectionCard } from "@/app/(dashboard)/profile/components/selection-card";
-import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/selection-skeleton";
-import { SectionErrorCard } from "@/app/(dashboard)/profile/components/section-error-card";
+import { SelectionCard } from "@/features/profile/components/selection-card";
+import { SelectionSkeleton } from "@/features/profile/components/skeletons/selection-skeleton";
+import { SectionErrorCard } from "@/features/profile/components/section-error-card";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
 export function PoolsSection() {

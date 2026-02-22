@@ -16,7 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ProfileLayout } from "@/app/(dashboard)/profile/components/profile-layout";
+import { ProfileLayout } from "@/features/profile/components/profile-layout";
 
 export default function ProfilePage() {
   return <ProfileLayout />;

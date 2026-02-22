@@ -26,8 +26,8 @@ import { cn } from "@/lib/utils";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
-import { NotificationsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/notifications-skeleton";
-import { SectionErrorCard } from "@/app/(dashboard)/profile/components/section-error-card";
+import { NotificationsSkeleton } from "@/features/profile/components/skeletons/notifications-skeleton";
+import { SectionErrorCard } from "@/features/profile/components/section-error-card";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
 interface NotificationEdits {
