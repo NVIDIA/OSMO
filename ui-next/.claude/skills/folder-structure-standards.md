@@ -28,6 +28,9 @@ Synthesized from:
 | `*.tsx` | `components/` |
 | `actions.ts`, other `.ts` | `lib/` |
 
+**Exception — subsystem colocation (overrides file-type rule):**
+When files originate from a named subsystem directory (e.g., `components/dag/`, `components/shell/`), they move as a flat unit into `features/[feature]/[subsystem]/` regardless of file type. See Section 7.5.
+
 ---
 
 ## 1. Core Principle: Routing vs. Business Logic Are Separate
@@ -86,8 +89,10 @@ src/
 │   │   │   ├── hooks/
 │   │   │   └── stores/
 │   │   ├── detail/                # Workflow detail sub-feature
-│   │   │   ├── components/
-│   │   │   ├── hooks/
+│   │   │   ├── dag/               # DAG subsystem — flat, all dag files here
+│   │   │   ├── shell/             # Shell subsystem — flat, all shell files here
+│   │   │   ├── components/        # Detail-level components (not dag/shell)
+│   │   │   ├── hooks/             # Detail-level hooks (not dag/shell)
 │   │   │   └── stores/
 │   │   └── lib/                   # Shared within workflows
 │   ├── datasets/
@@ -242,6 +247,70 @@ features/pools/
 
 Apply sub-feature split to: **workflows** (`list/`, `detail/`) and **datasets** (`list/`, `detail/`).
 Keep flat for: **pools**, **resources**, **log-viewer**, **profile**.
+
+---
+
+## 7.5. Subsystem Colocation (overrides file-type rule)
+
+When files form a **named subsystem** — a cohesive group with its own components, hooks, lib, and tests — they move as a **flat unit** into `features/[feature]/[subsystem]/`, regardless of file type.
+
+**The file-type → subdir rule does NOT apply inside subsystems.**
+
+### What qualifies as a subsystem
+
+A subsystem is identified by a named source directory that contains multiple file types:
+
+| Source dir | Subsystem target |
+|---|---|
+| `components/dag/` (hooks + lib + components) | `features/workflows/detail/dag/` |
+| `components/shell/` (hooks + lib + components) | `features/workflows/detail/shell/` |
+| `components/code-viewer/` | `features/workflows/detail/code-viewer/` |
+
+### Layout: flat within the subsystem dir
+
+```
+features/workflows/detail/
+  dag/                          ← ALL dag files here, flat
+    dag-layout.ts               ← lib file, but stays in dag/
+    dag-layout.test.ts
+    use-viewport-boundaries.ts  ← hook, but stays in dag/
+    use-viewport-boundaries.test.ts
+    dag-graph.tsx               ← component, but stays in dag/
+    dag-node.tsx
+    dag-edge.tsx
+  shell/                        ← ALL shell files here, flat
+    shell-keyboard-manager.ts
+    shell-cache.ts
+    shell-cache.test.ts
+    shell-isolation.test.ts
+    shell-types.ts              ← renamed from shell/lib/types.ts
+    use-shell.ts
+    shell-terminal.tsx
+    shell-connecting.tsx
+    shell-search.tsx
+    status-dot.tsx
+    shell-session-icon.tsx
+    shell-terminal-impl.tsx
+  components/                   ← detail-level components only (not dag/shell)
+  hooks/                        ← detail-level hooks only (not dag/shell)
+  lib/                          ← detail-level lib only (not dag/shell)
+```
+
+### When to add sub-subdirs inside a subsystem
+
+Only add `hooks/`, `lib/`, `components/` **within** a subsystem dir when it exceeds ~30 files. Below that threshold, the naming convention (`use-*` for hooks, `.tsx` for components) provides sufficient signal without directory overhead.
+
+### Anti-patterns
+
+```
+❌ features/workflows/detail/hooks/use-viewport-boundaries.ts   ← dag hook scattered to top-level
+❌ features/workflows/detail/lib/dag-layout.ts                  ← dag lib scattered to top-level
+❌ features/workflows/detail/components/dag/dag-graph.tsx       ← component in components/dag/ but hooks/lib elsewhere
+
+✅ features/workflows/detail/dag/use-viewport-boundaries.ts     ← all dag files together
+✅ features/workflows/detail/dag/dag-layout.ts
+✅ features/workflows/detail/dag/dag-graph.tsx
+```
 
 ---
 

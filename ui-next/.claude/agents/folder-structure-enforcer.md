@@ -1,6 +1,6 @@
 ---
 name: folder-structure-enforcer
-description: "Enforces feature colocation and folder structure best practices in the ui-next codebase. Runs ONE scan-or-execute cycle per invocation. First run: enumerates ALL violations and builds a complete ordered move queue. Subsequent runs: execute the next batch from the queue. Max 15 moves per invocation. Exits with STATUS: DONE or STATUS: CONTINUE."
+description: "Enforces feature colocation and folder structure best practices in the ui-next codebase. Runs ONE scan-or-execute cycle per invocation. First run: enumerates ALL violations in app/(dashboard)/ AND audits src/features/ for misplaced files, then builds a complete ordered move queue (primary moves first, correction moves last). Subsequent runs: execute the next batch from the queue. Max 15 moves per invocation. Exits with STATUS: DONE or STATUS: CONTINUE."
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 ---
@@ -65,7 +65,7 @@ Glob: src/components/code-viewer/**/*.{ts,tsx}
 Apply these rules mechanically to each non-routing file:
 
 **Route → Feature mapping:**
-| Source path prefix | Target feature |
+| Source path prefix | Target feature root |
 |---|---|
 | `src/app/(dashboard)/pools/...` | `src/features/pools/` |
 | `src/app/(dashboard)/resources/...` | `src/features/resources/` |
@@ -76,58 +76,126 @@ Apply these rules mechanically to each non-routing file:
 | `src/app/(dashboard)/workflows/[name]/...` | `src/features/workflows/detail/` |
 | `src/app/(dashboard)/workflows/...` (not under `[name]/`) | `src/features/workflows/list/` |
 | `src/app/(dashboard)/*.{ts,tsx}` (root level) | `src/features/dashboard/` |
-| `src/components/dag/...` | `src/features/workflows/detail/components/dag/` |
-| `src/components/shell/...` | `src/features/workflows/detail/components/shell/` |
-| `src/components/code-viewer/...` | `src/features/workflows/detail/components/code-viewer/` |
+| `src/components/dag/...` | `src/features/workflows/detail/dag/` ← subsystem, flat |
+| `src/components/shell/...` | `src/features/workflows/detail/shell/` ← subsystem, flat |
+| `src/components/code-viewer/...` | `src/features/workflows/detail/code-viewer/` ← subsystem, flat |
 
-**File type → Subdir mapping (within a feature's target dir):**
-| File pattern | Subdir |
+**Step 1 — Subsystem detection (run BEFORE file-type rule, for files targeting `workflows/detail/`):**
+
+A file belongs to a **subsystem** if its source path is under a known subsystem dir
+(`components/dag/`, `components/shell/`, `components/code-viewer/`) OR its filename
+matches a known subsystem naming pattern:
+
+| Filename pattern | Subsystem | Target dir |
+|---|---|---|
+| `dag-*.ts(x)`, `dag-*.test.ts(x)` | dag | `features/workflows/detail/dag/` |
+| `use-dag-*.ts`, `use-viewport*.ts`, `use-graph*.ts` | dag | `features/workflows/detail/dag/` |
+| `shell-*.ts(x)`, `shell-*.test.ts(x)` | shell | `features/workflows/detail/shell/` |
+| `use-shell*.ts`, `use-terminal*.ts` | shell | `features/workflows/detail/shell/` |
+| `code-viewer-*.ts(x)` | code-viewer | `features/workflows/detail/code-viewer/` |
+| `use-code-viewer*.ts` | code-viewer | `features/workflows/detail/code-viewer/` |
+
+For subsystem files: strip ALL intermediate subdirs (`hooks/`, `lib/`, `components/`, etc.)
+and place the file directly in the flat subsystem dir. Filename is preserved as-is.
+
+Examples:
+- `src/components/dag/hooks/use-viewport-boundaries.ts` → `src/features/workflows/detail/dag/use-viewport-boundaries.ts`
+- `src/components/dag/lib/dag-layout.ts` → `src/features/workflows/detail/dag/dag-layout.ts`
+- `src/components/dag/dag-graph.tsx` → `src/features/workflows/detail/dag/dag-graph.tsx`
+- `src/app/(dashboard)/workflows/[name]/lib/dag-layout.ts` → `src/features/workflows/detail/dag/dag-layout.ts`
+- `src/components/shell/lib/shell-cache.ts` → `src/features/workflows/detail/shell/shell-cache.ts`
+- `src/components/shell/components/shell-terminal.tsx` → `src/features/workflows/detail/shell/shell-terminal.tsx`
+
+Do NOT add sub-subdirs inside a subsystem unless it exceeds ~30 files.
+
+**Step 2 — File-type subdir rule (applies to all non-subsystem files):**
+| File pattern | Subdir within feature root |
 |---|---|
 | `use-*.ts` | `hooks/` |
 | `*-store.ts` | `stores/` |
 | `*.tsx` | `components/` |
-| `actions.ts` | `lib/` |
-| Any other `.ts` | `lib/` |
+| `actions.ts`, other `.ts` | `lib/` |
 
-**Preserve relative sub-paths:** If the file is nested (e.g., `components/panel/panel-content.tsx`),
-keep the relative structure under the subdir:
+**Preserve relative sub-paths:** If the file is already nested under a typed subdir in
+the source (`/hooks/`, `/stores/`, `/lib/`, `/components/`), keep that relative structure:
 `app/(dashboard)/pools/components/panel/panel-content.tsx` → `features/pools/components/panel/panel-content.tsx`
 
-Note: files that are ALREADY under a typed subdir in the source (e.g., source path has `/hooks/`,
-`/stores/`, `/lib/`, `/components/`) keep that subdir — don't double-apply the file-type rule.
+Don't double-apply the file-type rule to files already in a typed subdir in the source.
 
-### 1d. Write the queue
+---
+
+### 1d. Audit src/features/ for correction moves
+
+Files previously moved to `src/features/` may be in wrong locations under the old rules
+(before subsystem colocation was added). Detect and queue correction moves.
+
+**Glob in parallel:**
+```
+Glob: src/features/**/*.{ts,tsx}
+```
+
+Skip:
+- Next.js reserved files (`page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx`, `template.tsx`)
+- Files in `src/features/workflows/detail/dag/` — already correct
+- Files in `src/features/workflows/detail/shell/` — already correct
+- Files in `src/features/workflows/detail/code-viewer/` — already correct
+
+**For each remaining file in `src/features/`, compute its correct target:**
+
+1. Extract the feature path: the portion after `src/features/` up to the first type-subdir or filename
+2. Apply subsystem detection (Step 1c subsystem rules) to the filename
+3. If the file matches a subsystem pattern AND its feature root is `workflows/detail/`:
+   - Correct target: `src/features/workflows/detail/[subsystem]/[filename]`
+   - If current path ≠ correct target → **correction move needed**
+4. Additionally check for files incorrectly nested under `components/dag/`, `components/shell/`,
+   or `components/code-viewer/` within features (e.g., `features/workflows/detail/components/dag/X`
+   should be `features/workflows/detail/dag/X`)
+
+**Record each correction move** as:
+```
+CORRECTION: src/features/[current/path/file.tsx] → src/features/[correct/path/file.tsx]
+```
+
+---
+
+### 1e. Write the queue
 
 Write `.claude/memory/folder-structure-move-queue.md`:
 
 ```markdown
 # Folder Structure Move Queue
 Built: [today]
-Total: [N] moves
+Total: [N] moves ([P] primary + [C] corrections)
 
 ## Pending
-[one entry per file, ordered by feature — simple features first, complex last:]
+
+### Primary moves (app/ → features/)
+[ordered by feature — simple first, complex last:]
 
 Feature order:
-1. pools/ (simple, ~23 files)
-2. resources/ (simple, ~18 files)
-3. log-viewer/ (simple, ~4 files)
-4. profile/ (simple, ~18 files)
-5. dashboard/ (simple, ~4 files)
-6. datasets/list/ then datasets/detail/ (~30 files)
-7. workflows/list/ then workflows/detail/ (~104 files)
-8. components/dag/ → workflows/detail/ (~12 files)
-9. components/shell/ → workflows/detail/ (~10 files)
-10. components/code-viewer/ → workflows/detail/ (~4 files)
+1. pools/
+2. resources/
+3. log-viewer/
+4. profile/
+5. dashboard/
+6. datasets/list/ then datasets/detail/
+7. workflows/list/ then workflows/detail/
+8. components/dag/ → workflows/detail/dag/
+9. components/shell/ → workflows/detail/shell/
+10. components/code-viewer/ → workflows/detail/code-viewer/
+
+### Correction moves (features/ → features/)
+[files already in features/ but in wrong location — fix last]
 
 Entry format (one per line):
-- src/[old/path/file.tsx] → src/[features/f/subdir/file.tsx]
+- src/[old/path/file.tsx] → src/[new/path/file.tsx]
 
 ## Completed
 (none yet)
 ```
 
-After writing the queue, proceed to Step 2 using the first 15 items.
+After writing the queue, proceed to Step 2 using the first 15 items from `## Pending`
+(primary moves first, corrections after).
 
 ---
 
@@ -274,3 +342,6 @@ STATUS: [DONE | CONTINUE]
 - **NEVER move files INTO `app/(dashboard)/[route]/`** — all moves go DIRECTLY to `features/[feature]/[subdir]/` in ONE step
 - **Never introduce cross-feature imports** — if a moved file imports from another feature, SKIP and flag for human review
 - **Queue is authoritative** — once built, execute from it; do not re-scan on EXECUTE invocations
+- **Correction moves are safe** — files in `src/features/` being relocated within `src/features/` follow the same procedure: read, write, update importers, delete source, verify
+- **Subsystem detection is by filename AND source path** — apply to both new moves and correction moves
+- **SCAN is idempotent** — files already in the correct location are not added to the queue; clearing and rerunning SCAN is safe
