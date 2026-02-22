@@ -31,7 +31,7 @@
 
 import { useCallback } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
-import type { SpecView } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
+import type { SpecView } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/use-spec-data";
 
 // =============================================================================
 // Types

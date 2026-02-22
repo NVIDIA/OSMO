@@ -33,7 +33,7 @@ import { CodeMirror } from "@/components/code-viewer/CodeMirror";
 import { CodeViewerSkeleton } from "@/components/code-viewer/CodeViewerSkeleton";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { SpecToolbar } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/spec-toolbar";
-import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
+import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/use-spec-data";
 import { useSpecViewState } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/use-spec-view-state";
 import type { WorkflowQueryResponse } from "@/lib/api/generated";
 

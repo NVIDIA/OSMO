@@ -30,11 +30,11 @@ import { memo, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { Button } from "@/components/shadcn/button";
-import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/useSpecData";
+import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/use-spec-data";
 import { SpecSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/spec-section";
 import { PoolSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-section";
 import { PrioritySection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/priority-section";
-import { useResubmitForm } from "@/app/(dashboard)/workflows/[name]/components/resubmit/hooks/useResubmitForm";
+import { useResubmitForm } from "@/app/(dashboard)/workflows/[name]/components/resubmit/hooks/use-resubmit-form";
 
 // =============================================================================
 // Types
