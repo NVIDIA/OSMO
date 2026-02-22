@@ -16,7 +16,7 @@
 
 import { useCallback } from "react";
 import { useMounted } from "@/hooks/use-mounted";
-import { useRefreshAnimation } from "@/hooks/use-refresh-animation";
+import { useRefreshAnimation } from "@/components/refresh/use-refresh-animation";
 import { formatInterval } from "@/lib/format-interval";
 import { AUTO_REFRESH_INTERVALS } from "@/lib/config";
 import type { RefreshControlProps } from "@/components/refresh/types";

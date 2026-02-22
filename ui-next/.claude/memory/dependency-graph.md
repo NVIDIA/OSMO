@@ -761,3 +761,7 @@ Notes: Root-level shared components — files directly in src/components/ (no su
 2026-02-21 RENAME src/app/(dashboard)/datasets/components/panel/DatasetPanelDetails.tsx -> src/app/(dashboard)/datasets/components/panel/dataset-panel-details.tsx
 2026-02-21 RENAME src/app/(dashboard)/datasets/components/panel/DatasetPanelVersions.tsx -> src/app/(dashboard)/datasets/components/panel/dataset-panel-versions.tsx
 2026-02-21 DELETE src/components/placeholder-section.tsx -- dead code, 0 importers (dead-code-enforcer iteration 19)
+2026-02-21 MOVE   src/hooks/use-active-section.ts -> src/app/(dashboard)/profile/components/use-active-section.ts (folder-structure-enforcer)
+2026-02-21 MOVE   src/hooks/use-refresh-animation.ts -> src/components/refresh/use-refresh-animation.ts (folder-structure-enforcer)
+2026-02-21 MOVE   src/hooks/use-refresh-control-state.ts -> src/components/refresh/use-refresh-control-state.ts (folder-structure-enforcer)
+2026-02-21 MOVE   src/stores/workflow-detail-panel-store.ts -> src/app/(dashboard)/workflows/[name]/stores/workflow-detail-panel-store.ts (folder-structure-enforcer)

@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useActiveSection } from "@/hooks/use-active-section";
+import { useActiveSection } from "@/app/(dashboard)/profile/components/use-active-section";
 import { cn } from "@/lib/utils";
 import { User, Bell, Database, Server, Key } from "lucide-react";
 

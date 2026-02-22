@@ -27,7 +27,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { cn } from "@/lib/utils";
-import { useRefreshControlState } from "@/hooks/use-refresh-control-state";
+import { useRefreshControlState } from "@/components/refresh/use-refresh-control-state";
 import type { RefreshControlProps } from "@/components/refresh/types";
 import { INTERVAL_OPTIONS } from "@/components/refresh/types";
 
