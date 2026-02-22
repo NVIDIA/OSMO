@@ -28,7 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnnouncer } from "@/hooks/use-announcer";
 import { useCopy } from "@/hooks/use-copy";
-import { useFocusReturn } from "@/components/panel/hooks/useFocusReturn";
+import { useFocusReturn } from "@/components/panel/hooks/use-focus-return";
 
 import { useShell } from "@/components/shell/hooks/use-shell";
 import { getDisplayStatus } from "@/components/shell/lib/shell-state";

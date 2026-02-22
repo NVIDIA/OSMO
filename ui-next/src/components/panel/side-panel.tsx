@@ -24,8 +24,8 @@ import { usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "@/components/panel/resize-handle";
 import { PANEL } from "@/components/panel/panel-header-controls";
-import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
-import { usePanelEscape } from "@/components/panel/hooks/usePanelEscape";
+import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
+import { usePanelEscape } from "@/components/panel/hooks/use-panel-escape";
 
 export interface SidePanelProps {
   width: number;

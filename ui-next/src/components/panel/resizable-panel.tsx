@@ -23,10 +23,10 @@ import { useEventCallback } from "usehooks-ts";
 import { usePrevious } from "@react-hookz/web";
 import { ResizeHandle } from "@/components/panel/resize-handle";
 import { PANEL } from "@/components/panel/panel-header-controls";
-import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
-import { usePanelEscape } from "@/components/panel/hooks/usePanelEscape";
-import { useFocusReturn } from "@/components/panel/hooks/useFocusReturn";
-import { usePanelAnimation } from "@/components/panel/hooks/usePanelAnimation";
+import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
+import { usePanelEscape } from "@/components/panel/hooks/use-panel-escape";
+import { useFocusReturn } from "@/components/panel/hooks/use-focus-return";
+import { usePanelAnimation } from "@/components/panel/hooks/use-panel-animation";
 import { PanelAnimationProvider } from "@/components/panel/panel-animation-context";
 import "@/components/panel/resizable-panel.css";
 

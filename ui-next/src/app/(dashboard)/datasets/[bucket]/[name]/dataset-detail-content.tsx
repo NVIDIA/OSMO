@@ -28,7 +28,7 @@ import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
-import { useResizeDrag } from "@/components/panel/hooks/useResizeDrag";
+import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
 import { FileBrowserHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserHeader";
 import { FileBrowserTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserTable";
 import { FilePreviewPanel } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/FilePreviewPanel";

@@ -17,7 +17,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { AnimationPhase } from "@/components/panel/hooks/usePanelAnimation";
+import type { AnimationPhase } from "@/components/panel/hooks/use-panel-animation";
 
 interface PanelAnimationContextValue {
   /** Current panel animation phase */
