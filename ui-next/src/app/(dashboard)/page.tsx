@@ -27,8 +27,8 @@
  */
 
 import { Suspense } from "react";
-import { DashboardSkeleton } from "@/app/(dashboard)/dashboard-skeleton";
-import { DashboardWithData } from "@/app/(dashboard)/dashboard-with-data";
+import { DashboardSkeleton } from "@/features/dashboard/components/dashboard-skeleton";
+import { DashboardWithData } from "@/features/dashboard/components/dashboard-with-data";
 
 // =============================================================================
 // Streaming SSR - Fast TTFB + Server Prefetch
