@@ -32,10 +32,10 @@ import {
   useDisplayDagVisible,
   useIsDragging,
   useSnapZone,
-} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
-import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
+} from "@/features/workflows/detail/lib/panel-resize-context";
+import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "@/features/workflows/detail/lib/panel-constants";
 
-import "@/app/(dashboard)/workflows/[name]/styles/layout.css";
+import "@/features/workflows/detail/styles/layout.css";
 
 export interface WorkflowDetailLayoutProps {
   dagContent?: ReactNode;

@@ -34,18 +34,18 @@ All 70 files in `src/app/(dashboard)/workflows/[name]/` (excluding page.tsx, err
 10. ~~components/shell/shell-navigation-guard.tsx~~ -> features/workflows/detail/shell/shell-navigation-guard.tsx
 11. ~~components/shell/shell-portal-context.tsx~~ -> features/workflows/detail/shell/shell-portal-context.tsx
 
-### Subsystem: resubmit (move as flat unit to features/workflows/detail/resubmit/)
-12. components/resubmit/resubmit-panel.tsx
-13. components/resubmit/resubmit-panel-header.tsx
-14. components/resubmit/resubmit-panel-content.tsx
-15. components/resubmit/hooks/use-resubmit-form.ts
-16. components/resubmit/hooks/use-resubmit-mutation.ts
-17. components/resubmit/sections/collapsible-section.tsx
-18. components/resubmit/sections/pool-section.tsx
-19. components/resubmit/sections/pool-select.tsx
-20. components/resubmit/sections/pool-status-badge.tsx
-21. components/resubmit/sections/priority-section.tsx
-22. components/resubmit/sections/spec-section.tsx
+### Subsystem: resubmit -- DONE (moved as flat unit to features/workflows/detail/resubmit/)
+12. ~~components/resubmit/resubmit-panel.tsx~~ -> features/workflows/detail/resubmit/resubmit-panel.tsx
+13. ~~components/resubmit/resubmit-panel-header.tsx~~ -> features/workflows/detail/resubmit/resubmit-panel-header.tsx
+14. ~~components/resubmit/resubmit-panel-content.tsx~~ -> features/workflows/detail/resubmit/resubmit-panel-content.tsx
+15. ~~components/resubmit/hooks/use-resubmit-form.ts~~ -> features/workflows/detail/resubmit/use-resubmit-form.ts
+16. ~~components/resubmit/hooks/use-resubmit-mutation.ts~~ -> features/workflows/detail/resubmit/use-resubmit-mutation.ts
+17. ~~components/resubmit/sections/collapsible-section.tsx~~ -> features/workflows/detail/resubmit/collapsible-section.tsx
+18. ~~components/resubmit/sections/pool-section.tsx~~ -> features/workflows/detail/resubmit/pool-section.tsx
+19. ~~components/resubmit/sections/pool-select.tsx~~ -> features/workflows/detail/resubmit/pool-select.tsx
+20. ~~components/resubmit/sections/pool-status-badge.tsx~~ -> features/workflows/detail/resubmit/pool-status-badge.tsx
+21. ~~components/resubmit/sections/priority-section.tsx~~ -> features/workflows/detail/resubmit/priority-section.tsx
+22. ~~components/resubmit/sections/spec-section.tsx~~ -> features/workflows/detail/resubmit/spec-section.tsx
 
 ### Panel components (move to features/workflows/detail/components/panel/)
 23. components/panel/views/timeline.tsx

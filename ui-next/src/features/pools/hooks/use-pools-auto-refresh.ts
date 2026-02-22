@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useAutoRefreshSettings } from "@/hooks/use-auto-refresh-settings";
+import { useAutoRefreshSettings } from "@/components/refresh/hooks/use-auto-refresh-settings";
 import { AUTO_REFRESH_INTERVALS } from "@/lib/config";
 
 /** Default: OFF - pool status changes infrequently */

@@ -26,7 +26,7 @@ import { EventViewerProvider } from "@/components/event-viewer/event-viewer-cont
 import type { TaskGroupStatus } from "@/lib/api/generated";
 import { useTick } from "@/hooks/use-tick";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
-import { useUrlChips } from "@/hooks/use-url-chips";
+import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
 import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/components/event-viewer/lib/event-search-fields";
 import { filterTaskGroups } from "@/components/event-viewer/lib/event-filtering";
 import "@/components/event-viewer/event-viewer.css";

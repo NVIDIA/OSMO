@@ -30,7 +30,7 @@ import { memo, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { Button } from "@/components/shadcn/button";
-import { useSpecData } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/spec/hooks/use-spec-data";
+import { useSpecData } from "@/features/workflows/detail/components/panel/workflow/spec/hooks/use-spec-data";
 import { SpecSection } from "@/features/workflows/detail/resubmit/spec-section";
 import { PoolSection } from "@/features/workflows/detail/resubmit/pool-section";
 import { PrioritySection } from "@/features/workflows/detail/resubmit/priority-section";

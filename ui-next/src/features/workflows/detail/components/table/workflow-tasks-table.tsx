@@ -35,33 +35,33 @@ import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { Section, SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/stores/shared-preferences-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { useResultsCount } from "@/hooks/use-results-count";
+import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
 import { useTick } from "@/hooks/use-tick";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { useIsSuspended, usePanelResizeMachine } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
+import { useIsSuspended, usePanelResizeMachine } from "@/features/workflows/detail/lib/panel-resize-context";
 
-import { calculateTaskDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { calculateTaskDuration } from "@/features/workflows/detail/lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import { computeTaskStats, STATUS_SORT_ORDER } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { createTaskColumns } from "@/app/(dashboard)/workflows/[name]/lib/task-column-defs";
+import { computeTaskStats, STATUS_SORT_ORDER } from "@/features/workflows/detail/lib/status";
+import { createTaskColumns } from "@/features/workflows/detail/lib/task-column-defs";
 import {
   TASK_WITH_TREE_COLUMN_SIZE_CONFIG,
   MANDATORY_COLUMN_IDS,
   OPTIONAL_COLUMNS_ALPHABETICAL,
   asTaskColumnIds,
-} from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
-import { useTaskTableStore } from "@/app/(dashboard)/workflows/[name]/stores/task-table-store";
+} from "@/features/workflows/detail/lib/task-columns";
+import { useTaskTableStore } from "@/features/workflows/detail/stores/task-table-store";
 import { TreeConnector } from "@/features/workflows/detail/components/table/tree/tree-connector";
 import { SplitGroupHeader } from "@/features/workflows/detail/components/table/tree/split-group-header";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
+import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/features/workflows/detail/lib/task-search-fields";
 
 import type {
   GroupWithLayout,
   TaskQueryResponse,
   TaskWithDuration,
-} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+} from "@/features/workflows/detail/lib/workflow-types";
 
 // =============================================================================
 // Types

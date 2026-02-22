@@ -35,7 +35,7 @@ import { memo } from "react";
 import { BaseEdge, getSmoothStepPath, Position } from "@xyflow/react";
 import type { EdgeProps } from "@xyflow/react";
 import { HANDLE_OFFSET } from "@/components/dag/constants";
-import type { StatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
+import type { StatusCategory } from "@/features/workflows/detail/lib/status-utils";
 
 // ============================================================================
 // Types

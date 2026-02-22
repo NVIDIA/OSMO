@@ -30,7 +30,7 @@ import {
   useWorkflowDetailPanel,
   usePanelWidthPct,
   useDetailsExpanded,
-} from "@/app/(dashboard)/workflows/[name]/stores/workflow-detail-panel-store";
+} from "@/features/workflows/detail/stores/workflow-detail-panel-store";
 
 import {
   PanelResizeProvider,
@@ -41,8 +41,8 @@ import {
   useIsPanelCollapsed,
   usePersistedPanelWidth,
   usePanelWidth,
-} from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
-import { PANEL_CONSTRAINTS } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
+} from "@/features/workflows/detail/lib/panel-resize-context";
+import { PANEL_CONSTRAINTS } from "@/features/workflows/detail/lib/panel-constants";
 
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
@@ -50,9 +50,9 @@ import { ShellPortalProvider } from "@/features/workflows/detail/shell/shell-por
 import { ShellProvider } from "@/features/workflows/detail/shell/shell-context";
 import { WorkflowDetailLayout } from "@/features/workflows/detail/components/workflow-detail-layout";
 import { WorkflowDAGContent } from "@/features/workflows/detail/components/workflow-dag-content";
-import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
-import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
-import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/cancel-workflow-dialog";
+import { DetailsPanel } from "@/features/workflows/detail/components/panel/views/details-panel";
+import type { DetailsPanelView } from "@/features/workflows/detail/lib/panel-types";
+import { CancelWorkflowDialog } from "@/features/workflows/detail/components/panel/workflow/cancel-workflow-dialog";
 
 const ResubmitPanel = dynamic(
   () =>
@@ -62,12 +62,12 @@ const ResubmitPanel = dynamic(
   { ssr: false },
 );
 
-import { useWorkflowDetail } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail";
-import { useNavigationState } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
-import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";
-import { useWorkflowDetailAutoRefresh } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail-auto-refresh";
+import { useWorkflowDetail } from "@/features/workflows/detail/hooks/use-workflow-detail";
+import { useNavigationState } from "@/features/workflows/detail/hooks/use-navigation-state";
+import { usePanelProps } from "@/features/workflows/detail/hooks/use-panel-props";
+import { useWorkflowDetailAutoRefresh } from "@/features/workflows/detail/hooks/use-workflow-detail-auto-refresh";
 
-import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { GroupWithLayout, TaskQueryResponse } from "@/features/workflows/detail/lib/workflow-types";
 import type { InitialView } from "@/features/workflows/detail/components/workflow-detail-content";
 import { WorkflowStatus } from "@/lib/api/generated";
 

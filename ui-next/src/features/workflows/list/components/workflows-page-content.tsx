@@ -18,13 +18,13 @@
 
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
-import { useResultsCount } from "@/hooks/use-results-count";
-import { useDefaultFilter } from "@/hooks/use-default-filter";
+import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
+import { useDefaultFilter } from "@/components/filter-bar/hooks/use-default-filter";
 import { useViewTransition } from "@/hooks/use-view-transition";
+import { useWorkflowsData } from "@/lib/workflows/hooks/use-workflows-data";
 import { useCallback, useMemo } from "react";
 import { WorkflowsDataTable } from "@/features/workflows/list/components/table/workflows-data-table";
 import { WorkflowsToolbar } from "@/features/workflows/list/components/workflows-toolbar";
-import { useWorkflowsData } from "@/features/workflows/list/hooks/use-workflows-data";
 import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { useWorkflowsAutoRefresh } from "@/features/workflows/list/hooks/use-workflows-auto-refresh";
 import { useUser } from "@/lib/auth/user-context";

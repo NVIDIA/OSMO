@@ -2,6 +2,16 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const FEATURE_NAMES = ["dashboard", "datasets", "log-viewer", "pools", "profile", "resources", "workflows"];
+const crossFeatureZones = FEATURE_NAMES.map((featureName) => ({
+  target: `./src/features/${featureName}`,
+  from: "./src/features",
+  except: [`./${featureName}`],
+  message:
+    `Feature isolation: '${featureName}' must not import from other features. ` +
+    "Extract shared logic to shared modules (src/components, src/hooks, src/lib, src/stores).",
+}));
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -29,6 +39,44 @@ const eslintConfig = defineConfig([
           argsIgnorePattern: "^_",
           varsIgnorePattern: "^_",
           caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  // ============================================================================
+  // Architecture Boundaries (ratchet mode)
+  // ============================================================================
+  // Start as "warn" while migrating slices; raise to "error" after burn-down.
+  // Applies to production + test + mock code under src/.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "import/no-restricted-paths": [
+        "warn",
+        {
+          zones: [
+            // Enforce one-way boundary: features must not import app route internals.
+            {
+              target: "./src/features",
+              from: "./src/app",
+              message:
+                "Features must not import from src/app. Move reusable logic outside app and import from shared/feature modules.",
+            },
+            // Enforce one-way boundary: shared modules must not import app or features.
+            {
+              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/test-utils", "./src/mocks"],
+              from: "./src/app",
+              message:
+                "Shared modules must not import from src/app route internals.",
+            },
+            {
+              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/test-utils", "./src/mocks"],
+              from: "./src/features",
+              message:
+                "Shared modules must not import from src/features. Lift shared concerns into shared modules instead.",
+            },
+            ...crossFeatureZones,
+          ],
         },
       ],
     },

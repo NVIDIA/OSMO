@@ -35,11 +35,11 @@
 import { useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import { useResultsCount } from "@/hooks/use-results-count";
-import { useUrlChips } from "@/hooks/use-url-chips";
-import { usePanelState } from "@/hooks/use-url-state";
-import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
-import { usePanelWidth } from "@/hooks/use-panel-width";
+import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
+import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
+import { usePanelState } from "@/components/panel/hooks/use-url-state";
+import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle";
+import { usePanelWidth } from "@/components/panel/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import type { Resource } from "@/lib/api/adapter/types";
 import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";

@@ -26,8 +26,8 @@
 import { memo, useEffect, useState, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useMounted } from "@/hooks/use-mounted";
-import { usePanelWidth } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
-import { computeSnapIndicatorGeometry } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
+import { usePanelWidth } from "@/features/workflows/detail/lib/panel-resize-context";
+import { computeSnapIndicatorGeometry } from "@/features/workflows/detail/lib/panel-constants";
 
 function getOrCreatePortalContainer(): HTMLElement {
   let portalRoot = document.getElementById("snap-zone-portal");

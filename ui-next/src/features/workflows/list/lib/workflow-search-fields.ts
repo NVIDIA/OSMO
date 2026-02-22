@@ -14,42 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SearchField, SearchChip } from "@/components/filter-bar/lib/types";
-import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
+import type { SearchField } from "@/components/filter-bar/lib/types";
+import { WorkflowPriority } from "@/lib/api/generated";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
-import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
-import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "@/features/workflows/list/lib/workflow-constants";
+import { ALL_WORKFLOW_STATUSES } from "@/lib/workflows/workflow-constants";
+import { STATUS_PRESETS, createPresetChips, type StatusPresetId } from "@/lib/workflows/workflow-status-presets";
 import { naturalCompare } from "@/lib/utils";
-
-export type StatusPresetId = "running" | "waiting" | "completed" | "failed";
-
-function buildStatusPresets(): Record<StatusPresetId, WorkflowStatus[]> {
-  const presets: Record<StatusPresetId, WorkflowStatus[]> = {
-    running: [],
-    waiting: [],
-    completed: [],
-    failed: [],
-  };
-
-  for (const [status, meta] of Object.entries(WORKFLOW_STATUS_METADATA)) {
-    const category = meta.category as StatusPresetId;
-    if (category in presets) {
-      presets[category].push(status as WorkflowStatus);
-    }
-  }
-
-  return presets;
-}
-
-export const STATUS_PRESETS: Record<StatusPresetId, WorkflowStatus[]> = buildStatusPresets();
-
-export function createPresetChips(presetId: StatusPresetId): SearchChip[] {
-  return STATUS_PRESETS[presetId].map((status) => ({
-    field: "status",
-    value: status,
-    label: `Status: ${STATUS_LABELS[status] ?? status}`,
-  }));
-}
+export { STATUS_PRESETS, createPresetChips };
+export type { StatusPresetId };
 
 /**
  * Static workflow search fields. Async fields (user, pool) are provided

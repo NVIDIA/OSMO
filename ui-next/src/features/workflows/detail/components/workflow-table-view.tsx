@@ -28,21 +28,21 @@
 import { memo, useRef, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import { useResultsCount } from "@/hooks/use-results-count";
-import { useUrlChips } from "@/hooks/use-url-chips";
+import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
+import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import { WorkflowTasksTable } from "@/features/workflows/detail/components/table/workflow-tasks-table";
-import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
+import { DetailsPanel } from "@/features/workflows/detail/components/panel/views/details-panel";
 import { WorkflowTasksToolbar } from "@/features/workflows/detail/components/table/workflow-tasks-toolbar";
 import { PANEL } from "@/components/panel/panel-header-controls";
-import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";
-import { TASK_SEARCH_FIELDS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
-import type { WorkflowViewCommonProps } from "@/app/(dashboard)/workflows/[name]/lib/view-types";
+import { usePanelProps } from "@/features/workflows/detail/hooks/use-panel-props";
+import { TASK_SEARCH_FIELDS } from "@/features/workflows/detail/lib/task-search-fields";
+import type { WorkflowViewCommonProps } from "@/features/workflows/detail/lib/view-types";
 import type {
   TaskWithDuration,
   GroupWithLayout,
   TaskQueryResponse,
-} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+} from "@/features/workflows/detail/lib/workflow-types";
 
 // Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(

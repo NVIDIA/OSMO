@@ -50,8 +50,8 @@ import type {
   GroupWithLayout,
   TaskQueryResponse,
   GroupQueryResponse,
-} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-import { transformGroups as defaultTransformGroups } from "@/app/(dashboard)/workflows/[name]/lib/workflow-layout";
+} from "@/features/workflows/detail/lib/workflow-types";
+import { transformGroups as defaultTransformGroups } from "@/features/workflows/detail/lib/workflow-layout";
 import {
   calculateLayout as defaultCalculateLayout,
   computeInitialExpandedGroups as defaultComputeInitialExpandedGroups,

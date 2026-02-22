@@ -35,7 +35,7 @@ import {
   NODE_BORDER_WIDTH,
 } from "@/features/workflows/detail/dag/dag-layout";
 import { NODE_DEFAULTS, NODE_EXPANDED } from "@/components/dag/constants";
-import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
 
 // =============================================================================
 // Test Helpers

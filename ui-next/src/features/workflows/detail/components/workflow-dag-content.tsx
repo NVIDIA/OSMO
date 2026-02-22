@@ -40,13 +40,13 @@ import { MiniMapNode } from "@/components/dag/components/mini-map-node";
 import { DAGControls } from "@/components/dag/components/dag-controls";
 import { VIEWPORT, MINIMAP, BACKGROUND } from "@/components/dag/constants";
 import { useViewportBoundaries } from "@/components/dag/hooks/use-viewport-boundaries";
-import { useMiniMapColors } from "@/app/(dashboard)/workflows/[name]/lib/status";
+import { useMiniMapColors } from "@/features/workflows/detail/lib/status";
 import { useDAGState } from "@/features/workflows/detail/dag/use-dag-state";
 import type {
   GroupWithLayout,
   TaskQueryResponse,
   WorkflowQueryResponse,
-} from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+} from "@/features/workflows/detail/lib/workflow-types";
 
 import "@/features/workflows/detail/dag/dag.css";
 

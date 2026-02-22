@@ -316,6 +316,25 @@ export function formatTime24ShortUTC(date: Date | string | null): string {
 }
 
 // =============================================================================
+// Duration Formatting (seconds → human-readable)
+// =============================================================================
+
+/**
+ * Format duration in seconds to human-readable form.
+ * Output: "-" | "45s" | "5m" | "1h 30m"
+ *
+ * SSR-safe: Pure function with no locale dependency.
+ */
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null) return "-";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.round((seconds % 3600) / 60);
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+// =============================================================================
 // Relative Time (Client-Only)
 // =============================================================================
 

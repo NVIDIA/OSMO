@@ -19,10 +19,10 @@ import type { Node, Edge } from "@xyflow/react";
 import { MarkerType } from "@xyflow/react";
 import { LAYOUT_CACHE, NODE_DEFAULTS, NODE_EXPANDED, LAYOUT_SPACING, EDGE_STYLE } from "@/components/dag/constants";
 import type { LayoutDirection, NodeDimensions } from "@/components/dag/types";
-import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-import { getStatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { STATUS_STYLES } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
-import type { StatusCategory } from "@/app/(dashboard)/workflows/[name]/lib/status-utils";
+import type { GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
+import { getStatusCategory } from "@/features/workflows/detail/lib/status";
+import { STATUS_STYLES } from "@/features/workflows/detail/lib/status-utils";
+import type { StatusCategory } from "@/features/workflows/detail/lib/status-utils";
 
 // Callbacks accessed via DAGContext to prevent re-renders
 export interface GroupNodeData extends Record<string, unknown> {

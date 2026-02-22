@@ -31,11 +31,11 @@
 
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
-import { useResultsCount } from "@/hooks/use-results-count";
-import { useDefaultFilter } from "@/hooks/use-default-filter";
-import { useSelectionState } from "@/hooks/use-url-state";
-import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
-import { usePanelWidth } from "@/hooks/use-panel-width";
+import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
+import { useDefaultFilter } from "@/components/filter-bar/hooks/use-default-filter";
+import { useSelectionState } from "@/components/panel/hooks/use-url-state";
+import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle";
+import { usePanelWidth } from "@/components/panel/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";

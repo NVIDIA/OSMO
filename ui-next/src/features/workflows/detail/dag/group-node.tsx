@@ -48,12 +48,12 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { cn, naturalCompare } from "@/lib/utils";
 import { useTick } from "@/hooks/use-tick";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import type { TaskQueryResponse, GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-import { TaskGroupStatus, isTaskFailed } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import type { TaskQueryResponse, GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
+import { TaskGroupStatus, isTaskFailed } from "@/features/workflows/detail/lib/workflow-types";
 import type { GroupNodeData } from "@/features/workflows/detail/dag/dag-layout";
 import { useDAGContext } from "@/features/workflows/detail/dag/dag-context";
-import { getStatusIcon, getStatusCategory, getStatusLabel } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { getStatusIcon, getStatusCategory, getStatusLabel } from "@/features/workflows/detail/lib/status";
+import { calculateDuration, formatDuration } from "@/features/workflows/detail/lib/workflow-types";
 import { HANDLE_OFFSET } from "@/components/dag/constants";
 import { TASK_ROW_HEIGHT, NODE_HEADER_HEIGHT } from "@/features/workflows/detail/dag/dag-layout";
 

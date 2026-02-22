@@ -33,7 +33,7 @@ import {
   getPriorityDisplay,
   type StatusCategory,
 } from "@/features/workflows/list/lib/workflow-constants";
-import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
+import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus } from "@/lib/api/generated";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {

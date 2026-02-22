@@ -29,7 +29,7 @@
  */
 
 import { memo } from "react";
-import { GroupBadge } from "@/app/(dashboard)/workflows/[name]/components/shared/group-badge";
+import { GroupBadge } from "@/features/workflows/detail/components/shared/group-badge";
 
 // =============================================================================
 // Types

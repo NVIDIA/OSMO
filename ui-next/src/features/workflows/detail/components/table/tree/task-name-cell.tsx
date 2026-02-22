@@ -26,7 +26,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { LeadBadge } from "@/app/(dashboard)/workflows/[name]/components/shared/lead-badge";
+import { LeadBadge } from "@/features/workflows/detail/components/shared/lead-badge";
 
 // =============================================================================
 // Types
