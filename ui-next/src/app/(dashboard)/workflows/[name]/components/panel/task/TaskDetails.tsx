@@ -42,7 +42,7 @@ import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import { useTick } from "@/hooks/use-tick";
 import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
-import { ShellConnectPrompt } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskShell";
+import { ShellConnectPrompt } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-shell";
 import { EventViewerContainer } from "@/components/event-viewer/EventViewerContainer";
 import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import type { GroupWithLayout } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
@@ -57,7 +57,7 @@ import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/component
 import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
 import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskTimeline";
 import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DependencyPills";
-import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellPortalContext";
+import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
 import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/ShellContext";
 import { StatusDot } from "@/components/shell/components/StatusDot";
 import { useShellSession } from "@/components/shell/lib/shell-cache";

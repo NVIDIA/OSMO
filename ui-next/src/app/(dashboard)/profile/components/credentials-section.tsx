@@ -38,8 +38,8 @@ import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useServices } from "@/contexts/service-context";
 import { useMounted } from "@/hooks/use-mounted";
 import { useCredentials, useUpsertCredential, useDeleteCredential } from "@/lib/api/adapter/hooks";
-import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/CredentialsSkeleton";
-import { SectionErrorCard } from "@/app/(dashboard)/profile/components/SectionErrorCard";
+import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/credentials-skeleton";
+import { SectionErrorCard } from "@/app/(dashboard)/profile/components/section-error-card";
 import type { Credential, CredentialCreate } from "@/lib/api/adapter/types";
 
 type CredentialType = "REGISTRY" | "DATA" | "GENERIC";

@@ -21,10 +21,10 @@ import { FolderOpen } from "lucide-react";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
 import { useProfile, useBuckets, useUpdateProfile } from "@/lib/api/adapter/hooks";
 import { useServices } from "@/contexts/service-context";
-import { SelectionCard } from "@/app/(dashboard)/profile/components/SelectionCard";
-import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
-import { SectionErrorCard } from "@/app/(dashboard)/profile/components/SectionErrorCard";
-import type { SelectableListItem } from "@/app/(dashboard)/profile/components/SelectableList";
+import { SelectionCard } from "@/app/(dashboard)/profile/components/selection-card";
+import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/selection-skeleton";
+import { SectionErrorCard } from "@/app/(dashboard)/profile/components/section-error-card";
+import type { SelectableListItem } from "@/app/(dashboard)/profile/components/selectable-list";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 
 export function BucketsSection() {

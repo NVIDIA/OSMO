@@ -38,7 +38,7 @@ import { ResourcesPageContent } from "@/app/(dashboard)/resources/resources-page
 import { parseUrlChips } from "@/lib/url-utils";
 import { createServerQueryClient } from "@/lib/query-client";
 import type { PaginatedResourcesResult } from "@/lib/api/adapter/resources-shim";
-import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/computeAggregates";
+import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/compute-aggregates";
 
 interface ResourcesWithDataProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

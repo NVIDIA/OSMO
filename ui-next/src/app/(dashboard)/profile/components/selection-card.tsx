@@ -20,7 +20,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Badge } from "@/components/shadcn/badge";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
-import { SelectableList, type SelectableListItem } from "@/app/(dashboard)/profile/components/SelectableList";
+import { SelectableList, type SelectableListItem } from "@/app/(dashboard)/profile/components/selectable-list";
 import type { ProfileUpdate } from "@/lib/api/adapter/types";
 import type { AnnouncerService } from "@/contexts/service-context";
 

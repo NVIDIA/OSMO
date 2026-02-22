@@ -18,16 +18,16 @@
 
 import { Suspense } from "react";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import { ProfilePageTitle } from "@/app/(dashboard)/profile/components/ProfilePageTitle";
-import { ProfileNavigation } from "@/app/(dashboard)/profile/components/ProfileNavigation";
-import { UserInfoSection } from "@/app/(dashboard)/profile/components/UserInfoSection";
-import { NotificationsSection } from "@/app/(dashboard)/profile/components/NotificationsSection";
-import { BucketsSection } from "@/app/(dashboard)/profile/components/BucketsSection";
-import { PoolsSection } from "@/app/(dashboard)/profile/components/PoolsSection";
-import { CredentialsSection } from "@/app/(dashboard)/profile/components/CredentialsSection";
-import { NotificationsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/NotificationsSkeleton";
-import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/SelectionSkeleton";
-import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/CredentialsSkeleton";
+import { ProfilePageTitle } from "@/app/(dashboard)/profile/components/profile-page-title";
+import { ProfileNavigation } from "@/app/(dashboard)/profile/components/profile-navigation";
+import { UserInfoSection } from "@/app/(dashboard)/profile/components/user-info-section";
+import { NotificationsSection } from "@/app/(dashboard)/profile/components/notifications-section";
+import { BucketsSection } from "@/app/(dashboard)/profile/components/buckets-section";
+import { PoolsSection } from "@/app/(dashboard)/profile/components/pools-section";
+import { CredentialsSection } from "@/app/(dashboard)/profile/components/credentials-section";
+import { NotificationsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/notifications-skeleton";
+import { SelectionSkeleton } from "@/app/(dashboard)/profile/components/skeletons/selection-skeleton";
+import { CredentialsSkeleton } from "@/app/(dashboard)/profile/components/skeletons/credentials-skeleton";
 
 export function ProfileLayout() {
   return (
