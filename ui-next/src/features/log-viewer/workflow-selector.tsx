@@ -5,11 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Clock, AlertCircle, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePage } from "@/components/chrome/page-context";
-import {
-  getRecentWorkflows,
-  clearRecentWorkflows,
-  removeRecentWorkflow,
-} from "@/features/log-viewer/lib/recent-workflows";
+import { getRecentWorkflows, clearRecentWorkflows, removeRecentWorkflow } from "@/features/log-viewer/recent-workflows";
 
 interface WorkflowSelectorProps {
   error?: {

@@ -19,14 +19,14 @@ Current Cluster Status: CONTINUE
 
 All 70 files in `src/app/(dashboard)/workflows/[name]/` (excluding page.tsx, error.tsx) need to move to `src/features/workflows/detail/`.
 
-### Subsystem: dag (move as flat unit to features/workflows/detail/dag/)
-1. components/dag/dag-context.tsx
-2. components/dag/dag-edge.tsx
-3. components/dag/group-node.tsx
-4. hooks/use-dag-state.ts
-5. lib/dag-layout.ts
-6. lib/dag-layout.test.ts
-7. styles/dag.css
+### Subsystem: dag -- DONE (moved to features/workflows/detail/dag/)
+1. ~~components/dag/dag-context.tsx~~ -> features/workflows/detail/dag/dag-context.tsx
+2. ~~components/dag/dag-edge.tsx~~ -> features/workflows/detail/dag/dag-edge.tsx
+3. ~~components/dag/group-node.tsx~~ -> features/workflows/detail/dag/group-node.tsx
+4. ~~hooks/use-dag-state.ts~~ -> features/workflows/detail/dag/use-dag-state.ts
+5. ~~lib/dag-layout.ts~~ -> features/workflows/detail/dag/dag-layout.ts
+6. ~~lib/dag-layout.test.ts~~ -> features/workflows/detail/dag/dag-layout.test.ts
+7. ~~styles/dag.css~~ -> features/workflows/detail/dag/dag.css
 
 ### Subsystem: shell (move as flat unit to features/workflows/detail/shell/)
 8. components/shell/shell-container.tsx

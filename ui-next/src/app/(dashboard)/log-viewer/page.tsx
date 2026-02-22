@@ -16,8 +16,8 @@
 
 import { Suspense } from "react";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
-import { LogViewerWithData } from "@/features/log-viewer/components/log-viewer-with-data";
-import { WorkflowSelector } from "@/features/log-viewer/components/workflow-selector";
+import { LogViewerWithData } from "@/features/log-viewer/log-viewer-with-data";
+import { WorkflowSelector } from "@/features/log-viewer/workflow-selector";
 
 /**
  * Log Viewer Page (Server Component)
