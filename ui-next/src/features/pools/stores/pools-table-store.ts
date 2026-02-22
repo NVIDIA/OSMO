@@ -25,7 +25,7 @@ import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_SORT,
   DEFAULT_PANEL_WIDTH,
-} from "@/app/(dashboard)/pools/lib/pool-columns";
+} from "@/features/pools/lib/pool-columns";
 
 /**
  * Pool-specific extended state.

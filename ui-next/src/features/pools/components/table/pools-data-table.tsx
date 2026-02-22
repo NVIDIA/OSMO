@@ -42,13 +42,13 @@ import {
   MANDATORY_COLUMN_IDS,
   asPoolColumnIds,
   POOL_COLUMN_SIZE_CONFIG,
-} from "@/app/(dashboard)/pools/lib/pool-columns";
-import { createPoolColumns } from "@/app/(dashboard)/pools/components/table/pool-column-defs";
-import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
-import { useSortedPools } from "@/app/(dashboard)/pools/hooks/use-sorted-pools";
+} from "@/features/pools/lib/pool-columns";
+import { createPoolColumns } from "@/features/pools/components/table/pool-column-defs";
+import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
+import { useSortedPools } from "@/features/pools/hooks/use-sorted-pools";
 import { useCssVarDimensions } from "@/lib/css-utils";
 import { getStatusDisplay } from "@/lib/pool-status";
-import "@/app/(dashboard)/pools/styles/pools.css";
+import "@/features/pools/styles/pools.css";
 
 // =============================================================================
 // Types

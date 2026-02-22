@@ -40,15 +40,15 @@ import { useDefaultFilter } from "@/hooks/use-default-filter";
 import { usePanelState } from "@/hooks/use-url-state";
 import { usePanelLifecycle } from "@/hooks/use-panel-lifecycle";
 import { usePanelWidth } from "@/hooks/use-panel-width";
-import { PoolsDataTable } from "@/app/(dashboard)/pools/components/table/pools-data-table";
+import { PoolsDataTable } from "@/features/pools/components/table/pools-data-table";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { PANEL } from "@/components/panel/panel-header-controls";
-import { PoolPanelHeader } from "@/app/(dashboard)/pools/components/panel/panel-header";
-import { PanelContent } from "@/app/(dashboard)/pools/components/panel/panel-content";
-import { PoolsToolbar } from "@/app/(dashboard)/pools/components/pools-toolbar";
-import { usePoolsData } from "@/app/(dashboard)/pools/hooks/use-pools-data";
-import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
-import { usePoolsAutoRefresh } from "@/app/(dashboard)/pools/hooks/use-pools-auto-refresh";
+import { PoolPanelHeader } from "@/features/pools/components/panel/panel-header";
+import { PanelContent } from "@/features/pools/components/panel/panel-content";
+import { PoolsToolbar } from "@/features/pools/components/pools-toolbar";
+import { usePoolsData } from "@/features/pools/hooks/use-pools-data";
+import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
+import { usePoolsAutoRefresh } from "@/features/pools/hooks/use-pools-auto-refresh";
 import { useProfile } from "@/lib/api/adapter/hooks";
 
 // =============================================================================

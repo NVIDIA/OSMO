@@ -48,8 +48,8 @@ export const metadata: Metadata = {
  */
 
 import { Suspense } from "react";
-import { PoolsPageSkeleton } from "@/app/(dashboard)/pools/pools-page-skeleton";
-import { PoolsWithData } from "@/app/(dashboard)/pools/pools-with-data";
+import { PoolsPageSkeleton } from "@/features/pools/components/pools-page-skeleton";
+import { PoolsWithData } from "@/features/pools/components/pools-with-data";
 
 // =============================================================================
 // Streaming SSR - Fast TTFB + Server Prefetch

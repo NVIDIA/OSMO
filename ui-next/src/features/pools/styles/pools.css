@@ -22,7 +22,7 @@
  * Uses @reference to access Tailwind theme without duplicating CSS.
  * See: https://tailwindcss.com/docs/functions-and-directives#reference-directive
  */
-@reference "../../../globals.css";
+@reference "../../../app/globals.css";
 
 /* =============================================================================
    CSS Custom Properties

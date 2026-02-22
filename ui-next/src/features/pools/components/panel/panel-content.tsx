@@ -26,9 +26,9 @@ import { Link } from "@/components/link";
 import { CapacityBar } from "@/components/capacity-bar";
 import type { Pool } from "@/lib/api/adapter/types";
 import { getSharingInfo } from "@/lib/api/adapter/transforms";
-import { PlatformSelector } from "@/app/(dashboard)/pools/components/panel/platform-selector";
-import { PlatformConfigContent } from "@/app/(dashboard)/pools/components/panel/platform-config";
-import { SharedPoolsChips } from "@/app/(dashboard)/pools/components/panel/shared-pools-chips";
+import { PlatformSelector } from "@/features/pools/components/panel/platform-selector";
+import { PlatformConfigContent } from "@/features/pools/components/panel/platform-config";
+import { SharedPoolsChips } from "@/features/pools/components/panel/shared-pools-chips";
 
 // =============================================================================
 // Types

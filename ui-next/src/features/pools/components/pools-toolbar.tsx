@@ -27,9 +27,9 @@ import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components
 import { DisplayModeToggle } from "@/components/data-table/display-mode-toggle";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { RefreshControlProps } from "@/components/refresh/refresh-control";
-import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
-import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/pools/lib/pool-columns";
-import { createPoolSearchFields } from "@/app/(dashboard)/pools/lib/pool-search-fields";
+import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
+import { OPTIONAL_COLUMNS } from "@/features/pools/lib/pool-columns";
+import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
 import { STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
 /** Status icons matching the table column badges */

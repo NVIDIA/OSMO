@@ -19,7 +19,7 @@ import {
   parseNumericFilter,
   validateNumericFilter,
   compareNumeric,
-} from "@/app/(dashboard)/pools/lib/pool-search-fields";
+} from "@/features/pools/lib/pool-search-fields";
 
 // =============================================================================
 // parseNumericFilter Tests

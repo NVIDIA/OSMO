@@ -34,7 +34,7 @@
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPools } from "@/lib/api/server/pools";
 import { prefetchProfile } from "@/lib/api/server/profile";
-import { PoolsPageContent } from "@/app/(dashboard)/pools/pools-page-content";
+import { PoolsPageContent } from "@/features/pools/components/pools-page-content";
 import { createServerQueryClient } from "@/lib/query-client";
 
 export async function PoolsWithData() {

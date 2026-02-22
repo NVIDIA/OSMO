@@ -29,9 +29,9 @@ import type { DisplayMode } from "@/stores/shared-preferences-store";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
-import { GpuProgressCell } from "@/app/(dashboard)/pools/components/cells/gpu-progress-cell";
+import { GpuProgressCell } from "@/features/pools/components/cells/gpu-progress-cell";
 import { PlatformPills } from "@/components/platform-pills";
-import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "@/app/(dashboard)/pools/lib/pool-columns";
+import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "@/features/pools/lib/pool-columns";
 import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
 // Status icons mapping
