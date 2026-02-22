@@ -30,6 +30,13 @@ A file in the directory that the graph doesn't list: include it — the graph is
 
 Live Grep and Read are always more accurate than graph memory after recent changes.
 
+**CRITICAL — Dynamic route directories**: Next.js directories like `[bucket]`, `[name]`,
+`[id]` use literal square brackets as directory names on disk. If the graph lists
+`src/app/.../[bucket]/[name]/** (N files)` as an abbreviation, do NOT treat `[bucket]`
+as a glob character class. The live `Glob: [cluster-directory]/**/*.{ts,tsx}` call will
+correctly traverse into `[bracket]` directories via `**`. Trust the Glob result, not the
+graph's abbreviated notation.
+
 ---
 
 ## 1. Why Cluster-Scoped Batching
@@ -215,6 +222,8 @@ in that directory tree.
 Combine all of the above plus:
 - `src/stores/` = pseudo-cluster "stores"
 - `src/lib/` = pseudo-cluster "lib" (skip `generated.ts`)
+- `src/mocks/` = pseudo-cluster "mocks"
+- `src/components/*.{ts,tsx}` (root-level only, no subdirs) = pseudo-cluster "components-root"
 
 **Order when UNBUILT:** alphabetical (no topology data available).
 

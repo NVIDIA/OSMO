@@ -264,7 +264,9 @@ STATUS: [DONE | CONTINUE]
 - **Never edit a file you haven't read in this session**
 - **Never run `pnpm test`** — only type-check + lint
 - **Never use `@ts-ignore`, `any`, or `eslint-disable`**
-- **Never touch test files, mock files, or generated files**
+- **Never touch test files or generated files** (`*.test.tsx`, `*.spec.tsx`, `src/lib/api/generated.ts`)
+- **Files in `src/mocks/` ARE renameable** — apply the same PascalCase→kebab-case rule to them.
+  The only exception is MSW infrastructure files already in kebab-case (e.g. `server.ts`, `handlers.ts`).
 - **Never rename Next.js reserved files** (page.tsx, layout.tsx, etc.)
 - **Never touch `src/components/shadcn/`**
 - **Never move files between directories** — only rename in-place (moves = folder-structure domain)

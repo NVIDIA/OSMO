@@ -4,9 +4,9 @@ Last Built: 2026-02-21
 Last Updated: 2026-02-21
 Status: BUILT
 
-Source Files: 491
-Total Nodes: 491
-Total Edges: ~1630
+Source Files: ~515
+Total Nodes: ~515
+Total Edges: ~1650
 
 ---
 
@@ -44,11 +44,28 @@ Files:
   - src/app/(dashboard)/datasets/datasets-page-content.tsx
   - src/app/(dashboard)/datasets/datasets-page-skeleton.tsx
   - src/app/(dashboard)/datasets/datasets-with-data.tsx
-  - src/app/(dashboard)/datasets/[bucket]/[name]/** (14 files)
-  - src/app/(dashboard)/datasets/components/** (6 files)
-  - src/app/(dashboard)/datasets/hooks/** (3 files)
-  - src/app/(dashboard)/datasets/lib/** (4 files)
-  - src/app/(dashboard)/datasets/stores/** (1 file)
+  - src/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-content.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-skeleton.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-with-data.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail.ts
+  - src/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-file-browser-state.ts
+  - src/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-breadcrumb.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-header.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-table.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/components/file-preview-panel.tsx
+  - src/app/(dashboard)/datasets/[bucket]/[name]/components/version-switcher.tsx
+  - src/app/(dashboard)/datasets/components/panel/dataset-panel.tsx
+  - src/app/(dashboard)/datasets/components/panel/dataset-panel-details.tsx
+  - src/app/(dashboard)/datasets/components/panel/dataset-panel-versions.tsx
+  - src/app/(dashboard)/datasets/components/table/dataset-column-defs.tsx
+  - src/app/(dashboard)/datasets/components/table/datasets-data-table.tsx
+  - src/app/(dashboard)/datasets/components/toolbar/datasets-toolbar.tsx
+  - src/app/(dashboard)/datasets/hooks/use-datasets-async-fields.ts
+  - src/app/(dashboard)/datasets/hooks/use-datasets-data.ts
+  - src/app/(dashboard)/datasets/lib/dataset-columns.ts
+  - src/app/(dashboard)/datasets/lib/dataset-search-fields.ts
+  - src/app/(dashboard)/datasets/lib/date-filter-utils.ts
+  - src/app/(dashboard)/datasets/stores/datasets-table-store.ts
 Internal edges: ~30
 External edges: ~55
 Cohesion: 35% -> LOW
@@ -508,6 +525,54 @@ Imports from clusters: [hooks, components, workflow-detail (VIOLATION)]
 Imported by clusters: [all features]
 Notes: VIOLATION: workflow-detail-panel-store imports from app/(dashboard)/workflows/[name]/lib/.
 
+### mocks
+Directory: src/mocks
+Files:
+  - src/mocks/mock-provider.tsx
+  - src/mocks/mock-provider.production.tsx
+  - src/mocks/server.ts
+  - src/mocks/server.production.ts
+  - src/mocks/handlers.ts
+  - src/mocks/handlers.production.ts
+  - src/mocks/global-config.ts
+  - src/mocks/mock-workflows.ts
+  - src/mocks/utils.ts
+  - src/mocks/inject-auth.ts
+Internal edges: ~4
+External edges: ~3
+Cohesion: 57% -> MEDIUM
+Imports from clusters: [actions, lib]
+Imported by clusters: [actions (via next.config alias), components (providers.tsx)]
+Notes: Dev-only MSW infrastructure. mock-provider.tsx / mock-provider.production.tsx are
+  infrastructure providers aliased via next.config.ts. All files follow standard naming
+  conventions — PascalCase violations here ARE fixable (same rules as production code).
+
+### components-root
+Directory: src/components
+Files:
+  - src/components/boolean-indicator.tsx
+  - src/components/capacity-bar.tsx
+  - src/components/copyable-value.tsx
+  - src/components/dev-auth-init.tsx
+  - src/components/expandable-chips.tsx
+  - src/components/inline-progress.tsx
+  - src/components/item-selector.tsx
+  - src/components/link.tsx
+  - src/components/not-found-content.tsx
+  - src/components/placeholder-section.tsx
+  - src/components/progress-bar.tsx
+  - src/components/providers.tsx
+  - src/components/query-devtools.tsx
+  - src/components/theme-toggle.tsx
+Internal edges: ~3
+External edges: ~20
+Cohesion: 13% -> LOW
+Imports from clusters: [chrome, hooks, lib, shadcn, mocks]
+Imported by clusters: [all feature modules via providers.tsx]
+Notes: Root-level shared components — files directly in src/components/ (no subdirectory).
+  providers.tsx is the app-wide provider tree (in_degree=0, but it IS an entry point).
+  dev-auth-init.tsx and query-devtools.tsx are dev-only utilities conditionally rendered.
+
 ---
 
 ## Notable Nodes
@@ -683,3 +748,15 @@ Notes: VIOLATION: workflow-detail-panel-store imports from app/(dashboard)/workf
 2026-02-21 RENAME src/components/shell/components/ShellSessionIcon.tsx -> src/components/shell/components/shell-session-icon.tsx
 2026-02-21 RENAME src/components/shell/components/ShellTerminalImpl.tsx -> src/components/shell/components/shell-terminal-impl.tsx
 2026-02-21 RENAME src/components/shell/components/ShellTerminal.tsx -> src/components/shell/components/shell-terminal.tsx
+2026-02-21 RENAME src/components/DevAuthInit.tsx -> src/components/dev-auth-init.tsx
+2026-02-21 RENAME src/components/QueryDevtools.tsx -> src/components/query-devtools.tsx
+2026-02-21 RENAME src/mocks/MockProvider.production.tsx -> src/mocks/mock-provider.production.tsx
+2026-02-21 RENAME src/mocks/MockProvider.tsx -> src/mocks/mock-provider.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserBreadcrumb.tsx -> src/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-breadcrumb.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserHeader.tsx -> src/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-header.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/[bucket]/[name]/components/FilePreviewPanel.tsx -> src/app/(dashboard)/datasets/[bucket]/[name]/components/file-preview-panel.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/[bucket]/[name]/components/VersionSwitcher.tsx -> src/app/(dashboard)/datasets/[bucket]/[name]/components/version-switcher.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/[bucket]/[name]/components/FileBrowserTable.tsx -> src/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-table.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/components/panel/DatasetPanel.tsx -> src/app/(dashboard)/datasets/components/panel/dataset-panel.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/components/panel/DatasetPanelDetails.tsx -> src/app/(dashboard)/datasets/components/panel/dataset-panel-details.tsx
+2026-02-21 RENAME src/app/(dashboard)/datasets/components/panel/DatasetPanelVersions.tsx -> src/app/(dashboard)/datasets/components/panel/dataset-panel-versions.tsx

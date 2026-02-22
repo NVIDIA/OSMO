@@ -56,7 +56,10 @@ Glob: src/**/*.tsx
 Filter OUT:
 - `src/lib/api/generated.ts`
 - `*.test.ts`, `*.test.tsx`, `*.spec.ts`, `*.spec.tsx`
-- `src/mocks/**`
+
+**Do NOT filter out `src/mocks/`** — include it as a cluster named "mocks". MSW handlers
+and infrastructure providers in that directory follow the same naming conventions as
+production code and must be included for rename enforcement to reach them.
 
 Group files by their primary directory (first 3 path segments after `src/`):
 - `src/components/data-table/` → cluster candidate "data-table"
@@ -64,6 +67,20 @@ Group files by their primary directory (first 3 path segments after `src/`):
 - `src/hooks/` → cluster candidate "global-hooks"
 - `src/stores/` → cluster candidate "stores"
 - `src/lib/` → cluster candidate "lib"
+- `src/mocks/` → cluster candidate "mocks"
+
+**Special case — `src/components/*.{ts,tsx}` root-level files** (files directly in
+`src/components/`, not in any subdirectory): these have only 2 path segments and fall
+through the 3-segment grouping. Collect them into a cluster named "components-root"
+with `Directory: src/components` and a note that only the root-level files belong here
+(subdirectory files belong to their own cluster).
+
+**IMPORTANT — Dynamic route directories**: Next.js uses bracket notation for dynamic
+routes, e.g. `src/app/(dashboard)/datasets/[bucket]/[name]/`. The `[` and `]` characters
+are **literal directory names on disk**, not glob patterns. Always list each file
+individually in the graph output — never abbreviate with `[bucket]/[name]/**`. Listing
+files individually prevents downstream agents from misreading bracketed paths as glob
+character classes.
 
 Record total source file count.
 
@@ -246,4 +263,5 @@ STATUS: [DONE | CONTINUE]
 - **Append-only for changelog** — never remove entries
 - **Entry points are never dead code** — page.tsx, layout.tsx, etc. are always excluded from dead candidates
 - **Normalize import paths before recording** — resolve `@/` prefix to actual file paths
-- **Skip test files, mock files, generated files** — these distort the graph
+- **Skip test files and generated files** — `*.test.ts`, `*.spec.ts`, `src/lib/api/generated.ts`
+- **Do NOT skip `src/mocks/`** — include it as the "mocks" cluster
