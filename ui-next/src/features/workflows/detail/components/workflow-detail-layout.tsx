@@ -26,7 +26,7 @@
 
 import { useRef, useEffect, useMemo, useCallback, type ReactNode, type RefObject, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
-import { FullSnapOverlay, StripSnapIndicator } from "@/app/(dashboard)/workflows/[name]/components/snap-zone-indicator";
+import { FullSnapOverlay, StripSnapIndicator } from "@/features/workflows/detail/components/snap-zone-indicator";
 import {
   usePanelResize,
   useDisplayDagVisible,

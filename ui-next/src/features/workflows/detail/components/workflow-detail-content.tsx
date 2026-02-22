@@ -48,7 +48,7 @@
 "use client";
 
 import { usePage } from "@/components/chrome/page-context";
-import { WorkflowDetailInnerWithProvider } from "@/app/(dashboard)/workflows/[name]/workflow-detail-inner";
+import { WorkflowDetailInnerWithProvider } from "@/features/workflows/detail/components/workflow-detail-inner";
 
 // =============================================================================
 // Direct Import for ReactFlow

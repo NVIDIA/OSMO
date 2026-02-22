@@ -48,14 +48,17 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
 import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
-import { WorkflowDetailLayout } from "@/app/(dashboard)/workflows/[name]/components/workflow-detail-layout";
-import { WorkflowDAGContent } from "@/app/(dashboard)/workflows/[name]/components/workflow-dag-content";
+import { WorkflowDetailLayout } from "@/features/workflows/detail/components/workflow-detail-layout";
+import { WorkflowDAGContent } from "@/features/workflows/detail/components/workflow-dag-content";
 import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
 import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
 import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/cancel-workflow-dialog";
 
 const ResubmitPanel = dynamic(
-  () => import("./components/resubmit/resubmit-panel").then((m) => ({ default: m.ResubmitPanel })),
+  () =>
+    import("@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel").then((m) => ({
+      default: m.ResubmitPanel,
+    })),
   { ssr: false },
 );
 
@@ -65,12 +68,12 @@ import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-pane
 import { useWorkflowDetailAutoRefresh } from "@/app/(dashboard)/workflows/[name]/hooks/use-workflow-detail-auto-refresh";
 
 import type { GroupWithLayout, TaskQueryResponse } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
-import type { InitialView } from "@/app/(dashboard)/workflows/[name]/workflow-detail-content";
+import type { InitialView } from "@/features/workflows/detail/components/workflow-detail-content";
 import { WorkflowStatus } from "@/lib/api/generated";
 
 const ShellContainer = dynamic(
   () =>
-    import("./components/shell/shell-container").then((m) => ({
+    import("@/app/(dashboard)/workflows/[name]/components/shell/shell-container").then((m) => ({
       default: m.ShellContainer,
     })),
   {
