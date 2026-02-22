@@ -94,7 +94,7 @@ const lightColors = {
  * Structural and interactive styles are in code-viewer-theme.css.
  * @param isDark - Whether to use dark mode colors
  */
-export function createCodeViewerTheme(isDark: boolean) {
+function createCodeViewerTheme(isDark: boolean) {
   return EditorView.theme(
     {
       // Base container - minimal JS-side styles for CodeMirror initialization
@@ -124,7 +124,7 @@ export function createCodeViewerTheme(isDark: boolean) {
  * Creates syntax highlighting for the code viewer.
  * @param isDark - Whether to use dark mode colors
  */
-export function createCodeViewerHighlightStyle(isDark: boolean) {
+function createCodeViewerHighlightStyle(isDark: boolean) {
   const colors = isDark ? darkColors : lightColors;
 
   return HighlightStyle.define([

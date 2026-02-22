@@ -1,11 +1,11 @@
 # Audit-and-Fix Pipeline State
-Last Updated: 2026-02-21 (added abstraction domain at position 6)
+Last Updated: 2026-02-21
 
 ## Domain Status
 | Domain                  | Status   | Last Run   | Iterations |
 |-------------------------|----------|------------|------------|
-| dependency-graph        | PENDING  | —          | 0          |
-| dead-code               | PENDING  | —          | 0          |
+| dependency-graph        | DONE     | 2026-02-21 | 1          |
+| dead-code               | DONE     | 2026-02-21 | 18         |
 | file-rename             | PENDING  | —          | 0          |
 | folder-structure        | PENDING  | —          | 0          |
 | layer-compliance        | PENDING  | —          | 0          |
@@ -18,7 +18,7 @@ Last Updated: 2026-02-21 (added abstraction domain at position 6)
 | design-guidelines       | DONE     | 2026-02-21 | 1          |
 
 ## Active Domain
-dependency-graph
+file-rename
 
 ## Final Verification
 PENDING

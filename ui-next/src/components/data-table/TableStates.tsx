@@ -42,7 +42,7 @@ import { TableSkeleton } from "@/components/data-table/TableSkeleton";
 // Types
 // =============================================================================
 
-export interface TableLoadingSkeletonProps {
+interface TableLoadingSkeletonProps {
   /** Number of columns to show */
   columnCount?: number;
   /** Number of skeleton rows to display */
@@ -53,7 +53,7 @@ export interface TableLoadingSkeletonProps {
   className?: string;
 }
 
-export interface TableErrorStateProps {
+interface TableErrorStateProps {
   /** The error object */
   error: Error;
   /** Title text for the error message */

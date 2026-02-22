@@ -69,7 +69,7 @@ interface PendingDisplayRange {
  * and useLogViewerLocalState (instance-isolated). The presentation hook
  * is agnostic to the backing implementation — callers choose which to use.
  */
-export type LogViewerStateApi = UseLogViewerUrlStateReturn;
+type LogViewerStateApi = UseLogViewerUrlStateReturn;
 
 export interface UseLogPresentationParams {
   /** Raw entries from useLogStream */

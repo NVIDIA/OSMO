@@ -36,7 +36,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
  * Modifier that restricts drag movement to horizontal axis only.
  * Prevents vertical movement and scaling during column reorder.
  */
-export const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
+const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
   ...transform,
   y: 0,
   scaleX: 1,
@@ -47,7 +47,7 @@ export const restrictToHorizontalAxis: Modifier = ({ transform }) => ({
  * Modifier that restricts drag to within the parent container bounds.
  * Prevents dragging columns beyond the table header width.
  */
-export const restrictToParentBounds: Modifier = ({ transform, draggingNodeRect, containerNodeRect }) => {
+const restrictToParentBounds: Modifier = ({ transform, draggingNodeRect, containerNodeRect }) => {
   if (!draggingNodeRect || !containerNodeRect) {
     return transform;
   }
@@ -75,7 +75,7 @@ export const restrictToParentBounds: Modifier = ({ transform, draggingNodeRect, 
  * <DndContext autoScroll={AUTO_SCROLL_CONFIG}>
  * ```
  */
-export const AUTO_SCROLL_CONFIG = false;
+const AUTO_SCROLL_CONFIG = false;
 
 /**
  * Hook for table column DnD setup.

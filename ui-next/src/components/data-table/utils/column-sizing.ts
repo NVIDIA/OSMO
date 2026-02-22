@@ -73,14 +73,6 @@ export function getRemToPx(): number {
   }
 }
 
-/**
- * Invalidate the rem-to-px cache. Exposed for testing.
- * @internal
- */
-export function _invalidateRemToPxCache(): void {
-  _remToPxCache = null;
-}
-
 /** Convert rem to pixels */
 export function remToPx(rem: number, baseFontSize?: number): number {
   return rem * (baseFontSize ?? getRemToPx());
@@ -91,7 +83,7 @@ export function remToPx(rem: number, baseFontSize?: number): number {
 // =============================================================================
 
 /** Generate CSS variable name for a column */
-export function getColumnCSSVariable(columnId: string): string {
+function getColumnCSSVariable(columnId: string): string {
   return `--col-${columnId.replace(/[^a-zA-Z0-9-_]/g, "-")}`;
 }
 

@@ -58,7 +58,7 @@ export function useEventViewerContext(): EventViewerContextValue {
   return useContext(EventViewerContext);
 }
 
-export interface EventViewerProviderProps {
+interface EventViewerProviderProps {
   isParentTerminal: boolean;
   taskStatus?: TaskGroupStatus;
   taskStatuses?: Map<string, TaskGroupStatus>;

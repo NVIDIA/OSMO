@@ -39,7 +39,7 @@ const OVERSCAN_COUNT = 10;
 /** Column headers matching the grid template */
 const HEADERS = ["Task", "Retry", "Duration", "Lifecycle", "Events"] as const;
 
-export interface EventViewerTableProps {
+interface EventViewerTableProps {
   tasks: TaskGroup[];
   expandedIds: Set<string>;
   onToggleExpand?: (taskId: string) => void;

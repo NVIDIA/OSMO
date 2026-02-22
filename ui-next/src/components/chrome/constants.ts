@@ -26,26 +26,26 @@
 // ============================================================================
 
 /** Sidebar width in rem when expanded */
-export const SIDEBAR_WIDTH_REM = 12; // 12rem
+const SIDEBAR_WIDTH_REM = 12; // 12rem
 
 /** Sidebar width in rem when collapsed (icon-only mode) */
-export const SIDEBAR_WIDTH_ICON_REM = 3.25; // 3.25rem
+const SIDEBAR_WIDTH_ICON_REM = 3.25; // 3.25rem
 
 /** Base font size for rem to px conversion */
 const REM_BASE = 16;
 
 /** Sidebar width in pixels when expanded */
-export const SIDEBAR_WIDTH_EXPANDED_PX = SIDEBAR_WIDTH_REM * REM_BASE; // 192px
+const SIDEBAR_WIDTH_EXPANDED_PX = SIDEBAR_WIDTH_REM * REM_BASE; // 192px
 
 /** Sidebar width in pixels when collapsed (icon-only mode) */
-export const SIDEBAR_WIDTH_COLLAPSED_PX = SIDEBAR_WIDTH_ICON_REM * REM_BASE; // 52px
+const SIDEBAR_WIDTH_COLLAPSED_PX = SIDEBAR_WIDTH_ICON_REM * REM_BASE; // 52px
 
 // ============================================================================
 // Animation Timings
 // ============================================================================
 
 /** Sidebar CSS transition duration in milliseconds */
-export const SIDEBAR_TRANSITION_MS = 200;
+const SIDEBAR_TRANSITION_MS = 200;
 
 // ============================================================================
 // CSS Variables (for SidebarProvider style prop)

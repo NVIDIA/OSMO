@@ -28,7 +28,6 @@
 "use client";
 
 import { memo } from "react";
-import { ChevronLeft, ArrowRightToLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 
@@ -143,98 +142,10 @@ export const PanelHeader = memo(function PanelHeader({
 });
 
 // =============================================================================
-// PanelBackButton
-// =============================================================================
-
-export interface PanelBackButtonProps {
-  /** Click handler */
-  onClick: () => void;
-  /** Breadcrumb label (e.g., "Group Name") */
-  label: string;
-  /** Aria label override */
-  "aria-label"?: string;
-}
-
-/**
- * Back button with breadcrumb label for hierarchical navigation.
- *
- * @example
- * ```tsx
- * <PanelBackButton
- *   onClick={handleBack}
- *   label="my-group"
- * />
- * // Renders: [<] my-group
- * ```
- */
-export const PanelBackButton = memo(function PanelBackButton({
-  onClick,
-  label,
-  "aria-label": ariaLabel,
-}: PanelBackButtonProps) {
-  return (
-    <>
-      <button
-        type="button"
-        onClick={onClick}
-        className="-ml-1 flex shrink-0 items-center gap-1 rounded-md py-1 pr-2 pl-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-        aria-label={ariaLabel ?? `Back to ${label}`}
-      >
-        <ChevronLeft
-          className="size-4"
-          aria-hidden="true"
-        />
-        <span
-          className="text-sm"
-          aria-hidden="true"
-        >
-          {label}
-        </span>
-      </button>
-      <span className="shrink-0 text-gray-400 dark:text-zinc-600">/</span>
-    </>
-  );
-});
-
-// =============================================================================
-// PanelCollapseButton
-// =============================================================================
-
-export interface PanelCollapseButtonProps {
-  /** Click handler */
-  onCollapse: () => void;
-  /** Aria label (default: "Collapse panel") */
-  "aria-label"?: string;
-}
-
-/**
- * Collapse button for panels that support collapsing to an edge strip.
- * Uses ArrowRightToLine icon (vs X for close).
- */
-export const PanelCollapseButton = memo(function PanelCollapseButton({
-  onCollapse,
-  "aria-label": ariaLabel = "Collapse panel",
-}: PanelCollapseButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onCollapse}
-      className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-      aria-label={ariaLabel}
-    >
-      <ArrowRightToLine
-        className="size-4"
-        aria-hidden="true"
-      />
-    </button>
-  );
-});
-
-// =============================================================================
 // PanelBadge
 // =============================================================================
 
-export type PanelBadgeVariant = "neutral" | "amber";
+type PanelBadgeVariant = "neutral" | "amber";
 
 export interface PanelBadgeProps {
   /** Badge label text */

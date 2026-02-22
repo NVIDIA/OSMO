@@ -31,11 +31,9 @@
 // ============================================================================
 
 /**
- * Convert rem to pixels for layout calculations.
- * Uses base font size of 16px.
+ * Base font size for rem-to-pixel conversion.
  */
 const REM_BASE = 16;
-export const remToPx = (rem: number) => rem * REM_BASE;
 
 /**
  * Default node dimensions.
@@ -175,19 +173,6 @@ export const ANIMATION = {
   PANEL_TRANSITION: 200,
   /** Debounce interval for window resize handling (ms) - wait for resize to settle */
   RESIZE_THROTTLE_MS: 150,
-} as const;
-
-// ============================================================================
-// Viewport Adjustment Thresholds
-// ============================================================================
-
-export const VIEWPORT_THRESHOLDS = {
-  /**
-   * Minimum squared distance (px²) to trigger a viewport animation.
-   * Using squared distance avoids expensive Math.sqrt calls.
-   * A value of 1 means: animate if moved more than 1px in any direction.
-   */
-  MIN_ADJUSTMENT_DISTANCE_SQ: 1,
 } as const;
 
 // ============================================================================

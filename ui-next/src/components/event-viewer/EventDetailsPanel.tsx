@@ -20,7 +20,7 @@ import { formatDateTimeFull, formatDateTimeSuccinctWithSeconds } from "@/lib/for
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 
-export interface EventDetailsPanelProps {
+interface EventDetailsPanelProps {
   task: TaskGroup & {
     /** Filtered events subset when event-level filters are active */
     _filteredEvents?: K8sEvent[];

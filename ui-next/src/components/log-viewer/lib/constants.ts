@@ -48,12 +48,6 @@ export const SCROLL_BOTTOM_THRESHOLD = 50;
 /** Default histogram height (pixels) */
 export const HISTOGRAM_HEIGHT = 80;
 
-/** Gap between histogram bars (pixels) */
-export const HISTOGRAM_BAR_GAP = 1;
-
-/** Minimum histogram bar width (pixels) */
-export const HISTOGRAM_MIN_BAR_WIDTH = 4;
-
 // =============================================================================
 // Skeleton
 // =============================================================================

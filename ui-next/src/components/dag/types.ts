@@ -23,8 +23,6 @@
  * These types are framework-agnostic and can be used with any domain data.
  */
 
-import type { Node, Edge } from "@xyflow/react";
-
 // ============================================================================
 // Layout Types
 // ============================================================================
@@ -36,48 +34,6 @@ export type LayoutDirection = "TB" | "LR";
 export interface NodeDimensions {
   width: number;
   height: number;
-}
-
-// ============================================================================
-// Generic Node Data
-// ============================================================================
-
-/**
- * Base interface for DAG node data.
- * Consumers should extend this with their domain-specific properties.
- *
- * @example
- * ```tsx
- * interface WorkflowNodeData extends DAGNodeData {
- *   group: WorkflowGroup;
- *   status: string;
- * }
- * ```
- */
-export interface DAGNodeData extends Record<string, unknown> {
-  /** Unique identifier for the node */
-  id: string;
-
-  /** Display label for the node */
-  label: string;
-
-  /** Whether this node is expanded (for collapsible nodes) */
-  isExpanded?: boolean;
-
-  /** Current layout direction */
-  layoutDirection: LayoutDirection;
-
-  /** Node width for bounds calculations */
-  nodeWidth: number;
-
-  /** Node height for bounds calculations */
-  nodeHeight: number;
-
-  /** Whether this node has incoming edges (for handle rendering) */
-  hasIncomingEdges: boolean;
-
-  /** Whether this node has outgoing edges (for handle rendering) */
-  hasOutgoingEdges: boolean;
 }
 
 // ============================================================================
@@ -108,26 +64,9 @@ export interface DAGInputNode {
   data?: Record<string, unknown>;
 }
 
-/**
- * Input for DAG layout calculation.
- */
-export interface DAGInput {
-  /** Nodes to layout */
-  nodes: DAGInputNode[];
-
-  /** Layout direction */
-  direction: LayoutDirection;
-}
-
 // ============================================================================
 // Layout Result Types
 // ============================================================================
-
-/** Result of the layout calculation */
-export interface LayoutResult<TNodeData extends DAGNodeData = DAGNodeData> {
-  nodes: Node<TNodeData>[];
-  edges: Edge[];
-}
 
 /**
  * Position data returned from layout calculation.
@@ -169,17 +108,3 @@ export interface EdgeStyle {
   /** Whether the edge should be dashed */
   dashed?: boolean;
 }
-
-// ============================================================================
-// Callback Types
-// ============================================================================
-
-/**
- * Callback when a node is selected.
- */
-export type OnNodeSelect<T = unknown> = (nodeId: string, data: T) => void;
-
-/**
- * Callback when a node's expanded state changes.
- */
-export type OnNodeToggleExpand = (nodeId: string) => void;

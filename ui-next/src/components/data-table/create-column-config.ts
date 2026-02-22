@@ -47,7 +47,7 @@ import type { ColumnDefinition } from "@/components/data-table/TableToolbar";
 // Types
 // =============================================================================
 
-export interface ColumnConfigInput<TColumnId extends string> {
+interface ColumnConfigInput<TColumnId extends string> {
   /** All column IDs as a readonly tuple */
   columns: readonly TColumnId[];
   /** Human-readable labels for each column */

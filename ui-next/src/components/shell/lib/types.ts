@@ -75,15 +75,6 @@ export interface UseShellReturn {
   searchResults: SearchResultInfo | null;
 }
 
-export interface UseWebSocketShellReturn {
-  status: ConnectionStatus;
-  error: string | null;
-  connect: () => Promise<void>;
-  disconnect: () => void;
-  send: (data: string | Uint8Array) => void;
-  resize: (rows: number, cols: number) => void;
-}
-
 export const SHELL_THEME = {
   background: "#09090b",
   foreground: "#e4e4e7",

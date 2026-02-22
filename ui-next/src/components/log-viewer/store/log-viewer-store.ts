@@ -47,7 +47,7 @@ interface LogViewerActions {
   reset: () => void;
 }
 
-export type LogViewerStore = LogViewerState & LogViewerActions;
+type LogViewerStore = LogViewerState & LogViewerActions;
 
 // =============================================================================
 // Initial State
@@ -57,7 +57,7 @@ export type LogViewerStore = LogViewerState & LogViewerActions;
  * Default initial state.
  * Exported for testing - allows resetting store to known state.
  */
-export const initialState: LogViewerState = {
+const initialState: LogViewerState = {
   wrapLines: false,
   showTask: true,
   timelineCollapsed: false,

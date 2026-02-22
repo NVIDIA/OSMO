@@ -22,7 +22,7 @@ import { EventDetailsPanel } from "@/components/event-viewer/EventDetailsPanel";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 
-export interface TaskRowProps {
+interface TaskRowProps {
   task: TaskGroup & {
     /** Filtered events subset (only present when event-level filters active) */
     _filteredEvents?: K8sEvent[];

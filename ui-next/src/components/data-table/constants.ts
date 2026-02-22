@@ -74,9 +74,6 @@ export const PreferenceModes = {
 
 export type PreferenceMode = (typeof PreferenceModes)[keyof typeof PreferenceModes];
 
-/** All valid preference modes for iteration/validation */
-export const PREFERENCE_MODE_VALUES = Object.values(PreferenceModes);
-
 // =============================================================================
 // Sort Direction
 // =============================================================================
@@ -93,63 +90,6 @@ export const SortDirections = {
 
 export type SortDirection = (typeof SortDirections)[keyof typeof SortDirections];
 
-/** All valid sort directions for iteration/validation */
-export const SORT_DIRECTION_VALUES = Object.values(SortDirections);
-
-// =============================================================================
-// Sizing Event Types (used by debug system)
-// =============================================================================
-
-/**
- * State machine events for column sizing.
- */
-export const SizingEventTypes = {
-  /** Initial sizing calculation */
-  INIT: "INIT",
-  /** Container width changed */
-  CONTAINER_RESIZE: "CONTAINER_RESIZE",
-  /** User started dragging */
-  RESIZE_START: "RESIZE_START",
-  /** User is dragging */
-  RESIZE_MOVE: "RESIZE_MOVE",
-  /** User finished dragging */
-  RESIZE_END: "RESIZE_END",
-  /** Double-click to fit content */
-  AUTO_FIT: "AUTO_FIT",
-  /** Programmatic size change */
-  SET_SIZE: "SET_SIZE",
-  /** TanStack sizing state changed */
-  TANSTACK_SIZING_CHANGE: "TANSTACK_SIZING_CHANGE",
-  /** TanStack sizing info changed */
-  TANSTACK_INFO_CHANGE: "TANSTACK_INFO_CHANGE",
-} as const;
-
-export type SizingEventType = (typeof SizingEventTypes)[keyof typeof SizingEventTypes];
-
-/** All valid sizing event types for iteration/validation */
-export const SIZING_EVENT_TYPE_VALUES = Object.values(SizingEventTypes);
-
-// =============================================================================
-// Debug Event Types
-// =============================================================================
-
-/**
- * Event types for debug logging.
- * Includes state machine events plus internal/utility events.
- */
-export const DebugEventTypes = {
-  ...SizingEventTypes,
-  /** Cache computation timing */
-  CACHE_COMPUTE: "CACHE_COMPUTE",
-  /** Error occurred */
-  ERROR: "ERROR",
-} as const;
-
-export type DebugEventType = (typeof DebugEventTypes)[keyof typeof DebugEventTypes];
-
-/** All valid debug event types for iteration/validation */
-export const DEBUG_EVENT_TYPE_VALUES = Object.values(DebugEventTypes);
-
 // =============================================================================
 // Column Width Config Types
 // =============================================================================
@@ -163,9 +103,6 @@ export const ColumnWidthConfigTypes = {
 } as const;
 
 export type ColumnWidthConfigType = (typeof ColumnWidthConfigTypes)[keyof typeof ColumnWidthConfigTypes];
-
-/** All valid column width config types for iteration/validation */
-export const COLUMN_WIDTH_CONFIG_TYPE_VALUES = Object.values(ColumnWidthConfigTypes);
 
 // =============================================================================
 // Virtual Item Types
@@ -183,27 +120,6 @@ export const VirtualItemTypes = {
 
 export type VirtualItemType = (typeof VirtualItemTypes)[keyof typeof VirtualItemTypes];
 
-/** All valid virtual item types for iteration/validation */
-export const VIRTUAL_ITEM_TYPE_VALUES = Object.values(VirtualItemTypes);
-
-// =============================================================================
-// Scroll Alignment
-// =============================================================================
-
-/**
- * Scroll alignment options for virtualizer.
- */
-export const ScrollAlignments = {
-  START: "start",
-  END: "end",
-  CENTER: "center",
-} as const;
-
-export type ScrollAlignment = (typeof ScrollAlignments)[keyof typeof ScrollAlignments];
-
-/** All valid scroll alignments for iteration/validation */
-export const SCROLL_ALIGNMENT_VALUES = Object.values(ScrollAlignments);
-
 // =============================================================================
 // Text Alignment
 // =============================================================================
@@ -218,9 +134,6 @@ export const TextAlignments = {
 
 export type TextAlignment = (typeof TextAlignments)[keyof typeof TextAlignments];
 
-/** All valid text alignments for iteration/validation */
-export const TEXT_ALIGNMENT_VALUES = Object.values(TextAlignments);
-
 // =============================================================================
 // Element Types
 // =============================================================================
@@ -234,6 +147,3 @@ export const ElementTypes = {
 } as const;
 
 export type ElementType = (typeof ElementTypes)[keyof typeof ElementTypes];
-
-/** All valid element types for iteration/validation */
-export const ELEMENT_TYPE_VALUES = Object.values(ElementTypes);

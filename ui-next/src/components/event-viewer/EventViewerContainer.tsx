@@ -39,7 +39,7 @@ export interface TaskTiming {
   endTime?: string;
 }
 
-export interface EventViewerContainerProps {
+interface EventViewerContainerProps {
   url: string;
   className?: string;
   /** Scope: "workflow" shows search bar and expand/collapse controls, "task" always expands all rows with no controls */

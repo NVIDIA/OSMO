@@ -46,8 +46,8 @@ function getMinimapColors() {
   };
 }
 
-/** Legacy export for backward compatibility */
-export const MINIMAP_COLORS = {
+/** Fallback colors for minimap nodes */
+const MINIMAP_COLORS = {
   get fill() {
     return getMinimapColors().fill;
   },

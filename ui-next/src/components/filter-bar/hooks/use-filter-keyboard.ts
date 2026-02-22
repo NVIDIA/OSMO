@@ -66,7 +66,7 @@ export interface FilterKeyboardActions {
   getInputSelectionEnd: () => number | null;
 }
 
-export interface UseFilterKeyboardReturn<T> {
+interface UseFilterKeyboardReturn<T> {
   handleKeyDown: (e: React.KeyboardEvent) => void;
   /** Value of the highlighted suggestion for dropdown visual state */
   highlightedSuggestionValue: string | undefined;

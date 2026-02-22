@@ -38,7 +38,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { LayoutDirection } from "@/components/dag/types";
 import { ANIMATION } from "@/components/dag/constants";
 
-export interface DAGControlsProps {
+interface DAGControlsProps {
   /** Current layout direction */
   layoutDirection: LayoutDirection;
   /** Layout direction change callback */

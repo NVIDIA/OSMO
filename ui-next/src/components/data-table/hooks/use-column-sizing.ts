@@ -97,13 +97,6 @@ const DEFAULT_COLUMN_SIZING_INFO: ColumnSizingInfoState = {
   columnSizingStart: [],
 };
 
-export {
-  calculateColumnWidths,
-  getRemToPx,
-  _invalidateRemToPxCache,
-  getTruncationThreshold,
-} from "@/components/data-table/utils/column-sizing";
-
 interface ResizingContext {
   columnId: string;
   startWidth: number;

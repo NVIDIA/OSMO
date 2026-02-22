@@ -129,7 +129,7 @@ function TimelineDot({ stage, state, showPulse }: TimelineDotProps) {
   );
 }
 
-export interface LifecycleProgressBarProps {
+interface LifecycleProgressBarProps {
   task: TaskGroup;
   className?: string;
 }

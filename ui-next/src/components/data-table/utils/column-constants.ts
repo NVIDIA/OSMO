@@ -119,12 +119,6 @@ export const COLUMN_PREFERRED_WIDTHS_REM = {
 } as const;
 
 /**
- * Average character width in rem for text estimation.
- * Based on typical monospace and proportional fonts at 1rem size.
- */
-export const AVG_CHAR_WIDTH_REM = 0.55;
-
-/**
  * Cell padding in rem (px-4 = 1rem each side = 2rem total).
  */
 export const CELL_PADDING_REM = 2;
@@ -138,8 +132,3 @@ export const RESIZE_HANDLE_WIDTH_PX = 8;
  * Extra buffer in pixels for visual breathing room after measurement.
  */
 export const MEASUREMENT_BUFFER_PX = 16;
-
-/**
- * Extra buffer for resize handle and breathing room (rem, used in preferred width calculations).
- */
-export const CELL_BUFFER_REM = 0.5;
