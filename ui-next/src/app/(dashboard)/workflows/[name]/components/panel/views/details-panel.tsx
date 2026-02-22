@@ -27,7 +27,7 @@ import { SidePanel } from "@/components/panel/side-panel";
 import { cn } from "@/lib/utils";
 import type { DetailsPanelProps } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
 import { useAnnouncer } from "@/hooks/use-announcer";
-import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
+import { useShellContext } from "@/features/workflows/detail/shell/shell-context";
 import { usePanelResize } from "@/app/(dashboard)/workflows/[name]/lib/panel-resize-context";
 import { ACTIVITY_STRIP_WIDTH_PX } from "@/app/(dashboard)/workflows/[name]/lib/panel-constants";
 import {

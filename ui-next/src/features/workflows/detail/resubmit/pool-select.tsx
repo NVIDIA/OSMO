@@ -44,7 +44,7 @@ import {
 import { Button } from "@/components/shadcn/button";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
-import { PoolStatusBadge } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-status-badge";
+import { PoolStatusBadge } from "@/features/workflows/detail/resubmit/pool-status-badge";
 
 export interface PoolSelectProps {
   /** Currently selected pool name (from workflow's original pool) */

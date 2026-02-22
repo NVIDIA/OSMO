@@ -28,11 +28,11 @@ All 70 files in `src/app/(dashboard)/workflows/[name]/` (excluding page.tsx, err
 6. ~~lib/dag-layout.test.ts~~ -> features/workflows/detail/dag/dag-layout.test.ts
 7. ~~styles/dag.css~~ -> features/workflows/detail/dag/dag.css
 
-### Subsystem: shell (move as flat unit to features/workflows/detail/shell/)
-8. components/shell/shell-container.tsx
-9. components/shell/shell-context.tsx
-10. components/shell/shell-navigation-guard.tsx
-11. components/shell/shell-portal-context.tsx
+### Subsystem: shell -- DONE (moved to features/workflows/detail/shell/)
+8. ~~components/shell/shell-container.tsx~~ -> features/workflows/detail/shell/shell-container.tsx
+9. ~~components/shell/shell-context.tsx~~ -> features/workflows/detail/shell/shell-context.tsx
+10. ~~components/shell/shell-navigation-guard.tsx~~ -> features/workflows/detail/shell/shell-navigation-guard.tsx
+11. ~~components/shell/shell-portal-context.tsx~~ -> features/workflows/detail/shell/shell-portal-context.tsx
 
 ### Subsystem: resubmit (move as flat unit to features/workflows/detail/resubmit/)
 12. components/resubmit/resubmit-panel.tsx

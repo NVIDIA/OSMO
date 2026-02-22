@@ -31,9 +31,9 @@ import { usePool, usePools, useProfile } from "@/lib/api/adapter/hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
 import { PlatformPills } from "@/components/platform-pills";
-import { PoolSelect } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-select";
-import { PoolStatusBadge } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-status-badge";
-import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/collapsible-section";
+import { PoolSelect } from "@/features/workflows/detail/resubmit/pool-select";
+import { PoolStatusBadge } from "@/features/workflows/detail/resubmit/pool-status-badge";
+import { CollapsibleSection } from "@/features/workflows/detail/resubmit/collapsible-section";
 
 export interface PoolSectionProps {
   /** Currently selected pool name */

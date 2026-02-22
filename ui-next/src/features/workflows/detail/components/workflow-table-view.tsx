@@ -47,7 +47,7 @@ import type {
 // Shell container is heavy (xterm.js), load dynamically
 const ShellContainer = dynamic(
   () =>
-    import("@/app/(dashboard)/workflows/[name]/components/shell/shell-container").then((m) => ({
+    import("@/features/workflows/detail/shell/shell-container").then((m) => ({
       default: m.ShellContainer,
     })),
   {

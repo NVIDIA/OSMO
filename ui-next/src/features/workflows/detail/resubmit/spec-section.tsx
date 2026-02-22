@@ -27,7 +27,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
 import { CodeMirror } from "@/components/code-viewer/code-mirror";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
-import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/collapsible-section";
+import { CollapsibleSection } from "@/features/workflows/detail/resubmit/collapsible-section";
 
 export interface SpecSectionProps {
   /** YAML spec content (either modified or original) */

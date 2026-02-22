@@ -30,8 +30,8 @@ import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { useWorkflowsPreferencesStore } from "@/features/workflows/list/stores/workflows-table-store";
-import { ResubmitPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-header";
-import { ResubmitPanelContent } from "@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-content";
+import { ResubmitPanelHeader } from "@/features/workflows/detail/resubmit/resubmit-panel-header";
+import { ResubmitPanelContent } from "@/features/workflows/detail/resubmit/resubmit-panel-content";
 
 // =============================================================================
 // Constants

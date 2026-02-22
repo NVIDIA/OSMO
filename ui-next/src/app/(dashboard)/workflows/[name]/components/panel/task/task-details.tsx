@@ -57,8 +57,8 @@ import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/component
 import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/status-hover-card";
 import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-timeline";
 import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/dependency-pills";
-import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
-import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
+import { useShellPortal } from "@/features/workflows/detail/shell/shell-portal-context";
+import { useShellContext } from "@/features/workflows/detail/shell/shell-context";
 import { StatusDot } from "@/components/shell/components/status-dot";
 import { useShellSession } from "@/components/shell/lib/shell-cache";
 import type {
@@ -255,7 +255,7 @@ const OverviewTab = memo(function OverviewTab({
                       Exit Code: {task.exit_code}
                     </div>
                     {task.failure_message && (
-                      <p className="mt-1 text-xs break-words text-red-700 dark:text-red-400">{task.failure_message}</p>
+                      <p className="mt-1 text-xs wrap-break-word text-red-700 dark:text-red-400">{task.failure_message}</p>
                     )}
                   </div>
                 </div>

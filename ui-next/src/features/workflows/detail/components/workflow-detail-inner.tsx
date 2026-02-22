@@ -46,8 +46,8 @@ import { PANEL_CONSTRAINTS } from "@/app/(dashboard)/workflows/[name]/lib/panel-
 
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
-import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
-import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
+import { ShellPortalProvider } from "@/features/workflows/detail/shell/shell-portal-context";
+import { ShellProvider } from "@/features/workflows/detail/shell/shell-context";
 import { WorkflowDetailLayout } from "@/features/workflows/detail/components/workflow-detail-layout";
 import { WorkflowDAGContent } from "@/features/workflows/detail/components/workflow-dag-content";
 import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
@@ -56,7 +56,7 @@ import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/compone
 
 const ResubmitPanel = dynamic(
   () =>
-    import("@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel").then((m) => ({
+    import("@/features/workflows/detail/resubmit/resubmit-panel").then((m) => ({
       default: m.ResubmitPanel,
     })),
   { ssr: false },
@@ -73,7 +73,7 @@ import { WorkflowStatus } from "@/lib/api/generated";
 
 const ShellContainer = dynamic(
   () =>
-    import("@/app/(dashboard)/workflows/[name]/components/shell/shell-container").then((m) => ({
+    import("@/features/workflows/detail/shell/shell-container").then((m) => ({
       default: m.ShellContainer,
     })),
   {

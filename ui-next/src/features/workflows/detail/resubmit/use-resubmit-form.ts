@@ -31,7 +31,7 @@ import { WorkflowPriority } from "@/lib/api/generated";
 import {
   useResubmitMutation,
   type UseResubmitMutationReturn,
-} from "@/app/(dashboard)/workflows/[name]/components/resubmit/hooks/use-resubmit-mutation";
+} from "@/features/workflows/detail/resubmit/use-resubmit-mutation";
 
 export interface UseResubmitFormOptions {
   /** Workflow being resubmitted */
