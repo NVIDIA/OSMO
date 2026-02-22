@@ -16,14 +16,14 @@
 
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
 import type { WorkflowMetadata } from "@/components/log-viewer/components/log-viewer-container";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { addRecentWorkflow } from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
-import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
+import { useWorkflow } from "@/lib/api/adapter/hooks";
 
 interface LogViewerPageContentProps {
   workflowId: string;
@@ -48,26 +48,8 @@ export function LogViewerPageContent({ workflowId }: LogViewerPageContentProps) 
     breadcrumbs: [{ label: "Log Viewer", href: "/log-viewer" }],
   });
 
-  // Fetch workflow to get log URL and metadata
-  const selectWorkflow = useCallback((rawData: unknown) => {
-    if (!rawData) return null;
-    try {
-      const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-      return parsed as WorkflowQueryResponse;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  const { data: workflow, isLoading } = useGetWorkflowApiWorkflowNameGet(
-    workflowId,
-    { verbose: false },
-    {
-      query: {
-        select: selectWorkflow,
-      },
-    },
-  );
+  // Fetch workflow to get log URL and metadata (via adapter for parsing + timestamp normalization)
+  const { workflow, isLoading } = useWorkflow({ name: workflowId, verbose: false });
 
   const logUrl = workflow?.logs ?? "";
 

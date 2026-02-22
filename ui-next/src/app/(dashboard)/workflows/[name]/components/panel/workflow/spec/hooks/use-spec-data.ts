@@ -29,7 +29,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
-import type { WorkflowQueryResponse } from "@/lib/api/generated";
+import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Types

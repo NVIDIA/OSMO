@@ -94,7 +94,13 @@ Wait for the enforcer to complete and return its exit report.
 
 ## Step 3 — Update Pipeline State
 
-Parse the enforcer's exit report for `STATUS: DONE` or `STATUS: CONTINUE`.
+Parse the enforcer's exit report for the **domain-level** status.
+
+**CRITICAL — disambiguation:** Enforcer exit reports contain TWO kinds of status lines:
+- `Cluster status: DONE` — cluster-level (one cluster finished, more may remain) ← **IGNORE this**
+- `STATUS: DONE` or `STATUS: CONTINUE` — domain-level, always the **last line** of the report ← **USE this**
+
+Look for a line that begins exactly with `STATUS:` (not `Cluster status:`). Always use the **last** such line in the report. Matching `STATUS: DONE` inside `Cluster status: DONE` is a bug — they are different things.
 
 Update `.claude/memory/audit-and-fix-pipeline-state.md`:
 - Set the domain's Status to the enforcer's STATUS value

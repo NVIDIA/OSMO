@@ -26,7 +26,11 @@ import { useAnnouncer } from "@/hooks/use-announcer";
 import { useMounted } from "@/hooks/use-mounted";
 import { useTickController } from "@/hooks/use-tick";
 import { useViewTransition } from "@/hooks/use-view-transition";
-import { useWorkflowDetailPanel, usePanelWidthPct, useDetailsExpanded } from "@/app/(dashboard)/workflows/[name]/stores/workflow-detail-panel-store";
+import {
+  useWorkflowDetailPanel,
+  usePanelWidthPct,
+  useDetailsExpanded,
+} from "@/app/(dashboard)/workflows/[name]/stores/workflow-detail-panel-store";
 
 import {
   PanelResizeProvider,
