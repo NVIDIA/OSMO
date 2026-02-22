@@ -32,7 +32,7 @@ import { useSharedPreferences, useCompactMode } from "@/stores/shared-preference
 import type { SearchChip } from "@/stores/types";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import type { SearchField, SearchPreset, ResultsCount } from "@/components/filter-bar/lib/types";
-import { RefreshControl, type RefreshControlProps } from "@/components/refresh/RefreshControl";
+import { RefreshControl, type RefreshControlProps } from "@/components/refresh/refresh-control";
 
 export interface ColumnDefinition {
   id: string;

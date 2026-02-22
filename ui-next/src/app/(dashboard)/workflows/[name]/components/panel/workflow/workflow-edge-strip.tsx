@@ -21,8 +21,8 @@ import { Network, PanelLeftClose, ArrowRightFromLine, ArrowLeftToLine, type Luci
 import { useEventCallback } from "usehooks-ts";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
 import { cn, formatHotkey } from "@/lib/utils";
-import { ShellSessionIcon } from "@/components/shell/components/ShellSessionIcon";
-import { VerticalRefreshControl } from "@/components/refresh/VerticalRefreshControl";
+import { ShellSessionIcon } from "@/components/shell/components/shell-session-icon";
+import { VerticalRefreshControl } from "@/components/refresh/vertical-refresh-control";
 import type { RefreshControlProps } from "@/components/refresh/types";
 import { useShellSessions } from "@/components/shell/lib/shell-cache";
 import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";

@@ -59,7 +59,7 @@ import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/pane
 import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/dependency-pills";
 import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";
 import { useShellContext } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
-import { StatusDot } from "@/components/shell/components/StatusDot";
+import { StatusDot } from "@/components/shell/components/status-dot";
 import { useShellSession } from "@/components/shell/lib/shell-cache";
 import type {
   TaskDetailsProps,

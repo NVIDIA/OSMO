@@ -36,7 +36,7 @@ const ShellLoadingSkeleton = memo(function ShellLoadingSkeleton({ className }: {
 
 /** xterm.js (~480KB) lazy-loaded only when rendered */
 const ShellTerminalImpl = dynamic(
-  () => import("./ShellTerminalImpl").then((mod) => ({ default: mod.ShellTerminalImpl })),
+  () => import("./shell-terminal-impl").then((mod) => ({ default: mod.ShellTerminalImpl })),
   {
     ssr: false,
     loading: () => <ShellLoadingSkeleton />,

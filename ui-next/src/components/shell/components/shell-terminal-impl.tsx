@@ -34,8 +34,8 @@ import { useShell } from "@/components/shell/hooks/use-shell";
 import { getDisplayStatus } from "@/components/shell/lib/shell-state";
 import { useShellSession } from "@/components/shell/lib/shell-cache";
 import { shellKeyboardManager, type ShellKeyboardHandlers } from "@/components/shell/lib/shell-keyboard-manager";
-import { ShellConnecting } from "@/components/shell/components/ShellConnecting";
-import { ShellSearch } from "@/components/shell/components/ShellSearch";
+import { ShellConnecting } from "@/components/shell/components/shell-connecting";
+import { ShellSearch } from "@/components/shell/components/shell-search";
 import { ANSI } from "@/components/shell/lib/types";
 import type { ShellTerminalProps, ShellTerminalRef } from "@/components/shell/lib/types";
 

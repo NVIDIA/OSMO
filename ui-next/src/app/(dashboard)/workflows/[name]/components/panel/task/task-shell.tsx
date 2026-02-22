@@ -47,7 +47,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { ShellTerminal } from "@/components/shell/components/ShellTerminal";
+import { ShellTerminal } from "@/components/shell/components/shell-terminal";
 import { hasSession, useShellSession } from "@/components/shell/lib/shell-cache";
 import { SHELL_OPTIONS, type ShellTerminalRef, type ConnectionStatus } from "@/components/shell/lib/types";
 

@@ -24,7 +24,7 @@ import type { SearchChip } from "@/stores/types";
 import type { ResultsCount } from "@/components/filter-bar/lib/types";
 import { DisplayModeToggle } from "@/components/data-table/display-mode-toggle";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
-import type { RefreshControlProps } from "@/components/refresh/RefreshControl";
+import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/resources/lib/resource-columns";
 import { RESOURCE_SEARCH_FIELDS } from "@/app/(dashboard)/resources/lib/resource-search-fields";

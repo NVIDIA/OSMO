@@ -28,7 +28,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/shadcn/context-menu";
-import { StatusDot, STATUS_LABELS } from "@/components/shell/components/StatusDot";
+import { StatusDot, STATUS_LABELS } from "@/components/shell/components/status-dot";
 import type { CachedSession } from "@/components/shell/lib/shell-cache";
 
 export interface ShellSessionIconProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
