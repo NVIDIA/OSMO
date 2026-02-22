@@ -1,194 +1,269 @@
 # Folder Structure Standards — ui-next
 
 Synthesized from:
-- [Next.js official project structure](https://nextjs.org/docs/app/getting-started/project-structure)
 - [Bulletproof React project structure](https://github.com/alan2207/bulletproof-react/blob/master/docs/project-structure.md)
-- [Shipixen Next.js best practices](https://shipixen.com/blog/nextjs-file-naming-best-practices)
+- [Next.js App Router project structure](https://nextjs.org/docs/app/getting-started/project-structure)
 
 ---
 
-## 1. Core Principle: Proximity = Ownership
+## 1. Core Principle: Routing vs. Business Logic Are Separate
 
-> "A file should live as close as possible to the code that uses it."
-> — Next.js official colocation docs
+> "`app/` is a routing shell. `features/` is where the product lives."
 
-This single principle resolves almost every structural question.
+The single structural rule: **`app/(dashboard)/[route]/` contains only Next.js routing files. All feature code lives in `src/features/`.**
 
-### The Ownership Hierarchy
-
-```
-src/app/(dashboard)/[feature]/   ← owns feature-specific code
-src/components/[component]/      ← owns component-internal code
-src/hooks/                       ← owns truly shared hooks (2+ unrelated callers)
-src/lib/                         ← owns truly shared utilities
-src/stores/                      ← owns global state
-```
-
-A file belongs at the MOST SPECIFIC level where it is used.
+This is the **Bulletproof React + Next.js App Router hybrid**:
+- `app/` handles routing, layouts, metadata, Server Component boundaries
+- `features/` owns components, hooks, stores, and lib for each product domain
+- `components/`, `hooks/`, `lib/`, `stores/` hold code shared by 2+ features
 
 ---
 
-## 2. Decision Framework: Where Does a File Belong?
-
-Apply this decision tree for every hook, utility, or component:
+## 2. Target Directory Structure
 
 ```
-1. Is it used by exactly ONE feature route?
-   └─ YES → colocate inside that feature: src/app/(dashboard)/[feature]/
+src/
+├── app/                           # Routing ONLY — Next.js reserved files
+│   └── (dashboard)/
+│       ├── layout.tsx             # Dashboard shell
+│       ├── page.tsx               # Root redirect / home
+│       ├── error.tsx
+│       ├── loading.tsx
+│       ├── pools/
+│       │   ├── page.tsx           # import PoolsPageContent from "@/features/pools/components/pools-page-content"
+│       │   ├── error.tsx
+│       │   └── loading.tsx
+│       ├── workflows/
+│       │   ├── page.tsx
+│       │   └── [name]/
+│       │       ├── page.tsx
+│       │       └── error.tsx
+│       ├── datasets/
+│       │   ├── page.tsx
+│       │   └── [bucket]/
+│       │       └── [name]/
+│       │           └── page.tsx
+│       ├── resources/
+│       │   └── page.tsx
+│       ├── log-viewer/
+│       │   └── page.tsx
+│       └── profile/
+│           └── page.tsx
+│
+├── features/                      # Feature business logic
+│   ├── pools/
+│   │   ├── components/            # Pools-only UI components
+│   │   ├── hooks/                 # Pools-only hooks
+│   │   ├── stores/                # Pools-only state
+│   │   └── lib/                   # Pools column defs, constants, helpers
+│   ├── workflows/
+│   │   ├── list/                  # Workflow list sub-feature
+│   │   │   ├── components/
+│   │   │   ├── hooks/
+│   │   │   └── stores/
+│   │   ├── detail/                # Workflow detail sub-feature
+│   │   │   ├── components/
+│   │   │   ├── hooks/
+│   │   │   └── stores/
+│   │   └── lib/                   # Shared within workflows
+│   ├── datasets/
+│   │   ├── list/
+│   │   ├── detail/
+│   │   └── lib/
+│   ├── resources/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── stores/
+│   │   └── lib/
+│   ├── log-viewer/
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   └── lib/
+│   └── profile/
+│       └── components/
+│
+├── components/                    # Shared UI (used by 2+ features)
+│   ├── shadcn/                    # DO NOT TOUCH — shadcn primitives
+│   ├── data-table/
+│   ├── panel/
+│   ├── filter-bar/
+│   ├── event-viewer/
+│   ├── code-viewer/
+│   ├── chrome/                    # Navigation shell
+│   ├── shell/                     # App shell
+│   ├── error/                     # Shared error boundary
+│   ├── refresh/
+│   └── [primitives]/              # boolean-indicator, progress-bar, etc.
+│
+├── hooks/                         # Shared hooks (used by 2+ unrelated features)
+├── lib/                           # Shared utilities, API layer, auth, config
+├── stores/                        # Truly global state (shared-preferences-store)
+├── contexts/                      # React contexts
+├── styles/                        # Global CSS
+├── mocks/                         # MSW mock handlers (dev only)
+└── test-utils/                    # Vitest test helpers
+```
+
+**Why keep `(dashboard)` route group?**
+Routes outside the dashboard (e.g., `app/login/`, `app/(public)/`) use a different layout. The route group ensures the dashboard shell layout applies only to dashboard routes without affecting the URL path.
+
+---
+
+## 3. Dependency Flow (Unidirectional)
+
+```
+shared (components/, hooks/, lib/, stores/)
+    ↑
+features/[feature]/
+    ↑
+app/(dashboard)/[route]/page.tsx
+```
+
+- `app/` imports from `features/` and `shared/`
+- `features/[A]/` **NEVER** imports from `features/[B]/` — cross-feature coupling is forbidden
+- `features/` imports from `shared/`
+- `shared/` imports only from other `shared/` directories
+
+---
+
+## 4. Page Files Are Thin Wrappers
+
+Every `app/(dashboard)/[route]/page.tsx` is a one-line import + render. Nothing else.
+
+```tsx
+// app/(dashboard)/pools/page.tsx ✅ CORRECT
+import { PoolsPageContent } from "@/features/pools/components/pools-page-content";
+export default function PoolsPage() {
+  return <PoolsPageContent />;
+}
+```
+
+```tsx
+// app/(dashboard)/pools/page.tsx ❌ WRONG — contains feature logic
+import { useState } from "react";
+export default function PoolsPage() {
+  const [filter, setFilter] = useState("");
+  return <div>...</div>;
+}
+```
+
+If a page does more than import + render, the business logic belongs in `features/`.
+
+---
+
+## 5. Admission Criteria Per Directory
+
+| Directory | Admits | Refuses |
+|-----------|--------|---------|
+| `app/(dashboard)/[route]/` | `page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx` | **Any** component, hook, store, lib file |
+| `features/[f]/components/` | Components used only by feature `f` | Components used by 2+ features → `components/` |
+| `features/[f]/hooks/` | Hooks used only by feature `f` | Hooks used by 2+ features → `hooks/` |
+| `features/[f]/stores/` | State scoped to feature `f` | Truly global state (preferences, shell) → `stores/` |
+| `features/[f]/lib/` | Column defs, search fields, constants, helpers for feature `f` | Pure generic utilities → `lib/` |
+| `components/` | Shared UI abstractions used by 2+ features | Single-feature components → `features/[f]/components/` |
+| `hooks/` | Generic hooks with no feature coupling, used by 2+ features | Feature-coupled hooks → `features/[f]/hooks/` |
+| `lib/` | Pure utilities, API layer, auth, config, formatters | Feature-specific logic |
+| `stores/` | Cross-feature global state (preferences, shell state) | Feature-specific state → `features/[f]/stores/` |
+
+---
+
+## 6. Decision Framework: Where Does a File Belong?
+
+Apply this decision tree for every hook, component, store, or utility:
+
+```
+1. Does this file contain Next.js routing metadata (page, layout, error, loading)?
+   └─ YES → it belongs in app/(dashboard)/[route]/ ONLY
    └─ NO  → continue ↓
 
-2. Is it used exclusively by ONE shared component (in src/components/[component]/)?
-   └─ YES → colocate inside that component folder
+2. Is it used exclusively by ONE feature?
+   └─ YES → it belongs in features/[feature]/[components|hooks|stores|lib]/
    └─ NO  → continue ↓
 
-3. Is it used by 2+ unrelated callers?
-   └─ YES → it belongs in the global directory (src/hooks/, src/lib/, etc.)
+3. Is it used by 2+ unrelated features?
+   └─ YES → it belongs in the shared directory (components/, hooks/, lib/, stores/)
+   └─ NO  → investigate — it may be dead code or a utility for a specific component
 ```
 
-**"Unrelated callers"** means callers from different features OR different component trees.
-If two callers are both in `src/components/panel/`, they count as ONE unit of ownership.
+**"One feature" definition**: all callers live under `features/[same-feature]/` or `app/(dashboard)/[same-route]/`.
 
 ---
 
-## 3. Feature Route Colocation (Next.js App Router pattern)
+## 7. Complex Features: Sub-Feature Directories
 
-Feature-specific implementation files live flat inside the feature directory:
+Features with **two distinct routes** (list + detail) use sub-feature directories:
 
 ```
-src/app/(dashboard)/pools/
-├── page.tsx                    ← Next.js route (required)
-├── layout.tsx                  ← Next.js route (optional)
-├── error.tsx                   ← Next.js route (optional)
-├── pools-page-content.tsx      ← ✅ feature implementation, colocated
-├── pools-page-skeleton.tsx     ← ✅ feature implementation, colocated
-├── pools-with-data.tsx         ← ✅ feature implementation, colocated
-└── use-pools-data.ts           ← ✅ feature-specific hook, colocated
+features/workflows/
+├── list/           ← all code for /workflows (list view)
+│   ├── components/
+│   ├── hooks/
+│   └── stores/
+├── detail/         ← all code for /workflows/[name] (detail view)
+│   ├── components/
+│   ├── hooks/
+│   └── stores/
+└── lib/            ← shared within workflows (column defs, types, helpers)
 ```
 
-**Rule**: If a hook or component is only imported by files in this feature directory, it belongs here — not in `src/hooks/` or `src/components/`.
+Features with **one route** stay flat (no list/detail split):
 
-**Sub-folders within a feature** are appropriate only when the feature has 8+ non-route files:
 ```
-src/app/(dashboard)/workflows/
-├── page.tsx
-├── _components/                ← use _ prefix if sub-organizing
-│   ├── workflow-table.tsx
-│   └── workflow-filters.tsx
-└── _hooks/
-    └── use-workflow-filters.ts
+features/pools/
+├── components/
+├── hooks/
+├── stores/
+└── lib/
 ```
 
-For small features (under 8 non-route files): keep flat.
+Apply sub-feature split to: **workflows** (`list/`, `detail/`) and **datasets** (`list/`, `detail/`).
+Keep flat for: **pools**, **resources**, **log-viewer**, **profile**.
 
 ---
 
-## 4. Component-Internal Colocation
+## 8. Special Cases
 
-A shared component in `src/components/[name]/` may own its own hooks, types, and utilities:
+### `components/dag/`
+DAG visualization is currently in `components/` but used only by the workflows feature. It should move to `features/workflows/`. Flag this as a violation.
 
-```
-src/components/panel/
-├── resizable-panel.tsx
-├── side-panel.tsx
-├── panel-header.tsx
-├── use-resizable-panel.ts      ← ✅ panel-only hook, colocated here
-├── hotkeys.ts                  ← ✅ panel-only constants, colocated here
-└── types.ts                    ← ✅ panel-only types, colocated here
-```
+### `components/log-viewer/`
+Log viewer is currently in `components/` but used only by the log-viewer feature. It should move to `features/log-viewer/`. Flag this as a violation.
 
-**This is the preferred pattern** over putting component-scoped hooks in `src/hooks/`.
+### `components/shadcn/`
+**DO NOT TOUCH.** These are shadcn/ui primitives — external library, left as-is.
 
-Signals that a hook belongs in its component folder rather than `src/hooks/`:
-- Its name contains the component name (e.g., `use-panel-lifecycle`, `use-resizable-panel`)
-- All its importers are inside `src/components/[same-component]/`
-- It would make no sense outside that component
+### `components/data-table/`
+Used by pools, workflows, datasets, and resources — correctly stays in `components/`.
+
+### `components/panel/`
+Used by pools, workflows, and datasets — correctly stays in `components/`.
 
 ---
 
-## 5. Global Shared Directories — Strict Admission Criteria
+## 9. Move Procedure
 
-### `src/hooks/` — Shared Utility Hooks
-Only hooks that are:
-- Generic abstractions (e.g., `use-copy`, `use-mounted`, `use-tick`, `use-intersection-observer`)
-- Used by 2+ unrelated parts of the codebase
-- Have no implicit coupling to a specific feature or component
-
-Hooks that do NOT belong in `src/hooks/`:
-- Anything named after a feature: `use-pools-*`, `use-workflow-*`
-- Anything named after a component: `use-panel-*`, `use-refresh-*`
-
-### `src/components/` — Shared UI Components
-Only components that are:
-- Used by 2+ distinct feature routes OR
-- True generic abstractions (DataTable, Panel, FilterBar, ErrorBoundary)
-
-Components that do NOT belong in `src/components/`:
-- Components only rendered by one feature's page
-
-### `src/lib/` — Shared Utilities
-Pure functions used across multiple features. Sub-folders for complex subsystems (`api/`, `auth/`, `hotkeys/`, `navigation/`).
-
-### `src/stores/` — Global State
-Only truly global state. Feature-specific store slices should be colocated with the feature.
-
----
-
-## 6. Route Groups and Private Folders
-
-### Route groups `(group)` — organize without URL impact
-All dashboard routes correctly live in `(dashboard)`. Add new groups when sections need:
-- A distinct root layout
-- Separate auth/middleware behavior
-- A logical namespace
-
-### Private folders `_name` — opt out of routing
-Use within `src/app/` when a sub-folder inside a route segment should NOT be treated as a route:
-```
-src/app/(dashboard)/workflows/_components/   ← non-routable
-src/app/(dashboard)/workflows/_hooks/        ← non-routable
-```
-Plain files colocated directly in the feature folder are also fine (Next.js only routes `page.tsx`/`route.ts`).
-
----
-
-## 7. Reasoning Checklist Before Moving a File
-
-Before deciding to move `src/hooks/use-X.ts`:
-
-1. **Find all importers**: `grep -r "use-X" src/ --include="*.ts" --include="*.tsx"`
-2. **Map callers to features**: Are all callers in the same feature? Same component?
-3. **Check the name**: Does the name reveal component/feature ownership?
-4. **Assess the move target**: Is the target directory well-established?
-5. **Count impact**: How many import paths need updating?
-6. **Run type-check after**: Verify zero broken imports
-
-**Only move if steps 1-3 clearly point to a more specific owner.**
-When in doubt, leave in the global directory. False positives (wrongly keeping global) are safer than false negatives (breaking colocation that exists for a reason).
-
----
-
-## 8. Move Procedure
-
-When moving a file from `src/hooks/` to `src/components/panel/`:
+When moving a file from `app/(dashboard)/pools/` to `features/pools/components/`:
 
 1. Read the source file
-2. Write it to the new path (same content)
-3. Find all files importing from the old path
-4. Update each importer to use the new `@/` path
-5. Delete the old file
+2. Write it to the new `features/` path (same content, verbatim)
+3. Grep all files importing from the old path
+4. Update each importer to use the new `@/features/...` path
+5. Delete the old file with `rm`
 6. Run `pnpm type-check && pnpm lint`
 7. Fix any remaining broken imports
 
-All imports use absolute `@/` paths (no relative imports allowed), which makes this safe to automate.
+All imports use absolute `@/` paths — this makes moves safe to automate.
 
 ---
 
-## 9. Anti-Patterns
+## 10. Anti-Patterns
 
 | Anti-Pattern | Problem | Fix |
 |---|---|---|
-| Feature hook in `src/hooks/` only used by one feature | Breaks proximity principle | Move to feature directory |
-| Component hook in `src/hooks/` only used by one component folder | Breaks proximity principle | Move to component folder |
-| Everything flat in `src/hooks/` regardless of ownership | Hides ownership signals | Apply decision framework |
-| Sub-folders in features with <8 files | Premature organization | Keep flat |
-| `src/components/` contains single-feature-only components | Wrong abstraction level | Move to feature directory |
+| Feature component or hook in `app/(dashboard)/[route]/` | Couples business logic to routing layer | Move to `features/[f]/components/` or `features/[f]/hooks/` |
+| Feature logic in `page.tsx` beyond import + render | Business logic leaks into routing | Extract to `features/[f]/components/[feature]-page-content.tsx` |
+| Cross-feature import: `features/A` imports from `features/B` | Tight coupling; breaks feature isolation | Move shared code to `components/` or `lib/` |
+| Single-feature component in `components/` | Wrong abstraction level | Move to `features/[f]/components/` |
+| Feature hook in `hooks/` only used by one feature | Feature logic leaks into shared layer | Move to `features/[f]/hooks/` |
+| `components/dag/` or `components/log-viewer/` for single-feature use | Not actually shared | Move to the owning feature |
+| Sub-feature split (`list/`, `detail/`) on simple single-route features | Premature organization | Keep flat for pools, resources, profile |

@@ -1,6 +1,6 @@
 ---
 name: folder-structure-enforcer
-description: "Enforces feature colocation and folder structure best practices in the ui-next codebase. Runs ONE analyze→reason→move→verify cycle per invocation. Moves files to their correct owner (feature dir, component dir, or global) and updates all imports. Exits with STATUS: DONE or STATUS: CONTINUE."
+description: "Enforces feature colocation and folder structure best practices in the ui-next codebase. Runs ONE analyze→reason→move→verify cycle per invocation. Moves files to their correct owner (features/ dir, component dir, or global) and updates all imports. Exits with STATUS: DONE or STATUS: CONTINUE."
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 ---
@@ -43,10 +43,12 @@ highest-priority move candidates. The cluster-traversal skill selects which clus
 Use the Skill tool: `folder-structure-standards`
 
 This loads:
-- The proximity principle and ownership hierarchy
-- The decision framework (feature → component → global)
+- The target directory structure (`app/` = routing only, `features/` = business logic)
+- Dependency flow (app → features → shared)
+- Admission criteria table for every directory
+- Decision framework: features/ vs shared/
+- Sub-feature split rules (list/detail for workflows and datasets)
 - Move procedure and anti-patterns
-- When to keep flat vs. add sub-folders
 
 Keep loaded knowledge in context throughout.
 
@@ -62,13 +64,18 @@ Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to w
 2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (moves remain)
 3. Otherwise: filter clusters to those with misplaced files (cluster membership ≠ directory),
    remove completed clusters, sort topologically (leaf-first), select pending[0]
-4. If graph is UNBUILT: use pseudo-clusters — `src/hooks/` as "global-hooks",
-   each component subdirectory as its own pseudo-cluster; process alphabetically
+4. If graph is UNBUILT: use pseudo-clusters — start with `app/(dashboard)/` route directories
+   as the primary violation zone (non-routing files colocated in route dirs)
+
+**Priority order for violation scanning (when graph is UNBUILT):**
+
+1. `src/app/(dashboard)/` — highest priority: any non-routing file here is a violation
+2. `src/components/` — single-feature components that should move to `features/`
+3. `src/hooks/` — feature-coupled hooks that should move to `features/[f]/hooks/`
 
 **After selecting the cluster's directory, discover actual contents with live tool calls:**
 ```
 Glob: [cluster-directory]/**/*.{ts,tsx}          ← what actually lives in the target dir
-Glob: src/hooks/*.ts                              ← what might belong here but lives globally
 ```
 
 The live results are the authoritative scope. Graph file lists are priority hints only.
@@ -79,7 +86,7 @@ Files in graph but missing on disk → skip silently. Files on disk not in graph
 Working Cluster: [name]
 Directory: [target directory — where files should move TO]
 Files currently in cluster directory (live Glob): [N files]
-Global files that may belong here (discovered via name/import analysis): [list or "none"]
+Violation candidates found: [list or "none"]
 ```
 
 Work ONLY on files discovered for the working cluster this cycle.
@@ -95,16 +102,31 @@ Build a precise picture of the working cluster before reasoning about moves.
 Glob: [working-cluster-directory]/*
 ```
 
-### 3b. Find globally-placed files that belong to this cluster
-```
-Grep: pattern="[cluster-name]" glob="src/hooks/*.ts" output_mode="files_with_matches"
-```
-Also check the graph's cluster file list for files outside the cluster directory.
+### 3b. Detect routing-zone violations (HIGHEST PRIORITY)
 
-### 3c. For misplaced hook files — verify ownership
+For each `src/app/(dashboard)/[route]/` directory, scan for non-routing files:
 ```
-Grep: pattern="from ['"]@/hooks/[hook-name]['"]" glob="src/**/*.{ts,tsx}" output_mode="content"
+Glob: src/app/(dashboard)/[route]/*
 ```
+
+Next.js **routing-only** files (these are ALLOWED in `app/`):
+`page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx`, `template.tsx`
+
+Any other `.ts` or `.tsx` file in `app/(dashboard)/[route]/` is a **routing-zone violation** — it must move to `features/`.
+
+### 3c. Detect shared-layer violations
+
+For components in `src/components/` (excluding `shadcn/`):
+```
+Grep: pattern="from ['\""]@/components/[name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="files_with_matches"
+```
+If all importers are in the same feature → the component belongs in `features/[f]/components/`.
+
+For hooks in `src/hooks/`:
+```
+Grep: pattern="from ['\""]@/hooks/[hook-name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="files_with_matches"
+```
+If all importers are in the same feature → the hook belongs in `features/[f]/hooks/`.
 
 ---
 
@@ -112,37 +134,65 @@ Grep: pattern="from ['"]@/hooks/[hook-name]['"]" glob="src/**/*.{ts,tsx}" output
 
 This is the core step. For each **candidate file in the working cluster**, apply the decision framework.
 
-For each file that appears to be misplaced (in global `src/hooks/` or `src/components/` top-level
-but semantically belonging to the working cluster):
+### 4a. Routing-zone violations
+
+For each non-routing file found in `app/(dashboard)/[route]/`:
 
 **Find all importers:**
 ```
-Grep: pattern="['\"]@/hooks/[hook-name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
+Grep: pattern="['\"]@/app/\(dashboard\)/[route]/[filename]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
 ```
 
-**Then reason explicitly:**
+**Determine target feature directory:**
+- The route name maps directly to the feature name: `app/(dashboard)/pools/` → `features/pools/`
+- Determine sub-directory based on file type:
+  - Component file (`.tsx`, typically renders JSX) → `features/[f]/components/`
+  - Hook file (`use-*.ts`) → `features/[f]/hooks/`
+  - Store file (`*-store.ts`) → `features/[f]/stores/`
+  - Other `.ts` (constants, helpers, column defs) → `features/[f]/lib/`
+- For features with sub-feature split (workflows, datasets): determine if the file is
+  list-specific, detail-specific, or shared. List files → `features/[f]/list/[subdir]/`,
+  detail files → `features/[f]/detail/[subdir]/`, shared → `features/[f]/lib/`.
+
+**Reason explicitly:**
+```
+File: pools-page-content.tsx (in app/(dashboard)/pools/)
+Type: TSX component (renders JSX)
+Importers: only app/(dashboard)/pools/page.tsx
+Target feature: features/pools/
+Target subdir: components/
+Conclusion: MOVE to features/pools/components/pools-page-content.tsx
+Reason: non-routing file in routing-only zone; component used only by pools feature
+```
+
+### 4b. Shared-layer violations
+
+For each component/hook in `components/` or `hooks/` with single-feature usage:
 
 ```
-Hook: use-panel-lifecycle.ts
+File: use-pools-data.ts (in src/hooks/)
 Importers found: [list them]
-All from src/components/panel/? → YES/NO
-Name suggests component ownership? → YES (contains "panel")
-Conclusion: [MOVE to src/components/panel/ | KEEP global | SKIP - needs human review]
+All from features/pools/ or app/(dashboard)/pools/? → YES/NO
+Name suggests feature ownership? → YES (contains "pools")
+Conclusion: [MOVE to features/pools/hooks/ | KEEP global | SKIP - needs human review]
 Reason: [one sentence explaining the decision]
 ```
 
-Work through every candidate in the working cluster this way.
+### 4c. Special violation cases
 
-### Sub-folder assessment (for feature directories in working cluster):
+These are known single-feature components incorrectly in `components/`:
 
-Count non-route files. If > 7 non-route files in a flat feature directory, note it as a sub-folder candidate.
+- `components/dag/` → used only by workflows → **MOVE to `features/workflows/`**
+- `components/log-viewer/` → used only by log-viewer feature → **MOVE to `features/log-viewer/components/`**
 
-### Build the move list for this cluster:
+Verify by checking actual importers before moving.
+
+### 4d. Build the move list for this cluster:
 
 ```
-MOVE: src/hooks/use-panel-lifecycle.ts → src/components/panel/use-panel-lifecycle.ts
-MOVE: src/hooks/use-panel-width.ts → src/components/panel/use-panel-width.ts
-KEEP: src/hooks/use-copy.ts — used across many callers, correctly global
+MOVE: src/app/(dashboard)/pools/pools-page-content.tsx → src/features/pools/components/pools-page-content.tsx
+MOVE: src/app/(dashboard)/pools/use-pools-data.ts → src/features/pools/hooks/use-pools-data.ts
+KEEP: src/components/data-table/ — used by pools, workflows, datasets, resources; correctly shared
 SKIP: src/hooks/use-default-filter.ts — used in multiple features, needs human review
 ```
 
@@ -159,30 +209,35 @@ For each move in the cluster's move list (up to 5 safety cap), in order:
 Read: [source path]
 ```
 
-### 5b. Write to destination
+### 5b. Create target directory if needed (features/ may not exist yet)
+```
+Bash: mkdir -p [destination directory]
+```
+
+### 5c. Write to destination
 ```
 Write: [destination path]
 (same file content — do not modify internals)
 ```
 
-### 5c. Find all importers of the source path
+### 5d. Find all importers of the source path
 ```
-Grep: pattern="from ['\"]@/hooks/[name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
+Grep: pattern="from ['\"]@/app/\(dashboard\)/[route]/[name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
 ```
-Also check for the pattern without the `use-` prefix in case of aliased imports.
+Also check for the import without the full path in case of aliased imports.
 
-### 5d. Update every importer
+### 5e. Update every importer
 For each file that imports from the old path:
 - Read the file
-- Replace `@/hooks/[name]` with `@/[new-dir]/[name]`
+- Replace `@/app/(dashboard)/[route]/[name]` with `@/features/[feature]/[subdir]/[name]`
 - Write the updated file
 
-### 5e. Delete the source file
+### 5f. Delete the source file
 ```
 Bash: rm [source path]
 ```
 
-### 5f. Log the completed move
+### 5g. Log the completed move
 Record: `[source] → [destination] (N importers updated)`
 
 Repeat for all cluster moves before proceeding to verify.
@@ -237,12 +292,15 @@ Pending Clusters (topo order): [cluster-c, cluster-d, ...]
 Current Working Cluster: [cluster-name]
 Current Cluster Status: [DONE | CONTINUE]
 
+## Routing-Zone Violations Remaining
+[List of non-routing files still in app/(dashboard)/ directories]
+
 ## Completed Moves (this cluster)
 [source → destination (N importers updated)]
 
 ## Open Move Queue (current cluster)
 [All remaining MOVE candidates for current cluster]
-[Format: src/hooks/use-X.ts → src/components/Y/use-X.ts | Reason: [one line]]
+[Format: src/old/path.tsx → src/features/f/subdir/file.tsx | Reason: [one line]]
 
 ## Kept Global (correctly placed)
 [list of hooks/components confirmed as correctly global with brief reason]
@@ -276,8 +334,11 @@ Cluster status: [DONE | CONTINUE]
 Completed clusters: N/M total
 Pending clusters: [cluster-c, cluster-d, ...]
 
-Moved this run: N files
-  [source → destination (N importers updated)]
+Routing-zone violations fixed this run: N
+  [app/(dashboard)/route/file → features/feature/subdir/file (N importers updated)]
+
+Shared-layer violations fixed this run: N
+  [components/X → features/f/components/X (N importers updated)]
 
 Confirmed correctly global: N hooks/components
   [name — reason]
@@ -301,7 +362,7 @@ STATUS: [DONE | CONTINUE]
 
 - **Never loop internally** — one analyze→reason→move→verify cycle, then exit
 - **Max 5 moves per invocation** — moves are larger operations than renames
-- **Never move Next.js reserved files** (page.tsx, layout.tsx, etc.)
+- **Never move Next.js reserved files** (`page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx`, `template.tsx`)
 - **Never touch `src/components/shadcn/`**
 - **Never touch `src/lib/api/generated.ts`**
 - **Never touch test files or mock files**
@@ -309,7 +370,9 @@ STATUS: [DONE | CONTINUE]
 - **Always delete source after writing destination**
 - **Always update ALL importers before verifying**
 - **When uncertain about a move — SKIP, don't guess**
-- **Only move files, never rename during a move** (renaming is the file-organization domain)
+- **Only move files, never rename during a move** (renaming is the file-rename-enforcer domain)
 - **All imports use absolute `@/` paths** — never introduce relative imports
 - **Never run `pnpm test`** — only type-check + lint
 - **NVIDIA copyright header**: if source had one, destination must have it (it will, since content is copied verbatim)
+- **Routing-zone violations take priority** — clear `app/(dashboard)/` of non-routing files first
+- **Never introduce cross-feature imports** — if a moved file imports from another feature, SKIP and flag for human review
