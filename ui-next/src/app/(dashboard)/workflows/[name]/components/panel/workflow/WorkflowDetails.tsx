@@ -51,7 +51,7 @@ import { EventViewerContainer, type TaskTiming } from "@/components/event-viewer
 import { isWorkflowTerminal } from "@/lib/api/status-metadata.generated";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanelHeader";
+import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel-header";
 import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
 import { WorkflowTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-timeline";
 import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/views/Timeline";

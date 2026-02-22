@@ -33,9 +33,9 @@ import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/t
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
 import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
-import { PoolSelect } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/PoolSelect";
+import { PoolSelect } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-select";
 import { PoolStatusBadge } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-status-badge";
-import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/CollapsibleSection";
+import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/collapsible-section";
 
 export interface PoolSectionProps {
   /** Currently selected pool name */

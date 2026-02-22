@@ -32,7 +32,7 @@ import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import { WorkflowTasksTable } from "@/app/(dashboard)/workflows/[name]/components/table/WorkflowTasksTable";
-import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanel";
+import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
 import { WorkflowTasksToolbar } from "@/app/(dashboard)/workflows/[name]/components/table/WorkflowTasksToolbar";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";

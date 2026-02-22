@@ -46,9 +46,9 @@ import { ShellPortalProvider } from "@/app/(dashboard)/workflows/[name]/componen
 import { ShellProvider } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-context";
 import { WorkflowDetailLayout } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDetailLayout";
 import { WorkflowDAGContent } from "@/app/(dashboard)/workflows/[name]/components/WorkflowDAGContent";
-import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/DetailsPanel";
+import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
 import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/panel-types";
-import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/CancelWorkflowDialog";
+import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/cancel-workflow-dialog";
 
 const ResubmitPanel = dynamic(
   () => import("./components/resubmit/ResubmitPanel").then((m) => ({ default: m.ResubmitPanel })),
