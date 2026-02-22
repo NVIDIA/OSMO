@@ -32,7 +32,7 @@
 import { useMemo, useState, useCallback } from "react";
 
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/TimelineContainer";
+import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/timeline-container";
 import type {
   UseLogViewerUrlStateReturn,
   UseLogViewerUrlStateOptions,

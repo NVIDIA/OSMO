@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
+import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 
 /**
  * Log Viewer loading skeleton.

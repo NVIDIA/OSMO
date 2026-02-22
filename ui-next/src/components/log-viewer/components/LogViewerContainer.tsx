@@ -19,7 +19,7 @@
 import { cn } from "@/lib/utils";
 import { useLogStream } from "@/lib/api/log-adapter/hooks/use-log-stream";
 import { LogViewer } from "@/components/log-viewer/components/LogViewer";
-import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
+import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { useLogPresentation } from "@/components/log-viewer/hooks/useLogPresentation";
 import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 import { useLogViewerLocalState } from "@/components/log-viewer/lib/use-log-viewer-local-state";

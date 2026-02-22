@@ -71,7 +71,7 @@
 "use client";
 
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/TimelineContainer";
+import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/timeline-container";
 import { useFilterChipsUrlState } from "@/components/log-viewer/lib/use-filter-chips-url-state";
 import { useTimeRangeUrlState } from "@/components/log-viewer/lib/use-time-range-url-state";
 

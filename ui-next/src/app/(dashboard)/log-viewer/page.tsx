@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Suspense } from "react";
-import { LogViewerSkeleton } from "@/components/log-viewer/components/LogViewerSkeleton";
+import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { LogViewerWithData } from "@/app/(dashboard)/log-viewer/components/log-viewer-with-data";
 import { WorkflowSelector } from "@/app/(dashboard)/log-viewer/components/workflow-selector";
 

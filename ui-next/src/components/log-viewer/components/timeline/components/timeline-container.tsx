@@ -51,12 +51,12 @@ import { cn } from "@/lib/utils";
 import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { TimelineHistogram } from "@/components/log-viewer/components/timeline/components/TimelineHistogram";
-import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/TimeRangePresets";
-import { TimeRangeHeader } from "@/components/log-viewer/components/timeline/components/TimeRangeHeader";
-import { TimelineAxis } from "@/components/log-viewer/components/timeline/components/TimelineAxis";
-import { TimelineSelectionOverlay } from "@/components/log-viewer/components/timeline/components/TimelineSelectionOverlay";
-import { TimelineStartMarker } from "@/components/log-viewer/components/timeline/components/TimelineStartMarker";
-import { TimelineEndMarker } from "@/components/log-viewer/components/timeline/components/TimelineEndMarker";
+import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/time-range-presets";
+import { TimeRangeHeader } from "@/components/log-viewer/components/timeline/components/time-range-header";
+import { TimelineAxis } from "@/components/log-viewer/components/timeline/components/timeline-axis";
+import { TimelineSelectionOverlay } from "@/components/log-viewer/components/timeline/components/timeline-selection-overlay";
+import { TimelineStartMarker } from "@/components/log-viewer/components/timeline/components/timeline-start-marker";
+import { TimelineEndMarker } from "@/components/log-viewer/components/timeline/components/timeline-end-marker";
 import { useTimelineSelection } from "@/components/log-viewer/components/timeline/hooks/use-timeline-selection";
 import { useTimelineState } from "@/components/log-viewer/components/timeline/hooks/use-timeline-state";
 import {
