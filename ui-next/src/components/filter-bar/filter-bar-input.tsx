@@ -27,7 +27,7 @@
 
 import { memo, useCallback, type RefObject } from "react";
 import { X, Search } from "lucide-react";
-import { FilterBarChip } from "@/components/filter-bar/FilterBarChip";
+import { FilterBarChip } from "@/components/filter-bar/filter-bar-chip";
 import type { SearchChip, ResultsCount } from "@/components/filter-bar/lib/types";
 
 interface FilterBarInputProps {

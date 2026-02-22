@@ -37,8 +37,8 @@ import { cn } from "@/lib/utils";
 import { Command } from "@/components/shadcn/command";
 import type { FilterBarProps } from "@/components/filter-bar/lib/types";
 import { useFilterState } from "@/components/filter-bar/hooks/use-filter-state";
-import { FilterBarInput } from "@/components/filter-bar/FilterBarInput";
-import { FilterBarDropdown } from "@/components/filter-bar/FilterBarDropdown";
+import { FilterBarInput } from "@/components/filter-bar/filter-bar-input";
+import { FilterBarDropdown } from "@/components/filter-bar/filter-bar-dropdown";
 
 export interface FilterBarHandle {
   /** Focus the search input */

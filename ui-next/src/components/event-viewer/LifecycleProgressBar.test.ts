@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { getProgressIndex, getRunningStageLabel } from "@/components/event-viewer/LifecycleProgressBar";
+import { getProgressIndex, getRunningStageLabel } from "@/components/event-viewer/lifecycle-progress-bar";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import type { K8sEvent, PodPhase, LifecycleStage, EventSeverity } from "@/lib/api/adapter/events/events-types";
 import { computeDerivedState, type TaskDerivedState } from "@/lib/api/adapter/events/events-derived-state";

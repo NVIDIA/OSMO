@@ -17,7 +17,7 @@
 import { cn } from "@/lib/utils";
 import { type TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import { useEventViewerContext } from "@/components/event-viewer/EventViewerContext";
+import { useEventViewerContext } from "@/components/event-viewer/event-viewer-context";
 
 /**
  * Visual lifecycle stages for the progress bar.

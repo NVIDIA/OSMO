@@ -17,8 +17,8 @@
 import { memo, useCallback } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { LifecycleProgressBar } from "@/components/event-viewer/LifecycleProgressBar";
-import { EventDetailsPanel } from "@/components/event-viewer/EventDetailsPanel";
+import { LifecycleProgressBar } from "@/components/event-viewer/lifecycle-progress-bar";
+import { EventDetailsPanel } from "@/components/event-viewer/event-details-panel";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 

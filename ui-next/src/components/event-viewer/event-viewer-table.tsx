@@ -20,7 +20,7 @@ import { useCallback, useMemo, useRef } from "react";
 import type { VirtualItem } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import { TaskRow } from "@/components/event-viewer/TaskRow";
+import { TaskRow } from "@/components/event-viewer/task-row";
 import type { TaskGroup } from "@/lib/api/adapter/events/events-grouping";
 
 /**

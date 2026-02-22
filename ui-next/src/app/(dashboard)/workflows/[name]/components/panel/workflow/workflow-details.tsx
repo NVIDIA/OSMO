@@ -47,7 +47,7 @@ import { TabPanel } from "@/components/panel/tab-panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { getStatusIcon } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { EventViewerContainer, type TaskTiming } from "@/components/event-viewer/EventViewerContainer";
+import { EventViewerContainer, type TaskTiming } from "@/components/event-viewer/event-viewer-container";
 import { isWorkflowTerminal } from "@/lib/api/status-metadata.generated";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { STATUS_STYLES, STATUS_CATEGORY_MAP } from "@/app/(dashboard)/workflows/[name]/lib/status";
