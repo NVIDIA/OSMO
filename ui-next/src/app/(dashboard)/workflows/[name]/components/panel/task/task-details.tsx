@@ -54,7 +54,7 @@ import {
   getStatusLabel,
 } from "@/app/(dashboard)/workflows/[name]/lib/status";
 import { DetailsPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel-header";
-import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/StatusHoverCard";
+import { StatusHoverCard } from "@/app/(dashboard)/workflows/[name]/components/panel/views/status-hover-card";
 import { TaskTimeline } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-timeline";
 import { DependencyPill } from "@/app/(dashboard)/workflows/[name]/components/panel/views/dependency-pills";
 import { useShellPortal } from "@/app/(dashboard)/workflows/[name]/components/shell/shell-portal-context";

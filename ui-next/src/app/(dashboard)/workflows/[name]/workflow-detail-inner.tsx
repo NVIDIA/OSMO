@@ -51,7 +51,7 @@ import type { DetailsPanelView } from "@/app/(dashboard)/workflows/[name]/lib/pa
 import { CancelWorkflowDialog } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/cancel-workflow-dialog";
 
 const ResubmitPanel = dynamic(
-  () => import("./components/resubmit/ResubmitPanel").then((m) => ({ default: m.ResubmitPanel })),
+  () => import("./components/resubmit/resubmit-panel").then((m) => ({ default: m.ResubmitPanel })),
   { ssr: false },
 );
 
@@ -66,7 +66,7 @@ import { WorkflowStatus } from "@/lib/api/generated";
 
 const ShellContainer = dynamic(
   () =>
-    import("./components/shell/ShellContainer").then((m) => ({
+    import("./components/shell/shell-container").then((m) => ({
       default: m.ShellContainer,
     })),
   {

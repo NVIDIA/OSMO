@@ -31,7 +31,7 @@ import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { useWorkflowsPreferencesStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 import { ResubmitPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-header";
-import { ResubmitPanelContent } from "@/app/(dashboard)/workflows/[name]/components/resubmit/ResubmitPanelContent";
+import { ResubmitPanelContent } from "@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-content";
 
 // =============================================================================
 // Constants

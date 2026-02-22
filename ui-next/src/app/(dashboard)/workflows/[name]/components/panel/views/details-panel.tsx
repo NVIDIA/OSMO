@@ -38,7 +38,7 @@ import {
 // Eager imports - panel views are always needed, dynamic imports add 100-300ms flash
 import { WorkflowDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/WorkflowDetails";
 import { GroupDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/group/group-details";
-import { TaskDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/task/TaskDetails";
+import { TaskDetails } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-details";
 import { ContentSlideWrapper } from "@/app/(dashboard)/workflows/[name]/components/panel/views/content-slide-wrapper";
 
 export const DetailsPanel = memo(function DetailsPanel({
