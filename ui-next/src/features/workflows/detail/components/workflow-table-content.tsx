@@ -28,8 +28,8 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
-import { WorkflowTasksTable } from "@/app/(dashboard)/workflows/[name]/components/table/workflow-tasks-table";
-import { WorkflowTasksToolbar } from "@/app/(dashboard)/workflows/[name]/components/table/workflow-tasks-toolbar";
+import { WorkflowTasksTable } from "@/features/workflows/detail/components/table/workflow-tasks-table";
+import { WorkflowTasksToolbar } from "@/features/workflows/detail/components/table/workflow-tasks-toolbar";
 import { TASK_SEARCH_FIELDS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
 import type {
   TaskWithDuration,

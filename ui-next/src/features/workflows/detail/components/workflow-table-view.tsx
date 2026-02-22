@@ -31,9 +31,9 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { useResultsCount } from "@/hooks/use-results-count";
 import { useUrlChips } from "@/hooks/use-url-chips";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
-import { WorkflowTasksTable } from "@/app/(dashboard)/workflows/[name]/components/table/workflow-tasks-table";
+import { WorkflowTasksTable } from "@/features/workflows/detail/components/table/workflow-tasks-table";
 import { DetailsPanel } from "@/app/(dashboard)/workflows/[name]/components/panel/views/details-panel";
-import { WorkflowTasksToolbar } from "@/app/(dashboard)/workflows/[name]/components/table/workflow-tasks-toolbar";
+import { WorkflowTasksToolbar } from "@/features/workflows/detail/components/table/workflow-tasks-toolbar";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { usePanelProps } from "@/app/(dashboard)/workflows/[name]/hooks/use-panel-props";
 import { TASK_SEARCH_FIELDS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";
@@ -45,7 +45,7 @@ import type {
 } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
 // Shell container is heavy (xterm.js), load dynamically
-const ShellContainer = dynamic(() => import("./shell/shell-container").then((m) => ({ default: m.ShellContainer })), {
+const ShellContainer = dynamic(() => import("@/app/(dashboard)/workflows/[name]/components/shell/shell-container").then((m) => ({ default: m.ShellContainer })), {
   ssr: false,
 });
 

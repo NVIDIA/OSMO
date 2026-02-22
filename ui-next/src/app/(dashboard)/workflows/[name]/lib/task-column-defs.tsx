@@ -27,7 +27,7 @@ import {
   type TaskColumnId,
 } from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
 import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
-import { TaskNameCell } from "@/app/(dashboard)/workflows/[name]/components/table/tree/task-name-cell";
+import { TaskNameCell } from "@/features/workflows/detail/components/table/tree/task-name-cell";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,

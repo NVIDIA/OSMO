@@ -41,7 +41,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { CORNER_RADIUS, LINE_WIDTH } from "@/app/(dashboard)/workflows/[name]/components/table/tree/tree-constants";
+import { CORNER_RADIUS, LINE_WIDTH } from "@/features/workflows/detail/components/table/tree/tree-constants";
 
 // =============================================================================
 // Types

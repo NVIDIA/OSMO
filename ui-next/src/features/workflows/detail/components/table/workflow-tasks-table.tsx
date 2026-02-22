@@ -51,8 +51,8 @@ import {
   asTaskColumnIds,
 } from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
 import { useTaskTableStore } from "@/app/(dashboard)/workflows/[name]/stores/task-table-store";
-import { TreeConnector } from "@/app/(dashboard)/workflows/[name]/components/table/tree/tree-connector";
-import { SplitGroupHeader } from "@/app/(dashboard)/workflows/[name]/components/table/tree/split-group-header";
+import { TreeConnector } from "@/features/workflows/detail/components/table/tree/tree-connector";
+import { SplitGroupHeader } from "@/features/workflows/detail/components/table/tree/split-group-header";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";

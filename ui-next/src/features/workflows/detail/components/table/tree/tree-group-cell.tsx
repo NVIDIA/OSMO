@@ -15,14 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * TreeExpandIndicator Component
+ * TreeGroupCell Component
  *
- * Visual-only component that renders the tree expand/collapse indicator:
- * - Circle with +/- icon
+ * Renders the tree column cell for group rows (multi-task and filtered single-task):
+ * - Circle with +/- indicator for expand/collapse
  * - Vertical line down ONLY when expanded AND has visible tasks
- *
- * This is a purely presentational component - parent handles all click events.
- * Extracted from TreeGroupCell to be reusable in split-button patterns.
  *
  * ## Edge Cases
  *
@@ -30,35 +27,71 @@
  * - Expanded with no visible tasks (filtered out): [-] WITHOUT vertical line
  * - Collapsed: [+] without vertical line
  * - Single-task filtered out: [-] without vertical line (shows group exists)
+ *
+ * ## Visual Structure
+ *
+ * Collapsed [+]:          Expanded [-] with tasks:   Expanded [-] no tasks:
+ * +------------+          +------------+             +------------+
+ * |            |          |            |             |            |
+ * |    [+]     |          |    [-]     |             |    [-]     |
+ * |            |          |     |      |             |            |
+ * |            |          |     |      |             |            |
+ * +------------+          +------------+             +------------+
  */
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Plus, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   CIRCLE_SIZE,
   ICON_SIZE,
   LINE_WIDTH,
-} from "@/app/(dashboard)/workflows/[name]/components/table/tree/tree-constants";
+} from "@/features/workflows/detail/components/table/tree/tree-constants";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export interface TreeExpandIndicatorProps {
+export interface TreeGroupCellProps {
   /** Whether the group is expanded */
   isExpanded: boolean;
   /** Whether the group has any visible tasks after filtering */
   hasVisibleTasks: boolean;
+  /** Callback when expand/collapse is toggled */
+  onToggle: () => void;
+  /** Optional className for the container */
+  className?: string;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export const TreeExpandIndicator = memo(function TreeExpandIndicator({
+export const TreeGroupCell = memo(function TreeGroupCell({
   isExpanded,
   hasVisibleTasks,
-}: TreeExpandIndicatorProps) {
+  onToggle,
+  className,
+}: TreeGroupCellProps) {
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggle();
+    },
+    [onToggle],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggle();
+      }
+    },
+    [onToggle],
+  );
+
   // Vertical line only when expanded AND has visible tasks
   const showVerticalLine = isExpanded && hasVisibleTasks;
 
@@ -66,15 +99,26 @@ export const TreeExpandIndicator = memo(function TreeExpandIndicator({
   const iconColorClass = "text-gray-900 dark:text-zinc-100";
 
   return (
-    <div className="relative flex h-full w-full items-center justify-center">
-      {/* Circle with +/- indicator */}
-      <div
-        className="bg-tree-line relative z-10 flex items-center justify-center rounded-full"
+    <div className={cn("relative flex h-full w-full items-center justify-center", className)}>
+      {/* Circle button with +/- indicator */}
+      <button
+        type="button"
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        className={cn(
+          "relative z-10 flex items-center justify-center rounded-full",
+          // Background matches tree connector line color
+          "bg-tree-line",
+          "transition-opacity duration-150",
+          "cursor-pointer hover:opacity-80",
+          "focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none",
+        )}
         style={{
           width: `${CIRCLE_SIZE}px`,
           height: `${CIRCLE_SIZE}px`,
         }}
-        aria-hidden="true"
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? "Collapse group" : "Expand group"}
       >
         {isExpanded ? (
           <Minus
@@ -89,7 +133,7 @@ export const TreeExpandIndicator = memo(function TreeExpandIndicator({
             aria-hidden="true"
           />
         )}
-      </div>
+      </button>
 
       {/* Vertical line - ONLY when expanded AND has visible tasks */}
       {showVerticalLine && (
