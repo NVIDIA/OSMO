@@ -42,8 +42,8 @@ export const metadata: Metadata = {
  */
 
 import { Suspense } from "react";
-import { ResourcesPageSkeleton } from "@/app/(dashboard)/resources/resources-page-skeleton";
-import { ResourcesWithData } from "@/app/(dashboard)/resources/resources-with-data";
+import { ResourcesPageSkeleton } from "@/features/resources/components/resources-page-skeleton";
+import { ResourcesWithData } from "@/features/resources/components/resources-with-data";
 
 // =============================================================================
 // Types

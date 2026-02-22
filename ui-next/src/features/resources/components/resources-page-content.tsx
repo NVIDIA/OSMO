@@ -45,13 +45,13 @@ import type { Resource } from "@/lib/api/adapter/types";
 import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { PANEL } from "@/components/panel/panel-header-controls";
-import { ResourcePanelHeader } from "@/app/(dashboard)/resources/components/panel/panel-header";
-import { ResourcePanelContent } from "@/app/(dashboard)/resources/components/panel/panel-content";
-import { ResourcesDataTable } from "@/app/(dashboard)/resources/components/table/resources-data-table";
-import { ResourcesToolbar } from "@/app/(dashboard)/resources/components/resources-toolbar";
-import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
-import { AdaptiveSummary } from "@/app/(dashboard)/resources/components/resource-summary-card";
-import { useResourcesData } from "@/app/(dashboard)/resources/hooks/use-resources-data";
+import { ResourcePanelHeader } from "@/features/resources/components/panel/panel-header";
+import { ResourcePanelContent } from "@/features/resources/components/panel/panel-content";
+import { ResourcesDataTable } from "@/features/resources/components/table/resources-data-table";
+import { ResourcesToolbar } from "@/features/resources/components/resources-toolbar";
+import { useResourcesTableStore } from "@/features/resources/stores/resources-table-store";
+import { AdaptiveSummary } from "@/features/resources/components/resource-summary-card";
+import { useResourcesData } from "@/features/resources/hooks/use-resources-data";
 import type { ResourceAggregates } from "@/lib/resource-aggregates";
 
 // =============================================================================

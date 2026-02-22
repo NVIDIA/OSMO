@@ -37,9 +37,9 @@ import {
   MANDATORY_COLUMN_IDS,
   asResourceColumnIds,
   RESOURCE_COLUMN_SIZE_CONFIG,
-} from "@/app/(dashboard)/resources/lib/resource-columns";
-import { createResourceColumns } from "@/app/(dashboard)/resources/lib/resource-column-defs";
-import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
+} from "@/features/resources/lib/resource-columns";
+import { createResourceColumns } from "@/features/resources/lib/resource-column-defs";
+import { useResourcesTableStore } from "@/features/resources/stores/resources-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
 

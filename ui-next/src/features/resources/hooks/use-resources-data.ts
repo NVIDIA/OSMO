@@ -53,7 +53,7 @@ import {
   chipsToCacheKey,
   type ChipMappingConfig,
 } from "@/lib/api/chip-filter-utils";
-import { RESOURCE_SEARCH_FIELDS } from "@/app/(dashboard)/resources/lib/resource-search-fields";
+import { RESOURCE_SEARCH_FIELDS } from "@/features/resources/lib/resource-search-fields";
 import { QUERY_STALE_TIME } from "@/lib/config";
 import type { ResourceAggregates } from "@/lib/resource-aggregates";
 
