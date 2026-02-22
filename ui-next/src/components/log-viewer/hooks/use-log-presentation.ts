@@ -45,13 +45,13 @@ import type {
   LogViewerDataProps,
   LogViewerFilterProps,
   LogViewerTimelineProps,
-} from "@/components/log-viewer/components/LogViewer";
+} from "@/components/log-viewer/components/log-viewer";
 import {
   DISPLAY_PADDING_RATIO,
   MIN_PADDING_MS,
 } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
 
-import type { WorkflowMetadata } from "@/components/log-viewer/components/LogViewerContainer";
+import type { WorkflowMetadata } from "@/components/log-viewer/components/log-viewer-container";
 
 // =============================================================================
 // Types

@@ -31,7 +31,7 @@ import { cn, formatHotkey } from "@/lib/utils";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import { LogEntryRow } from "@/components/log-viewer/components/LogEntryRow";
+import { LogEntryRow } from "@/components/log-viewer/components/log-entry-row";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import {
   ROW_HEIGHT_ESTIMATE,

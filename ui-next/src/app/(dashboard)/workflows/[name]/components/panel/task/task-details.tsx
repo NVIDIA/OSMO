@@ -41,7 +41,7 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import { useTick } from "@/hooks/use-tick";
-import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
+import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
 import { ShellConnectPrompt } from "@/app/(dashboard)/workflows/[name]/components/panel/task/task-shell";
 import { EventViewerContainer } from "@/components/event-viewer/event-viewer-container";
 import { calculateDuration, formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";

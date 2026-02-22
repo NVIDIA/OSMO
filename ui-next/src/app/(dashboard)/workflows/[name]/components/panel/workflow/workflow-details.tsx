@@ -58,7 +58,7 @@ import { parseTime } from "@/app/(dashboard)/workflows/[name]/components/panel/v
 import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "@/app/(dashboard)/workflows/[name]/hooks/use-navigation-state";
 import { WorkflowTasksTab } from "@/app/(dashboard)/workflows/[name]/components/panel/workflow/workflow-tasks-tab";
-import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
+import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
 
 // Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)
 // Saves ~92 KB from initial bundle (CodeMirror + YAML parser + Lezer)

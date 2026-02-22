@@ -50,7 +50,7 @@ import { memo, useMemo, useState, useRef, useCallback, useImperativeHandle, forw
 import { cn } from "@/lib/utils";
 import type { HistogramBucket } from "@/lib/api/log-adapter/types";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import { TimelineHistogram } from "@/components/log-viewer/components/timeline/components/TimelineHistogram";
+import { TimelineHistogram } from "@/components/log-viewer/components/timeline/components/timeline-histogram";
 import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/time-range-presets";
 import { TimeRangeHeader } from "@/components/log-viewer/components/timeline/components/time-range-header";
 import { TimelineAxis } from "@/components/log-viewer/components/timeline/components/timeline-axis";

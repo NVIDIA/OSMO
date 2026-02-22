@@ -26,7 +26,7 @@ import {
   type TimeRangePreset,
   type TimelineContainerHandle,
 } from "@/components/log-viewer/components/timeline/components/timeline-container";
-import { LogList, type LogListHandle } from "@/components/log-viewer/components/LogList";
+import { LogList, type LogListHandle } from "@/components/log-viewer/components/log-list";
 import { Footer } from "@/components/log-viewer/components/footer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";

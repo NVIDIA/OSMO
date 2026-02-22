@@ -19,8 +19,8 @@
 import { useEffect, useMemo, useCallback } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import { LogViewerContainer } from "@/components/log-viewer/components/LogViewerContainer";
-import type { WorkflowMetadata } from "@/components/log-viewer/components/LogViewerContainer";
+import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
+import type { WorkflowMetadata } from "@/components/log-viewer/components/log-viewer-container";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { addRecentWorkflow } from "@/app/(dashboard)/log-viewer/lib/recent-workflows";
 import { useGetWorkflowApiWorkflowNameGet, type WorkflowQueryResponse } from "@/lib/api/generated";
