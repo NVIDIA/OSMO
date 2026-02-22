@@ -23,6 +23,11 @@ import { ErrorDetails } from "@/components/error/error-details";
 import { cn } from "@/lib/utils";
 import { logError } from "@/lib/logger";
 
+function toError(value: unknown): Error {
+  if (value instanceof Error) return value;
+  return new Error(typeof value === "string" ? value : "An unexpected error occurred");
+}
+
 // =============================================================================
 // Inline Fallback Component
 // =============================================================================
@@ -47,7 +52,8 @@ export function InlineFallback({
   className,
   compact = false,
 }: InlineFallbackProps) {
-  const message = error?.message || "An unexpected error occurred";
+  const normalizedError = toError(error);
+  const message = normalizedError.message || "An unexpected error occurred";
 
   if (compact) {
     return (
@@ -87,7 +93,7 @@ export function InlineFallback({
             <p className="mt-1 text-sm text-red-700 dark:text-red-300">{message}</p>
           </div>
 
-          <ErrorDetails error={error} />
+          <ErrorDetails error={normalizedError} />
 
           <Button
             variant="outline"
@@ -120,7 +126,7 @@ export interface InlineErrorBoundaryProps {
   /** Reset keys - when these change, the boundary resets */
   resetKeys?: unknown[];
   /** Callback when error is caught */
-  onError?: (error: Error, info: React.ErrorInfo) => void;
+  onError?: (error: unknown, info: React.ErrorInfo) => void;
   /** Callback when boundary resets */
   onReset?: () => void;
 }
@@ -153,7 +159,7 @@ export function InlineErrorBoundary({
   onError,
   onReset,
 }: InlineErrorBoundaryProps) {
-  const handleError = (error: Error, info: React.ErrorInfo) => {
+  const handleError = (error: unknown, info: React.ErrorInfo) => {
     logError("Inline error boundary caught:", error, info);
     onError?.(error, info);
   };
