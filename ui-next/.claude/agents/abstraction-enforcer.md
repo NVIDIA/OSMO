@@ -30,7 +30,6 @@ Read these files (they may not exist yet — that is okay):
 - `.claude/memory/abstraction-last-audit.md` — cluster progress, queue, previously fixed items
 - `.claude/memory/abstraction-known-good.md` — files confirmed well-abstracted (skip on re-audit)
 - `.claude/memory/abstraction-skipped.md` — A2/A3/A4/A5 human-review items + failed inlines
-- `.claude/memory/dependency-graph.md` — bridge nodes, in_degree hints
 - `.claude/skills/cluster-traversal.md` — cluster selection procedure
 
 ---
@@ -68,11 +67,7 @@ A file is a **trivial wrapper** if and only if ALL five conditions are true:
 - A file that re-exports from an external library (intentional dependency isolation)
 - A file with a clear single responsibility that happens to only be used by one consumer
 
-**How to find candidates from graph hints:**
-
-If `dependency-graph.md` lists in_degree values, cross-reference cluster files. For each file with in_degree=1 hint, immediately confirm via live Grep before queuing.
-
-**Live in_degree confirmation:**
+**How to find candidates — live in_degree confirmation:**
 ```
 Grep: pattern="from ['\"]@/[relative-path-without-extension]['\"]"
       glob="src/**/*.{ts,tsx}"
@@ -202,11 +197,6 @@ For each confirmed trivial wrapper in the A1 queue, execute the inline procedure
    Bash: pnpm lint
    If fails → STOP, restore deleted file from git, add to skipped list, move to next.
 
-10. Update dependency-graph.md:
-    - Remove wrapper node entry
-    - Add direct edge: consumer → real/source
-    - Append to INLINE changelog section:
-      INLINE src/.../wrapper.ts → src/.../consumer.ts
 ```
 
 **Hard rules for inline:**
@@ -312,7 +302,6 @@ Next run will start at: [next cluster path or "all clusters done"]
 - Never inline if the file has ANY function body, type declaration, or logic
 - Never touch entry points (`page.tsx`, `layout.tsx`, `route.ts`, `error.tsx`, `loading.tsx`)
 - Never touch `*.generated.ts` / `*.generated.tsx` files or `src/components/shadcn/`
-- Always update `dependency-graph.md` (INLINE entry) after each successful inline
 - Always restore and skip if type-check or lint fails after inline
 - Max 5 inlines per invocation
 - A2/A3/A4/A5 → always SKIP to human — never auto-fix

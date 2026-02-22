@@ -6,6 +6,30 @@ Synthesized from:
 
 ---
 
+## Quick Reference — Ownership Decisions
+
+**One rule:** `app/` = routing only. Everything else → `features/` (single-feature) or `shared/` (2+ features).
+
+| Source path | Where it belongs |
+|---|---|
+| `app/(dashboard)/[route]/page.tsx` etc. | Stay in `app/` — routing file |
+| `app/(dashboard)/[route]/anything-else` | `features/[route]/[subdir]/` |
+| `app/(dashboard)/[route]/[name]/...` | `features/[route]/detail/[subdir]/` (workflows, datasets) |
+| `components/[name]/` used by 1 feature | `features/[that-feature]/components/[name]/` |
+| `components/[name]/` used by 2+ features | Stay in `components/` |
+| `hooks/use-*.ts` used by 1 feature | `features/[that-feature]/hooks/` |
+| `hooks/use-*.ts` used by 2+ features | Stay in `hooks/` |
+
+**File type → subdir within a feature:**
+| Pattern | Subdir |
+|---|---|
+| `use-*.ts` | `hooks/` |
+| `*-store.ts` | `stores/` |
+| `*.tsx` | `components/` |
+| `actions.ts`, other `.ts` | `lib/` |
+
+---
+
 ## 1. Core Principle: Routing vs. Business Logic Are Separate
 
 > "`app/` is a routing shell. `features/` is where the product lives."
@@ -242,7 +266,10 @@ Used by pools, workflows, and datasets — correctly stays in `components/`.
 
 ## 9. Move Procedure
 
-When moving a file from `app/(dashboard)/pools/` to `features/pools/components/`:
+**Golden rule: ONE step, directly to `features/`.**
+Files move from their current location (`app/(dashboard)/[route]/`, `hooks/`, `components/`, or elsewhere) in a single operation to `features/[feature]/[subdir]/`. Never stage through `app/(dashboard)/[route]/` as an intermediate stop.
+
+When moving a file to `features/pools/components/` (source may be `app/(dashboard)/pools/`, `hooks/`, `components/`, etc.):
 
 1. Read the source file
 2. Write it to the new `features/` path (same content, verbatim)
@@ -267,3 +294,4 @@ All imports use absolute `@/` paths — this makes moves safe to automate.
 | Feature hook in `hooks/` only used by one feature | Feature logic leaks into shared layer | Move to `features/[f]/hooks/` |
 | `components/dag/` or `components/log-viewer/` for single-feature use | Not actually shared | Move to the owning feature |
 | Sub-feature split (`list/`, `detail/`) on simple single-route features | Premature organization | Keep flat for pools, resources, profile |
+| Moving files into `app/(dashboard)/[route]/` as an intermediate step | Creates violations that need a second pass | Move directly to `features/[f]/[subdir]/` in one step |

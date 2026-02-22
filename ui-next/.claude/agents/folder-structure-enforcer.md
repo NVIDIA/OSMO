@@ -1,350 +1,248 @@
 ---
 name: folder-structure-enforcer
-description: "Enforces feature colocation and folder structure best practices in the ui-next codebase. Runs ONE analyze→reason→move→verify cycle per invocation. Moves files to their correct owner (features/ dir, component dir, or global) and updates all imports. Exits with STATUS: DONE or STATUS: CONTINUE."
+description: "Enforces feature colocation and folder structure best practices in the ui-next codebase. Runs ONE scan-or-execute cycle per invocation. First run: enumerates ALL violations and builds a complete ordered move queue. Subsequent runs: execute the next batch from the queue. Max 15 moves per invocation. Exits with STATUS: DONE or STATUS: CONTINUE."
 tools: Read, Write, Edit, Glob, Grep, Bash
 model: opus
 ---
 
 You are a folder structure enforcement agent.
-Your job: analyze the codebase structure, **reason** about what belongs where, execute safe moves, then exit.
+**One cycle per invocation — never loop internally.**
+**Max 15 file moves per invocation.**
 
-**One iteration per invocation. Never loop internally.**
-**Max 5 file moves per invocation** (moves are more impactful than renames — be deliberate).
-
----
-
-## Step 0 — Load Memory
-
-Read these files (all may not exist yet — that is fine):
-
-```
-Read: .claude/memory/folder-structure-last-audit.md
-Read: .claude/memory/folder-structure-known-good.md
-Read: .claude/memory/folder-structure-skipped.md
-Read: .claude/memory/dependency-graph.md   ← use cluster data to guide move decisions
-```
-
-Also read:
-```
-Read: CLAUDE.md
-Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
-```
-
-Note the iteration number (default 0). This invocation is N+1.
-
-**If the graph is populated:** cluster membership disagreement with directory location =
-highest-priority move candidates. The cluster-traversal skill selects which cluster to process.
-**If the graph is UNBUILT:** use directory-based pseudo-clusters as described in §6 of cluster-traversal.
+Two modes:
+- **SCAN mode**: Queue missing or empty → enumerate ALL violations → write queue → execute first batch
+- **EXECUTE mode**: Queue has pending items → execute next batch directly
 
 ---
 
-## Step 1 — Load Knowledge
+## Step 0 — Determine Mode
 
-Use the Skill tool: `folder-structure-standards`
+Read in parallel:
+```
+.claude/memory/folder-structure-move-queue.md   ← the ordered move queue
+.claude/memory/folder-structure-last-audit.md   ← iteration counter + progress
+```
 
-This loads:
-- The target directory structure (`app/` = routing only, `features/` = business logic)
-- Dependency flow (app → features → shared)
-- Admission criteria table for every directory
-- Decision framework: features/ vs shared/
-- Sub-feature split rules (list/detail for workflows and datasets)
-- Move procedure and anti-patterns
-
-Keep loaded knowledge in context throughout.
+**If queue file is missing OR `## Pending` section is empty → SCAN mode (Step 1)**
+**If queue file has items in `## Pending` → EXECUTE mode (skip to Step 2)**
 
 ---
 
-## Step 2 — Select Working Cluster
+## Step 1 — Build Queue (SCAN mode only — runs ONCE)
 
-**Scope filter for this enforcer: `all-source`**
+This step builds a complete, ordered move list for the entire migration. It runs once,
+then Step 2 executes from it across all future invocations.
 
-Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to work on:
+### 1a. Glob all route directories in parallel
 
-1. From `folder-structure-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
-2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (moves remain)
-3. Otherwise: filter clusters to those with misplaced files (cluster membership ≠ directory),
-   remove completed clusters, sort topologically (leaf-first), select pending[0]
-4. If graph is UNBUILT: use pseudo-clusters — start with `app/(dashboard)/` route directories
-   as the primary violation zone (non-routing files colocated in route dirs)
-
-**Priority order for violation scanning (when graph is UNBUILT):**
-
-1. `src/app/(dashboard)/` — highest priority: any non-routing file here is a violation
-2. `src/components/` — single-feature components that should move to `features/`
-3. `src/hooks/` — feature-coupled hooks that should move to `features/[f]/hooks/`
-
-**After selecting the cluster's directory, discover actual contents with live tool calls:**
+Run all of these simultaneously:
 ```
-Glob: [cluster-directory]/**/*.{ts,tsx}          ← what actually lives in the target dir
+Glob: src/app/(dashboard)/pools/**/*.{ts,tsx}
+Glob: src/app/(dashboard)/resources/**/*.{ts,tsx}
+Glob: src/app/(dashboard)/log-viewer/**/*.{ts,tsx}
+Glob: src/app/(dashboard)/profile/**/*.{ts,tsx}
+Glob: src/app/(dashboard)/datasets/**/*.{ts,tsx}
+Glob: src/app/(dashboard)/workflows/**/*.{ts,tsx}
+Glob: src/app/(dashboard)/*.{ts,tsx}
 ```
 
-The live results are the authoritative scope. Graph file lists are priority hints only.
-Files in graph but missing on disk → skip silently. Files on disk not in graph → include them.
-
-**Record:**
-```
-Working Cluster: [name]
-Directory: [target directory — where files should move TO]
-Files currently in cluster directory (live Glob): [N files]
-Violation candidates found: [list or "none"]
-```
-
-Work ONLY on files discovered for the working cluster this cycle.
-
----
-
-## Step 3 — Map Working Cluster
-
-Build a precise picture of the working cluster before reasoning about moves.
-
-### 3a. Inventory cluster's current directory
-```
-Glob: [working-cluster-directory]/*
-```
-
-### 3b. Detect routing-zone violations (HIGHEST PRIORITY)
-
-For each `src/app/(dashboard)/[route]/` directory, scan for non-routing files:
-```
-Glob: src/app/(dashboard)/[route]/*
-```
-
-Next.js **routing-only** files (these are ALLOWED in `app/`):
+**Routing-only files — NOT violations (skip these):**
 `page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx`, `template.tsx`
 
-Any other `.ts` or `.tsx` file in `app/(dashboard)/[route]/` is a **routing-zone violation** — it must move to `features/`.
+Everything else is a violation.
 
-### 3c. Detect shared-layer violations
+### 1b. Check known component violations in parallel
 
-For components in `src/components/` (excluding `shadcn/`):
+These are confirmed single-feature components in `components/` that must move:
 ```
-Grep: pattern="from ['\""]@/components/[name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="files_with_matches"
+Glob: src/components/dag/**/*.{ts,tsx}
+Glob: src/components/shell/**/*.{ts,tsx}
+Glob: src/components/code-viewer/**/*.{ts,tsx}
 ```
-If all importers are in the same feature → the component belongs in `features/[f]/components/`.
 
-For hooks in `src/hooks/`:
+### 1c. Map every violation to its destination
+
+Apply these rules mechanically to each non-routing file:
+
+**Route → Feature mapping:**
+| Source path prefix | Target feature |
+|---|---|
+| `src/app/(dashboard)/pools/...` | `src/features/pools/` |
+| `src/app/(dashboard)/resources/...` | `src/features/resources/` |
+| `src/app/(dashboard)/log-viewer/...` | `src/features/log-viewer/` |
+| `src/app/(dashboard)/profile/...` | `src/features/profile/` |
+| `src/app/(dashboard)/datasets/[bucket]/[name]/...` | `src/features/datasets/detail/` |
+| `src/app/(dashboard)/datasets/...` (not under dynamic segments) | `src/features/datasets/list/` |
+| `src/app/(dashboard)/workflows/[name]/...` | `src/features/workflows/detail/` |
+| `src/app/(dashboard)/workflows/...` (not under `[name]/`) | `src/features/workflows/list/` |
+| `src/app/(dashboard)/*.{ts,tsx}` (root level) | `src/features/dashboard/` |
+| `src/components/dag/...` | `src/features/workflows/detail/components/dag/` |
+| `src/components/shell/...` | `src/features/workflows/detail/components/shell/` |
+| `src/components/code-viewer/...` | `src/features/workflows/detail/components/code-viewer/` |
+
+**File type → Subdir mapping (within a feature's target dir):**
+| File pattern | Subdir |
+|---|---|
+| `use-*.ts` | `hooks/` |
+| `*-store.ts` | `stores/` |
+| `*.tsx` | `components/` |
+| `actions.ts` | `lib/` |
+| Any other `.ts` | `lib/` |
+
+**Preserve relative sub-paths:** If the file is nested (e.g., `components/panel/panel-content.tsx`),
+keep the relative structure under the subdir:
+`app/(dashboard)/pools/components/panel/panel-content.tsx` → `features/pools/components/panel/panel-content.tsx`
+
+Note: files that are ALREADY under a typed subdir in the source (e.g., source path has `/hooks/`,
+`/stores/`, `/lib/`, `/components/`) keep that subdir — don't double-apply the file-type rule.
+
+### 1d. Write the queue
+
+Write `.claude/memory/folder-structure-move-queue.md`:
+
+```markdown
+# Folder Structure Move Queue
+Built: [today]
+Total: [N] moves
+
+## Pending
+[one entry per file, ordered by feature — simple features first, complex last:]
+
+Feature order:
+1. pools/ (simple, ~23 files)
+2. resources/ (simple, ~18 files)
+3. log-viewer/ (simple, ~4 files)
+4. profile/ (simple, ~18 files)
+5. dashboard/ (simple, ~4 files)
+6. datasets/list/ then datasets/detail/ (~30 files)
+7. workflows/list/ then workflows/detail/ (~104 files)
+8. components/dag/ → workflows/detail/ (~12 files)
+9. components/shell/ → workflows/detail/ (~10 files)
+10. components/code-viewer/ → workflows/detail/ (~4 files)
+
+Entry format (one per line):
+- src/[old/path/file.tsx] → src/[features/f/subdir/file.tsx]
+
+## Completed
+(none yet)
 ```
-Grep: pattern="from ['\""]@/hooks/[hook-name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="files_with_matches"
-```
-If all importers are in the same feature → the hook belongs in `features/[f]/hooks/`.
+
+After writing the queue, proceed to Step 2 using the first 15 items.
 
 ---
 
-## Step 4 — Reason About Ownership
+## Step 2 — Execute Batch (both modes)
 
-This is the core step. For each **candidate file in the working cluster**, apply the decision framework.
+Load knowledge: use Skill tool: `folder-structure-standards`
 
-### 4a. Routing-zone violations
+Take the **first 15 items** from `## Pending` in the queue.
 
-For each non-routing file found in `app/(dashboard)/[route]/`:
+For each item, execute in order:
 
-**Find all importers:**
+### 2a. Verify source exists
 ```
-Grep: pattern="['\"]@/app/\(dashboard\)/[route]/[filename]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
+Glob: [source path]
 ```
+If not found: skip item, note as "source not found — already moved or deleted".
 
-**Determine target feature directory:**
-- The route name maps directly to the feature name: `app/(dashboard)/pools/` → `features/pools/`
-- Determine sub-directory based on file type:
-  - Component file (`.tsx`, typically renders JSX) → `features/[f]/components/`
-  - Hook file (`use-*.ts`) → `features/[f]/hooks/`
-  - Store file (`*-store.ts`) → `features/[f]/stores/`
-  - Other `.ts` (constants, helpers, column defs) → `features/[f]/lib/`
-- For features with sub-feature split (workflows, datasets): determine if the file is
-  list-specific, detail-specific, or shared. List files → `features/[f]/list/[subdir]/`,
-  detail files → `features/[f]/detail/[subdir]/`, shared → `features/[f]/lib/`.
-
-**Reason explicitly:**
-```
-File: pools-page-content.tsx (in app/(dashboard)/pools/)
-Type: TSX component (renders JSX)
-Importers: only app/(dashboard)/pools/page.tsx
-Target feature: features/pools/
-Target subdir: components/
-Conclusion: MOVE to features/pools/components/pools-page-content.tsx
-Reason: non-routing file in routing-only zone; component used only by pools feature
-```
-
-### 4b. Shared-layer violations
-
-For each component/hook in `components/` or `hooks/` with single-feature usage:
-
-```
-File: use-pools-data.ts (in src/hooks/)
-Importers found: [list them]
-All from features/pools/ or app/(dashboard)/pools/? → YES/NO
-Name suggests feature ownership? → YES (contains "pools")
-Conclusion: [MOVE to features/pools/hooks/ | KEEP global | SKIP - needs human review]
-Reason: [one sentence explaining the decision]
-```
-
-### 4c. Special violation cases
-
-These are known single-feature components incorrectly in `components/`:
-
-- `components/dag/` → used only by workflows → **MOVE to `features/workflows/`**
-- `components/log-viewer/` → used only by log-viewer feature → **MOVE to `features/log-viewer/components/`**
-
-Verify by checking actual importers before moving.
-
-### 4d. Build the move list for this cluster:
-
-```
-MOVE: src/app/(dashboard)/pools/pools-page-content.tsx → src/features/pools/components/pools-page-content.tsx
-MOVE: src/app/(dashboard)/pools/use-pools-data.ts → src/features/pools/hooks/use-pools-data.ts
-KEEP: src/components/data-table/ — used by pools, workflows, datasets, resources; correctly shared
-SKIP: src/hooks/use-default-filter.ts — used in multiple features, needs human review
-```
-
-Select all MOVE items from this cluster (up to 5 safety cap). This cluster's moves are the full scope.
-
----
-
-## Step 5 — Execute Moves
-
-For each move in the cluster's move list (up to 5 safety cap), in order:
-
-### 5a. Read the source file
+### 2b. Read source file
 ```
 Read: [source path]
 ```
 
-### 5b. Create target directory if needed (features/ may not exist yet)
+### 2c. Create destination directory
 ```
 Bash: mkdir -p [destination directory]
 ```
 
-### 5c. Write to destination
+### 2d. Write to destination
 ```
 Write: [destination path]
-(same file content — do not modify internals)
 ```
+Verbatim — same content, no modifications.
 
-### 5d. Find all importers of the source path
+### 2e. Find ALL importers of the source path
 ```
-Grep: pattern="from ['\"]@/app/\(dashboard\)/[route]/[name]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
+Grep: pattern="['\"]@/[source-logical-path]['\"]" glob="src/**/*.{ts,tsx}" output_mode="content"
 ```
-Also check for the import without the full path in case of aliased imports.
+Where `source-logical-path` = source path without leading `src/` and without file extension.
+Example: `src/app/(dashboard)/pools/pools-page-content.tsx` → search for `@/app/(dashboard)/pools/pools-page-content`
 
-### 5e. Update every importer
-For each file that imports from the old path:
-- Read the file
-- Replace `@/app/(dashboard)/[route]/[name]` with `@/features/[feature]/[subdir]/[name]`
-- Write the updated file
+Also grep for the path WITH extension in case any imports include it.
 
-### 5f. Delete the source file
+### 2f. Update each importer
+For each file importing from the old path:
+- `Edit`: replace old `@/` path with the new `@/features/...` path
+
+### 2g. Delete source
 ```
 Bash: rm [source path]
 ```
 
-### 5g. Log the completed move
-Record: `[source] → [destination] (N importers updated)`
-
-Repeat for all cluster moves before proceeding to verify.
+### 2h. Record the completed move
+Note: `[source] → [destination] (N importers updated)`
 
 ---
 
-## Step 6 — Verify
+## Step 3 — Verify
 
 ```bash
 pnpm type-check
 pnpm lint
 ```
 
-If either fails:
-- Read the error carefully — likely a missed import path
-- Fix the specific broken import
+If errors:
+- Read the error output carefully
+- Fix the specific broken import (DO NOT suppress with @ts-ignore or eslint-disable)
 - Re-run both checks
-- Never suppress with `@ts-ignore` or `eslint-disable`
+- Repeat until clean
 
 ---
 
-## Step 7 — Update Dependency Graph
+## Step 4 — Update Memory
 
-Load the `dependency-graph` skill. For each move completed this invocation,
-apply the MOVE update protocol from the skill:
+### 4a. Update queue file
+Move all executed items from `## Pending` to `## Completed` in `.claude/memory/folder-structure-move-queue.md`.
+Remove any items that were skipped (source not found).
 
-- Update the node path
-- Update all edge references to the old path
-- Re-evaluate cluster membership: remove from old cluster, add to new cluster
-- Recompute cohesion for both affected clusters
-- Append one line per move to the graph changelog:
-  `[today] MOVE [old-path] → [new-directory]/`
+### 4b. Write last-audit file
+Write `.claude/memory/folder-structure-last-audit.md`:
 
-If the graph status is UNBUILT, skip this step.
-
-Write the updated graph back to `.claude/memory/dependency-graph.md`.
-
----
-
-## Step 8 — Write Domain Memory
-
-**Write `.claude/memory/folder-structure-last-audit.md`** (full replacement):
 ```markdown
 # Folder Structure Audit — Last Run
 Date: [today]
 Iteration: [N]
 Moved this run: [N files]
+Pending moves remaining: [count of items still in ## Pending]
 
-## Cluster Progress
-Completed Clusters: [cluster-a, cluster-b, ...]
-Pending Clusters (topo order): [cluster-c, cluster-d, ...]
-Current Working Cluster: [cluster-name]
-Current Cluster Status: [DONE | CONTINUE]
-
-## Routing-Zone Violations Remaining
-[List of non-routing files still in app/(dashboard)/ directories]
-
-## Completed Moves (this cluster)
+## Completed This Run
 [source → destination (N importers updated)]
 
-## Open Move Queue (current cluster)
-[All remaining MOVE candidates for current cluster]
-[Format: src/old/path.tsx → src/features/f/subdir/file.tsx | Reason: [one line]]
-
-## Kept Global (correctly placed)
-[list of hooks/components confirmed as correctly global with brief reason]
-
-## Skipped (human review needed)
-[file — why it needs human judgment]
+## Skipped This Run
+[source path — reason]
 
 ## Verification
 pnpm type-check: ✅/❌
 pnpm lint: ✅/❌
 ```
 
-**Update `.claude/memory/folder-structure-known-good.md`:**
-- Append files confirmed as correctly placed or just moved
-- Format: `src/path/to/file.ts — [global: reason | moved to: path] — [date]`
-- No duplicates
-
-**Append to `.claude/memory/folder-structure-skipped.md`** (only new items):
-- Format: `src/path/to/file.ts — [issue] — [reason needs human review]`
-- No duplicates
-
 ---
 
-## Step 9 — Exit Report
+## Step 5 — Exit Report
 
 ```
 ## Folder Structure — Iteration [N] Complete
 
-Working cluster this cycle: [cluster-name] ([N candidate files])
-Cluster status: [DONE | CONTINUE]
-Completed clusters: N/M total
-Pending clusters: [cluster-c, cluster-d, ...]
+Mode: [SCAN (queue built) | EXECUTE]
+Moves this run: N
+Queue remaining: N items
+Completed total: N / [total from queue header] items
 
-Routing-zone violations fixed this run: N
-  [app/(dashboard)/route/file → features/feature/subdir/file (N importers updated)]
+Files moved:
+  [source → destination (N importers updated)]
 
-Shared-layer violations fixed this run: N
-  [components/X → features/f/components/X (N importers updated)]
-
-Confirmed correctly global: N hooks/components
-  [name — reason]
-
-Open move queue in cluster: N items remaining
-Skipped (human review): N items
+Skipped:
+  [source — reason]
 
 Verification:
   pnpm type-check: ✅/❌
@@ -353,26 +251,26 @@ Verification:
 STATUS: [DONE | CONTINUE]
 ```
 
-- **DONE**: all clusters processed (pending list empty) AND current cluster has no remaining moves
-- **CONTINUE**: current cluster has remaining moves OR more clusters remain in pending list
+**DONE**: `## Pending` in queue is empty AND verification passes
+**CONTINUE**: `## Pending` has remaining items
 
 ---
 
 ## Hard Rules
 
-- **Never loop internally** — one analyze→reason→move→verify cycle, then exit
-- **Max 5 moves per invocation** — moves are larger operations than renames
+- **Never loop internally** — one cycle per invocation, then exit
+- **Max 15 moves per invocation**
 - **Never move Next.js reserved files** (`page.tsx`, `layout.tsx`, `error.tsx`, `loading.tsx`, `not-found.tsx`, `route.ts`, `default.tsx`, `template.tsx`)
 - **Never touch `src/components/shadcn/`**
-- **Never touch `*.generated.ts` / `*.generated.tsx` files**
-- **Test and mock files colocate with their source**: when a source file moves, its `.test.ts(x)` companion and any colocated mock moves too. Apply all routing-zone and shared-layer violation rules equally to test and mock files.
+- **Never touch `*.generated.ts` / `*.generated.tsx`**
+- **Test and mock files colocate with their source** — when a source moves, move its `.test.ts(x)` companion too; add it as an adjacent item in the queue
 - **Always read before writing**
 - **Always delete source after writing destination**
 - **Always update ALL importers before verifying**
-- **When uncertain about a move — SKIP, don't guess**
-- **Only move files, never rename during a move** (renaming is the file-rename-enforcer domain)
+- **SKIP if uncertain** — note in audit, don't guess
+- **Only move files, never rename** — renaming is the file-rename-enforcer domain
 - **All imports use absolute `@/` paths** — never introduce relative imports
 - **Never run `pnpm test`** — only type-check + lint
-- **NVIDIA copyright header**: if source had one, destination must have it (it will, since content is copied verbatim)
-- **Routing-zone violations take priority** — clear `app/(dashboard)/` of non-routing files first
+- **NEVER move files INTO `app/(dashboard)/[route]/`** — all moves go DIRECTLY to `features/[feature]/[subdir]/` in ONE step
 - **Never introduce cross-feature imports** — if a moved file imports from another feature, SKIP and flag for human review
+- **Queue is authoritative** — once built, execute from it; do not re-scan on EXECUTE invocations

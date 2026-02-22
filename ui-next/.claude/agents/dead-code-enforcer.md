@@ -21,7 +21,6 @@ Read these files (all may not exist yet — that is fine):
 Read: .claude/memory/dead-code-last-audit.md
 Read: .claude/memory/dead-code-known-good.md
 Read: .claude/memory/dead-code-skipped.md
-Read: .claude/memory/dependency-graph.md   ← in_degree=0 nodes are dead candidates
 Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
@@ -42,10 +41,7 @@ Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to w
 
 1. From `dead-code-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
 2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (dead code remains)
-3. Otherwise: filter graph clusters to all-source scope, remove completed clusters,
-   sort topologically (leaf-first — delete dead leaves before their potential importers),
-   select pending[0]
-4. If graph is UNBUILT: use directory-based pseudo-clusters, alphabetical order
+3. Otherwise: use directory-based pseudo-clusters (all-source scope), alphabetical order, select pending[0]
 
 **After selecting the cluster's directory, discover actual files with a live Glob:**
 ```
@@ -68,15 +64,7 @@ All subsequent steps operate only on files discovered within the working cluster
 
 ## Step 2 — Identify Dead File Candidates
 
-### 2a. Graph-guided candidates (in_degree = 0 from dependency-graph.md)
-
-If the graph is BUILT, extract dead candidates from the working cluster's section:
-```
-Read: .claude/memory/dependency-graph.md
-```
-Look for the cluster's "Notable Nodes" — files labeled `Dead candidates (in_degree=0)`.
-
-### 2b. Live import scan for cluster files
+### 2a. Live import scan for cluster files
 
 For each file in the working cluster, check if anything imports it:
 ```
@@ -211,7 +199,7 @@ Deleted this run: [N files/exports]
 
 ## Cluster Progress
 Completed Clusters: [cluster-a, cluster-b, ...]
-Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Pending Clusters: [cluster-c, cluster-d, ...]
 Current Working Cluster: [cluster-name]
 Current Cluster Status: [DONE | CONTINUE]
 Discovered files this cycle: N

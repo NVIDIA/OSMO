@@ -21,7 +21,6 @@ Read these files (all may not exist yet — that is fine):
 Read: .claude/memory/file-rename-last-audit.md
 Read: .claude/memory/file-rename-known-good.md
 Read: .claude/memory/file-rename-skipped.md
-Read: .claude/memory/dependency-graph.md   ← graph may be UNBUILT; that is fine
 ```
 
 Also read:
@@ -57,11 +56,8 @@ Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to w
 
 1. From `file-rename-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
 2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
-3. Otherwise: filter dependency graph clusters to those containing `.ts`/`.tsx` source files,
-   remove completed clusters, sort topologically (leaf-first), select pending[0]
-4. If graph is UNBUILT: use directory-based pseudo-clusters (see cluster-traversal skill §6)
-   — each subdirectory under `src/components/`, `src/app/`, `src/hooks/`, `src/stores/`, `src/lib/`
-   is one pseudo-cluster, ordered alphabetically
+3. Otherwise: use directory-based pseudo-clusters (all-source scope, see cluster-traversal skill §2),
+   alphabetical order, select pending[0]
 
 **After selecting the cluster's directory, discover actual files with a live Glob:**
 ```
@@ -171,24 +167,7 @@ If either fails:
 
 ---
 
-## Step 6 — Update Dependency Graph
-
-Load the `dependency-graph` skill. For each rename completed this invocation,
-apply the RENAME update protocol from the skill:
-
-- Update the node path in the graph
-- Update all edge references to the old path
-- Cluster membership is unchanged (same directory)
-- Append one line per rename to the graph changelog:
-  `[today] RENAME [old-path] → [new-path]`
-
-If the graph status is UNBUILT, skip this step — there is nothing to update.
-
-Write the updated graph back to `.claude/memory/dependency-graph.md`.
-
----
-
-## Step 7 — Write Domain Memory
+## Step 6 — Write Domain Memory
 
 **Write `.claude/memory/file-rename-last-audit.md`** (full replacement):
 ```markdown
@@ -199,7 +178,7 @@ Fixed this run: [N files renamed]
 
 ## Cluster Progress
 Completed Clusters: [cluster-a, cluster-b, ...]
-Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Pending Clusters: [cluster-c, cluster-d, ...]
 Current Working Cluster: [cluster-name]
 Current Cluster Status: [DONE | CONTINUE]
 
@@ -228,7 +207,7 @@ pnpm lint: ✅/❌
 
 ---
 
-## Step 8 — Exit Report
+## Step 7 — Exit Report
 
 ```
 ## File Rename — Iteration [N] Complete

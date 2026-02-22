@@ -25,11 +25,11 @@ Last Updated: [today's date]
 ## Domain Status
 | Domain                  | Status   | Last Run   | Iterations |
 |-------------------------|----------|------------|------------|
-| dependency-graph        | PENDING  | —          | 0          |
+| folder-structure        | PENDING  | —          | 0          |
 | dead-code               | PENDING  | —          | 0          |
 | file-rename             | PENDING  | —          | 0          |
-| folder-structure        | PENDING  | —          | 0          |
 | layer-compliance        | PENDING  | —          | 0          |
+| abstraction             | PENDING  | —          | 0          |
 | error-boundaries        | PENDING  | —          | 0          |
 | react-best-practices    | PENDING  | —          | 0          |
 | nextjs-patterns         | PENDING  | —          | 0          |
@@ -38,7 +38,7 @@ Last Updated: [today's date]
 | design-guidelines       | PENDING  | —          | 0          |
 
 ## Active Domain
-dependency-graph
+folder-structure
 
 ## Final Verification
 PENDING
@@ -63,10 +63,9 @@ Map the active domain to its enforcer agent:
 
 | Domain                  | Agent                              |
 |-------------------------|------------------------------------|
-| dead-code               | dead-code-enforcer                 |
-| dependency-graph        | dependency-graph-builder           |
-| file-rename             | file-rename-enforcer               |
 | folder-structure        | folder-structure-enforcer          |
+| dead-code               | dead-code-enforcer                 |
+| file-rename             | file-rename-enforcer               |
 | layer-compliance        | layer-compliance-enforcer          |
 | abstraction             | abstraction-enforcer               |
 | error-boundaries        | error-boundary-enforcer            |
@@ -76,13 +75,7 @@ Map the active domain to its enforcer agent:
 | tailwind-standards      | tailwind-standards-enforcer        |
 | design-guidelines       | design-guidelines-enforcer         |
 
-**Special case:** `dependency-graph` domain uses agent `dependency-graph-builder` (not `dependency-graph-enforcer`). Its prompt also differs:
-```
-subagent_type: dependency-graph-builder
-prompt: Run your next directory batch. Read .claude/memory/dependency-graph.md for current status, select the next batch of up to 5 unprocessed directories, extract import edges, identify notable nodes, update the graph memory file, and exit with STATUS: DONE or STATUS: CONTINUE.
-```
-
-For all other domains, launch via Task tool (foreground — wait for its exit report):
+Launch each domain via Task tool (foreground — wait for its exit report):
 ```
 subagent_type: [domain]-enforcer
 prompt: Run your audit→fix→verify cycle. Read your memory files and the cluster-traversal skill first. Select one working cluster (using the cluster-traversal procedure), audit and fix violations within that cluster only, run pnpm type-check && pnpm lint, write memory files (including cluster progress), then exit with STATUS: DONE or STATUS: CONTINUE.
@@ -111,7 +104,7 @@ Update `.claude/memory/audit-and-fix-pipeline-state.md`:
 
 ---
 
-## Step 4 — Final Gate (only when all 12 domains are DONE)
+## Step 4 — Final Gate (only when all 11 domains are DONE)
 
 Run:
 ```bash
@@ -134,7 +127,7 @@ Reproduce the domain table exactly as it appears in the state file:
 [domain table verbatim from audit-and-fix-pipeline-state.md]
 
 Active domain: [name] — STATUS: [DONE|CONTINUE]
-Overall: [N/12 domains complete]
+Overall: [N/11 domains complete]
 
 [Enforcer summary: N fixes applied, N violations remain]
 ```
@@ -143,7 +136,7 @@ If PIPELINE_COMPLETE:
 ```
 ## Pipeline Status: COMPLETE ✅
 
-All 12 domains clean. Final verification: pnpm type-check ✅ pnpm lint ✅ pnpm test ✅ pnpm format ✅
+All 11 domains clean. Final verification: pnpm type-check ✅ pnpm lint ✅ pnpm test ✅ pnpm format ✅
 ```
 
 ---

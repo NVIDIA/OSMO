@@ -21,7 +21,6 @@ Read these files (all may not exist yet — that is fine):
 Read: .claude/memory/layer-compliance-last-audit.md
 Read: .claude/memory/layer-compliance-known-good.md
 Read: .claude/memory/layer-compliance-skipped.md
-Read: .claude/memory/dependency-graph.md   ← cluster data for scope selection
 Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
@@ -43,9 +42,8 @@ Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to w
 
 1. From `layer-compliance-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
 2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
-3. Otherwise: filter graph clusters to all-source scope, remove completed clusters,
-   sort topologically (leaf-first — fix dependencies before their consumers), select pending[0]
-4. If graph is UNBUILT: use directory-based pseudo-clusters, alphabetical order
+3. Otherwise: use directory-based pseudo-clusters (all-source scope, see cluster-traversal skill §2),
+   alphabetical order, select pending[0]
 
 **After selecting the cluster's directory, discover actual files with a live Glob:**
 ```
@@ -217,7 +215,7 @@ Fixed this run: [N files]
 
 ## Cluster Progress
 Completed Clusters: [cluster-a, cluster-b, ...]
-Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Pending Clusters: [cluster-c, cluster-d, ...]
 Current Working Cluster: [cluster-name]
 Current Cluster Status: [DONE | CONTINUE]
 Discovered files this cycle: N

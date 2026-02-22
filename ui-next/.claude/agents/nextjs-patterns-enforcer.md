@@ -26,7 +26,6 @@ Read: .claude/memory/nextjs-patterns-skipped.md
 Also read:
 ```
 Read: CLAUDE.md   ← project-specific rules
-Read: .claude/memory/dependency-graph.md   ← cluster data for scope selection
 Read: .claude/skills/cluster-traversal.md   ← cluster selection procedure
 ```
 
@@ -61,10 +60,8 @@ Follow the cluster-traversal skill (Step 5 procedure) to select one cluster to w
 
 1. From `nextjs-patterns-last-audit.md`, load `Completed Clusters` and `Current Cluster Status`
 2. If `Current Cluster Status: CONTINUE` — re-select the same cluster (violations remain)
-3. Otherwise: filter graph clusters to feature-route clusters (primary dir under `src/app/(dashboard)/`),
-   remove completed clusters, sort topologically (leaf-first), select pending[0]
-4. If graph is UNBUILT: each subdirectory of `src/app/(dashboard)/` is one pseudo-cluster,
-   alphabetical order
+3. Otherwise: each subdirectory of `src/app/(dashboard)/` is one pseudo-cluster (feature-routes scope),
+   alphabetical order, select pending[0]
 
 **After selecting the cluster's directory, discover actual App Router files with live Globs:**
 ```
@@ -318,7 +315,7 @@ Fixed this run: [N files]
 
 ## Cluster Progress
 Completed Clusters: [cluster-a, cluster-b, ...]
-Pending Clusters (topo order): [cluster-c, cluster-d, ...]
+Pending Clusters: [cluster-c, cluster-d, ...]
 Current Working Cluster: [cluster-name]
 Current Cluster Status: [DONE | CONTINUE]
 
