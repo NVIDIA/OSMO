@@ -22,7 +22,7 @@ import { memo, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { Clock, Loader2, CheckCircle, XCircle, AlertCircle, Check, Circle, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { GroupNodeData } from "@/app/(dashboard)/workflows/[name]/lib/dag-layout";
+import type { GroupNodeData } from "@/features/workflows/detail/dag/dag-layout";
 
 export {
   // Types

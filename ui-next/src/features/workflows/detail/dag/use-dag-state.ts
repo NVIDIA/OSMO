@@ -57,7 +57,7 @@ import {
   computeInitialExpandedGroups as defaultComputeInitialExpandedGroups,
   clearLayoutCache as defaultClearLayoutCache,
   type GroupNodeData,
-} from "@/app/(dashboard)/workflows/[name]/lib/dag-layout";
+} from "@/features/workflows/detail/dag/dag-layout";
 
 // =============================================================================
 // Types

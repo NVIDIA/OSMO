@@ -33,22 +33,22 @@ import { SIDEBAR } from "@/components/chrome/constants";
 import { useSidebar } from "@/components/shadcn/sidebar";
 import { useEventCallback, useResizeObserver } from "usehooks-ts";
 import { PANEL } from "@/components/panel/panel-header-controls";
-import { nodeTypes } from "@/app/(dashboard)/workflows/[name]/components/dag/group-node";
-import { dagEdgeTypes } from "@/app/(dashboard)/workflows/[name]/components/dag/dag-edge";
-import { DAGProvider } from "@/app/(dashboard)/workflows/[name]/components/dag/dag-context";
+import { nodeTypes } from "@/features/workflows/detail/dag/group-node";
+import { dagEdgeTypes } from "@/features/workflows/detail/dag/dag-edge";
+import { DAGProvider } from "@/features/workflows/detail/dag/dag-context";
 import { MiniMapNode } from "@/components/dag/components/mini-map-node";
 import { DAGControls } from "@/components/dag/components/dag-controls";
 import { VIEWPORT, MINIMAP, BACKGROUND } from "@/components/dag/constants";
 import { useViewportBoundaries } from "@/components/dag/hooks/use-viewport-boundaries";
 import { useMiniMapColors } from "@/app/(dashboard)/workflows/[name]/lib/status";
-import { useDAGState } from "@/app/(dashboard)/workflows/[name]/hooks/use-dag-state";
+import { useDAGState } from "@/features/workflows/detail/dag/use-dag-state";
 import type {
   GroupWithLayout,
   TaskQueryResponse,
   WorkflowQueryResponse,
 } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 
-import "@/app/(dashboard)/workflows/[name]/styles/dag.css";
+import "@/features/workflows/detail/dag/dag.css";
 
 // =============================================================================
 // Types
