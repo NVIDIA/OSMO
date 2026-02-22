@@ -30,9 +30,9 @@
 "use client";
 
 import { useMemo, useCallback, memo } from "react";
-import { DataTable } from "@/components/data-table/DataTable";
-import { TableEmptyState } from "@/components/data-table/TableEmptyState";
-import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/TableStates";
+import { DataTable } from "@/components/data-table/data-table";
+import { TableEmptyState } from "@/components/data-table/table-empty-state";
+import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
 import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";

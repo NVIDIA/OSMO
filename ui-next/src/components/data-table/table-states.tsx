@@ -36,7 +36,7 @@
  */
 
 import { cn } from "@/lib/utils";
-import { TableSkeleton } from "@/components/data-table/TableSkeleton";
+import { TableSkeleton } from "@/components/data-table/table-skeleton";
 
 // =============================================================================
 // Types

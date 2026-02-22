@@ -35,11 +35,11 @@ import { cn } from "@/lib/utils";
 
 import type { ColumnSizingPreference, ColumnSizingPreferences } from "@/stores/types";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { SortableCell } from "@/components/data-table/SortableCell";
-import { SortButton } from "@/components/data-table/SortButton";
-import { VirtualTableBody } from "@/components/data-table/VirtualTableBody";
-import { ResizeHandle } from "@/components/data-table/ResizeHandle";
-import { TableSkeleton } from "@/components/data-table/TableSkeleton";
+import { SortableCell } from "@/components/data-table/sortable-cell";
+import { SortButton } from "@/components/data-table/sort-button";
+import { VirtualTableBody } from "@/components/data-table/virtual-table-body";
+import { ResizeHandle } from "@/components/data-table/resize-handle";
+import { TableSkeleton } from "@/components/data-table/table-skeleton";
 import { useVirtualizedTable } from "@/components/data-table/hooks/use-virtualized-table";
 import { useTableDnd } from "@/components/data-table/hooks/use-column-reordering";
 import { useColumnSizing } from "@/components/data-table/hooks/use-column-sizing";

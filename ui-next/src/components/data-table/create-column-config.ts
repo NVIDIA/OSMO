@@ -41,7 +41,7 @@
  */
 
 import type { ColumnSizeConfig } from "@/components/data-table/types";
-import type { ColumnDefinition } from "@/components/data-table/TableToolbar";
+import type { ColumnDefinition } from "@/components/data-table/table-toolbar";
 
 // =============================================================================
 // Types

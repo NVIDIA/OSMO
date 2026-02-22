@@ -25,7 +25,7 @@ import { memo, useState, useCallback } from "react";
 import { FileCode } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
-import { CodeMirror } from "@/components/code-viewer/CodeMirror";
+import { CodeMirror } from "@/components/code-viewer/code-mirror";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
 import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/collapsible-section";
 

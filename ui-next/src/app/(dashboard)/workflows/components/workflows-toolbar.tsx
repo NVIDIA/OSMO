@@ -21,7 +21,7 @@ import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User } from "luci
 import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
-import { TableToolbar } from "@/components/data-table/TableToolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { RefreshControlProps } from "@/components/refresh/RefreshControl";
 import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/workflows/lib/workflow-columns";

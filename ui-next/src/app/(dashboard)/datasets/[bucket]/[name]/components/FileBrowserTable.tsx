@@ -26,9 +26,9 @@
 import { useMemo, useCallback, memo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Folder, File, FileText, FileImage, FileVideo, Copy } from "lucide-react";
-import { DataTable } from "@/components/data-table/DataTable";
-import { TableEmptyState } from "@/components/data-table/TableEmptyState";
-import { TableLoadingSkeleton } from "@/components/data-table/TableStates";
+import { DataTable } from "@/components/data-table/data-table";
+import { TableEmptyState } from "@/components/data-table/table-empty-state";
+import { TableLoadingSkeleton } from "@/components/data-table/table-states";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";

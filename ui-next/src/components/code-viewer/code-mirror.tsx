@@ -29,7 +29,7 @@
  *
  * @example Read-only viewer
  * ```tsx
- * import { CodeMirror } from "@/components/code-viewer/CodeMirror";
+ * import { CodeMirror } from "@/components/code-viewer/code-mirror";
  * import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
  *
  * <CodeMirror
@@ -41,7 +41,7 @@
  *
  * @example Editable editor
  * ```tsx
- * import { CodeMirror } from "@/components/code-viewer/CodeMirror";
+ * import { CodeMirror } from "@/components/code-viewer/code-mirror";
  * import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
  *
  * <CodeMirror

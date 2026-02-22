@@ -26,7 +26,7 @@
 
 import { memo } from "react";
 import type { SearchChip, ResultsCount } from "@/components/filter-bar/lib/types";
-import { TableToolbar } from "@/components/data-table/TableToolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { useTaskTableStore } from "@/app/(dashboard)/workflows/[name]/stores/task-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/workflows/[name]/lib/task-columns";
 import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/task-search-fields";

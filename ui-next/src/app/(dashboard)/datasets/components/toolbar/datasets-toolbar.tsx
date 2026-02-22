@@ -21,7 +21,7 @@ import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { ResultsCount, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
-import { TableToolbar } from "@/components/data-table/TableToolbar";
+import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/datasets/lib/dataset-columns";
 import { DATASET_STATIC_FIELDS, type Dataset } from "@/app/(dashboard)/datasets/lib/dataset-search-fields";
