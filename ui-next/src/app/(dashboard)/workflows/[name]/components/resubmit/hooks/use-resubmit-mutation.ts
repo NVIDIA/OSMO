@@ -25,7 +25,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useServices } from "@/contexts/service-context";
-import { resubmitWorkflow, type ResubmitParams, type ResubmitResult } from "@/app/(dashboard)/workflows/actions";
+import { resubmitWorkflow, type ResubmitParams, type ResubmitResult } from "@/features/workflows/list/lib/actions";
 
 export interface UseResubmitMutationOptions {
   /** Called on successful resubmission with the new workflow name */

@@ -24,7 +24,7 @@
  *
  * Usage in Client Components:
  * ```tsx
- * import { cancelWorkflow, retryWorkflow } from '@/app/(dashboard)/workflows/actions';
+ * import { cancelWorkflow, retryWorkflow } from '@/features/workflows/list/lib/actions';
  *
  * // In a button onClick or form action:
  * await cancelWorkflow(workflowName);

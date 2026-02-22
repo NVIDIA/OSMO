@@ -29,15 +29,15 @@ import { Link } from "@/components/link";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { usePools, useVersion, useProfile } from "@/lib/api/adapter/hooks";
-import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
+import { useWorkflowsData } from "@/features/workflows/list/hooks/use-workflows-data";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 import {
   getStatusDisplay,
   STATUS_STYLES,
   type StatusCategory,
-} from "@/app/(dashboard)/workflows/lib/workflow-constants";
-import { STATUS_PRESETS } from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+} from "@/features/workflows/list/lib/workflow-constants";
+import { STATUS_PRESETS } from "@/features/workflows/list/lib/workflow-search-fields";
 
 // =============================================================================
 // Dashboard Content

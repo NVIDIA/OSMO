@@ -16,7 +16,7 @@
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
-import { WorkflowsPageContent } from "@/app/(dashboard)/workflows/workflows-page-content";
+import { WorkflowsPageContent } from "@/features/workflows/list/components/workflows-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createServerQueryClient } from "@/lib/query-client";
 import { getServerUsername } from "@/lib/auth/server";

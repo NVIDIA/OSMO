@@ -22,11 +22,11 @@ import { useResultsCount } from "@/hooks/use-results-count";
 import { useDefaultFilter } from "@/hooks/use-default-filter";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { useCallback, useMemo } from "react";
-import { WorkflowsDataTable } from "@/app/(dashboard)/workflows/components/table/workflows-data-table";
-import { WorkflowsToolbar } from "@/app/(dashboard)/workflows/components/workflows-toolbar";
-import { useWorkflowsData } from "@/app/(dashboard)/workflows/hooks/use-workflows-data";
-import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
-import { useWorkflowsAutoRefresh } from "@/app/(dashboard)/workflows/hooks/use-workflows-auto-refresh";
+import { WorkflowsDataTable } from "@/features/workflows/list/components/table/workflows-data-table";
+import { WorkflowsToolbar } from "@/features/workflows/list/components/workflows-toolbar";
+import { useWorkflowsData } from "@/features/workflows/list/hooks/use-workflows-data";
+import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
+import { useWorkflowsAutoRefresh } from "@/features/workflows/list/hooks/use-workflows-auto-refresh";
 import { useUser } from "@/lib/auth/user-context";
 import type { SearchChip } from "@/stores/types";
 

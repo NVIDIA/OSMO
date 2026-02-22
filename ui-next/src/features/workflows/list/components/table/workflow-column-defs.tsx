@@ -26,13 +26,13 @@ import {
   WORKFLOW_COLUMN_SIZE_CONFIG,
   COLUMN_LABELS,
   type WorkflowColumnId,
-} from "@/app/(dashboard)/workflows/lib/workflow-columns";
+} from "@/features/workflows/list/lib/workflow-columns";
 import {
   getStatusDisplay,
   STATUS_STYLES,
   getPriorityDisplay,
   type StatusCategory,
-} from "@/app/(dashboard)/workflows/lib/workflow-constants";
+} from "@/features/workflows/list/lib/workflow-constants";
 import { formatDuration } from "@/app/(dashboard)/workflows/[name]/lib/workflow-types";
 import { WorkflowStatus } from "@/lib/api/generated";
 

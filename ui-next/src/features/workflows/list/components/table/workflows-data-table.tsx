@@ -44,10 +44,10 @@ import {
   MANDATORY_COLUMN_IDS,
   asWorkflowColumnIds,
   WORKFLOW_COLUMN_SIZE_CONFIG,
-} from "@/app/(dashboard)/workflows/lib/workflow-columns";
-import { getStatusDisplay } from "@/app/(dashboard)/workflows/lib/workflow-constants";
-import { createWorkflowColumns } from "@/app/(dashboard)/workflows/components/table/workflow-column-defs";
-import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
+} from "@/features/workflows/list/lib/workflow-columns";
+import { getStatusDisplay } from "@/features/workflows/list/lib/workflow-constants";
+import { createWorkflowColumns } from "@/features/workflows/list/components/table/workflow-column-defs";
+import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
 
 // =============================================================================

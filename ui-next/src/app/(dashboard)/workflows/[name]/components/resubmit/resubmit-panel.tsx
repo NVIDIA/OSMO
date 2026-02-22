@@ -29,7 +29,7 @@
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { PANEL } from "@/components/panel/panel-header-controls";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { useWorkflowsPreferencesStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
+import { useWorkflowsPreferencesStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { ResubmitPanelHeader } from "@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-header";
 import { ResubmitPanelContent } from "@/app/(dashboard)/workflows/[name]/components/resubmit/resubmit-panel-content";
 

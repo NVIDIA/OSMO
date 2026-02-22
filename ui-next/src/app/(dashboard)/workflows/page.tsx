@@ -40,8 +40,8 @@ export const metadata: Metadata = {
  */
 
 import { Suspense } from "react";
-import { WorkflowsPageSkeleton } from "@/app/(dashboard)/workflows/workflows-page-skeleton";
-import { WorkflowsWithData } from "@/app/(dashboard)/workflows/workflows-with-data";
+import { WorkflowsPageSkeleton } from "@/features/workflows/list/components/workflows-page-skeleton";
+import { WorkflowsWithData } from "@/features/workflows/list/components/workflows-with-data";
 
 // =============================================================================
 // Types

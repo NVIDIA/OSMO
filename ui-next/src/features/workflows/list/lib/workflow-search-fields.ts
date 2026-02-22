@@ -18,7 +18,7 @@ import type { SearchField, SearchChip } from "@/components/filter-bar/lib/types"
 import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
-import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "@/app/(dashboard)/workflows/lib/workflow-constants";
+import { ALL_WORKFLOW_STATUSES, STATUS_LABELS } from "@/features/workflows/list/lib/workflow-constants";
 import { naturalCompare } from "@/lib/utils";
 
 export type StatusPresetId = "running" | "waiting" | "completed" | "failed";

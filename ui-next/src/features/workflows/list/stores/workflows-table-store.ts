@@ -32,7 +32,7 @@ import {
   DEFAULT_VISIBLE_COLUMNS,
   DEFAULT_COLUMN_ORDER,
   DEFAULT_SORT,
-} from "@/app/(dashboard)/workflows/lib/workflow-columns";
+} from "@/features/workflows/list/lib/workflow-columns";
 
 /**
  * Workflows table store for column/sort preferences.

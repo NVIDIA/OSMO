@@ -23,16 +23,16 @@ import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { RefreshControlProps } from "@/components/refresh/refresh-control";
-import { useWorkflowsTableStore } from "@/app/(dashboard)/workflows/stores/workflows-table-store";
-import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/workflows/lib/workflow-columns";
+import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
+import { OPTIONAL_COLUMNS } from "@/features/workflows/list/lib/workflow-columns";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import {
   WORKFLOW_STATIC_FIELDS,
   createPresetChips,
   type StatusPresetId,
-} from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
-import { STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/workflows/lib/workflow-constants";
-import { useWorkflowAsyncFields } from "@/app/(dashboard)/workflows/hooks/use-workflow-async-fields";
+} from "@/features/workflows/list/lib/workflow-search-fields";
+import { STATUS_STYLES, type StatusCategory } from "@/features/workflows/list/lib/workflow-constants";
+import { useWorkflowAsyncFields } from "@/features/workflows/list/hooks/use-workflow-async-fields";
 
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   waiting: Clock,

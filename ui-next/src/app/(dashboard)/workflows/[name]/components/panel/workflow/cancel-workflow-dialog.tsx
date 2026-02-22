@@ -38,7 +38,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription } f
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useServerMutation } from "@/hooks/use-server-mutation";
-import { cancelWorkflow } from "@/app/(dashboard)/workflows/actions";
+import { cancelWorkflow } from "@/features/workflows/list/lib/actions";
 import { cn } from "@/lib/utils";
 
 // =============================================================================

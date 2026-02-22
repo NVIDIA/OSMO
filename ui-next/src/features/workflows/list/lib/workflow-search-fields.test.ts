@@ -19,7 +19,7 @@ import {
   WORKFLOW_STATIC_FIELDS,
   STATUS_PRESETS,
   createPresetChips,
-} from "@/app/(dashboard)/workflows/lib/workflow-search-fields";
+} from "@/features/workflows/list/lib/workflow-search-fields";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 
 function createWorkflow(overrides: Partial<WorkflowListEntry> = {}): WorkflowListEntry {
