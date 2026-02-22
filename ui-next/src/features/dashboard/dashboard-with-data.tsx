@@ -36,7 +36,7 @@ import { prefetchPoolsForDashboard } from "@/lib/api/server/pools";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
 import { prefetchVersion } from "@/lib/api/server/version";
 import { prefetchProfile } from "@/lib/api/server/profile";
-import { DashboardContent } from "@/features/dashboard/components/dashboard-content";
+import { DashboardContent } from "@/features/dashboard/dashboard-content";
 import { createServerQueryClient } from "@/lib/query-client";
 
 export async function DashboardWithData() {

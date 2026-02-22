@@ -32,11 +32,7 @@ import { usePools, useVersion, useProfile } from "@/lib/api/adapter/hooks";
 import { useWorkflowsData } from "@/features/workflows/list/hooks/use-workflows-data";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
-import {
-  getStatusDisplay,
-  STATUS_STYLES,
-  type StatusCategory,
-} from "@/features/workflows/list/lib/workflow-constants";
+import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/features/workflows/list/lib/workflow-constants";
 import { STATUS_PRESETS } from "@/features/workflows/list/lib/workflow-search-fields";
 
 // =============================================================================
