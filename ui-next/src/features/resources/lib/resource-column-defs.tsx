@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import { getResourceAllocationTypeDisplay } from "@/features/resources/lib/constants";
 import type { Resource } from "@/lib/api/adapter/types";
 import type { DisplayMode } from "@/stores/shared-preferences-store";
-import { CapacityCell } from "@/features/resources/components/cells/capacity-cell";
+import { CapacityCell } from "@/features/resources/components/table/capacity-cell";
 import {
   type ResourceColumnId,
   COLUMN_LABELS,
