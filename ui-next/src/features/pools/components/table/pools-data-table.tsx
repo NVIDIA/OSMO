@@ -38,11 +38,7 @@ import type { SortState, ColumnSizingPreference } from "@/components/data-table/
 import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
-import {
-  MANDATORY_COLUMN_IDS,
-  asPoolColumnIds,
-  POOL_COLUMN_SIZE_CONFIG,
-} from "@/features/pools/lib/pool-columns";
+import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "@/features/pools/lib/pool-columns";
 import { createPoolColumns } from "@/features/pools/components/table/pool-column-defs";
 import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
 import { useSortedPools } from "@/features/pools/hooks/use-sorted-pools";
