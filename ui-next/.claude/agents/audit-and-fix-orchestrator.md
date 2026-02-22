@@ -68,6 +68,7 @@ Map the active domain to its enforcer agent:
 | file-rename             | file-rename-enforcer               |
 | folder-structure        | folder-structure-enforcer          |
 | layer-compliance        | layer-compliance-enforcer          |
+| abstraction             | abstraction-enforcer               |
 | error-boundaries        | error-boundary-enforcer            |
 | react-best-practices    | react-best-practices-enforcer      |
 | nextjs-patterns         | nextjs-patterns-enforcer           |
@@ -104,7 +105,7 @@ Update `.claude/memory/audit-and-fix-pipeline-state.md`:
 
 ---
 
-## Step 4 — Final Gate (only when all 11 domains are DONE)
+## Step 4 — Final Gate (only when all 12 domains are DONE)
 
 Run:
 ```bash
@@ -127,7 +128,7 @@ Reproduce the domain table exactly as it appears in the state file:
 [domain table verbatim from audit-and-fix-pipeline-state.md]
 
 Active domain: [name] — STATUS: [DONE|CONTINUE]
-Overall: [N/11 domains complete]
+Overall: [N/12 domains complete]
 
 [Enforcer summary: N fixes applied, N violations remain]
 ```
@@ -136,7 +137,7 @@ If PIPELINE_COMPLETE:
 ```
 ## Pipeline Status: COMPLETE ✅
 
-All 11 domains clean. Final verification: pnpm type-check ✅ pnpm lint ✅ pnpm test ✅ pnpm format ✅
+All 12 domains clean. Final verification: pnpm type-check ✅ pnpm lint ✅ pnpm test ✅ pnpm format ✅
 ```
 
 ---
