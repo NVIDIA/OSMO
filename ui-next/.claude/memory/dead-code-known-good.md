@@ -75,3 +75,28 @@ src/lib/hotkeys/** (2 files) -- confirmed live 2026-02-21
 src/lib/navigation/** (2 files, excl. test) -- confirmed live 2026-02-21
 src/lib/dev/** (2 files) -- confirmed live via dev infrastructure 2026-02-21
 src/lib/config/oauth-config.ts -- confirmed live 2026-02-21
+src/mocks/mock-provider.tsx -- entry point (aliased) confirmed live 2026-02-21
+src/mocks/mock-provider.production.tsx -- entry point (aliased) confirmed live 2026-02-21
+src/mocks/server.ts -- entry point (aliased) confirmed live 2026-02-21
+src/mocks/server.production.ts -- entry point (aliased) confirmed live 2026-02-21
+src/mocks/handlers.ts -- entry point (aliased) confirmed live 2026-02-21
+src/mocks/handlers.production.ts -- entry point (aliased) confirmed live 2026-02-21
+src/mocks/global-config.ts -- confirmed live 2026-02-21
+src/mocks/mock-workflows.ts -- confirmed live 2026-02-21
+src/mocks/utils.ts -- confirmed live 2026-02-21
+src/mocks/inject-auth.ts -- confirmed live (dynamic import) 2026-02-21
+src/mocks/generators/** (11 files) -- confirmed live 2026-02-21
+src/mocks/seed/types.ts -- confirmed live 2026-02-21
+src/components/boolean-indicator.tsx -- confirmed live 2026-02-21
+src/components/capacity-bar.tsx -- confirmed live 2026-02-21
+src/components/copyable-value.tsx -- confirmed live 2026-02-21
+src/components/dev-auth-init.tsx -- confirmed live 2026-02-21
+src/components/expandable-chips.tsx -- confirmed live 2026-02-21
+src/components/inline-progress.tsx -- confirmed live 2026-02-21
+src/components/item-selector.tsx -- confirmed live 2026-02-21
+src/components/link.tsx -- confirmed live 2026-02-21
+src/components/not-found-content.tsx -- confirmed live 2026-02-21
+src/components/progress-bar.tsx -- confirmed live 2026-02-21
+src/components/providers.tsx -- entry point confirmed live 2026-02-21
+src/components/query-devtools.tsx -- confirmed live 2026-02-21
+src/components/theme-toggle.tsx -- confirmed live 2026-02-21
