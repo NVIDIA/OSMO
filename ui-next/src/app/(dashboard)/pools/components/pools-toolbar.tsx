@@ -30,7 +30,7 @@ import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/pools/lib/pool-columns";
 import { createPoolSearchFields } from "@/app/(dashboard)/pools/lib/pool-search-fields";
-import { STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
+import { STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
 /** Status icons matching the table column badges */
 const STATUS_ICONS = {

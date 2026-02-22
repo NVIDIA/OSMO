@@ -27,12 +27,10 @@
 "use client";
 
 import { memo, useState, useMemo, useCallback } from "react";
-import { useGetPoolQuotasApiPoolQuotaGet } from "@/lib/api/generated";
-import { useProfile } from "@/lib/api/adapter/hooks";
-import { transformPoolsResponse, transformPoolDetail } from "@/lib/api/adapter/transforms";
+import { usePool, usePools, useProfile } from "@/lib/api/adapter/hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
-import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
+import { PlatformPills } from "@/components/platform-pills";
 import { PoolSelect } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-select";
 import { PoolStatusBadge } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/pool-status-badge";
 import { CollapsibleSection } from "@/app/(dashboard)/workflows/[name]/components/resubmit/sections/collapsible-section";
@@ -121,39 +119,11 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
 
   // Fetch individual pool metadata (ONLY before dropdown opens)
   // Disabled after all-pools query to prevent redundant API calls
-  const { data: individualPoolData } = useGetPoolQuotasApiPoolQuotaGet(
-    {
-      pools: [pool],
-      all_pools: false,
-    },
-    {
-      query: {
-        enabled: !hasEverOpenedDropdown,
-        select: useCallback(
-          (rawData: unknown) => {
-            if (!rawData) return null;
-            return transformPoolDetail(rawData, pool);
-          },
-          [pool],
-        ),
-      },
-    },
-  );
+  const { pool: individualPoolData } = usePool(pool, !hasEverOpenedDropdown);
 
   // Lazy-load ALL pools (only after dropdown opens at least once)
   // Once loaded, we use this data for ALL pool selections (no more individual queries)
-  const { data: allPoolsData } = useGetPoolQuotasApiPoolQuotaGet(
-    { all_pools: true },
-    {
-      query: {
-        enabled: hasEverOpenedDropdown,
-        select: useCallback((rawData: unknown) => {
-          if (!rawData) return { pools: [], sharingGroups: [] };
-          return transformPoolsResponse(rawData);
-        }, []),
-      },
-    },
-  );
+  const { pools: allPools } = usePools(hasEverOpenedDropdown);
 
   // Accessible pool names from profile settings (no bucket fetch needed)
   const { profile } = useProfile();
@@ -165,7 +135,6 @@ export const PoolSection = memo(function PoolSection({ pool, onChange }: PoolSec
 
   // Use all-pools data if available (preferred), fallback to individual pool query
   // This prevents new API calls when selecting different pools after all-pools is loaded
-  const allPools = allPoolsData?.pools;
   const selectedPool = useMemo(() => {
     if (allPools) {
       return allPools.find((p) => p.name === pool);

@@ -42,15 +42,7 @@
 import { revalidatePath, updateTag, refresh } from "next/cache";
 import { ServerApiError } from "@/lib/api/server/config";
 import { customFetch } from "@/lib/api/fetcher";
-
-// =============================================================================
-// Types
-// =============================================================================
-
-export interface ActionResult {
-  success: boolean;
-  error?: string;
-}
+import type { ActionResult } from "@/lib/server-actions";
 
 // =============================================================================
 // Helper Functions

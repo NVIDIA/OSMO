@@ -55,11 +55,12 @@ import {
 import type { PaginationParams } from "@/lib/api/pagination/types";
 import { normalizeWorkflowTimestamps } from "@/lib/api/adapter/utils";
 
-export function usePools() {
+export function usePools(enabled = true) {
   const { data, isLoading, error, refetch } = useGetPoolQuotasApiPoolQuotaGet(
     { all_pools: true },
     {
       query: {
+        enabled,
         select: useCallback((rawData: unknown) => {
           if (!rawData) return { pools: [], sharingGroups: [] };
           return transformPoolsResponse(rawData);
@@ -127,7 +128,7 @@ export async function fetchPools() {
 
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
 
-export function usePool(poolName: string) {
+export function usePool(poolName: string, enabled = true) {
   const { data, isLoading, error, refetch } = useGetPoolQuotasApiPoolQuotaGet(
     {
       pools: [poolName],
@@ -135,6 +136,7 @@ export function usePool(poolName: string) {
     },
     {
       query: {
+        enabled,
         select: useCallback(
           (rawData: unknown) => {
             if (!rawData) return null;

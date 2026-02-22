@@ -58,7 +58,7 @@
 
 import { useState, useCallback, useTransition } from "react";
 import { useServices } from "@/contexts/service-context";
-import type { ActionResult } from "@/app/(dashboard)/workflows/actions";
+import type { ActionResult } from "@/lib/server-actions";
 
 export interface UseServerMutationOptions {
   /** Called on successful mutation */

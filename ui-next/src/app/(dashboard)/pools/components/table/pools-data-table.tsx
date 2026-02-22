@@ -47,7 +47,7 @@ import { createPoolColumns } from "@/app/(dashboard)/pools/components/table/pool
 import { usePoolsTableStore } from "@/app/(dashboard)/pools/stores/pools-table-store";
 import { useSortedPools } from "@/app/(dashboard)/pools/hooks/use-sorted-pools";
 import { useCssVarDimensions } from "@/lib/css-utils";
-import { getStatusDisplay } from "@/app/(dashboard)/pools/lib/constants";
+import { getStatusDisplay } from "@/lib/pool-status";
 import "@/app/(dashboard)/pools/styles/pools.css";
 
 // =============================================================================

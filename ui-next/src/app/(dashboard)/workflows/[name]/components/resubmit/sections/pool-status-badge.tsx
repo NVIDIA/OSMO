@@ -24,7 +24,7 @@
 import { memo } from "react";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
+import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
 /** Status icons mapping (matches pools table) */
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {

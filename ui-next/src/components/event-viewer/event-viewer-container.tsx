@@ -27,8 +27,8 @@ import type { TaskGroupStatus } from "@/lib/api/generated";
 import { useTick } from "@/hooks/use-tick";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import { useUrlChips } from "@/hooks/use-url-chips";
-import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/app/(dashboard)/workflows/[name]/lib/event-search-fields";
-import { filterTaskGroups } from "@/app/(dashboard)/workflows/[name]/lib/event-filtering";
+import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/components/event-viewer/lib/event-search-fields";
+import { filterTaskGroups } from "@/components/event-viewer/lib/event-filtering";
 import "@/components/event-viewer/event-viewer.css";
 
 /** OSMO Postgres timestamps for a single task attempt. */

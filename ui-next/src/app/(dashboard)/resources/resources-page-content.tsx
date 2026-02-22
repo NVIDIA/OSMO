@@ -52,7 +52,7 @@ import { ResourcesToolbar } from "@/app/(dashboard)/resources/components/resourc
 import { useResourcesTableStore } from "@/app/(dashboard)/resources/stores/resources-table-store";
 import { AdaptiveSummary } from "@/app/(dashboard)/resources/components/resource-summary-card";
 import { useResourcesData } from "@/app/(dashboard)/resources/hooks/use-resources-data";
-import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/compute-aggregates";
+import type { ResourceAggregates } from "@/lib/resource-aggregates";
 
 // =============================================================================
 // Client Component

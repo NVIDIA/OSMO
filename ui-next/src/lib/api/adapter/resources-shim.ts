@@ -62,7 +62,7 @@ import type { PaginatedResponse, PaginationParams } from "@/lib/api/pagination/t
 import { matchesSearch } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter/types";
 import { transformAllResourcesResponse } from "@/lib/api/adapter/transforms";
-import { computeAggregates, type ResourceAggregates } from "@/app/(dashboard)/resources/lib/compute-aggregates";
+import { computeAggregates, type ResourceAggregates } from "@/lib/resource-aggregates";
 import type { SearchChip } from "@/stores/types";
 
 /**

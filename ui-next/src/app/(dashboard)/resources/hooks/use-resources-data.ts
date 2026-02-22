@@ -55,7 +55,7 @@ import {
 } from "@/lib/api/chip-filter-utils";
 import { RESOURCE_SEARCH_FIELDS } from "@/app/(dashboard)/resources/lib/resource-search-fields";
 import { QUERY_STALE_TIME } from "@/lib/config";
-import type { ResourceAggregates } from "@/app/(dashboard)/resources/lib/compute-aggregates";
+import type { ResourceAggregates } from "@/lib/resource-aggregates";
 
 // =============================================================================
 // Types

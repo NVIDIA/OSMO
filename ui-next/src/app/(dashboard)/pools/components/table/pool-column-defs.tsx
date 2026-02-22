@@ -30,9 +30,9 @@ import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { GpuProgressCell } from "@/app/(dashboard)/pools/components/cells/gpu-progress-cell";
-import { PlatformPills } from "@/app/(dashboard)/pools/components/cells/platform-pills";
+import { PlatformPills } from "@/components/platform-pills";
 import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "@/app/(dashboard)/pools/lib/pool-columns";
-import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/app/(dashboard)/pools/lib/constants";
+import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
 // Status icons mapping
 const STATUS_ICONS = {
