@@ -23,7 +23,7 @@
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 import { createServerQueryClient } from "@/lib/query-client";
 import { prefetchDatasetDetail } from "@/lib/api/server/datasets";
-import { DatasetDetailContent } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-content";
+import { DatasetDetailContent } from "@/features/datasets/detail/components/dataset-detail-content";
 
 interface Props {
   bucket: string;

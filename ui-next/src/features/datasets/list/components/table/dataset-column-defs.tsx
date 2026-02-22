@@ -23,7 +23,7 @@ import {
   DATASET_COLUMN_SIZE_CONFIG,
   COLUMN_LABELS,
   type DatasetColumnId,
-} from "@/app/(dashboard)/datasets/lib/dataset-columns";
+} from "@/features/datasets/list/lib/dataset-columns";
 
 function getMinSize(id: DatasetColumnId): number {
   const col = DATASET_COLUMN_SIZE_CONFIG.find((c) => c.id === id);

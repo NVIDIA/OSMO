@@ -42,9 +42,9 @@ import {
   MANDATORY_COLUMN_IDS,
   asDatasetColumnIds,
   DATASET_COLUMN_SIZE_CONFIG,
-} from "@/app/(dashboard)/datasets/lib/dataset-columns";
-import { createDatasetColumns } from "@/app/(dashboard)/datasets/components/table/dataset-column-defs";
-import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
+} from "@/features/datasets/list/lib/dataset-columns";
+import { createDatasetColumns } from "@/features/datasets/list/components/table/dataset-column-defs";
+import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
 
 // =============================================================================
@@ -195,7 +195,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
    *
    * When a panel is open, single-click selects a dataset (opens slideout) and
    * double-click navigates to the detail page. Without debouncing, the first
-   * click of a double-click sequence fires onRowSelect → startViewTransition →
+   * click of a double-click sequence fires onRowSelect -> startViewTransition ->
    * setSelectedView (nuqs URL push) before the dblclick event fires. That URL
    * change then races with router.push from the double-click handler, causing
    * the navigation to inherit stale search params or be cancelled entirely.

@@ -23,7 +23,7 @@
 
 import type { SearchField } from "@/components/filter-bar/lib/types";
 import type { Dataset } from "@/lib/api/adapter/datasets";
-import { getDateRangePresetSuggestions } from "@/app/(dashboard)/datasets/lib/date-filter-utils";
+import { getDateRangePresetSuggestions } from "@/features/datasets/list/lib/date-filter-utils";
 
 // Re-export Dataset type for convenience
 export type { Dataset } from "@/lib/api/adapter/datasets";

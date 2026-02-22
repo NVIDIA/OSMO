@@ -40,8 +40,8 @@ export const metadata: Metadata = {
  */
 
 import { Suspense } from "react";
-import { DatasetsPageSkeleton } from "@/app/(dashboard)/datasets/datasets-page-skeleton";
-import { DatasetsWithData } from "@/app/(dashboard)/datasets/datasets-with-data";
+import { DatasetsPageSkeleton } from "@/features/datasets/list/components/datasets-page-skeleton";
+import { DatasetsWithData } from "@/features/datasets/list/components/datasets-with-data";
 
 // =============================================================================
 // Types

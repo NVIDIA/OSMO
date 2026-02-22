@@ -23,8 +23,8 @@
 
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { DatasetDetailWithData } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-with-data";
-import { DatasetDetailSkeleton } from "@/app/(dashboard)/datasets/[bucket]/[name]/dataset-detail-skeleton";
+import { DatasetDetailWithData } from "@/features/datasets/detail/components/dataset-detail-with-data";
+import { DatasetDetailSkeleton } from "@/features/datasets/detail/components/dataset-detail-skeleton";
 
 interface PageProps {
   params: Promise<{ bucket: string; name: string }>;

@@ -29,11 +29,11 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
-import { FileBrowserHeader } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-header";
-import { FileBrowserTable } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/file-browser-table";
-import { FilePreviewPanel } from "@/app/(dashboard)/datasets/[bucket]/[name]/components/file-preview-panel";
-import { useDatasetDetail } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-dataset-detail";
-import { useFileBrowserState } from "@/app/(dashboard)/datasets/[bucket]/[name]/hooks/use-file-browser-state";
+import { FileBrowserHeader } from "@/features/datasets/detail/components/file-browser-header";
+import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
+import { FilePreviewPanel } from "@/features/datasets/detail/components/file-preview-panel";
+import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-detail";
+import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
 

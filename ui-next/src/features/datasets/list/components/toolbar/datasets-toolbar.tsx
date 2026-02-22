@@ -22,10 +22,10 @@ import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { ResultsCount, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
-import { useDatasetsTableStore } from "@/app/(dashboard)/datasets/stores/datasets-table-store";
-import { OPTIONAL_COLUMNS } from "@/app/(dashboard)/datasets/lib/dataset-columns";
-import { DATASET_STATIC_FIELDS, type Dataset } from "@/app/(dashboard)/datasets/lib/dataset-search-fields";
-import { useDatasetsAsyncFields } from "@/app/(dashboard)/datasets/hooks/use-datasets-async-fields";
+import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
+import { OPTIONAL_COLUMNS } from "@/features/datasets/list/lib/dataset-columns";
+import { DATASET_STATIC_FIELDS, type Dataset } from "@/features/datasets/list/lib/dataset-search-fields";
+import { useDatasetsAsyncFields } from "@/features/datasets/list/hooks/use-datasets-async-fields";
 
 // =============================================================================
 // Helpers

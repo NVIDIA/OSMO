@@ -31,7 +31,7 @@
 
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchDatasetsList } from "@/lib/api/server/datasets";
-import { DatasetsPageContent } from "@/app/(dashboard)/datasets/datasets-page-content";
+import { DatasetsPageContent } from "@/features/datasets/list/components/datasets-page-content";
 import { parseUrlChips } from "@/lib/url-utils";
 import { createServerQueryClient } from "@/lib/query-client";
 import { getServerUsername } from "@/lib/auth/server";

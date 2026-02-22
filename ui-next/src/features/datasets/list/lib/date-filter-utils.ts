@@ -31,8 +31,8 @@ import { DATE_RANGE_PRESETS } from "@/lib/date-range-utils";
  * as right-aligned secondary text while storing only the ISO value in the chip.
  *
  * Examples:
- *   "2026-02-20|today"               → chip value "2026-02-20", hint "today"
- *   "2026-02-13..2026-02-20|last 7 days"  → chip value "2026-02-13..2026-02-20", hint "last 7 days"
+ *   "2026-02-20|today"               -> chip value "2026-02-20", hint "today"
+ *   "2026-02-13..2026-02-20|last 7 days"  -> chip value "2026-02-13..2026-02-20", hint "last 7 days"
  */
 export function getDateRangePresetSuggestions(): string[] {
   return DATE_RANGE_PRESETS.map((p) => `${p.getValue()}|${p.label}`);
