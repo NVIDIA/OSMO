@@ -291,7 +291,7 @@ def admin_create_access_token(
     return access_token
 
 
-@router.get('/api/auth/user/{user_id}/access_tokens')
+@router.get('/api/auth/user/{user_id}/access_token')
 def admin_list_access_tokens(user_id: str) -> List[objects.AccessTokenWithRoles]:
     """
     Admin API to list all access tokens for a specific user, including their assigned roles.

@@ -649,7 +649,7 @@ class AuthServiceTestCase(fixture.ServiceTestFixture):
         )
         self.assertEqual(response.status_code, 200)
 
-        response = self.client.get('/api/auth/user/list-target@example.com/access_tokens')
+        response = self.client.get('/api/auth/user/list-target@example.com/access_token')
         self.assertEqual(response.status_code, 200)
 
         tokens = response.json()
