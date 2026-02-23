@@ -148,6 +148,7 @@ An OSMO deployment consists of two main components:
   advanced_config/pool
   advanced_config/resource_validation
   advanced_config/pod_template
+  advanced_config/group_template
   advanced_config/scheduler
   advanced_config/rsync
   advanced_config/dataset_buckets
