@@ -206,7 +206,7 @@ function TimelineContainerInner(
   }: TimelineContainerProps,
   ref: React.Ref<TimelineContainerHandle>,
 ): React.ReactNode {
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
+  const [isCollapsed, setIsCollapsed] = useState(() => defaultCollapsed);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const activeBuckets = pendingBuckets ?? buckets;

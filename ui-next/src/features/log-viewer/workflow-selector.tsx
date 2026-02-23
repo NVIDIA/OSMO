@@ -17,7 +17,7 @@ interface WorkflowSelectorProps {
 
 export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSelectorProps) {
   const router = useRouter();
-  const [workflowId, setWorkflowId] = useState(initialWorkflowId);
+  const [workflowId, setWorkflowId] = useState(() => initialWorkflowId);
   const [recentWorkflows, setRecentWorkflows] = useState<string[]>(() => getRecentWorkflows());
   const workflowInputId = useId();
 

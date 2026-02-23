@@ -57,7 +57,7 @@
 import { memo, useMemo, useRef, useEffect } from "react";
 import { useTheme } from "next-themes";
 import CodeMirrorLib from "@uiw/react-codemirror";
-import { EditorView } from "@codemirror/view";
+import type { EditorView } from "@codemirror/view";
 import { closeSearchPanel } from "@codemirror/search";
 import { createExtensions } from "@/components/code-viewer/lib/extensions";
 import { useMounted } from "@/hooks/use-mounted";
