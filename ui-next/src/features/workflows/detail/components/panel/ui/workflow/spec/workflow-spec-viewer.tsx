@@ -26,16 +26,21 @@
 "use client";
 
 import { memo } from "react";
+import dynamic from "next/dynamic";
 import { FileCode, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { CodeMirror } from "@/components/code-viewer/code-mirror";
 import { CodeViewerSkeleton } from "@/components/code-viewer/code-viewer-skeleton";
-import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
+import { YAML_LANGUAGE } from "@/components/code-viewer/lib/languages";
 import { SpecToolbar } from "@/features/workflows/detail/components/panel/ui/workflow/spec/spec-toolbar";
 import { useSpecData } from "@/features/workflows/detail/hooks/use-spec-data";
 import { useSpecViewState } from "@/features/workflows/detail/components/panel/core/lib/use-spec-view-state";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
+
+const CodeMirror = dynamic(
+  () => import("@/components/code-viewer/code-mirror").then((m) => ({ default: m.CodeMirror })),
+  { ssr: false, loading: () => <CodeViewerSkeleton className="absolute inset-0" /> },
+);
 
 // =============================================================================
 // Types

@@ -27,6 +27,12 @@ import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { ROW_HEIGHT_ESTIMATE, HISTOGRAM_HEIGHT, SKELETON_WIDTHS } from "@/components/log-viewer/lib/constants";
 
+// Precomputed histogram bar data — avoids using array index as React key
+const HISTOGRAM_BARS = Array.from({ length: 30 }, (_, barIdx) => ({
+  id: `histogram-bar-${barIdx + 1}`,
+  heightPct: `${30 + (barIdx % 5) * 15}%`,
+}));
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -77,11 +83,11 @@ export function LogViewerSkeleton({ showHistogram = true, className }: LogViewer
           style={{ height: HISTOGRAM_HEIGHT + 16 }}
         >
           <div className="flex h-full items-end gap-1">
-            {Array.from({ length: 30 }).map((_, i) => (
+            {HISTOGRAM_BARS.map(({ id, heightPct }) => (
               <Skeleton
-                key={i}
+                key={id}
                 className="flex-1"
-                style={{ height: `${30 + (i % 5) * 15}%` }}
+                style={{ height: heightPct }}
               />
             ))}
           </div>
@@ -91,9 +97,9 @@ export function LogViewerSkeleton({ showHistogram = true, className }: LogViewer
       {/* Section 3: LogList skeleton (full width) */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="space-y-1 p-2">
-          {SKELETON_WIDTHS.map((width, i) => (
+          {SKELETON_WIDTHS.map((width) => (
             <Skeleton
-              key={`log-row-${i}`}
+              key={width}
               style={{ width, height: ROW_HEIGHT_ESTIMATE }}
             />
           ))}

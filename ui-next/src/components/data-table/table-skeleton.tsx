@@ -121,9 +121,9 @@ export const TableSkeleton = memo(function TableSkeleton({
         {showHeader && (
           <thead className="bg-muted text-muted-foreground text-left text-xs font-medium uppercase">
             <tr className="flex">
-              {effectiveHeaders.map((header, i) => (
+              {effectiveHeaders.map((header) => (
                 <th
-                  key={`col-${i}`}
+                  key={header}
                   className="flex flex-1 shrink-0 items-center px-4 py-3"
                 >
                   {/* Show actual header text if provided, otherwise skeleton */}
@@ -142,7 +142,7 @@ export const TableSkeleton = memo(function TableSkeleton({
         <tbody>
           {Array.from({ length: rowCount }).map((_, rowIndex) => (
             <SkeletonRow
-              key={rowIndex}
+              key={`skeleton-row-${rowIndex}`}
               columnCount={effectiveHeaders.length}
               rowHeight={rowHeight}
               rowIndex={rowIndex}

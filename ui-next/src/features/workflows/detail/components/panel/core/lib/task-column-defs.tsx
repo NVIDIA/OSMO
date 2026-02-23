@@ -18,7 +18,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/features/workflows/detail/lib/workflow-types";
-import { getStatusCategory, getStatusIcon, STATUS_STYLES } from "@/features/workflows/detail/lib/status";
+import {
+  getStatusCategory,
+  getStatusIcon,
+  getStatusLabel,
+  STATUS_STYLES,
+} from "@/features/workflows/detail/lib/status";
 import type { TaskWithDuration } from "@/features/workflows/detail/lib/workflow-types";
 import {
   TASK_COLUMN_SIZE_CONFIG,
@@ -82,7 +87,7 @@ export function createTaskColumns(options: CreateTaskColumnsOptions = {}): Colum
         return (
           <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
             {getStatusIcon(status, "size-3.5")}
-            <span className={cn("text-xs font-semibold", styles.text)}>{status}</span>
+            <span className={cn("text-xs font-semibold", styles.text)}>{getStatusLabel(status)}</span>
           </span>
         );
       },

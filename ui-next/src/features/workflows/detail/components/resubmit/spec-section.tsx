@@ -22,12 +22,17 @@
 "use client";
 
 import { memo, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { FileCode } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
-import { CodeMirror } from "@/components/code-viewer/code-mirror";
-import { YAML_LANGUAGE } from "@/components/code-viewer/lib/extensions";
+import { YAML_LANGUAGE } from "@/components/code-viewer/lib/languages";
 import { CollapsibleSection } from "@/features/workflows/detail/components/resubmit/collapsible-section";
+
+const CodeMirror = dynamic(
+  () => import("@/components/code-viewer/code-mirror").then((m) => ({ default: m.CodeMirror })),
+  { ssr: false },
+);
 
 export interface SpecSectionProps {
   /** YAML spec content (either modified or original) */

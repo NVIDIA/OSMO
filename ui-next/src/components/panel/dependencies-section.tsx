@@ -23,7 +23,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,12 @@ interface RenderedPillProps {
 }
 
 function RenderedPill({ item, onSelect, renderPill }: RenderedPillProps) {
-  return <>{renderPill(item, onSelect ? () => onSelect(item.name) : undefined)}</>;
+  const onClick = useCallback(() => {
+    if (onSelect) onSelect(item.name);
+  }, [onSelect, item.name]);
+
+  const pill = renderPill(item, onSelect ? onClick : undefined);
+  return <>{pill}</>;
 }
 
 interface DependencyRowProps {

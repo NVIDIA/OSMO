@@ -52,9 +52,9 @@ export default function Loading() {
         <div className="p-4">
           {/* Table header skeleton */}
           <div className="border-border mb-4 flex items-center gap-4 border-b pb-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+            {(["h1", "h2", "h3", "h4", "h5", "h6"] as const).map((id) => (
               <Skeleton
-                key={`header-${i}`}
+                key={id}
                 className="h-4 flex-1"
               />
             ))}
@@ -62,14 +62,14 @@ export default function Loading() {
 
           {/* Table rows skeleton */}
           <div className="space-y-3">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            {(["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"] as const).map((rowId) => (
               <div
-                key={`row-${i}`}
+                key={rowId}
                 className="flex items-center gap-4"
               >
-                {[1, 2, 3, 4, 5, 6].map((j) => (
+                {(["c1", "c2", "c3", "c4", "c5", "c6"] as const).map((colId) => (
                   <Skeleton
-                    key={`col-${j}`}
+                    key={`${rowId}-${colId}`}
                     className="h-6 flex-1"
                   />
                 ))}

@@ -127,9 +127,9 @@ export function AppSidebar() {
           <SidebarGroup className="p-0">
             <SidebarGroupContent>
               <SidebarMenu className={cn("space-y-1", collapsed && "items-center")}>
-                {[1, 2, 3, 4].map((i) => (
+                {(["nav-a", "nav-b", "nav-c", "nav-d"] as const).map((id) => (
                   <SidebarMenuSkeleton
-                    key={`sidebar-nav-${i}`}
+                    key={id}
                     showIcon
                   />
                 ))}

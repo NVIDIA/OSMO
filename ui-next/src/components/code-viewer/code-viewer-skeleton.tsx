@@ -38,9 +38,9 @@ export const CodeViewerSkeleton = memo(function CodeViewerSkeleton({ className }
       {/* Use theme-aware background that matches editor chrome */}
       <div className="bg-muted/30 flex-1 p-4">
         <div className="space-y-2">
-          {SKELETON_WIDTHS.map((width, i) => (
+          {SKELETON_WIDTHS.map((width) => (
             <div
-              key={`code-row-${i}`}
+              key={width}
               className="flex gap-4"
             >
               {/* Line numbers - use default skeleton styling (SSR-safe) */}

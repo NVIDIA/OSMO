@@ -22,7 +22,7 @@
  */
 
 import React, { useDeferredValue } from "react";
-import type { EditorView } from "@codemirror/view";
+import type { EditorView } from "@/components/code-viewer/lib/extensions";
 import {
   SearchQuery,
   getSearchQuery,

@@ -49,7 +49,7 @@ interface CredentialFormData {
   type: CredentialType;
   registry: { url: string; username: string; password: string };
   data: { endpoint: string; access_key: string; secret_key: string };
-  generic: Array<{ key: string; value: string }>;
+  generic: Array<{ _id: number; key: string; value: string }>;
 }
 
 const CREDENTIAL_GROUPS: Array<{
@@ -68,7 +68,7 @@ function createEmptyFormData(): CredentialFormData {
     type: "REGISTRY",
     registry: { url: "", username: "", password: "" },
     data: { endpoint: "", access_key: "", secret_key: "" },
-    generic: [{ key: "", value: "" }],
+    generic: [{ _id: 1, key: "", value: "" }],
   };
 }
 
@@ -313,8 +313,8 @@ function GenericFields({
   showValue,
   onToggleValueVisibility,
 }: {
-  values: Array<{ key: string; value: string }>;
-  onChange: (pairs: Array<{ key: string; value: string }>) => void;
+  values: Array<{ _id: number; key: string; value: string }>;
+  onChange: (pairs: Array<{ _id: number; key: string; value: string }>) => void;
   disabled: boolean;
   showValue: boolean;
   onToggleValueVisibility: () => void;
@@ -329,7 +329,8 @@ function GenericFields({
   );
 
   const handleAddPair = useCallback(() => {
-    onChange([...values, { key: "", value: "" }]);
+    const nextId = values.reduce((max, p) => Math.max(max, p._id), 0) + 1;
+    onChange([...values, { _id: nextId, key: "", value: "" }]);
   }, [values, onChange]);
 
   const handleRemovePair = useCallback(
@@ -358,7 +359,7 @@ function GenericFields({
       </div>
       {values.map((pair, index) => (
         <div
-          key={`pair-${pair.key}-${index}`}
+          key={pair._id}
           className="flex items-center gap-2"
         >
           <Input
@@ -449,7 +450,7 @@ function NewCredentialForm({
   );
 
   const handleGenericChange = useCallback(
-    (pairs: Array<{ key: string; value: string }>) => {
+    (pairs: Array<{ _id: number; key: string; value: string }>) => {
       onChange({ ...formData, generic: pairs });
     },
     [formData, onChange],

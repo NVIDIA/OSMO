@@ -25,21 +25,14 @@
  * - Theme configuration
  */
 
-import { yaml } from "@codemirror/lang-yaml";
 import { EditorView, keymap } from "@codemirror/view";
+export type { EditorView };
 import { EditorState, type Extension } from "@codemirror/state";
 import { foldGutter } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
 import { indentationMarkers } from "@replit/codemirror-indentation-markers";
 import { createCodeViewerExtension } from "@/components/code-viewer/lib/theme";
 import { createSearchPanel } from "@/components/code-viewer/lib/search-panel";
-import type { LanguageExtension } from "@/components/code-viewer/lib/types";
-
-/** YAML language extension preset for specs, configs, and templates */
-export const YAML_LANGUAGE: LanguageExtension = {
-  name: "YAML",
-  extension: yaml(),
-};
 
 /**
  * Creates a native SVG chevron for fold gutter markers.

@@ -92,9 +92,9 @@ function ChromeSkeleton({ children }: { children: React.ReactNode }) {
         </div>
         {/* Nav items skeleton */}
         <div className="space-y-2 p-2">
-          {[1, 2, 3, 4].map((i) => (
+          {(["nav-a", "nav-b", "nav-c", "nav-d"] as const).map((id) => (
             <Skeleton
-              key={`nav-${i}`}
+              key={id}
               className="h-9 w-full rounded-lg"
             />
           ))}
