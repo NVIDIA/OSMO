@@ -77,7 +77,7 @@ type BaseListener struct {
 	inst *Instruments
 
 	// Attrs is a pre-computed metric attribute set {listener: <streamName>}, shared (read-only) across goroutines.
-	Attrs metric.MeasurementOption
+	MetricAttrs metric.MeasurementOption
 }
 
 // NewBaseListener creates a new base listener instance
@@ -98,7 +98,7 @@ func NewBaseListener(
 		progressWriter:  progressWriter,
 		streamName:      streamName,
 		inst:            inst,
-		Attrs: metric.WithAttributeSet(attribute.NewSet(
+		MetricAttrs: metric.WithAttributeSet(attribute.NewSet(
 			attribute.String("listener", string(streamName)))),
 	}
 	return bl
@@ -143,8 +143,8 @@ func (bl *BaseListener) receiveAcks(ctx context.Context) error {
 		// Handle ACK messages by removing from unacked queue
 		bl.unackedMessages.RemoveMessage(msg.AckUuid)
 
-		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.Attrs)
-		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs)
+		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.MetricAttrs)
+		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.MetricAttrs)
 
 		log.Printf("Received ACK for %s message: uuid=%s", bl.streamName, msg.AckUuid)
 
@@ -323,17 +323,17 @@ func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage
 		return nil
 	}
 
-	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs)
+	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.MetricAttrs)
 
 	// Record gRPC send duration
 	start := time.Now()
 	if err := bl.GetStream().Send(msg); err != nil {
-		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1, bl.Attrs)
+		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1, bl.MetricAttrs)
 		return err
 	}
 
-	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), bl.Attrs)
-	bl.inst.MessageSentTotal.Add(ctx, 1, bl.Attrs)
+	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), bl.MetricAttrs)
+	bl.inst.MessageSentTotal.Add(ctx, 1, bl.MetricAttrs)
 
 	return nil
 }
