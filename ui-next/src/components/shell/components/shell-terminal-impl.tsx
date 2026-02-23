@@ -153,6 +153,10 @@ export const ShellTerminalImpl = memo(
 
     const searchOptions = useMemo(() => ({ caseSensitive, wholeWord, regex }), [caseSensitive, wholeWord, regex]);
 
+    // Refs to access latest values imperatively in event handlers without stale closures
+    const searchQueryRef = useRef(searchQuery);
+    const searchOptionsRef = useRef(searchOptions);
+
     const handleFindNext = useCallback(() => {
       if (deferredSearchQuery) {
         findNext(deferredSearchQuery, searchOptions);
@@ -182,16 +186,57 @@ export const ShellTerminalImpl = memo(
       isSearchOpenRef.current = isSearchOpen;
       copyRef.current = copy;
       handleCloseSearchRef.current = handleCloseSearch;
-    }, [state, isSearchOpen, copy, handleCloseSearch]);
+      searchQueryRef.current = searchQuery;
+      searchOptionsRef.current = searchOptions;
+    }, [state, isSearchOpen, copy, handleCloseSearch, searchQuery, searchOptions]);
 
-    useEffect(() => {
-      if (deferredSearchQuery) {
-        clearSearch();
-        findNext(deferredSearchQuery, searchOptions);
-      } else {
-        clearSearch();
-      }
-    }, [deferredSearchQuery, searchOptions, findNext, clearSearch]);
+    // Update search results when query changes — driven by the query-change event handler
+    const runSearch = useCallback(
+      (query: string, options: typeof searchOptions) => {
+        if (query) {
+          clearSearch();
+          findNext(query, options);
+        } else {
+          clearSearch();
+        }
+      },
+      [clearSearch, findNext],
+    );
+
+    const handleQueryChange = useCallback(
+      (newQuery: string) => {
+        setSearchQuery(newQuery);
+        runSearch(newQuery, searchOptionsRef.current);
+      },
+      [runSearch],
+    );
+
+    const handleCaseSensitiveChange = useCallback(
+      (value: boolean) => {
+        setCaseSensitive(value);
+        const newOptions = { ...searchOptionsRef.current, caseSensitive: value };
+        runSearch(searchQueryRef.current, newOptions);
+      },
+      [runSearch],
+    );
+
+    const handleWholeWordChange = useCallback(
+      (value: boolean) => {
+        setWholeWord(value);
+        const newOptions = { ...searchOptionsRef.current, wholeWord: value };
+        runSearch(searchQueryRef.current, newOptions);
+      },
+      [runSearch],
+    );
+
+    const handleRegexChange = useCallback(
+      (value: boolean) => {
+        setRegex(value);
+        const newOptions = { ...searchOptionsRef.current, regex: value };
+        runSearch(searchQueryRef.current, newOptions);
+      },
+      [runSearch],
+    );
 
     // Register keyboard handlers with centralized manager (uses refs to avoid re-registration)
     useEffect(() => {
@@ -290,16 +335,16 @@ export const ShellTerminalImpl = memo(
           {isSearchOpen && (state.phase === "ready" || state.phase === "disconnected" || state.phase === "error") && (
             <ShellSearch
               query={deferredSearchQuery}
-              onQueryChange={setSearchQuery}
+              onQueryChange={handleQueryChange}
               onFindNext={handleFindNext}
               onFindPrevious={handleFindPrevious}
               onClose={handleCloseSearch}
               caseSensitive={caseSensitive}
-              onCaseSensitiveChange={setCaseSensitive}
+              onCaseSensitiveChange={handleCaseSensitiveChange}
               wholeWord={wholeWord}
-              onWholeWordChange={setWholeWord}
+              onWholeWordChange={handleWholeWordChange}
               regex={regex}
-              onRegexChange={setRegex}
+              onRegexChange={handleRegexChange}
               searchResults={searchResults}
             />
           )}

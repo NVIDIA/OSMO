@@ -82,9 +82,7 @@ export interface CreateColumnsOptions {
  * @param options - Column configuration options
  * @returns Array of column definitions
  */
-export function createResourceColumns({
-  displayMode,
-}: CreateColumnsOptions): ColumnDef<Resource, unknown>[] {
+export function createResourceColumns({ displayMode }: CreateColumnsOptions): ColumnDef<Resource, unknown>[] {
   // Get minimum width from rem-based config (converted to pixels)
   const getMinSize = (id: ResourceColumnId): number => {
     const col = RESOURCE_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
@@ -149,11 +147,11 @@ export function createResourceColumns({
       minSize: getMinSize("gpu"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
-          {renderCapacityCell({
-            used: row.original.gpu.used,
-            total: row.original.gpu.total,
-            mode: displayMode,
-          })}
+          <CapacityCell
+            used={row.original.gpu.used}
+            total={row.original.gpu.total}
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },
@@ -165,11 +163,11 @@ export function createResourceColumns({
       minSize: getMinSize("cpu"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
-          {renderCapacityCell({
-            used: row.original.cpu.used,
-            total: row.original.cpu.total,
-            mode: displayMode,
-          })}
+          <CapacityCell
+            used={row.original.cpu.used}
+            total={row.original.cpu.total}
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },
@@ -181,12 +179,12 @@ export function createResourceColumns({
       minSize: getMinSize("memory"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
-          {renderCapacityCell({
-            used: row.original.memory.used,
-            total: row.original.memory.total,
-            isBytes: true,
-            mode: displayMode,
-          })}
+          <CapacityCell
+            used={row.original.memory.used}
+            total={row.original.memory.total}
+            isBytes
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },
@@ -198,12 +196,12 @@ export function createResourceColumns({
       minSize: getMinSize("storage"),
       cell: ({ row }) => (
         <div className="text-right whitespace-nowrap tabular-nums">
-          {renderCapacityCell({
-            used: row.original.storage.used,
-            total: row.original.storage.total,
-            isBytes: true,
-            mode: displayMode,
-          })}
+          <CapacityCell
+            used={row.original.storage.used}
+            total={row.original.storage.total}
+            isBytes
+            mode={displayMode}
+          />
         </div>
       ),
       meta: { align: "right" as const },

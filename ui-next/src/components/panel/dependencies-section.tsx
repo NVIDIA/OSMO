@@ -76,7 +76,12 @@ const DependencyRow = memo(function DependencyRow({ direction, items, onSelect, 
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {items.map((item) => (
-          <RenderedPill key={item.name} item={item} onSelect={onSelect} renderPill={renderPill} />
+          <RenderedPill
+            key={item.name}
+            item={item}
+            onSelect={onSelect}
+            renderPill={renderPill}
+          />
         ))}
       </div>
     </div>

@@ -40,7 +40,6 @@ import {
   RESOURCE_COLUMN_SIZE_CONFIG,
 } from "@/features/resources/lib/resource-columns";
 import { createResourceColumns } from "@/features/resources/lib/resource-column-defs";
-import { CapacityCell } from "@/features/resources/components/table/capacity-cell";
 import { useResourcesTableStore } from "@/features/resources/stores/resources-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -189,14 +188,6 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
     () =>
       createResourceColumns({
         displayMode,
-        renderCapacityCell: ({ used, total, isBytes, mode }) => (
-          <CapacityCell
-            used={used}
-            total={total}
-            isBytes={isBytes}
-            mode={mode}
-          />
-        ),
       }),
     [displayMode],
   );

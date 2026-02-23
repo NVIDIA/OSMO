@@ -32,7 +32,7 @@
 
 "use client";
 
-import { memo, useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { memo, useState, useMemo, useCallback, useRef } from "react";
 import { ChevronDown, ChevronRight, MoreVertical, Columns, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -112,30 +112,28 @@ const TaskSwitcher = memo(function TaskSwitcher({ title, siblingTasks, onSelectS
     [onSelectSibling],
   );
 
-  // Handle dropdown open/close
+  // Handle dropdown open/close — focus management is done here directly
+  // rather than in a useEffect, since this is the sole trigger for isOpen changes
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);
-    if (!open) {
-      setSearchQuery("");
-    }
-  }, []);
-
-  // Focus management: focus search input on open, restore to trigger on close
-  useEffect(() => {
-    if (isOpen) {
-      searchInputRef.current?.focus();
-      const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
-      if (currentItem) {
-        currentItem.scrollIntoView({ block: "center", behavior: "instant" });
-      }
+    if (open) {
+      // Use queueMicrotask to let Radix finish rendering the content before focusing
+      queueMicrotask(() => {
+        searchInputRef.current?.focus();
+        const currentItem = listContainerRef.current?.querySelector('[data-current="true"]');
+        if (currentItem) {
+          currentItem.scrollIntoView({ block: "center", behavior: "instant" });
+        }
+      });
     } else {
+      setSearchQuery("");
       // Restore focus to trigger button when dropdown closes
       // Use queueMicrotask to ensure Radix has finished its cleanup
       queueMicrotask(() => {
         triggerRef.current?.focus();
       });
     }
-  }, [isOpen]);
+  }, []);
 
   return (
     <DropdownMenu
