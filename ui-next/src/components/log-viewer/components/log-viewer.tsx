@@ -32,7 +32,11 @@ import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
 import { DEFAULT_HEIGHT } from "@/components/log-viewer/lib/timeline-constants";
-import type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "@/components/log-viewer/lib/types";
+import type {
+  LogViewerDataProps,
+  LogViewerFilterProps,
+  LogViewerTimelineProps,
+} from "@/components/log-viewer/lib/types";
 
 // =============================================================================
 // Helpers

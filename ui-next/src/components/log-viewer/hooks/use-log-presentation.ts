@@ -47,10 +47,7 @@ import type {
   LogViewerTimelineProps,
   WorkflowMetadata,
 } from "@/components/log-viewer/lib/types";
-import {
-  DISPLAY_PADDING_RATIO,
-  MIN_PADDING_MS,
-} from "@/components/log-viewer/lib/timeline-constants";
+import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "@/components/log-viewer/lib/timeline-constants";
 
 // =============================================================================
 // Types

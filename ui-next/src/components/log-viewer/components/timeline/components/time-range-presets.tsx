@@ -30,11 +30,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/shadcn/button";
 import { ChevronDown, Check } from "lucide-react";
-import {
-  type TimeRangePreset,
-  PRESET_LABELS,
-  PRESET_ORDER,
-} from "@/components/log-viewer/lib/timeline-constants";
+import { type TimeRangePreset, PRESET_LABELS, PRESET_ORDER } from "@/components/log-viewer/lib/timeline-constants";
 
 // =============================================================================
 // Types

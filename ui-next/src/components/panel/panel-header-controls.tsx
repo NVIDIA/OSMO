@@ -19,7 +19,6 @@
 import { memo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PANEL } from "@/components/panel/lib/panel-constants";
 
 // =============================================================================
 // Panel Header Container
