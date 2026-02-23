@@ -290,6 +290,8 @@ sts
 subfolder
 subnet
 subnets
+subtree
+subtrees
 sudo
 svc
 swiftstack
