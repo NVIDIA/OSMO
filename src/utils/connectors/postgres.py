@@ -197,6 +197,12 @@ class PostgresConfig(pydantic.BaseModel):
         env='OSMO_POSTGRES_POOL_MAXCONN',
         default=10,
         description='Maximum number of connections allowed in the connection pool')
+    schema_version: str = pydantic.Field(
+        command_line='schema_version',
+        env='OSMO_SCHEMA_VERSION',
+        default='public',
+        description='pgroll schema version to use. '
+                    'Set to "public" to use the default schema without pgroll versioning.')
 
 
 def retry(func=None, *, reconnect: bool = True):
@@ -249,7 +255,7 @@ class PostgresConnector:
                 'Postgres Connector has not been created!')
         return PostgresConnector._instance
 
-    def _create_pool(self):
+    def _create_pool(self, search_path: str | None = None):
         """Create the ThreadedConnectionPool and semaphore."""
         try:
             if self.config.postgres_pool_minconn > self.config.postgres_pool_maxconn:
@@ -265,7 +271,8 @@ class PostgresConnector:
                 port=self.config.postgres_port,
                 database=self.config.postgres_database_name,
                 user=self.config.postgres_user,
-                password=self.config.postgres_password
+                password=self.config.postgres_password,
+                options=f'-csearch_path={search_path}' if search_path else None
             )
             self._pool_semaphore = threading.Semaphore(self.config.postgres_pool_maxconn)
 
@@ -281,7 +288,8 @@ class PostgresConnector:
                     self._pool.closeall()
                 except Exception:  # pylint: disable=broad-except
                     pass
-            self._create_pool()
+            schema = self.config.schema_version
+            self._create_pool(search_path=schema if schema != 'public' else None)
 
     def _is_connection_healthy(self, conn) -> bool:
         """Check if a connection is still healthy."""
@@ -384,6 +392,11 @@ class PostgresConnector:
         logging.debug('Initializing configs')
         self._init_configs()
         logging.debug('Configs initialized')
+
+        # Recreate pool with search_path set to the pgroll versioned schema
+        if self.config.schema_version != 'public':
+            logging.debug('Switching to pgroll schema: %s', self.config.schema_version)
+            self.connect()
 
         # Register cleanup on exit
         atexit.register(self.close)
