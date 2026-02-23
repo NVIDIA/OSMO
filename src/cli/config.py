@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -64,6 +64,10 @@ UPDATE_CONFIG_API_MAPPING: Dict[
         'default': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
         'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
     },
+    config_history.ConfigHistoryType.GROUP_TEMPLATE: {
+        'default': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
+        'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
+    },
     config_history.ConfigHistoryType.RESOURCE_VALIDATION: {
         'default': {'method': client.RequestMethod.PUT, 'payload_key': 'configs_dict'},
         'named': {'method': client.RequestMethod.PUT, 'payload_key': 'configs'},
@@ -84,6 +88,7 @@ DELETE_CONFIG_SUPPORTED_TYPES: Set[config_history.ConfigHistoryType] = {
     config_history.ConfigHistoryType.DATASET,
     config_history.ConfigHistoryType.POOL,
     config_history.ConfigHistoryType.POD_TEMPLATE,
+    config_history.ConfigHistoryType.GROUP_TEMPLATE,
     config_history.ConfigHistoryType.RESOURCE_VALIDATION,
     config_history.ConfigHistoryType.BACKEND_TEST,
     config_history.ConfigHistoryType.ROLE,

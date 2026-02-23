@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -823,7 +823,7 @@ def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Di
                 updated[key] = strategic_merge_patch(updated[key], value)
         elif isinstance(value, list):
             # Handle the case where the value is a list of dictionaries.
-            if all(isinstance(item, dict) for item in value):
+            if value and all(isinstance(item, dict) for item in value):
                 updated_list = []
                 for i, item in enumerate(updated[key]):
                     for patch_item in value:

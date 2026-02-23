@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -278,6 +278,18 @@ class PutPodTemplateRequest(ConfigsRequest):
     """Request body for updating a pod template with history tracking metadata."""
 
     configs: Dict
+
+
+class PutGroupTemplatesRequest(ConfigsRequest):
+    """Request body for updating group templates with history tracking metadata."""
+
+    configs: Dict[str, Dict[str, Any]]
+
+
+class PutGroupTemplateRequest(ConfigsRequest):
+    """Request body for updating a group template with history tracking metadata."""
+
+    configs: Dict[str, Any]
 
 
 class PutResourceValidationsRequest(ConfigsRequest):

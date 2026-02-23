@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -32,8 +32,8 @@ import requests  # type: ignore
 from src.lib.data import storage
 from src.lib.utils import (common, jinja_sandbox, osmo_errors, priority as wf_priority,
                         workflow as workflow_utils)
-from src.utils.job import common as task_common, kb_objects, task
 from src.utils import connectors, notify
+from src.utils.job import common as task_common, kb_objects, task, topology as topology_module
 
 
 INSERT_RETRY_COUNT = 5
@@ -353,6 +353,17 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                         f'Resource {name} does not have a platform!')
                 resource.platform = pool_info.default_platform
 
+        # Validate topology requirements
+        available_keys = {topology_key.key for topology_key in pool_info.topology_keys}
+        for resource_name, resource_spec in self.resources.items():
+            for topo_req in resource_spec.topology:
+                if topo_req.key not in available_keys:
+                    raise osmo_errors.OSMOSubmissionError(
+                        f'Topology key "{topo_req.key}" in resource "{resource_name}" '
+                        f'is not available in pool "{self.pool}". '
+                        f'Available topology keys: {sorted(available_keys)}'
+                    )
+
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)
                       for group in self.groups]
@@ -396,6 +407,34 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         """
         database = connectors.PostgresConnector.get_instance()
         pool_info = connectors.Pool.fetch_from_db(database, self.pool)
+
+        # Validate topology requirements early (before async job creation)
+        if pool_info.topology_keys:
+            topology_keys = [
+                topology_module.TopologyKey(key=topology_key.key, label=topology_key.label)
+                for topology_key in pool_info.topology_keys
+            ]
+            task_infos = []
+            for group in self.groups:
+                for task_obj in group.tasks:
+                    topology_requirements = []
+                    if task_obj.resources.topology:
+                        for req in task_obj.resources.topology:
+                            is_required = (
+                                req.requirementType == connectors.TopologyRequirementType.REQUIRED
+                            )
+                            topology_requirements.append(topology_module.TopologyRequirement(
+                                key=req.key,
+                                group=req.group,
+                                required=is_required
+                            ))
+                    task_infos.append(topology_module.TaskTopology(
+                        name=task_obj.name,
+                        topology_requirements=topology_requirements
+                    ))
+            # This will raise ValueError if validation fails
+            topology_module.validate_topology_requirements(task_infos, topology_keys)
+
         validated_resources_dict: Dict[connectors.ResourceSpec, bool] = {}
         validated_privilege_host_mount: Set[int] = set()
         for group in self.groups:
