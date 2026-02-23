@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,11 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.service.serviceName }}
+        {{- with .Values.services.service.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
+        checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         sidecar.opentelemetry.io/inject: "true"
@@ -100,9 +104,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end }}
-        {{- range .Values.services.service.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -125,6 +126,10 @@ spec:
         - --service_hostname
         - {{ .Values.services.service.hostname }}
         {{- end }}
+        {{- if .Values.services.service.clientInstallUrl }}
+        - --client_install_url
+        - {{ .Values.services.service.clientInstallUrl }}
+        {{- end }}
         {{- if .Values.global.osmoImageLocation }}
         - --osmo_image_location
         - {{ .Values.global.osmoImageLocation }}
@@ -143,8 +148,12 @@ spec:
         - --log_name
         - api_service
         {{- end }}
+        {{- if .Values.services.defaultAdmin.enabled }}
+        - --default_admin_username
+        - {{ .Values.services.defaultAdmin.username | quote }}
+        {{- end }}
         {{- range $arg := .Values.services.service.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
@@ -164,6 +173,13 @@ spec:
             secretKeyRef:
               name: redis-secret
               key: redis-password
+        {{- end }}
+        {{- if .Values.services.defaultAdmin.enabled }}
+        - name: OSMO_DEFAULT_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.services.defaultAdmin.passwordSecretName }}
+              key: {{ .Values.services.defaultAdmin.passwordSecretKey }}
         {{- end }}
         imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
         securityContext:
@@ -216,6 +232,8 @@ spec:
           timeoutSeconds: 20
 
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.authz-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
@@ -226,6 +244,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
         {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.service.serviceName "serviceEnvoy" .Values.services.service.envoy "Values" .Values) | nindent 8 }}
+        {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 BASE_DISTROLESS_IMAGE_URL = "nvcr.io/nvidia/distroless/"
 
 BASE_IMAGE_URL = "nvcr.io/nvidia/osmo/"
+
 IMAGE_TAG = ""
 
 ################
@@ -205,6 +206,16 @@ go_deps.module(
     sum = "h1:kJNSjF/Xp7kU0iB2Z+9viTPMW4EqqsrywMXLJOOsXSE=",
     version = "v0.37.0",
 )
+
+# Gazelle overrides - using dev_dependency so they only apply when this module
+# is the root. When used as a dependency of osmo_internal, the parent's
+# MODULE.bazel provides these overrides instead.
+go_deps_overrides = use_extension("@bazel_gazelle//:extensions.bzl", "go_deps", dev_dependency = True)
+go_deps_overrides.gazelle_override(
+    build_file_generation = "on",
+    path = "github.com/cncf/xds/go",
+)
+
 use_repo(
     go_deps,
     "com_github_conduitio_bwlimit",
@@ -213,12 +224,24 @@ use_repo(
     "com_github_google_shlex",
     "com_github_gorilla_websocket",
     "com_github_jackc_pgx_v5",
+<<<<<<< HEAD
+=======
+    "com_github_redis_go_redis_v9",
+    "com_github_hashicorp_golang_lru_v2",
+>>>>>>> origin/main
     "in_gopkg_yaml_v3",
 
     # Dependencies for building rsync for CLI distribution
     "com_github_burntsushi_toml",
     "com_github_coreos_go_systemd",
     "org_golang_x_crypto",
+
+    # For GRPC
+    "org_golang_google_genproto_googleapis_rpc",
+    "org_golang_google_grpc",
+
+    # For Envoy (note: module is github.com/envoyproxy/go-control-plane/envoy)
+    "com_github_envoyproxy_go_control_plane_envoy",
 )
 
 ################

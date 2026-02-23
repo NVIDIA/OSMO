@@ -1,0 +1,135 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 2: Convert HDF5 camera observations to MP4 videos
+# Usage: osmo workflow submit 02_hdf5_to_mp4.yaml --pool default
+
+workflow:
+  name: {{ workflow_name }}
+  timeout:
+    exec_timeout: 24h
+    queue_timeout: 12h
+  resources:
+    default:
+      cpu: {{ num_cpu }}
+      gpu: {{ num_gpu }}
+      memory: {{ memory }}
+      storage: {{ storage }}
+
+  tasks:
+  - name: hdf5_to_mp4_conversion
+    image: {{ image_name }}
+    environment:
+      ACCEPT_EULA: Y
+      OMNI_KIT_ALLOW_ROOT: 1
+      NO_NUCLEUS: Y
+    credentials:
+      huggingface_token:
+          HF_TOKEN: token
+
+    inputs:
+    - dataset: {{ input_dataset }}
+    outputs:
+    - dataset: {{ output_dataset }}
+
+    args:
+    - /tmp/entry.sh
+    command:
+    - bash
+    files:
+    - path: /tmp/entry.sh
+      contents: |
+
+          set -e
+          set -euxo pipefail
+
+          echo "=== System Info ==="
+          nvidia-smi
+
+          echo "=== Input Dataset Location ==="
+          echo "groot_mimic output available at: {{input:0}}"
+          ls -lah {{input:0}}
+
+          echo "=== Working Directory ==="
+          cd /workspace/isaaclab
+          pwd
+
+          echo "=== Find HDF5 file from input ==="
+          find {{input:0}} -name "*.hdf5" -type f
+          INPUT_HDF5=$(find {{input:0}} -name "*.hdf5" -type f | head -n 1)
+          echo "Using input file: $INPUT_HDF5"
+
+          echo "=== Verify camera data exists in HDF5 ==="
+          /workspace/isaaclab/_isaac_sim/python.sh << PYTHON_CHECK
+          import h5py
+          with h5py.File("$INPUT_HDF5", "r") as f:
+              demo_0 = f["data/demo_0"]
+              obs_keys = list(demo_0["obs"].keys())
+              print(f"Observation keys: {obs_keys}")
+
+              # Check for robot POV camera (instead of table_cam)
+              base_cam = "robot_pov_cam"
+              if base_cam not in obs_keys:
+                  raise ValueError(f"Missing {base_cam} camera!")
+
+              print(f"✅ Found base camera: {base_cam}")
+
+              # Check for additional modalities (depth, normals, segmentation)
+              additional_modalities = [f"{base_cam}_depth", f"{base_cam}_normals", f"{base_cam}_segmentation"]
+              found_additional = [cam for cam in additional_modalities if cam in obs_keys]
+              if found_additional:
+                  print(f"✅ Found additional modalities: {found_additional}")
+              else:
+                  print(f"⚠️  Only RGB available - depth/normals/segmentation not found")
+                  print(f"    Cosmos augmentation will use RGB only")
+          PYTHON_CHECK
+
+          echo "=== Convert HDF5 to MP4 videos ==="
+          # Use robot_pov_cam instead of table_cam
+          # Try with all modalities first, script will skip missing ones
+          /workspace/isaaclab/_isaac_sim/python.sh scripts/tools/hdf5_to_mp4.py \
+            --input_file $INPUT_HDF5 \
+            --output_dir {{output}} \
+            --input_keys robot_pov_cam robot_pov_cam_segmentation robot_pov_cam_normals robot_pov_cam_depth \
+            --video_height 704 \
+            --video_width 1280 \
+            --framerate 30 || \
+          /workspace/isaaclab/_isaac_sim/python.sh scripts/tools/hdf5_to_mp4.py \
+            --input_file $INPUT_HDF5 \
+            --output_dir {{output}} \
+            --input_keys robot_pov_cam \
+            --video_height 704 \
+            --video_width 1280 \
+            --framerate 30
+
+          echo "=== Conversion complete ==="
+          ls -lah {{output}}
+          echo "Total MP4 files created:"
+          find {{output}} -name "*.mp4" | wc -l
+
+          echo "=== HDF5 to MP4 Conversion Complete ==="
+
+    resource: default
+
+default-values:
+  workflow_name: hdf5_to_mp4_conversion
+  image_name: nvcr.io/nvidia/isaac-lab:2.3.0
+  memory: 64Gi
+  storage: 256Gi
+  num_gpu: 1
+  num_cpu: 16
+  input_dataset: PhysAI-MimicGen
+  output_dataset: PhysAI-MP4Videos

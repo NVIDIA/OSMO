@@ -24,7 +24,6 @@ data:
   config.yaml: |
     {{- include "envoy.admin" . | nindent 4 }}
     static_resources:
-      {{- include "envoy.secrets" . | nindent 6 }}
       {{- include "envoy.listener" . | nindent 6 }}
       {{- include "envoy.clusters" . | nindent 6 }}
 {{- end }}

@@ -31,6 +31,9 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.logger.serviceName }}
+        {{- with .Values.services.logger.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.logger | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
@@ -103,9 +106,6 @@ spec:
         - --mek_file
         - {{ .Values.services.configFile.path }}
         {{- end}}
-        {{- range .Values.services.logger.extraArgs }}
-        - {{ . }}
-        {{- end }}
         {{- if .Values.services.postgres.user }}
         - --postgres_user
         - {{ .Values.services.postgres.user }}
@@ -121,7 +121,7 @@ spec:
         - logger_service
         {{- end }}
         {{- range $arg := .Values.services.logger.extraArgs }}
-        - {{$arg}}
+        - {{ $arg | quote }}
         {{- end }}
         env:
         {{- include "osmo.extra-env" .Values.services.logger | nindent 8 }}
@@ -195,6 +195,8 @@ spec:
 
 
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.authz-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
@@ -202,6 +204,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.logger | nindent 6 }}
       volumes:
         {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values) | nindent 8 }}
+        {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}

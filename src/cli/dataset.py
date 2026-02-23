@@ -38,7 +38,6 @@ from src.lib.data import (
 )
 from src.lib.utils import (
     client,
-    client_configs,
     credentials,
     common,
     osmo_errors,
@@ -136,10 +135,10 @@ def _run_info_command(service_client: client.ServiceClient, args: argparse.Names
                 print(f'{table.draw()}\n')
 
             header = ['Version', 'Status', 'Created By', 'Created Date', 'Last Used',
-                      'Size', 'Checksum', 'Retention Policy']
+                      'Size', 'Checksum']
             table = common.osmo_table(header=header)
             columns = ['version', 'status', 'created_by', 'created_date', 'last_used',
-                       'size', 'checksum', 'retention_policy']
+                       'size', 'checksum']
             for version in result['versions']:
                 version['size'] = common.storage_convert(version['size'])
                 version['created_date'] = common.convert_utc_datetime_to_user_zone(
@@ -975,7 +974,6 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
 
         storage_backend = storage_lib.construct_storage_backend(
             location_result['path'],
-            cache_config=client_configs.get_cache_config(),
         )
 
         data_cred = credentials.get_static_data_credential_from_config(

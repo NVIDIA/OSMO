@@ -23,11 +23,19 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+<<<<<<< HEAD
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+=======
+	"net/url"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.corp.nvidia.com/osmo/utils"
+>>>>>>> origin/main
 )
 
 // PostgresConfig holds PostgreSQL connection configuration
@@ -41,6 +49,10 @@ type PostgresConfig struct {
 	MinConns        int32
 	MaxConnLifetime time.Duration
 	SSLMode         string
+<<<<<<< HEAD
+=======
+	SchemaVersion   string
+>>>>>>> origin/main
 }
 
 // PostgresClient handles PostgreSQL database operations
@@ -51,11 +63,19 @@ type PostgresClient struct {
 
 // NewPostgresClient creates a new PostgreSQL client with connection pooling
 func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.Logger) (*PostgresClient, error) {
+<<<<<<< HEAD
 	// Build connection URL
 	connURL := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		config.User,
 		config.Password,
+=======
+	// Build connection URL with properly escaped user and password
+	connURL := fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		url.PathEscape(config.User),
+		url.PathEscape(config.Password),
+>>>>>>> origin/main
 		config.Host,
 		config.Port,
 		config.Database,
@@ -73,6 +93,14 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 	poolConfig.MinConns = config.MinConns
 	poolConfig.MaxConnLifetime = config.MaxConnLifetime
 
+<<<<<<< HEAD
+=======
+	// Set pgroll schema version via search_path connection parameter
+	if config.SchemaVersion != "" && config.SchemaVersion != "public" {
+		poolConfig.ConnConfig.RuntimeParams["search_path"] = config.SchemaVersion
+	}
+
+>>>>>>> origin/main
 	// Create connection pool
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -88,7 +116,11 @@ func NewPostgresClient(ctx context.Context, config PostgresConfig, logger *slog.
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
+<<<<<<< HEAD
 	logger.Info("postgres client connected successfully",
+=======
+	logger.Info("Postgres client connected successfully",
+>>>>>>> origin/main
 		slog.String("host", config.Host),
 		slog.Int("port", config.Port),
 		slog.String("database", config.Database),
@@ -132,6 +164,10 @@ type PostgresFlagPointers struct {
 	minConns           *int
 	maxConnLifetimeMin *int
 	sslMode            *string
+<<<<<<< HEAD
+=======
+	schemaVersion      *string
+>>>>>>> origin/main
 }
 
 // RegisterPostgresFlags registers PostgreSQL-related command-line flags
@@ -140,6 +176,7 @@ type PostgresFlagPointers struct {
 func RegisterPostgresFlags() *PostgresFlagPointers {
 	return &PostgresFlagPointers{
 		host: flag.String("postgres-host",
+<<<<<<< HEAD
 			getEnv("OSMO_POSTGRES_HOST", "localhost"),
 			"PostgreSQL host"),
 		port: flag.Int("postgres-port",
@@ -166,6 +203,37 @@ func RegisterPostgresFlags() *PostgresFlagPointers {
 		sslMode: flag.String("postgres-ssl-mode",
 			getEnv("OSMO_POSTGRES_SSL_MODE", "disable"),
 			"PostgreSQL SSL mode (disable, require, verify-ca, verify-full)"),
+=======
+			utils.GetEnv("OSMO_POSTGRES_HOST", "localhost"),
+			"PostgreSQL host"),
+		port: flag.Int("postgres-port",
+			utils.GetEnvInt("OSMO_POSTGRES_PORT", 5432),
+			"PostgreSQL port"),
+		user: flag.String("postgres-user",
+			utils.GetEnv("OSMO_POSTGRES_USER", "postgres"),
+			"PostgreSQL user"),
+		password: flag.String("postgres-password",
+			utils.GetEnvOrConfig("OSMO_POSTGRES_PASSWORD", "postgres_password", ""),
+			"PostgreSQL password"),
+		database: flag.String("postgres-database",
+			utils.GetEnv("OSMO_POSTGRES_DATABASE_NAME", "osmo_db"),
+			"PostgreSQL database name"),
+		maxConns: flag.Int("postgres-max-conns",
+			utils.GetEnvInt("OSMO_POSTGRES_MAX_CONNS", 10),
+			"PostgreSQL maximum connections in pool"),
+		minConns: flag.Int("postgres-min-conns",
+			utils.GetEnvInt("OSMO_POSTGRES_MIN_CONNS", 2),
+			"PostgreSQL minimum connections in pool"),
+		maxConnLifetimeMin: flag.Int("postgres-max-conn-lifetime",
+			utils.GetEnvInt("OSMO_POSTGRES_MAX_CONN_LIFETIME", 5),
+			"PostgreSQL maximum connection lifetime in minutes"),
+		sslMode: flag.String("postgres-ssl-mode",
+			utils.GetEnv("OSMO_POSTGRES_SSL_MODE", "prefer"),
+			"PostgreSQL SSL mode (disable, prefer, require, verify-ca, verify-full)"),
+		schemaVersion: flag.String("postgres-schema-version",
+			utils.GetEnv("OSMO_SCHEMA_VERSION", "public"),
+			"pgroll schema version for search_path"),
+>>>>>>> origin/main
 	}
 }
 
@@ -182,6 +250,7 @@ func (p *PostgresFlagPointers) ToPostgresConfig() PostgresConfig {
 		MinConns:        int32(*p.minConns),
 		MaxConnLifetime: time.Duration(*p.maxConnLifetimeMin) * time.Minute,
 		SSLMode:         *p.sslMode,
+<<<<<<< HEAD
 	}
 }
 
@@ -200,3 +269,8 @@ func getEnvInt(key string, defaultValue int) int {
 	}
 	return defaultValue
 }
+=======
+		SchemaVersion:   *p.schemaVersion,
+	}
+}
+>>>>>>> origin/main
