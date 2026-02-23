@@ -83,9 +83,8 @@ func (wl *WorkflowListener) Run(ctx context.Context) error {
 // sendMessages reads from the channel and sends messages to the server.
 func (wl *WorkflowListener) sendMessages(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-) {
+) error {
 	log.Printf("Starting message sender for workflow channel")
 	defer log.Printf("Stopping workflow message sender")
 
@@ -97,7 +96,7 @@ func (wl *WorkflowListener) sendMessages(
 		case <-ctx.Done():
 			log.Println("Stopping message sender, draining channel...")
 			wl.drainMessageChannel(ch)
-			return
+			return nil
 		case <-progressTicker.C:
 			progressWriter := wl.GetProgressWriter()
 			if progressWriter != nil {
@@ -107,19 +106,13 @@ func (wl *WorkflowListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				if ctx.Err() != nil {
-					log.Println("Pod watcher stopped due to context cancellation")
-					return
-				}
-				log.Println("Pod watcher stopped unexpectedly, draining channel...")
-				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.Attrs.Stream)
+				log.Println("Pod watcher stopped, draining channel...")
+				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.MetricAttrs)
 				wl.drainMessageChannel(ch)
-				cancel(fmt.Errorf("pod watcher stopped"))
-				return
+				return fmt.Errorf("pod watcher stopped")
 			}
 			if err := wl.BaseListener.SendMessage(ctx, msg); err != nil {
-				cancel(fmt.Errorf("failed to send message: %w", err))
-				return
+				return fmt.Errorf("failed to send message: %w", err)
 			}
 		}
 	}
@@ -147,14 +140,12 @@ func (wl *WorkflowListener) drainMessageChannel(ch <-chan *pb.ListenerMessage) {
 // watchPods watches for pod changes and writes ListenerMessages to ch.
 func (wl *WorkflowListener) watchPods(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch chan<- *pb.ListenerMessage,
-) {
+) error {
 	// Create Kubernetes client
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		return
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	log.Printf("Starting pod watcher for namespace: %s", wl.args.Namespace)
@@ -177,7 +168,7 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.Attrs.Stream)
+		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.MetricAttrs)
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
@@ -190,8 +181,8 @@ func (wl *WorkflowListener) watchPods(
 			select {
 			case ch <- msg:
 				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
-				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
-				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
+				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.MetricAttrs)
+				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.MetricAttrs)
 			case <-ctx.Done():
 				return
 			}
@@ -233,8 +224,8 @@ func (wl *WorkflowListener) watchPods(
 				select {
 				case ch <- msg:
 					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
-					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
-					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
+					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.MetricAttrs)
+					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.MetricAttrs)
 				case <-ctx.Done():
 					return
 				}
@@ -244,15 +235,14 @@ func (wl *WorkflowListener) watchPods(
 		},
 	})
 	if err != nil {
-		log.Printf("Failed to add event handler: %v", err)
-		return
+		return fmt.Errorf("failed to add event handler: %w", err)
 	}
 
 	// Set watch error handler
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
-		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.Attrs.Stream)
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.MetricAttrs)
 	})
 
 	// Start the informer
@@ -261,16 +251,16 @@ func (wl *WorkflowListener) watchPods(
 	// Wait for cache sync
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
-		log.Println("Failed to sync pod informer cache")
-		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.Attrs.Stream)
-		return
+		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.MetricAttrs)
+		return fmt.Errorf("failed to sync pod informer cache")
 	}
 	log.Println("Pod informer cache synced successfully")
-	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.Attrs.Stream)
+	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.MetricAttrs)
 
 	// Keep the watcher running
 	<-ctx.Done()
 	log.Println("Pod watcher stopped")
+	return nil
 }
 
 // parseRetryID parses the retry_id label string to int32, defaulting to 0

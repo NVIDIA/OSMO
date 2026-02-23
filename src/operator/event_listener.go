@@ -66,9 +66,8 @@ func (el *EventListener) Run(ctx context.Context) error {
 // sendMessages reads from the channel and sends messages to the server.
 func (el *EventListener) sendMessages(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-) {
+) error {
 	log.Printf("Starting message sender for event channel")
 	defer log.Printf("Stopping event message sender")
 
@@ -78,7 +77,7 @@ func (el *EventListener) sendMessages(
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-progressTicker.C:
 			progressWriter := el.GetProgressWriter()
 			if progressWriter != nil {
@@ -88,18 +87,11 @@ func (el *EventListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				if ctx.Err() != nil {
-					log.Println("Event watcher stopped due to context cancellation")
-					return
-				}
-				log.Println("Event watcher stopped unexpectedly")
-				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.Attrs.Stream)
-				cancel(fmt.Errorf("event watcher stopped"))
-				return
+				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.MetricAttrs)
+				return fmt.Errorf("event watcher stopped")
 			}
 			if err := el.BaseListener.SendMessage(ctx, msg); err != nil {
-				cancel(fmt.Errorf("failed to send message: %w", err))
-				return
+				return fmt.Errorf("failed to send message: %w", err)
 			}
 		}
 	}
@@ -108,9 +100,8 @@ func (el *EventListener) sendMessages(
 // watchEvents watches for Kubernetes events and sends them to a channel
 func (el *EventListener) watchEvents(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch chan<- *pb.ListenerMessage,
-) {
+) error {
 	// Event sent tracker to avoid sending duplicate events
 	tracker := newEventSentTracker(time.Duration(el.args.EventCacheTTLMin) * time.Minute)
 
@@ -137,8 +128,7 @@ func (el *EventListener) watchEvents(
 
 	clientset, err := utils.CreateKubernetesClient()
 	if err != nil {
-		log.Printf("Failed to create kubernetes client: %v", err)
-		return
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
 	// Create informer factory for the specific namespace
@@ -153,7 +143,7 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		el.inst.KubeEventWatchCount.Add(ctx, 1, el.Attrs.Stream)
+		el.inst.KubeEventWatchCount.Add(ctx, 1, el.MetricAttrs)
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
@@ -169,8 +159,8 @@ func (el *EventListener) watchEvents(
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
-			el.inst.MessageQueuedTotal.Add(ctx, 1, el.Attrs.Stream)
-			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.Attrs.Stream)
+			el.inst.MessageQueuedTotal.Add(ctx, 1, el.MetricAttrs)
+			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.MetricAttrs)
 		case <-ctx.Done():
 			return
 		}
@@ -187,14 +177,13 @@ func (el *EventListener) watchEvents(
 		},
 	})
 	if err != nil {
-		log.Printf("Failed to add event handler: %v", err)
-		return
+		return fmt.Errorf("failed to add event handler: %w", err)
 	}
 
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
-		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.Attrs.Stream)
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.MetricAttrs)
 	})
 
 	// Start the informer
@@ -203,16 +192,16 @@ func (el *EventListener) watchEvents(
 
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
-		log.Println("Failed to sync event informer cache")
-		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.Attrs.Stream)
-		return
+		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.MetricAttrs)
+		return fmt.Errorf("failed to sync event informer cache")
 	}
 	log.Println("Event informer cache synced successfully")
-	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.Attrs.Stream)
+	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.MetricAttrs)
 
 	// Keep the watcher running
 	<-ctx.Done()
 	log.Println("Event watcher stopped")
+	return nil
 }
 
 // eventKey represents semantic event identity (not object identity)
