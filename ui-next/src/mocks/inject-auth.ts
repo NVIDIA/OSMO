@@ -56,7 +56,7 @@ export function generateMockJWT(username: string, roles: string[] = [], expiresI
     exp: now + expiresInHours * 3600,
     iat: now,
     preferred_username: username,
-    email: `${username}@nvidia.com`,
+    email: `${username}@example.com`,
     name: username
       .split(".")
       .map((s) => s.charAt(0).toUpperCase() + s.slice(1))

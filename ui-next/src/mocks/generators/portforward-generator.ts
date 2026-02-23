@@ -69,7 +69,7 @@ const PORT_FORWARD_PATTERNS = {
     { port: 8000, service: "FastAPI" },
     { port: 7860, service: "Gradio" },
   ],
-  routerDomains: ["pf.osmo.nvidia.com", "tunnel.osmo.nvidia.com", "access.osmo.nvidia.com"],
+  routerDomains: ["pf.osmo.example.com", "tunnel.osmo.example.com", "access.osmo.example.com"],
 };
 
 // ============================================================================

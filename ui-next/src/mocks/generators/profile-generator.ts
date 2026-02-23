@@ -104,7 +104,7 @@ export class ProfileGenerator {
 
     return {
       username: user,
-      email: `${user}@nvidia.com`,
+      email: `${user}@example.com`,
       display_name: `${this.capitalize(firstName)} ${this.capitalize(lastName)}`.trim(),
       avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${user}`,
       created_at: faker.date.past({ years: 3 }).toISOString(),
