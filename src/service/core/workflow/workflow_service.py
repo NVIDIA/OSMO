@@ -250,7 +250,7 @@ def get_pool_quotas(all_pools: bool = True,
     gpu_usage_by_nodeset = {
         nodeset: sum((node_gpu_usage.get(node, NodeGpuUsage()) for node in nodeset),
                      start=NodeGpuUsage())
-        for nodeset in pools_by_nodeset.keys()
+        for nodeset in pools_by_nodeset
     }
 
     # Initialize per-pool calculated sums
