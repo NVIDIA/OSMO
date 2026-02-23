@@ -36,16 +36,14 @@ import (
 // WatchFunc writes listener messages to a channel.
 type WatchFunc func(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch chan<- *pb.ListenerMessage,
-)
+) error
 
 // SendMessagesFunc reads from the channel and sends messages to the stream.
 type SendMessagesFunc func(
 	ctx context.Context,
-	cancel context.CancelCauseFunc,
 	ch <-chan *pb.ListenerMessage,
-)
+) error
 
 // StreamName identifies the listener stream type.
 type StreamName string
@@ -56,35 +54,6 @@ const (
 	StreamNameNode      StreamName = "node"
 	StreamNameEvent     StreamName = "event"
 )
-
-// MetricAttrs holds pre-computed metric attribute sets for a listener.
-// Initialized once in NewBaseListener and shared (read-only) across goroutines.
-type MetricAttrs struct {
-	Stream        metric.MeasurementOption // {listener: <streamName>}
-	PanicReceiver metric.MeasurementOption // {listener: <streamName>, goroutine: "receiver"}
-	PanicWatcher  metric.MeasurementOption // {listener: <streamName>, goroutine: "watcher"}
-	PanicSender   metric.MeasurementOption // {listener: <streamName>, goroutine: "sender"}
-}
-
-// NewMetricAttrs creates a MetricAttrs with pre-computed attribute sets for the given stream name.
-func NewMetricAttrs(streamName StreamName) MetricAttrs {
-	return MetricAttrs{
-		Stream: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)))),
-		PanicReceiver: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)),
-			attribute.String("goroutine", "receiver"),
-		)),
-		PanicWatcher: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)),
-			attribute.String("goroutine", "watcher"),
-		)),
-		PanicSender: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)),
-			attribute.String("goroutine", "sender"),
-		)),
-	}
-}
 
 // BaseListener contains common functionality for all listeners
 type BaseListener struct {
@@ -107,8 +76,8 @@ type BaseListener struct {
 	args ListenerArgs
 	inst *Instruments
 
-	// Pre-computed attribute sets (initialized in NewBaseListener, shared across goroutines safely)
-	Attrs MetricAttrs
+	// Attrs is a pre-computed metric attribute set {listener: <streamName>}, shared (read-only) across goroutines.
+	MetricAttrs metric.MeasurementOption
 }
 
 // NewBaseListener creates a new base listener instance
@@ -129,7 +98,8 @@ func NewBaseListener(
 		progressWriter:  progressWriter,
 		streamName:      streamName,
 		inst:            inst,
-		Attrs:           NewMetricAttrs(streamName),
+		MetricAttrs: metric.WithAttributeSet(attribute.NewSet(
+			attribute.String("listener", string(streamName)))),
 	}
 	return bl
 }
@@ -158,10 +128,7 @@ func (bl *BaseListener) initConnection(serviceURL string) error {
 }
 
 // receiveAcks handles receiving ACK messages from the server
-func (bl *BaseListener) receiveAcks(
-	ctx context.Context,
-	cancel context.CancelCauseFunc,
-) {
+func (bl *BaseListener) receiveAcks(ctx context.Context) error {
 	// Rate limit progress reporting
 	lastProgressReport := time.Now()
 	progressInterval := time.Duration(bl.args.ProgressFrequencySec) * time.Second
@@ -170,26 +137,14 @@ func (bl *BaseListener) receiveAcks(
 		msg, err := bl.stream.Recv()
 		if err != nil {
 			bl.inst.GRPCDisconnectCount.Add(ctx, 1)
-
-			// Check if context was cancelled
-			if ctx.Err() != nil {
-				log.Printf("Stopping %s message receiver (context cancelled)...", bl.streamName)
-				return
-			}
-			if err == io.EOF {
-				log.Printf("Server closed the %s stream", bl.streamName)
-				cancel(io.EOF)
-				return
-			}
-			cancel(fmt.Errorf("failed to receive message: %w", err))
-			return
+			return fmt.Errorf("failed to receive ACKs: %w", err)
 		}
 
 		// Handle ACK messages by removing from unacked queue
 		bl.unackedMessages.RemoveMessage(msg.AckUuid)
 
-		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.Attrs.Stream)
-		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs.Stream)
+		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.MetricAttrs)
+		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.MetricAttrs)
 
 		log.Printf("Received ACK for %s message: uuid=%s", bl.streamName, msg.AckUuid)
 
@@ -324,39 +279,30 @@ func (bl *BaseListener) Run(
 	bl.wg.Add(3)
 	go func() {
 		defer bl.wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in receiveAcks goroutine: %v", r)
-				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, bl.Attrs.PanicReceiver)
-				streamCancel(fmt.Errorf("panic in receiver: %v", r))
-			}
-		}()
-		bl.receiveAcks(streamCtx, streamCancel)
+		err = bl.receiveAcks(streamCtx)
+		if err != nil {
+			log.Printf("Error in receiveAcks goroutine: %v", err)
+			streamCancel(err)
+		}
 	}()
 
 	go func() {
 		defer bl.wg.Done()
 		defer close(msgChan)
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in watch goroutine: %v", r)
-				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, bl.Attrs.PanicWatcher)
-				streamCancel(fmt.Errorf("panic in watcher: %v", r))
-			}
-		}()
-		watch(streamCtx, streamCancel, msgChan)
+		err = watch(streamCtx, msgChan)
+		if err != nil {
+			log.Printf("Error in watch goroutine: %v", err)
+			streamCancel(err)
+		}
 	}()
 
 	go func() {
 		defer bl.wg.Done()
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Panic in sendMessages goroutine: %v", r)
-				bl.inst.GoroutinePanicTotal.Add(context.Background(), 1, bl.Attrs.PanicSender)
-				streamCancel(fmt.Errorf("panic in sender: %v", r))
-			}
-		}()
-		sendMessages(streamCtx, streamCancel, msgChan)
+		err = sendMessages(streamCtx, msgChan)
+		if err != nil {
+			log.Printf("Error in sendMessages goroutine: %v", err)
+			streamCancel(err)
+		}
 	}()
 
 	// Wait for completion
@@ -377,17 +323,17 @@ func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage
 		return nil
 	}
 
-	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs.Stream)
+	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.MetricAttrs)
 
 	// Record gRPC send duration
 	start := time.Now()
 	if err := bl.GetStream().Send(msg); err != nil {
-		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1, bl.Attrs.Stream)
+		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1, bl.MetricAttrs)
 		return err
 	}
 
-	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), bl.Attrs.Stream)
-	bl.inst.MessageSentTotal.Add(ctx, 1, bl.Attrs.Stream)
+	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), bl.MetricAttrs)
+	bl.inst.MessageSentTotal.Add(ctx, 1, bl.MetricAttrs)
 
 	return nil
 }
