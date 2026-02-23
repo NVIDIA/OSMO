@@ -113,7 +113,7 @@ export const SpecSection = memo(function SpecSection({
     content = <SpecEmpty />;
   } else {
     content = (
-      <div className="relative h-[calc(100vh-22rem)] overflow-hidden rounded-md border border-border">
+      <div className="border-border relative h-[calc(100vh-22rem)] overflow-hidden rounded-md border">
         <CodeMirror
           value={editorValue}
           onChange={handleChange}
