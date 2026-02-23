@@ -67,11 +67,10 @@ export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) 
   return (
     <div className="relative min-w-0">
       {/* Hidden measurement container - renders all chips to measure actual widths */}
-      {/* CSS containment + will-change for 60fps performance */}
+      {/* CSS containment for layout isolation */}
       <div
         ref={measureRef}
         className="contain-layout-style pointer-events-none invisible absolute flex w-full items-center gap-1.5"
-        style={{ willChange: "contents" }}
         aria-hidden="true"
       >
         {sortedItems.map((poolName) => (

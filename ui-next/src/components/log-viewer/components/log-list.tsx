@@ -137,7 +137,6 @@ const StickyHeader = memo(function StickyHeader({ date }: StickyHeaderProps) {
         height: DATE_SEPARATOR_HEIGHT,
         // Force GPU layer to prevent z-index conflicts with transformed virtual items
         transform: "translateZ(0)",
-        willChange: "transform",
         // Ensure isolation from virtual list stacking contexts
         isolation: "isolate",
       }}
