@@ -294,8 +294,8 @@ oci.pull(
 )
 oci.pull(
     name = "node_22_distroless",
-    digest = "sha256:8e61b86b48345cf29192bbbd1d152c6e3dfee007e82709146781e46c7cc3eb9a",
-    image = BASE_DISTROLESS_IMAGE_URL + "node:22-v3.1.1",
+    digest = "sha256:9b6cc2cad6cd1a0008c14ca3edacd5929839b7a06a5d530036437c0ed257f3b2",
+    image = BASE_DISTROLESS_IMAGE_URL + "node:22-v4.0.2",
     platforms = [
         "linux/amd64",
         "linux/arm64/v8",
