@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -194,17 +194,21 @@ spec:
           timeoutSeconds: 20
 
 
+      {{- if not .Values.services.gateway.enabled }}
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
       {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
       {{- include "osmo.authz-sidecar-container" . | nindent 6}}
+      {{- end }}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
       {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
       {{- include "osmo.extra-sidecars" .Values.services.logger | nindent 6 }}
       volumes:
+        {{- if not .Values.services.gateway.enabled }}
         {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values) | nindent 8 }}
         {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
+        {{- end }}
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}
@@ -225,7 +229,7 @@ spec:
         {{- end}}
 
 ---
-{{- if .Values.sidecars.envoy.enabled }}
+{{- if and .Values.sidecars.envoy.enabled (not .Values.services.gateway.enabled) }}
 
 {{- include "osmo.envoy-config" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values "Release" .Release) }}
 ---
@@ -272,7 +276,11 @@ spec:
         pathType: Prefix
         backend:
           service:
+            {{- if .Values.services.gateway.enabled }}
+            name: {{ .Values.services.gateway.serviceName }}
+            {{- else }}
             name: {{ .Values.services.logger.serviceName }}
+            {{- end }}
             port:
               number: 80
   {{- if .Values.services.service.ingress.sslEnabled }}

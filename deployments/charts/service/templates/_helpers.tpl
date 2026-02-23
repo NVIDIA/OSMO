@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -78,10 +78,14 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-The target port for the service
+The target port for the service.
+When the gateway is enabled, traffic reaches backend services directly on port 8000.
+When using the sidecar model with envoy, traffic enters through the envoy sidecar.
 */}}
 {{- define "service.targetPort" -}}
-{{- if .Values.sidecars.envoy.enabled -}}
+{{- if .Values.services.gateway.enabled -}}
+8000
+{{- else if .Values.sidecars.envoy.enabled -}}
 envoy-http
 {{- else -}}
 8000

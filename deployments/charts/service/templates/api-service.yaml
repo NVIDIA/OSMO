@@ -34,7 +34,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- if not .Values.services.gateway.enabled }}
         checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
+        {{- end }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         sidecar.opentelemetry.io/inject: "true"
@@ -231,20 +233,27 @@ spec:
           failureThreshold: 3
           timeoutSeconds: 20
 
+      {{- if not .Values.services.gateway.enabled }}
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
       {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
       {{- include "osmo.authz-sidecar-container" . | nindent 6}}
+      {{- if .Values.sidecars.rateLimit.enabled }}
+      {{- include "osmo.rate-limit-sidecar-container" . | nindent 6}}
+      {{- end }}
+      {{- end }}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
       {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
-      {{- if .Values.sidecars.rateLimit.enabled }}
-      {{- include "osmo.rate-limit-sidecar-container" . | nindent 6}}
-      {{- end }}
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
+        {{- if not .Values.services.gateway.enabled }}
         {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.service.serviceName "serviceEnvoy" .Values.services.service.envoy "Values" .Values) | nindent 8 }}
         {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
+        {{- if .Values.sidecars.rateLimit.enabled }}
+        {{- include "osmo.rate-limit-volumes" . | nindent 8 }}
+        {{- end }}
+        {{- end }}
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}
@@ -254,9 +263,6 @@ spec:
           emptyDir: {}
           {{- include "osmo.log-agent-volumes" . | nindent 8 }}
         {{- end}}
-        {{- if .Values.sidecars.rateLimit.enabled }}
-        {{- include "osmo.rate-limit-volumes" . | nindent 8 }}
-        {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - configMap:
             defaultMode: 420
@@ -267,7 +273,7 @@ spec:
           name: mek-volume
         {{- end}}
 ---
-{{- if .Values.sidecars.envoy.enabled }}
+{{- if and .Values.sidecars.envoy.enabled (not .Values.services.gateway.enabled) }}
 
 {{- include "osmo.envoy-config" (dict "serviceName" .Values.services.service.serviceName "serviceEnvoy" .Values.services.service.envoy "Values" .Values "Release" .Release) }}
 ---
@@ -288,9 +294,9 @@ spec:
   selector:
     app: {{ .Values.services.service.serviceName }}
 
+{{- if and .Values.sidecars.envoy.inClusterPaths.enabled (not .Values.services.gateway.enabled) }}
 ---
 
-{{- if .Values.sidecars.envoy.inClusterPaths.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -335,14 +341,22 @@ spec:
         pathType: Prefix
         backend:
           service:
+            {{- if .Values.services.gateway.enabled }}
+            name: {{ .Values.services.gateway.serviceName }}
+            {{- else }}
             name: {{ .Values.services.service.serviceName }}
+            {{- end }}
             port:
               number: 80
       - path: {{ .Values.services.service.ingress.prefix }}client
         pathType: Prefix
         backend:
           service:
+            {{- if .Values.services.gateway.enabled }}
+            name: {{ .Values.services.gateway.serviceName }}
+            {{- else }}
             name: {{ .Values.services.service.serviceName }}
+            {{- end }}
             port:
               number: 80
   {{- if .Values.services.service.ingress.sslEnabled }}

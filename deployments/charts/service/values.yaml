@@ -984,6 +984,111 @@ services:
     # maxRequests: 100
     # routes: [...]
 
+  ## Auth gateway deployment configuration
+  ## When enabled, envoy, authz, oauth2-proxy, and rate-limiter run as a single
+  ## shared gateway deployment instead of as sidecars in every service pod.
+  ## Backend services (api, agent, logger) become lean pods without auth containers.
+  ##
+  gateway:
+    ## Enable the auth gateway deployment
+    ## When true, auth sidecars are removed from service pods and a shared gateway is deployed
+    ## When false, the traditional sidecar pattern is used
+    ##
+    enabled: true
+
+    ## Kubernetes service name for the auth gateway
+    ##
+    serviceName: osmo-auth-gateway
+
+    ## Horizontal Pod Autoscaler (HPA) configuration for the gateway
+    ##
+    scaling:
+      ## Minimum number of gateway replicas
+      ##
+      minReplicas: 2
+
+      ## Maximum number of gateway replicas when scaling
+      ##
+      maxReplicas: 6
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+    ## Node selector constraints for gateway pod scheduling
+    ##
+    nodeSelector: {}
+
+    ## Topology spread constraints to distribute gateway pods across zones
+    ##
+    topologySpreadConstraints:
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Tolerations for gateway pod scheduling on tainted nodes
+    ##
+    tolerations: []
+
+    ## Extra pod labels for the gateway pods
+    ##
+    extraPodLabels: {}
+
+    ## Extra pod annotations for the gateway pods
+    ##
+    extraPodAnnotations: {}
+
+    ## Service account name for the gateway
+    ##
+    serviceAccountName: ""
+
+    ## Backend services that the gateway routes traffic to
+    ## Each entry defines a cluster in the gateway's envoy config
+    ##
+    backends:
+    - serviceName: osmo-service
+      port: 8000
+      maxRequests: 100
+    - serviceName: osmo-agent
+      port: 8000
+    - serviceName: osmo-logger
+      port: 8000
+
+    ## Path-based routes for directing traffic to specific backend clusters
+    ## These are matched BEFORE the default routes from sidecars.envoy.routes
+    ## (which fall through to osmo-service). Envoy evaluates routes in order,
+    ## so these prefix routes capture agent/logger traffic first.
+    ##
+    backendRoutes:
+    - pathRegex: "^/api/agent(/.*)?$"
+      cluster: osmo-agent
+      timeout: 0s
+      rate_limits:
+      - actions:
+        - request_headers:
+            header_name: X-OSMO-USER
+            descriptor_key: "OSMO_USER"
+      - actions:
+        - request_headers:
+            header_name: ":path"
+            descriptor_key: "PATH"
+    - pathRegex: "^/api/logger(/.*)?$"
+      cluster: osmo-logger
+      timeout: 60s
+      rate_limits:
+      - actions:
+        - request_headers:
+            header_name: X-OSMO-USER
+            descriptor_key: "OSMO_USER"
+      - actions:
+        - request_headers:
+            header_name: ":path"
+            descriptor_key: "PATH"
+
 ## Configuration for service sidecar containers
 ##
 sidecars:
