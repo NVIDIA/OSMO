@@ -1,877 +1,531 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # OSMO UI (Next.js)
 
-Modern React-based UI for OSMO resource management. Built for **blazing-fast performance** with GPU-accelerated rendering, virtualization, and minimal reflow.
+Modern React-based UI for OSMO resource management. Built with Next.js 16, React 19, and Tailwind CSS 4.
 
 ## Quick Start
 
 ```bash
 pnpm install
-pnpm dev                    # → http://localhost:3000
+pnpm dev                    # Start dev server → http://localhost:3000
 ```
 
-For local backend: `pnpm dev:local` (points to localhost:8000)
+For mock mode (no backend needed): `pnpm dev:mock`
 
 ---
 
 ## Commands
 
 ### Development
+
 ```bash
-pnpm dev                    # Start dev server (Turbopack)
+pnpm dev                    # Dev server (Turbopack)
 pnpm dev:local              # Dev server → localhost:8000
-pnpm dev:mock               # Dev with mock data (no backend needed!)
-pnpm build                  # Production build
+pnpm dev:mock               # Dev with mock data (no backend needed)
+pnpm dev:mock-ws            # Mock WebSocket server
+pnpm build                  # Production build (Turbopack + compression)
 pnpm start                  # Run production build
+pnpm clean                  # Remove .next and .turbo caches
 ```
 
 ### Code Quality
+
 ```bash
-pnpm lint                   # ESLint (includes React Compiler checks)
-pnpm lint:a11y              # Accessibility linting
+pnpm lint                   # ESLint
 pnpm type-check             # TypeScript check
 pnpm format                 # Prettier format
 pnpm format:check           # Check formatting
 ```
 
-### Full Verification (Before Commit)
+### Testing
+
+```bash
+pnpm test                   # Unit tests (Vitest, run once)
+pnpm test:watch             # Unit tests in watch mode
+pnpm test:coverage          # Unit tests with coverage
+pnpm test:e2e               # E2E tests (Playwright, headless)
+pnpm test:e2e:headed        # E2E with visible browser
+pnpm test:e2e:ui            # E2E interactive UI (recommended for dev)
+pnpm test:all               # Unit + E2E tests
+```
+
+### API Generation
+
+```bash
+pnpm generate-api           # Regenerate API client + status metadata from backend
+pnpm generate-mocks         # Regenerate mock handlers from OpenAPI
+```
+
+This runs Bazel to export the OpenAPI spec and status metadata, then orval to generate TypeScript types and React Query hooks.
+
+### Full Validation (Before Commit)
+
+```bash
+pnpm validate               # licenses + type-check + lint + format:check + build + test:all
+```
+
+Or run checks individually:
+
 ```bash
 pnpm type-check && pnpm lint && pnpm test && pnpm build
 ```
 
-### Testing
+### Licenses
 
-#### Quick Commands
 ```bash
-pnpm test                   # Run all unit tests once
-pnpm test:e2e               # Run all E2E tests (headless)
-pnpm test:all               # Run unit + E2E tests
-```
-
-#### Unit Tests (Vitest)
-```bash
-# Run modes
-pnpm test                   # Run once and exit
-pnpm test:watch             # Watch mode - rerun on file changes
-pnpm test:coverage          # Run with coverage report
-
-# Filtered runs
-pnpm test transforms        # Run tests matching "transforms"
-pnpm test utils             # Run tests matching "utils"
-pnpm test -- --grep "quota" # Run tests with "quota" in name
-
-# Interactive
-pnpm test:watch             # Watch mode with interactive menu
-                            # Press 'p' to filter by filename
-                            # Press 't' to filter by test name
-                            # Press 'a' to run all tests
-                            # Press 'f' to run only failed tests
-
-# Debugging
-pnpm test -- --reporter=verbose    # Verbose output
-pnpm test -- --bail                # Stop on first failure
-pnpm test -- --inspect-brk         # Debug with Node inspector
-```
-
-#### E2E Tests (Playwright)
-```bash
-# Run modes
-pnpm test:e2e               # Headless (CI mode)
-pnpm test:e2e:headed        # Visible browser
-pnpm test:e2e:ui            # Interactive UI (best for debugging)
-
-# Filtered runs
-pnpm test:e2e -- auth       # Run tests in files matching "auth"
-pnpm test:e2e -- pools      # Run tests in files matching "pools"
-pnpm test:e2e -- -g "login" # Run tests with "login" in name
-
-# Single file
-pnpm test:e2e -- e2e/journeys/auth.spec.ts
-pnpm test:e2e -- e2e/journeys/pools.spec.ts
-
-# Debugging
-pnpm test:e2e -- --debug              # Step through with Playwright Inspector
-pnpm test:e2e:headed -- --slowmo=500  # Slow down actions (500ms between)
-pnpm test:e2e -- --trace on           # Record trace for all tests
-pnpm test:e2e -- --update-snapshots   # Update visual snapshots
-
-# Specific browser
-pnpm test:e2e -- --project=chromium   # Chrome only (default)
-pnpm test:e2e -- --project=firefox    # Firefox only
-pnpm test:e2e -- --project=webkit     # Safari only
-
-# Retries and parallelism
-pnpm test:e2e -- --retries=2          # Retry failed tests
-pnpm test:e2e -- --workers=1          # Run sequentially (debug flaky tests)
-pnpm test:e2e -- --workers=4          # Run with 4 parallel workers
-
-# Reports
-pnpm test:e2e -- --reporter=html      # Generate HTML report
-pnpm test:e2e -- --reporter=list      # Simple list output
-```
-
-#### Test by Scenario (E2E)
-```bash
-# Auth scenarios
-pnpm test:e2e -- -g "unauthenticated"     # Login screen tests
-pnpm test:e2e -- -g "authenticated"       # Logged-in user tests
-pnpm test:e2e -- -g "OAuth"               # OAuth flow tests
-pnpm test:e2e -- -g "expired"             # Token refresh tests
-pnpm test:e2e -- -g "forbidden"           # 403 error tests
-pnpm test:e2e -- -g "unauthorized"        # 401 error tests
-
-# Feature scenarios
-pnpm test:e2e -- -g "pools"               # Pool-related tests
-pnpm test:e2e -- -g "resources"           # Resource-related tests
-pnpm test:e2e -- -g "navigation"          # Navigation tests
-pnpm test:e2e -- -g "filter"              # Filter functionality tests
-```
-
-#### CI Commands
-```bash
-# Fast CI run
-pnpm test && pnpm test:e2e
-
-# Full verification
-pnpm lint && pnpm type-check && pnpm test && pnpm test:e2e
-```
-
-#### Playwright UI Mode (Recommended for Development)
-```bash
-pnpm test:e2e:ui
-```
-Opens interactive UI with:
-- **Test explorer** - Click tests to run individually
-- **Watch mode** - Auto-rerun on file changes
-- **Time travel** - Step through test actions visually
-- **DOM snapshots** - Inspect page state at each step
-- **Network tab** - See mocked API requests/responses
-- **Pick locator** - Generate selectors by clicking elements
-
-#### Debugging Tips
-
-**1. Run single test in watch mode:**
-```bash
-pnpm test:e2e:ui -- -g "user can log in"
-```
-
-**2. Pause mid-test to inspect:**
-```typescript
-await page.pause();  // Add to any test
-```
-
-**3. See what selectors match:**
-```bash
-pnpm test:e2e -- --debug
-# Then in Playwright Inspector: click "Pick locator"
-```
-
-**4. Generate test from actions:**
-```bash
-pnpm exec playwright codegen localhost:3000
-```
-
-### API Generation
-```bash
-pnpm generate-api           # Regenerate API client from backend source
-pnpm generate-mocks         # Regenerate mock handlers from OpenAPI (optional)
-```
-This runs Bazel to export OpenAPI spec, then orval to generate TypeScript.
-
-### Mock Data (Type-Safe, Co-located)
-
-E2E tests use **typed factories** with data defined **inline with tests**:
-
-```typescript
-// e2e/journeys/pools.spec.ts
-import { test, expect, createPoolResponse, createResourcesResponse } from "../fixtures";
-
-test("shows empty pool", async ({ page, withData }) => {
-  // ARRANGE: Data is co-located with test assertions
-  await withData({
-    pools: createPoolResponse([
-      { name: "empty-pool", status: "ONLINE", resource_usage: { quota_used: "0", ... } },
-    ]),
-    resources: { resources: [] },
-  });
-
-  // ACT
-  await page.goto("/pools/empty-pool");
-
-  // ASSERT
-  await expect(page.getByRole("heading")).toContainText("empty-pool");
-});
-```
-
-**Benefits:**
-- ✅ Mock data matches actual API contract (typed from OpenAPI)
-- ✅ Test intent is clear - data visible right next to assertions
-- ✅ TypeScript catches spec changes
-- ✅ `pnpm generate-api` → factories show errors if out of sync
-
-**Available fixtures:**
-```typescript
-import {
-  test, expect,
-  // Data setup (call BEFORE page.goto)
-  withData,                      // Set pools, resources, version
-  withAuth,                      // Set auth state, tokens, errors
-  // Factories (type-safe)
-  createPoolResponse,
-  createResourcesResponse,
-  createProductionScenario,      // Realistic multi-pool setup
-  createEmptyScenario,           // Empty pool, no resources
-  createHighUtilizationScenario, // Overloaded resources
-  // Generated enums - use instead of string literals!
-  PoolStatus,                    // ONLINE, OFFLINE, MAINTENANCE
-  BackendResourceType,           // SHARED, RESERVED, UNUSED
-} from "../fixtures";
-
-// ✅ Good: Use generated enums
-{ status: PoolStatus.ONLINE, resource_type: BackendResourceType.SHARED }
-
-// ❌ Bad: String literals (no type safety)
-{ status: "ONLINE", resource_type: "SHARED" }
-```
-
-### shadcn/ui Components
-```bash
-npx shadcn@latest add button        # Add a component
-npx shadcn@latest add dialog input  # Add multiple
-npx shadcn@latest add --all         # Add all components
-```
-Components are added to `src/components/ui/`.
-
----
-
-## Project Setup (From Scratch)
-
-This section documents how this project was created (for reference).
-
-### 1. Create Next.js App
-```bash
-pnpm create next-app@latest ui-next --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
-```
-
-### 2. Initialize shadcn/ui
-```bash
-npx shadcn@latest init
-# Selected: New York style, Neutral base color, CSS variables: yes
-```
-
-### 3. Install Dependencies
-```bash
-pnpm add @tanstack/react-query @tanstack/react-table zod react-hook-form @hookform/resolvers
-pnpm add -D orval
-```
-
-### 4. Configure orval (API codegen)
-Created `orval.config.ts`:
-```typescript
-export default defineConfig({
-  osmo: {
-    input: { target: './openapi.json' },
-    output: {
-      target: './src/lib/api/generated.ts',
-      client: 'react-query',
-      mode: 'single',
-      override: {
-        mutator: { path: './src/lib/api/fetcher.ts', name: 'customFetch' },
-      },
-    },
-  },
-});
-```
-
-### 5. Generate API Client
-```bash
-# From external/ directory
-bazel run //src/service:export_openapi > ui-next/openapi.json
-cd ui-next && pnpm exec orval
+pnpm licenses:check         # Verify all dependencies use permissive licenses
+pnpm licenses:generate      # Regenerate THIRD_PARTY_LICENSES.md
 ```
 
 ---
 
 ## Architecture
 
+### Project Structure
+
 ```
 src/
-├── app/                    # Next.js pages (routing)
-│   ├── (dashboard)/        # Authenticated pages
-│   ├── auth/               # Auth API routes
-│   └── globals.css         # Global styles + performance utilities
-├── components/
-│   ├── ui/                 # shadcn/ui primitives (Button, Input, etc.)
-│   ├── shell/              # Layout (Header, Sidebar)
-│   ├── features/           # Feature-specific themed components
-│   └── providers.tsx       # React Query + Theme + Auth providers
-├── headless/               # Business logic hooks (usePoolsList, usePoolDetail)
-└── lib/
-    ├── api/
-    │   ├── adapter/        # Transforms backend → clean types
-    │   ├── generated.ts    # Auto-generated from OpenAPI (don't edit)
-    │   └── fetcher.ts      # Auth-aware fetch wrapper
-    ├── auth/               # Authentication logic
-    ├── constants/          # Roles, headers, storage keys
-    ├── filters/            # URL-synced filter hooks (nuqs)
-    └── styles.ts           # Shared Tailwind patterns
+├── app/                        # Next.js App Router (pages + API routes)
+│   ├── (dashboard)/            # Authenticated pages (route group)
+│   │   ├── datasets/           #   Dataset list + bucket + detail
+│   │   ├── experimental/       #   Experimental features
+│   │   ├── log-viewer/         #   Log viewer
+│   │   ├── pools/              #   Pool management
+│   │   ├── profile/            #   User profile
+│   │   ├── resources/          #   Resource management
+│   │   └── workflows/          #   Workflow list + detail
+│   ├── api/                    # API route handlers
+│   │   ├── [...path]/          #   Catch-all zero-copy proxy to backend
+│   │   ├── auth/refresh/       #   Token refresh
+│   │   ├── datasets/           #   Dataset file proxy + location files
+│   │   ├── health/             #   Health check
+│   │   └── me/                 #   Current user info (JWT decode)
+│   └── health/                 # Health check page
+├── features/                   # Feature modules (domain logic + components)
+│   ├── datasets/               #   list/ + detail/
+│   ├── log-viewer/
+│   ├── pools/                  #   components/ + hooks/ + lib/ + stores/ + styles/
+│   ├── profile/                #   components/ + hooks/
+│   ├── resources/              #   components/ + hooks/ + lib/ + stores/
+│   └── workflows/              #   list/ + detail/
+├── components/                 # Shared, reusable UI components
+│   ├── shadcn/                 #   Radix-based primitives (Button, Dialog, etc.)
+│   ├── chrome/                 #   App shell (navigation, header, sidebar)
+│   ├── data-table/             #   Virtualized data table
+│   ├── dag/                    #   DAG visualization (workflow graphs)
+│   ├── code-viewer/            #   CodeMirror-based code/YAML viewer
+│   ├── log-viewer/             #   Terminal log viewer (xterm.js)
+│   ├── shell/                  #   Interactive terminal shell
+│   ├── event-viewer/           #   Event timeline
+│   ├── filter-bar/             #   Search + filter chips
+│   ├── panel/                  #   Side panel
+│   ├── error/                  #   Error boundaries
+│   ├── refresh/                #   Refresh controls
+│   └── providers.tsx           #   React Query + Theme + Auth providers
+├── hooks/                      # Shared React hooks
+├── stores/                     # Zustand state stores
+├── contexts/                   # React contexts (config, runtime env, services)
+├── lib/                        # Core libraries
+│   ├── api/
+│   │   ├── adapter/            #   Backend → UI type transforms + hooks
+│   │   ├── server/             #   Server-side API client
+│   │   ├── log-adapter/        #   Log streaming adapter
+│   │   ├── pagination/         #   Pagination utilities
+│   │   ├── generated.ts        #   Auto-generated from OpenAPI (DO NOT EDIT)
+│   │   └── fetcher.ts          #   Auth-aware fetch wrapper
+│   ├── auth/                   #   Authentication (Envoy + JWT)
+│   ├── config/                 #   OAuth + app configuration
+│   ├── hotkeys/                #   Keyboard shortcut definitions
+│   ├── navigation/             #   Navigation utilities
+│   ├── workflows/              #   Workflow status helpers
+│   └── format-date.ts          #   SSR-safe date formatting
+├── mocks/                      # Mock data (MSW handlers + generators)
+└── styles/                     # Additional CSS
 ```
 
 ### Layer Pattern
 
 ```
-Page → Headless Hook → Adapter Hook → Generated API
-            ↓
-     Themed Components
+Page  →  Feature Module  →  Adapter Hook  →  Generated API  →  Backend
+              │
+              ├── hooks/        (data fetching, business logic)
+              ├── components/   (presentation, receive data as props)
+              ├── lib/          (constants, column defs, transforms)
+              └── stores/       (table UI state via Zustand)
 ```
 
-- **Pages**: Compose headless hooks + themed components
-- **Headless hooks**: Business logic, filtering, state (no UI)
-- **Adapter hooks**: Clean types, transform backend quirks
-- **Themed components**: Presentation only, receive data as props
+- **Pages** (`src/app/`): Thin routing layer. Compose feature modules.
+- **Feature modules** (`src/features/`): Co-locate hooks, components, stores, and constants per domain.
+- **Adapter hooks** (`src/lib/api/adapter/`): Transform backend responses to clean UI types. Isolate backend quirks.
+- **Generated API** (`src/lib/api/generated.ts`): Auto-generated React Query hooks and types from the OpenAPI spec. Never import types from here directly -- use the adapter layer for types and only import enums from generated.
+- **Shared components** (`src/components/`): Presentation-only. Receive data as props, never fetch internally.
 
 ---
 
-## Common Workflows
+## Feature Modules
 
-### Adding a New Page
-1. Create `src/app/(dashboard)/your-feature/page.tsx`
-2. Create `src/headless/use-your-feature.ts`
-3. Create `src/components/features/your-feature/`
-4. Export from index files
+Each feature follows a co-located structure under `src/features/`:
 
-### Using API Data
+```
+features/pools/
+├── components/
+│   ├── pools-page-content.tsx
+│   ├── pools-toolbar.tsx
+│   ├── pools-with-data.tsx
+│   ├── panel/
+│   └── table/
+├── hooks/
+│   └── use-pools-data.ts
+├── lib/
+│   ├── constants.ts
+│   ├── pools-columns.ts
+│   └── transforms.ts
+├── stores/
+│   └── pools-table-store.ts
+└── styles/
+```
+
+**Conventions:**
+- Feature components import from the adapter layer, never from `generated.ts` (except enums).
+- Tests are co-located: `transforms.ts` has `transforms.test.ts` alongside it.
+- All exports use absolute `@/` paths. Relative imports are forbidden.
+
+---
+
+## API Layer
+
+### Adapter Pattern
+
+The adapter layer (`src/lib/api/adapter/`) decouples the UI from backend quirks:
+
+| Issue in Backend | Adapter Transform |
+|---|---|
+| Numeric values as strings | Parse to numbers |
+| Missing fields | Provide defaults |
+| Untyped dictionaries | Extract typed values |
+| Unit conversions (KiB to GiB) | Convert units |
+| Response typed as `unknown` | Cast to actual type |
+
 ```typescript
-import { usePools, usePoolResources } from "@/lib/api/adapter";
+// Types and hooks from adapter (transformed, clean)
+import { usePools, type Pool } from "@/lib/api/adapter/hooks";
 
-const { pools, isLoading, error } = usePools();
+// Enums directly from generated (values are correct as-is)
+import { PoolStatus, WorkflowStatus } from "@/lib/api/generated";
 ```
-**Don't** import from `@/lib/api/generated` directly—use the adapter.
 
-### Adding a New API Endpoint
-1. Update backend API
-2. `pnpm generate-api`
-3. Add transform in `src/lib/api/adapter/transforms.ts`
-4. Add hook in `src/lib/api/adapter/hooks.ts`
-5. Export from `src/lib/api/adapter/index.ts`
+Backend issues and their workarounds are documented in `src/lib/api/adapter/BACKEND_TODOS.md`.
 
-### Adding UI Components
+### API Generation
+
+The API client is generated from the backend OpenAPI spec:
+
 ```bash
-npx shadcn@latest add dialog
+pnpm generate-api
 ```
-For custom components, add to `src/components/features/`.
+
+This runs:
+1. `bazel run //src/service:export_openapi` -- exports `openapi.json`
+2. `bazel run //src/service:export_status_metadata` -- exports status metadata TypeScript
+3. `orval` -- generates `src/lib/api/generated.ts` with React Query hooks
+
+### API Proxy
+
+All `/api/*` requests are proxied to the backend via a catch-all Route Handler (`src/app/api/[...path]/route.ts`). This uses zero-copy streaming (returns `response.body` directly) for minimal latency and memory. The backend hostname is configurable at runtime, making the Docker image portable across environments.
 
 ---
 
-## Production-First Architecture
+## Authentication
 
-This codebase follows **production-first principles**: development features have zero impact on production builds.
+### Production (Envoy Sidecar)
 
-### Design Principles
+In production, authentication is handled entirely by the Envoy sidecar:
 
-| Principle | Implementation |
-|-----------|----------------|
-| **Zero production overhead** | No middleware, no dev-only code paths |
-| **No dev code in prod bundle** | Dev components use `next/dynamic` for code splitting |
-| **Clean separation** | Dev login UI isolated to `auth-local-dev.tsx` |
-| **Transparent behavior** | Production code paths work without any shims or workarounds |
+1. User accesses a protected route -- Envoy intercepts the request
+2. No valid session -- Envoy redirects to OAuth provider (Keycloak)
+3. User logs in -- Keycloak redirects back to Envoy callback
+4. Envoy sets secure cookies and injects headers (`x-osmo-user`, `Authorization: Bearer <token>`)
+5. Request is forwarded to Next.js with auth headers already set
 
-### Dev vs Production Behavior
+The Next.js app never implements OAuth flows directly. It reads `x-osmo-user` for the username and decodes the JWT for full claims (email, roles).
 
-| Feature | Development | Production |
-|---------|-------------|------------|
-| **Backend routing** | `next.config.ts` rewrites to configured hostname | Same |
-| **Login screen** | Shows cookie paste UI (`LocalDevLogin`) | Shows SSO button only |
-| **Auth client secret** | Uses `AUTH_CLIENT_SECRET` from `.env.local` | Uses `AUTH_CLIENT_SECRET` from env |
+See `src/lib/auth/README.md` for details.
 
-### Files with Dev-Only Code
+### Local Development
 
-| File | Dev Feature | Production Behavior |
-|------|-------------|---------------------|
-| `src/lib/auth/auth-local-dev.tsx` | Dev login UI with cookie paste | Not bundled (dynamic import) |
+For local development without Envoy:
 
-### How to Verify Production Isolation
+1. Create `.env.local` with `NEXT_PUBLIC_OSMO_API_HOSTNAME` pointing to a deployed environment
+2. Run `pnpm dev`
+3. Follow the login prompt to transfer your session
 
-```bash
-# Build and analyze bundle
-pnpm build
-
-# Search for dev code in production output
-grep -r "LocalDevLogin" .next/static/chunks/ # Should find nothing
-```
+Or use mock mode (`pnpm dev:mock`) for fully offline development with no backend or auth required.
 
 ---
 
-## Local Development
+## Environment Variables
 
-### Setup
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NEXT_PUBLIC_OSMO_API_HOSTNAME` | Yes | `localhost:8080` | Backend API hostname |
+| `NEXT_PUBLIC_OSMO_SSL_ENABLED` | No | Auto (false for localhost) | Enable HTTPS for backend connection |
+| `NEXT_PUBLIC_MOCK_API` | No | `false` | Enable mock API mode |
+| `NEXT_PUBLIC_BASE_PATH` | No | `""` | Base path for subpath deployment (e.g., `/v2`) |
+| `DOCS_BASE_URL` | No | - | Documentation site URL |
+| `CLI_INSTALL_SCRIPT_URL` | No | - | CLI install script URL |
+| `ANALYZE` | No | `false` | Enable webpack bundle analyzer |
+| `ENABLE_SOURCE_MAPS` | No | `false` | Enable source maps in production builds |
 
-```bash
-# 1. Create .env.local
-cat > .env.local << 'EOF'
-NEXT_PUBLIC_OSMO_API_HOSTNAME=staging.example.com
-AUTH_CLIENT_SECRET=your-keycloak-secret
-EOF
+OAuth-related variables (injected via Kubernetes secrets in production):
 
-# 2. Start dev server
-pnpm dev
-```
-
-Open http://localhost:3000 → follow the login prompt to transfer your session.
-
-### Switch Backend
-
-Edit `.env.local` → restart `pnpm dev`
-
-### Environment Variables
-
-| Variable | Required | Default |
-|----------|----------|---------|
-| `NEXT_PUBLIC_OSMO_API_HOSTNAME` | Yes | `localhost:8080` |
-| `AUTH_CLIENT_SECRET` | Yes | — |
-| `NEXT_PUBLIC_OSMO_SSL_ENABLED` | No | Auto (false for localhost) |
-| `NEXT_PUBLIC_MOCK_API` | No | `false` |
+| Variable | Description |
+|---|---|
+| `OAUTH_CLIENT_ID` | OAuth client ID |
+| `OAUTH_CLIENT_SECRET` / `OAUTH_CLIENT_SECRET_FILE` | OAuth client secret (value or file path) |
+| `OAUTH_HMAC_SECRET` / `OAUTH_HMAC_SECRET_FILE` | HMAC secret for token encryption |
+| `OAUTH_TOKEN_ENDPOINT` | OAuth token endpoint URL |
+| `OAUTH_HOSTNAME` | OAuth provider hostname |
+| `OAUTH_SCOPE` | OAuth scopes (default: `openid`) |
 
 ---
 
-## Hermetic Development (Mock Mode)
+## Mock Mode (Hermetic Development)
 
-Develop the UI **without any backend connection** using deterministic synthetic data.
+Develop the UI without any backend connection using deterministic synthetic data.
 
 ### Quick Start
 
 ```bash
-# Start with mock data - no backend needed!
 pnpm dev:mock
 ```
 
-That's it! The app runs with 10,000 workflows, 50 pools, and realistic data for all entities.
+The app runs with realistic mock data for all entities (workflows, pools, resources, datasets, buckets, profiles).
 
 ### How It Works
 
 ```
 UI Component → TanStack Query → MSW Intercept → Generators
-                                                  ↓
-                               Deterministic synthetic data
-                               (same index = same data)
+                                                   ↓
+                                  Deterministic synthetic data
+                                  (same index = same data)
 ```
 
 - **MSW (Mock Service Worker)** intercepts all API requests in the browser
-- **Generators** produce data on-demand using `faker.seed(baseSeed + index)`
-- **No network required** - works offline (airplane mode!)
-- **Memory efficient** - items regenerated per request, not stored
+- **Generators** produce data on-demand using seeded faker (`faker.seed(baseSeed + index)`)
+- Works fully offline -- no network required
+- Memory efficient -- items regenerated per request, not stored in memory
 
-### Enable/Disable Mock Mode
+### Enable / Disable
 
 ```bash
-# Option 1: npm script
+# Via npm script
 pnpm dev:mock
 
-# Option 2: Environment variable
+# Via environment variable
 NEXT_PUBLIC_MOCK_API=true pnpm dev
 
-# Option 3: localStorage (toggle at runtime)
-# In browser console:
-localStorage.setItem("mockApi", "true")
-location.reload()
-
-# To disable:
-localStorage.removeItem("mockApi")
-location.reload()
+# Via localStorage (toggle at runtime in browser console)
+localStorage.setItem("mockApi", "true"); location.reload()
+localStorage.removeItem("mockApi"); location.reload()
 ```
 
 ### Configure Data Volume
 
-For stress testing pagination and virtualization, use the browser console:
+Use the browser console to stress-test with large datasets:
 
 ```javascript
-// Show help
-__mockConfig.help()
-
-// Configure volumes
-__mockConfig.setWorkflowTotal(100000)      // 100k workflows
-__mockConfig.setPoolTotal(1000)            // 1k pools  
-__mockConfig.setResourcePerPool(10000)     // 10k resources per pool
-__mockConfig.setResourceTotalGlobal(1000000) // 1M total resources
-__mockConfig.setBucketTotal(10000)         // 10k buckets
-__mockConfig.setDatasetTotal(50000)        // 50k datasets
-
-// Check current volumes
-__mockConfig.getVolumes()
-// → { workflows: 100000, pools: 1000, buckets: 10000, datasets: 50000 }
+__mockConfig.help()                          // Show help
+__mockConfig.setWorkflowTotal(100000)        // 100k workflows
+__mockConfig.setPoolTotal(1000)              // 1k pools
+__mockConfig.setResourcePerPool(10000)       // 10k resources per pool
+__mockConfig.getVolumes()                    // Check current volumes
 ```
-
-After changing volumes, refresh the page or navigate to see the new data.
-
-### Default Volumes
-
-| Entity | Default | Setter Function |
-|--------|---------|-----------------|
-| Workflows | 10,000 | `setWorkflowTotal(n)` |
-| Pools | 50 | `setPoolTotal(n)` |
-| Resources/pool | 50 | `setResourcePerPool(n)` |
-| Resources total | 500 | `setResourceTotalGlobal(n)` |
-| Buckets | 50 | `setBucketTotal(n)` |
-| Datasets | 100 | `setDatasetTotal(n)` |
-
-### Supported Endpoints
-
-All API endpoints are mocked with infinite pagination:
-
-| Endpoint | Generator | Pagination |
-|----------|-----------|------------|
-| `GET /api/workflow` | WorkflowGenerator | ✅ offset/limit |
-| `GET /api/workflow/:name` | WorkflowGenerator | - |
-| `GET /api/workflow/:name/logs` | LogGenerator | - |
-| `GET /api/workflow/:name/events` | EventGenerator | - |
-| `GET /api/workflow/:name/spec` | (inline YAML) | - |
-| `GET /api/workflow/:name/task/:task` | TaskGenerator | - |
-| `GET /api/workflow/:name/task/:task/logs` | LogGenerator | - |
-| `GET /api/workflow/:name/task/:task/events` | EventGenerator | - |
-| `POST /api/workflow/:name/exec/task/:task` | TerminalSimulator | - |
-| `POST /api/workflow/:name/webserver/:task` | PortForwardGenerator | - |
-| `GET /api/pool` | PoolGenerator | ✅ offset/limit |
-| `GET /api/pool/:name` | PoolGenerator | - |
-| `GET /api/pool/:name/resources` | ResourceGenerator | ✅ offset/limit |
-| `GET /api/resources` | ResourceGenerator | ✅ offset/limit |
-| `GET /api/bucket` | BucketGenerator | ✅ offset/limit |
-| `GET /api/bucket/:name/list` | BucketGenerator | ✅ offset/limit |
-| `GET /api/bucket/list_dataset` | DatasetGenerator | ✅ offset/limit |
-| `GET /api/bucket/collections` | DatasetGenerator | ✅ offset/limit |
-| `GET /api/profile` | ProfileGenerator | - |
-| `GET /api/profile/settings` | ProfileGenerator | - |
-
-### Deterministic Generation
-
-Same index always produces identical data:
-
-```typescript
-// First request
-workflowGenerator.generate(12345);
-// → { name: "train-model-abc123", status: "RUNNING", ... }
-
-// Later request (same result!)
-workflowGenerator.generate(12345);
-// → { name: "train-model-abc123", status: "RUNNING", ... }
-```
-
-This means:
-- ✅ Consistent pagination (scroll back = same items)
-- ✅ Reproducible bugs
-- ✅ Stable UI testing
-
-### Interactive Features
-
-Mock mode includes realistic simulations for:
-
-| Feature | Behavior |
-|---------|----------|
-| **Terminal/Exec** | Simulates shell with `ls`, `nvidia-smi`, `python`, etc. |
-| **Port Forward** | Returns mock router addresses and session keys |
-| **Logs** | Generates training output with epochs, loss, metrics |
-| **Events** | K8s-style events (Scheduled, Started, Completed, Failed) |
 
 ### Mock Files
 
 ```
 src/mocks/
-├── browser.ts           # MSW browser setup
-├── handlers.ts          # Request handlers for all endpoints
-├── index.ts             # Main exports
-├── MockProvider.tsx     # React provider
-│
-├── generators/          # Deterministic data generators
-│   ├── workflow-generator.ts   # Workflows (infinite)
-│   ├── pool-generator.ts       # Pools (infinite)
-│   ├── resource-generator.ts   # Resources (infinite)
-│   ├── task-generator.ts       # Tasks
-│   ├── log-generator.ts        # Streaming logs
-│   ├── event-generator.ts      # K8s-style events
-│   ├── bucket-generator.ts     # Buckets (infinite)
-│   ├── dataset-generator.ts    # Datasets (infinite)
-│   ├── profile-generator.ts    # User profiles
-│   ├── portforward-generator.ts # Port forwarding
-│   └── terminal-simulator.ts   # Interactive terminal
-│
-└── seed/                # Configuration patterns
-    ├── index.ts
-    └── types.ts         # MOCK_CONFIG with distributions
+├── handlers.ts              # MSW request handlers for all endpoints
+├── mock-provider.tsx        # React provider for mock mode
+├── global-config.ts         # Runtime volume configuration
+├── generators/              # Deterministic data generators
+│   ├── workflow-generator.ts
+│   ├── pool-generator.ts
+│   ├── resource-generator.ts
+│   ├── bucket-generator.ts
+│   ├── dataset-generator.ts
+│   ├── log-generator.ts
+│   ├── event-generator.ts
+│   ├── profile-generator.ts
+│   ├── spec-generator.ts
+│   ├── portforward-generator.ts
+│   └── pty-simulator.ts     # Interactive terminal simulation
+├── handlers.production.ts   # No-op stub (aliased in production builds)
+├── mock-provider.production.tsx
+└── server.production.ts
 ```
 
-### Customize Mock Patterns
-
-Edit `src/mocks/seed/types.ts`:
-
-```typescript
-export const MOCK_CONFIG: MockConfig = {
-  volume: {
-    workflows: 10_000,    // Total workflows
-    pools: 50,            // Number of pools
-    resourcesPerPool: 50, // Resources per pool
-  },
-  
-  workflows: {
-    statusDistribution: {
-      RUNNING: 0.25,
-      COMPLETED: 0.40,
-      FAILED: 0.15,
-      WAITING: 0.10,
-      // ...
-    },
-    pools: ["training-pool", "inference-pool", "preemptible"],
-    users: ["alice", "bob", "charlie"],
-    // ...
-  },
-  
-  // ... more patterns
-};
-```
-
-### Documentation
-
-For more details, see:
-- [HERMETIC_DEV.md](../ui-next-design/docs/HERMETIC_DEV.md) - Full hermetic dev guide
-- [MOCK_ENTITY_REFERENCE.md](../ui-next-design/docs/MOCK_ENTITY_REFERENCE.md) - Generator API reference
+Production builds alias mock modules to no-op stubs via Turbopack `resolveAlias`, completely eliminating MSW, faker, and all generators from the bundle.
 
 ---
 
-## Debugging
+## Testing
 
-### React Query Devtools
+### Philosophy
 
-TanStack Query Devtools are built-in and can be toggled on-demand using localStorage.
-
-#### Enable/Disable Devtools
-
-In your browser console:
-
-```js
-// Enable devtools
-window.toggleDevtools(true)
-
-// Disable devtools
-window.toggleDevtools(false)
-
-// Toggle current state
-window.toggleDevtools()
-```
-
-After toggling, the devtools panel will appear/disappear in the bottom-right corner.
-
-**Features:**
-- View all cached queries and their status (fresh, stale, fetching)
-- Inspect cached data as expandable JSON
-- Manually invalidate, refetch, or remove queries
-- See fetch counts and timing
-- Zero production bundle impact (tree-shaken in production builds)
-
-**Alternative:** You can also use the [React Query Devtools Chrome Extension](https://chrome.google.com/webstore/detail/react-query-devtools/ooaplkfkopclpbpjgbhfjllmbjdpakoh) if you prefer an external tool.
-
----
-
-## Troubleshooting
-
-| Issue | Fix |
-|-------|-----|
-| Types out of sync | `pnpm generate-api && pnpm type-check` |
-| Backend quirks | See `src/lib/api/adapter/backend_todo.md` |
-| shadcn/ui issues | Check `components.json` config |
-
-See [Local Development](#local-development) for auth and environment issues.
-
----
-
-## Testing Philosophy
-
-Tests are designed for **speed** and **robustness**—they should survive major UI refactors.
+Tests are designed for **speed** and **robustness** -- they should survive major UI refactors. Unit tests cover pure functions. E2E tests verify user outcomes, not implementation details.
 
 ### Unit Tests (Vitest)
 
 Focus on high-value, low-brittleness areas:
 
-| Module | What We Test | Why |
-|--------|--------------|-----|
-| `transforms.ts` | Backend → UI type conversion | Catches API changes, unit conversions |
-| `utils.ts` | Formatting functions | Pure functions, easy to test |
+| Module | What We Test |
+|---|---|
+| `transforms.ts` | Backend-to-UI type conversion, unit conversions |
+| `utils.ts`, `format-date.ts` | Formatting functions, pure utilities |
 
-**Not tested:** UI components, generated code, shadcn/ui primitives.
+Tests are co-located with source files:
+
+```
+lib/
+├── transforms.ts
+└── transforms.test.ts
+```
+
+```bash
+pnpm test                         # Run once
+pnpm test:watch                   # Watch mode
+pnpm test transforms              # Run tests matching "transforms"
+```
 
 ### E2E Tests (Playwright)
 
-Tests verify **user outcomes**, not implementation details:
+Tests use semantic selectors and verify user journeys:
 
 ```typescript
-// ❌ Brittle: tests implementation
-expect(page.locator('.btn-primary-active')).toBeVisible();
-
-// ✅ Robust: tests outcome
-expect(page.getByRole('button', { name: /submit/i })).toBeVisible();
+// Robust: tests outcome, not implementation
+await expect(page.getByRole("button", { name: /submit/i })).toBeVisible();
 ```
 
-**Key principles:**
-- Use semantic selectors (`getByRole`, `getByLabel`)
-- Test user journeys, not component states
-- Don't assert exact counts or text (data changes)
-- Tests should pass after virtualization, pagination, or filter UI changes
+All E2E tests run offline using Playwright's route mocking. No backend required.
 
-### Test Structure
+```bash
+pnpm test:e2e                     # Headless (CI mode)
+pnpm test:e2e:ui                  # Interactive UI (recommended for dev)
+pnpm test:e2e:headed              # Visible browser
+```
+
+### E2E Test Structure
 
 ```
-src/
-├── lib/
-│   ├── utils.test.ts           # Utility function tests
-│   └── api/adapter/
-│       └── transforms.test.ts  # Data transformation tests
 e2e/
-├── fixtures.ts                 # Playwright test with API mocking + withData/withAuth
+├── fixtures.ts                   # Playwright config with API mocking + withData/withAuth
 ├── journeys/
-│   ├── auth.spec.ts            # Authentication flows
-│   ├── navigation.spec.ts      # App navigation
-│   ├── pools.spec.ts           # Pool browsing journey
-│   └── resources.spec.ts       # Resource browsing journey
+│   ├── auth.spec.ts              # Authentication flows
+│   ├── navigation.spec.ts        # App navigation
+│   ├── pools.spec.ts             # Pool browsing
+│   ├── resources.spec.ts         # Resource browsing
+│   ├── errors.spec.ts            # Error handling
+│   └── infinite-scroll.spec.ts   # Virtualization / pagination
 └── mocks/
-    ├── data.ts                 # Default mock data
-    └── factories.ts            # Type-safe mock data factories
+    ├── data.ts                   # Default mock data
+    └── factories.ts              # Type-safe mock data factories
 ```
 
-### E2E Tests Run Offline
-
-E2E tests use **Playwright's route mocking** to intercept all API requests. No backend connection required:
+E2E tests use **typed factories** with data defined inline alongside assertions:
 
 ```typescript
-// e2e/fixtures.ts - all tests use mocked API
-await page.route("**/api/pool/quota*", async (route) => {
-  await route.fulfill({ body: JSON.stringify(mockPools) });
+import { test, expect, createPoolResponse } from "../fixtures";
+
+test("shows pool details", async ({ page, withData }) => {
+  await withData({
+    pools: createPoolResponse([
+      { name: "gpu-pool", status: "ONLINE", resource_usage: { quota_used: "0" } },
+    ]),
+  });
+
+  await page.goto("/pools/gpu-pool");
+  await expect(page.getByRole("heading")).toContainText("gpu-pool");
 });
 ```
-
-This means:
-- ✅ Tests run offline (no backend required)
-- ✅ Consistent data across runs
-- ✅ Fast (no network latency)
-- ✅ CI doesn't need backend access
-
-### Testing Authentication (Production Code Paths)
-
-Auth tests exercise **real product code**, not local dev shortcuts:
-
-```typescript
-import { test, expect, withAuth, mockIdToken, mockRefreshToken } from "../fixtures";
-
-test("authenticated user sees dashboard", async ({ page, withAuth }) => {
-  // Configure auth state BEFORE navigation
-  await withAuth({
-    authEnabled: true,
-    tokens: { idToken: mockIdToken, refreshToken: mockRefreshToken },
-  });
-
-  await page.goto("/");
-  await expect(page.getByRole("navigation")).toBeVisible();
-});
-
-test("expired token refreshes automatically", async ({ page, withAuth }) => {
-  await withAuth({
-    authEnabled: true,
-    tokens: { idToken: expiredToken, refreshToken: validRefresh },
-    refreshResult: "success",
-  });
-
-  await page.goto("/");
-  await expect(page.getByRole("navigation")).toBeVisible(); // Refresh worked
-});
-
-test("handles 403 forbidden", async ({ page, withAuth }) => {
-  await withAuth({
-    authEnabled: true,
-    tokens: { idToken: mockIdToken, refreshToken: mockRefreshToken },
-    apiError: "forbidden",
-  });
-
-  await page.goto("/pools");
-  // App should handle error gracefully
-});
-```
-
-**Auth scenarios:**
-| Config | Behavior |
-|--------|----------|
-| `authEnabled: false` | Auth disabled (default) |
-| `authEnabled: true` | Auth enabled, user NOT logged in |
-| `authEnabled: true` + `tokens` | Auth enabled, user logged in |
-| `refreshResult: "success"` | Token refresh succeeds |
-| `refreshResult: "failure"` | Token refresh fails → login screen |
-| `apiError: "unauthorized"` | API returns 401 |
-| `apiError: "forbidden"` | API returns 403 |
-
-**What's mocked:** OAuth IdP endpoints (simulates Keycloak)
-
-**What's real (tested):**
-- AuthProvider logic
-- Token storage (`/auth/success` page)
-- Token refresh flow
-- Route protection
-- Error handling
 
 ---
 
 ## Tech Stack
 
 | Layer | Tool |
-|-------|------|
-| Framework | Next.js 16 (App Router, Turbopack) |
+|---|---|
+| Framework | Next.js 16 (App Router, Turbopack, Partial Prerendering) |
 | UI | React 19, Tailwind CSS 4 |
-| Components | shadcn/ui (New York style) + Radix |
-| State | TanStack Query 5 |
+| Components | shadcn/ui (Radix UI primitives) |
+| Server State | TanStack Query 5 |
+| Client State | Zustand 5 |
+| URL State | nuqs |
+| Tables | TanStack Table |
 | Virtualization | TanStack Virtual |
-| Forms | React Hook Form + Zod |
+| DAG Visualization | @xyflow/react + dagre |
+| Code Editor | CodeMirror (@uiw/react-codemirror) |
+| Terminal | xterm.js |
+| Drag and Drop | @dnd-kit |
+| Toasts | sonner |
+| Drawer | vaul |
+| Command Palette | cmdk |
+| Keyboard Shortcuts | react-hotkeys-hook |
 | Icons | Lucide React |
 | API Codegen | orval (from OpenAPI) |
 | Unit Testing | Vitest |
-| E2E Testing | Playwright (with route mocking) |
+| E2E Testing | Playwright |
+| Dev Mocking | MSW (Mock Service Worker) |
 
 ---
 
-## Performance Optimizations
-
-This UI is optimized for **blazing-fast rendering** with minimal layout reflow.
+## Performance
 
 ### Build-Time Optimizations
 
 | Optimization | Purpose |
-|--------------|---------|
+|---|---|
+| Turbopack | Fast bundling for dev and production |
 | `optimizeCss` | Extracts and inlines critical CSS |
-| `optimizePackageImports` | Tree-shakes lucide-react and Radix icons |
+| `optimizePackageImports` | Tree-shakes Radix, Lucide, CodeMirror, @xyflow/react, etc. |
 | Console stripping | Removes `console.log` in production |
-| Font preloading | `display: swap` prevents FOIT |
+| Standalone output | Containerized deployment with minimal footprint |
+| Mock code elimination | Turbopack aliases replace mock modules with no-op stubs |
+| Partial Prerendering | Static shell + streamed dynamic content via Suspense |
 
 ### Runtime Optimizations
 
 | Technique | Where Used |
-|-----------|------------|
-| **Virtualization** | Resource tables (TanStack Virtual) |
-| **CSS Containment** | `contain: strict` on containers |
-| **GPU Transforms** | `translate3d()` for positioning |
-| **Deferred Values** | `useDeferredValue` for search filters |
-| **URL State** | `nuqs` for shareable filter URLs |
-| **Transitions** | `startTransition` for non-blocking updates |
-| **Memoization** | `React.memo()` on expensive components |
-| **Structural Sharing** | React Query only updates changed refs |
-
-### CSS Utility Classes
-
-Available in `globals.css` for performance-critical components:
-
-```css
-.gpu-layer          /* Force GPU compositing */
-.contain-strict     /* Full CSS containment */
-.scroll-optimized   /* Optimized scrolling */
-.virtual-item       /* For virtualized list items */
-.skeleton-shimmer   /* GPU-accelerated loading animation */
-```
+|---|---|
+| Virtualization | Resource/workflow tables (TanStack Virtual) |
+| CSS Containment | `contain: strict` on scroll containers |
+| GPU Transforms | `translate3d()` for virtualized item positioning |
+| Deferred Values | `useDeferredValue` for search filters |
+| URL State | nuqs for shareable, URL-synced filters |
+| Transitions | `startTransition` for non-blocking heavy state updates |
+| Structural Sharing | React Query only updates changed refs |
 
 ### React Query Configuration
 
 | Setting | Value | Purpose |
-|---------|-------|---------|
+|---|---|---|
 | `staleTime` | 1 min | Data freshness window |
 | `gcTime` | 5 min | Cache retention for unused queries |
 | `structuralSharing` | `true` | Only update refs if data changed |
@@ -879,46 +533,50 @@ Available in `globals.css` for performance-critical components:
 
 ---
 
-## Licenses
+## Debugging
 
-All dependencies use **permissive licenses** compatible with commercial use.
+### React Query Devtools
 
-### Production Dependencies
+Toggle in browser console:
 
-| License | Count | Key Packages |
-|---------|-------|--------------|
-| MIT | 21 | React, Next.js, Radix UI, TanStack Query/Table, zod, react-hook-form |
-| Apache-2.0 | 1 | class-variance-authority |
-| ISC | 1 | lucide-react |
-
-### Dev Dependencies
-
-| License | Count |
-|---------|-------|
-| MIT | 11 |
-| Apache-2.0 | 1 |
-
-### No Restrictive Licenses
-
-- ❌ No GPL (any version)
-- ❌ No LGPL
-- ❌ No AGPL
-- ❌ No copyleft licenses
-
-### shadcn/ui Components
-
-Components copied from [shadcn/ui](https://ui.shadcn.com/) are MIT licensed. Once copied into your project, they are yours to modify freely.
-
-### Verify Licenses
-
-Run the license checker to verify all dependencies:
-
-```bash
-# Check production deps
-npx license-checker --production --summary
-
-# Verify no restricted licenses
-npx license-checker --production --onlyAllow "MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;CC0-1.0;UNLICENSED"
+```javascript
+window.toggleDevtools(true)   // Enable
+window.toggleDevtools(false)  // Disable
+window.toggleDevtools()       // Toggle
 ```
 
-The `UNLICENSED` entry is this project itself (marked `private: true` in package.json).
+Features: view cached queries, inspect data, manually invalidate/refetch, see fetch timing. Zero production bundle impact (tree-shaken).
+
+### Troubleshooting
+
+| Issue | Fix |
+|---|---|
+| Types out of sync | `pnpm generate-api && pnpm type-check` |
+| Backend quirks | See `src/lib/api/adapter/BACKEND_TODOS.md` |
+| shadcn/ui issues | Check `components.json` config |
+| Hydration mismatch | Check for localStorage, `Date.now()`, or locale-dependent formatting in render |
+| Auth not working locally | Ensure `.env.local` has correct hostname, or use `pnpm dev:mock` |
+
+### Adding shadcn/ui Components
+
+```bash
+npx shadcn@latest add button        # Add a component
+npx shadcn@latest add dialog input  # Add multiple
+```
+
+Components are added to `src/components/shadcn/`.
+
+---
+
+## Licenses
+
+All dependencies use permissive licenses (MIT, Apache-2.0, ISC, BSD) compatible with commercial use. No GPL, LGPL, AGPL, or copyleft licenses.
+
+See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the full list.
+
+To verify:
+
+```bash
+pnpm licenses:check      # Verify all deps against allowlist
+pnpm licenses:generate   # Regenerate THIRD_PARTY_LICENSES.md
+```
