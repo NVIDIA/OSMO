@@ -1,0 +1,654 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Workflow DAG Styles
+ *
+ * Workflow-specific extensions to the generic DAG styles.
+ * Contains status colors, timeline, and dependency pill styles.
+ *
+ * Note: Base styles from @/components/dag/dag.css are loaded automatically
+ * when importing from @/components/dag (the index.ts includes the CSS import).
+ */
+
+/* ==========================================================================
+   Status Colors - Light mode
+   ========================================================================== */
+
+:root {
+  /* Waiting */
+  --dag-status-waiting-bg: oklch(0.96 0 0);
+  --dag-status-waiting-border: oklch(0.8 0 0);
+  --dag-status-waiting-text: oklch(0.5 0 0);
+  --dag-status-waiting-color: #a1a1aa; /* zinc-400 — matches STATUS_STYLES */
+
+  /* Pending (amber - processing/scheduling states) */
+  --dag-status-pending-bg: oklch(0.97 0.04 85);
+  --dag-status-pending-border: oklch(0.7 0.14 85);
+  --dag-status-pending-text: oklch(0.5 0.12 85);
+  --dag-status-pending-color: #fbbf24; /* amber-400 — matches STATUS_STYLES */
+
+  /* Running */
+  --dag-status-running-bg: oklch(0.95 0.04 250);
+  --dag-status-running-border: oklch(0.6 0.15 250);
+  --dag-status-running-text: oklch(0.45 0.15 250);
+  --dag-status-running-color: #60a5fa; /* blue-400 — matches STATUS_STYLES */
+
+  /* Completed */
+  --dag-status-completed-bg: oklch(0.95 0.04 160);
+  --dag-status-completed-border: oklch(0.6 0.12 160);
+  --dag-status-completed-text: oklch(0.4 0.12 160);
+  --dag-status-completed-color: #34d399; /* emerald-400 — matches STATUS_STYLES */
+
+  /* Failed */
+  --dag-status-failed-bg: oklch(0.95 0.04 25);
+  --dag-status-failed-border: oklch(0.6 0.18 25);
+  --dag-status-failed-text: oklch(0.45 0.18 25);
+  --dag-status-failed-color: #f87171; /* red-400 — matches STATUS_STYLES */
+
+  /* Timeline - Brighter, more vibrant variants for better visibility */
+  --timeline-running-marker: oklch(0.59 0.24 250);
+  --timeline-running-text: oklch(0.48 0.2 250);
+  --timeline-completed-marker: oklch(0.6 0.19 155);
+  --timeline-completed-text: oklch(0.45 0.16 155);
+  --timeline-failed-marker: oklch(0.58 0.24 25);
+  --timeline-failed-text: oklch(0.5 0.21 25);
+  --timeline-pending-marker: oklch(0.7 0.16 85);
+  --timeline-pending-text: oklch(0.5 0.14 85);
+}
+
+/* ==========================================================================
+   Status Colors - Dark mode
+   ========================================================================== */
+
+.dark {
+  /* Waiting */
+  --dag-status-waiting-bg: oklch(0.27 0 0);
+  --dag-status-waiting-border: oklch(0.37 0 0);
+  --dag-status-waiting-text: oklch(0.64 0 0);
+  --dag-status-waiting-color: #71717a; /* zinc-500 — matches STATUS_STYLES */
+
+  /* Pending (amber - processing/scheduling states) */
+  --dag-status-pending-bg: oklch(0.28 0.06 85);
+  --dag-status-pending-border: oklch(0.6 0.14 85);
+  --dag-status-pending-text: oklch(0.75 0.12 85);
+  --dag-status-pending-color: #f59e0b; /* amber-500 — matches STATUS_STYLES */
+
+  /* Running */
+  --dag-status-running-bg: oklch(0.25 0.07 250);
+  --dag-status-running-border: oklch(0.55 0.15 250);
+  --dag-status-running-text: oklch(0.7 0.12 250);
+  --dag-status-running-color: #3b82f6; /* blue-500 — matches STATUS_STYLES */
+
+  /* Completed */
+  --dag-status-completed-bg: oklch(0.3 0.08 160);
+  --dag-status-completed-border: oklch(0.55 0.12 160);
+  --dag-status-completed-text: oklch(0.7 0.14 160);
+  --dag-status-completed-color: #10b981; /* emerald-500 — matches STATUS_STYLES */
+
+  /* Failed */
+  --dag-status-failed-bg: oklch(0.28 0.08 25);
+  --dag-status-failed-border: oklch(0.55 0.2 25);
+  --dag-status-failed-text: oklch(0.7 0.18 25);
+  --dag-status-failed-color: #ef4444; /* red-500 — matches STATUS_STYLES */
+
+  /* Timeline - Brighter, more vibrant variants for better visibility */
+  --timeline-running-marker: oklch(0.68 0.2 250);
+  --timeline-running-text: oklch(0.76 0.16 250);
+  --timeline-completed-marker: oklch(0.72 0.2 155);
+  --timeline-completed-text: oklch(0.78 0.17 155);
+  --timeline-failed-marker: oklch(0.65 0.22 25);
+  --timeline-failed-text: oklch(0.74 0.2 25);
+  --timeline-pending-marker: oklch(0.75 0.18 85);
+  --timeline-pending-text: oklch(0.78 0.14 85);
+}
+
+/* ==========================================================================
+   Node Status Styling
+   ========================================================================== */
+
+.dag-node[data-status="waiting"] {
+  background: var(--dag-status-waiting-bg);
+  border-color: var(--dag-status-waiting-border);
+}
+
+.dag-node[data-status="running"] {
+  background: var(--dag-status-running-bg);
+  border-color: var(--dag-status-running-border);
+}
+
+.dag-node[data-status="completed"] {
+  background: var(--dag-status-completed-bg);
+  border-color: var(--dag-status-completed-border);
+}
+
+.dag-node[data-status="failed"] {
+  background: var(--dag-status-failed-bg);
+  border-color: var(--dag-status-failed-border);
+}
+
+/* Node hint text colors */
+.dag-node[data-status="waiting"] .dag-node-hint {
+  color: var(--dag-status-waiting-text);
+}
+.dag-node[data-status="running"] .dag-node-hint {
+  color: var(--dag-status-running-text);
+}
+.dag-node[data-status="completed"] .dag-node-hint {
+  color: var(--dag-status-completed-text);
+}
+.dag-node[data-status="failed"] .dag-node-hint {
+  color: var(--dag-status-failed-text);
+}
+
+/* Task row duration colors */
+.dag-task-row[data-status="waiting"] .dag-task-duration {
+  color: var(--dag-status-waiting-text);
+}
+.dag-task-row[data-status="running"] .dag-task-duration {
+  color: var(--dag-status-running-text);
+}
+.dag-task-row[data-status="completed"] .dag-task-duration {
+  color: var(--dag-status-completed-text);
+}
+.dag-task-row[data-status="failed"] .dag-task-duration {
+  color: var(--dag-status-failed-text);
+}
+
+/* dag-task-row styling now in Performance Optimizations section */
+
+/* ==========================================================================
+   Node Selection State
+   ========================================================================== */
+
+/* Selection ring - applied on top of status colors */
+.dag-node[data-selected="true"] {
+  box-shadow:
+    0 0 0 2px oklch(0.55 0.2 250),
+    0 2px 8px -2px rgba(0, 0, 0, 0.15);
+}
+
+.dark .dag-node[data-selected="true"] {
+  box-shadow:
+    0 0 0 2px oklch(0.6 0.18 250),
+    0 2px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   Expanded Node Shadows
+   ========================================================================== */
+
+.dag-node-header-expanded {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+}
+
+.dark .dag-node-header-expanded {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.25);
+}
+
+.dag-collapse-lip {
+  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.dark .dag-collapse-lip {
+  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   Task Count Badge
+   ========================================================================== */
+
+.dag-count-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 10;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-feature-settings: "tnum" 1;
+  background: oklch(0.55 0 0);
+  color: oklch(0.98 0 0);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.dark .dag-count-badge {
+  background: oklch(0.5 0 0);
+  color: oklch(0.95 0 0);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* ==========================================================================
+   Edge Cap Semi-Circles
+   Each cap is a circle centered at the node border. The inner half is hidden
+   behind the node (nodes layer has higher z-index than edges SVG), leaving a
+   visible semi-circle that "touches" the node with the node's status color.
+   ========================================================================== */
+
+.dag-edge-cap {
+  fill: currentColor;
+  stroke: none;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Edge Status Coloring
+   ========================================================================== */
+
+/* color drives: cap fill (currentColor), arrow fill (currentColor), line stroke */
+.dag-edge.dag-edge--waiting {
+  color: var(--dag-status-waiting-color);
+}
+.dag-edge.dag-edge--waiting path {
+  stroke: var(--dag-status-waiting-color);
+}
+
+.dag-edge.dag-edge--running {
+  color: var(--dag-status-running-color);
+}
+.dag-edge.dag-edge--running path {
+  stroke: var(--dag-status-running-color);
+}
+
+.dag-edge.dag-edge--completed {
+  color: var(--dag-status-completed-color);
+}
+.dag-edge.dag-edge--completed path {
+  stroke: var(--dag-status-completed-color);
+}
+
+.dag-edge.dag-edge--failed {
+  color: var(--dag-status-failed-color);
+}
+.dag-edge.dag-edge--failed path {
+  stroke: var(--dag-status-failed-color);
+}
+
+/* ==========================================================================
+   Timeline Styles
+   ========================================================================== */
+
+.timeline-marker-completed {
+  background-color: var(--timeline-completed-marker);
+  border-color: var(--timeline-completed-marker);
+}
+
+.timeline-marker-running {
+  background-color: var(--timeline-running-marker);
+  border-color: var(--timeline-running-marker);
+}
+
+.timeline-marker-failed {
+  background-color: var(--timeline-failed-marker);
+  border-color: var(--timeline-failed-marker);
+}
+
+.timeline-marker-pending {
+  background-color: transparent;
+  border-color: var(--timeline-pending-marker);
+}
+
+.timeline-segment-completed {
+  background-color: var(--timeline-completed-marker);
+}
+
+.timeline-segment-failed {
+  background-color: var(--timeline-failed-marker);
+}
+
+.timeline-active-segment {
+  background: linear-gradient(
+    90deg,
+    var(--timeline-running-marker) 0%,
+    oklch(0.65 0.28 250) 50%,
+    var(--timeline-running-marker) 100%
+  );
+  background-size: 200% 100%;
+  animation: timeline-pulse 2s ease-in-out infinite;
+}
+
+@keyframes timeline-pulse {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.timeline-text-completed {
+  color: var(--timeline-completed-text);
+}
+
+.timeline-text-running {
+  color: var(--timeline-running-text);
+}
+
+.timeline-text-failed {
+  color: var(--timeline-failed-text);
+}
+
+.timeline-text-pending {
+  color: var(--timeline-pending-text);
+}
+
+/* ==========================================================================
+   Dependency Pills
+   ========================================================================== */
+
+.dependency-pill {
+  transition:
+    filter var(--dag-transition-fast),
+    transform var(--dag-transition-fast);
+}
+
+.dependency-pill:hover {
+  filter: brightness(1.1);
+}
+
+.dependency-pill:active {
+  transform: scale(0.98);
+}
+
+.dependency-pill-completed {
+  background-color: var(--dag-status-completed-bg);
+  border-color: var(--dag-status-completed-border);
+  color: var(--dag-status-completed-text);
+}
+
+.dependency-pill-running {
+  background-color: var(--dag-status-running-bg);
+  border-color: var(--dag-status-running-border);
+  color: var(--dag-status-running-text);
+}
+
+.dependency-pill-waiting {
+  background-color: var(--dag-status-waiting-bg);
+  border-color: var(--dag-status-waiting-border);
+  color: var(--dag-status-waiting-text);
+}
+
+.dependency-pill-pending {
+  background-color: var(--dag-status-pending-bg);
+  border-color: var(--dag-status-pending-border);
+  color: var(--dag-status-pending-text);
+}
+
+.dependency-pill-failed {
+  background-color: var(--dag-status-failed-bg);
+  border-color: var(--dag-status-failed-border);
+  color: var(--dag-status-failed-text);
+}
+
+.dependency-pill-blocked {
+  background-color: var(--dag-status-waiting-bg);
+  border-color: var(--dag-status-waiting-border);
+  color: var(--dag-text-tertiary);
+  opacity: 0.7;
+}
+
+/* ==========================================================================
+   Performance Optimizations
+   ========================================================================== */
+
+/**
+ * Force GPU layer for node wrapper to enable hardware-accelerated transforms
+ * during pan/zoom operations. The transform: translateZ(0) creates a GPU layer.
+ */
+.dag-node {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/**
+ * Contain layout and style for task rows in expanded nodes.
+ * This prevents task list changes from triggering parent reflows.
+ */
+.dag-task-row {
+  contain: layout style;
+}
+
+/**
+ * Isolate scroll containers to their own stacking context.
+ * Prevents scroll-related repaints from affecting parent layers.
+ */
+.dag-scroll-container {
+  isolation: isolate;
+}
+
+/* ==========================================================================
+   DAG Slide Animation (Post-Simplification)
+   Uses GPU-accelerated transforms with delayed unmount pattern.
+   ========================================================================== */
+
+/**
+ * DAG slide container uses translateX for 60fps animation.
+ * The DAG remains mounted during exit animation, unmounts after transition.
+ */
+.dag-slide-container {
+  /* GPU acceleration - always on compositing layer */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+
+  /* Transition timing matches Apple's spring curve */
+  transition:
+    transform 250ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Visible state - fully shown */
+.dag-slide-container[data-dag-visible="true"] {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* Exit animation - slide left and fade */
+.dag-slide-container[data-dag-visible="false"] {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Panel Snap Animations
+   ========================================================================== */
+
+/**
+ * Panel snap uses width transition (already in side-panel.tsx).
+ * Update easing to match DAG slide for cohesive feel.
+ */
+.panel-snap-transition {
+  transition: width 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   Snap Zone Visual Indicators
+   Both soft (80-89.9%) and full (90%+) use subtle blue washout pattern
+   ========================================================================== */
+
+:root {
+  --snap-primary: rgb(59 130 246);
+  --snap-overlay: rgb(59 130 246 / 0.12);
+}
+
+.dark {
+  --snap-primary: rgb(59 130 246);
+  --snap-overlay: rgb(59 130 246 / 0.15);
+}
+
+/* Full Snap Overlay (90%+) */
+.snap-full-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, oklch(0.98 0 0 / 0.2) 0%, oklch(0.98 0 0 / 0.7) 30%, oklch(0.98 0 0 / 0.85) 100%);
+  background-image: linear-gradient(
+    135deg,
+    transparent 46%,
+    var(--snap-overlay) 46%,
+    var(--snap-overlay) 54%,
+    transparent 54%
+  );
+  background-size: 6px 6px;
+  backdrop-filter: blur(3px);
+  animation: snap-full-appear 100ms ease-out;
+  contain: strict;
+  will-change: opacity;
+  transform: translateZ(0);
+}
+
+.dark .snap-full-overlay {
+  background: linear-gradient(90deg, oklch(0.15 0 0 / 0.2) 0%, oklch(0.15 0 0 / 0.7) 30%, oklch(0.15 0 0 / 0.85) 100%);
+  background-image: linear-gradient(
+    135deg,
+    transparent 46%,
+    var(--snap-overlay) 46%,
+    var(--snap-overlay) 54%,
+    transparent 54%
+  );
+  background-size: 6px 6px;
+}
+
+@keyframes snap-full-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.snap-full-target-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--snap-primary);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Strip Snap Indicator (< 20%) - positioned via JS portal */
+.snap-strip-container {
+  pointer-events: none;
+}
+
+.snap-strip-washout {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, oklch(0.98 0 0 / 0.2) 0%, oklch(0.98 0 0 / 0.7) 30%, oklch(0.98 0 0 / 0.85) 100%);
+  background-image: linear-gradient(
+    135deg,
+    transparent 46%,
+    var(--snap-overlay) 46%,
+    var(--snap-overlay) 54%,
+    transparent 54%
+  );
+  background-size: 6px 6px;
+  backdrop-filter: blur(3px);
+  animation: snap-strip-washout-appear 100ms ease-out;
+}
+
+.dark .snap-strip-washout {
+  background: linear-gradient(90deg, oklch(0.15 0 0 / 0.2) 0%, oklch(0.15 0 0 / 0.5) 30%, oklch(0.15 0 0 / 0.85) 100%);
+  background-image: linear-gradient(
+    135deg,
+    transparent 46%,
+    var(--snap-overlay) 46%,
+    var(--snap-overlay) 54%,
+    transparent 54%
+  );
+  background-size: 6px 6px;
+}
+
+@keyframes snap-strip-washout-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.snap-strip-target-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--snap-primary);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Disable Transitions During Drag
+   Uses data-phase attribute from PanelResizeStateMachine
+   ========================================================================== */
+
+[data-phase="DRAGGING"] .panel-snap-transition,
+[data-phase="DRAGGING"] .dag-slide-container {
+  transition: none !important;
+}
+
+/* ==========================================================================
+   Reduced Motion Support
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .snap-full-overlay,
+  .snap-strip-washout,
+  .timeline-active-segment {
+    animation: none;
+  }
+
+  .timeline-active-segment {
+    background: var(--dag-status-running-color);
+  }
+
+  .snap-strip-target-line {
+    animation: none;
+    opacity: 1;
+  }
+
+  .dependency-pill {
+    transition: none;
+  }
+
+  .panel-snap-transition,
+  .dag-slide-container {
+    transition: opacity 150ms ease-out;
+    transform: translateX(0) !important;
+  }
+
+  .dag-slide-container[data-dag-visible="false"] {
+    opacity: 0;
+  }
+}

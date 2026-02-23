@@ -1,0 +1,417 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "../styles/base.css";
+@import "../styles/utilities.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Chrome layout spacing */
+  --spacing-chrome-header: var(--chrome-header-height);
+
+  /* Typography */
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* ==========================================================================
+     Semantic Design Tokens
+     Use these for consistent theming across components
+     ========================================================================== */
+
+  /* Core semantic colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+
+  /* UI element colors */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Chart colors */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar colors */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ==========================================================================
+     NVIDIA Brand Colors
+     Available as: bg-nvidia, text-nvidia-dark, border-nvidia-light, etc.
+     ========================================================================== */
+  --color-nvidia: var(--nvidia-green);
+  --color-nvidia-dark: var(--nvidia-green-dark);
+  --color-nvidia-light: var(--nvidia-green-light);
+  --color-nvidia-bg: var(--nvidia-green-bg);
+  --color-nvidia-bg-dark: var(--nvidia-green-bg-dark);
+
+  /* ==========================================================================
+     Status Colors (Semantic)
+     Available as: bg-success, text-warning, border-danger, etc.
+     ========================================================================== */
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+  --color-danger: var(--status-danger);
+
+  /* Status background variants (for badges, alerts, etc.) */
+  --color-success-bg: var(--status-success-bg);
+  --color-warning-bg: var(--status-warning-bg);
+  --color-danger-bg: var(--status-danger-bg);
+
+  /* ==========================================================================
+     Table Colors (Semantic)
+     Available as: bg-table-surface, bg-table-header, border-table-border, etc.
+     ========================================================================== */
+  --color-table-surface: var(--table-surface);
+  --color-table-header: var(--table-header);
+  --color-table-border: var(--table-border);
+  --color-table-border-top: var(--table-border-top);
+  --color-table-border-left: var(--table-border-left);
+  --color-table-border-right: var(--table-border-right);
+  --color-table-border-bottom: var(--table-border-bottom);
+
+  /* ==========================================================================
+     Tree Connector Colors
+     More prominent than regular borders for clear visual hierarchy
+     Available as: bg-tree-line, border-tree-line
+     ========================================================================== */
+  --color-tree-line: var(--tree-line);
+
+  /* ==========================================================================
+     Shell/Terminal Colors
+     Available as: bg-shell, border-shell, etc.
+     ========================================================================== */
+  --color-shell-bg: var(--shell-bg);
+
+  /* ==========================================================================
+     Minimap Colors
+     Available as: bg-minimap-node-fill, border-minimap-node-stroke, etc.
+     ========================================================================== */
+  --color-minimap-node-fill: var(--minimap-node-fill);
+  --color-minimap-node-stroke: var(--minimap-node-stroke);
+
+  /* ==========================================================================
+     Border Radius Scale
+     ========================================================================== */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* ==========================================================================
+     Animation Duration Scale
+     Registered from :root for Tailwind utility access.
+     Usage: duration-normal, duration-fast, ease-out, etc.
+     ========================================================================== */
+  --duration-instant: var(--duration-instant);
+  --duration-fastest: var(--duration-fastest);
+  --duration-fast: var(--duration-fast);
+  --duration-quick: var(--duration-quick);
+  --duration-normal: var(--duration-normal);
+  --duration-moderate: var(--duration-moderate);
+  --duration-slow: var(--duration-slow);
+  --duration-slower: var(--duration-slower);
+  --duration-slowest: var(--duration-slowest);
+
+  /* Easing functions */
+  --ease-out: var(--ease-out);
+  --ease-in: var(--ease-in);
+  --ease-in-out: var(--ease-in-out);
+  --ease-spring: var(--ease-spring);
+  --ease-bounce: var(--ease-bounce);
+}
+
+:root {
+  /* Chrome Layout */
+  --chrome-header-height: 3.5rem;
+
+  /* ==========================================================================
+     Animation Timing Tokens
+     These are the source of truth for all animation durations.
+     TypeScript constants should reference these values in comments.
+     
+     Mapping to existing constants:
+       --duration-fast (75ms)     → dag transitions
+       --duration-quick (100ms)   → row-fade-in animation
+       --duration-normal (150ms)  → transition defaults, resize handle
+       --duration-moderate (200ms)→ SIDEBAR_TRANSITION_MS, PANEL_TRANSITION
+       --duration-slow (300ms)    → sheet exit animations
+       --duration-slower (400ms)  → ANIMATION.VIEWPORT_DURATION
+       --duration-slowest (500ms) → ANIMATION.INITIAL_DURATION, sheet entry
+     ========================================================================== */
+  --duration-instant: 0ms;
+  --duration-fastest: 50ms;
+  --duration-fast: 75ms;
+  --duration-quick: 100ms;
+  --duration-normal: 150ms;
+  --duration-moderate: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+  --duration-slowest: 500ms;
+
+  /* Easing functions */
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+
+  /* Brand colors */
+  --nvidia-green: #76b900;
+  --nvidia-green-dark: #5a8c00;
+  --nvidia-green-light: #9ed439;
+  --nvidia-green-bg: #f3f9e8;
+  --nvidia-green-bg-dark: #1a2e0a;
+
+  /* CodeMirror theme tokens (light mode) */
+  --cm-bg: oklch(1 0 0); /* Same as --background */
+  --cm-gutter-bg: oklch(1 0 0);
+  --cm-line-number: oklch(0.556 0 0); /* Same as --muted-foreground */
+  --cm-line-number-active: oklch(0.145 0 0); /* Same as --foreground */
+  --cm-matching-bracket: rgba(0, 0, 0, 0.1);
+  --cm-selection-bg: #f3f9e8; /* Same as --nvidia-green-bg */
+  --nvidia-green-active-line: rgba(118, 185, 0, 0.04);
+
+  /* Semantic status colors */
+  --status-success: oklch(0.7 0.15 145);
+  --status-warning: oklch(0.75 0.15 75);
+  --status-danger: oklch(0.65 0.2 25);
+
+  /* Search input accent (blue-600 for consistent focus rings) */
+  --search-accent: oklch(0.532 0.218 264.376);
+
+  /* Status background colors (light mode) */
+  --status-success-bg: oklch(0.95 0.05 145);
+  --status-warning-bg: oklch(0.95 0.05 85);
+  --status-danger-bg: oklch(0.95 0.05 25);
+
+  /* Lifecycle progress stage colors (light mode) */
+  --stage-pending: oklch(0.75 0.12 75);
+  --stage-pending-bg: oklch(0.95 0.04 85);
+  --stage-init: oklch(0.6 0.15 260);
+  --stage-init-bg: oklch(0.95 0.04 260);
+  --stage-running: oklch(0.6 0.15 250);
+  --stage-running-bg: oklch(0.95 0.04 250);
+  --stage-completed: oklch(0.7 0.15 145);
+  --stage-completed-bg: oklch(0.95 0.05 145);
+  --stage-failed: oklch(0.65 0.2 25);
+  --stage-failed-bg: oklch(0.95 0.05 25);
+  --stage-inactive: oklch(0.92 0 0);
+  --stage-inactive-fg: oklch(0.7 0 0);
+  --stage-inferred: oklch(0.72 0 0);
+  --stage-inferred-fg: oklch(0.92 0 0);
+
+  /* Timeline status colors (light mode) - semantic colors for event-based timeline */
+  --timeline-green: oklch(0.7 0.15 145); /* Success/healthy */
+  --timeline-blue: oklch(0.6 0.15 260); /* In-progress */
+  --timeline-amber: oklch(0.75 0.16 95); /* Warning/non-terminal failure - more yellow */
+  --timeline-red: oklch(0.65 0.2 25); /* Terminal failure */
+
+  /* Table colors (light mode) */
+  --table-surface: #ffffff;
+  --table-header: #f0f0f0;
+  --table-border: oklch(0.9 0 0);
+  /* Bevel borders for 3D effect */
+  --table-border-top: oklch(0.93 0 0);
+  --table-border-left: oklch(0.92 0 0);
+  --table-border-right: oklch(0.86 0 0);
+  --table-border-bottom: oklch(0.85 0 0);
+
+  /* Tree connector lines (light mode) - more prominent than regular borders */
+  --tree-line: oklch(0.8 0 0);
+
+  /* Shell/Terminal colors */
+  --shell-bg: #0a0a0f;
+
+  /* Minimap colors (light mode) */
+  --minimap-node-fill: #d4d4d8; /* zinc-300 */
+  --minimap-node-stroke: #a1a1aa; /* zinc-400 */
+
+  /* Profile page layout */
+  --profile-scroll-offset: 6rem; /* scroll-margin-top for sticky header clearance */
+  --profile-selection-card-height: 600px; /* fixed height for pool/bucket selection cards */
+  --profile-selected-border-width: 3px; /* left accent border on selected list items */
+
+  /* Profile card spacing - single source of truth for sectioned cards */
+  --card-section-padding: 1.5rem; /* 24px - consistent vertical rhythm for bordered sections */
+  --card-header-padding: 1rem; /* 16px - tighter padding for headers */
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+
+  /* Brand colors - same in dark mode except bg */
+  --nvidia-green: #76b900;
+  --nvidia-green-dark: #5a8c00;
+  --nvidia-green-light: #9ed439;
+  --nvidia-green-bg: #1a2e0a;
+  --nvidia-green-bg-dark: #1a2e0a;
+
+  /* CodeMirror theme tokens (dark mode) */
+  --cm-bg: #18181b; /* Same as --table-header (zinc-900) */
+  --cm-gutter-bg: #18181b;
+  --cm-line-number: oklch(0.708 0 0); /* Same as --muted-foreground */
+  --cm-line-number-active: oklch(0.985 0 0); /* Same as --foreground */
+  --cm-matching-bracket: rgba(255, 255, 255, 0.1);
+  --cm-selection-bg: #1a2e0a; /* Same as --nvidia-green-bg-dark */
+  --nvidia-green-active-line: rgba(118, 185, 0, 0.08);
+
+  /* Status background colors (dark mode) */
+  --status-success-bg: oklch(0.25 0.05 145);
+  --status-warning-bg: oklch(0.25 0.05 85);
+  --status-danger-bg: oklch(0.25 0.05 25);
+
+  /* Search input accent (blue-400 for dark mode) */
+  --search-accent: oklch(0.696 0.17 264.376);
+
+  /* Lifecycle progress stage colors (dark mode) */
+  --stage-pending: oklch(0.8 0.12 75);
+  --stage-pending-bg: oklch(0.25 0.04 85);
+  --stage-init: oklch(0.7 0.12 260);
+  --stage-init-bg: oklch(0.25 0.04 260);
+  --stage-running: oklch(0.7 0.12 250);
+  --stage-running-bg: oklch(0.25 0.04 250);
+  --stage-completed: oklch(0.75 0.12 145);
+  --stage-completed-bg: oklch(0.25 0.05 145);
+  --stage-failed: oklch(0.75 0.18 25);
+  --stage-failed-bg: oklch(0.25 0.05 25);
+  --stage-inactive: oklch(0.25 0 0);
+  --stage-inactive-fg: oklch(0.5 0 0);
+  --stage-inferred: oklch(0.45 0 0);
+  --stage-inferred-fg: oklch(0.2 0 0);
+
+  /* Timeline status colors (dark mode) - semantic colors for event-based timeline */
+  --timeline-green: oklch(0.75 0.12 145); /* Success/healthy */
+  --timeline-blue: oklch(0.7 0.12 260); /* In-progress */
+  --timeline-amber: oklch(0.8 0.16 95); /* Warning/non-terminal failure - more yellow */
+  --timeline-red: oklch(0.75 0.18 25); /* Terminal failure */
+
+  /* Table colors (dark mode) */
+  --table-surface: #09090b; /* zinc-950 / sidebar */
+  --table-header: #18181b; /* zinc-900 */
+  --table-border: oklch(0.15 0 0);
+  /* Bevel borders for 3D effect */
+  --table-border-top: oklch(0.18 0 0);
+  --table-border-left: oklch(0.17 0 0);
+  --table-border-right: oklch(0.1 0 0);
+  --table-border-bottom: oklch(0.09 0 0);
+
+  /* Tree connector lines (dark mode) - more prominent than regular borders */
+  --tree-line: oklch(0.45 0 0);
+
+  /* Shell/Terminal colors - same in dark mode */
+  --shell-bg: #0a0a0f;
+
+  /* Minimap colors (dark mode) */
+  --minimap-node-fill: #52525b; /* zinc-600 */
+  --minimap-node-stroke: #3f3f46; /* zinc-700 */
+}
+
+/* Base styles, utilities, and component styles are imported above.
+   This file now only contains CSS variables and theme definitions. */
