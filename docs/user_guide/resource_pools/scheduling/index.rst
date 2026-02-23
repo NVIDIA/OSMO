@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -256,3 +256,8 @@ OSMO will automatically **borrow GPUs** from other pools that are sharing the sa
       :align: center
       :class: transparent-bg no-scaled-link
       :width: 75%
+
+.. seealso::
+
+  For workloads that require specific network locality (e.g., NVLink multi-node training),
+  see :ref:`concepts_topology` for topology-aware scheduling.

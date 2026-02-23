@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -40,10 +40,10 @@ from src.lib.utils import (
     credentials,
     jinja_sandbox,
     osmo_errors,
-    priority as wf_priority,
+    priority as wf_priority
 )
-from src.utils.job import common as task_common, kb_objects
 from src.utils import auth, connectors
+from src.utils.job import common as task_common, kb_objects, topology as topology_module
 from src.utils.progress_check import progress
 
 
@@ -1386,6 +1386,25 @@ def apply_pod_template(pod: Dict, pod_override: Dict):
     return common.recursive_dict_update(pod, pod_override, common.merge_lists_on_name)
 
 
+def render_group_templates(
+        templates: List[Dict[str, Any]],
+        variables: Dict[str, Any],
+        labels: Dict[str, str]) -> List[Dict[str, Any]]:
+    """Renders group templates by substituting variables and injecting OSMO labels.
+
+    Templates are deep-copied before modification. The namespace field is stripped
+    if present; the backend sets namespace at runtime.
+    """
+    rendered = []
+    for template in templates:
+        rendered_template = copy.deepcopy(template)
+        rendered_template.get('metadata', {}).pop('namespace', None)
+        substitute_pod_template_tokens(rendered_template, variables)
+        rendered_template.setdefault('metadata', {}).setdefault('labels', {}).update(labels)
+        rendered.append(rendered_template)
+    return rendered
+
+
 class TaskGroup(pydantic.BaseModel):
     """ Represents the group object . """
     # pylint: disable=pointless-string-statement
@@ -1406,6 +1425,9 @@ class TaskGroup(pydantic.BaseModel):
     status: TaskGroupStatus = TaskGroupStatus.SUBMITTING
     # This is set when the task group is queued into the backends
     scheduler_settings: connectors.BackendSchedulerSettings | None = None
+    # Persisted record of group template resource types actually created for this group.
+    # Used by cleanup to avoid dependency on the current pool config.
+    group_template_resource_types: List[Dict[str, Any]] = []
 
     class Config:
         arbitrary_types_allowed = True
@@ -1418,8 +1440,9 @@ class TaskGroup(pydantic.BaseModel):
         insert_cmd = '''
             INSERT INTO groups
             (workflow_id, name, group_uuid, spec, status, failure_message,
-             remaining_upstream_groups, downstream_groups, cleaned_up, scheduler_settings)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s) ON CONFLICT DO NOTHING;
+             remaining_upstream_groups, downstream_groups, cleaned_up, scheduler_settings,
+             group_template_resource_types)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, %s) ON CONFLICT DO NOTHING;
         '''
         self.database.execute_commit_command(
             insert_cmd,
@@ -1427,7 +1450,17 @@ class TaskGroup(pydantic.BaseModel):
              failure_message,
              _encode_hstore(self.remaining_upstream_groups),
              _encode_hstore(self.downstream_groups),
-             self.scheduler_settings.json() if self.scheduler_settings else None))
+             self.scheduler_settings.json() if self.scheduler_settings else None,
+             json.dumps(self.group_template_resource_types)))
+
+    def update_group_template_resource_types(self) -> None:
+        """ Persists group_template_resource_types to the database. """
+        update_cmd = '''
+            UPDATE groups SET group_template_resource_types = %s WHERE group_uuid = %s;
+        '''
+        self.database.execute_commit_command(
+            update_cmd,
+            (json.dumps(self.group_template_resource_types), self.group_uuid))
 
     @property
     def workflow_id(self) -> str:
@@ -1468,6 +1501,10 @@ class TaskGroup(pydantic.BaseModel):
             scheduler_settings = connectors.BackendSchedulerSettings(
                 **json.loads(group_row.scheduler_settings))
 
+        group_template_resource_types = []
+        if group_row.group_template_resource_types:
+            group_template_resource_types = group_row.group_template_resource_types
+
         return TaskGroup(workflow_id_internal=group_row.workflow_id,
                          name=group_row.name, group_uuid=group_row.group_uuid,
                          spec=TaskGroupSpec(**group_row.spec), tasks=tasks,
@@ -1478,7 +1515,8 @@ class TaskGroup(pydantic.BaseModel):
                          scheduling_start_time=group_row.scheduling_start_time,
                          initializing_start_time=group_row.initializing_start_time,
                          status=group_row.status, database=database,
-                         scheduler_settings=scheduler_settings)
+                         scheduler_settings=scheduler_settings,
+                         group_template_resource_types=group_template_resource_types)
 
     @classmethod
     def fetch_from_db(cls, database: connectors.PostgresConnector,
@@ -1872,6 +1910,55 @@ class TaskGroup(pydantic.BaseModel):
 
         return kb_objects.get_k8s_object_factory(backend_copy)
 
+    def _build_topology_tree(
+        self, pool: str
+    ) -> Tuple[List[topology_module.TopologyKey], List[topology_module.TaskTopology]]:
+        """
+        Builds topology tree configuration for tasks.
+
+        Optimized to avoid database query if no tasks use topology.
+
+        Args:
+            pool: Pool name
+
+        Returns:
+            Tuple of (topology_keys, task_infos)
+        """
+        # Build task infos first to check if any tasks have topology requirements
+        task_infos = []
+        has_topology = False
+
+        for task_obj in self.spec.tasks:
+            topology_reqs = []
+            if task_obj.resources.topology:
+                has_topology = True
+                for req in task_obj.resources.topology:
+                    is_required = (
+                        req.requirementType == connectors.TopologyRequirementType.REQUIRED
+                    )
+                    topology_reqs.append(topology_module.TopologyRequirement(
+                        key=req.key,
+                        group=req.group,
+                        required=is_required
+                    ))
+            task_infos.append(topology_module.TaskTopology(
+                name=task_obj.name,
+                topology_requirements=topology_reqs
+            ))
+
+        # Exit early if no topology is used (avoid database query)
+        if not has_topology:
+            return [], task_infos
+
+        # Fetch pool configuration and build topology keys
+        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+        topology_keys = [
+            topology_module.TopologyKey(key=tk.key, label=tk.label)
+            for tk in pool_obj.topology_keys
+        ] if pool_obj.topology_keys else []
+
+        return topology_keys, task_infos
+
     def get_kb_specs(
         self, workflow_uuid: str, user: str,
         workflow_config: connectors.WorkflowConfig,
@@ -1966,8 +2053,12 @@ class TaskGroup(pydantic.BaseModel):
             progress_iter_freq,
 
         )
-        group_objects = k8s_factory.create_group_k8s_resources(group_uid, pods, labels, pool,
-                                                               priority)
+
+        # Build topology tree configuration
+        topology_keys, task_infos = self._build_topology_tree(pool)
+
+        group_objects = k8s_factory.create_group_k8s_resources(
+            group_uid, pods, labels, pool, priority, topology_keys, task_infos)
 
         pod_specs = dict(zip(task_names, pods))
 
@@ -1990,6 +2081,27 @@ class TaskGroup(pydantic.BaseModel):
         # Create headless service
         if headless_service:
             kb_resources.append(headless_service)
+
+        # Prepend group template resources so they are created before pods
+        pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
+        if pool_obj.parsed_group_templates:
+            template_variables = self._convert_labels_to_variables(labels)
+            template_variables['WF_POOL'] = pool
+            group_template_resources = render_group_templates(
+                pool_obj.parsed_group_templates,
+                template_variables,
+                labels,
+            )
+            kb_resources = group_template_resources + kb_resources
+
+            seen_resource_types: Set[Tuple[str, str]] = set()
+            for resource in group_template_resources:
+                resource_type_key = (resource.get('apiVersion', ''), resource.get('kind', ''))
+                if resource_type_key not in seen_resource_types:
+                    seen_resource_types.add(resource_type_key)
+                    self.group_template_resource_types.append(
+                        {'apiVersion': resource_type_key[0], 'kind': resource_type_key[1]}
+                    )
 
         return kb_resources, pod_specs
 
