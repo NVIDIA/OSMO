@@ -29,7 +29,7 @@
 "use client";
 
 import { useMemo, useCallback, memo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
@@ -97,6 +97,7 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   isFetchingNextPage = false,
 }: WorkflowsDataTableProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();
 
@@ -154,13 +155,13 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   const handleRowClick = useCallback(
     (workflow: WorkflowListEntry) => {
       const detailPath = `/workflows/${encodeURIComponent(workflow.name)}`;
-      const currentUrl = window.location.pathname + window.location.search;
+      const currentUrl = pathname + window.location.search;
       setOrigin(detailPath, currentUrl);
       startTransition(() => {
         router.push(detailPath);
       });
     },
-    [router, startTransition, setOrigin],
+    [router, pathname, startTransition, setOrigin],
   );
 
   // Get row href for middle-click support (opens in new tab)

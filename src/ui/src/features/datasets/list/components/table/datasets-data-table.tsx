@@ -28,7 +28,7 @@
 "use client";
 
 import { useMemo, useCallback, useRef, memo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
@@ -127,6 +127,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   isFetchingNextPage = false,
 }: DatasetsDataTableProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();
 
@@ -169,13 +170,13 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   const navigateToDataset = useCallback(
     (dataset: Dataset) => {
       const detailPath = `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
-      const currentUrl = window.location.pathname + window.location.search;
+      const currentUrl = pathname + window.location.search;
       setOrigin(detailPath, currentUrl);
       startTransition(() => {
         router.push(detailPath);
       });
     },
-    [router, startTransition, setOrigin],
+    [router, pathname, startTransition, setOrigin],
   );
 
   /**
