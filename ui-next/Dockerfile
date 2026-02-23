@@ -55,9 +55,10 @@
 # =============================================================================
 # Stage 1: Dependencies (cached unless package.json/pnpm-lock.yaml change)
 # =============================================================================
+ARG NODE_BUILD_IMAGE=node:24-slim
 ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/node:24-v4.0.2
 
-FROM ${NODE_DISTROLESS_IMAGE} AS deps
+FROM ${NODE_BUILD_IMAGE} AS deps
 
 # Enable corepack for pnpm (reads version from package.json packageManager field)
 RUN corepack enable
@@ -77,7 +78,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # =============================================================================
 # Stage 2: Build (rebuilds when source changes, but deps are cached)
 # =============================================================================
-FROM ${NODE_DISTROLESS_IMAGE} AS builder
+FROM ${NODE_BUILD_IMAGE} AS builder
 
 RUN corepack enable
 
@@ -137,7 +138,7 @@ RUN --mount=type=cache,target=/app/.next/cache-turbo \
 # =============================================================================
 # Stage 2.5: Prepare cache directory (has shell for mkdir/chown)
 # =============================================================================
-FROM ${NODE_DISTROLESS_IMAGE} AS cache-prep
+FROM ${NODE_BUILD_IMAGE} AS cache-prep
 
 # Create cache directory with correct ownership
 # Using UID 1000 to match Kubernetes deployment's runAsUser setting
