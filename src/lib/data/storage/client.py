@@ -43,7 +43,6 @@ from . import (
 from .backends import common as backends_common
 from .core import executor, header
 from ...utils import (
-    cache,
     logging as logging_utils,
     osmo_errors,
     paths,
@@ -60,7 +59,6 @@ class OptionalParams(TypedDict, total=False):
     enable_progress_tracker: bool
     logging_level: int
     executor_params: executor.ExecutorParameters
-    cache_config: cache.CacheConfig | None
     headers: Dict[str, str] | None
 
 
@@ -174,7 +172,6 @@ class Client(pydantic.BaseModel):
         if scope_to_container:
             storage_backend = backends.construct_storage_backend(
                 uri=storage_uri,
-                cache_config=kwargs.get('cache_config', None),
             )
             storage_uri = storage_backend.container_uri
 
@@ -229,11 +226,6 @@ class Client(pydantic.BaseModel):
         description='Remote storage data credentials.',
     )
 
-    cache_config: cache.CacheConfig | None = pydantic.Field(
-        default=None,
-        description='Remote storage cache configuration.',
-    )
-
     headers: Dict[str, str] | None = pydantic.Field(
         default=None,
         description='Headers to apply to all requests of this client.',
@@ -248,16 +240,13 @@ class Client(pydantic.BaseModel):
         data_credential_input = values.get('data_credential_input')
         if data_credential_input is not None:
             storage_uri = values.get('storage_uri')
-            cache_config = values.get('cache_config')
 
             # Construct backends to validate profiles match
             data_cred_backend = backends.construct_storage_backend(
                 uri=data_credential_input.endpoint,
-                cache_config=cache_config,
             )
             storage_backend = backends.construct_storage_backend(
                 uri=storage_uri,
-                cache_config=cache_config,
             )
 
             if data_cred_backend.profile != storage_backend.profile:
@@ -287,7 +276,6 @@ class Client(pydantic.BaseModel):
         """
         return backends.construct_storage_backend(
             uri=self.storage_uri,
-            cache_config=self.cache_config,
         )
 
     def _validate_remote_path(
@@ -314,7 +302,6 @@ class Client(pydantic.BaseModel):
             # Validate absolute remote paths
             remote_path_components = backends.construct_storage_backend(
                 uri=remote_path,
-                cache_config=self.cache_config,
             )
 
             if remote_path_components not in self.storage_backend:
@@ -1274,7 +1261,6 @@ class SingleObjectClient(pydantic.BaseModel):
         if storage_uri is not None:
             storage_backend = backends.construct_storage_backend(
                 uri=storage_uri,
-                cache_config=kwargs.get('cache_config', None),
             )
 
         assert storage_backend is not None

@@ -58,7 +58,7 @@ Resources are defined under the ``workflow`` in the ``resources`` field and assi
 using the ``resource`` field in the ``tasks`` section. If a task doesn't specify a resource,
 it automatically uses the ``default`` resource spec:
 
-.. literalinclude:: ../../../workflows/tutorials/resources_basic.yaml
+.. literalinclude:: ../../../cookbook/tutorials/resources_basic.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -70,7 +70,7 @@ Multiple Resource Specifications
 
 You can define multiple named resource specifications and assign them to different tasks:
 
-.. literalinclude:: ../../../workflows/tutorials/resources_multiple.yaml
+.. literalinclude:: ../../../cookbook/tutorials/resources_multiple.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -83,7 +83,7 @@ Targeting Specific Platforms
 Use the ``platform`` field to target specific compute platforms. If no platform is specified,
 the default platform for the pool is used (if configured by administrators):
 
-.. literalinclude:: ../../../workflows/tutorials/resources_platforms.yaml
+.. literalinclude:: ../../../cookbook/tutorials/resources_platforms.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 

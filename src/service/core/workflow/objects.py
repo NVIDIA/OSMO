@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -65,6 +65,10 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         command_line='logout_endpoint',
         default=None,
         description='The url to bind to when authenticating with the logout endpoint.')
+    client_install_url: str | None = pydantic.Field(
+        command_line='client_install_url',
+        default=None,
+        description='The URL for the client install script shown in version update messages.')
     progress_file: str = pydantic.Field(
         command_line='progress_file',
         env='OSMO_PROGRESS_FILE',
@@ -78,6 +82,31 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
                     'm (minutes).')
+    default_admin_username: str | None = pydantic.Field(
+        command_line='default_admin_username',
+        env='OSMO_DEFAULT_ADMIN_USERNAME',
+        default=None,
+        description='The username for the default admin user to create on startup. '
+                    'If set, default_admin_password must also be set.')
+    default_admin_password: str | None = pydantic.Field(
+        command_line='default_admin_password',
+        env='OSMO_DEFAULT_ADMIN_PASSWORD',
+        default=None,
+        description='The password (access token value) for the default admin user. '
+                    'Must be set if default_admin_username is set.')
+
+    @pydantic.root_validator()
+    @classmethod
+    def validate_default_admin(cls, values):
+        """
+        Validate that if default_admin_username is set, default_admin_password must also be set
+        """
+        username = values.get('default_admin_username')
+        password = values.get('default_admin_password')
+        if username and not password:
+            raise ValueError(
+                'default_admin_password must be set when default_admin_username is specified')
+        return values
 
 
 class WorkflowServiceContext(pydantic.BaseModel):
@@ -618,6 +647,9 @@ class UserDataCredential(
         if self.region:
             payload['region'] = self.region
 
+        if self.override_url:
+            payload['override_url'] = self.override_url
+
         payload = postgres.encrypt_dict(payload, user)
 
         return CredentialRecord(
@@ -636,6 +668,7 @@ class UserDataCredential(
             access_key_id=self.access_key_id,
             access_key=pydantic.SecretStr(self.access_key),
             region=self.region,
+            override_url=self.override_url,
         )
 
         storage_info.data_auth(data_cred)

@@ -27,7 +27,7 @@ which is essential for building scalable robotics applications.
 
 This tutorial is based on the official `ROS 2 Discovery Server tutorial <https://docs.ros.org/en/foxy/Tutorials/Advanced/Discovery-Server/Discovery-Server.html#run-this-tutorial>`_.
 
-The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/workflows/ros/comm>`_.
+The complete workflow example is available `here <https://github.com/NVIDIA/OSMO/tree/main/cookbook/ros/comm>`_.
 
 Architecture
 ------------

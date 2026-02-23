@@ -35,8 +35,13 @@ import yaml
 
 from src.lib.data import storage
 from src.lib.data.storage import constants
-from src.lib.utils import (cache, common, credentials, jinja_sandbox, osmo_errors,
-                        priority as wf_priority)
+from src.lib.utils import (
+    common,
+    credentials,
+    jinja_sandbox,
+    osmo_errors,
+    priority as wf_priority,
+)
 from src.utils import auth, connectors
 from src.utils.job import common as task_common, kb_objects, topology as topology_module
 from src.utils.progress_check import progress
@@ -91,7 +96,6 @@ def create_login_dict(user: str,
 
 def create_config_dict(
     data_info: dict[str, credentials.StaticDataCredential],
-    cache_config: cache.CacheConfig | None = None,
 ) -> dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
@@ -107,9 +111,6 @@ def create_config_dict(
             }
         }
     }
-
-    if cache_config:
-        data['cache'] = cache_config.dict()
 
     return data
 
@@ -2401,7 +2402,7 @@ class TaskGroup(pydantic.BaseModel):
             service_config.service_auth.ctrl_roles,
             workflow_id=self.workflow_id)
 
-        refresh_token = secrets.token_hex(REFRESH_TOKEN_LENGTH)
+        refresh_token = secrets.token_urlsafe(REFRESH_TOKEN_LENGTH)
 
         # Workaround for validation
         token_file = File(path='/token', contents=refresh_token)
