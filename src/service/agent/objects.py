@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
+SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import logging
 import threading
 import time
 from typing import Callable, Optional, Dict, List, Set
-import zlib
 
 import fastapi
 import kombu  # type: ignore
@@ -254,8 +253,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     job=job,
                     start_time=time.time())
 
-            compressed = zlib.compress(job.json().encode('utf-8'))
-            await self.websocket.send_bytes(compressed)
+            await self.websocket.send_text(job.json())
 
 
     async def handle_message(self, message_json: Dict, backend_name:str):
