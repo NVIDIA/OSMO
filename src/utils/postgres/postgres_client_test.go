@@ -350,6 +350,7 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 	minConns := 5
 	maxConnLifetime := 10
 	sslMode := "require"
+	schemaVersion := "public"
 
 	flagPtrs := &PostgresFlagPointers{
 		host:               &host,
@@ -361,6 +362,7 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 		minConns:           &minConns,
 		maxConnLifetimeMin: &maxConnLifetime,
 		sslMode:            &sslMode,
+		schemaVersion:      &schemaVersion,
 	}
 
 	config := flagPtrs.ToPostgresConfig()
@@ -393,6 +395,9 @@ func TestPostgresFlagPointersToPostgresConfig(t *testing.T) {
 	}
 	if config.SSLMode != sslMode {
 		t.Errorf("Expected sslMode %s, got %s", sslMode, config.SSLMode)
+	}
+	if config.SchemaVersion != schemaVersion {
+		t.Errorf("Expected schemaVersion %s, got %s", schemaVersion, config.SchemaVersion)
 	}
 }
 

@@ -65,6 +65,10 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         command_line='logout_endpoint',
         default=None,
         description='The url to bind to when authenticating with the logout endpoint.')
+    client_install_url: str | None = pydantic.Field(
+        command_line='client_install_url',
+        default=None,
+        description='The URL for the client install script shown in version update messages.')
     progress_file: str = pydantic.Field(
         command_line='progress_file',
         env='OSMO_PROGRESS_FILE',

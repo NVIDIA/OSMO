@@ -199,6 +199,8 @@ spec:
 
 
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.authz-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
@@ -206,6 +208,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:
         {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.agent.serviceName "serviceEnvoy" .Values.services.agent.envoy "Values" .Values) | nindent 8 }}
+        {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}

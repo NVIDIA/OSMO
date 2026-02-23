@@ -154,7 +154,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 400)
-        self.assertIn('client/install.sh', str(response.content))
+        self.assertIn('Please update', str(response.content))
 
     def test_get_users_from_all_workflows(self):
         # Arrange

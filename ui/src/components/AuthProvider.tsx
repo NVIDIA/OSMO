@@ -95,6 +95,7 @@ class Auth {
   id_token = "";
   refresh_token = "";
   authEnabled = false;
+  isOAuth2ProxySession = false;
   routerPush: ReturnType<typeof useRouter>["push"] = () => {
     // no-op
   };
@@ -112,22 +113,37 @@ class Auth {
   }
 
   async login() {
+    let loginInfoResponse: Response;
     try {
-      const res = await fetch("/auth/login_info", { cache: "no-store" });
-      const data = await res.json();
+      loginInfoResponse = await fetch("/auth/login_info", { cache: "no-store" });
+      const data = await loginInfoResponse.json();
       this.authEnabled = data.auth_enabled;
     } catch (error) {
       throw new Error(`Failed to fetch login info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
 
     if (!this.authEnabled) {
-      // Nothing to do when auth is disabled
       return;
     }
 
     if (window.location.pathname.startsWith("/auth/success")) {
-      // Nothing to do for auth success - we're already in the auth flow
-      // and about to redirect to the original page
+      return;
+    }
+
+    // Check for OAuth2 Proxy session via response headers.
+    // Envoy's ext_authz forwards user info from OAuth2 Proxy via
+    // allowed_client_headers_on_success. The display name comes from
+    // the JWT metadata via Envoy's Lua envoy_on_response filter.
+    const authEmail = loginInfoResponse.headers.get("x-auth-request-email");
+    const authPreferredUsername = loginInfoResponse.headers.get("x-auth-request-preferred-username");
+    if (authEmail || authPreferredUsername) {
+      this.isOAuth2ProxySession = true;
+      const displayName = loginInfoResponse.headers.get("x-osmo-name");
+      this.claims = {
+        email: authEmail ?? authPreferredUsername ?? "",
+        preferred_username: authPreferredUsername ?? authEmail ?? "",
+        name: displayName ?? authPreferredUsername ?? authEmail ?? "",
+      } as AuthClaims;
       return;
     }
 
@@ -232,6 +248,16 @@ class Auth {
   }
 
   async logout() {
+    this.claims = null;
+    this.id_token = "";
+    this.refresh_token = "";
+
+    if (this.isOAuth2ProxySession) {
+      window.location.href = "/oauth2/sign_out";
+      return;
+    }
+
+    // Legacy cookie-based logout
     if (env.NEXT_PUBLIC_OSMO_ENV === "local-against-production") {
       localStorage.removeItem("IdToken");
       localStorage.removeItem("RefreshToken");
@@ -239,9 +265,6 @@ class Auth {
       setCookies("IdToken", "", -1);
       setCookies("RefreshToken", "", -1);
     }
-    this.claims = null;
-    this.id_token = "";
-    this.refresh_token = "";
 
     const res = await fetch(`/auth/logout`, { cache: "no-store" });
     const data = await res.json();

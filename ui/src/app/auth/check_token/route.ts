@@ -17,6 +17,8 @@ import { env } from "~/env.mjs";
 import { getRequestScheme } from "~/utils/common";
 
 export async function GET(request: Request) {
+  // x-osmo-auth is set by Envoy's Lua filter (copies from Authorization: Bearer
+  // set by OAuth2 Proxy). For legacy flow, it comes from the browser request.
   const id_token = request.headers.get("x-osmo-auth") ?? "";
   const osmoHeaders = { headers: { "x-osmo-auth": id_token } };
 

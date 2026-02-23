@@ -612,9 +612,9 @@ def create_role(role_type: SetRoleType, role_name: str, field_name: str | None =
             policies=[
                 role.RolePolicy(
                     actions=[
-                        f'http:/api/pool/{pool_name}*:post',
-                        'http:/api/profile/*:*',
+                        'workflow:*',
                     ],
+                    resources=[f'pool/{pool_name}*'],
                 )
             ]
         )
@@ -627,13 +627,11 @@ def create_role(role_type: SetRoleType, role_name: str, field_name: str | None =
             policies=[
                 role.RolePolicy(
                     actions=[
-                        f'http:/api/agent/listener/*/*/{field_name}:*',
-                        f'http:/api/agent/worker/*/*/{field_name}:*',
-                        'http:/api/pool/*:get',
-                        'http:/api/configs/backend:get',
-                        'http:/api/configs/backend*:get',
-                        'http:/api/profile/*:*',
+                        'internal:Operator',
+                        'pool:List',
+                        'config:Read',
                     ],
+                    resources=[f'backend/{field_name}'],
                 )
             ]
         )

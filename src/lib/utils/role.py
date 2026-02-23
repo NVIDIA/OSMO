@@ -18,21 +18,28 @@ SPDX-License-Identifier: Apache-2.0
 
 import enum
 import re
-from typing import Annotated, Any, Dict, List, Optional
+from enum import Enum
+from typing import Any, Dict, List
 
 import pydantic
 
 from . import osmo_errors
 
 
-ROLE_ACTION_BASE = r'(?P<base>http)'
-ROLE_ACTION_PATH = r'(?P<path>(\*|(!?)/([^:]+)))'
-ROLE_ACTION_METHOD = r'(?P<method>(\*|([a-zA-Z]+)))'
-ROLE_ACTION = f'^{ROLE_ACTION_BASE}:{ROLE_ACTION_PATH}:{ROLE_ACTION_METHOD}$'
-RoleActionBasePattern = Annotated[str, pydantic.Field(regex=f'^{ROLE_ACTION_BASE}$')]
-RoleActionPathPattern = Annotated[str, pydantic.Field(regex=f'^{ROLE_ACTION_PATH}$')]
-RoleActionMethodPattern = Annotated[str, pydantic.Field(regex=f'^{ROLE_ACTION_METHOD}$')]
-RoleActionPattern = Annotated[str, pydantic.Field(regex=ROLE_ACTION)]
+# Semantic action pattern: resource:Action (e.g., "workflow:Create", "*:*")
+SEMANTIC_ACTION_PATTERN = re.compile(r'^(\*|[a-z]+):(\*|[A-Z][a-zA-Z]*)$')
+
+
+def validate_semantic_action(value: str) -> str:
+    """
+    Validate a single semantic action string. Raises OSMOUserError if invalid.
+    Use when constructing or appending actions outside RolePolicy (e.g. in migrations).
+    """
+    if not SEMANTIC_ACTION_PATTERN.match(value):
+        raise osmo_errors.OSMOUserError(
+            f'Invalid action format: {value}. '
+            'Expected format: "resource:Action" (e.g., "workflow:Create", "*:*")')
+    return value
 
 
 class SyncMode(str, enum.Enum):
@@ -48,73 +55,48 @@ class SyncMode(str, enum.Enum):
     IGNORE = 'ignore'
 
 
-class RoleAction(pydantic.BaseModel):
-    """ Single Role Action Entry """
-    base: RoleActionBasePattern
-    path: RoleActionPathPattern
-    method: RoleActionMethodPattern
+class PolicyEffect(str, Enum):
+    """Effect of a policy statement: Allow or Deny. Deny takes precedence over Allow."""
 
-    @classmethod
-    def from_action(cls, action: str) -> 'RoleAction':
-        parsed_action = re.fullmatch(ROLE_ACTION, action)
-
-        if not parsed_action:
-            raise osmo_errors.OSMOUserError(f'Invalid action: {action}')
-
-        return cls(base=parsed_action.group('base'),
-                   path=parsed_action.group('path'),
-                   method=parsed_action.group('method'))
-
-    @classmethod
-    def to_str(cls, base: str, path: str, method: str) -> str:
-        """Combines the base, path and method fields into a single action string"""
-        return f'{base}:{path}:{method}'
-
-    def __lt__(self, other: 'RoleAction') -> bool:
-        """Compare RoleActions by their string representation for sorting"""
-        return self.to_str(self.base, self.path, self.method) < \
-            other.to_str(other.base, other.path, other.method)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'base': self.base,
-            'path': self.path,
-            'method': self.method
-        }
+    ALLOW = 'Allow'
+    DENY = 'Deny'
 
 
 class RolePolicy(pydantic.BaseModel):
-    """ Single Role Policy Entry """
-    actions: List[RoleAction]
+    """
+    Single Role Policy Entry.
 
-    # Allow users to enter string format to be converted to RoleAction
+    Contains a list of actions (semantic format "resource:Action") and optional
+    resources the policy applies to. If effect is Deny and the policy matches,
+    access is denied even if another policy allows it.
+
+    Actions are validated via regex; API/DB still use [{"action": "..."}] for
+    compatibility with the Go authz_sidecar.
+    """
+    effect: PolicyEffect = PolicyEffect.ALLOW
+    actions: List[str]
+    # Resources this policy applies to (e.g., ["*"], ["pool/production"], ["bucket/*"])
+    # If empty or not specified, the policy applies to all resources ("*")
+    resources: List[str] = pydantic.Field(default_factory=list)
+
     @pydantic.validator('actions', pre=True)
     @classmethod
-    def validate_actions(cls, value) -> List[RoleAction]:
-        actions = []
-        for action in value:
-            if isinstance(action, str):
-                action_info = RoleAction.from_action(action)
-
-                valid_methods = ['*', 'get', 'post', 'put', 'patch', 'delete', 'websocket']
-                if action_info.method.lower() not in valid_methods:
-                    raise osmo_errors.OSMOUserError(f'Invalid method: {action_info.method}. '
-                                                    f'Method must be one of: {valid_methods}')
-                if action_info.method != '*':
-                    action_info.method = action_info.method[0].upper()\
-                        + action_info.method[1:].lower()
-
-                actions.append(RoleAction(base=action_info.base,
-                                          path=action_info.path,
-                                          method=action_info.method))
-            else:
-                actions.append(action)
-        return actions
+    def validate_actions(cls, value) -> List[str]:
+        """Parse and validate actions from various input formats."""
+        return [validate_semantic_action(action) for action in value]
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
-            'actions': [action.to_dict() for action in sorted(self.actions)]
+        """
+        Convert to dict. Actions emitted as list of strings (Go accepts
+        strings or legacy objects).
+        """
+        result: Dict[str, Any] = {
+            'effect': self.effect.value,
+            'actions': sorted(self.actions)
         }
+        if self.resources:
+            result['resources'] = self.resources
+        return result
 
 
 class Role(pydantic.BaseModel):
@@ -131,20 +113,7 @@ class Role(pydantic.BaseModel):
     policies: List[RolePolicy]
     immutable: bool = False
     sync_mode: SyncMode = SyncMode.IMPORT
-    external_roles: Optional[List[str]] = None
-
-    @classmethod
-    def parse_actions_as_strings(cls, data: List[Dict])\
-        -> List[Dict]:
-        """ Parse the actions as strings """
-        data_list = []
-        for role in data:
-            role['policies'] = [{
-                'actions': [RoleAction.to_str(action['base'], action['path'], action['method'])
-                            for action in policy['actions']]
-            } for policy in role['policies']]
-            data_list.append(role)
-        return data_list
+    external_roles: List[str] | None = None
 
     def to_dict(self) -> Dict[str, Any]:
         result = {

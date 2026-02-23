@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -32,29 +32,25 @@ Workflow Logs
 Run the following commands to configure the workflow spec and log storage location in OSMO. Make sure to replace the placeholders with the actual values.
 
 .. code-block:: bash
-  :emphasize-lines: 2, 4, 5, 8
-
-  # URI of your s3 bucket e.g. s3://my_bucket
-  $ export BACKEND_URI=...
-
-  $ export ACCESS_KEY_ID=...
-  $ export ACCESS_KEY=...
-
-  # Bucket Region
-  $ export REGION=...
 
   $ cat << EOF > /tmp/workflow_log_config.json
   {
     "workflow_log": {
         "credential": {
-            "endpoint": "'$BACKEND_URI'",
-            "access_key_id": "'$ACCESS_KEY_ID'",
-            "access_key": "'$ACCESS_KEY'",
-            "region": "'$REGION'"
+            "endpoint": "s3://my_bucket/workflows",
+            "access_key_id": "EXAMPLE_ACCESS_KEY_ID",
+            "access_key": "EXAMPLE_ACCESS_KEY",
+            "region": "us-east-1",
+            "override_url": "http://minio:9000" # Optional: HTTP endpoint for non-AWS S3
         }
     }
   }
   EOF
+
+.. note::
+
+   ``override_url`` is optional. Set it only when using non-AWS S3-compatible services
+   (MinIO, Ceph, LocalStack). Leave it empty or omit it for standard AWS S3.
 
 Then, update the workflow configuration using the OSMO CLI. Please make sure you're logged in to your OSMO instance before running the following command.
 
@@ -69,29 +65,25 @@ Workflow Data
 Configure the storage location for intermediate data that OSMO uses to pass outputs between workflow tasks. Replace the placeholders with your actual values.
 
 .. code-block:: bash
-  :emphasize-lines: 2, 4, 5, 8
-
-  # URI of your s3 bucket e.g. s3://my_bucket
-  $ export BACKEND_URI=...
-
-  $ export ACCESS_KEY_ID=...
-  $ export ACCESS_KEY=...
-
-  # Bucket Region
-  $ export REGION=...
 
   $ cat << EOF > /tmp/workflow_data_config.json
   {
     "workflow_data": {
         "credential": {
-            "endpoint": "'$BACKEND_URI'",
-            "access_key_id": "'$ACCESS_KEY_ID'",
-            "access_key": "'$ACCESS_KEY'",
-            "region": "'$REGION'"
+            "endpoint": "s3://my_bucket/workflows",
+            "access_key_id": "EXAMPLE_ACCESS_KEY_ID",
+            "access_key": "EXAMPLE_ACCESS_KEY",
+            "region": "us-east-1",
+            "override_url": "http://minio:9000" # Optional: HTTP endpoint for non-AWS S3
         }
     }
   }
   EOF
+
+.. note::
+
+   ``override_url`` is optional. Set it only when using non-AWS S3-compatible services
+   (MinIO, Ceph, LocalStack). Leave it empty or omit it for standard AWS S3.
 
 Then, update the workflow data configuration using the OSMO CLI. Please make sure you're logged in to your OSMO instance before running the following command.
 
