@@ -4391,7 +4391,14 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    'workflow:*',
+                    'workflow:List',
+                    'workflow:Read',
+                    'workflow:Update',
+                    'workflow:Delete',
+                    'workflow:Cancel',
+                    'workflow:Exec',
+                    'workflow:PortForward',
+                    'workflow:Rsync',
                     'dataset:*',
                     'credentials:*',
                     'pool:List',
