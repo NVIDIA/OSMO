@@ -1,0 +1,102 @@
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  SPDX-License-Identifier: Apache-2.0
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 390" width="600" height="390">
+  <defs>
+    <style>
+      .root-box        { fill: #f0f0f0; stroke: #777777; stroke-width: 1.5; }
+      .root-text       { fill: #333333; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .constraint-box  { fill: #76b900; stroke: none; }
+      .constraint-key  { fill: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 13px; font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+      .constraint-grp  { fill: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+      .constraint-type { fill: #333333; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 10px; font-style: italic; text-anchor: middle; dominant-baseline: middle; }
+      .task-box        { fill: #3d6600; stroke: none; }
+      .task-text       { fill: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; font-weight: 500; text-anchor: middle; dominant-baseline: middle; }
+      .edge            { stroke: #aaaaaa; stroke-width: 1.5; fill: none; }
+      .legend-label    { fill: #555555; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 11px; text-anchor: start; dominant-baseline: middle; }
+
+      @media (prefers-color-scheme: dark) {
+        .root-box        { fill: #3a3a3a; stroke: #aaaaaa; }
+        .root-text       { fill: #e0e0e0; }
+        .constraint-box  { fill: #4a7c00; }
+        .constraint-key  { fill: #e8f5d0; }
+        .constraint-grp  { fill: #d8f0b0; }
+        .constraint-type { fill: #c8e890; }
+        .task-box        { fill: #2d5500; }
+        .task-text       { fill: #d8f0b0; }
+        .edge            { stroke: #666666; }
+        .legend-label    { fill: #aaaaaa; }
+      }
+    </style>
+  </defs>
+
+  <!-- Root -->
+  <rect class="root-box" x="250" y="15" width="100" height="34" rx="6"/>
+  <text class="root-text" x="300" y="32">Root</text>
+
+  <!-- Root → Zone -->
+  <line class="edge" x1="300" y1="49" x2="300" y2="95"/>
+
+  <!-- Zone (coarser) -->
+  <rect class="constraint-box" x="160" y="95" width="280" height="72" rx="6"/>
+  <text class="constraint-key"  x="300" y="113">key: zone</text>
+  <text class="constraint-grp"  x="300" y="131">group: workflow-group</text>
+  <text class="constraint-type" x="300" y="149">required</text>
+
+  <!-- Zone → GPU-clique nodes -->
+  <line class="edge" x1="300" y1="167" x2="150" y2="203"/>
+  <line class="edge" x1="300" y1="167" x2="450" y2="203"/>
+
+  <!-- GPU-clique left (finer) -->
+  <rect class="constraint-box" x="48" y="203" width="204" height="72" rx="6"/>
+  <text class="constraint-key"  x="150" y="221">key: gpu-clique</text>
+  <text class="constraint-grp"  x="150" y="239">group: model-1-group</text>
+  <text class="constraint-type" x="150" y="257">required</text>
+
+  <!-- GPU-clique right (finer) -->
+  <rect class="constraint-box" x="348" y="203" width="204" height="72" rx="6"/>
+  <text class="constraint-key"  x="450" y="221">key: gpu-clique</text>
+  <text class="constraint-grp"  x="450" y="239">group: model-2-group</text>
+  <text class="constraint-type" x="450" y="257">required</text>
+
+  <!-- GPU-left → tasks -->
+  <line class="edge" x1="150" y1="275" x2="88"  y2="315"/>
+  <line class="edge" x1="150" y1="275" x2="213" y2="315"/>
+
+  <!-- GPU-right → tasks -->
+  <line class="edge" x1="450" y1="275" x2="388" y2="315"/>
+  <line class="edge" x1="450" y1="275" x2="513" y2="315"/>
+
+  <!-- Tasks -->
+  <rect class="task-box" x="33"  y="315" width="110" height="30" rx="4"/>
+  <text class="task-text" x="88"  y="330">model1-shard1</text>
+
+  <rect class="task-box" x="158" y="315" width="110" height="30" rx="4"/>
+  <text class="task-text" x="213" y="330">model1-shard2</text>
+
+  <rect class="task-box" x="333" y="315" width="110" height="30" rx="4"/>
+  <text class="task-text" x="388" y="330">model2-shard1</text>
+
+  <rect class="task-box" x="458" y="315" width="110" height="30" rx="4"/>
+  <text class="task-text" x="513" y="330">model2-shard2</text>
+
+  <!-- Legend -->
+  <rect class="constraint-box" x="33"  y="361" width="14" height="14" rx="2"/>
+  <text class="legend-label"   x="52"  y="368">Topology constraint node</text>
+  <rect class="task-box"       x="255" y="361" width="14" height="14" rx="2"/>
+  <text class="legend-label"   x="274" y="368">Task node</text>
+</svg>
