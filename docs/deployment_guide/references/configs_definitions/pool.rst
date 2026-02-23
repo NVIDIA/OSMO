@@ -113,6 +113,12 @@ Pool
      - Dict[String, `Platform`_]
      - Dictionary of platform configurations available in this pool.
      - ``{}``
+   * - ``topology_keys``
+     - Array[`TopologyKey`_]
+     - Ordered list of topology levels available in this pool, from coarsest to finest
+       granularity. Enables topology-aware scheduling when non-empty. Only supported on pools
+       backed by KAI Scheduler v0.10 or later. See :ref:`concepts_topology` for details.
+     - ``[]``
 
 .. _pool_config-resource-constraint:
 
@@ -147,6 +153,28 @@ For more explanations and examples, see :ref:`scheduler`.
   To set up priority and preemption for pools sharing the same resource nodes, admins need to configure ALL pools
   with the `guarantee`, `weight`, and `maximum` settings. Otherwise, preemption will not be enabled across pools
   (e.g. Pool A cannot preempt a workflow from Pool B).
+
+TopologyKey
+===========
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 12 43 20
+
+   * - **Field**
+     - **Type**
+     - **Description**
+     - **Default Values**
+   * - ``key``
+     - String
+     - User-friendly name for this topology level. This is the name users reference in their
+       workflow spec ``topology`` requirements (e.g., ``zone``, ``rack``, ``gpu-clique``).
+     - Required field
+   * - ``label``
+     - String
+     - The Kubernetes node label used to identify nodes at this topology level
+       (e.g., ``topology.kubernetes.io/zone``, ``nvidia.com/gpu-clique``).
+     - Required field
 
 Platform
 ========
