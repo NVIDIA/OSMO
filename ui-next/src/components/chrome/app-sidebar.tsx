@@ -16,12 +16,13 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Link } from "@/components/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine, BookOpen, Terminal, Copy, Check } from "lucide-react";
 import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config";
 import { useNavigation } from "@/lib/navigation/use-navigation";
+import { useMounted } from "@/hooks/use-mounted";
 import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
 import { cn, formatHotkey } from "@/lib/utils";
 import { useCopy } from "@/hooks/use-copy";
@@ -75,15 +76,11 @@ export function AppSidebar() {
   // Get navigation from hook (server-driven when wired up)
   const { sections, isLoading } = useNavigation();
 
-  // PPR: Defer pathname reading to client effect
-  // During prerender/SSR, activePath is null so no items are highlighted
-  // After hydration, activePath updates and correct item highlights
+  // PPR: activePath is null during prerender/SSR so no items are highlighted.
+  // useMounted returns false on server + first hydration render, true after.
   const pathname = usePathname();
-  const [activePath, setActivePath] = useState<string | null>(null);
-
-  useEffect(() => {
-    setActivePath(pathname);
-  }, [pathname]);
+  const mounted = useMounted();
+  const activePath = mounted ? pathname : null;
 
   // Active state only applies after client hydration
   const isItemActive = useCallback(

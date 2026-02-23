@@ -30,7 +30,7 @@
 
 "use client";
 
-import { useState, useMemo, memo, useCallback } from "react";
+import { useState, useMemo, memo, useCallback, useId } from "react";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import {
@@ -80,6 +80,7 @@ export const PoolSelect = memo(function PoolSelect({
   onDropdownOpenChange,
 }: PoolSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const listId = useId();
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
@@ -111,6 +112,7 @@ export const PoolSelect = memo(function PoolSelect({
           variant="outline"
           role="combobox"
           aria-expanded={isOpen}
+          aria-controls={listId}
           aria-label="Select target pool"
           className={cn(
             "h-auto min-h-[44px] w-full justify-between",
@@ -139,7 +141,7 @@ export const PoolSelect = memo(function PoolSelect({
             placeholder={isLoading ? "Loading pools..." : "Search pools..."}
             disabled={isLoading}
           />
-          <CommandList>
+          <CommandList id={listId}>
             {isLoading ? (
               <div className="flex flex-col items-center justify-center gap-3 py-8">
                 <Loader2 className="text-muted-foreground size-6 animate-spin" />

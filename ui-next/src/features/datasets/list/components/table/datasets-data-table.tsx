@@ -27,8 +27,8 @@
 
 "use client";
 
-import { useMemo, useCallback, useRef, useEffect, memo } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useMemo, useCallback, useRef, memo } from "react";
+import { useRouter } from "next/navigation";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
@@ -127,21 +127,8 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   isFetchingNextPage = false,
 }: DatasetsDataTableProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();
-
-  // Track current URL in a ref for use in navigation callbacks.
-  // pathname and searchParams change identity on every URL update, but we only
-  // need them at click-time (for breadcrumb origin), not for rendering.
-  // Using a ref avoids recreating handleRowClick on every URL change.
-  // Updated via useEffect (not during render) per React Compiler rules.
-  const currentUrlRef = useRef("");
-  useEffect(() => {
-    const search = searchParams.toString();
-    currentUrlRef.current = search ? `${pathname}?${search}` : pathname;
-  }, [pathname, searchParams]);
 
   // Shared preferences (hydration-safe)
   const compactMode = useCompactMode();
@@ -182,7 +169,8 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   const navigateToDataset = useCallback(
     (dataset: Dataset) => {
       const detailPath = `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
-      setOrigin(detailPath, currentUrlRef.current);
+      const currentUrl = window.location.pathname + window.location.search;
+      setOrigin(detailPath, currentUrl);
       startTransition(() => {
         router.push(detailPath);
       });

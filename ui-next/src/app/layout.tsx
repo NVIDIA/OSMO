@@ -113,29 +113,6 @@ export default function RootLayout({
       className="scroll-smooth"
       data-scroll-behavior="smooth"
     >
-      <head>
-        {/* Preconnect for faster resource loading */}
-        {/* Fonts - preconnect reduces connection setup time by ~100-200ms */}
-        <link
-          rel="preconnect"
-          href="https://fonts.googleapis.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* DNS prefetch as fallback for browsers that don't support preconnect */}
-        <link
-          rel="dns-prefetch"
-          href="//fonts.googleapis.com"
-        />
-        <link
-          rel="dns-prefetch"
-          href="//fonts.gstatic.com"
-        />
-      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         // Prevent text size adjustment on orientation change

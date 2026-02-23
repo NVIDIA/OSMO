@@ -32,6 +32,7 @@
 "use client";
 
 import { useCallback, memo } from "react";
+import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, AlertCircle, RefreshCw, Lock } from "lucide-react";
 import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
@@ -225,11 +226,15 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
   if (contentType.startsWith("image/")) {
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src={proxyUrl}
           alt="File preview"
-          className="max-h-full max-w-full rounded object-contain"
+          width={0}
+          height={0}
+          sizes="100%"
+          style={{ width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%" }}
+          className="rounded object-contain"
+          unoptimized
         />
       </div>
     );
