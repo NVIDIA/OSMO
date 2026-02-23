@@ -15,11 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/features/workflows/detail/lib/workflow-types";
-import { getStatusCategory, STATUS_STYLES, type StatusCategory } from "@/features/workflows/detail/lib/status";
+import { getStatusCategory, getStatusIcon, STATUS_STYLES } from "@/features/workflows/detail/lib/status";
 import type { TaskWithDuration } from "@/features/workflows/detail/lib/workflow-types";
 import {
   TASK_COLUMN_SIZE_CONFIG,
@@ -28,14 +27,6 @@ import {
 } from "@/features/workflows/detail/lib/task-columns";
 import { formatDateTimeSuccinct, formatDateTimeFull } from "@/lib/format-date";
 import { TaskNameCell } from "@/features/workflows/detail/components/table/tree/task-name-cell";
-
-const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
-  waiting: Clock,
-  pending: Loader2,
-  running: Loader2,
-  completed: CheckCircle2,
-  failed: XCircle,
-};
 
 function getMinSize(id: TaskColumnId): number {
   const col = TASK_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
@@ -71,11 +62,10 @@ export function createTaskColumns(): ColumnDef<TaskWithDuration, unknown>[] {
         const status = row.original.status;
         const category = getStatusCategory(status);
         const styles = STATUS_STYLES[category];
-        const Icon = STATUS_ICONS[category];
 
         return (
           <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
-            <Icon className={cn("size-3.5", styles.text, category === "running" && "animate-spin")} />
+            {getStatusIcon(status, "size-3.5")}
             <span className={cn("text-xs font-semibold", styles.text)}>{status}</span>
           </span>
         );

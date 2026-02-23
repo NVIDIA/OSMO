@@ -17,7 +17,7 @@
 // NOTE: Only submit_time is sortable (backend limitation)
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, ArrowUp, ArrowDown, Minus } from "lucide-react";
+import { AlertTriangle, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
@@ -31,19 +31,10 @@ import {
   getStatusDisplay,
   STATUS_STYLES,
   getPriorityDisplay,
-  type StatusCategory,
 } from "@/features/workflows/list/lib/workflow-constants";
+import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus } from "@/lib/api/generated";
-
-const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
-  waiting: Clock,
-  pending: Loader2,
-  running: Loader2,
-  completed: CheckCircle2,
-  failed: XCircle,
-  unknown: AlertTriangle,
-};
 
 const PRIORITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   HIGH: ArrowUp,
@@ -82,7 +73,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       cell: ({ row }) => {
         const { category, label } = getStatusDisplay(row.original.status);
         const styles = STATUS_STYLES[category];
-        const Icon = STATUS_ICONS[category];
+        const Icon = WORKFLOW_STATUS_ICONS[category];
 
         return (
           <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>

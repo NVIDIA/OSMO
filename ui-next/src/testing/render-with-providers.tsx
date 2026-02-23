@@ -162,7 +162,7 @@ export function TestProviders({
  * @example
  * ```tsx
  * import { render, screen } from '@testing-library/react';
- * import { renderWithProviders } from '@/test-utils';
+ * import { renderWithProviders } from '@/testing';
  *
  * test('displays pool name', () => {
  *   renderWithProviders(<PoolCard pool={mockPool} />);

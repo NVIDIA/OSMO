@@ -27,6 +27,7 @@ import {
   isTaskTerminal,
   isTaskInQueue,
 } from "@/lib/api/status-metadata.generated";
+import { WORKFLOW_STATUS_LABELS } from "@/lib/workflows/workflow-status-primitives";
 
 export type { StatusCategory };
 export { TASK_STATUS_METADATA, getTaskStatusCategory, isTaskFailed, isTaskOngoing, isTaskTerminal, isTaskInQueue };
@@ -99,23 +100,10 @@ export const STATUS_DESCRIPTIONS: Record<TaskGroupStatus | WorkflowStatus, strin
 } as const;
 
 export const STATUS_LABELS: Record<string, string> = {
-  COMPLETED: "Completed",
+  ...WORKFLOW_STATUS_LABELS,
   RESCHEDULED: "Rescheduled",
-  RUNNING: "Running",
   INITIALIZING: "Initializing",
-  FAILED: "Failed",
-  FAILED_CANCELED: "Failed: Canceled",
-  FAILED_SERVER_ERROR: "Failed: Server Error",
-  FAILED_BACKEND_ERROR: "Failed: Backend Error",
-  FAILED_EXEC_TIMEOUT: "Failed: Exec Timeout",
-  FAILED_QUEUE_TIMEOUT: "Failed: Queue Timeout",
-  FAILED_IMAGE_PULL: "Failed: Image Pull",
   FAILED_UPSTREAM: "Failed: Upstream",
-  FAILED_EVICTED: "Failed: Evicted",
-  FAILED_START_ERROR: "Failed: Start Error",
-  FAILED_START_TIMEOUT: "Failed: Start Timeout",
-  FAILED_PREEMPTED: "Failed: Preempted",
-  WAITING: "Waiting",
   SCHEDULING: "Scheduling",
   SUBMITTING: "Submitting",
   PROCESSING: "Processing",

@@ -130,7 +130,7 @@ src/
 ├── contexts/                      # React contexts
 ├── styles/                        # Global CSS
 ├── mocks/                         # MSW mock handlers (dev only)
-└── test-utils/                    # Vitest test helpers
+└── testing/                       # Vitest test helpers
 ```
 
 **Why keep `(dashboard)` route group?**

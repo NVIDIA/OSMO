@@ -64,13 +64,13 @@ const eslintConfig = defineConfig([
             },
             // Enforce one-way boundary: shared modules must not import app or features.
             {
-              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/test-utils", "./src/mocks"],
+              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/testing", "./src/mocks"],
               from: "./src/app",
               message:
                 "Shared modules must not import from src/app route internals.",
             },
             {
-              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/test-utils", "./src/mocks"],
+              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/testing", "./src/mocks"],
               from: "./src/features",
               message:
                 "Shared modules must not import from src/features. Lift shared concerns into shared modules instead.",

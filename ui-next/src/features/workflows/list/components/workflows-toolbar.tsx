@@ -17,7 +17,7 @@
 "use client";
 
 import { memo, useMemo } from "react";
-import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle, User } from "lucide-react";
+import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
@@ -31,17 +31,9 @@ import {
   createPresetChips,
   type StatusPresetId,
 } from "@/features/workflows/list/lib/workflow-search-fields";
-import { STATUS_STYLES, type StatusCategory } from "@/features/workflows/list/lib/workflow-constants";
+import { STATUS_STYLES } from "@/features/workflows/list/lib/workflow-constants";
+import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { useWorkflowAsyncFields } from "@/features/workflows/list/hooks/use-workflow-async-fields";
-
-const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
-  waiting: Clock,
-  pending: Loader2,
-  running: Loader2,
-  completed: CheckCircle2,
-  failed: XCircle,
-  unknown: AlertTriangle,
-};
 
 const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
   { id: "running", label: "Running" },
@@ -126,7 +118,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
     (): SearchPreset[] =>
       STATUS_PRESET_CONFIG.map(({ id, label }) => {
         const styles = STATUS_STYLES[id];
-        const Icon = STATUS_ICONS[id];
+        const Icon = WORKFLOW_STATUS_ICONS[id];
 
         return {
           id,

@@ -20,8 +20,8 @@
  * Manages all log viewer filter and time range state via URL query parameters.
  * This enables shareable/bookmarkable log views.
  *
- * This hook composes two focused hooks:
- * - `useFilterChipsUrlState` - Filter chips (level, task, retry, source)
+ * This hook composes:
+ * - `useUrlChips` - Filter chips (level, task, retry, source)
  * - `useTimeRangeUrlState` - Time range with presets and live mode
  *
  * ## URL Parameter Format
@@ -71,8 +71,8 @@
 "use client";
 
 import type { SearchChip } from "@/components/filter-bar/lib/types";
+import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
 import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/timeline-container";
-import { useFilterChipsUrlState } from "@/components/log-viewer/lib/use-filter-chips-url-state";
 import { useTimeRangeUrlState } from "@/components/log-viewer/lib/use-time-range-url-state";
 
 // =============================================================================
@@ -191,7 +191,7 @@ export function validateTimeRange(
 /**
  * URL-synced state for log viewer filters and time range.
  *
- * This hook composes useFilterChipsUrlState and useTimeRangeUrlState
+ * This hook composes useUrlChips and useTimeRangeUrlState
  * to provide a unified interface for all URL-synced state.
  *
  * Presets are resolved to actual start/end times in the URL.
@@ -208,8 +208,11 @@ export function useLogViewerUrlState(options?: UseLogViewerUrlStateOptions): Use
     throw new Error("useLogViewerUrlState: 'now' parameter is required");
   }
 
-  // Delegate to focused hooks
-  const { filterChips, setFilterChips } = useFilterChipsUrlState();
+  // Reuse shared filter-bar URL chip hook for log-viewer filters.
+  const { searchChips: filterChips, setSearchChips } = useUrlChips({ paramName: "f" });
+  const setFilterChips = (chips: SearchChip[]) => {
+    void setSearchChips(chips, { history: "push" });
+  };
 
   const timeRangeState = useTimeRangeUrlState({
     now: nowMs,

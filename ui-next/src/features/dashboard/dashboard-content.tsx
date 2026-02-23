@@ -23,7 +23,6 @@
 "use client";
 
 import { useMemo, useState, useEffect, startTransition } from "react";
-import { Clock, CheckCircle2, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Link } from "@/components/link";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
@@ -32,7 +31,8 @@ import { useWorkflowsData } from "@/lib/workflows/hooks/use-workflows-data";
 import { usePools, useVersion, useProfile } from "@/lib/api/adapter/hooks";
 import { WorkflowStatus, PoolStatus } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
-import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/workflows/workflow-constants";
+import { getStatusDisplay, STATUS_STYLES } from "@/lib/workflows/workflow-constants";
+import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { STATUS_PRESETS } from "@/lib/workflows/workflow-status-presets";
 
 // =============================================================================
@@ -218,15 +218,6 @@ function VersionFooter() {
   );
 }
 
-const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
-  waiting: Clock,
-  pending: Loader2,
-  running: Loader2,
-  completed: CheckCircle2,
-  failed: XCircle,
-  unknown: AlertTriangle,
-};
-
 interface StatCardProps {
   title: string;
   value?: string | number;
@@ -250,7 +241,7 @@ function StatCard({ title, value, href, color = "text-zinc-900 dark:text-zinc-10
 function StatusBadge({ status }: { status: WorkflowStatus }) {
   const { category, label } = getStatusDisplay(status);
   const styles = STATUS_STYLES[category];
-  const Icon = STATUS_ICONS[category];
+  const Icon = WORKFLOW_STATUS_ICONS[category];
 
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded px-2 py-0.5", styles.bg)}>
