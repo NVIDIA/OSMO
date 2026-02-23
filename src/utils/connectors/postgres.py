@@ -21,7 +21,6 @@ import contextlib
 import copy
 import datetime
 import enum
-import fnmatch
 import json
 import logging
 import math
@@ -41,8 +40,6 @@ import pydantic
 import yaml
 from jwcrypto import jwe  # type: ignore
 from jwcrypto.common import JWException  # type: ignore
-from starlette.datastructures import Headers
-from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.lib.data import storage
 from src.lib.data.storage import constants
@@ -675,8 +672,26 @@ class PostgresConnector:
                 description TEXT,
                 policies JSONB[],
                 immutable BOOLEAN,
+                sync_mode TEXT NOT NULL DEFAULT 'import',
                 PRIMARY KEY (name)
             );
+        """
+        self.execute_commit_command(create_cmd, ())
+
+        # Creates table for role external mappings (many-to-many)
+        create_cmd = """
+            CREATE TABLE IF NOT EXISTS role_external_mappings (
+                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                external_role TEXT NOT NULL,
+                PRIMARY KEY (role_name, external_role)
+            );
+        """
+        self.execute_commit_command(create_cmd, ())
+
+        # Create index for external role lookups
+        create_cmd = """
+            CREATE INDEX IF NOT EXISTS idx_role_external_mappings_external_role
+            ON role_external_mappings (external_role);
         """
         self.execute_commit_command(create_cmd, ())
 
@@ -756,7 +771,6 @@ class PostgresConnector:
                 common_group_templates TEXT[],
                 parsed_group_templates JSONB,
                 enable_maintenance BOOLEAN,
-                action_permissions JSONB,
                 resources JSONB,
                 topology_keys JSONB,
                 PRIMARY KEY (name)
@@ -986,16 +1000,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates table for user keys.
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS ueks (
-                uid TEXT,
-                keys HSTORE,
-                PRIMARY KEY (uid)
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
-
         create_cmd = '''
             CREATE OR REPLACE FUNCTION jsonb_recursive_merge(receivingJson jsonb, givingJson jsonb)
             RETURNS jsonb LANGUAGE SQL AS $$
@@ -1107,18 +1111,12 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates table for access token keys.
+        # Creates table for users (IDP users and service accounts)
         create_cmd = '''
-            CREATE TABLE IF NOT EXISTS access_token (
-                user_name TEXT,
-                token_name TEXT,
-                access_token BYTEA,
-                expires_at TIMESTAMP,
-                description TEXT,
-                access_type TEXT,
-                roles TEXT[],
-                PRIMARY KEY (user_name, token_name, access_type),
-                CONSTRAINT unique_access_token UNIQUE (access_token)
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                created_by TEXT
             );
         '''
         self.execute_commit_command(create_cmd, ())
@@ -1126,7 +1124,7 @@ class PostgresConnector:
         # Creates table for User profile
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS profile (
-                user_name TEXT NOT NULL,
+                user_name TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 slack_notification BOOLEAN,
                 email_notification BOOLEAN,
                 bucket TEXT,
@@ -1135,6 +1133,89 @@ class PostgresConnector:
             );
         '''
         self.execute_commit_command(create_cmd, ())
+
+        # Creates table for user keys.
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS ueks (
+                uid TEXT REFERENCES users(id) ON DELETE CASCADE,
+                keys HSTORE,
+                PRIMARY KEY (uid)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Creates table for user role assignments
+        # Each assignment has a UUID that access_token_roles references for cascading deletes
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS user_roles (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
+                assigned_by TEXT NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                UNIQUE (user_id, role_name)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Create indices for user_roles table
+        index_cmds = [
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_roles_user
+                ON user_roles (user_id);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_roles_role
+                ON user_roles (role_name);
+            '''
+        ]
+        for cmd in index_cmds:
+            self.execute_autocommit_command(cmd, ())
+
+        # Creates table for access token keys (Personal Access Tokens).
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS access_token (
+                user_name TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_name TEXT NOT NULL,
+                access_token BYTEA,
+                expires_at TIMESTAMP,
+                description TEXT,
+                last_seen_at TIMESTAMP WITH TIME ZONE,
+                PRIMARY KEY (user_name, token_name),
+                CONSTRAINT unique_access_token UNIQUE (access_token)
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Creates table for access_token role assignments (subset of user roles)
+        # References user_roles.id so access_token roles are auto-deleted when user loses a role
+        create_cmd = '''
+            CREATE TABLE IF NOT EXISTS access_token_roles (
+                user_name TEXT NOT NULL,
+                token_name TEXT NOT NULL,
+                user_role_id UUID NOT NULL REFERENCES user_roles(id) ON DELETE CASCADE,
+                assigned_by TEXT NOT NULL,
+                assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_name, token_name, user_role_id),
+                FOREIGN KEY (user_name, token_name)
+                    REFERENCES access_token(user_name, token_name) ON DELETE CASCADE
+            );
+        '''
+        self.execute_commit_command(create_cmd, ())
+
+        # Create indices for access_token_roles table
+        index_cmds = [
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_token_roles_token
+                ON access_token_roles (user_name, token_name);
+            ''',
+            '''
+            CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_access_token_roles_user_role
+                ON access_token_roles (user_role_id);
+            '''
+        ]
+        for cmd in index_cmds:
+            self.execute_autocommit_command(cmd, ())
 
         # Creates table for config history
         create_cmd = """
@@ -1277,25 +1358,31 @@ class PostgresConnector:
             )
 
     def create_default_roles(self):
-        # Populate with roles or updated default roles
+        """
+        Populate the database with default roles or update existing default roles.
+
+        This method ensures that all default roles exist in the database and that
+        any new actions defined in DEFAULT_ROLES are added to existing roles.
+        """
         roles = Role.list_from_db(self)
         updated_roles = False
 
-        role_objects = {role.name: role for role in roles}
+        role_objects = {r.name: r for r in roles}
         for default_role_name, default_role_object in DEFAULT_ROLES.items():
             if default_role_name not in role_objects:
                 default_role_object.insert_into_db(self, force=True)
             else:
-                # Add any action in default_role_object that isn't in role_object's actions,
-                # then insert into db
+                # Add any action in default_role_object that isn't in existing role
                 existing_role = role_objects[default_role_name]
+
                 # Flatten actions for comparison
                 def flatten_actions(policies):
                     return set(
-                        (action.base, action.path, action.method)
+                        action
                         for policy in policies
                         for action in getattr(policy, 'actions', [])
                     )
+
                 existing_actions = flatten_actions(existing_role.policies)
                 default_actions = flatten_actions(default_role_object.policies)
 
@@ -1303,21 +1390,12 @@ class PostgresConnector:
                 missing_actions = default_actions - existing_actions
                 if missing_actions:
                     # Add missing actions to the first policy of the existing role
-                    # (or create if none)
                     if not existing_role.policies:
-                        # If no policies exist, copy from default
                         existing_role.policies = default_role_object.policies
                     else:
-                        # Add missing actions to the first policy
-                        for base, path, method in missing_actions:
-                            # Find the policy in default_role_object that has this action
-                            for policy in default_role_object.policies:
-                                for action in getattr(policy, 'actions', []):
-                                    if (action.base, action.path, action.method) == \
-                                        (base, path, method):
-                                        # Add to the first policy of existing_role
-                                        existing_role.policies[0].actions.append(action)
-                                        break
+                        for action_str in missing_actions:
+                            role.validate_semantic_action(action_str)
+                            existing_role.policies[0].actions.append(action_str)
                     existing_role.insert_into_db(self, force=True)
                     updated_roles = True
 
@@ -1382,6 +1460,7 @@ class PostgresConnector:
                             access_key_id=bucket.default_credential.access_key_id,
                             access_key=bucket.default_credential.access_key,
                             endpoint=bucket_info.profile,
+                            override_url=bucket.default_credential.override_url,
                         )
                     break
 
@@ -1411,7 +1490,8 @@ class PostgresConnector:
                     region=bucket.region,
                     access_key_id=bucket.default_credential.access_key_id,
                     access_key=bucket.default_credential.access_key,
-                    endpoint=bucket_info.profile
+                    endpoint=bucket_info.profile,
+                    override_url=bucket.default_credential.override_url,
                 )
         return user_creds
 
@@ -1539,6 +1619,109 @@ class PostgresConnector:
         return [user_row['user_name'] for user_row in user_rows]
 
 
+def upsert_user(database: PostgresConnector, user_name: str):
+    """
+    Create a user in the users table if they don't exist.
+    If the user already exists, this is a no-op.
+    """
+    upsert_cmd = '''
+        INSERT INTO users (id, created_at, created_by)
+        VALUES (%s, NOW(), %s)
+        ON CONFLICT (id) DO NOTHING;
+    '''
+    database.execute_commit_command(upsert_cmd, (user_name, user_name))
+
+
+def sync_user_roles(database: PostgresConnector, user_name: str, external_roles: List[str]):
+    """
+    Synchronize user roles based on external IDP roles and each role's sync_mode.
+
+    External roles from the header are mapped to OSMO roles via the role_external_mappings
+    table, then synced based on each role's sync_mode.
+
+    Sync modes:
+    - ignore: Don't add or remove the role (managed manually)
+    - import: Add the role if user doesn't have it (but don't remove)
+    - force: Add if user doesn't have it, remove if user has it but it's not in header
+
+    Args:
+        database: PostgresConnector instance
+        user_name: The username to sync roles for
+        external_roles: List of external role names from the IDP header
+    """
+    # Single query to get all roles with sync_mode and whether they're mapped from external roles
+    # This combines role lookup, external mapping, and sync_mode in one query
+    fetch_roles_cmd = '''
+        SELECT
+            r.name,
+            r.sync_mode,
+            EXISTS (
+                SELECT 1 FROM role_external_mappings rem
+                WHERE rem.role_name = r.name AND rem.external_role = ANY(%s)
+            ) AS in_header
+        FROM roles r
+        WHERE r.sync_mode != %s;
+    '''
+    all_roles = database.execute_fetch_command(
+        fetch_roles_cmd,
+        (external_roles if external_roles else [], role.SyncMode.IGNORE.value),
+        True
+    )
+    if not all_roles:
+        return
+
+    # Get user's current roles (only for roles we care about)
+    role_names = [r['name'] for r in all_roles]
+    fetch_user_roles_cmd = '''
+        SELECT role_name FROM user_roles
+        WHERE user_id = %s AND role_name = ANY(%s);
+    '''
+    user_role_rows = database.execute_fetch_command(
+        fetch_user_roles_cmd, (user_name, role_names), True
+    )
+    current_user_roles = {row['role_name'] for row in user_role_rows} if user_role_rows else set()
+
+    # Collect roles to add and remove for batch operations
+    roles_to_add = []
+    roles_to_remove = []
+
+    for role_row in all_roles:
+        role_name = role_row['name']
+        sync_mode = role_row['sync_mode']
+        role_in_header = role_row['in_header']
+        user_has_role = role_name in current_user_roles
+
+        if sync_mode == role.SyncMode.IMPORT.value:
+            # Add the role if it's in the header and user doesn't have it
+            if role_in_header and not user_has_role:
+                roles_to_add.append(role_name)
+
+        elif sync_mode == role.SyncMode.FORCE.value:
+            # Add if in header and user doesn't have it
+            if role_in_header and not user_has_role:
+                roles_to_add.append(role_name)
+            # Remove if user has it but it's not in header
+            elif user_has_role and not role_in_header:
+                roles_to_remove.append(role_name)
+
+    # Batch insert roles to add
+    if roles_to_add:
+        insert_cmd = '''
+            INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+            SELECT %s, unnest(%s::text[]), %s, NOW()
+            ON CONFLICT (user_id, role_name) DO NOTHING;
+        '''
+        database.execute_commit_command(insert_cmd, (user_name, roles_to_add, 'idp-sync'))
+
+    # Batch delete roles to remove
+    if roles_to_remove:
+        delete_cmd = '''
+            DELETE FROM user_roles
+            WHERE user_id = %s AND role_name = ANY(%s);
+        '''
+        database.execute_commit_command(delete_cmd, (user_name, roles_to_remove))
+
+
 class UserProfile(pydantic.BaseModel):
     """ Provides all User Profile Information """
     username: str | None = None
@@ -1564,6 +1747,9 @@ class UserProfile(pydantic.BaseModel):
     def insert_into_db(cls, database: PostgresConnector,
                        user_name: str,
                        setting: Dict[str, Any]):
+        # Ensure user exists in users table before creating profile
+        upsert_user(database, user_name)
+
         fields: List[str] = ['user_name']
         values: List = [user_name]
         for key, value in setting.items():
@@ -2682,6 +2868,7 @@ class CliConfig(ExtraArgBaseModel):
     """ Config for storing information regarding CLI storage. """
     latest_version: str | None = None
     min_supported_version: str | None = None
+    client_install_url: str | None = None
 
 
 class ServiceConfig(DynamicConfig):
@@ -3160,23 +3347,6 @@ class Quota(pydantic.BaseModel):
     max_num_gpus: int = 100
 
 
-class PermissionLevel(enum.Enum):
-    """ Permission Level """
-    PUBLIC = 'PUBLIC'
-    POOL = 'POOL'
-    PRIVATE = 'PRIVATE'
-
-
-class ActionPermissions(pydantic.BaseModel):
-    """ Defines permissions for certain actionsfor a pool """
-    execute: PermissionLevel = PermissionLevel.PRIVATE
-    portforward: PermissionLevel = PermissionLevel.PRIVATE
-    cancel: PermissionLevel = PermissionLevel.PRIVATE
-    rsync: PermissionLevel = PermissionLevel.PRIVATE
-
-    class Config:
-        use_enum_values = True
-
 class PoolResourceCountable(pydantic.BaseModel):
     """
     Resources like GPU or CPU that have a discrete number. For guarantee and maximum, a value of -1
@@ -3211,7 +3381,6 @@ class PoolBase(pydantic.BaseModel):
     max_exec_timeout: str = ''
     max_queue_timeout: str = ''
     default_exit_actions: Dict[str, str] = {}
-    action_permissions: ActionPermissions = ActionPermissions()
     resources: PoolResources = PoolResources()
     topology_keys: List[TopologyKey] = []
 
@@ -3345,32 +3514,22 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
     @classmethod
     def fetch_rows_from_db(cls, database: PostgresConnector,
                            backend: str | None = None,
-                           access_names: List[str] | None = None,
                            pools: List[str] | None = None,
                            all_pools: bool = True) -> Any:
         """ Fetches the list of pools from the pools table """
         params : List[str | Tuple] = []
         conditions = []
 
-        if not access_names:
-            access_names = []
+        if not pools:
+            pools = []
 
         if backend:
             conditions.append('pools.backend = %s')
             params.append(backend)
 
-        if pools:
+        if pools or not all_pools:
             conditions.append('pools.name IN %s')
             params.append(tuple(pools))
-        elif not all_pools:
-            # TODO: Derive the pool access based on resource and not the name of the role
-            pool_list = [
-                f'{access_name[len("osmo-"):]}%' for access_name in access_names
-                if access_name.startswith('osmo-')]
-            similar_str = f'({"|".join(pool_list)})'
-            conditions.append(
-                '(pools.name SIMILAR TO %s OR pools.name = %s)')
-            params.extend((similar_str, 'default'))
 
         conditions_clause = '' if not params \
             else f'WHERE {" AND ".join(conditions)}'
@@ -3392,15 +3551,10 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         return pool_rows
 
     @classmethod
-    def get_pools(cls, access_names: List[str], all_pools: bool = False) -> List[str]:
-        """
-        Fetch pool names of pools that are available to the user's given access_names.
-        If access_names has a string called groot, return all pool names that start with
-        'groot'.
-        """
+    def get_all_pool_names(cls) -> List[str]:
+        """Fetch all pool names from the database."""
         database = PostgresConnector.get_instance()
-        return [pool['name'] for pool in cls.fetch_rows_from_db(
-            database, access_names=access_names, all_pools=all_pools)]
+        return [pool['name'] for pool in cls.fetch_rows_from_db(database)]
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
@@ -3578,8 +3732,8 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              common_default_variables, common_resource_validations, parsed_resource_validations,
              common_pod_template, parsed_pod_template,
              common_group_templates, parsed_group_templates,
-             enable_maintenance, action_permissions, resources, topology_keys)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             enable_maintenance, resources, topology_keys)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (name)
             DO UPDATE SET
                 description = EXCLUDED.description,
@@ -3600,7 +3754,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
                 common_group_templates = EXCLUDED.common_group_templates,
                 parsed_group_templates = EXCLUDED.parsed_group_templates,
                 enable_maintenance = EXCLUDED.enable_maintenance,
-                action_permissions = EXCLUDED.action_permissions,
                 resources = EXCLUDED.resources,
                 topology_keys = EXCLUDED.topology_keys;
             '''
@@ -3618,7 +3771,6 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              self.common_pod_template, json.dumps(self.parsed_pod_template),
              self.common_group_templates, json.dumps(self.parsed_group_templates),
              self.enable_maintenance,
-             json.dumps(self.action_permissions, default=common.pydantic_encoder),
              json.dumps(self.resources, default=common.pydantic_encoder),
              json.dumps(self.topology_keys, default=common.pydantic_encoder)))
 
@@ -3646,12 +3798,10 @@ class MinimalPoolConfig(pydantic.BaseModel):
 
 def fetch_verbose_pool_config(database: PostgresConnector,
                               backend: str | None = None,
-                              access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> VerbosePoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
-                                        access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
     return VerbosePoolConfig(
@@ -3660,12 +3810,10 @@ def fetch_verbose_pool_config(database: PostgresConnector,
 
 def fetch_minimal_pool_config(database: PostgresConnector,
                               backend: str | None = None,
-                              access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> MinimalPoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
-                                        access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
     return MinimalPoolConfig(
@@ -3674,12 +3822,10 @@ def fetch_minimal_pool_config(database: PostgresConnector,
 
 def fetch_editable_pool_config(database: PostgresConnector,
                               backend: str | None = None,
-                              access_names: List[str] | None = None,
                               pools: List[str] | None = None,
                               all_pools: bool = True) -> EditablePoolConfig:
     pool_rows = Pool.fetch_rows_from_db(database,
                                         backend=backend,
-                                        access_names=access_names,
                                         pools=pools,
                                         all_pools=all_pools)
     return EditablePoolConfig(
@@ -3858,45 +4004,6 @@ def parse_username(
         user = user_header
     return user
 
-
-async def check_user_access(path: str, request_method: str, request_headers: Headers,
-                            method: str | None = None, domain_access_check: Callable | None = None):
-    if method == 'dev':
-        return None
-
-    postgres = PostgresConnector.get_instance()
-    service_config = postgres.get_service_configs()
-
-    # Check if auth is enabled
-    # If not, allow all requests
-    if not service_config.service_auth.login_info.device_endpoint:
-        return None
-
-    allowed = False
-
-    if domain_access_check:
-        allowed = bool(domain_access_check(request_headers))
-        if allowed:
-            return None
-
-    # Determine if the user has access to the path
-    roles_header = request_headers.get(login.OSMO_USER_ROLES) or ''
-    user_roles = roles_header.split(',') + ['osmo-default']
-
-    # Check if the user has access to the path
-    roles_list = Role.list_from_db(postgres, user_roles)
-    for role_entry in roles_list:
-        allowed = role_entry.has_access(path, request_method)
-        if allowed:
-            break
-
-    if not allowed:
-        return fastapi.responses.JSONResponse(
-            status_code=403,
-            content={'message': 'Forbidden', 'error_code': 403},
-        )
-
-    return None
 
 
 class BackendTestBase(pydantic.BaseModel):
@@ -4242,11 +4349,16 @@ class BackendTests(BackendTestBase):
 
 
 class Role(role.Role):
-    """ Single Role Entry """
+    """
+    Single Role Entry.
+
+    Note: Authorization checking is now handled by the authz_sidecar (Go service).
+    This Python class is only used for role CRUD operations.
+    """
     @classmethod
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> List['Role']:
-        """ Fetches the list of pod templates from the pod template table """
+        """ Fetches the list of roles from the roles table """
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -4255,7 +4367,19 @@ class Role(role.Role):
         fetch_cmd = f'SELECT * FROM roles {list_of_names} ORDER BY name;'
         spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
 
-        return [cls(**spec_row) for spec_row in spec_rows]
+        if not spec_rows:
+            return []
+
+        # Batch fetch all external role mappings for these roles (avoid N+1 queries)
+        role_names = [row['name'] for row in spec_rows]
+        external_roles_map = cls._batch_fetch_external_roles(database, role_names)
+
+        roles = []
+        for spec_row in spec_rows:
+            spec_row['external_roles'] = external_roles_map.get(spec_row['name'], [])
+            roles.append(cls(**spec_row))
+
+        return roles
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Role':
@@ -4264,7 +4388,60 @@ class Role(role.Role):
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
             raise osmo_errors.OSMOUserError(f'Role {name} does not exist.')
-        return cls(**spec_rows[0])
+
+        # Fetch external roles for this role
+        spec_row = spec_rows[0]
+        external_roles = cls._fetch_external_roles(database, name)
+        spec_row['external_roles'] = external_roles
+
+        return cls(**spec_row)
+
+    @classmethod
+    def _fetch_external_roles(cls, database: PostgresConnector, role_name: str) -> List[str]:
+        """ Fetches external role mappings for a given role """
+        return cls._batch_fetch_external_roles(database, [role_name]).get(role_name, [])
+
+    @classmethod
+    def _batch_fetch_external_roles(cls, database: PostgresConnector,
+                                    role_names: List[str]) -> Dict[str, List[str]]:
+        """
+        Batch fetches external role mappings for multiple roles.
+        Returns a dict mapping role_name -> list of external roles.
+        """
+        if not role_names:
+            return {}
+
+        fetch_cmd = '''
+            SELECT role_name, external_role FROM role_external_mappings
+            WHERE role_name = ANY(%s)
+            ORDER BY role_name, external_role;
+        '''
+        rows = database.execute_fetch_command(fetch_cmd, (role_names,), True)
+
+        # Group mappings by role_name
+        external_roles_map: Dict[str, List[str]] = {}
+        for row in rows:
+            external_roles_map.setdefault(row['role_name'], []).append(row['external_role'])
+
+        return external_roles_map
+
+    @classmethod
+    def get_roles_by_external_roles(cls, database: PostgresConnector,
+                                    external_roles: List[str]) -> List[str]:
+        """
+        Fetches all OSMO role names that map to any of the given external roles.
+        Used during auth to map external roles from headers to OSMO roles.
+        """
+        if not external_roles:
+            return []
+
+        fetch_cmd = '''
+            SELECT DISTINCT role_name FROM role_external_mappings
+            WHERE external_role = ANY(%s)
+            ORDER BY role_name;
+        '''
+        rows = database.execute_fetch_command(fetch_cmd, (external_roles,), True)
+        return [row['role_name'] for row in rows]
 
     @classmethod
     def delete_from_db(cls, database: PostgresConnector, name: str):
@@ -4276,99 +4453,137 @@ class Role(role.Role):
         database.execute_commit_command(delete_cmd, (name,))
 
     def insert_into_db(self, database: PostgresConnector, force: bool = False):
-        """ Create/update an entry in the pools table """
+        """
+        Create/update an entry in the roles table and sync external role mappings.
+
+        This is a single atomic operation that:
+        1. Inserts/updates the role in the roles table
+        2. Synchronizes external role mappings based on external_roles value:
+           - None: Don't modify mappings (preserve existing), except for new roles
+           - []: Explicitly clear all mappings
+           - ['role1', ...]: Replace with specified mappings
+           For new roles with external_roles=None, creates a default mapping to the role name.
+        """
         check_immutable = 'WHERE roles.immutable = false' if not force else ''
+
+        # Determine sync parameters:
+        # - external_roles_provided: True if self.external_roles is not None
+        # - external_roles_list: the list to use
+        #   (empty if None, to be replaced by default for new roles)
+        external_roles_provided = self.external_roles is not None
+        external_roles_list = self.external_roles if external_roles_provided else []
+
+        # Use CTEs to perform all operations atomically in a single transaction.
+        # The sync logic:
+        # - should_sync = external_roles_provided OR is_new_role
+        # - roles_to_map = external_roles_list if external_roles_provided else [role_name] (default)
         insert_cmd = f'''
-            INSERT INTO roles
-            (name, description, policies, immutable)
-            VALUES (%s, %s, %s::jsonb[], %s)
-            ON CONFLICT (name)
-            DO UPDATE SET
-                description = EXCLUDED.description,
-                policies = EXCLUDED.policies
-            {check_immutable}
-            RETURNING policies, immutable;
+            WITH role_upsert AS (
+                INSERT INTO roles
+                (name, description, policies, immutable, sync_mode)
+                VALUES (%s, %s, %s::jsonb[], %s, %s)
+                ON CONFLICT (name)
+                DO UPDATE SET
+                    description = EXCLUDED.description,
+                    policies = EXCLUDED.policies,
+                    sync_mode = EXCLUDED.sync_mode
+                {check_immutable}
+                RETURNING policies, immutable, (xmax = 0) AS is_new_role
+            ),
+            sync_config AS (
+                SELECT
+                    -- should_sync: True if external_roles explicitly provided OR if new role
+                    (%s OR (SELECT is_new_role FROM role_upsert)) AS should_sync,
+                    -- The roles to map: use provided list if external_roles was set,
+                    -- otherwise use default (role name) for new roles
+                    CASE
+                        WHEN %s THEN %s::text[]
+                        ELSE ARRAY[%s]::text[]
+                    END AS roles_to_map,
+                    (SELECT is_new_role FROM role_upsert) AS is_new_role
+            ),
+            delete_mappings AS (
+                DELETE FROM role_external_mappings
+                WHERE role_name = %s
+                AND (SELECT should_sync FROM sync_config)
+                RETURNING 1
+            ),
+            insert_mappings AS (
+                INSERT INTO role_external_mappings (role_name, external_role)
+                SELECT %s, unnest((SELECT roles_to_map FROM sync_config))
+                WHERE (SELECT should_sync FROM sync_config)
+                AND array_length((SELECT roles_to_map FROM sync_config), 1) > 0
+                ON CONFLICT (role_name, external_role) DO NOTHING
+                RETURNING 1
+            )
+            SELECT policies, immutable, is_new_role FROM role_upsert;
             '''
+
         result = database.execute_fetch_command(
             insert_cmd,
-            (self.name, self.description,
-             [json.dumps(policy.to_dict()) for policy in self.policies],
-             False),
+            (
+                # role_upsert params
+                self.name,
+                self.description,
+                [json.dumps(policy.to_dict()) for policy in self.policies],
+                False,
+                self.sync_mode.value,
+                # sync_config params
+                external_roles_provided,  # first %s in sync_config (should_sync)
+                external_roles_provided,  # WHEN %s in CASE
+                external_roles_list,      # THEN %s::text[]
+                self.name,                # ELSE ARRAY[%s] (default mapping)
+                # delete_mappings params
+                self.name,                # WHERE role_name = %s
+                # insert_mappings params
+                self.name,                # SELECT %s, unnest(...)
+            ),
             True
         )
+
         # No result means that immutable was true and nothing was updated
         if not force and (result and result[0].get('immutable') and \
             result[0].get('policies', []) != [policy.to_dict() for policy in self.policies]):
             raise osmo_errors.OSMOUserError(f'Role {self.name} is immutable.')
 
-    def has_access(self, path: str, method: str) -> bool:
-        """ Check if the role has access to the path and method """
-        allowed = False
-        for policy in self.policies:
-            for action in policy.actions:
-                if action.method.lower() in ['*', method.lower()]:
-                    # If the path is not allowed, this policy does not allow access
-                    if action.path.startswith('!'):
-                        if fnmatch.fnmatch(path, action.path[1:]):
-                            allowed = False
-                            break
-                    else:
-                        if fnmatch.fnmatch(path, action.path):
-                            allowed = True
-            if allowed:
-                return True
 
-        return allowed
-
-
+# Default roles using semantic action format.
+# Authorization is now handled by the authz_sidecar (Go service).
+# These roles are seeded into the database on startup.
 DEFAULT_ROLES: Dict[str, Role] = {
     'osmo-admin': Role(
         name='osmo-admin',
-        description='Administrator role',
+        description='Administrator with full access except internal endpoints',
         policies=[
             role.RolePolicy(
+                actions=['*:*'],
+                resources=['*']
+            ),
+            role.RolePolicy(
                 actions=[
-                    role.RoleAction(base='http', path='*', method='*'),
-                    role.RoleAction(base='http', path='!/api/agent/*', method='*'),
-                    role.RoleAction(base='http', path='!/api/logger/*', method='*'),
-                    role.RoleAction(base='http', path='!/api/router/*/*/backend/*', method='*'),
-                ]
+                    # Deny internal actions (handled via authz_sidecar deny logic)
+                    # Note: Deny is implicit - admin doesn't get internal:* actions
+                ],
+                resources=[]
             )
         ],
         immutable=True
     ),
     'osmo-user': Role(
         name='osmo-user',
-        description='User role',
+        description='Standard user role',
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(base='http', path='/api/auth/access_token', method='*'),
-                    role.RoleAction(base='http', path='/api/auth/access_token/user', method='*'),
-                    role.RoleAction(base='http', path='/api/auth/access_token/user/*', method='*'),
-                    role.RoleAction(base='http', path='/api/app', method='*'),
-                    role.RoleAction(base='http', path='/api/app/*', method='*'),
-                    role.RoleAction(base='http', path='/api/workflow', method='*'),
-                    role.RoleAction(base='http', path='/api/workflow/*', method='*'),
-                    role.RoleAction(base='http', path='/api/task', method='*'),
-                    role.RoleAction(base='http', path='/api/task/*', method='*'),
-                    role.RoleAction(base='http', path='/api/bucket', method='*'),
-                    role.RoleAction(base='http', path='/api/bucket/*', method='*'),
-                    role.RoleAction(base='http', path='/api/credentials', method='*'),
-                    role.RoleAction(base='http', path='/api/credentials/*', method='*'),
-                    role.RoleAction(base='http', path='/api/resources', method='*'),
-                    role.RoleAction(base='http', path='/api/resources/*', method='*'),
-                    role.RoleAction(base='http', path='/api/pool/default/*', method='*'),
-                    role.RoleAction(base='http', path='/api/pool', method='*'),
-                    role.RoleAction(base='http', path='/api/pool_quota', method='*'),
-                    role.RoleAction(base='http', path='/api/profile/*', method='*'),
-                    role.RoleAction(base='http', path='/api/users', method='*'),
-                    role.RoleAction(base='http', path='/api/tag', method='*'),
-                    role.RoleAction(base='http', path='/api/plugins/configs', method='*'),
-                    # Tailing slash is to exclude path /api/router/webserver/*/backend/*
-                    role.RoleAction(base='http', path='/api/router/webserver/*/', method='*'),
-                    role.RoleAction(base='http', path='/api/router/*/*/client/*', method='*'),
-                ]
+                    'workflow:*',
+                    'dataset:*',
+                    'credentials:*',
+                    'pool:List',
+                    'profile:*',
+                    'app:*',
+                    'resources:Read',
+                ],
+                resources=['*']
             )
         ]
     ),
@@ -4378,14 +4593,14 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(base='http', path='/api/agent/listener/*', method='*'),
-                    role.RoleAction(base='http', path='/api/agent/worker/*', method='*'),
-                    role.RoleAction(base='http', path='/api/pool/*', method='Get'),
-                    role.RoleAction(base='http', path='/api/configs/backend', method='Get'),
-                    role.RoleAction(base='http', path='/api/configs/backend/*', method='Get'),
-                ]
+                    'internal:Operator',
+                    'pool:List',
+                    'config:Read',
+                ],
+                resources=['backend/*', 'pool/*', 'config/backend']
             )
-        ]
+        ],
+        immutable=True
     ),
     'osmo-ctrl': Role(
         name='osmo-ctrl',
@@ -4393,67 +4608,27 @@ DEFAULT_ROLES: Dict[str, Role] = {
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(base='http', path='/api/logger/workflow/*', method='*'),
-                    role.RoleAction(base='http', path='/api/router/*/*/backend/*', method='*'),
-                ]
+                    'internal:Logger',
+                    'internal:Router',
+                ],
+                resources=['*']
             )
-        ]
+        ],
+        immutable=True
     ),
     'osmo-default': Role(
         name='osmo-default',
-        description='Default role',
+        description='Default role for unauthenticated access',
         policies=[
             role.RolePolicy(
                 actions=[
-                    role.RoleAction(base='http', path='/api/version', method='*'),
-                    role.RoleAction(base='http', path='/api/router/version', method='*'),
-                    role.RoleAction(base='http', path='/api/auth/login', method='Get'),
-                    role.RoleAction(base='http', path='/api/auth/keys', method='Get'),
-                    role.RoleAction(base='http', path='/api/auth/refresh_token', method='*'),
-                    role.RoleAction(base='http', path='/api/auth/jwt/refresh_token', method='*'),
-                    role.RoleAction(base='http', path='/api/auth/jwt/access_token', method='*'),
-                    role.RoleAction(base='http', path='/api/auth/access_token', method='*'),
-                    role.RoleAction(base='http', path='/client/version', method='*'),
-                    role.RoleAction(base='http', path='/health', method='*'),
-                ]
+                    'system:Health',
+                    'system:Version',
+                    'auth:Login',
+                ],
+                resources=['*']
             )
-        ]
+        ],
+        immutable=True
     ),
 }
-
-
-class AccessControlMiddleware:
-    """Middleware for handling WebSocket connections in the router service."""
-    # pylint: disable=redefined-outer-name
-    def __init__(self, app: ASGIApp, method: str | None = None,
-                 domain_access_check: Callable | None = None):
-        self.app = app
-        self.method = method
-        self.domain_access_check = domain_access_check
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send):
-        request_method = scope.get('method', '')
-        if scope['type'] == 'websocket':
-            websocket = fastapi.WebSocket(scope, receive=receive, send=send)
-            request_headers = websocket.headers
-            request_method = 'WEBSOCKET'
-        elif scope['type'] == 'http':
-            request = fastapi.Request(scope, receive=receive, send=send)
-            request_headers = request.headers
-        else:
-            response = fastapi.responses.PlainTextResponse(
-                content=f'Invalid scope type: {scope["type"]}',
-                status_code=400
-            )
-            return await response(scope, receive, send)
-
-        response = await check_user_access(
-            scope['path'], request_method, request_headers, self.method, self.domain_access_check)
-
-        # Add user profile if it doesn't exist
-        username = request_headers.get(login.OSMO_USER_HEADER)
-        if username:
-            UserProfile.fetch_from_db(PostgresConnector.get_instance(), username)
-        if response is not None:
-            return await response(scope, receive, send)
-        return await self.app(scope, receive, send)

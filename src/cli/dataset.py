@@ -38,7 +38,6 @@ from src.lib.data import (
 )
 from src.lib.utils import (
     client,
-    client_configs,
     credentials,
     common,
     osmo_errors,
@@ -975,7 +974,6 @@ def _run_check_command(service_client: client.ServiceClient, args: argparse.Name
 
         storage_backend = storage_lib.construct_storage_backend(
             location_result['path'],
-            cache_config=client_configs.get_cache_config(),
         )
 
         data_cred = credentials.get_static_data_credential_from_config(

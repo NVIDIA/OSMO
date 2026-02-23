@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,6 +36,8 @@ OSMO_AUTH_HEADER = 'x-osmo-auth'
 # If developer mode, the header to pass the osmo user in
 OSMO_USER_HEADER = 'x-osmo-user'
 OSMO_USER_ROLES = 'x-osmo-roles'
+OSMO_TOKEN_NAME_HEADER = 'x-osmo-token-name'
+OSMO_ALLOWED_POOLS = 'x-osmo-allowed-pools'
 # Don't use a token that will expire within the next N seconds
 EXPIRE_WINDOW = 3
 TIMEOUT = 60
@@ -112,10 +114,10 @@ class Jwt:
 
 class TokenLoginStorage(pydantic.BaseModel):
     """Stores id_token and refresh_token for logging in"""
-    refresh_token: str | None
+    refresh_token: str | None = None
     id_token: str
-    refresh_url: str | None
-    username: str | None
+    refresh_url: str | None = None
+    username: str | None = None
     _id_token_jwt: Jwt | None = pydantic.PrivateAttr(None)
 
     @property
@@ -279,6 +281,12 @@ def refresh_id_token(config: LoginConfig, user_agent: str | None,
 
 def construct_roles_list(roles_header: str | None) -> List[str]:
     return roles_header.split(',') if roles_header else []
+
+
+def parse_allowed_pools(allowed_pools_header: str | None) -> List[str]:
+    if not allowed_pools_header:
+        return []
+    return [pool.strip() for pool in allowed_pools_header.split(',') if pool.strip()]
 
 
 def fetch_token_from_refresh_url(refresh_url: str) -> str | None:

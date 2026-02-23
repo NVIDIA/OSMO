@@ -104,6 +104,8 @@ spec:
         - {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
         - --metrics_otel_enable
         - {{ .Values.sidecars.OTEL.enabled | quote }}
+        - --node_condition_prefix
+        - '{{ .Values.global.nodeConditionPrefix }}'
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
         {{- if .Values.global.backendTestNamespace }}

@@ -30,7 +30,6 @@ from typing_extensions import override
 
 from . import backends
 from .core import client, executor, header, progress, provider
-from ...utils import cache, client_configs
 
 
 _T = TypeVar('_T', bound=executor.ThreadWorkerInput)  # Input object type
@@ -76,7 +75,6 @@ class MuxStorageClientFactory(provider.StorageClientFactory):
         return MuxStorageClientProvider(
             client_factory=self,
             pool=pool,
-            cache_config=client_configs.get_cache_config(),
         )
 
 
@@ -87,7 +85,6 @@ class MuxStorageClientProvider(provider.StorageClientProvider):
 
     _client_factory: MuxStorageClientFactory
     _pool: bool
-    _cache_config: cache.CacheConfig | None
 
     _client_providers: Dict[str, provider.StorageClientProvider]
     _lock: threading.Lock
@@ -96,11 +93,9 @@ class MuxStorageClientProvider(provider.StorageClientProvider):
         self,
         client_factory: MuxStorageClientFactory,
         pool: bool = False,
-        cache_config: cache.CacheConfig | None = None,
     ):
         self._client_factory = client_factory
         self._pool = pool
-        self._cache_config = cache_config
 
         self._client_providers = {}
         self._lock = threading.Lock()
@@ -129,7 +124,6 @@ class MuxStorageClientProvider(provider.StorageClientProvider):
         storage_backend = backends.construct_storage_backend(
             uri=storage_profile,
             profile=True,
-            cache_config=self._cache_config,
         )
         client_factory = storage_backend.client_factory(
             request_headers=self._client_factory.request_headers,

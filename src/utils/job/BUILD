@@ -87,7 +87,6 @@ osmo_py_library(
         requirement("urllib3"),
         "//src/lib/data/storage",
         "//src/lib/data/storage/constants",
-        "//src/lib/utils:cache",
         "//src/lib/utils:common",
         "//src/lib/utils:credentials",
         "//src/lib/utils:jinja_sandbox",

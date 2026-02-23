@@ -33,9 +33,9 @@ the ``default-values`` section.
 
 **Hello World with template variables example:**
 
-Here's the Hello World example with template variables: :download:`template_hello_world.yaml <../../../workflows/tutorials/template_hello_world.yaml>`.
+Here's the Hello World example with template variables: :download:`template_hello_world.yaml <../../../cookbook/tutorials/template_hello_world.yaml>`.
 
-.. literalinclude:: ../../../workflows/tutorials/template_hello_world.yaml
+.. literalinclude:: ../../../cookbook/tutorials/template_hello_world.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -74,7 +74,7 @@ automatically set by the system. Unlike templates, you **cannot** override them 
 The ``{{workflow_id}}`` token is useful for tracking workflow runs and creating unique
 identifiers.
 
-.. literalinclude:: ../../../workflows/tutorials/token_example.yaml
+.. literalinclude:: ../../../cookbook/tutorials/token_example.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 

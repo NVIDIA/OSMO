@@ -64,7 +64,7 @@ Independent tasks run in parallel asynchronously when they:
 2. Are defined at the workflow level under ``tasks:``
 3. Have available compute resources
 
-**For example:** (:download:`parallel_tasks.yaml <../../../../workflows/tutorials/parallel_tasks.yaml>`)
+**For example:** (:download:`parallel_tasks.yaml <../../../../cookbook/tutorials/parallel_tasks.yaml>`)
 
 .. figure:: independent_tasks.svg
   :align: center
@@ -72,7 +72,7 @@ Independent tasks run in parallel asynchronously when they:
   :class: transparent-bg no-scaled-link
   :alt: Independent Tasks
 
-.. literalinclude:: ../../../../workflows/tutorials/parallel_tasks.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/parallel_tasks.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -99,7 +99,7 @@ Key characteristics of groups:
 - Groups run serially based on dependencies between them
 - Tasks may run on the same node or different nodes
 
-**For example:** (:download:`group_tasks.yaml <../../../../workflows/tutorials/group_tasks.yaml>`)
+**For example:** (:download:`group_tasks.yaml <../../../../cookbook/tutorials/group_tasks.yaml>`)
 
 .. figure:: synchronized_groups.svg
   :align: center
@@ -107,7 +107,7 @@ Key characteristics of groups:
   :class: transparent-bg no-scaled-link
   :alt: Groups
 
-.. literalinclude:: ../../../../workflows/tutorials/group_tasks.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/group_tasks.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 
@@ -124,9 +124,9 @@ Task Communication
 Tasks **within a workflow group** can communicate over the network using the token ``{{host:task-name}}``.
 The token is replaced with the IP address of the task when the task is running.
 
-**Example:** (:download:`group_tasks_communication.yaml <../../../../workflows/tutorials/group_tasks_communication.yaml>`)
+**Example:** (:download:`group_tasks_communication.yaml <../../../../cookbook/tutorials/group_tasks_communication.yaml>`)
 
-.. literalinclude:: ../../../../workflows/tutorials/group_tasks_communication.yaml
+.. literalinclude:: ../../../../cookbook/tutorials/group_tasks_communication.yaml
   :language: yaml
   :start-after: SPDX-License-Identifier: Apache-2.0
 

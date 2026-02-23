@@ -1,0 +1,164 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Step 3: Apply Cosmos Transfer 2.5 for visual augmentation
+# Usage: osmo workflow submit 03_cosmos_augmentation.yaml --pool default
+
+workflow:
+  groups:
+  - name: cosmos_transfer_augmentation-group
+    tasks:
+    - args:
+      - /tmp/entry.sh
+      command:
+      - bash
+      credentials:
+        huggingface_token:
+          HF_TOKEN: token
+      environment:
+        ACCEPT_EULA: Y
+      files:
+      - contents: |2-
+
+          set -e
+          set -euxo pipefail
+
+          echo "=== System Info ==="
+          nvidia-smi
+
+          # echo "=== Input MP4 Videos Location ==="
+          # echo "MP4 videos available at: {{input:0}}"
+          # ls -lah {{input:0}}
+          # echo "Total MP4 files:"
+          # find {{input:0}} -name "*.mp4" | wc -l
+
+          echo "=== Working Directory ==="
+          cd /workspace
+          git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git && cd cosmos-transfer2.5 && git checkout 0033b77a9e41e74f9d8d0b9cf80e0ecf94b3533b
+          curl -LsSf https://astral.sh/uv/install.sh | sh && source $HOME/.local/bin/env
+
+          # Install all dependencies including cosmos_oss
+          uv sync --extra=cu128
+          source .venv/bin/activate
+          pip3 install tyro
+
+          pwd
+          ls -lah
+
+          echo "=== Preparing output directory ==="
+          mkdir -p {{output}}
+
+          echo "=== Running Cosmos Transfer 2.5 Augmentation ==="
+          git config --global credential.helper store && huggingface-cli login \
+            --token $HF_TOKEN --add-to-git-credential
+
+          # Process each robot_pov_cam MP4 video
+          echo "Processing MP4 videos from {{input:0}}"
+
+          # Create a temporary directory for spec files
+          mkdir -p /tmp/cosmos_specs
+
+          # Loop through all demo MP4 files (RGB videos only, not depth)
+          for mp4_file in {{input:0}}/demo_*_robot_pov_cam.mp4; do
+              # Skip depth videos - only process RGB videos
+              if [[ "$mp4_file" == *"_depth.mp4" ]]; then
+                  continue
+              fi
+
+              if [ -f "$mp4_file" ]; then
+                  echo "Processing: $mp4_file"
+                  demo_name=$(basename "$mp4_file" .mp4)
+                  echo "Demo name: $demo_name"
+
+                  # Find corresponding depth video
+                  depth_file="{{input:0}}/${demo_name}_depth.mp4"
+                  echo "Depth video: $depth_file"
+
+                  # Create custom spec file for this demo
+                  # Based on the robot_example spec but with our input video
+                  spec_file="/tmp/cosmos_specs/${demo_name}_spec.json"
+
+                  # Copy the example spec and modify it
+                  cp /workspace/cosmos-transfer2.5/assets/robot_example/depth/robot_depth_spec.json "$spec_file"
+                  cp /workspace/cosmos-transfer2.5/assets/robot_example/robot_prompt.txt /tmp/robot_prompt.txt
+
+                  # Update the spec file with our video paths using Python
+                  python3 << PYTHON_SPEC
+          import json
+          with open("$spec_file", 'r') as f:
+              spec = json.load(f)
+
+          # Update paths to use our input videos (RGB and depth)
+          spec['video_path'] = "$mp4_file"
+
+          # Update depth control path
+          if 'depth' in spec:
+              spec['depth']['control_path'] = "$depth_file"
+
+          with open("$spec_file", 'w') as f:
+              json.dump(spec, f, indent=2)
+
+          print(f"Created spec file: $spec_file")
+          print(f"  RGB video: $mp4_file")
+          print(f"  Depth video: $depth_file")
+          PYTHON_SPEC
+
+                  # Run Cosmos Transfer 2.5 inference with custom spec
+                  python /workspace/cosmos-transfer2.5/examples/inference.py \
+                    -i "$spec_file" \
+                    -o /workspace/cosmos-transfer2.5/outputs \
+                    || echo "Warning: Processing failed for $demo_name"
+
+                  # Copy generated videos from Cosmos default output to OSMO output
+                  if [ -d "/workspace/cosmos-transfer2.5/outputs" ]; then
+                      echo "Copying outputs from /workspace/cosmos-transfer2.5/outputs to {{output}}/${demo_name}/"
+                      mkdir -p {{output}}/${demo_name}
+                      cp -r /workspace/cosmos-transfer2.5/outputs/* {{output}}/${demo_name}/ || echo "No outputs found in /workspace/cosmos-transfer2.5/outputs"
+                  fi
+
+                  echo "Completed: $demo_name"
+              fi
+          done
+
+          echo "=== Cosmos Transfer 2.5 Augmentation Complete ==="
+          echo "Output directory contents:"
+          ls -lah {{output}}
+          echo "Total output files:"
+          find {{output}} -type f | wc -l
+          echo "Generated videos:"
+          find {{output}} -name "*.mp4" -type f
+        path: /tmp/entry.sh
+      image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
+      inputs:
+      - dataset: {{ input_dataset }}
+      lead: true
+      name: cosmos_transfer_augmentation
+      outputs:
+      - dataset: {{ output_dataset }}
+  name: cosmos_transfer_augmentation
+  resources:
+    default:
+      cpu: 30
+      gpu: 1
+      memory: 128Gi
+      storage: 256Gi
+  timeout:
+    exec_timeout: 3d
+    queue_timeout: 1d
+
+default-values:
+  input_dataset: PhysAI-MP4Videos
+  output_dataset: PhysAI-CosmosAugmentedMP4
