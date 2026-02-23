@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/shadcn/button";
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
+import { SemiStatefulButton } from "@/components/semi-stateful-button";
 import { useSharedPreferences, useCompactMode } from "@/stores/shared-preferences-store";
 import type { SearchChip } from "@/stores/types";
 import { FilterBar } from "@/components/filter-bar/filter-bar";

@@ -25,7 +25,7 @@
 
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TableSkeleton } from "@/components/data-table/table-skeleton";
-import { useDagVisible } from "@/features/workflows/detail/stores/workflow-detail-panel-store";
+import { useDagVisible } from "@/features/workflows/detail/components/panel/core/stores/panel-store";
 
 export function WorkflowDetailSkeleton() {
   const dagVisible = useDagVisible();

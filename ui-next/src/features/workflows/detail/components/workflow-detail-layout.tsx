@@ -32,8 +32,8 @@ import {
   useDisplayDagVisible,
   useIsDragging,
   useSnapZone,
-} from "@/features/workflows/detail/lib/panel-resize-context";
-import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "@/features/workflows/detail/lib/panel-constants";
+} from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
+import { PANEL_TIMING, ACTIVITY_STRIP_WIDTH_PX } from "@/features/workflows/detail/components/panel/core/lib/panel-constants";
 
 import "@/features/workflows/detail/styles/layout.css";
 

@@ -18,7 +18,7 @@
 
 import { memo } from "react";
 import { MonitorCheck, MonitorX } from "lucide-react";
-import { SemiStatefulButton } from "@/components/shadcn/semi-stateful-button";
+import { SemiStatefulButton } from "@/components/semi-stateful-button";
 import { useSharedPreferences, useDisplayMode } from "@/stores/shared-preferences-store";
 
 /**
