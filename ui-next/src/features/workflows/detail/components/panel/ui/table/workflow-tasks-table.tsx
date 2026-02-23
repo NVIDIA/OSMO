@@ -38,7 +38,10 @@ import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
 import { useTick } from "@/hooks/use-tick";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import { useIsSuspended, usePanelResizeMachine } from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
+import {
+  useIsSuspended,
+  usePanelResizeMachine,
+} from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
 
 import { calculateTaskDuration } from "@/features/workflows/detail/lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
@@ -56,7 +59,10 @@ import { SplitGroupHeader } from "@/features/workflows/detail/components/panel/u
 import { TaskNameCell } from "@/features/workflows/detail/components/panel/ui/table/tree/task-name-cell";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import {
+  TASK_SEARCH_FIELDS,
+  TASK_PRESETS,
+} from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
 
 import type {
   GroupWithLayout,

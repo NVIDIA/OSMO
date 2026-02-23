@@ -42,7 +42,11 @@
 import { memo, useCallback } from "react";
 import { Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CIRCLE_SIZE, ICON_SIZE, LINE_WIDTH } from "@/features/workflows/detail/components/panel/ui/table/tree/tree-constants";
+import {
+  CIRCLE_SIZE,
+  ICON_SIZE,
+  LINE_WIDTH,
+} from "@/features/workflows/detail/components/panel/ui/table/tree/tree-constants";
 
 // =============================================================================
 // Types

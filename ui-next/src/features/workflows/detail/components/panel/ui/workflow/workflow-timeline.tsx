@@ -28,8 +28,8 @@
 import { memo, useMemo } from "react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { STATUS_CATEGORY_MAP } from "@/features/workflows/detail/lib/status";
-import { Timeline, type TimelinePhase } from "@/features/workflows/detail/components/panel/ui/timeline";
-import { parseTime } from "@/features/workflows/detail/components/panel/core/lib/timeline-utils";
+import { Timeline } from "@/features/workflows/detail/components/panel/ui/timeline";
+import { parseTime, type TimelinePhase } from "@/features/workflows/detail/components/panel/core/lib/timeline-utils";
 import { useTick } from "@/hooks/use-tick";
 
 // ============================================================================

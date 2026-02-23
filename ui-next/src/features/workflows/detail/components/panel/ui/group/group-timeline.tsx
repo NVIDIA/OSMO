@@ -18,12 +18,13 @@
 
 import { memo, useMemo } from "react";
 import type { GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
-import { Timeline, type TimelinePhase } from "@/features/workflows/detail/components/panel/ui/timeline";
+import { Timeline } from "@/features/workflows/detail/components/panel/ui/timeline";
 import {
   useTimelineSetup,
   parseCommonTimestamps,
   buildPreExecutionPhases,
   buildTerminalPhase,
+  type TimelinePhase,
 } from "@/features/workflows/detail/components/panel/core/lib/timeline-utils";
 
 interface GroupTimelineProps {

@@ -30,10 +30,7 @@ import { useAnnouncer } from "@/hooks/use-announcer";
 import { useShellContext } from "@/features/workflows/detail/components/shell/shell-context";
 import { usePanelResize } from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
 import { ACTIVITY_STRIP_WIDTH_PX } from "@/features/workflows/detail/components/panel/core/lib/panel-constants";
-import {
-  WorkflowEdgeStrip,
-  type QuickAction,
-} from "@/features/workflows/detail/components/panel/ui/edge-strip";
+import { WorkflowEdgeStrip, type QuickAction } from "@/features/workflows/detail/components/panel/ui/edge-strip";
 
 // Eager imports - panel views are always needed, dynamic imports add 100-300ms flash
 import { WorkflowDetails } from "@/features/workflows/detail/components/panel/ui/workflow/workflow-details";

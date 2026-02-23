@@ -45,6 +45,7 @@ import { PanelTabs, type PanelTab } from "@/components/panel/panel-tabs";
 import { SeparatedParts } from "@/components/panel/separated-parts";
 import { TabPanel } from "@/components/panel/tab-panel";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
+import type { GroupWithLayout, TaskQueryResponse } from "@/features/workflows/detail/lib/workflow-types";
 import { formatDuration } from "@/features/workflows/detail/lib/workflow-types";
 import { getStatusIcon } from "@/features/workflows/detail/lib/status";
 import { EventViewerContainer, type TaskTiming } from "@/components/event-viewer/event-viewer-container";
@@ -112,18 +113,15 @@ export interface WorkflowDetailsProps {
   /** Callback to change the selected tab */
   setSelectedTab?: (tab: WorkflowTab) => void;
   /** All groups in the workflow (for Tasks tab) */
-  allGroups?: import("../../../lib/workflow-types").GroupWithLayout[];
+  allGroups?: GroupWithLayout[];
   /** Currently selected group name (for Tasks tab) */
   selectedGroupName?: string | null;
   /** Currently selected task name (for Tasks tab) */
   selectedTaskName?: string | null;
   /** Callback when a group is selected (for Tasks tab) */
-  onSelectGroup?: (group: import("../../../lib/workflow-types").GroupWithLayout) => void;
+  onSelectGroup?: (group: GroupWithLayout) => void;
   /** Callback when a task is selected (for Tasks tab) */
-  onSelectTask?: (
-    task: import("../../../lib/workflow-types").TaskQueryResponse,
-    group: import("../../../lib/workflow-types").GroupWithLayout,
-  ) => void;
+  onSelectTask?: (task: TaskQueryResponse, group: GroupWithLayout) => void;
 }
 
 // =============================================================================

@@ -27,11 +27,7 @@ import {
   COLUMN_LABELS,
   type WorkflowColumnId,
 } from "@/features/workflows/list/lib/workflow-columns";
-import {
-  getStatusDisplay,
-  STATUS_STYLES,
-  getPriorityDisplay,
-} from "@/features/workflows/list/lib/workflow-constants";
+import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay } from "@/features/workflows/list/lib/workflow-constants";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus } from "@/lib/api/generated";

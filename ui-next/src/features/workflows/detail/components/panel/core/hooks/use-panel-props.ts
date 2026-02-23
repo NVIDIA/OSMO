@@ -19,7 +19,10 @@ import type { RefObject } from "react";
 import type { WorkflowViewCommonProps } from "@/features/workflows/detail/components/panel/core/lib/view-types";
 import type { DetailsPanelProps } from "@/features/workflows/detail/components/panel/core/lib/panel-types";
 import type { GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
-import { ACTIVITY_STRIP_WIDTH_PX, PANEL_CONSTRAINTS } from "@/features/workflows/detail/components/panel/core/lib/panel-constants";
+import {
+  ACTIVITY_STRIP_WIDTH_PX,
+  PANEL_CONSTRAINTS,
+} from "@/features/workflows/detail/components/panel/core/lib/panel-constants";
 
 interface UsePanelPropsOptions extends WorkflowViewCommonProps {
   allGroups?: GroupWithLayout[];

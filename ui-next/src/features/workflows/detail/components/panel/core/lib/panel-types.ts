@@ -16,7 +16,7 @@
 
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import type { TaskQueryResponse, GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
-import type { WorkflowTab, GroupTab } from "@/features/workflows/detail/hooks/use-navigation-state";
+import type { WorkflowTab, GroupTab, TaskTab } from "@/features/workflows/detail/hooks/use-navigation-state";
 import type { RefreshControlProps } from "@/components/refresh/types";
 
 export type DetailsPanelView = "workflow" | "group" | "task";

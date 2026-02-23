@@ -41,11 +41,17 @@ import {
 import { createTaskColumns } from "@/features/workflows/detail/components/panel/core/lib/task-column-defs";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import { TASK_SEARCH_FIELDS, TASK_PRESETS } from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import {
+  TASK_SEARCH_FIELDS,
+  TASK_PRESETS,
+} from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
 import { useTaskTableStore } from "@/features/workflows/detail/components/panel/core/stores/task-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
-import { useIsSuspended, usePanelResizeMachine } from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
+import {
+  useIsSuspended,
+  usePanelResizeMachine,
+} from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
 import { TaskNameCell } from "@/features/workflows/detail/components/panel/ui/table/tree/task-name-cell";
 
 // =============================================================================
