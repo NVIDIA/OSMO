@@ -60,13 +60,13 @@ Major concepts
 
 - **Role:** A named set of permissions (policies) in OSMO. Examples: ``osmo-admin`` (full management), ``osmo-user`` (basic user), ``osmo-ml-team`` (access to specific pools).
 
-- **Policy:** A rule that allows or denies specific actions (e.g., “allow GET /api/workflows”). Roles contain one or more policies.
+- **Policy:** A rule that allows or denies specific actions (e.g., “allow ``workflow:Read``”). Roles contain one or more policies.
 
 - **Access token:** A long-lived secret used by scripts or the CLI to authenticate as a user. Access tokens are tied to a user and get a subset of that user’s roles at creation time.
 
 - **Default admin:** A single admin user created by the OSMO service on startup when no IdP is used. Configured via Helm (e.g. ``services.defaultAdmin.enabled``, ``username``, and a Kubernetes secret for the password). This user has the ``osmo-admin`` role and one access token set to that password, so you can log in and create more users, roles, and access tokens.
 
-How authorization works (high level)
+How authorization works
 =====================================
 
 When a request hits OSMO:
@@ -124,7 +124,7 @@ The service receives these via:
 - **Args:** ``--default_admin_username <username>`` when ``defaultAdmin.enabled`` is true.
 - **Env:** ``OSMO_DEFAULT_ADMIN_PASSWORD`` from the secret ``passwordSecretName`` and ``passwordSecretKey``.
 
-Example (conceptual): create the secret and enable default admin in your values:
+Example: create the secret and enable default admin in your values:
 
 .. code-block:: bash
 
