@@ -24,14 +24,14 @@
 import { memo, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { FileCode } from "lucide-react";
-import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/shadcn/button";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/languages";
+import { CodeViewerSkeleton } from "@/components/code-viewer/code-viewer-skeleton";
 import { CollapsibleSection } from "@/features/workflows/detail/components/resubmit/collapsible-section";
 
 const CodeMirror = dynamic(
   () => import("@/components/code-viewer/code-mirror").then((m) => ({ default: m.CodeMirror })),
-  { ssr: false },
+  { ssr: false, loading: () => <CodeViewerSkeleton className="absolute inset-0" /> },
 );
 
 export interface SpecSectionProps {
@@ -50,20 +50,6 @@ export interface SpecSectionProps {
    */
   onSpecChange?: (spec: string | undefined) => void;
 }
-
-const SpecSkeleton = memo(function SpecSkeleton() {
-  return (
-    <div
-      className="space-y-2 rounded-md bg-zinc-900 p-4"
-      aria-label="Loading specification"
-    >
-      <Skeleton className="h-4 w-3/4 bg-zinc-700/50" />
-      <Skeleton className="h-4 w-1/2 bg-zinc-700/50" />
-      <Skeleton className="h-4 w-5/8 bg-zinc-700/50" />
-      <Skeleton className="h-4 w-2/3 bg-zinc-700/50" />
-    </div>
-  );
-});
 
 const SpecEmpty = memo(function SpecEmpty() {
   return (
@@ -122,18 +108,18 @@ export const SpecSection = memo(function SpecSection({
 
   let content: React.ReactNode;
   if (isLoading) {
-    content = <SpecSkeleton />;
+    content = <CodeViewerSkeleton />;
   } else if (!spec) {
     content = <SpecEmpty />;
   } else {
     content = (
-      <div className="h-[calc(100vh-22rem)] overflow-hidden rounded-md border border-zinc-800 bg-zinc-950">
+      <div className="relative h-[calc(100vh-22rem)] overflow-hidden rounded-md border border-border">
         <CodeMirror
           value={editorValue}
           onChange={handleChange}
           language={YAML_LANGUAGE}
           aria-label="YAML specification editor"
-          className="h-full"
+          className="absolute inset-0"
         />
       </div>
     );

@@ -24,32 +24,37 @@
 "use client";
 
 import { memo } from "react";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/shadcn/skeleton";
 
-/** Predetermined widths to avoid impure Math.random in render */
-const SKELETON_WIDTHS = ["65%", "45%", "78%", "52%", "60%", "70%", "40%", "55%"];
+/**
+ * Predetermined widths — varied enough to look like real code, enough rows to
+ * fill any typical viewport height (each row is ~24px; 50 rows covers ~1200px).
+ * Values repeat intentionally; stable IDs are assigned at module scope.
+ */
+const SKELETON_ROWS = [
+  "65%", "45%", "78%", "52%", "60%",
+  "70%", "40%", "55%", "72%", "48%",
+  "63%", "50%", "75%", "42%", "58%",
+  "68%", "44%", "80%", "53%", "62%",
+  "71%", "47%", "56%", "73%", "41%",
+  "65%", "49%", "78%", "54%", "60%",
+  "70%", "43%", "55%", "72%", "46%",
+  "63%", "51%", "75%", "42%", "58%",
+  "68%", "45%", "80%", "53%", "64%",
+  "71%", "48%", "56%", "73%", "40%",
+].map((width, rowIdx) => ({ id: `code-row-${rowIdx + 1}`, width }));
 
 export const CodeViewerSkeleton = memo(function CodeViewerSkeleton({ className }: { className?: string }) {
   return (
-    <div
-      className={className}
-      aria-label="Loading code"
-    >
-      {/* Use theme-aware background that matches editor chrome */}
-      <div className="bg-muted/30 flex-1 p-4">
+    // flex flex-col here so flex-1 on the inner div actually stretches to fill
+    <div className={cn("flex flex-col", className)} aria-label="Loading code">
+      <div className="flex-1 overflow-hidden bg-muted/30 p-4">
         <div className="space-y-2">
-          {SKELETON_WIDTHS.map((width) => (
-            <div
-              key={width}
-              className="flex gap-4"
-            >
-              {/* Line numbers - use default skeleton styling (SSR-safe) */}
+          {SKELETON_ROWS.map(({ id, width }) => (
+            <div key={id} className="flex gap-4">
               <Skeleton className="h-4 w-8" />
-              {/* Code content */}
-              <Skeleton
-                className="h-4"
-                style={{ width }}
-              />
+              <Skeleton className="h-4" style={{ width }} />
             </div>
           ))}
         </div>
