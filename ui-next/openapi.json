@@ -10128,26 +10128,7 @@
               }
             ],
             "title": "Service Auth",
-            "default": {
-              "keys": {
-                "1933b458-d338-4cdf-b4b5-864903f34c55": {
-                  "public_key": "{\"e\":\"AQAB\",\"kid\":\"1933b458-d338-4cdf-b4b5-864903f34c55\",\"kty\":\"RSA\",\"n\":\"mRYhshgBKm3ugPnFn-3V7h96jSLkdWXPX_0h3VgAuMKyHN3BJ8ADi5cV0fcENQ09op0srHy3_73zaEbezbmixLWpmdKaa2BbDK0sWYUGEbvG0S6Gdr6svwsKCT9XtdgLlFO5L5rT7JG8AgBKYm5zSCIiV4AvdIVLPZfSqAwNxIrtJhCXwmrdp9xmdaJERPpMaLMAKnpY1A4iKG4DrUjKImA89teAJ6zT1WyxM-8wiuB20nHxYYAZ2IG7A0Ui_gdDtg_3w69fpukfJRjdY6zlVBWv1FHV8laYfR16-SPY7JXQ6MO3oaBcpZtRFB9TG4n-4dphmpfqJd1YNXA9V6UE8qWlTcL9K8mFxHWDmMehDJi38xg5PDOmgkqdEEsXug_rnpuWureLwMLC_QMZpbKCiFpo3m0UjmCCOoOmtrA_JrJLn-LEXKxRi2ObVu92U5kdt2RAwldNI7N2Hlc1TH_GyxlA1WEe8myOMuY31XkhVD_PDxsukxkrSJdo_NgP8-EIZDBVPaKPw9ku5c9S-vkUpcYXxnNneb9kB3CN4zwWAoOXDktIIyYwIkrjp8R_Y7TWODH6uQj92cC_L107tus2cA3WI3RuiUu5lZ3C25m4iqakU3syn3RmgpGfq9C4FpSTd3I3ogTVz8VN7ZCQ2J4YVIviwfsR-WWws1am_55X3IE\"}",
-                  "private_key": "**********"
-                }
-              },
-              "active_key": "1933b458-d338-4cdf-b4b5-864903f34c55",
-              "issuer": "osmo",
-              "audience": "osmo",
-              "user_roles": [
-                "osmo-user"
-              ],
-              "ctrl_roles": [
-                "osmo-user",
-                "osmo-ctrl"
-              ],
-              "login_info": {},
-              "max_token_duration": "365d"
-            }
+            "default": {}
           },
           "cli_config": {
             "allOf": [
