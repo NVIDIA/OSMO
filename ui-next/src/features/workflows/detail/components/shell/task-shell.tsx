@@ -147,7 +147,6 @@ export const ShellConnectPrompt = memo(function ShellConnectPrompt({ onConnect }
             onChange={(e) => setCustomShell(e.target.value)}
             onKeyDown={handleCustomKeyDown}
             className="h-8 flex-1 font-mono text-xs"
-            autoFocus
           />
           <Button
             variant="outline"

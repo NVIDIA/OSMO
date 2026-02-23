@@ -344,7 +344,7 @@ function GenericFields({
   return (
     <div className="space-y-3">
       <div className="mb-1.5 flex items-center justify-between">
-        <label className="text-sm font-medium">Key-Value Pairs</label>
+        <p className="text-sm font-medium">Key-Value Pairs</p>
         <Button
           type="button"
           variant="ghost"

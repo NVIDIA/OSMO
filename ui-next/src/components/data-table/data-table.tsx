@@ -104,6 +104,8 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   registerLayoutStableCallback?: (callback: () => void) => () => void;
 }
 
+const EMPTY_FIXED_COLUMNS: string[] = [];
+
 function DataTableInner<TData, TSectionMeta = unknown>({
   data,
   columns,
@@ -115,7 +117,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   onColumnOrderChange,
   columnVisibility,
   onColumnVisibilityChange,
-  fixedColumns = [],
+  fixedColumns = EMPTY_FIXED_COLUMNS,
   sorting,
   onSortingChange,
   hasNextPage,
