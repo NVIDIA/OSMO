@@ -1,0 +1,528 @@
+/**
+ * Copyright (c) 2026, NVIDIA CORPORATION. All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto. Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
+
+/**
+ * Shell Component Styles
+ *
+ * Always-dark shell styling with NVIDIA green accent.
+ * Zero-chrome design with contextual overlays.
+ */
+
+/* =============================================================================
+   CSS Custom Properties
+   ============================================================================= */
+
+:root {
+  /* Shell Layout */
+  --shell-padding: 8px;
+  --shell-border-radius: var(--radius-md, 0.5rem);
+
+  /* Shell Colors (always dark) */
+  --shell-bg: #09090b;
+  --shell-bg-overlay: rgba(9, 9, 11, 0.95);
+  --shell-border: #27272a;
+  --shell-fg: #e4e4e7;
+  --shell-fg-dim: #71717a;
+
+  /* Shell Cursor */
+  --shell-cursor: #76b900;
+
+  /* Shell Focus */
+  --shell-focus-ring: var(--dag-selection-ring, #76b900);
+  --shell-active-glow: rgba(118, 185, 0, 0.3);
+
+  /* Transitions */
+  --shell-transition-fast: 100ms ease-out;
+  --shell-transition-normal: 150ms ease-out;
+}
+
+/* =============================================================================
+   Shell Container
+   ============================================================================= */
+
+.shell-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 200px;
+  background: var(--shell-bg);
+  border: 1px solid var(--shell-border);
+  border-radius: var(--shell-border-radius);
+  overflow: hidden;
+
+  /* Subtle inset shadow for depth */
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  /* Performance: CSS containment for paint/layout isolation */
+  contain: layout style paint;
+}
+
+.shell-container:focus-within {
+  outline: 2px solid var(--shell-focus-ring);
+  outline-offset: 2px;
+}
+
+.shell-container[data-active="true"] {
+  box-shadow:
+    0 0 0 1px var(--shell-active-glow),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* =============================================================================
+   Shell Wrapper & Body Wrapper
+   ============================================================================= */
+
+.shell-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.shell-body-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* =============================================================================
+   Shell Body (xterm container)
+   ============================================================================= */
+
+.shell-body {
+  width: 100%;
+  height: 100%;
+  padding: var(--shell-padding);
+  overflow: hidden;
+  background: var(--shell-bg);
+
+  /* GPU acceleration */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+
+  /* Performance: Containment without size (size containment causes 0 height with height: 100%) */
+  contain: layout style paint;
+}
+
+/* Overlay container for idle/connecting/error states */
+.shell-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Inner wrapper - this is what FitAddon measures via parentElement */
+.shell-body-inner {
+  height: 100%;
+  width: 100%;
+}
+
+.shell-body-inner .xterm {
+  height: 100%;
+}
+
+.shell-body .xterm-viewport {
+  /* Match app scrollbar styling (dark theme) */
+  scrollbar-width: thin;
+  scrollbar-color: rgb(113 113 122 / 40%) rgb(39 39 42 / 50%);
+}
+
+.shell-body .xterm-viewport::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.shell-body .xterm-viewport::-webkit-scrollbar-track {
+  background: rgb(39 39 42 / 60%);
+  border-radius: 5px;
+  margin: 2px;
+}
+
+.shell-body .xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgb(113 113 122 / 50%);
+  border-radius: 5px;
+  border: 2px solid rgb(39 39 42 / 60%);
+}
+
+.shell-body .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgb(161 161 170 / 60%);
+}
+
+.shell-body .xterm-viewport::-webkit-scrollbar-corner {
+  background: rgb(39 39 42 / 60%);
+  border-radius: 5px;
+}
+
+/* =============================================================================
+   Connecting State
+   ============================================================================= */
+
+.shell-connecting {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--shell-bg-overlay);
+  backdrop-filter: blur(4px);
+
+  /* Performance: Prep GPU for animation */
+  will-change: opacity;
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+.shell-connecting-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shell-connecting-dot {
+  width: 8px;
+  height: 8px;
+  background: #60a5fa;
+  border-radius: 50%;
+  animation: shell-pulse 1s ease-in-out infinite;
+}
+
+.shell-connecting-label {
+  font-size: 13px;
+  color: #93c5fd;
+}
+
+/* =============================================================================
+   Error State
+   ============================================================================= */
+
+.shell-error {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--shell-bg-overlay);
+  backdrop-filter: blur(4px);
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+/* =============================================================================
+   Disconnected Actions (Bottom Bar)
+   ============================================================================= */
+
+.shell-disconnected-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-top: 1px solid var(--shell-border);
+  background: var(--shell-bg);
+}
+
+/* =============================================================================
+   Reconnecting Indicator (Minimal, Non-Blocking)
+   Shows at bottom when reconnecting to an existing terminal.
+   Doesn't obscure terminal content.
+   ============================================================================= */
+
+.shell-reconnecting {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(to top, rgba(9, 9, 11, 0.95), rgba(9, 9, 11, 0.8));
+  border-top: 1px solid rgba(63, 63, 70, 0.5);
+
+  /* Performance: Prep GPU for animation */
+  will-change: opacity;
+
+  /* Fade in animation */
+  animation: shell-fade-in var(--shell-transition-normal) forwards;
+}
+
+.shell-reconnecting-dot {
+  width: 6px;
+  height: 6px;
+  background: #fbbf24;
+  border-radius: 50%;
+  animation: shell-pulse 1s ease-in-out infinite;
+}
+
+.shell-reconnecting-label {
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+/* =============================================================================
+   Reconnect Button (Floating Bottom Center)
+   ============================================================================= */
+
+.shell-reconnect-button {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+
+  /* Fade in + slide up animation */
+  animation: shell-slide-up var(--shell-transition-normal) forwards;
+}
+
+/* =============================================================================
+   Search Bar (Floating Top-Right)
+   ============================================================================= */
+
+.shell-search {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #18181b;
+  border: 1px solid var(--shell-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* Performance: Prep GPU for animation */
+  will-change: opacity, transform;
+
+  /* Slide down + fade in */
+  animation: shell-slide-down var(--shell-transition-normal) forwards;
+}
+
+/* Input wrapper - contains input and inline options */
+.shell-search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--shell-bg);
+  border: 1px solid var(--shell-border);
+  border-radius: 4px;
+  transition: border-color var(--shell-transition-fast);
+}
+
+.shell-search-input-wrapper:focus-within {
+  border-color: var(--shell-cursor);
+}
+
+.shell-search-input {
+  width: 120px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  color: var(--shell-fg);
+  outline: none;
+}
+
+.shell-search-input::placeholder {
+  color: var(--shell-fg-dim);
+}
+
+/* Inline search options (inside input) */
+.shell-search-options {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 4px;
+}
+
+.shell-search-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: var(--shell-fg-dim);
+  cursor: pointer;
+  transition:
+    color var(--shell-transition-fast),
+    background-color var(--shell-transition-fast);
+}
+
+.shell-search-option:hover {
+  color: var(--shell-fg);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.shell-search-option.active {
+  color: var(--nvidia-green);
+}
+
+.shell-search-option.active:hover {
+  color: var(--nvidia-green-light);
+  background: rgba(118, 185, 0, 0.15);
+}
+
+.shell-search-count {
+  font-size: 11px;
+  color: var(--shell-fg-dim);
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: center;
+}
+
+.shell-search-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+/* =============================================================================
+   Search Result Highlighting (xterm.js SearchAddon)
+   ============================================================================= */
+
+/* Hide the overview ruler (scrollbar markers) */
+.shell-body .xterm-decoration-overview-ruler {
+  display: none !important;
+}
+
+/* All search matches (subtle yellow background) */
+.shell-body .xterm-decoration,
+.shell-body .xterm-decoration-cursor-offset {
+  background-color: rgba(255, 255, 0, 0.25) !important;
+  border-bottom: 1px solid rgba(255, 255, 0, 0.6);
+  box-sizing: border-box;
+}
+
+/* Active/selected match (bright orange/yellow highlight) */
+.shell-body .xterm-decoration-top,
+.shell-body .xterm-decoration-top-cursor-offset {
+  background-color: rgba(255, 200, 0, 0.45) !important;
+  border-bottom: 2px solid rgba(255, 165, 0, 1);
+  box-sizing: border-box;
+}
+
+/* =============================================================================
+   Inactive/Disconnected State
+   ============================================================================= */
+
+.shell-container[data-connected="false"] {
+  /* Subtle border color change to indicate inactive */
+  border-color: #1f1f23;
+}
+
+/* Hide cursor completely when not connected */
+.shell-container[data-connected="false"] .xterm-cursor-layer {
+  opacity: 0 !important;
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes shell-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shell-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shell-slide-up {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes shell-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .shell-connecting,
+  .shell-reconnecting,
+  .shell-reconnect-button,
+  .shell-search {
+    animation: none;
+  }
+
+  .shell-reconnect-button {
+    /* Reset transform since animation is disabled */
+    transform: translateX(-50%);
+  }
+
+  .shell-connecting-dot,
+  .shell-reconnecting-dot {
+    animation: none;
+  }
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 400px) {
+  .shell-container {
+    --shell-padding: 4px;
+  }
+
+  .shell-search {
+    left: 8px;
+    right: 8px;
+  }
+
+  .shell-search-input-wrapper {
+    flex: 1;
+  }
+
+  .shell-search-input {
+    flex: 1;
+    width: auto;
+  }
+}
