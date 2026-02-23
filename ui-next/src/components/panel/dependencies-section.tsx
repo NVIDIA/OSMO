@@ -44,6 +44,16 @@ export interface DependenciesSectionProps {
   renderPill: (item: DependencyItem, onClick?: () => void) => React.ReactNode;
 }
 
+interface RenderedPillProps {
+  item: DependencyItem;
+  onSelect?: (name: string) => void;
+  renderPill: DependenciesSectionProps["renderPill"];
+}
+
+function RenderedPill({ item, onSelect, renderPill }: RenderedPillProps) {
+  return <>{renderPill(item, onSelect ? () => onSelect(item.name) : undefined)}</>;
+}
+
 interface DependencyRowProps {
   direction: "upstream" | "downstream";
   items: DependencyItem[];
@@ -66,7 +76,7 @@ const DependencyRow = memo(function DependencyRow({ direction, items, onSelect, 
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {items.map((item) => (
-          <div key={item.name}>{renderPill(item, onSelect ? () => onSelect(item.name) : undefined)}</div>
+          <RenderedPill key={item.name} item={item} onSelect={onSelect} renderPill={renderPill} />
         ))}
       </div>
     </div>

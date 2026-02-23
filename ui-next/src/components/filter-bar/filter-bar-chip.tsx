@@ -35,42 +35,49 @@ interface FilterBarChipProps {
   focused?: boolean;
 }
 
+interface ChipLabelProps {
+  chip: SearchChip;
+}
+
 /**
- * Renders a single filter chip with variant-aware label and remove button.
+ * Renders the chip label with optional variant highlighting.
  *
  * Variant styling parses labels like "Quota Free: >=10" to highlight
  * the Free/Used segment with semantic color.
  */
+function ChipLabel({ chip }: ChipLabelProps) {
+  if (!chip.variant) return <>{chip.label}</>;
+
+  // Match patterns like "Quota Free: >=10" or "Capacity Used: >=80%"
+  const match = chip.label.match(/^(.+?)\s+(Free|Used):\s*(.+)$/);
+  if (!match) return <>{chip.label}</>;
+
+  const [, prefix, freeUsed, value] = match;
+
+  return (
+    <>
+      {prefix}{" "}
+      <span
+        className="fb-chip-variant"
+        data-variant={chip.variant}
+      >
+        {freeUsed}
+      </span>
+      : {value}
+    </>
+  );
+}
+
+/**
+ * Renders a single filter chip with variant-aware label and remove button.
+ */
 export const FilterBarChip = memo(function FilterBarChip({ chip, onRemove, focused = false }: FilterBarChipProps) {
-  const renderLabel = () => {
-    if (!chip.variant) return chip.label;
-
-    // Match patterns like "Quota Free: >=10" or "Capacity Used: >=80%"
-    const match = chip.label.match(/^(.+?)\s+(Free|Used):\s*(.+)$/);
-    if (!match) return chip.label;
-
-    const [, prefix, freeUsed, value] = match;
-
-    return (
-      <>
-        {prefix}{" "}
-        <span
-          className="fb-chip-variant"
-          data-variant={chip.variant}
-        >
-          {freeUsed}
-        </span>
-        : {value}
-      </>
-    );
-  };
-
   return (
     <span
       className="fb-chip"
       data-focused={focused ? "" : undefined}
     >
-      {renderLabel()}
+      <ChipLabel chip={chip} />
       <button
         type="button"
         onClick={(e) => {

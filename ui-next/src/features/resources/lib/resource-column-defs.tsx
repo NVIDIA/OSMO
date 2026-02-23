@@ -35,6 +35,7 @@ import {
 } from "@/features/resources/lib/resource-columns";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { ExpandableChips } from "@/components/expandable-chips";
+import { CapacityCell } from "@/features/resources/components/table/capacity-cell";
 
 // =============================================================================
 // Column Cell Components
@@ -73,7 +74,6 @@ function TextCell({ value }: { value: string }) {
 
 export interface CreateColumnsOptions {
   displayMode: DisplayMode;
-  renderCapacityCell: (props: { used: number; total: number; isBytes?: boolean; mode: DisplayMode }) => React.ReactNode;
 }
 
 /**
@@ -84,7 +84,6 @@ export interface CreateColumnsOptions {
  */
 export function createResourceColumns({
   displayMode,
-  renderCapacityCell,
 }: CreateColumnsOptions): ColumnDef<Resource, unknown>[] {
   // Get minimum width from rem-based config (converted to pixels)
   const getMinSize = (id: ResourceColumnId): number => {

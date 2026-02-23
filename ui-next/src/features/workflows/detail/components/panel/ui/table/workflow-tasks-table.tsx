@@ -470,9 +470,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
 
   // Calculate column count for section header colSpan
   // Column count = number of visible columns defined by TanStack Table
-  const sectionColSpan = useMemo(() => {
-    return visibleColumnIds.length + 1; // +1 for the tree column
-  }, [visibleColumnIds.length]);
+  const sectionColSpan = visibleColumnIds.length + 1; // +1 for the tree column
 
   // Stable callback maps for section headers (prevents inline closures breaking memoization)
   const toggleCallbacksRef = useRef<Map<string, () => void>>(new Map());

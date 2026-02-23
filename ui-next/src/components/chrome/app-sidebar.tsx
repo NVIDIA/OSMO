@@ -16,7 +16,7 @@
 
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { Link } from "@/components/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftToLine, ArrowRightFromLine, BookOpen, Terminal, Copy, Check } from "lucide-react";
@@ -184,7 +184,7 @@ function CliInstallButton({ cliInstallScriptUrl, collapsed }: { cliInstallScript
   const { copied, copy } = useCopy();
   const { announcer } = useServices();
 
-  const installCommand = useMemo(() => `curl -fsSL ${cliInstallScriptUrl} | bash`, [cliInstallScriptUrl]);
+  const installCommand = `curl -fsSL ${cliInstallScriptUrl} | bash`;
 
   const handleCopy = useCallback(async () => {
     const success = await copy(installCommand);
