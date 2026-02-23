@@ -34,7 +34,7 @@ The main pieces involved are:
    - **With an IdP:** Run an OAuth2 filter that redirects unauthenticated browser users to your identity provider and validates the JWT returned by the IdP. It then forwards the request to the OSMO service with headers like ``x-osmo-user`` and ``x-osmo-roles`` derived from the JWT.
    - **Without an IdP:** Allow requests that carry a valid access token or service-issued JWT and set the same headers for the backend.
 
-3. **Identity provider (IdP)** — Optional. Your organization’s login system (e.g., Microsoft Entra ID, Google, AWS IAM Identity Center). When used, Envoy talks to it directly and the IdP issues JWTs that Envoy validates.
+3. **Identity provider (IdP)** — Optional. Your organization's login system (e.g., Microsoft Entra ID, Google, AWS IAM Identity Center). When used, Envoy talks to it directly and the IdP issues JWTs that Envoy validates.
 
 4. **OSMO service** — The backend. It trusts the ``x-osmo-user`` and ``x-osmo-roles`` headers set by Envoy (or by an internal path that bypasses Envoy). It does **not** validate the original JWT itself; Envoy is responsible for that. The service uses the user and roles to resolve policies and allow or deny the request.
 
@@ -43,7 +43,7 @@ So in practice: the client gets a token (JWT from IdP or access token), Envoy va
 Operating without an identity provider
 =========================================
 
-When you do not configure an IdP, there is no browser “log in with SSO” flow. Access is token-based.
+When you do not configure an IdP, there is no browser "log in with SSO" flow. Access is token-based.
 
 Default admin
 --------------
@@ -54,47 +54,47 @@ You enable a **default admin** user via Helm (see :ref:`default_admin_setup`). O
 - Assigns that user the ``osmo-admin`` role.
 - Creates an access token for that user whose secret is the password you stored in a Kubernetes secret.
 
-So the “password” you set for the default admin is effectively the access token value. You use it with the CLI (e.g. ``osmo login``) or with the API as ``Authorization: Bearer <that-password>``.
+So the "password" you set for the default admin is effectively the access token value. You use it with the CLI (e.g. ``osmo login``) or with the API as ``Authorization: Bearer <that-password>``.
 
 Access tokens
 -------------
 
 After the default admin is in place (or if you have another admin), you can:
 
-- Create more **users** via the user API (e.g. ``POST /api/auth/user``).
-- Assign **roles** to users (e.g. ``POST /api/auth/user/{id}/roles``).
-- Create **access tokens** for users (e.g. ``POST /api/auth/access_token/{token_name}`` or the admin API to create an access token for any user). Each access token is tied to a user and gets a set of roles (by default, all of that user’s roles) at creation time.
+- Create more **users** via the CLI (e.g. ``osmo user create``).
+- Assign **roles** to users (e.g. ``osmo user roles add <user_id> <role_name>``).
+- Create **access tokens** for users (e.g. ``osmo token create <token_name>``). An admin can create a token for another user via ``osmo token create <token_name> --user <user_id>``. Each access token is tied to a user and gets a set of roles (by default, all of that user's roles) at creation time.
 
 Scripts and the CLI then authenticate by sending the access token in the ``Authorization: Bearer <token>`` header. The OSMO service (or Envoy, if configured to accept access tokens) validates the token, resolves the user and roles from the database, and sets the same ``x-osmo-user`` and ``x-osmo-roles`` headers for the backend. Authorization works the same as for IdP-issued JWTs.
 
 Token-based login (service-issued JWT)
 --------------------------------------
 
-For compatibility with flows that expect a JWT (e.g. some CLI or internal callers), OSMO can issue its own JWTs. For example, a client can exchange an access token for a short-lived JWT via the appropriate auth endpoint. Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` and the service’s public key). The resulting JWT carries the same user and roles; Envoy validates it and sets ``x-osmo-user`` and ``x-osmo-roles`` as before.
+For compatibility with flows that expect a JWT (e.g. some CLI or internal callers), OSMO can issue its own JWTs. For example, a client can exchange an access token for a short-lived JWT via the appropriate auth endpoint. Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` and the service's public key). The resulting JWT carries the same user and roles; Envoy validates it and sets ``x-osmo-user`` and ``x-osmo-roles`` as before.
 
 Operating with an identity provider
 ===================================
 
-When you configure an IdP, Envoy uses OAuth 2.0 / OpenID Connect to let users log in with your organization’s identity system.
+When you configure an IdP, Envoy uses OAuth 2.0 / OpenID Connect to let users log in with your organization's identity system.
 
 Browser login
 -------------
 
 1. The user opens the OSMO UI or an API URL that requires authentication.
-2. Envoy’s OAuth2 filter sees that the user is not authenticated (no valid session cookie or ``x-osmo-auth`` header).
-3. Envoy redirects the browser to the IdP’s authorization endpoint. The user signs in at the IdP (e.g. Microsoft, Google).
+2. Envoy's OAuth2 filter sees that the user is not authenticated (no valid session cookie or ``x-osmo-auth`` header).
+3. Envoy redirects the browser to the IdP's authorization endpoint. The user signs in at the IdP (e.g. Microsoft, Google).
 4. The IdP redirects back to Envoy with an authorization code (e.g. to ``/api/auth/getAToken``).
-5. Envoy exchanges the code for tokens (access token, ID token, optionally refresh token) at the IdP’s token endpoint.
+5. Envoy exchanges the code for tokens (access token, ID token, optionally refresh token) at the IdP's token endpoint.
 6. Envoy sets session cookies (e.g. ``OAuthHMAC``, ``IdToken``, ``BearerToken``) and forwards the user to the original URL.
-7. On subsequent requests, Envoy reads the ``IdToken`` (JWT) from the cookie, validates it (signature, expiry, issuer, audience), and sets ``x-osmo-user`` and ``x-osmo-roles`` from the JWT claims (and/or from OSMO’s database after syncing the user).
+7. On subsequent requests, Envoy reads the ``IdToken`` (JWT) from the cookie, validates it (signature, expiry, issuer, audience), and sets ``x-osmo-user`` and ``x-osmo-roles`` from the JWT claims (and/or from OSMO's database after syncing the user).
 8. The OSMO service receives the request with those headers and authorizes using its role/policy database.
 
-So the IdP is the source of “who is this?”; OSMO is the source of “what can they do?” (roles and policies), possibly combined with role information from the IdP (e.g. groups mapped to OSMO roles).
+So the IdP is the source of "who is this?"; OSMO is the source of "what can they do?" (roles and policies), possibly combined with role information from the IdP (e.g. groups mapped to OSMO roles).
 
 CLI / device flow
 -----------------
 
-For the CLI, a device-authorization or similar flow can be used: the CLI calls an endpoint (e.g. ``GET /api/auth/login``) to get the IdP’s device-auth URL, the user completes login in a browser, and the CLI receives tokens. The exact endpoints depend on your Envoy and service configuration (e.g. device endpoint and client IDs in ``services.service.auth``). Once the CLI has an ID token, it sends it in the ``x-osmo-auth`` header; Envoy validates it and sets ``x-osmo-user`` and ``x-osmo-roles`` as for browser requests.
+For the CLI, use ``osmo login`` to authenticate with an IdP. The CLI initiates a device-authorization flow, opens a browser for the user to sign in at the IdP, and receives tokens upon completion. Once authenticated, the CLI uses the token for subsequent requests. Envoy validates the token and sets ``x-osmo-user`` and ``x-osmo-roles`` as for browser requests.
 
 Role resolution with an IdP
 ---------------------------
@@ -105,10 +105,10 @@ When a request carries an IdP-issued JWT:
 2. The OSMO service (or middleware) may **sync** the user and roles:
    - Ensure the user exists in OSMO (just-in-time provisioning).
    - Map IdP group/role claims to OSMO role names (via ``role_external_mappings``).
-   - Merge roles from the IdP with roles stored in OSMO’s ``user_roles`` table and apply role ``sync_mode`` (e.g. ``import`` vs ``force``).
+   - Merge roles from the IdP with roles stored in OSMO's ``user_roles`` table and apply role ``sync_mode`` (e.g. ``import`` vs ``force``).
 3. The final list of roles for the request is used to load policies and allow or deny the action.
 
-So roles can come from the IdP (mapped into OSMO role names) and/or from OSMO’s user/role tables. See the PROJ-148 user management and direct IdP integration design docs for details (e.g. ``external/projects/PROJ-148-auth-rework/``).
+So roles can come from the IdP (mapped into OSMO role names) and/or from OSMO's user/role tables. See the :doc:`user_role_mapping` for details.
 
 Token validation and headers
 ============================
@@ -132,7 +132,7 @@ Troubleshooting
 Verify IdP configuration (redirect URIs, client ID/secret), Envoy OAuth2 and JWT provider settings (issuer, audience, JWKS URI), and that the IdP is reachable from the cluster.
 
 **User has no permissions (403)**
-Check that the user has roles in OSMO (user/role APIs or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
+Check that the user has roles in OSMO (via ``osmo user roles list <user_id>`` or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
 
 **Token validation failures**
 Ensure issuer and audience in Envoy match the JWT. Check JWKS URI connectivity from Envoy. For access tokens, ensure the token exists and is not expired.

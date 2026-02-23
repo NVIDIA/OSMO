@@ -34,7 +34,7 @@ Use an IdP when:
 
 If you are evaluating OSMO or running in an environment without an IdP, use the **default admin** and **access tokens** instead (see :ref:`default_admin_setup`).
 
-How it works (short)
+How it works
 ====================
 
 1. You register OSMO as an application (OAuth2 / OIDC client) in your IdP and get a client ID and client secret.
@@ -196,27 +196,26 @@ Replace ``<region>`` and ``<instance-id>`` with your values. User claim is often
 Managing users and roles with an IdP
 =====================================
 
-- **Users** can be created in OSMO automatically when they first log in (just-in-time provisioning), or via the user API (e.g. ``POST /api/auth/user``).
-- **Roles** can be assigned in OSMO via the role APIs (e.g. ``POST /api/auth/user/{id}/roles``). They can also be derived from IdP claims: configure ``role_external_mappings`` so that IdP group or role names map to OSMO role names. The OSMO service then merges IdP-derived roles with roles stored in the database (see sync modes in the user management design).
+- **Users** can be created in OSMO automatically when they first log in (just-in-time provisioning), or via the CLI (e.g. ``osmo user create``).
+- **Roles** can be assigned in OSMO via the CLI (e.g. ``osmo user roles add <user_id> <role_name>``). They can also be derived from IdP claims: configure ``role_external_mappings`` so that IdP group or role names map to OSMO role names. The OSMO service then merges IdP-derived roles with roles stored in the database.
 
-For full API and schema details, see the design docs under ``external/projects/PROJ-148-auth-rework/`` (e.g. PROJ-148-user-management.md and PROJ-148-direct-idp-integration.md).
+For more details, see :doc:`user_role_mapping`.
 
 Verification
 ============
 
 - **Browser:** Open ``https://<your-domain>`` in a private window. You should be redirected to the IdP, then back to OSMO with a session.
-- **API:** After logging in, call an API with the session cookie or the token in ``Authorization: Bearer <token>`` and confirm you get the expected user and permissions (e.g. check ``x-osmo-user`` / ``x-osmo-roles`` in Envoy logs if needed).
+- **CLI:** After logging in, run ``osmo user roles list <user_id>`` to confirm the user has the expected roles.
 
 Troubleshooting
 ===============
 
 - **Invalid token / 401:** Check issuer and audience in Envoy match the JWT. Ensure the IdP’s JWKS URI is reachable from the cluster and the signing key is present.
 - **Redirect fails:** Ensure the redirect URI in the IdP exactly matches (scheme, host, path, no trailing slash).
-- **User has no roles / 403:** Ensure the user exists in OSMO and has roles (via user/role APIs or IdP mapping). Verify the user claim (e.g. ``preferred_username``, ``email``) matches what OSMO expects.
+- **User has no roles / 403:** Ensure the user exists in OSMO and has roles (via ``osmo user roles list <user_id>`` or IdP mapping). Verify the user claim (e.g. ``preferred_username``, ``email``) matches what OSMO expects.
 
 .. seealso::
 
    - :doc:`index` for overview of authentication with and without an IdP
    - :doc:`authentication_flow` for request flow
    - :doc:`roles_policies` for roles and policies
-   - Design docs: ``external/projects/PROJ-148-auth-rework/PROJ-148-direct-idp-integration.md`` and ``PROJ-148-user-management.md``
