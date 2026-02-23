@@ -21,7 +21,7 @@
 # =============================================================================
 #
 # Standard build for Kubernetes (from Apple Silicon Mac):
-#   cd external/ui-next
+#   cd external/src/ui
 #   docker login $REGISTRY
 #   docker buildx build --platform linux/amd64 \
 #     -t $REGISTRY/osmo/web-ui-next:YOUR_TAG .

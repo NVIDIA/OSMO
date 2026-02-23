@@ -7,7 +7,7 @@ This file provides guidance to Claude Code when working with this Next.js 16 + R
 **Before saying "Done", "Fixed", "Complete", or reporting success, ALWAYS run:**
 
 ```bash
-cd external/ui-next && pnpm type-check && pnpm lint && pnpm test --run
+cd external/src/ui && pnpm type-check && pnpm lint && pnpm test --run
 ```
 
 **All checks must pass with ZERO errors and ZERO warnings.** If any check fails, fix immediately and re-run ALL checks.

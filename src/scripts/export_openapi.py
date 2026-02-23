@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,9 +23,9 @@ as JSON. It's designed to be run via Bazel with all dependencies properly
 resolved.
 
 Usage (via Bazel):
-    bazel run //src/service:export_openapi > ui-next/openapi.json
+    bazel run //src/service:export_openapi > src/ui/openapi.json
 
-Usage (via pnpm from ui-next):
+Usage (via pnpm from src/ui):
     pnpm generate-api:source
 """
 

@@ -38,13 +38,13 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 
 // Base path for serving UI under a subpath (e.g., /v2)
-// This allows ui-next to run alongside legacy UI on the same hostname
-// - All routes become /v2/* (e.g., /v2/pools, /v2/workflows)
-// - Static assets served from /v2/_next/static/*
-// - API rewrites still forward to backend /api/* (no /v2 prefix)
-//
-// Set via NEXT_PUBLIC_BASE_PATH environment variable (configured in Helm chart values)
-// Defaults to empty string (root path) for local development
+// This allows src/ui to run alongside legacy UI on the same hostname
+  // - All routes become /v2/* (e.g., /v2/pools, /v2/workflows)
+  // - Static assets served from /v2/_next/static/*
+  // - API rewrites still forward to backend /api/* (no /v2 prefix)
+  //
+  // Set via NEXT_PUBLIC_BASE_PATH environment variable (configured in Helm chart values)
+  // Defaults to empty string (root path) for local development
 const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
@@ -53,7 +53,7 @@ const nextConfig: NextConfig = {
   // =============================================================================
 
   // Base path for serving UI under a subpath (e.g., /v2)
-  // This allows ui-next to run alongside legacy UI on the same hostname
+  // This allows src/ui to run alongside legacy UI on the same hostname
   // - All routes become /v2/* (e.g., /v2/pools, /v2/workflows)
   // - Static assets served from /v2/_next/static/*
   // - API rewrites still forward to backend /api/* (no /v2 prefix)

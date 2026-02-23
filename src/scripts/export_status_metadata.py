@@ -24,9 +24,9 @@ semantics as the backend without duplication.
 
 Usage (via Bazel):
     bazel run //src/service:export_status_metadata \
-        > ui-next/src/lib/api/status-metadata.generated.ts
+        > src/ui/src/lib/api/status-metadata.generated.ts
 
-Usage (via pnpm from ui-next):
+Usage (via pnpm from src/ui):
     pnpm generate-api (runs this as part of the generation pipeline)
 """
 
