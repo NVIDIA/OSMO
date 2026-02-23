@@ -35,7 +35,7 @@ import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";
+import { useDisplayMode, useCompactMode } from "@/hooks/shared-preferences-hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "@/features/pools/lib/pool-columns";

@@ -42,7 +42,7 @@ import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle"
 import { usePanelWidth } from "@/components/panel/hooks/use-panel-width";
 import { PoolsDataTable } from "@/features/pools/components/table/pools-data-table";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import { PoolPanelHeader } from "@/features/pools/components/panel/panel-header";
 import { PanelContent } from "@/features/pools/components/panel/panel-content";
 import { PoolsToolbar } from "@/features/pools/components/pools-toolbar";

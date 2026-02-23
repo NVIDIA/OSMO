@@ -31,7 +31,8 @@ import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useDisplayMode, useCompactMode, type DisplayMode } from "@/stores/shared-preferences-store";
+import type { DisplayMode } from "@/stores/shared-preferences-store";
+import { useDisplayMode, useCompactMode } from "@/hooks/shared-preferences-hooks";
 import type { Resource } from "@/lib/api/adapter/types";
 import {
   MANDATORY_COLUMN_IDS,
@@ -39,6 +40,7 @@ import {
   RESOURCE_COLUMN_SIZE_CONFIG,
 } from "@/features/resources/lib/resource-columns";
 import { createResourceColumns } from "@/features/resources/lib/resource-column-defs";
+import { CapacityCell } from "@/features/resources/components/table/capacity-cell";
 import { useResourcesTableStore } from "@/features/resources/stores/resources-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -183,7 +185,21 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   );
 
   // Create TanStack columns with current display mode
-  const columns = useMemo(() => createResourceColumns({ displayMode }), [displayMode]);
+  const columns = useMemo(
+    () =>
+      createResourceColumns({
+        displayMode,
+        renderCapacityCell: ({ used, total, isBytes, mode }) => (
+          <CapacityCell
+            used={used}
+            total={total}
+            isBytes={isBytes}
+            mode={mode}
+          />
+        ),
+      }),
+    [displayMode],
+  );
 
   // Fixed columns (not draggable)
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);

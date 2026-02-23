@@ -43,8 +43,7 @@
  */
 
 import type { Dataset } from "@/lib/api/adapter/datasets";
-import type { SearchChip } from "@/stores/types";
-import type { SortDirection } from "@/components/data-table/types";
+import type { SearchChip, SortDirection } from "@/stores/types";
 import { parseDateRangeValue } from "@/lib/date-range-utils";
 import { naturalCompare } from "@/lib/utils";
 

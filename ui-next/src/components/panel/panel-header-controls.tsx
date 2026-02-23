@@ -19,27 +19,7 @@
 import { memo } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// =============================================================================
-// Panel Constants
-// =============================================================================
-
-/**
- * Shared panel configuration for resizable detail panels.
- * Used by pools, resources, workflows/DAG panels.
- */
-export const PANEL = {
-  /** Minimum width percentage */
-  MIN_WIDTH_PCT: 33,
-  /** Overlay maximum width percentage */
-  OVERLAY_MAX_WIDTH_PCT: 80,
-  /** Maximum width percentage (100 for auto-snap zones) */
-  MAX_WIDTH_PCT: 100,
-  /** Default panel width percentage */
-  DEFAULT_WIDTH_PCT: 50,
-  /** Width of collapsed panel strip in pixels */
-  COLLAPSED_WIDTH_PX: 40,
-} as const;
+import { PANEL } from "@/components/panel/lib/panel-constants";
 
 // =============================================================================
 // Panel Header Container

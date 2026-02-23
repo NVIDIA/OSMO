@@ -28,7 +28,8 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/shadcn/button";
 import { SemiStatefulButton } from "@/components/semi-stateful-button";
-import { useSharedPreferences, useCompactMode } from "@/stores/shared-preferences-store";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import type { SearchChip } from "@/stores/types";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import type { SearchField, SearchPreset, ResultsCount } from "@/components/filter-bar/lib/types";

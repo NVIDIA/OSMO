@@ -20,7 +20,7 @@ import { useEffect, useMemo } from "react";
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
-import type { WorkflowMetadata } from "@/components/log-viewer/components/log-viewer-container";
+import type { WorkflowMetadata } from "@/components/log-viewer/lib/types";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { addRecentWorkflow } from "@/features/log-viewer/recent-workflows";
 import { useWorkflow } from "@/lib/api/adapter/hooks";

@@ -24,7 +24,7 @@
 
 import { useId } from "react";
 import { TimeRangePresets } from "@/components/log-viewer/components/timeline/components/time-range-presets";
-import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+import type { TimeRangePreset } from "@/components/log-viewer/lib/timeline-constants";
 
 // =============================================================================
 // Types

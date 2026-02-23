@@ -32,7 +32,7 @@ import "@xyflow/react/dist/style.css";
 import { SIDEBAR } from "@/components/chrome/constants";
 import { useSidebar } from "@/components/shadcn/sidebar";
 import { useEventCallback, useResizeObserver } from "usehooks-ts";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import { nodeTypes } from "@/features/workflows/detail/components/dag/group-node";
 import { dagEdgeTypes } from "@/features/workflows/detail/components/dag/dag-edge";
 import { DAGProvider } from "@/features/workflows/detail/components/dag/dag-context";

@@ -71,7 +71,7 @@ import {
   KEYBOARD_NUDGE_MS,
   NOW_THRESHOLD_MS,
   MAX_MARKER_POSITION_PERCENT,
-} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+} from "@/components/log-viewer/lib/timeline-constants";
 import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 import {
   initTimelineDebug,

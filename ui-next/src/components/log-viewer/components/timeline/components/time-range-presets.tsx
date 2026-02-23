@@ -34,7 +34,7 @@ import {
   type TimeRangePreset,
   PRESET_LABELS,
   PRESET_ORDER,
-} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+} from "@/components/log-viewer/lib/timeline-constants";
 
 // =============================================================================
 // Types

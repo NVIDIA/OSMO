@@ -23,16 +23,9 @@ import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer
 import { useLogPresentation } from "@/components/log-viewer/hooks/use-log-presentation";
 import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 import { useLogViewerLocalState } from "@/components/log-viewer/lib/use-log-viewer-local-state";
+import type { WorkflowMetadata } from "@/components/log-viewer/lib/types";
 import { useTick, useTickController } from "@/hooks/use-tick";
 import { formatDateTimeFull } from "@/lib/format-date";
-
-export interface WorkflowMetadata {
-  name: string;
-  status: string;
-  submitTime?: Date;
-  startTime?: Date;
-  endTime?: Date;
-}
 
 export interface LogViewerContainerProps {
   /** Backend-provided log URL (e.g., task.logs, workflow.logs) */

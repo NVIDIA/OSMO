@@ -31,7 +31,8 @@ import { Footer } from "@/components/log-viewer/components/footer";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
-import { DEFAULT_HEIGHT } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+import { DEFAULT_HEIGHT } from "@/components/log-viewer/lib/timeline-constants";
+import type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps } from "@/components/log-viewer/lib/types";
 
 // =============================================================================
 // Helpers
@@ -132,93 +133,7 @@ const LOG_FILTER_PRESETS: {
   },
 ];
 
-// =============================================================================
-// Types
-// =============================================================================
-
-/**
- * Histogram data structure for timeline display.
- */
-export interface HistogramData {
-  buckets: HistogramBucket[];
-  intervalMs: number;
-}
-
-/**
- * Data-related props for LogViewer.
- * Contains all log entries, loading states, and data refresh handlers.
- */
-export interface LogViewerDataProps {
-  /** Raw unfiltered log entries - used for FilterBar autocomplete and histogram */
-  rawEntries: LogEntry[];
-  /** Filtered log entries to display in the list */
-  filteredEntries: LogEntry[];
-  /** Whether entries are currently loading (initial load) */
-  isLoading: boolean;
-  /** Whether data is being refetched in background */
-  isFetching: boolean;
-  /** Error state */
-  error: Error | null;
-  /** Histogram data for timeline visualization (computed from rawEntries) */
-  histogram: HistogramData | undefined;
-  /** Pending histogram data (for real-time pan/zoom feedback, from rawEntries) */
-  pendingHistogram: HistogramData | undefined;
-  /** Whether streaming is active (receiving new log entries) */
-  isStreaming: boolean;
-  /** URL to open raw logs in new tab (direct to backend, bypassing UI proxy) */
-  externalLogUrl?: string;
-  /** Callback to refetch data */
-  onRefetch: () => void;
-}
-
-/**
- * Filter-related props for LogViewer.
- * Contains current filter state and change handlers.
- */
-export interface LogViewerFilterProps {
-  /** Current filter chips (controlled by parent) */
-  filterChips: SearchChip[];
-  /** Callback when user changes filter chips */
-  onFilterChipsChange: (chips: SearchChip[]) => void;
-  /** Scope of the log viewer (workflow, group, or task level) */
-  scope: "workflow" | "group" | "task";
-}
-
-/**
- * Timeline-related props for LogViewer.
- * Contains time range state, presets, and all time-related handlers.
- */
-export interface LogViewerTimelineProps {
-  /** USER INTENT: Filter start time (undefined = from beginning) */
-  filterStartTime: Date | undefined;
-  /** USER INTENT: Filter end time (undefined = live mode/NOW) */
-  filterEndTime: Date | undefined;
-  /** Display range start (with padding for visual context) */
-  displayStart: Date;
-  /** Display range end (with padding for visual context) */
-  displayEnd: Date;
-  /** Active time range preset (all, 5m, 15m, 1h, 6h, 24h, custom) */
-  activePreset: TimeRangePreset | undefined;
-  /** Callback to set filter start time */
-  onFilterStartTimeChange: (time: Date | undefined) => void;
-  /** Callback to set filter end time */
-  onFilterEndTimeChange: (time: Date | undefined) => void;
-  /** Callback to apply a time range preset */
-  onPresetSelect: (preset: TimeRangePreset) => void;
-  /** Callback when display range changes (for pending histogram during pan/zoom) */
-  onDisplayRangeChange: (start: Date, end: Date) => void;
-  /** Callback to clear pending display state (on Apply or Cancel) */
-  onClearPendingDisplay: () => void;
-  /** Entity start time (workflow/group/task start) - GUARANTEED by parent guard */
-  entityStartTime: Date;
-  /** Entity end time (completion timestamp) - undefined if still running */
-  entityEndTime: Date | undefined;
-  /**
-   * REFERENCE: Synchronized "NOW" timestamp (milliseconds since epoch) from useTick().
-   * REQUIRED for time consistency across all timeline calculations.
-   */
-  now: number;
-}
+export type { LogViewerDataProps, LogViewerFilterProps, LogViewerTimelineProps };
 
 /**
  * LogViewer props with grouped interfaces.

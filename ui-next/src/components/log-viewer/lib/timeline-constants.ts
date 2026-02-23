@@ -14,87 +14,34 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * Timeline Constants
- *
- * Centralized constants for the timeline module.
- * Single source of truth for all magic numbers and configuration values.
- */
-
-// =============================================================================
-// Display Configuration
-// =============================================================================
-
 /** Default height of the histogram in pixels */
 export const DEFAULT_HEIGHT = 75;
-
 /** Padding ratio for display range (10% on each side for visual breathing room) */
 export const DISPLAY_PADDING_RATIO = 0.1;
-
 /** Minimum padding in milliseconds (10 seconds for visual breathing room) */
 export const MIN_PADDING_MS = 10_000;
-
 /** Default fallback duration when no data (1 hour in milliseconds) */
 export const DEFAULT_DURATION_MS = 60 * 60 * 1000;
-
-// =============================================================================
-// Time Thresholds
-// =============================================================================
-
 /** Threshold for considering end time as "now" (1 minute) */
 export const NOW_THRESHOLD_MS = 60_000;
-
 /** Minimum range in milliseconds (1 minute) */
 export const MIN_RANGE_MS = 60_000;
-
 /** Maximum range in milliseconds (1 day) - prevents zooming out too far */
 export const MAX_RANGE_MS = 24 * 60 * 60 * 1000;
-
-// =============================================================================
-// Bucket Count Constraints
-// =============================================================================
-
 /** Minimum bucket count (prevents zooming in past meaningful resolution) */
 export const MIN_BUCKET_COUNT = 20;
-
 /** Maximum bucket count (prevents zooming out to too many bars) */
 export const MAX_BUCKET_COUNT = 100;
-
-// =============================================================================
-// Marker Constraints
-// =============================================================================
-
-/**
- * Maximum marker position as percentage of viewport (50%).
- *
- * Pan constraints are based on marker positions:
- * - Start marker (entityStartTime) can be panned up to 50% from left edge
- * - End marker (entityEndTime or NOW) can be panned up to 50% from right edge
- *
- * This allows generous zoom-in for short workflows while keeping markers visible.
- * When markers reach 50%, users can still pan to see data on either side.
- */
+/** Maximum marker position as percentage of viewport (50%). */
 export const MAX_MARKER_POSITION_PERCENT = 50;
-
-// =============================================================================
-// Gesture Configuration
-// =============================================================================
-
 /** Pan amount as fraction of visible range (10% per wheel tick) */
 export const PAN_FACTOR = 0.1;
-
 /** Zoom in factor (narrow by 20%) */
 export const ZOOM_IN_FACTOR = 0.8;
-
 /** Zoom out factor (widen by 25%) */
 export const ZOOM_OUT_FACTOR = 1.25;
-
 /** Keyboard nudge amount in milliseconds (5 minutes) */
 export const KEYBOARD_NUDGE_MS = 5 * 60 * 1000;
-
-// =============================================================================
-// Time Range Presets
-// =============================================================================
 
 export type TimeRangePreset = "all" | "5m" | "15m" | "1h" | "6h" | "24h" | "custom";
 

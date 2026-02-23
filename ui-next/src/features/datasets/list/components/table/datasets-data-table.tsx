@@ -35,7 +35,7 @@ import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { ColumnSizingPreference, SortState } from "@/components/data-table/types";
-import { useCompactMode } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { Dataset } from "@/lib/api/adapter/datasets";
 import {

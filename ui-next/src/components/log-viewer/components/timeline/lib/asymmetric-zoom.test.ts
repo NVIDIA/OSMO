@@ -28,7 +28,7 @@
 
 import { describe, it, expect } from "vitest";
 import { validateInvalidZoneLimits } from "@/components/log-viewer/components/timeline/lib/timeline-utils";
-import { MAX_MARKER_POSITION_PERCENT } from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+import { MAX_MARKER_POSITION_PERCENT } from "@/components/log-viewer/lib/timeline-constants";
 
 describe("Asymmetric Zoom - Right Side Constrained", () => {
   const entityStart = new Date("2026-01-24T10:00:30.000Z");

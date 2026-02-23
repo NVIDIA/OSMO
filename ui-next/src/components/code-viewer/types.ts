@@ -14,19 +14,7 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-import type { Extension } from "@codemirror/state";
-
-/**
- * Language extension configuration for CodeMirror
- *
- * Defines the syntax highlighting and language-specific behavior.
- */
-export interface LanguageExtension {
-  /** Display name for the language (e.g., "YAML", "JSON", "Python") */
-  name: string;
-  /** CodeMirror extension(s) for syntax highlighting and language features */
-  extension: Extension | Extension[];
-}
+import type { LanguageExtension } from "@/components/code-viewer/lib/types";
 
 /**
  * Base props shared by both read-only and editable modes

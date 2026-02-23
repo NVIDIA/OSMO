@@ -22,7 +22,7 @@
  */
 
 import { useMemo, useCallback } from "react";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 
 export interface UsePanelWidthOptions {
   /** Stored panel width from store */

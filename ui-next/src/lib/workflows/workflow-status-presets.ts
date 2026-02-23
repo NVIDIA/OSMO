@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import type { SearchChip } from "@/components/filter-bar/lib/types";
+import type { SearchChip } from "@/stores/types";
 import { WorkflowStatus } from "@/lib/api/generated";
 import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
 import { STATUS_LABELS } from "@/lib/workflows/workflow-constants";

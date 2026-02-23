@@ -28,7 +28,7 @@ import { naturalCompare } from "@/lib/utils";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { SortState } from "@/components/data-table/types";
-import { useCompactMode } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { STATUS_SORT_ORDER } from "@/features/workflows/detail/lib/status";
 import type { TaskWithDuration, GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
 import type { TaskQueryResponse } from "@/features/workflows/detail/lib/workflow-types";

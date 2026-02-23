@@ -151,4 +151,3 @@ export const RESOURCE_SEARCH_FIELDS: readonly SearchField<Resource>[] = Object.f
 ]);
 
 /** Re-export numeric filter utilities for testing */
-export { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";

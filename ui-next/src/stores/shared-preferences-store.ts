@@ -57,7 +57,6 @@
 import { create } from "zustand";
 import { persist, devtools, createJSONStorage } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { useHydratedStore } from "@/hooks/use-hydrated-store";
 
 // =============================================================================
 // Types
@@ -210,50 +209,3 @@ export const useSharedPreferences = create<SharedPreferencesStore>()(
   ),
 );
 
-// =============================================================================
-// Hydration-Safe Selectors
-// =============================================================================
-//
-// These hooks return the initial state during SSR and hydration, then switch
-// to the actual persisted value after hydration completes. This prevents
-// hydration mismatches from server rendering with defaults but client having
-// localStorage values.
-//
-// Use these for any preference value that affects the initial render output.
-// =============================================================================
-
-/**
- * Hydration-safe display mode selector.
- * Returns "free" during SSR, then actual value after hydration.
- */
-export function useDisplayMode(): DisplayMode {
-  return useHydratedStore<SharedPreferencesStore, DisplayMode>(
-    useSharedPreferences,
-    (s) => s.displayMode,
-    initialState.displayMode,
-  );
-}
-
-/**
- * Hydration-safe compact mode selector.
- * Returns false during SSR, then actual value after hydration.
- */
-export function useCompactMode(): boolean {
-  return useHydratedStore<SharedPreferencesStore, boolean>(
-    useSharedPreferences,
-    (s) => s.compactMode,
-    initialState.compactMode,
-  );
-}
-
-/**
- * Hydration-safe sidebar open state selector.
- * Returns true during SSR, then actual value after hydration.
- */
-export function useSidebarOpen(): boolean {
-  return useHydratedStore<SharedPreferencesStore, boolean>(
-    useSharedPreferences,
-    (s) => s.sidebarOpen,
-    initialState.sidebarOpen,
-  );
-}

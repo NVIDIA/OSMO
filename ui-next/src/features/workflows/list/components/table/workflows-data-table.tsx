@@ -36,7 +36,7 @@ import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useCompactMode } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
@@ -45,7 +45,7 @@ import {
   asWorkflowColumnIds,
   WORKFLOW_COLUMN_SIZE_CONFIG,
 } from "@/features/workflows/list/lib/workflow-columns";
-import { getStatusDisplay } from "@/features/workflows/list/lib/workflow-constants";
+import { getStatusDisplay } from "@/lib/workflows/workflow-constants";
 import { createWorkflowColumns } from "@/features/workflows/list/components/table/workflow-column-defs";
 import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";

@@ -181,7 +181,6 @@ export const ANIMATION = {
 
 // Re-export canonical panel constants for DAG usage
 // DAG panels use the same configuration as other resizable panels
-export { PANEL } from "@/components/panel/panel-header-controls";
 
 // ============================================================================
 // Layout Cache

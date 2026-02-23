@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/features/pools/lib/pool-search-fields";
+import { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";
 
 // =============================================================================
 // parseNumericFilter Tests

@@ -57,7 +57,7 @@ import {
   DISPLAY_PADDING_RATIO,
   MIN_PADDING_MS,
   DEFAULT_DURATION_MS,
-} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+} from "@/components/log-viewer/lib/timeline-constants";
 
 // =============================================================================
 // Types

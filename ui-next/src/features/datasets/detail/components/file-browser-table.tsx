@@ -33,7 +33,7 @@ import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";
 import { useCopy } from "@/hooks/use-copy";
-import { useCompactMode } from "@/stores/shared-preferences-store";
+import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";

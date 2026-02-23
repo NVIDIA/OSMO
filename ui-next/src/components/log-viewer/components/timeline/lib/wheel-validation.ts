@@ -26,7 +26,7 @@ import {
   MAX_RANGE_MS,
   MIN_BUCKET_COUNT,
   MAX_BUCKET_COUNT,
-} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+} from "@/components/log-viewer/lib/timeline-constants";
 
 // =============================================================================
 // Types

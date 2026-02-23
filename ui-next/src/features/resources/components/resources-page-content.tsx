@@ -42,9 +42,9 @@ import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle"
 import { usePanelWidth } from "@/components/panel/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import type { Resource } from "@/lib/api/adapter/types";
-import { useDisplayMode, useCompactMode } from "@/stores/shared-preferences-store";
+import { useDisplayMode, useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import { ResourcePanelHeader } from "@/features/resources/components/panel/panel-header";
 import { ResourcePanelContent } from "@/features/resources/components/panel/panel-content";
 import { ResourcesDataTable } from "@/features/resources/components/table/resources-data-table";

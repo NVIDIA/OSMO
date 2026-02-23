@@ -66,7 +66,7 @@ import {
 import {
   DEFAULT_HEIGHT,
   type TimeRangePreset,
-} from "@/components/log-viewer/components/timeline/lib/timeline-constants";
+} from "@/components/log-viewer/lib/timeline-constants";
 import { calculateBucketWidth } from "@/components/log-viewer/components/timeline/lib/invalid-zones";
 
 const NOOP_DISPLAY_RANGE_CHANGE = (_start: Date, _end: Date): void => {};

@@ -31,7 +31,7 @@ import {
   createPresetChips,
   type StatusPresetId,
 } from "@/features/workflows/list/lib/workflow-search-fields";
-import { STATUS_STYLES } from "@/features/workflows/list/lib/workflow-constants";
+import { STATUS_STYLES } from "@/lib/workflows/workflow-constants";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { useWorkflowAsyncFields } from "@/features/workflows/list/hooks/use-workflow-async-fields";
 

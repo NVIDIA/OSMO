@@ -22,7 +22,6 @@ import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { TextSearch, Info, History, List, FileCode } from "lucide-react";
 import type { WorkflowTab } from "@/features/workflows/detail/hooks/use-navigation-state";
 import { useEventCallback } from "usehooks-ts";
-import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
 import { SidePanel } from "@/components/panel/side-panel";
 import { cn } from "@/lib/utils";
 import type { DetailsPanelProps } from "@/features/workflows/detail/components/panel/core/lib/panel-types";
@@ -31,11 +30,8 @@ import { useShellContext } from "@/features/workflows/detail/components/shell/sh
 import { usePanelResize } from "@/features/workflows/detail/components/panel/core/context/panel-resize-context";
 import { ACTIVITY_STRIP_WIDTH_PX } from "@/features/workflows/detail/components/panel/core/lib/panel-constants";
 import { WorkflowEdgeStrip, type QuickAction } from "@/features/workflows/detail/components/panel/ui/edge-strip";
+import { PanelViewContent } from "@/features/workflows/detail/components/panel/panel-view-content";
 
-// Eager imports - panel views are always needed, dynamic imports add 100-300ms flash
-import { WorkflowDetails } from "@/features/workflows/detail/components/panel/ui/workflow/workflow-details";
-import { GroupDetails } from "@/features/workflows/detail/components/panel/ui/group/group-details";
-import { TaskDetails } from "@/features/workflows/detail/components/panel/ui/task/task-details";
 import { ContentSlideWrapper } from "@/features/workflows/detail/components/panel/ui/content-slide-wrapper";
 
 export const DetailsPanel = memo(function DetailsPanel({
@@ -262,62 +258,29 @@ export const DetailsPanel = memo(function DetailsPanel({
         snapTarget={snapTarget}
         containerRef={effectiveContainerRef}
       >
-        {/* Workflow Details (base layer) */}
-        {view === "workflow" && workflow && (
-          <WorkflowDetails
-            workflow={workflow}
-            onCancel={onCancelWorkflow}
-            onResubmit={onResubmitWorkflow}
-            isDetailsExpanded={isDetailsExpanded}
-            onToggleDetailsExpanded={onToggleDetailsExpanded}
-            selectedTab={selectedWorkflowTab}
-            setSelectedTab={setSelectedWorkflowTab}
-            allGroups={allGroups}
-            selectedGroupName={group?.name ?? null}
-            selectedTaskName={task?.name ?? null}
-            onSelectGroup={onSelectGroup}
-            onSelectTask={onSelectTask}
-          />
-        )}
-
-        {/* Group Details */}
-        {view === "group" && group && (
-          <GroupDetails
-            group={group}
-            allGroups={allGroups}
-            workflowName={workflow?.name}
-            onSelectTask={onSelectTask}
-            onSelectGroup={onSelectGroup}
-            onBack={onBackToWorkflow}
-            selectedGroupTab={selectedGroupTab}
-            setSelectedGroupTab={setSelectedGroupTab}
-          />
-        )}
-
-        {/* Task Details */}
-        {view === "task" && task && group && (
-          <TaskDetails
-            group={group}
-            allGroups={allGroups}
-            task={task}
-            workflowName={workflow?.name}
-            onBackToGroup={onBackToGroup}
-            onBackToWorkflow={onBackToWorkflow}
-            onSelectTask={onSelectTask}
-            onSelectGroup={onSelectGroup}
-            onShellTabChange={onShellTabChange}
-            selectedTab={selectedTab}
-            setSelectedTab={setSelectedTab}
-          />
-        )}
-
-        {/* Fallback content (loading/error states) - with minimal header */}
-        {fallbackContent && (
-          <>
-            <PanelHeader title={<PanelTitle>{workflow?.name ?? "Workflow Details"}</PanelTitle>} />
-            {fallbackContent}
-          </>
-        )}
+        <PanelViewContent
+          view={view}
+          workflow={workflow}
+          group={group}
+          allGroups={allGroups}
+          task={task}
+          onBackToGroup={onBackToGroup}
+          onBackToWorkflow={onBackToWorkflow}
+          onSelectTask={onSelectTask}
+          onSelectGroup={onSelectGroup}
+          onShellTabChange={onShellTabChange}
+          selectedTab={selectedTab}
+          setSelectedTab={setSelectedTab}
+          selectedWorkflowTab={selectedWorkflowTab}
+          setSelectedWorkflowTab={setSelectedWorkflowTab}
+          selectedGroupTab={selectedGroupTab}
+          setSelectedGroupTab={setSelectedGroupTab}
+          onCancelWorkflow={onCancelWorkflow}
+          onResubmitWorkflow={onResubmitWorkflow}
+          isDetailsExpanded={isDetailsExpanded}
+          onToggleDetailsExpanded={onToggleDetailsExpanded}
+          fallbackContent={fallbackContent}
+        />
       </ContentSlideWrapper>
     </SidePanel>
   );

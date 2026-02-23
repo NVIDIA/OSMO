@@ -19,7 +19,8 @@
 import { memo } from "react";
 import { MonitorCheck, MonitorX } from "lucide-react";
 import { SemiStatefulButton } from "@/components/semi-stateful-button";
-import { useSharedPreferences, useDisplayMode } from "@/stores/shared-preferences-store";
+import { useSharedPreferences } from "@/stores/shared-preferences-store";
+import { useDisplayMode } from "@/hooks/shared-preferences-hooks";
 
 /**
  * DisplayModeToggle - Toggle between "free" (available) and "used" display modes.

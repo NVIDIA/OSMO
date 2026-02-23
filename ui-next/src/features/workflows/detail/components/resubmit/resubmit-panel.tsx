@@ -27,7 +27,7 @@
 "use client";
 
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { useWorkflowsPreferencesStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { ResubmitPanelHeader } from "@/features/workflows/detail/components/resubmit/resubmit-panel-header";

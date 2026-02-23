@@ -20,35 +20,30 @@
  * Shared types for Zustand stores.
  *
  * These types are used by the store factory and feature-specific stores.
- *
- * NOTE: Column sizing and sort types are imported from @/components/data-table
- * which is the single source of truth. Do not redefine these types here.
  */
 
 // =============================================================================
-// Re-export from Data Table (Single Source of Truth)
+// Core Table and Search Types
 // =============================================================================
 
-// Import column sizing types from data-table (single source of truth)
-import type {
-  ColumnSizingPreference,
-  ColumnSizingPreferences,
-  SortDirection,
-  PreferenceMode,
-} from "@/components/data-table/types";
+export type PreferenceMode = "truncate" | "no-truncate";
+export type SortDirection = "asc" | "desc";
 
-// Re-export for consumers of this module
-export type { ColumnSizingPreference, ColumnSizingPreferences, SortDirection, PreferenceMode };
+export interface ColumnSizingPreference {
+  width: number;
+  mode: PreferenceMode;
+}
 
-// =============================================================================
-// Search Types (Single Source of Truth: filter-bar)
-// =============================================================================
+export type ColumnSizingPreferences = Record<string, ColumnSizingPreference>;
 
-// Import search types from filter-bar component (single source of truth)
-import type { ChipVariant, SearchChip } from "@/components/filter-bar/lib/types";
+export type ChipVariant = "free" | "used";
 
-// Re-export for consumers of this module
-export type { ChipVariant, SearchChip };
+export interface SearchChip {
+  field: string;
+  value: string;
+  label: string;
+  variant?: ChipVariant;
+}
 
 // =============================================================================
 // Table State Types

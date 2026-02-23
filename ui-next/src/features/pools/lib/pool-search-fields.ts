@@ -144,4 +144,3 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
 }
 
 /** Re-export numeric filter utilities for testing */
-export { parseNumericFilter, validateNumericFilter, compareNumeric } from "@/lib/filter-utils";

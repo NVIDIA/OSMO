@@ -23,7 +23,7 @@ import { cn, isInteractiveTarget } from "@/lib/utils";
 import { usePrevious } from "@react-hookz/web";
 import { useEventCallback } from "usehooks-ts";
 import { ResizeHandle } from "@/components/panel/resize-handle";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
 import { usePanelEscape } from "@/components/panel/hooks/use-panel-escape";
 

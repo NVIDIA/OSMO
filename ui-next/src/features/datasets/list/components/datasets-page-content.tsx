@@ -46,7 +46,7 @@ import { useDatasetsData } from "@/features/datasets/list/hooks/use-datasets-dat
 import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
 import { useUser } from "@/lib/auth/user-context";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { PANEL } from "@/components/panel/panel-header-controls";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import type { SearchChip } from "@/stores/types";
 import type { SortState } from "@/components/data-table/types";
 import type { Dataset } from "@/lib/api/adapter/datasets";

@@ -72,7 +72,7 @@
 
 import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
-import type { TimeRangePreset } from "@/components/log-viewer/components/timeline/components/timeline-container";
+import type { TimeRangePreset } from "@/components/log-viewer/lib/timeline-constants";
 import { useTimeRangeUrlState } from "@/components/log-viewer/lib/use-time-range-url-state";
 
 // =============================================================================
