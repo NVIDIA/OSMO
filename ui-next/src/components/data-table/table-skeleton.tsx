@@ -123,7 +123,7 @@ export const TableSkeleton = memo(function TableSkeleton({
             <tr className="flex">
               {effectiveHeaders.map((header, i) => (
                 <th
-                  key={i}
+                  key={`col-${i}`}
                   className="flex flex-1 shrink-0 items-center px-4 py-3"
                 >
                   {/* Show actual header text if provided, otherwise skeleton */}

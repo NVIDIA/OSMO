@@ -40,7 +40,7 @@ export const CodeViewerSkeleton = memo(function CodeViewerSkeleton({ className }
         <div className="space-y-2">
           {SKELETON_WIDTHS.map((width, i) => (
             <div
-              key={i}
+              key={`code-row-${i}`}
               className="flex gap-4"
             >
               {/* Line numbers - use default skeleton styling (SSR-safe) */}

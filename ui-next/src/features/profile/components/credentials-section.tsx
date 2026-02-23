@@ -358,7 +358,7 @@ function GenericFields({
       </div>
       {values.map((pair, index) => (
         <div
-          key={index}
+          key={`pair-${pair.key}-${index}`}
           className="flex items-center gap-2"
         >
           <Input

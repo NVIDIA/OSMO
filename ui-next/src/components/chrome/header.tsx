@@ -67,9 +67,9 @@ export function Header() {
         </Link>
 
         {/* Breadcrumb segments */}
-        {pageConfig?.breadcrumbs?.map((segment, index) => (
+        {pageConfig?.breadcrumbs?.map((segment) => (
           <BreadcrumbItem
-            key={`${segment.label}-${index}`}
+            key={segment.href ?? segment.label}
             segment={segment}
           />
         ))}

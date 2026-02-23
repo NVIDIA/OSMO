@@ -54,7 +54,7 @@ export default function Loading() {
           <div className="border-border mb-4 flex items-center gap-4 border-b pb-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton
-                key={i}
+                key={`header-${i}`}
                 className="h-4 flex-1"
               />
             ))}
@@ -64,12 +64,12 @@ export default function Loading() {
           <div className="space-y-3">
             {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <div
-                key={i}
+                key={`row-${i}`}
                 className="flex items-center gap-4"
               >
                 {[1, 2, 3, 4, 5, 6].map((j) => (
                   <Skeleton
-                    key={j}
+                    key={`col-${j}`}
                     className="h-6 flex-1"
                   />
                 ))}

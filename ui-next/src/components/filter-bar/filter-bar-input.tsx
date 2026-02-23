@@ -109,7 +109,7 @@ export const FilterBarInput = memo(function FilterBarInput({
 
       {chips.map((chip, index) => (
         <FilterBarChip
-          key={`${chip.field}-${chip.value}-${index}`}
+          key={`${chip.field}-${chip.value}`}
           chip={chip}
           onRemove={() => onChipRemove(index)}
           focused={focusedChipIndex === index}

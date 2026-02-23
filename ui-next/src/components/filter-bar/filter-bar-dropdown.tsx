@@ -251,9 +251,9 @@ interface HintsSectionProps<T> {
 function HintsSectionInner<T>({ hints }: HintsSectionProps<T>) {
   return (
     <div className="fb-section-border">
-      {hints.map((hint, index) => (
+      {hints.map((hint) => (
         <div
-          key={`hint-${hint.value}-${index}`}
+          key={`hint-${hint.value}`}
           className="fb-dropdown-item fb-hint"
         >
           {hint.label}
@@ -337,9 +337,9 @@ function RegularSuggestionsInner<T>({ selectables, onSelect }: RegularSuggestion
   return (
     <CommandGroup className="fb-suggestions-group flex min-h-0 flex-1 flex-col p-0">
       <div className="fb-suggestions-scroll">
-        {selectables.map((suggestion, index) => (
+        {selectables.map((suggestion) => (
           <SuggestionItem
-            key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}-${index}`}
+            key={`${suggestion.type}-${suggestion.field.id}-${suggestion.value}`}
             suggestion={suggestion}
             onSelect={onSelect}
           />

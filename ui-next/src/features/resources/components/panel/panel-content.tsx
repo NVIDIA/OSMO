@@ -119,9 +119,9 @@ export function ResourcePanelContent({
           <section>
             <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">Conditions</h3>
             <div className="flex flex-wrap gap-2">
-              {resource.conditions.map((condition, idx) => (
+              {resource.conditions.map((condition) => (
                 <Badge
-                  key={idx}
+                  key={condition}
                   variant="secondary"
                 >
                   {condition}
@@ -219,9 +219,9 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
         <div>
           <div className="text-muted-foreground mb-1.5 text-sm">Default Mounts</div>
           <div className="flex flex-col gap-1">
-            {config.defaultMounts.map((mount, idx) => (
+            {config.defaultMounts.map((mount) => (
               <CopyableBlock
-                key={idx}
+                key={mount}
                 value={mount}
               />
             ))}
@@ -234,9 +234,9 @@ function TaskConfigContent({ config }: TaskConfigContentProps) {
         <div>
           <div className="text-muted-foreground mb-1.5 text-sm">Allowed Mounts</div>
           <div className="flex flex-col gap-1">
-            {config.allowedMounts.map((mount, idx) => (
+            {config.allowedMounts.map((mount) => (
               <CopyableBlock
-                key={idx}
+                key={mount}
                 value={mount}
               />
             ))}

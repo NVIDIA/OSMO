@@ -262,9 +262,9 @@ export function TimelineAxis({
       <div className="bg-border absolute top-0 h-px w-full" />
 
       {/* Ticks */}
-      {ticks.map((tick, index) => (
+      {ticks.map((tick) => (
         <div
-          key={`${tick.timestamp}-${index}`}
+          key={`${tick.timestamp}`}
           className="absolute top-0"
           style={{ left: `${tick.position + centerOffsetPercent}%` }}
         >

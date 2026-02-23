@@ -94,7 +94,7 @@ function ChromeSkeleton({ children }: { children: React.ReactNode }) {
         <div className="space-y-2 p-2">
           {[1, 2, 3, 4].map((i) => (
             <Skeleton
-              key={i}
+              key={`nav-${i}`}
               className="h-9 w-full rounded-lg"
             />
           ))}

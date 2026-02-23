@@ -129,7 +129,7 @@ export function AppSidebar() {
               <SidebarMenu className={cn("space-y-1", collapsed && "items-center")}>
                 {[1, 2, 3, 4].map((i) => (
                   <SidebarMenuSkeleton
-                    key={i}
+                    key={`sidebar-nav-${i}`}
                     showIcon
                   />
                 ))}

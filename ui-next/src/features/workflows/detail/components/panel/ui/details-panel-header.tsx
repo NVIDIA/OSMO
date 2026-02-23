@@ -252,9 +252,9 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
     <>
       {/* Multi-level breadcrumbs in "Workflow > Group > Task" style */}
       {breadcrumbs &&
-        breadcrumbs.map((segment, index) => (
+        breadcrumbs.map((segment) => (
           <span
-            key={`${segment.label}-${index}`}
+            key={segment.label}
             className="flex shrink-0 items-center"
           >
             <button

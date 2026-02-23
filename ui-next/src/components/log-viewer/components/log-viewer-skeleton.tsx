@@ -93,7 +93,7 @@ export function LogViewerSkeleton({ showHistogram = true, className }: LogViewer
         <div className="space-y-1 p-2">
           {SKELETON_WIDTHS.map((width, i) => (
             <Skeleton
-              key={i}
+              key={`log-row-${i}`}
               style={{ width, height: ROW_HEIGHT_ESTIMATE }}
             />
           ))}

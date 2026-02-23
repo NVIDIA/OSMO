@@ -89,9 +89,9 @@ function MountsList({ title, mounts }: { title: string; mounts: string[] }) {
     <div>
       <div className="text-muted-foreground mb-1.5 text-sm">{title}</div>
       <div className="flex flex-col gap-1">
-        {mounts.map((mount, idx) => (
+        {mounts.map((mount) => (
           <CopyableBlock
-            key={idx}
+            key={mount}
             value={mount}
           />
         ))}

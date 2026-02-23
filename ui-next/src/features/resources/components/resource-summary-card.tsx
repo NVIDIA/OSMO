@@ -109,13 +109,13 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
             : "grid-cols-2 @[500px]:grid-cols-4 @[500px]:gap-3", // Responsive
         )}
       >
-        {metrics.map((item, i) => {
+        {metrics.map((item) => {
           const formatted = formatMetric(item.value, item.isBytes);
           const displayValue = displayMode === "free" ? formatted.freeValue : formatted.usedValue;
 
           return (
             <div
-              key={i}
+              key={item.label}
               className={cn(
                 "group rounded-lg border border-zinc-200 bg-white transition-all duration-200 dark:border-zinc-800 dark:bg-zinc-950",
                 forceCompact ? "p-2 @[700px]:p-2.5" : "p-2 @[500px]:p-3",
