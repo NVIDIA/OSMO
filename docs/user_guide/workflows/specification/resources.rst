@@ -43,6 +43,10 @@ The following fields are used to describe a resource spec:
       pool is used if the admins have specified a default platform. Learn more at :ref:`Pool List <cli_reference_pool>`.
   * - ``nodesExcluded``
     - Specify the nodes to exclude from the resource spec.
+  * - ``topology``
+    - Specify topology co-location requirements for tasks using this resource spec.
+      Only available on pools with topology keys configured.
+      See :ref:`concepts_topology` for details.
 
 .. note::
 
@@ -110,3 +114,43 @@ If there are some node with poor performance or network in the pool, you can exc
 .. warning::
 
   Excluding too many nodes can lead to the tasks stuck in PENDING forever!
+
+Topology Requirements
+---------------------
+
+The ``topology`` field specifies a list of co-location requirements for tasks that use this
+resource spec. Each entry has the following fields:
+
+.. list-table::
+  :header-rows: 1
+  :widths: 35 165
+
+  * - **Field**
+    - **Description**
+  * - ``key``
+    - The topology key to apply the constraint to (e.g., ``rack``, ``gpu-clique``).
+      Must match a key configured in the pool's topology keys.
+  * - ``group``
+    - A user-defined name grouping tasks that must share the same topology value.
+      Tasks with the same ``key`` and ``group`` will be co-located together.
+      Defaults to ``default``.
+  * - ``requirementType``
+    - Either ``required`` (default) or ``preferred``. Use ``required`` to block scheduling
+      unless the constraint is satisfied. Use ``preferred`` to allow scheduling even if the
+      constraint cannot be met.
+
+For example, to require all tasks using this resource spec to be scheduled on the same
+``gpu-clique``:
+
+.. code-block:: yaml
+
+  resources:
+    default:
+      gpu: 8
+      topology:
+      - key: gpu-clique
+
+.. seealso::
+
+  For a full explanation of topology-aware scheduling, including use case examples,
+  see :ref:`concepts_topology`.

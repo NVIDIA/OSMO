@@ -244,3 +244,6 @@ Troubleshooting
 
   - Learn more about `KAI scheduler <https://github.com/NVIDIA/kai-scheduler>`_
   - Learn more about :ref:`scheduling in OSMO <concepts_priority>`
+  - To enable topology-aware scheduling (NVLink rack co-location, zone affinity, etc.),
+    configure ``topology_keys`` on the pool — see :ref:`pool` for setup steps and
+    :ref:`concepts_topology` for user-facing details.
