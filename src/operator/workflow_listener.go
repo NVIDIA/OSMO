@@ -107,7 +107,7 @@ func (wl *WorkflowListener) sendMessages(
 		case msg, ok := <-ch:
 			if !ok {
 				log.Println("Pod watcher stopped, draining channel...")
-				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.Attrs.Stream)
+				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.Attrs)
 				wl.drainMessageChannel(ch)
 				return fmt.Errorf("pod watcher stopped")
 			}
@@ -168,7 +168,7 @@ func (wl *WorkflowListener) watchPods(
 
 	// Helper function to handle pod updates
 	handlePodUpdate := func(pod *corev1.Pod) {
-		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.Attrs.Stream)
+		wl.inst.KubeEventWatchCount.Add(ctx, 1, wl.Attrs)
 
 		// Ignore pods with Unknown phase (usually due to temporary connection issues)
 		if pod.Status.Phase == corev1.PodUnknown {
@@ -181,8 +181,8 @@ func (wl *WorkflowListener) watchPods(
 			select {
 			case ch <- msg:
 				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
-				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
-				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
+				wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs)
+				wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs)
 			case <-ctx.Done():
 				return
 			}
@@ -224,8 +224,8 @@ func (wl *WorkflowListener) watchPods(
 				select {
 				case ch <- msg:
 					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
-					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs.Stream)
-					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs.Stream)
+					wl.inst.MessageQueuedTotal.Add(ctx, 1, wl.Attrs)
+					wl.inst.MessageChannelPending.Record(ctx, float64(len(ch)), wl.Attrs)
 				case <-ctx.Done():
 					return
 				}
@@ -242,7 +242,7 @@ func (wl *WorkflowListener) watchPods(
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Pod watch error: %v", err)
-		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.Attrs.Stream)
+		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.Attrs)
 	})
 
 	// Start the informer
@@ -251,11 +251,11 @@ func (wl *WorkflowListener) watchPods(
 	// Wait for cache sync
 	log.Println("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
-		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.Attrs.Stream)
+		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.Attrs)
 		return fmt.Errorf("failed to sync pod informer cache")
 	}
 	log.Println("Pod informer cache synced successfully")
-	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.Attrs.Stream)
+	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.Attrs)
 
 	// Keep the watcher running
 	<-ctx.Done()

@@ -55,35 +55,6 @@ const (
 	StreamNameEvent     StreamName = "event"
 )
 
-// MetricAttrs holds pre-computed metric attribute sets for a listener.
-// Initialized once in NewBaseListener and shared (read-only) across goroutines.
-type MetricAttrs struct {
-	Stream        metric.MeasurementOption // {listener: <streamName>}
-	PanicReceiver metric.MeasurementOption // {listener: <streamName>, goroutine: "receiver"}
-	PanicWatcher  metric.MeasurementOption // {listener: <streamName>, goroutine: "watcher"}
-	PanicSender   metric.MeasurementOption // {listener: <streamName>, goroutine: "sender"}
-}
-
-// NewMetricAttrs creates a MetricAttrs with pre-computed attribute sets for the given stream name.
-func NewMetricAttrs(streamName StreamName) MetricAttrs {
-	return MetricAttrs{
-		Stream: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)))),
-		PanicReceiver: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)),
-			attribute.String("goroutine", "receiver"),
-		)),
-		PanicWatcher: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)),
-			attribute.String("goroutine", "watcher"),
-		)),
-		PanicSender: metric.WithAttributeSet(attribute.NewSet(
-			attribute.String("listener", string(streamName)),
-			attribute.String("goroutine", "sender"),
-		)),
-	}
-}
-
 // BaseListener contains common functionality for all listeners
 type BaseListener struct {
 	unackedMessages *UnackMessages
@@ -105,8 +76,8 @@ type BaseListener struct {
 	args ListenerArgs
 	inst *Instruments
 
-	// Pre-computed attribute sets (initialized in NewBaseListener, shared across goroutines safely)
-	Attrs MetricAttrs
+	// Attrs is a pre-computed metric attribute set {listener: <streamName>}, shared (read-only) across goroutines.
+	Attrs metric.MeasurementOption
 }
 
 // NewBaseListener creates a new base listener instance
@@ -127,7 +98,8 @@ func NewBaseListener(
 		progressWriter:  progressWriter,
 		streamName:      streamName,
 		inst:            inst,
-		Attrs:           NewMetricAttrs(streamName),
+		Attrs: metric.WithAttributeSet(attribute.NewSet(
+			attribute.String("listener", string(streamName)))),
 	}
 	return bl
 }
@@ -171,8 +143,8 @@ func (bl *BaseListener) receiveAcks(ctx context.Context) error {
 		// Handle ACK messages by removing from unacked queue
 		bl.unackedMessages.RemoveMessage(msg.AckUuid)
 
-		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.Attrs.Stream)
-		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs.Stream)
+		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.Attrs)
+		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs)
 
 		log.Printf("Received ACK for %s message: uuid=%s", bl.streamName, msg.AckUuid)
 
@@ -351,17 +323,17 @@ func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage
 		return nil
 	}
 
-	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs.Stream)
+	bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.Attrs)
 
 	// Record gRPC send duration
 	start := time.Now()
 	if err := bl.GetStream().Send(msg); err != nil {
-		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1, bl.Attrs.Stream)
+		bl.inst.GRPCStreamSendErrorTotal.Add(ctx, 1, bl.Attrs)
 		return err
 	}
 
-	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), bl.Attrs.Stream)
-	bl.inst.MessageSentTotal.Add(ctx, 1, bl.Attrs.Stream)
+	bl.inst.GRPCMessageSendDuration.Record(ctx, time.Since(start).Seconds(), bl.Attrs)
+	bl.inst.MessageSentTotal.Add(ctx, 1, bl.Attrs)
 
 	return nil
 }

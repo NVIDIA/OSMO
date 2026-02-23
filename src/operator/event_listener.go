@@ -87,7 +87,7 @@ func (el *EventListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.Attrs.Stream)
+				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.Attrs)
 				return fmt.Errorf("event watcher stopped")
 			}
 			if err := el.BaseListener.SendMessage(ctx, msg); err != nil {
@@ -143,7 +143,7 @@ func (el *EventListener) watchEvents(
 
 	// Helper function to handle event updates
 	handleEventUpdate := func(event *corev1.Event) {
-		el.inst.KubeEventWatchCount.Add(ctx, 1, el.Attrs.Stream)
+		el.inst.KubeEventWatchCount.Add(ctx, 1, el.Attrs)
 
 		// Only process Pod events
 		if event.InvolvedObject.Kind != "Pod" {
@@ -159,8 +159,8 @@ func (el *EventListener) watchEvents(
 		msg := createPodEventMessage(event)
 		select {
 		case ch <- msg:
-			el.inst.MessageQueuedTotal.Add(ctx, 1, el.Attrs.Stream)
-			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.Attrs.Stream)
+			el.inst.MessageQueuedTotal.Add(ctx, 1, el.Attrs)
+			el.inst.MessageChannelPending.Record(ctx, float64(len(ch)), el.Attrs)
 		case <-ctx.Done():
 			return
 		}
@@ -183,7 +183,7 @@ func (el *EventListener) watchEvents(
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
 		log.Printf("Event watch error: %v", err)
-		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.Attrs.Stream)
+		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.Attrs)
 	})
 
 	// Start the informer
@@ -192,11 +192,11 @@ func (el *EventListener) watchEvents(
 
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
-		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.Attrs.Stream)
+		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.Attrs)
 		return fmt.Errorf("failed to sync event informer cache")
 	}
 	log.Println("Event informer cache synced successfully")
-	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.Attrs.Stream)
+	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.Attrs)
 
 	// Keep the watcher running
 	<-ctx.Done()
