@@ -89,13 +89,13 @@ def generate_typescript() -> str:
 
     # Build WorkflowStatus metadata
     workflow_metadata = {}
-    for status in WorkflowStatus:
-        category = get_workflow_status_category(status)
-        workflow_metadata[status.value] = {
+    for workflow_status in WorkflowStatus:
+        category = get_workflow_status_category(workflow_status)
+        workflow_metadata[workflow_status.value] = {
             'category': category,
-            'isTerminal': status.finished(),
-            'isOngoing': status.alive() and status != WorkflowStatus.PENDING,
-            'isFailed': status.failed(),
+            'isTerminal': workflow_status.finished(),
+            'isOngoing': workflow_status.alive() and workflow_status != WorkflowStatus.PENDING,
+            'isFailed': workflow_status.failed(),
         }
 
     # Format JSON with proper indentation for TypeScript
