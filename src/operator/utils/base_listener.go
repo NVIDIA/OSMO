@@ -105,25 +105,23 @@ func NewBaseListener(
 }
 
 // initConnection establishes a gRPC connection to the service
-func (bl *BaseListener) initConnection(serviceURL string) error {
-	// Parse serviceURL to extract host:port for gRPC
-	serviceAddr, err := ParseServiceURL(serviceURL)
+func (bl *BaseListener) initConnection() error {
+	serviceAddr, err := ParseServiceURL(bl.args.ServiceURL)
 	if err != nil {
 		return fmt.Errorf("failed to parse service URL: %w", err)
 	}
 
-	// Connect to the gRPC server
-	bl.conn, err = grpc.NewClient(
-		serviceAddr,
-		grpc.WithTransportCredentials(GetTransportCredentials(serviceURL)),
-	)
+	dialOpts, err := GetDialOptions(bl.args)
+	if err != nil {
+		return fmt.Errorf("failed to get dial options: %w", err)
+	}
+
+	bl.conn, err = grpc.NewClient(serviceAddr, dialOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to connect to service: %w", err)
 	}
 
-	// Create the listener service client
 	bl.client = pb.NewListenerServiceClient(bl.conn)
-
 	return nil
 }
 
@@ -248,7 +246,7 @@ func (bl *BaseListener) Run(
 	// Ensure cleanup on exit
 	defer bl.close()
 	// Initialize the base connection
-	if err := bl.initConnection(bl.args.ServiceURL); err != nil {
+	if err := bl.initConnection(); err != nil {
 		return err
 	}
 
