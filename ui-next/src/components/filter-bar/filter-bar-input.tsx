@@ -100,7 +100,11 @@ export const FilterBarInput = memo(function FilterBarInput({
     <div
       className="search-input-container fb-input-container bg-background"
       data-error={validationError ? "" : undefined}
+      role="presentation"
       onClick={handleContainerClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") handleContainerClick();
+      }}
     >
       <Search
         className="search-input-icon fb-search-icon"

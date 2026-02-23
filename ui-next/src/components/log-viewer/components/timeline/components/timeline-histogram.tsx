@@ -342,6 +342,7 @@ function TimelineHistogramInner({
           hover recalculation overhead that competes with gesture frame budget. */}
       <div
         className="absolute inset-0"
+        role="presentation"
         style={{
           contain: "strict",
           pointerEvents: isGesturing ? "none" : undefined,

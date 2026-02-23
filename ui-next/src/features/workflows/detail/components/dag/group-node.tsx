@@ -478,8 +478,20 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
           !isExpanded && hasManyTasks && "pt-3 pb-1.5",
           isExpanded && hasManyTasks && "dag-node-header-expanded py-3",
         )}
+        role="button"
+        tabIndex={0}
         style={isExpanded && hasManyTasks ? HEADER_STYLE : undefined}
         onClick={handleNodeClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            if (hasManyTasks) {
+              onSelectGroup(group);
+            } else if (tasks[0]) {
+              onSelectTask(tasks[0], group);
+            }
+          }
+        }}
       >
         <div className="flex items-center gap-2">
           {getStatusIcon(displayStatus, "size-4")}

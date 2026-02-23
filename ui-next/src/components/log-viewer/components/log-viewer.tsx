@@ -451,6 +451,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
     <div
       ref={containerRef}
       className={cn("flex h-full flex-col", className)}
+      role="presentation"
       onPointerDown={handlePointerDown}
       onKeyDown={handleContainerKeyDown}
       {...containerProps}

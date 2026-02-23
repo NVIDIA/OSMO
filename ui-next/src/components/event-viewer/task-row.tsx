@@ -69,7 +69,7 @@ export const TaskRow = memo(
             hasNoEventsMatching && "opacity-40", // Dim tasks with no matching events
           )}
           onClick={isInteractive ? onToggle : undefined}
-          role={isInteractive ? "button" : undefined}
+          role="button"
           tabIndex={isInteractive ? 0 : undefined}
           onKeyDown={
             isInteractive

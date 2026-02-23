@@ -200,6 +200,7 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
   return (
     <div
       className="code-viewer-search"
+      role="presentation"
       data-theme={isDark ? "dark" : "light"}
       onKeyDown={handlePanelKeyDown}
     >

@@ -63,6 +63,7 @@ export const EventDetailsPanel = memo(function EventDetailsPanel({
         return (
           <div
             key={event.id}
+            role="presentation"
             className={cn(
               "event-details-grid items-start py-1.5",
               "[&:not(:last-child)]:border-border [&:not(:last-child)]:border-b [&:not(:last-child)]:border-dashed",
