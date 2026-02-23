@@ -35,7 +35,7 @@
 
 "use client";
 
-import { memo, useState, useRef, useEffect, startTransition } from "react";
+import { memo, useState, useReducer, useRef, useEffect, startTransition } from "react";
 import { useEventCallback } from "usehooks-ts";
 import { Plug, AlertCircle, Terminal, ChevronDown, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -253,6 +253,43 @@ const DisconnectedBar = memo(function DisconnectedBar({ error, onReconnect }: Di
 });
 
 // =============================================================================
+// TaskShell State Reducer
+// =============================================================================
+
+interface TaskShellState {
+  status: ConnectionStatus;
+  lastError: string | null;
+}
+
+type TaskShellAction =
+  | { type: "RESTORE_SESSION"; status: ConnectionStatus; lastError: string | null }
+  | { type: "RESET_SESSION" }
+  | { type: "STATUS_CHANGE"; status: ConnectionStatus }
+  | { type: "SET_ERROR"; error: string }
+  | { type: "CLEAR_ERROR" };
+
+/** Statuses that clear the error message (connecting/opening/initializing/ready) */
+const CLEAR_ERROR_STATUSES = new Set<ConnectionStatus>(["connecting", "opening", "initializing", "ready"]);
+
+function taskShellReducer(state: TaskShellState, action: TaskShellAction): TaskShellState {
+  switch (action.type) {
+    case "RESTORE_SESSION":
+      return { status: action.status, lastError: action.lastError };
+    case "RESET_SESSION":
+      return { status: "connecting", lastError: null };
+    case "STATUS_CHANGE":
+      return {
+        status: action.status,
+        lastError: CLEAR_ERROR_STATUSES.has(action.status) ? null : state.lastError,
+      };
+    case "SET_ERROR":
+      return { ...state, lastError: action.error };
+    case "CLEAR_ERROR":
+      return { ...state, lastError: null };
+  }
+}
+
+// =============================================================================
 // Main Component
 // =============================================================================
 
@@ -282,18 +319,15 @@ export const TaskShell = memo(function TaskShell({
         ? cachedSession.state.reason
         : null;
 
-  // Track connection status - restore from cache if session exists
-  // This preserves the exact state when switching tabs (connected, disconnected, error)
-  const [status, setStatus] = useState<ConnectionStatus>(() => {
+  // Track connection status and last error atomically via reducer
+  // Restores from cache if session exists, auto-connecting otherwise
+  const [shellState, dispatch] = useReducer(taskShellReducer, undefined, (): TaskShellState => {
     if (sessionExists && cachedStatus) {
-      return cachedStatus;
+      return { status: cachedStatus, lastError: cachedError ?? null };
     }
-    // No session yet - will auto-connect
-    return "connecting";
+    return { status: "connecting", lastError: null };
   });
-
-  // Restore error from cache if session exists
-  const [lastError, setLastError] = useState<string | null>(() => (sessionExists ? (cachedError ?? null) : null));
+  const { status, lastError } = shellState;
 
   // Reset state when session changes (different workflow/task selected)
   // useState initializer only runs on first mount, so we need this effect
@@ -309,11 +343,9 @@ export const TaskShell = memo(function TaskShell({
 
     startTransition(() => {
       if (exists && cached) {
-        setStatus(cached);
-        setLastError(cachedErr ?? null);
+        dispatch({ type: "RESTORE_SESSION", status: cached, lastError: cachedErr ?? null });
       } else {
-        setStatus("connecting");
-        setLastError(null);
+        dispatch({ type: "RESET_SESSION" });
       }
     });
   }, [sessionKey, cachedSession]);
@@ -326,23 +358,14 @@ export const TaskShell = memo(function TaskShell({
   // Handle reconnect button click
   // useEventCallback: stable ref, no deps needed, avoids re-renders
   const handleReconnect = useEventCallback(() => {
-    setLastError(null);
+    dispatch({ type: "CLEAR_ERROR" });
     shellRef.current?.connect();
   });
 
   // Handle status changes from ShellTerminal
   // useEventCallback: frequently called, stable reference avoids child re-renders
   const handleStatusChange = useEventCallback((newStatus: ConnectionStatus) => {
-    setStatus(newStatus);
-    // Clear error when connecting/connected
-    if (
-      newStatus === "connecting" ||
-      newStatus === "opening" ||
-      newStatus === "initializing" ||
-      newStatus === "ready"
-    ) {
-      setLastError(null);
-    }
+    dispatch({ type: "STATUS_CHANGE", status: newStatus });
     // Forward to parent
     onStatusChangeProp?.(newStatus);
   });
@@ -350,7 +373,7 @@ export const TaskShell = memo(function TaskShell({
   // Handle connection error
   // useEventCallback: stable ref for ShellTerminal's onError prop
   const handleError = useEventCallback((error: Error) => {
-    setLastError(error.message);
+    dispatch({ type: "SET_ERROR", error: error.message });
   });
 
   // Handle connection success - focus the terminal

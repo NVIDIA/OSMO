@@ -16,7 +16,7 @@
 
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
 import { getBasePathUrl } from "@/lib/config";
 import { getClientToken, decodeUserFromToken } from "@/lib/auth/decode-user";
 
@@ -47,28 +47,46 @@ interface UserProviderProps {
   children: ReactNode;
 }
 
+// =============================================================================
+// UserProvider State Reducer
+// =============================================================================
+
+interface UserProviderState {
+  user: User | null;
+  isLoading: boolean;
+}
+
+type UserProviderAction = { type: "LOAD_SUCCESS"; user: User | null } | { type: "LOAD_FAILURE" } | { type: "LOGOUT" };
+
+function userProviderReducer(state: UserProviderState, action: UserProviderAction): UserProviderState {
+  switch (action.type) {
+    case "LOAD_SUCCESS":
+      return { user: action.user, isLoading: false };
+    case "LOAD_FAILURE":
+      return { user: null, isLoading: false };
+    case "LOGOUT":
+      return { ...state, user: null };
+  }
+}
+
 /** Decodes user from JWT token in localStorage or cookies. No network call needed. */
 export function UserProvider({ children }: UserProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [state, dispatch] = useReducer(userProviderReducer, { user: null, isLoading: true });
+  const { user, isLoading } = state;
 
   useEffect(() => {
     const loadUser = () => {
       try {
         const token = getClientToken();
         const decodedUser = decodeUserFromToken(token);
-        setUser(decodedUser);
+        dispatch({ type: "LOAD_SUCCESS", user: decodedUser });
       } catch (error) {
         console.error("Failed to decode user from token:", error);
-        setUser(null);
+        dispatch({ type: "LOAD_FAILURE" });
       }
     };
 
-    try {
-      loadUser();
-    } finally {
-      setIsLoading(false);
-    }
+    loadUser();
 
     // Re-read user when server-side refresh gets a new token
     window.addEventListener(TOKEN_REFRESHED_EVENT, loadUser);
@@ -79,7 +97,7 @@ export function UserProvider({ children }: UserProviderProps) {
   }, []);
 
   const logout = () => {
-    setUser(null);
+    dispatch({ type: "LOGOUT" });
     window.location.href = getBasePathUrl("/logout");
   };
 

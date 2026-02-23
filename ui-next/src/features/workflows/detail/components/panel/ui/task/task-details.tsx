@@ -383,11 +383,9 @@ export const TaskDetails = memo(function TaskDetails({
 
   // Register/unregister portal target when shell tab is active and we have a session
   useEffect(() => {
-    if (activeTab === "shell" && hasShellSession && canConnectShell && shellTabRef.current) {
-      setPortalTarget(shellTabRef.current);
-    } else {
-      setPortalTarget(null);
-    }
+    const target =
+      activeTab === "shell" && hasShellSession && canConnectShell && shellTabRef.current ? shellTabRef.current : null;
+    setPortalTarget(target);
 
     return () => {
       setPortalTarget(null);
