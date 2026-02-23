@@ -23,11 +23,13 @@ derived from the Python enum methods. This ensures the UI has the same
 semantics as the backend without duplication.
 
 Usage (via Bazel):
-    bazel run //src/service:export_status_metadata > ui-next/src/lib/api/status-metadata.generated.ts
+    bazel run //src/service:export_status_metadata \
+        > ui-next/src/lib/api/status-metadata.generated.ts
 
 Usage (via pnpm from ui-next):
     pnpm generate-api (runs this as part of the generation pipeline)
 """
+
 import argparse
 import json
 import sys
@@ -37,26 +39,36 @@ from src.utils.job.task import TaskGroupStatus
 from src.utils.job.workflow import WorkflowStatus
 
 
-def get_task_status_category(status: TaskGroupStatus) -> Literal["waiting", "running", "completed", "failed"]:
+def get_task_status_category(status: TaskGroupStatus) -> Literal[
+    'waiting',
+    'running',
+    'completed',
+    'failed',
+]:
     """Derive category from Python enum methods."""
     if status.failed():
-        return "failed"
-    if status == TaskGroupStatus.COMPLETED or status == TaskGroupStatus.RESCHEDULED:
-        return "completed"
-    if status == TaskGroupStatus.RUNNING or status == TaskGroupStatus.INITIALIZING:
-        return "running"
-    return "waiting"
+        return 'failed'
+    if status in (TaskGroupStatus.COMPLETED, TaskGroupStatus.RESCHEDULED):
+        return 'completed'
+    if status in (TaskGroupStatus.RUNNING, TaskGroupStatus.INITIALIZING):
+        return 'running'
+    return 'waiting'
 
 
-def get_workflow_status_category(status: WorkflowStatus) -> Literal["waiting", "running", "completed", "failed"]:
+def get_workflow_status_category(status: WorkflowStatus) -> Literal[
+    'waiting',
+    'running',
+    'completed',
+    'failed',
+]:
     """Derive category from Python enum methods."""
     if status.failed():
-        return "failed"
+        return 'failed'
     if status == WorkflowStatus.COMPLETED:
-        return "completed"
+        return 'completed'
     if status == WorkflowStatus.RUNNING:
-        return "running"
-    return "waiting"
+        return 'running'
+    return 'waiting'
 
 
 def generate_typescript() -> str:
@@ -66,11 +78,13 @@ def generate_typescript() -> str:
     for status in TaskGroupStatus:
         category = get_task_status_category(status)
         task_metadata[status.value] = {
-            "category": category,
-            "isTerminal": status.finished(),
-            "isOngoing": status == TaskGroupStatus.RUNNING or status == TaskGroupStatus.INITIALIZING,
-            "isFailed": status.failed(),
-            "isInQueue": status.in_queue(),
+            'category': category,
+            'isTerminal': status.finished(),
+            'isOngoing': (
+                status in (TaskGroupStatus.RUNNING, TaskGroupStatus.INITIALIZING)
+            ),
+            'isFailed': status.failed(),
+            'isInQueue': status.in_queue(),
         }
 
     # Build WorkflowStatus metadata
@@ -78,16 +92,17 @@ def generate_typescript() -> str:
     for status in WorkflowStatus:
         category = get_workflow_status_category(status)
         workflow_metadata[status.value] = {
-            "category": category,
-            "isTerminal": status.finished(),
-            "isOngoing": status.alive() and status != WorkflowStatus.PENDING,
-            "isFailed": status.failed(),
+            'category': category,
+            'isTerminal': status.finished(),
+            'isOngoing': status.alive() and status != WorkflowStatus.PENDING,
+            'isFailed': status.failed(),
         }
 
     # Format JSON with proper indentation for TypeScript
     task_json = json.dumps(task_metadata, indent=2)
     workflow_json = json.dumps(workflow_metadata, indent=2)
 
+    # pylint: disable=line-too-long
     return f'''// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -197,7 +212,8 @@ export function isWorkflowFailed(status: WorkflowStatus): boolean {{
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Export status metadata from Python enums to TypeScript')
+    parser = argparse.ArgumentParser(
+        description='Export status metadata from Python enums to TypeScript')
     parser.add_argument(
         '--output', '-o',
         type=str,
@@ -209,9 +225,9 @@ def main():
     ts_output = generate_typescript()
 
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, 'w', encoding='utf-8') as f:
             f.write(ts_output)
-        print(f"Status metadata written to {args.output}", file=sys.stderr)
+        print(f'Status metadata written to {args.output}', file=sys.stderr)
     else:
         print(ts_output)
 

@@ -28,6 +28,7 @@ Usage (via Bazel):
 Usage (via pnpm from ui-next):
     pnpm generate-api:source
 """
+
 import argparse
 import json
 import sys
@@ -53,16 +54,16 @@ def main():
 
     # Generate OpenAPI spec
     openapi_spec = app.openapi()
-    
+
     # Format JSON
     indent = 2 if args.pretty else None
     json_output = json.dumps(openapi_spec, indent=indent)
-    
+
     # Write output
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, 'w', encoding='utf-8') as f:
             f.write(json_output)
-        print(f"OpenAPI spec written to {args.output}", file=sys.stderr)
+        print(f'OpenAPI spec written to {args.output}', file=sys.stderr)
     else:
         print(json_output)
 
