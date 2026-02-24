@@ -15,7 +15,7 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-.. _user_role_mapping:
+.. _idp_role_mapping:
 
 ================================================
 IdP Role Mapping and Sync Modes
