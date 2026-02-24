@@ -1,0 +1,337 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* =============================================================================
+   Event Viewer Component Styles
+   Grid layouts, event badges, and timeline dot visualization
+   ============================================================================= */
+
+@layer components {
+  /* Component-specific CSS variables */
+  :root {
+    /* Event viewer grid column widths - single source of truth */
+    --col-task-min: 150px;
+    --col-retry: 50px;
+    --col-duration: 100px;
+    --col-lifecycle-min: 300px;
+    --col-events: 60px;
+
+    /* Event details (expanded panel) column widths */
+    --col-event-time: 150px;
+
+    /* Timeline dot dimensions */
+    --timeline-dot-size: 8px;
+    --timeline-dot-border: 2px;
+    --timeline-line-height: 2px;
+    --timeline-label-offset: -20px;
+    --timeline-label-font: 0.65rem;
+    --timeline-glow-spread: 3px;
+    --timeline-glow-opacity: 20%;
+  }
+
+  /* Scroll inner wrapper - establishes min-width so the scroll container
+     can detect overflow and show a horizontal scrollbar. Without this,
+     child grids with min-width would overflow their w-full parents silently.
+     Min-width is calculated from column variables to ensure consistency. */
+  .event-viewer-scroll-inner {
+    min-width: calc(
+      var(--col-task-min) + var(--col-retry) + var(--col-duration) + var(--col-lifecycle-min) + var(--col-events)
+    );
+  }
+
+  /* Grid column templates for event viewer tables */
+  .event-viewer-grid {
+    display: grid;
+    grid-template-columns:
+      minmax(var(--col-task-min), 1fr)
+      var(--col-retry)
+      var(--col-duration)
+      minmax(var(--col-lifecycle-min), 2fr)
+      var(--col-events);
+  }
+
+  /* Parent container: single grid context so max-content sizes the event
+     column across ALL rows (not per-row). Rows use subgrid to inherit tracks. */
+  .event-details-panel {
+    display: grid;
+    grid-template-columns: var(--col-event-time) max-content 1fr;
+    column-gap: 0.5rem;
+  }
+
+  .event-details-grid {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+
+  /* ==========================================================================
+     Event Badge Styling
+     Use data attributes for semantic, maintainable event status badges
+     ========================================================================== */
+
+  /* Base badge styling - default/info state */
+  .event-badge {
+    background-color: oklch(0.95 0.03 250);
+    color: oklch(0.45 0.1 250);
+  }
+
+  :is(.dark *) .event-badge {
+    background-color: oklch(0.25 0.04 250);
+    color: oklch(0.75 0.1 250);
+  }
+
+  /* Error severity */
+  .event-badge[data-severity="error"] {
+    background-color: var(--status-danger-bg);
+    color: var(--status-danger);
+  }
+
+  /* Warning severity */
+  .event-badge[data-severity="warn"] {
+    background-color: var(--status-warning-bg);
+    color: var(--status-warning);
+  }
+
+  /* Success events (positive lifecycle events) */
+  .event-badge[data-reason="Ready"],
+  .event-badge[data-reason="Started"],
+  .event-badge[data-reason="Pulled"],
+  .event-badge[data-reason="Scheduled"] {
+    background-color: var(--status-success-bg);
+    color: var(--status-success);
+  }
+
+  /* ==========================================================================
+     Expand / Collapse (CSS Grid rows technique)
+
+     How it works:
+     - The wrapper uses `display: grid` with `grid-template-rows`
+     - Collapsed: `grid-template-rows: 0fr` (height collapses to 0)
+     - Expanded:  `grid-template-rows: 1fr` (height grows to content)
+     - The inner `overflow: hidden` prevents content from overflowing
+
+     IMPORTANT: grid-template-rows changes are INSTANT (no transition).
+     Animating height desynchronises TanStack Virtual's ResizeObserver
+     measurements, causing overlapping rows and gaps. Opacity still
+     fades for visual polish without affecting layout.
+     ========================================================================== */
+
+  .event-panel-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    /* Only transition opacity — height change must be instant for virtualizer */
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .event-panel-wrapper[data-expanded="true"] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition: opacity var(--duration-normal) var(--ease-out);
+  }
+
+  .event-panel-inner {
+    overflow: hidden;
+  }
+
+  /* ==========================================================================
+     Event Row Stagger Animation
+
+     Each event row inside the expanded panel fades + slides in with a
+     small stagger delay. The `--row-index` custom property is set inline
+     on each row and controls the animation-delay.
+
+     Uses translateY (GPU-accelerated) instead of margin/padding.
+     ========================================================================== */
+
+  @keyframes event-row-reveal {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .event-row-animated {
+    animation: event-row-reveal var(--duration-moderate) var(--ease-out) both;
+    animation-delay: calc(var(--row-index, 0) * 30ms);
+  }
+
+  /* ==========================================================================
+     Reduced Motion Support
+
+     When the user prefers reduced motion, disable all expand/collapse and
+     stagger animations. The grid still toggles between 0fr/1fr but
+     instantly, so content is still shown/hidden correctly.
+     ========================================================================== */
+
+  @media (prefers-reduced-motion: reduce) {
+    .event-panel-wrapper {
+      transition-duration: 0.01ms;
+    }
+
+    .event-row-animated {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ==========================================================================
+     Timeline Dots Visualization
+     Matches the HTML prototype structure with step containers and individual lines
+     ========================================================================== */
+
+  .lifecycle-timeline {
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding: 0.5rem 1.5rem 1.5rem 1.5rem;
+  }
+
+  .timeline-step {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    position: relative;
+  }
+
+  /* Last step (Done) doesn't take flex space - just dot + label */
+  .timeline-step-last {
+    flex: 0;
+  }
+
+  /* Timeline dots */
+  .timeline-dot {
+    width: var(--timeline-dot-size);
+    height: var(--timeline-dot-size);
+    border-radius: 50%;
+    background: var(--stage-inactive);
+    border: var(--timeline-dot-border) solid var(--border);
+    position: relative;
+    z-index: 2;
+    transition:
+      background var(--duration-normal) var(--ease-out),
+      border-color var(--duration-normal) var(--ease-out),
+      opacity var(--duration-normal) var(--ease-out),
+      box-shadow var(--duration-normal) var(--ease-out);
+  }
+
+  /* Active states: done, inferred, active, terminal all inherit timeline color */
+  .timeline-dot:is([data-state="done"], [data-state="inferred"], [data-state="active"], [data-state="terminal"]) {
+    background: var(--current-timeline-color);
+    border-color: var(--current-timeline-color);
+  }
+
+  /* Inferred: reduced opacity to indicate implicit completion */
+  .timeline-dot[data-state="inferred"] {
+    opacity: 0.7;
+  }
+
+  /* Failed: always red regardless of timeline color */
+  .timeline-dot[data-state="failed"] {
+    background: var(--timeline-red);
+    border-color: var(--timeline-red);
+  }
+
+  /* Active: glow effect to indicate current stage */
+  .timeline-dot[data-state="active"] {
+    box-shadow: 0 0 0 var(--timeline-glow-spread)
+      color-mix(in srgb, var(--current-timeline-color) var(--timeline-glow-opacity), transparent);
+  }
+
+  /* Connecting line (background - always visible, muted for inactive segments) */
+  .timeline-line {
+    flex: 1;
+    height: var(--timeline-line-height);
+    background: color-mix(in srgb, var(--stage-inactive) 30%, transparent);
+    position: relative;
+  }
+
+  /* Filled portion of the line - uses scaleX for GPU-accelerated animation */
+  .timeline-line-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--current-timeline-color);
+    opacity: 0.7;
+    transform-origin: left;
+    transition: transform var(--duration-moderate) var(--ease-out);
+  }
+
+  /* Timeline color mapping - sets CSS custom property based on event-based status */
+  .lifecycle-timeline[data-timeline-color="green"] {
+    --current-timeline-color: var(--timeline-green);
+  }
+
+  .lifecycle-timeline[data-timeline-color="blue"] {
+    --current-timeline-color: var(--timeline-blue);
+  }
+
+  .lifecycle-timeline[data-timeline-color="amber"] {
+    --current-timeline-color: var(--timeline-amber);
+  }
+
+  .lifecycle-timeline[data-timeline-color="red"] {
+    --current-timeline-color: var(--timeline-red);
+  }
+
+  /* Labels centered under dots */
+  .timeline-label {
+    position: absolute;
+    bottom: var(--timeline-label-offset);
+    left: calc(var(--timeline-dot-size) / 2);
+    transform: translateX(-50%);
+    font-size: var(--timeline-label-font);
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-weight: 500;
+    transition: color var(--duration-normal) var(--ease-out);
+  }
+
+  /* Inactive labels are more muted */
+  .timeline-label[data-state="inactive"] {
+    color: var(--text-disabled);
+    opacity: 0.5;
+  }
+
+  /* Dot pulse animation (only for active dots) */
+  @keyframes dot-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.7;
+      transform: scale(1.1);
+    }
+  }
+
+  /* Reduced motion: disable dot pulse */
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-dot {
+      animation: none !important;
+    }
+  }
+}

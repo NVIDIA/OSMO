@@ -1,0 +1,289 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * Workflow Server Actions
+ *
+ * Server-side mutations for workflows. These run on the server and can:
+ * - Access server-only secrets
+ * - Make direct backend calls (no CORS)
+ * - Revalidate cached data after mutations
+ *
+ * Usage in Client Components:
+ * ```tsx
+ * import { cancelWorkflow, retryWorkflow } from '@/features/workflows/list/lib/actions';
+ *
+ * // In a button onClick or form action:
+ * await cancelWorkflow(workflowName);
+ * ```
+ *
+ * Benefits:
+ * - Progressive enhancement (forms work without JS)
+ * - Type-safe mutations with end-to-end TypeScript
+ * - Automatic cache revalidation via revalidatePath/revalidateTag
+ * - Server-side error handling
+ */
+
+"use server";
+
+import { revalidatePath, updateTag, refresh } from "next/cache";
+import { ServerApiError } from "@/lib/api/server/config";
+import { customFetch } from "@/lib/api/fetcher";
+import type { ActionResult } from "@/lib/server-actions";
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = "POST"): Promise<ActionResult> {
+  try {
+    // Use customFetch which calls the clean fetch path (no MSW imports)
+    await customFetch({
+      url: endpoint,
+      method,
+    });
+
+    return { success: true };
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      return { success: false, error: error.message };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+// =============================================================================
+// Server Actions
+// =============================================================================
+
+/**
+ * Cancel a running workflow.
+ *
+ * @param workflowName - The workflow name to cancel
+ * @param options - Optional cancellation parameters
+ * @param options.message - Reason for cancellation (shown in audit logs)
+ * @param options.force - Force cancellation even if graceful shutdown fails
+ * @returns Result indicating success or error
+ */
+export async function cancelWorkflow(
+  workflowName: string,
+  options?: { message?: string; force?: boolean },
+): Promise<ActionResult> {
+  // Build query parameters if provided
+  const params = new URLSearchParams();
+  if (options?.message) {
+    params.set("message", options.message);
+  }
+  if (options?.force !== undefined) {
+    params.set("force", String(options.force));
+  }
+
+  const queryString = params.toString();
+  const endpoint = `/api/workflow/${encodeURIComponent(workflowName)}/cancel${queryString ? `?${queryString}` : ""}`;
+
+  const result = await makeWorkflowAction(endpoint);
+
+  if (result.success) {
+    // Revalidate workflow data after successful cancellation
+    // updateTag updates the cache without requiring a profile (Next.js 16+)
+    updateTag("workflows");
+    updateTag(`workflow-${workflowName}`);
+    revalidatePath(`/workflows/${workflowName}`, "page");
+    revalidatePath("/workflows", "page");
+    // Refresh client cache to ensure immediate updates
+    refresh();
+  }
+
+  return result;
+}
+
+/**
+ * Retry a failed workflow.
+ *
+ * @param workflowName - The workflow name to retry
+ * @returns Result indicating success or error
+ */
+export async function retryWorkflow(workflowName: string): Promise<ActionResult> {
+  const result = await makeWorkflowAction(`/api/workflow/${encodeURIComponent(workflowName)}/retry`);
+
+  if (result.success) {
+    // Revalidate workflow data after successful retry
+    updateTag("workflows");
+    updateTag(`workflow-${workflowName}`);
+    revalidatePath(`/workflows/${workflowName}`, "page");
+    revalidatePath("/workflows", "page");
+    refresh();
+  }
+
+  return result;
+}
+
+/**
+ * Delete a workflow.
+ *
+ * @param workflowName - The workflow name to delete
+ * @returns Result indicating success or error
+ */
+export async function deleteWorkflow(workflowName: string): Promise<ActionResult> {
+  const result = await makeWorkflowAction(`/api/workflow/${encodeURIComponent(workflowName)}`, "DELETE");
+
+  if (result.success) {
+    // Revalidate workflow list after deletion
+    updateTag("workflows");
+    revalidatePath("/workflows", "page");
+    refresh();
+  }
+
+  return result;
+}
+
+/**
+ * Retry a specific task group within a workflow.
+ *
+ * @param workflowName - The workflow name
+ * @param groupName - The group name to retry
+ * @returns Result indicating success or error
+ */
+export async function retryTaskGroup(workflowName: string, groupName: string): Promise<ActionResult> {
+  const result = await makeWorkflowAction(
+    `/api/workflow/${encodeURIComponent(workflowName)}/groups/${encodeURIComponent(groupName)}/retry`,
+  );
+
+  if (result.success) {
+    // Revalidate workflow data after successful group retry
+    updateTag(`workflow-${workflowName}`);
+    revalidatePath(`/workflows/${workflowName}`, "page");
+    refresh();
+  }
+
+  return result;
+}
+
+/**
+ * Cancel a specific task group within a workflow.
+ *
+ * @param workflowName - The workflow name
+ * @param groupName - The group name to cancel
+ * @returns Result indicating success or error
+ */
+export async function cancelTaskGroup(workflowName: string, groupName: string): Promise<ActionResult> {
+  const result = await makeWorkflowAction(
+    `/api/workflow/${encodeURIComponent(workflowName)}/groups/${encodeURIComponent(groupName)}/cancel`,
+  );
+
+  if (result.success) {
+    // Revalidate workflow data after successful group cancellation
+    updateTag(`workflow-${workflowName}`);
+    revalidatePath(`/workflows/${workflowName}`, "page");
+    refresh();
+  }
+
+  return result;
+}
+
+// =============================================================================
+// Resubmit Types
+// =============================================================================
+
+export interface ResubmitResult extends ActionResult {
+  /** New workflow name returned by the backend on success */
+  newWorkflowName?: string;
+}
+
+export interface ResubmitParams {
+  /** ID of the original workflow to resubmit */
+  workflowId: string;
+  /** Target pool for execution */
+  poolName: string;
+  /** Execution priority */
+  priority: string;
+  /**
+   * Optional custom spec (if user edited and changed it)
+   * - undefined: Backend fetches original spec via workflow_id (efficient)
+   * - string: Backend uses this custom spec (ignores workflow_id)
+   *
+   * Backend constraint: EITHER template_spec OR workflow_id, never both.
+   */
+  spec?: string;
+}
+
+// =============================================================================
+// Resubmit Server Action
+// =============================================================================
+
+/**
+ * Resubmit a workflow to a (potentially different) pool with a given priority.
+ *
+ * Uses the existing submission endpoint:
+ *   POST /api/pool/{pool_name}/workflow
+ *
+ * Backend constraint: EITHER template_spec OR workflow_id can be provided, never both.
+ * - If spec is provided: sends template_spec in body (custom workflow)
+ * - If spec is NOT provided: sends workflow_id query param (reuses original spec)
+ *
+ * @param params - Resubmit configuration (workflowId, poolName, priority, optional spec)
+ * @returns Result with the new workflow name on success, or error message
+ */
+export async function resubmitWorkflow(params: ResubmitParams): Promise<ResubmitResult> {
+  const { workflowId, poolName, priority, spec } = params;
+
+  const queryParams = new URLSearchParams();
+  queryParams.set("priority", priority);
+
+  // Backend constraint: EITHER template_spec OR workflow_id, never both
+  if (!spec) {
+    // No custom spec: send workflow_id to reuse original spec
+    queryParams.set("workflow_id", workflowId);
+  }
+
+  const endpoint = `/api/pool/${encodeURIComponent(poolName)}/workflow?${queryParams.toString()}`;
+
+  try {
+    // Build request configuration based on whether custom spec is provided
+    const requestConfig: Parameters<typeof customFetch>[0] = {
+      url: endpoint,
+      method: "POST",
+    };
+
+    if (spec) {
+      // Custom spec: send in body (no workflow_id in query params)
+      requestConfig.data = { file: spec, set_variables: [] };
+    }
+    // If no spec: backend fetches original from workflow_id query param (no body needed)
+
+    const response = await customFetch<{ name?: string }>(requestConfig);
+
+    const newName = response?.name;
+
+    // No cache revalidation needed - creating a new workflow doesn't affect:
+    // - Current workflow page (unchanged)
+    // - New workflow page (will fetch fresh when user navigates to it)
+    // - Workflows list (will fetch fresh when user navigates to it)
+
+    return { success: true, newWorkflowName: newName };
+  } catch (error) {
+    if (error instanceof ServerApiError) {
+      return { success: false, error: error.message };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to resubmit workflow",
+    };
+  }
+}

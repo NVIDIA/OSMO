@@ -1,0 +1,39 @@
+"""
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+"""
+
+load("//bzl:py.bzl", "osmo_py_binary")
+
+# Export OpenAPI spec from FastAPI app
+# Usage: bazel run //src/scripts:export_openapi > src/ui/openapi.json
+osmo_py_binary(
+    name = "export_openapi",
+    main = "export_openapi.py",
+    srcs = ["export_openapi.py"],
+    deps = ["//src/service/core:service_lib"],
+    visibility = ["//visibility:public"],
+)
+
+# Export status metadata from Python enums to TypeScript
+# Usage: bazel run //src/scripts:export_status_metadata > src/ui/src/lib/api/status-metadata.generated.ts
+osmo_py_binary(
+    name = "export_status_metadata",
+    main = "export_status_metadata.py",
+    srcs = ["export_status_metadata.py"],
+    deps = ["//src/utils/job"],
+    visibility = ["//visibility:public"],
+)

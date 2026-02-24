@@ -9,6 +9,7 @@ amlfs
 ansible
 Ansible
 api
+apiVersion
 apis
 apriltag
 arg
@@ -293,6 +294,8 @@ sts
 subfolder
 subnet
 subnets
+subtree
+subtrees
 sudo
 svc
 swiftstack

@@ -1,0 +1,196 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Code Viewer Search Panel Styles
+ *
+ * Floating overlay in top-right corner matching ShellSearch design.
+ * Theme-aware with light/dark mode support.
+ */
+
+/* Theme-aware CSS custom properties */
+.code-viewer-search[data-theme="dark"] {
+  --search-bg: #18181b;
+  --search-border: #27272a;
+  --search-input-bg: #09090b;
+  --search-text: #e4e4e7;
+  --search-muted: #71717a;
+  --search-hover-bg: rgba(255, 255, 255, 0.1);
+  --search-active-color: var(--nvidia-green);
+  --search-active-hover: var(--nvidia-green-light);
+  --search-active-bg: rgba(118, 185, 0, 0.15);
+  --search-focus-border: var(--nvidia-green);
+  --search-shadow: rgba(0, 0, 0, 0.3);
+}
+
+.code-viewer-search[data-theme="light"] {
+  --search-bg: #ffffff;
+  --search-border: #e4e4e7;
+  --search-input-bg: #fafafa;
+  --search-input-border: #d4d4d8;
+  --search-text: #18181b;
+  --search-muted: #71717a;
+  --search-hover-bg: rgba(0, 0, 0, 0.05);
+  --search-hover-text: #3f3f46;
+  --search-active-color: var(--nvidia-green);
+  --search-active-hover: var(--nvidia-green-dark);
+  --search-active-bg: rgba(118, 185, 0, 0.1);
+  --search-focus-border: var(--nvidia-green);
+  --search-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Panel mount point - positions the search as a floating overlay */
+.code-viewer-search-panel-mount {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  pointer-events: auto;
+}
+
+/* Search panel container */
+.code-viewer-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--search-bg);
+  border: 1px solid var(--search-border);
+  box-shadow: 0 4px 12px var(--search-shadow);
+
+  /* Slide down + fade in animation */
+  animation: code-viewer-search-slide-down 150ms ease-out forwards;
+}
+
+/* Input wrapper - contains input and inline options */
+.code-viewer-search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  background: var(--search-input-bg);
+  border: 1px solid var(--search-border);
+  transition: border-color 100ms ease-out;
+}
+
+.code-viewer-search-input-wrapper:focus-within {
+  border-color: var(--search-focus-border);
+}
+
+/* Input field */
+.code-viewer-search-input {
+  width: 120px;
+  height: 24px;
+  padding: 0 4px 0 8px;
+  font-size: 12px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--search-text);
+}
+
+.code-viewer-search-input::placeholder {
+  color: var(--search-muted);
+}
+
+/* Inline search options (inside input) */
+.code-viewer-search-options {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding-right: 4px;
+}
+
+.code-viewer-search-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--search-muted);
+  transition:
+    color 100ms ease-out,
+    background-color 100ms ease-out;
+}
+
+.code-viewer-search-option:hover {
+  color: var(--search-hover-text, var(--search-text));
+  background: var(--search-hover-bg);
+}
+
+.code-viewer-search-option.active {
+  color: var(--search-active-color);
+}
+
+.code-viewer-search-option.active:hover {
+  color: var(--search-active-hover);
+  background: var(--search-active-bg);
+}
+
+/* Match count text */
+.code-viewer-search-count {
+  font-size: 11px;
+  white-space: nowrap;
+  min-width: 32px;
+  text-align: center;
+  color: var(--search-muted);
+}
+
+/* Navigation and close buttons */
+.code-viewer-search-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.code-viewer-search-nav-button,
+.code-viewer-search-close-button {
+  color: var(--search-muted);
+}
+
+.code-viewer-search-nav-button:hover,
+.code-viewer-search-close-button:hover {
+  background: var(--search-hover-bg);
+  color: var(--search-hover-text, var(--search-text));
+}
+
+/* Animation */
+@keyframes code-viewer-search-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+    will-change: opacity, transform;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    will-change: auto;
+  }
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .code-viewer-search {
+    animation: none;
+  }
+}

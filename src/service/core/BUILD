@@ -51,7 +51,7 @@ osmo_py_library(
     data = [
         "//src/lib/utils:version.yaml",
     ],
-    visibility = ["//src/service:__subpackages__"],
+    visibility = ["//visibility:public"],
 )
 
 osmo_py_binary(
