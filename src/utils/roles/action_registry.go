@@ -1023,6 +1023,7 @@ func ConvertRoleToSemantic(role *Role) *Role {
 
 	for _, policy := range role.Policies {
 		var semanticActions []RoleAction
+		seenActions := make(map[string]bool)
 		var resources []string
 
 		// Copy existing resources
@@ -1036,13 +1037,18 @@ func ConvertRoleToSemantic(role *Role) *Role {
 
 		for _, action := range policy.Actions {
 			if action.IsSemanticAction() {
-				// Keep existing semantic actions
-				semanticActions = append(semanticActions, action)
+				if !seenActions[action.Action] {
+					seenActions[action.Action] = true
+					semanticActions = append(semanticActions, action)
+				}
 			} else {
 				// Convert legacy action to semantic
 				convertedActions := ConvertLegacyActionToSemantic(&action)
 				for _, sa := range convertedActions {
-					semanticActions = append(semanticActions, RoleAction{Action: sa})
+					if !seenActions[sa] {
+						seenActions[sa] = true
+						semanticActions = append(semanticActions, RoleAction{Action: sa})
+					}
 				}
 			}
 		}
