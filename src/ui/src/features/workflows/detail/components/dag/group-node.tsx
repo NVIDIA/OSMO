@@ -317,7 +317,16 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Memoize tasks array with natural sort order
-  const tasks = useMemo(() => [...(group.tasks || [])].sort((a, b) => naturalCompare(a.name, b.name)), [group.tasks]);
+  const tasks = useMemo(
+    () =>
+      [...(group.tasks || [])].sort((a, b) => {
+        if (a.lead && !b.lead) return -1;
+        if (!a.lead && b.lead) return 1;
+        return naturalCompare(a.name, b.name);
+      }),
+    [group.tasks],
+  );
+  // const tasks = group.tasks || [];
   const totalCount = tasks.length;
   const isSingleTask = totalCount === 1;
   const hasManyTasks = totalCount > 1;

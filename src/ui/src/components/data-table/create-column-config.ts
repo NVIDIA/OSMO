@@ -60,8 +60,8 @@ interface ColumnConfigInput<TColumnId extends string> {
   sizeConfig: ColumnSizeConfig[];
   /** Optional columns that can be toggled in the visibility menu */
   optionalColumns?: ColumnDefinition[];
-  /** Default sort configuration */
-  defaultSort?: { column: TColumnId; direction: "asc" | "desc" };
+  /** Default sort configuration (null = no default sort) */
+  defaultSort?: { column: TColumnId; direction: "asc" | "desc" } | null;
   /** Default panel width percentage (if feature uses panels) */
   defaultPanelWidth?: number;
 }
@@ -83,8 +83,8 @@ export interface ColumnConfig<TColumnId extends string> {
   COLUMN_SIZE_CONFIG: readonly ColumnSizeConfig[];
   /** Optional columns that can be toggled */
   OPTIONAL_COLUMNS: readonly ColumnDefinition[];
-  /** Default sort configuration */
-  DEFAULT_SORT: { column: TColumnId; direction: "asc" | "desc" };
+  /** Default sort configuration (null = no default sort) */
+  DEFAULT_SORT: { column: TColumnId; direction: "asc" | "desc" } | null;
   /** Default panel width percentage */
   DEFAULT_PANEL_WIDTH: number;
 }
@@ -130,7 +130,7 @@ export function createColumnConfig<TColumnId extends string>(
     DEFAULT_COLUMN_ORDER: Object.freeze([...config.defaultOrder]),
     COLUMN_SIZE_CONFIG: Object.freeze([...config.sizeConfig]),
     OPTIONAL_COLUMNS: Object.freeze(optionalColumns),
-    DEFAULT_SORT: config.defaultSort ?? { column: config.columns[0], direction: "asc" as const },
+    DEFAULT_SORT: config.defaultSort === null ? null : (config.defaultSort ?? { column: config.columns[0], direction: "asc" as const }),
     DEFAULT_PANEL_WIDTH: config.defaultPanelWidth ?? 40,
   };
 }
