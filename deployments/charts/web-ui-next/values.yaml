@@ -211,6 +211,14 @@ services:
         ##
         sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
 
+        ## ALB ingress group name for combining multiple ingress resources
+        ##
+        groupName: osmo
+
+        ## ALB ingress group order (lower = higher priority)
+        ##
+        groupOrder: "200"
+
       ## Enable SSL/TLS encryption for the ingress
       ##
       sslEnabled: true

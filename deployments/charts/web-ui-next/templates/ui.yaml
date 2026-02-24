@@ -350,8 +350,8 @@ metadata:
   annotations:
     {{- if .Values.services.ui.ingress.albAnnotations.enabled}}
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: osmo
-    alb.ingress.kubernetes.io/group.order: "200"
+    alb.ingress.kubernetes.io/group.name: {{ .Values.services.ui.ingress.albAnnotations.groupName | default "osmo" }}
+    alb.ingress.kubernetes.io/group.order: {{ .Values.services.ui.ingress.albAnnotations.groupOrder | default "200" | quote }}
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
     {{- end }}
     {{- range $k, $v := .Values.services.ui.ingress.annotations }}
@@ -364,50 +364,6 @@ spec:
     http:
       paths:
       - path: {{ .Values.services.ui.ingress.prefix }}
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Values.services.ui.serviceName }}
-            port:
-              number: 80
-  {{- if .Values.services.ui.ingress.sslEnabled }}
-  tls:
-  - hosts:
-    - {{ .Values.services.ui.hostname }}
-    secretName: {{.Values.services.ui.ingress.sslSecret }}
-  {{- end }}
-{{- end }}
-
-{{ if .Values.services.ui.ingress.enabled }}
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ .Values.services.ui.serviceName }}-trpc
-  annotations:
-    {{- if .Values.services.ui.ingress.albAnnotations.enabled}}
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: osmo
-    alb.ingress.kubernetes.io/group.order: "50"
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.ui.ingress.albAnnotations.sslCertArn }}
-    {{- end }}
-    {{- range $k, $v := .Values.services.ui.ingress.annotations }}
-    {{$k}}: {{ $v | quote }}
-    {{- end }}
-spec:
-  ingressClassName: {{ .Values.services.ui.ingress.ingressClass }}
-  rules:
-  - host: {{ .Values.services.ui.hostname }}
-    http:
-      paths:
-      - path: {{ .Values.services.ui.ingress.prefix }}api/refresh
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Values.services.ui.serviceName }}
-            port:
-              number: 80
-      - path: {{ .Values.services.ui.ingress.prefix }}api/trpc
         pathType: Prefix
         backend:
           service:
