@@ -58,6 +58,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "description text",
     prefix: "description:",
     freeFormHint: "Type any text, press Enter",
+    singular: true,
     getValues: () => [],
     match: (pool, value) => pool.description.toLowerCase().includes(value.toLowerCase()),
   },
@@ -118,6 +119,7 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
     hint: "pools sharing capacity",
     prefix: "shared:",
     freeFormHint: "Type any pool, press Enter",
+    singular: true,
     // Show pools that are in sharing groups (from loaded data)
     // Note: suggestions are non-exhaustive with backend filtering
     getValues: () => sharedPoolNames,
@@ -133,6 +135,7 @@ export function createPoolSearchFields(sharingGroups: string[][]): SearchField<P
     id: "scope",
     label: "Scope",
     prefix: "scope:",
+    singular: true,
     getValues: () => ["user", "all"],
     exhaustive: true,
     requiresValidValue: true,

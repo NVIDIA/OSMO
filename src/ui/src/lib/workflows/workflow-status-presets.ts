@@ -45,6 +45,6 @@ export function createPresetChips(presetId: StatusPresetId): SearchChip[] {
   return STATUS_PRESETS[presetId].map((status) => ({
     field: "status",
     value: status,
-    label: `Status: ${STATUS_LABELS[status] ?? status}`,
+    label: `status: ${STATUS_LABELS[status] ?? status}`,
   }));
 }

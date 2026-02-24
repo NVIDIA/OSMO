@@ -44,7 +44,7 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
   const { effectiveChips, handleChipsChange, optOut } = useDefaultFilter({
     field: "user",
     defaultValue: initialUsername,
-    label: `User: ${initialUsername}`,
+    label: `user: ${initialUsername}`,
   });
 
   const handleSearchChipsChange = useCallback(
