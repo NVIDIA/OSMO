@@ -31,6 +31,9 @@ spec:
     metadata:
       labels:
         app: {{ .Values.services.agent.serviceName }}
+        {{- with .Values.services.agent.extraPodLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.agent | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
