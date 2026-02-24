@@ -86,6 +86,8 @@ export interface PoolFilterParams {
   platforms?: string[];
   /** Filter by backend */
   backends?: string[];
+  /** Filter by specific pool names (OR'd) */
+  pools?: string[];
   /** Text search across pool name, description */
   search?: string;
   /** Filter by shared pool group (pools sharing capacity with this pool) */
@@ -157,6 +159,12 @@ function applyPoolFilters(pools: Pool[], params: PoolFilterParams, sharingGroups
   if (params.backends && params.backends.length > 0) {
     const backendSet = new Set(params.backends);
     result = result.filter((pool) => backendSet.has(pool.backend));
+  }
+
+  // SHIM: Filter by pool names (should be server-side)
+  if (params.pools && params.pools.length > 0) {
+    const poolNamesLower = params.pools.map((p) => p.toLowerCase());
+    result = result.filter((pool) => poolNamesLower.some((name) => pool.name.toLowerCase().includes(name)));
   }
 
   // SHIM: Filter by shared pool group (should be server-side)
@@ -259,6 +267,7 @@ export function hasActiveFilters(params: PoolFilterParams): boolean {
     (params.statuses && params.statuses.length > 0) ||
     (params.platforms && params.platforms.length > 0) ||
     (params.backends && params.backends.length > 0) ||
+    (params.pools && params.pools.length > 0) ||
     params.sharedWith ||
     (params.search && params.search.trim()),
   );
