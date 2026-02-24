@@ -80,6 +80,7 @@ spec:
         - bash
         - -c
         - |
+          apk add --no-cache curl > /dev/null 2>&1
           curl -sL https://github.com/xataio/pgroll/releases/download/{{ .Values.services.migration.pgrollVersion }}/pgroll.linux.amd64 -o /usr/local/bin/pgroll
           chmod +x /usr/local/bin/pgroll
           bash /pgroll/run_migrations.sh {{ .Values.services.migration.targetSchema }}

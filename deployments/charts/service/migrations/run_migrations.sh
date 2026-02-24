@@ -37,10 +37,10 @@ urlencode() {
     printf '%s' "$encoded"
 }
 
-# Resolve postgres password: env var first, then Vault-rendered config file
+# Resolve postgres password: env var first, then config file (e.g., Vault-rendered)
 DB_PASSWORD="${OSMO_POSTGRES_PASSWORD:-}"
-if [ -z "$DB_PASSWORD" ] && [ -f "${OSMO_CONFIG_FILE:-}" ]; then
-    DB_PASSWORD=$(grep -oP 'postgres_password:\s*\K\S+' "$OSMO_CONFIG_FILE" || true)
+if [ -z "$DB_PASSWORD" ] && [ -n "${OSMO_CONFIG_FILE:-}" ] && [ -f "$OSMO_CONFIG_FILE" ]; then
+    DB_PASSWORD=$(sed -n 's/^[[:space:]]*postgres_password:[[:space:]]*//p' "$OSMO_CONFIG_FILE" | head -1)
 fi
 if [ -z "$DB_PASSWORD" ]; then
     echo "ERROR: No postgres password. Set OSMO_POSTGRES_PASSWORD or OSMO_CONFIG_FILE."
