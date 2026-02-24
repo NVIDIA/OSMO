@@ -298,7 +298,7 @@ oci.pull(
     image = BASE_DISTROLESS_IMAGE_URL + "node:22-v4.0.2",
     platforms = [
         "linux/amd64",
-        "linux/arm64/v8",
+        "linux/arm64",
     ],
 )
 use_repo(
@@ -311,7 +311,7 @@ use_repo(
     # "distroless_python3_10_dev_linux_arm64_v8",
     "node_22_distroless",
     "node_22_distroless_linux_amd64",
-    "node_22_distroless_linux_arm64_v8",
+    "node_22_distroless_linux_arm64",
     "ubuntu_22_04",
     "ubuntu_22_04_linux_amd64",
     "ubuntu_22_04_linux_arm64",
