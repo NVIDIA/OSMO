@@ -266,7 +266,7 @@ jobs:
   #######################
   docs-build:
     needs: [check-paths]
-    if: needs.check-paths.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.check-paths.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' || github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -290,6 +290,7 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
+          rm -rf docs/public/.doctrees
           if [ -d "docs/build_error_logs" ] && [ "$(find docs/build_error_logs -name '*.log' -size +0c)" ]; then
             echo "Build errors found:"
             find docs/build_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
