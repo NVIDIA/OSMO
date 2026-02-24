@@ -56,7 +56,8 @@ export const ResourcesToolbar = memo(function ResourcesToolbar({
       onToggleColumn={toggleColumn}
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
-      placeholder="Search resources... (try 'name:', 'platform:', 'pool:')"
+      defaultField="resource"
+      placeholder="Search resources... (try 'resource:', 'platform:', 'pool:')"
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
     >

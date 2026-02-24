@@ -36,7 +36,7 @@ export async function WorkflowsWithData({ searchParams }: WorkflowsWithDataProps
   const shouldPrePopulate = !hasUserChipInUrl && !allParam && !!username;
 
   const prefetchChips = shouldPrePopulate
-    ? [...filterChips, { field: "user", value: username!, label: `User: ${username}` }]
+    ? [...filterChips, { field: "user", value: username!, label: `user: ${username}` }]
     : filterChips;
 
   try {

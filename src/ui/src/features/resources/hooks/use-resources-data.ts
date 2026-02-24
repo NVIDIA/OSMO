@@ -66,7 +66,9 @@ interface UseResourcesDataParams {
 interface UseResourcesDataReturn {
   /** Filtered resources (after applying search chips) */
   resources: Resource[];
-  /** All resources (unfiltered, for suggestions) */
+  /** Accumulated paginated resources (for table rendering) */
+  paginatedResources: Resource[];
+  /** All unfiltered resources from cache (for FilterBar suggestions) */
   allResources: Resource[];
   filteredCount?: number;
   totalCount?: number;
@@ -85,7 +87,7 @@ interface UseResourcesDataReturn {
 // =============================================================================
 
 /** Fields handled by the shim (these get converted to params) */
-const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "name", "hostname"]);
+const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "resource", "hostname"]);
 
 /**
  * Mapping of FilterBar chip fields to resource filter params.
@@ -98,7 +100,7 @@ const RESOURCE_CHIP_MAPPING: ChipMappingConfig<ResourceFilterParams> = {
   platform: { type: "array", paramKey: "platforms" },
   type: { type: "array", paramKey: "resourceTypes" },
   backend: { type: "array", paramKey: "backends" },
-  name: { type: "single", paramKey: "search" },
+  resource: { type: "array", paramKey: "resources" },
   hostname: { type: "single", paramKey: "hostname" },
 };
 
@@ -138,7 +140,7 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
 
   // Use data table hook for pagination
   const {
-    items: allResources,
+    items: paginatedResources,
     filteredCount: rawFilteredCount,
     totalCount,
     hasNextPage,
@@ -162,18 +164,21 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     },
   });
 
-  // Extract aggregates from first page (computed by shim for full filtered dataset)
-  const aggregates = (firstPage as PaginatedResourcesResult | undefined)?.aggregates;
+  // Extract metadata from first page (computed by shim for full dataset)
+  const firstPageResult = firstPage as PaginatedResourcesResult | undefined;
+  const aggregates = firstPageResult?.aggregates;
+  const allResources = firstPageResult?.allItems ?? paginatedResources;
 
   // Apply client-only chips (numeric filters with % calculations)
   // These can't be handled by the shim because they need complex math
   const filteredResources = useMemo(() => {
-    if (clientOnlyChips.length === 0) return allResources;
-    return filterByChips(allResources, clientOnlyChips, RESOURCE_SEARCH_FIELDS);
-  }, [allResources, clientOnlyChips]);
+    if (clientOnlyChips.length === 0) return paginatedResources;
+    return filterByChips(paginatedResources, clientOnlyChips, RESOURCE_SEARCH_FIELDS);
+  }, [paginatedResources, clientOnlyChips]);
 
   return {
     resources: filteredResources,
+    paginatedResources,
     allResources,
     filteredCount: clientOnlyChips.length > 0 ? filteredResources.length : rawFilteredCount,
     totalCount,

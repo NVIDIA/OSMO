@@ -140,6 +140,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       onToggleColumn={toggleColumn}
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
+      defaultField="name"
       placeholder="Search datasets... (try 'name:', 'bucket:', 'user:', 'created_at:')"
       searchPresets={searchPresets}
       resultsCount={resultsCount}

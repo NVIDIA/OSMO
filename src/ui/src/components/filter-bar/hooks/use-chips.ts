@@ -32,6 +32,8 @@ interface UseChipsOptions<T> {
   fields: readonly SearchField<T>[];
   /** Display mode for resolving shorthand fields */
   displayMode?: "free" | "used";
+  /** Field ID to use for free-text input instead of generic "text" chips */
+  defaultField?: string;
 }
 
 interface UseChipsReturn<T> {
@@ -67,6 +69,7 @@ export function useChips<T>({
   data,
   fields,
   displayMode,
+  defaultField,
 }: UseChipsOptions<T>): UseChipsReturn<T> {
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -94,7 +97,7 @@ export function useChips<T>({
 
       // Resolve shorthand fields to explicit form
       let resolvedField = field;
-      let resolvedLabel = `${field.label}: ${value}`;
+      let resolvedLabel = `${field.id}: ${value}`;
       let chipVariant = field.variant;
 
       if (field.resolveTo && displayMode) {
@@ -102,7 +105,7 @@ export function useChips<T>({
         const targetField = fields.find((f) => f.id === targetFieldId);
         if (targetField) {
           resolvedField = targetField;
-          resolvedLabel = `${targetField.label}: ${value}`;
+          resolvedLabel = `${targetField.id}: ${value}`;
           chipVariant = targetField.variant;
         }
       }
@@ -110,15 +113,18 @@ export function useChips<T>({
       // Don't add duplicate chips
       const exists = chips.some((c) => c.field === resolvedField.id && c.value.toLowerCase() === value.toLowerCase());
       if (!exists) {
-        onChipsChange([
-          ...chips,
-          {
-            field: resolvedField.id,
-            value,
-            label: resolvedLabel,
-            variant: chipVariant,
-          },
-        ]);
+        const newChip: SearchChip = {
+          field: resolvedField.id,
+          value,
+          label: resolvedLabel,
+          variant: chipVariant,
+        };
+
+        if (resolvedField.singular) {
+          onChipsChange([...chips.filter((c) => c.field !== resolvedField.id), newChip]);
+        } else {
+          onChipsChange([...chips, newChip]);
+        }
       }
 
       return true;
@@ -128,9 +134,27 @@ export function useChips<T>({
 
   const addTextChip = useCallback(
     (value: string) => {
-      onChipsChange([...chips, { field: "text", value, label: value }]);
+      const fieldDef = defaultField ? fields.find((f) => f.id === defaultField) : undefined;
+      if (fieldDef) {
+        const newChip: SearchChip = {
+          field: fieldDef.id,
+          value,
+          label: `${fieldDef.id}: ${value}`,
+          variant: fieldDef.variant,
+        };
+        if (fieldDef.singular) {
+          onChipsChange([...chips.filter((c) => c.field !== fieldDef.id), newChip]);
+        } else {
+          const exists = chips.some((c) => c.field === fieldDef.id && c.value.toLowerCase() === value.toLowerCase());
+          if (!exists) {
+            onChipsChange([...chips, newChip]);
+          }
+        }
+      } else {
+        onChipsChange([...chips.filter((c) => c.field !== "text"), { field: "text", value, label: value }]);
+      }
     },
-    [chips, onChipsChange],
+    [chips, onChipsChange, defaultField, fields],
   );
 
   const removeChip = useCallback(

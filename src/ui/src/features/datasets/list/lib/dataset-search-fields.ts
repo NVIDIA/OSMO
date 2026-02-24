@@ -37,6 +37,7 @@ export const DATASET_STATIC_FIELDS: readonly SearchField<Dataset>[] = [
     id: "name",
     label: "Name",
     prefix: "name:",
+    singular: true,
     getValues: (datasets: Dataset[]) => {
       const names = datasets.map((d) => d.name);
       return [...new Set(names)].sort();
@@ -58,7 +59,7 @@ export const DATASET_STATIC_FIELDS: readonly SearchField<Dataset>[] = [
     prefix: "created_at:",
     hint: "creation date",
     freeFormHint: "e.g. 'last 7 days' or '2024-01-01..2024-12-31'",
-    // Date fields are client-side filtered via datasets-shim — no match fn needed
+    singular: true,
     getValues: (_datasets: Dataset[]) => getDateRangePresetSuggestions(),
     exhaustive: false,
   },
@@ -68,6 +69,7 @@ export const DATASET_STATIC_FIELDS: readonly SearchField<Dataset>[] = [
     prefix: "updated_at:",
     hint: "last updated",
     freeFormHint: "e.g. 'last 7 days' or '2024-01-01..2024-12-31'",
+    singular: true,
     getValues: (_datasets: Dataset[]) => getDateRangePresetSuggestions(),
     exhaustive: false,
   },
