@@ -200,8 +200,7 @@ Delete the service account user (this also deletes all associated tokens):
 
 .. seealso::
 
-   - :ref:`cli_reference_token` for token CLI reference
-   - :ref:`cli_reference_user` for user CLI reference
+   - :doc:`../../references/user_cli/index` for user and token CLI reference
 
 Common Service Account Patterns
 ================================
