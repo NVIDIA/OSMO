@@ -22,26 +22,22 @@
 Roles and Policies
 ================================================
 
-This guide explains OSMO's role-based access control (RBAC) system, including preconfigured roles, how to create custom roles, and how policies determine access permissions.
+OSMO ships with preconfigured roles that cover common use cases out of the box.
+**Most administrators do not need to create or modify roles** — simply assign users to the built-in roles described below.
 
-Overview
-========
-
-OSMO uses role-based access control to manage user permissions. The authorization model consists of:
-
-- **Roles**: Named sets of permissions that grant access to specific resources
-- **Policies**: Rules that define which actions a role can perform, optionally scoped to specific resources
-- **Actions**: Semantic operations on resource types (e.g., ``workflow:Create``, ``pool:List``)
-- **Resources**: Scoped identifiers that restrict actions to specific instances (e.g., ``pool/my-pool``, ``bucket/my-data``)
+If you need more fine-grained access control (for example, restricting users to specific pools
+or denying certain operations), see :ref:`custom_roles_policies` later in this guide.
 
 .. note::
 
    Roles are only available when authentication is enabled.
 
-Preconfigured Roles
-===================
+.. _preconfigured_roles:
 
-By default, OSMO includes the following preconfigured roles:
+Preconfigured Roles (Default)
+==============================
+
+OSMO includes the following roles by default. No configuration is required — these roles are created automatically when authentication is enabled.
 
 .. list-table::
    :header-rows: 1
@@ -89,13 +85,78 @@ By default, OSMO includes the following preconfigured roles:
 
 .. note::
 
-   The Admin role is immutable and cannot be modified.
+   The ``osmo-admin`` role is immutable and cannot be modified.
+
+Role Fields
+-----------
+
+Each role has the following fields:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 15 65
+
+   * - **Field**
+     - **Default**
+     - **Description**
+   * - ``name``
+     - (required)
+     - Unique name for the role.
+   * - ``description``
+     - (required)
+     - Human-readable description of the role.
+   * - ``policies``
+     - (required)
+     - List of policies that define what this role can do. See :ref:`custom_roles_policies` for details.
+   * - ``immutable``
+     - ``false``
+     - If ``true``, the role cannot be modified or deleted. The preconfigured ``osmo-admin``, ``osmo-backend``, ``osmo-ctrl``, and ``osmo-default`` roles are immutable.
+   * - ``sync_mode``
+     - ``"import"``
+     - Controls how IdP role sync affects this role. One of:
+
+       * ``"import"`` -- Roles are **added** when the IdP provides them, but **never removed** by IdP sync.
+       * ``"force"`` -- Role membership is driven entirely by the IdP. Added when present, **removed** when absent.
+       * ``"ignore"`` -- IdP sync never touches this role; manage it only via the CLI.
+
+       See :ref:`role_sync_modes` for full details.
+   * - ``external_roles``
+     - ``null``
+     - Maps external IdP group/role names to this OSMO role. When users log in via an IdP, OSMO uses these mappings to determine which OSMO roles to assign.
+
+       * ``null`` (not set): For **new** roles, OSMO creates a default 1:1 mapping using the role's own name (e.g., a role named ``ml-team`` automatically maps from an external role named ``ml-team``). For existing roles, the current mappings are preserved.
+       * ``[]`` (empty list): Explicitly clears all external mappings. The role will not be assigned via IdP sync.
+       * ``["group-a", "group-b"]``: Maps the specified external names to this role. If a user's IdP claims include any of these names, the role is assigned (subject to :ref:`sync_mode <role_sync_modes>`).
+
+       See :doc:`identity_provider_setup` for configuring IdP integration.
+
+All preconfigured roles use the defaults (``sync_mode: "import"``, ``external_roles: null``), which means each is automatically mapped 1:1 from its own name in IdP claims. For example, if your IdP sends a group claim containing ``osmo-user``, that user will automatically receive the ``osmo-user`` role in OSMO without any additional configuration.
+
+.. tip::
+
+   For most deployments, assigning users to ``osmo-admin`` or ``osmo-user`` is sufficient. You only
+   need to read further if you want to create custom roles or understand how policies work internally.
+
+.. _custom_roles_policies:
+
+Custom Roles and Policies (Advanced)
+=====================================
+
+This section is for administrators who need more fine-grained access control beyond the
+preconfigured roles. For example, you may want to:
+
+- Restrict users to specific pools
+- Create read-only roles
+- Deny certain operations for specific teams
+- Scope dataset access to particular buckets
+
+If the preconfigured roles meet your needs, you can skip this section.
 
 Understanding Policies
-=======================
+-----------------------
 
 How Policies Work
------------------
+^^^^^^^^^^^^^^^^^
 
 OSMO determines if a role has access to perform an operation by checking if the role has a policy that matches the requested action and resource.
 
@@ -107,7 +168,7 @@ When a user makes an API request, OSMO:
 4. If any policy with effect ``Allow`` matches (and no Deny matched), access is granted.
 
 Policy Structure
-----------------
+^^^^^^^^^^^^^^^^
 
 Each policy has three fields:
 
@@ -116,7 +177,7 @@ Each policy has three fields:
 - **resources**: A list of resource patterns the policy is scoped to. If omitted, the policy only matches globally-scoped actions. Set to ``["*"]`` to match all resources.
 
 Action Format
--------------
+^^^^^^^^^^^^^
 
 Actions use the semantic format: ``<resource_type>:<action_name>``
 
@@ -139,7 +200,7 @@ Examples:
 See :ref:`actions_resources_reference` for the complete list of actions.
 
 Resource Format
----------------
+^^^^^^^^^^^^^^^
 
 Resources scope a policy to specific instances. They use the format ``<scope>/<identifier>``.
 
@@ -152,7 +213,7 @@ Resources scope a policy to specific instances. They use the format ``<scope>/<i
 See :ref:`resource_scoping` for details on how different resource types are scoped.
 
 Allow and Deny Policies
------------------------
+^^^^^^^^^^^^^^^^^^^^^^^
 
 Policies can have an ``effect`` of ``"Allow"`` or ``"Deny"``:
 
@@ -164,7 +225,7 @@ Policies can have an ``effect`` of ``"Allow"`` or ``"Deny"``:
 .. _role_naming_for_pools:
 
 Role Naming for Pools
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 Pool access is determined entirely by a role's **policies**, not its name. A role grants access to a pool when it has a policy allowing ``workflow:Create`` (or other workflow actions) scoped to that pool's resource (e.g., ``pool/my-pool``).
 
@@ -173,7 +234,7 @@ Role names can be anything descriptive. For example, ``ml-training-role``, ``tea
 .. _roles_policies_example:
 
 Policy Examples
-===============
+---------------
 
 .. dropdown:: Example 1: Basic Role
    :color: info
@@ -281,10 +342,10 @@ Policy Examples
       }
 
 Creating Custom Roles
-======================
+----------------------
 
 Using the OSMO CLI
-------------------
+^^^^^^^^^^^^^^^^^^
 
 To create a custom role using the OSMO CLI:
 
@@ -328,12 +389,12 @@ To create a custom role using the OSMO CLI:
       Successfully updated ROLE config
 
 Quality of Life Features
-=========================
+-------------------------
 
 .. _auto_generating_pool_roles:
 
 Auto-Generating Pool Roles
----------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 For pool and backend roles, use the ``osmo config set`` CLI to automatically generate roles with required policies:
 
@@ -368,10 +429,10 @@ This generates a role with the necessary permissions:
 Learn more about the CLI at :ref:`cli_reference_config_set`.
 
 Common Use Cases
-================
+-----------------
 
 Creating a Role for a Pool
----------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When creating a pool named ``my-pool``, create a corresponding role:
 
@@ -384,31 +445,31 @@ When creating a pool named ``my-pool``, create a corresponding role:
 
 2. **Assign the role to users**
 
-   Use the ``osmo user`` CLI to assign the role to users:
+   Use the ``osmo user update`` CLI to assign the role to users:
 
    .. code-block:: bash
 
-      $ osmo user roles add <user_id> osmo-my-pool
+      $ osmo user update <user_id> --add-roles osmo-my-pool
 
-   If you use an identity provider, you can instead (or additionally) map IdP groups to this role via ``role_external_mappings``; see :doc:`identity_provider_setup`.
+   See :doc:`managing_users` for full details on user creation and role assignment. If you use an identity provider, you can instead (or additionally) map IdP groups to this role via ``external_roles``; see :doc:`user_role_mapping`.
 
 Assigning roles to users and creating access tokens
----------------------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Roles are assigned to **users** in OSMO (via the ``osmo user`` CLI or, when using an IdP, via IdP group mapping). **Access tokens** are then created for a user and inherit that user's roles (or a subset) at creation time.
 
-- To create a user and assign roles: use ``osmo user create`` and ``osmo user roles add <user_id> <role_name>``.
-- To create an access token for the current user: use ``osmo token create <token_name>``. An admin can create an access token for another user via ``osmo token create <token_name> --user <user_id>``.
+- To create a user and assign roles: use ``osmo user create <user_id> --roles <role_name>`` or ``osmo user update <user_id> --add-roles <role_name>``. See :doc:`managing_users`.
+- To create an access token for the current user: use ``osmo token set <token_name>``. An admin can create an access token for another user via ``osmo token set <token_name> --user <user_id>``.
 
 For pool access, assign a role with the appropriate pool-scoped workflow policies, along with ``osmo-user`` (or equivalent) so the token can also use workflow management commands (cancel, query, etc.).
 
 .. _troubleshooting_roles_policies:
 
 Troubleshooting
-===============
+================
 
 Role Not Working as Expected
------------------------------
+------------------------------
 
 1. **Verify Role Assignment**: Confirm the user has the role in their JWT token
 2. **Check Action Format**: Ensure actions follow the semantic format (``<resource_type>:<action_name>``, e.g., ``workflow:Create``)
@@ -417,7 +478,7 @@ Role Not Working as Expected
 5. **Test with Admin**: Verify the operation works with admin privileges to isolate the issue
 
 Pool Access Issues
-------------------
+--------------------
 
 1. **Check role policies**: Ensure the role has a policy allowing ``workflow:Create`` scoped to the target pool (e.g., ``resources: ["pool/my-pool"]``)
 2. **Check role assignment**: Ensure the user has the role in OSMO (via ``osmo user roles list <user_id>`` or IdP role mapping)

@@ -71,23 +71,6 @@ Placeholders used below
      - AWS region
      - ``us-east-1``
 
-Create Kubernetes secrets
-===========================
-
-Before deploying with an IdP, create the secret that Envoy will use for the OAuth2 client secret and for signing session cookies:
-
-.. code-block:: bash
-
-   # Generate an HMAC secret (e.g. 32 bytes, base64)
-   HMAC_SECRET=$(openssl rand -base64 32)
-
-   kubectl create secret generic oidc-secrets \
-     --namespace <your-namespace> \
-     --from-literal=client_secret='<client-secret>' \
-     --from-literal=hmac_secret="${HMAC_SECRET}"
-
-Use the same ``oidc-secrets`` name and keys (e.g. ``client_secret``, ``hmac_secret``) in your Helm values under the Envoy OAuth2 filter configuration (e.g. ``secretName: oidc-secrets``, ``clientSecretKey: client_secret``, ``hmacSecretKey: hmac_secret``).
-
 Microsoft Entra ID (Azure AD)
 =============================
 

@@ -158,6 +158,7 @@ An OSMO deployment consists of two main components:
 
   references/configs_definitions/index
   references/config_cli/index
+  references/user_cli/index
 
 .. toctree::
   :hidden:

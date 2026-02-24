@@ -36,7 +36,7 @@ The minimal OSMO deployment includes:
 * Router
 * External PostgreSQL database (configurable)
 * External Redis cache (configurable)
-* No authentication or authorization
+* Default admin authentication (no identity provider required)
 * Single namespace deployment
 * Single replica per service
 * Minimal resource requirements
@@ -83,6 +83,15 @@ Create secret for database and redis passwords:
 
    $ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo-minimal
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo-minimal
+
+
+Create a secret with the default admin password. The OSMO service creates a single admin user at startup; you log in with that user's password (used as an access token) and then create more users and access tokens via the API or CLI. See :ref:`default_admin_setup` in the authentication appendix for full details.
+
+.. code-block:: bash
+
+   $ kubectl create secret generic default-admin-secret \
+     --from-literal=password='<your-secure-admin-password>' \
+     --namespace osmo-minimal
 
 Create the master encryption key (MEK) for database encryption:
 
@@ -218,7 +227,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,14,17,24
+    :emphasize-lines: 2,3,14,17,24,75-79
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -293,6 +302,12 @@ Create the following values files for the minimal deployment:
         scaling:
           minReplicas: 1
           maxReplicas: 1
+
+      defaultAdmin:
+        enabled: true
+        username: "admin"
+        passwordSecretName: default-admin-secret
+        passwordSecretKey: password
 
     sidecars:
       envoy:
@@ -667,6 +682,21 @@ If you haven't set up DNS yet, you can access OSMO using port forwarding as an a
    - If you are accessing OSMO with port forwarding, the router service will not be accessible
    - Consequently, ``osmo workflow port-forward`` or ``osmo workflow exec`` commands are not expected to work
 
+
+(Optional) Create Users and Assign Roles
+==========================================
+
+If you plan to have multiple users accessing OSMO, you can create user accounts and assign roles to them. In a minimal deployment (without authentication enabled), this step is not required, but it is useful if you plan to enable authentication later or want to test role-based access control.
+
+.. code-block:: bash
+
+   # Create a user with the osmo-user role
+   $ osmo user create developer@example.com --roles osmo-user
+
+   # Assign additional roles to an existing user
+   $ osmo user update developer@example.com --add-roles osmo-ml-team
+
+For detailed instructions on user management and role assignment, see :ref:`managing_users`.
 
 Step 10: Basic Configuration
 ============================

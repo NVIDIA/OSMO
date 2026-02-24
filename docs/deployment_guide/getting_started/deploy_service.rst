@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -84,36 +84,10 @@ Check that the process ``Completed`` with ``kubectl get pod osmo-db-ops``. Then 
 
    $ kubectl delete pod osmo-db-ops
 
-Step 2: Choose authentication mode
-==================================
-
-OSMO can run **without** an identity provider (IdP) or **with** one. Choose one of the following.
-
-Without an identity provider (default admin)
---------------------------------------------
-
-Best for development, testing, or environments where you do not use corporate SSO. The OSMO service creates a single admin user at startup; you log in with that user’s password (used as a access token) and then create more users and access tokens via the API or CLI.
-
-1. In **Step 3** below, create a Kubernetes secret with the default admin password (see :ref:`deploy_service_default_admin_secret`).
-2. In your Helm values (**Step 4**), enable the default admin and point to that secret (see :ref:`deploy_service_osmo_values`). Do **not** enable the Envoy OAuth2 filter for an IdP; you can still use Envoy for TLS or other routing.
-
-See :ref:`default_admin_setup` in the authentication appendix for full details.
-
-With an identity provider (IdP)
---------------------------------
-
-Best for production when users should log in with your organization’s IdP (e.g. Microsoft Entra ID, Google, AWS IAM Identity Center).
-
-1. Register OSMO as an OAuth2/OIDC application in your IdP and obtain the client ID, client secret, and endpoints (token, authorize, JWKS, issuer). See :doc:`../appendix/authentication/identity_provider_setup`.
-2. In **Step 3** below, create the ``oidc-secrets`` secret with the client secret and an HMAC secret for session cookies.
-3. In your Helm values (**Step 4**), configure the Envoy sidecar with ``oauth2Filter`` and ``jwt`` providers for your IdP, and set ``services.service.auth`` for device/browser endpoints if you use the CLI login flow.
-
-See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific steps and :doc:`../appendix/authentication/authentication_flow` for the request flow.
-
-.. _deploy_service_default_admin_secret:
-
-Step 3: Create namespace and secrets
+Step 2: Create namespace and secrets
 ====================================
+
+Before creating secrets, register OSMO as an OAuth2/OIDC application in your identity provider and obtain the client ID, client secret, and endpoints (token, authorize, JWKS, issuer). See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific steps.
 
 Create a namespace to deploy OSMO:
 
@@ -130,16 +104,7 @@ Create secrets for the database and Redis:
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo
 
 
-**If using the default admin (no IdP):** create a secret with the default admin password. The service will create an admin user and an access token with this value at startup:
-
-.. code-block:: bash
-
-   $ kubectl create secret generic default-admin-secret \
-     --from-literal=password='<your-secure-admin-password>' \
-     --namespace osmo
-
-
-**If using an identity provider:** create the secret used by Envoy for the OAuth2 client secret and session signing (HMAC). Use the client secret from your IdP application registration:
+Create the secret used by Envoy for the OAuth2 client secret and session signing (HMAC). Use the client secret from your IdP application registration:
 
 .. code-block:: bash
 
@@ -235,12 +200,16 @@ Create the master encryption key (MEK) for database encryption:
 
 .. _deploy_service_osmo_values:
 
-Step 4: Prepare values
+Step 3: Prepare values
 ============================
 
 Create a values file for each OSMO component.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample (adjust authentication for default admin or IdP as in Step 2):
+.. seealso::
+
+   See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
+
+Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``oauth2Filter``, ``jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
 
 .. dropdown:: ``osmo_values.yaml``
   :color: info
@@ -287,15 +256,14 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample (adju
           minReplicas: 1
           maxReplicas: 3
         hostname: <your-domain>
-        # Optional: set auth when using IdP (CLI/device flow). Omit when using only default admin.
-        # auth:
-        #   enabled: true
-        #   device_endpoint: <idp-device-auth-url>
-        #   device_client_id: <client-id>
-        #   browser_endpoint: <idp-authorize-url>
-        #   browser_client_id: <client-id>
-        #   token_endpoint: <idp-token-url>
-        #   logout_endpoint: <idp-logout-url>
+        auth:
+          enabled: true
+          device_endpoint: <idp-device-auth-url>
+          device_client_id: <client-id>
+          browser_endpoint: <idp-authorize-url>
+          browser_client_id: <client-id>
+          token_endpoint: <idp-token-url>
+          logout_endpoint: <idp-logout-url>
 
       # Default admin (no IdP): enable to create an admin user and access token at startup
       defaultAdmin:
@@ -401,12 +369,12 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample (adju
           address: 127.0.0.1
 
         # OAuth2 filter configuration
-        # When using an IdP: set endpoints and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
+        # Set endpoints and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
         oauth2Filter:
-          enabled: false  # Set true when using an IdP for browser login
-          tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token  # IdP-specific
-          authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
-          clientId: <client-id>
+          enabled: true
+          tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token  # (1)
+          authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize  # (2)
+          clientId: <client-id>  # (3)
           redirectPath: api/auth/getAToken
           logoutPath: logout
           forwardBearerToken: true
@@ -453,6 +421,11 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample (adju
         #   serviceName: <your-redis-host>
         #   port: 6379
 
+  .. code-annotations::
+
+    1. Token endpoint from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
+    2. Authorization endpoint from your IdP.
+    3. Client ID from your IdP application registration.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
 
@@ -704,7 +677,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 
 Similar values files should be created for other components (Router, UI) with their specific configurations.
 
-Step 5: Deploy Components
+Step 4: Deploy Components
 =========================
 
 Deploy the components in the following order:
@@ -732,7 +705,7 @@ Deploy the components in the following order:
 
    $ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
 
-Step 6: Verify Deployment
+Step 5: Verify Deployment
 =========================
 
 1. Verify all pods are running:
@@ -774,7 +747,7 @@ Step 6: Verify Deployment
     osmo-ui        nginx   <your-domain>                  <lb-ip>        80, 443    <age>
     osmo-ui-trpc   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
 
-Step 7: Post-deployment Configuration
+Step 6: Post-deployment Configuration
 =====================================
 
 1. Configure DNS records to point to your load balancer. For example, create a record for ``osmo.example.com`` to point to the load balancer IP.
