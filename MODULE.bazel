@@ -288,7 +288,7 @@ oci.pull(
     digest = "sha256:9d2251565a7820224337f62ddc49ea5e5f7ee7f617da5fbb2afc7f10cb60ea9d",
     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.2",
     platforms = [
-        "linux/arm64/v8",
+        "linux/arm64",
         "linux/amd64",
     ],
 )
@@ -319,20 +319,20 @@ oci.pull(
     image = BASE_DISTROLESS_IMAGE_URL + "node:22-v4.0.2",
     platforms = [
         "linux/amd64",
-        "linux/arm64/v8",
+        "linux/arm64",
     ],
 )
 use_repo(
     oci,
     "distroless_python3_10",
     "distroless_python3_10_linux_amd64",
-    "distroless_python3_10_linux_arm64_v8",
+    "distroless_python3_10_linux_arm64",
     # "distroless_python3_10_dev",
     # "distroless_python3_10_dev_linux_amd64",
     # "distroless_python3_10_dev_linux_arm64_v8",
     "node_22_distroless",
     "node_22_distroless_linux_amd64",
-    "node_22_distroless_linux_arm64_v8",
+    "node_22_distroless_linux_arm64",
     "ubuntu_22_04",
     "ubuntu_22_04_linux_amd64",
     "ubuntu_22_04_linux_arm64",
