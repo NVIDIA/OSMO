@@ -119,10 +119,7 @@ export function usePoolsData({
   );
 
   // Get chips the shim doesn't handle (description, numeric quota/capacity filters)
-  const clientOnlyChips = useMemo(
-    () => filterChipsByFields(adapterChips, SHIM_HANDLED_FIELDS, true),
-    [adapterChips],
-  );
+  const clientOnlyChips = useMemo(() => filterChipsByFields(adapterChips, SHIM_HANDLED_FIELDS, true), [adapterChips]);
 
   // Use adapter hook (handles client/server filtering transparently)
   const {
