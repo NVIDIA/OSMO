@@ -91,22 +91,26 @@ export function ResourcePanelContent({
               label="GPU"
               used={resource.gpu.used}
               total={resource.gpu.total}
+              free={resource.gpu.free}
             />
             <CapacityBar
               label="CPU"
               used={resource.cpu.used}
               total={resource.cpu.total}
+              free={resource.cpu.free}
             />
             <CapacityBar
               label="Memory"
               used={resource.memory.used}
               total={resource.memory.total}
+              free={resource.memory.free}
               isBytes
             />
             <CapacityBar
               label="Storage"
               used={resource.storage.used}
               total={resource.storage.total}
+              free={resource.storage.free}
               isBytes
             />
           </div>

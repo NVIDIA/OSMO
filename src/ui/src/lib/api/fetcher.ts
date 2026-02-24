@@ -242,11 +242,7 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
             onClick: () => window.location.reload(),
           },
         });
-        throw createApiError(
-          "Session expired. Please refresh the page to log in again.",
-          response.status,
-          false,
-        );
+        throw createApiError("Session expired. Please refresh the page to log in again.", response.status, false);
       }
     }
 
