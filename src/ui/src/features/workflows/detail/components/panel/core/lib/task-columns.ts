@@ -117,7 +117,7 @@ const taskColumnConfig = createColumnConfig<TaskColumnId>({
     { id: "endTime", label: "End", menuLabel: "End Time" },
     { id: "retry", label: "Retry", menuLabel: "Retry ID" },
   ],
-  defaultSort: { column: "name", direction: "asc" },
+  defaultSort: null,
 });
 
 // =============================================================================

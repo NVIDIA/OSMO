@@ -29,6 +29,8 @@ export interface InlineProgressProps {
   used: number;
   /** Total/maximum value */
   total: number;
+  /** Free/available value (from API) */
+  free: number;
   /** Display mode: show "used/total" or "free" */
   displayMode?: DisplayMode;
   /** Compact mode: hide progress bar, show only text */
@@ -58,16 +60,16 @@ export interface InlineProgressProps {
  * @example
  * ```tsx
  * // Basic usage
- * <InlineProgress used={6} total={8} />
+ * <InlineProgress used={6} total={8} free={2} />
  *
  * // Free display mode
- * <InlineProgress used={6} total={8} displayMode="free" freeLabel="idle" />
+ * <InlineProgress used={6} total={8} free={2} displayMode="free" freeLabel="idle" />
  *
  * // Compact mode (no bar)
- * <InlineProgress used={6} total={8} compact />
+ * <InlineProgress used={6} total={8} free={2} compact />
  *
  * // With trailing content (e.g., icon)
- * <InlineProgress used={6} total={8}>
+ * <InlineProgress used={6} total={8} free={2}>
  *   <ShareIcon />
  * </InlineProgress>
  * ```
@@ -75,6 +77,7 @@ export interface InlineProgressProps {
 export const InlineProgress = memo(function InlineProgress({
   used,
   total,
+  free,
   displayMode = "used",
   compact = false,
   barWidth = "w-16",
@@ -82,10 +85,9 @@ export const InlineProgress = memo(function InlineProgress({
   children,
   className,
 }: InlineProgressProps) {
-  const free = total - used;
-
   // Format display label based on mode
-  const displayLabel = displayMode === "used" ? `${used}/${total}` : `${free} ${freeLabel}`;
+  const displayFree = Math.max(0, free);
+  const displayLabel = displayMode === "used" ? `${used}/${total}` : `${displayFree} ${freeLabel}`;
 
   if (compact) {
     return (
