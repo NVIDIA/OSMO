@@ -35,7 +35,7 @@ Requirements
 
 .. only:: html
 
-  .. grid:: 1 2 2 3
+  .. grid:: 2
       :gutter: 3
 
       .. grid-item-card:: :octicon:`server` Kubernetes Ingress Controller
@@ -63,9 +63,9 @@ Requirements
 
       .. grid-item-card:: :octicon:`key` Identity provider (optional)
 
-          If using an external IdP for browser SSO (e.g. Microsoft Entra ID, Google), ensure the OSMO service hostname has a dedicated FQDN and certificate. The IdP redirect URI will point to this host (e.g. ``https://<your-domain>/api/auth/getAToken``).
+          If using an external IdP for browser SSO (e.g. Microsoft Entra ID, Google), ensure the OSMO service hostname has a dedicated FQDN and certificate. The IdP redirect URI will point to this host.
 
-          **Example**: ``osmo.example.com``
+          **Example**: ``https://<your-domain>/api/auth/getAToken``
 
       .. grid-item-card:: :octicon:`plug` Port Forwarding (Optional)
           :class-card: optional-card
