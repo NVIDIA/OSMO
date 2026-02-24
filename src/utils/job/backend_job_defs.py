@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import pydantic
 
@@ -34,15 +34,41 @@ class BackendCreateGroupMixin(pydantic.BaseModel):
 
 
 class BackendCustomApi(pydantic.BaseModel):
+    """Deprecated: identifies a CRD by API group, version, and plural path."""
     api_major: str
     api_minor: str
     path: str
 
 
+class BackendGenericApi(pydantic.BaseModel):
+    """Identifies a Kubernetes resource type by apiVersion and kind for generic cleanup."""
+    api_version: str
+    kind: str
+
+
 class BackendCleanupSpec(pydantic.BaseModel):
-    resource_type: str
+    """Specifies a set of namespaced Kubernetes resources to list and delete during cleanup."""
+    resource_type: Optional[str] = None  # Deprecated, to be removed next release
     labels: Dict[str, str]
-    custom_api: Optional[BackendCustomApi]
+    custom_api: Optional[BackendCustomApi] = None  # Deprecated, to be removed next release
+    generic_api: Optional[BackendGenericApi] = None
+
+    @property
+    def effective_api_version(self) -> str:
+        """Returns the API version, preferring generic_api for new jobs."""
+        if self.generic_api:
+            return self.generic_api.api_version
+        if self.custom_api:
+            # Deprecated path: reconstruct from legacy BackendCustomApi fields
+            return f'{self.custom_api.api_major}/{self.custom_api.api_minor}'
+        return 'v1'
+
+    @property
+    def effective_kind(self) -> str | None:
+        """Returns the resource kind, preferring generic_api for new jobs."""
+        if self.generic_api:
+            return self.generic_api.kind
+        return self.resource_type
 
     @property
     def k8s_selector(self) -> str:
@@ -70,15 +96,25 @@ class BackendCleanupGroupMixin(pydantic.BaseModel):
 
 class BackendSynchronizeQueuesMixin(pydantic.BaseModel):
     """
-    Reconciles the queues in the backend with the provided list of queues.
-    - Any queues that match the cleanup_spec but are not in the k8s_resources list will be deleted
-    - Any queues in both the cleanup_spec and k8s_resources list will be updated with the new spec
-    - Any queues in the k8s_resources list that do not match the cleanup_spec will be created
+    Reconciles scheduler K8s objects (queues, topologies, etc.) in the backend
+    with the provided list.
+    - Objects matching cleanup_specs but not in k8s_resources will be deleted
+    - Objects in both cleanup_specs and k8s_resources will be updated (or recreated if immutable)
+    - Objects in k8s_resources not matching cleanup_specs will be created
+
+    NOTE: cleanup_specs Union type can be removed after the next release. This is for
+    backwards compatibility with existing BackendSynchronizeQueuesMixin jobs that might
+    be enqueued when OSMO is redeployed with a new version.
     """
-    # Search for queues to cleanup using this spec
-    cleanup_spec: BackendCleanupSpec
-    # The k8s specs for the queues to create in the backend
+    # Search for objects using these specs (one per object type)
+    cleanup_specs: Union[List[BackendCleanupSpec], BackendCleanupSpec]
+    # The k8s specs for all objects to create/update in the backend
+    # Can contain mixed types (Queues, Topologies, etc.)
     k8s_resources: List[Dict]
+    # List of K8s kinds that have immutable fields and should be deleted/recreated
+    # instead of updated (e.g., ['Topology'] for kai.scheduler Topology CRD)
+    # Defaults to empty list for backwards compatibility
+    immutable_kinds: List[str] = []
 
 
 class BackendSynchronizeBackendTestMixin(pydantic.BaseModel):

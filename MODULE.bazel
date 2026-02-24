@@ -285,10 +285,10 @@ apt.install(
 
 oci.pull(
     name = "distroless_python3_10",
-    digest = "sha256:b2d83caab9ff9876536b886b627743f99470469ce4fccd4348a9907a51d1c734",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.5.1",
+    digest = "sha256:9d2251565a7820224337f62ddc49ea5e5f7ee7f617da5fbb2afc7f10cb60ea9d",
+    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.2",
     platforms = [
-        "linux/arm64/v8",
+        "linux/arm64",
         "linux/amd64",
     ],
 )
@@ -296,12 +296,12 @@ oci.pull(
 # Used for local debugging
 # oci.pull(
 #     name = "distroless_python3_10_dev",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.5.1-dev",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.2-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"
 #     ],
-#     digest = "sha256:8fdee6a0f8e887f8337ccfe14daabc316ca9e9048ad5e6a84e9f965089db35bc",
+#     digest = "sha256:397f3707d6d0d7b894d5479b26cb5fbb4df378b1003201bc5db3dbdcf94a17fe",
 # )
 
 oci.pull(
@@ -315,24 +315,24 @@ oci.pull(
 )
 oci.pull(
     name = "node_22_distroless",
-    digest = "sha256:8e61b86b48345cf29192bbbd1d152c6e3dfee007e82709146781e46c7cc3eb9a",
-    image = BASE_DISTROLESS_IMAGE_URL + "node:22-v3.1.1",
+    digest = "sha256:9b6cc2cad6cd1a0008c14ca3edacd5929839b7a06a5d530036437c0ed257f3b2",
+    image = BASE_DISTROLESS_IMAGE_URL + "node:22-v4.0.2",
     platforms = [
         "linux/amd64",
-        "linux/arm64/v8",
+        "linux/arm64",
     ],
 )
 use_repo(
     oci,
     "distroless_python3_10",
     "distroless_python3_10_linux_amd64",
-    "distroless_python3_10_linux_arm64_v8",
+    "distroless_python3_10_linux_arm64",
     # "distroless_python3_10_dev",
     # "distroless_python3_10_dev_linux_amd64",
     # "distroless_python3_10_dev_linux_arm64_v8",
     "node_22_distroless",
     "node_22_distroless_linux_amd64",
-    "node_22_distroless_linux_arm64_v8",
+    "node_22_distroless_linux_arm64",
     "ubuntu_22_04",
     "ubuntu_22_04_linux_amd64",
     "ubuntu_22_04_linux_arm64",

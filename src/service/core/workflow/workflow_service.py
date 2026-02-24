@@ -208,15 +208,50 @@ def get_pool_quotas(all_pools: bool = True,
                         'During pool quota request, pool %s not found in '
                         'nodesets for resource %s', pool, resource.hostname)
                 continue
-            node_sets[pool] = node_sets[pool].add_node(resource.hostname)
+            node_sets[pool] = node_sets[pool].add_node(
+                f'{resource.backend}/{resource.hostname}')
 
-    pools_by_nodeset = collections.defaultdict(list)
+    # Build an inverse map: node hostname -> list of pools that contain it.
+    node_to_pools: dict[str, list[str]] = collections.defaultdict(list)
     for pool, nodeset in node_sets.items():
-        pools_by_nodeset[nodeset].append(pool)
+        for node in nodeset.nodes:
+            node_to_pools[node].append(pool)
+
+    # BFS to find connected components: pools that transitively share at least
+    # one node are merged into the same nodeset.
+    visited_pools: set[str] = set()
+    visited_nodes: set[str] = set()
+    pools_by_nodeset: dict[NodeSet, list[str]] = {}
+
+    for start_pool, start_nodeset in node_sets.items():
+        if start_pool in visited_pools:
+            continue
+
+        component_pools: list[str] = []
+        pool_queue: collections.deque[str] = collections.deque([start_pool])
+        visited_pools.add(start_pool)
+
+        while pool_queue:
+            current_pool = pool_queue.popleft()
+            component_pools.append(current_pool)
+            for node in node_sets[current_pool].nodes:
+                if node in visited_nodes:
+                    continue
+                visited_nodes.add(node)
+                for neighbor_pool in node_to_pools[node]:
+                    if neighbor_pool not in visited_pools:
+                        visited_pools.add(neighbor_pool)
+                        pool_queue.append(neighbor_pool)
+
+        merged_nodes: frozenset[str] = frozenset().union(
+            *(node_sets[pool].nodes for pool in component_pools)
+        )
+        pools_by_nodeset[NodeSet(start_nodeset.backend, merged_nodes)] = component_pools
 
     gpu_usage_by_nodeset = {
-        nodeset: sum((node_gpu_usage[node] for node in nodeset), start=NodeGpuUsage())
-        for nodeset in pools_by_nodeset.keys()
+        nodeset: sum((node_gpu_usage.get(node, NodeGpuUsage()) for node in nodeset),
+                     start=NodeGpuUsage())
+        for nodeset in pools_by_nodeset
     }
 
     # Initialize per-pool calculated sums
