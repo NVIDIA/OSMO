@@ -267,7 +267,7 @@ oci.pull(
     digest = "sha256:b2d83caab9ff9876536b886b627743f99470469ce4fccd4348a9907a51d1c734",
     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v3.5.1",
     platforms = [
-        "linux/arm64/v8",
+        "linux/arm64",
         "linux/amd64",
     ],
 )
@@ -305,7 +305,7 @@ use_repo(
     oci,
     "distroless_python3_10",
     "distroless_python3_10_linux_amd64",
-    "distroless_python3_10_linux_arm64_v8",
+    "distroless_python3_10_linux_arm64",
     # "distroless_python3_10_dev",
     # "distroless_python3_10_dev_linux_amd64",
     # "distroless_python3_10_dev_linux_arm64_v8",
