@@ -162,5 +162,4 @@ See :doc:`service_accounts` for detailed guidance on service account patterns an
    - :ref:`preconfigured_roles` for built-in role descriptions
    - :doc:`idp_role_mapping` for IdP role mapping and sync modes
    - :doc:`service_accounts` for service account and token management patterns
-   - :ref:`cli_reference_user` for full ``osmo user`` CLI reference
-   - :ref:`cli_reference_token` for full ``osmo token`` CLI reference
+   - :doc:`../../references/user_cli/index` for full ``osmo user`` and ``osmo token`` CLI reference
