@@ -322,7 +322,14 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       }
 
       // Step 2: Apply sorting to filtered tasks
-      const sortedTasks = sortComparator ? [...filteredTasks].sort(sortComparator) : filteredTasks;
+      // Default: lead task first, then alphabetical by name
+      const sortedTasks = sortComparator
+        ? [...filteredTasks].sort(sortComparator)
+        : [...filteredTasks].sort((a, b) => {
+            if (a.lead && !b.lead) return -1;
+            if (!a.lead && b.lead) return 1;
+            return naturalCompare(a.name, b.name);
+          });
 
       // Step 3: Calculate position on FINAL visible list
       const visibleTasks: TaskWithDuration[] = sortedTasks.map((task, index) => ({

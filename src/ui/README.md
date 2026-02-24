@@ -20,6 +20,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Modern React-based UI for OSMO resource management. Built with Next.js 16, React 19, and Tailwind CSS 4.
 
+**Requirements:** Node.js >= 22 (see `.nvmrc`), pnpm 10+ (see `packageManager` in `package.json`)
+
 ## Quick Start
 
 ```bash
