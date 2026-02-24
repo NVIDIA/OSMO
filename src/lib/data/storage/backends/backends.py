@@ -34,7 +34,7 @@ import pydantic
 from . import azure, s3, common
 from .. import constants, credentials
 from ..core import client, header
-from ....utils import cache, osmo_errors
+from ....utils import osmo_errors
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,40 @@ def _skip_data_auth() -> bool:
     Returns True if data auth should be skipped.
     """
     return os.getenv(OSMO_SKIP_DATA_AUTH, '0') == '1'
+
+
+def _is_non_aws_s3_endpoint_configured() -> bool:
+    """
+    Returns True if using a non-AWS S3-compatible endpoint (e.g., MinIO, Ceph).
+
+    This is detected by checking if AWS_ENDPOINT_URL_S3 or AWS_ENDPOINT_URL
+    is set to a non-AWS endpoint.
+    """
+    endpoint_url = os.getenv('AWS_ENDPOINT_URL_S3') or os.getenv('AWS_ENDPOINT_URL')
+    if not endpoint_url:
+        return False
+
+    return not _is_aws_endpoint(endpoint_url)
+
+
+def _is_aws_endpoint(endpoint_url: str) -> bool:
+    """
+    Returns True if the endpoint URL is an AWS endpoint.
+
+    AWS S3 endpoints follow patterns like:
+    - https://s3.amazonaws.com
+    - https://s3.us-east-1.amazonaws.com
+    - https://bucket.s3.us-east-1.amazonaws.com
+
+    Reference: https://docs.aws.amazon.com/general/latest/gr/s3.html
+    """
+    try:
+        parsed = parse.urlparse(endpoint_url)
+        host = parsed.netloc if parsed.netloc else parsed.path.split('/')[0]
+        host = host.split(':')[0].lower()
+        return host == 'amazonaws.com' or host.endswith('.amazonaws.com')
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
 
 
 def _normalize_path(path: str) -> str:
@@ -129,6 +163,39 @@ class Boto3Backend(common.StorageBackend):
 
         return extra_headers
 
+    def _validate_bucket_access(self, data_cred: credentials.DataCredential):
+        """
+        Validates bucket access using head_bucket or list_buckets.
+
+        This is a common validation method used by S3-compatible backends
+        (S3, GS, TOS) when IAM policy simulation is not available.
+
+        Args:
+            data_cred: The data credential to use for validation.
+        """
+        # Use credential's override_url if set, otherwise fallback to backend's parsed endpoint
+        endpoint_url = data_cred.override_url or self.endpoint
+
+        s3_client = s3.create_client(
+            data_cred=data_cred,
+            scheme=self.scheme,
+            endpoint_url=endpoint_url,
+            region=self.region(data_cred),
+        )
+
+        def _validate_access():
+            if self.container:
+                s3_client.head_bucket(Bucket=self.container)
+            else:
+                s3_client.list_buckets(MaxBuckets=1)
+
+        try:
+            _ = client.execute_api(_validate_access, s3.S3ErrorHandler())
+        except client.OSMODataStorageClientError as err:
+            raise osmo_errors.OSMOCredentialError(
+                f'Data key validation error for {self.scheme}://{self.container}: '
+                f'{err.message}: {err.__cause__}')
+
     @override
     def client_factory(
         self,
@@ -144,11 +211,14 @@ class Boto3Backend(common.StorageBackend):
         if data_cred is None:
             data_cred = self.resolved_data_credential
 
+        # Use credential's override_url if set, otherwise fallback to backend's parsed endpoint
+        endpoint_url = data_cred.override_url or self.endpoint or None
+
         return s3.S3StorageClientFactory(  # pylint: disable=unexpected-keyword-arg
             data_cred=data_cred,
             region=region,
             scheme=self.scheme,
-            endpoint_url=self.auth_endpoint if self.auth_endpoint else None,
+            endpoint_url=endpoint_url,
             extra_headers=self._get_extra_headers(request_headers),
             supports_batch_delete=self.supports_batch_delete,
         )
@@ -176,9 +246,6 @@ class SwiftBackend(Boto3Backend):
         description='Whether the backend supports batch delete.',
     )
 
-    # Cache the region to avoid re-computing it
-    _region: str | None = pydantic.PrivateAttr(default=None)
-
     @override
     @classmethod
     def create(
@@ -186,7 +253,6 @@ class SwiftBackend(Boto3Backend):
         uri: str,
         url_details: parse.ParseResult,
         is_profile: bool = False,
-        override_endpoint: str | None = None,
     ) -> 'SwiftBackend':
         """
         Constructs a SwiftBackend from a URI.
@@ -208,12 +274,11 @@ class SwiftBackend(Boto3Backend):
             container='' if is_profile else split_path[2],
             path='' if is_profile or len(split_path) != 4 else split_path[3],
             namespace=split_path[1],
-            override_endpoint=override_endpoint,
         )
 
     @override
     @property
-    def auth_endpoint(self) -> str:
+    def endpoint(self) -> str:
         return f'https://{self.netloc}'
 
     @override
@@ -279,7 +344,7 @@ class SwiftBackend(Boto3Backend):
         s3_client = s3.create_client(
             data_cred=data_cred,
             scheme=self.scheme,
-            endpoint_url=self.auth_endpoint,
+            endpoint_url=self.endpoint,
             region=self.region(data_cred),
         )
 
@@ -311,42 +376,13 @@ class SwiftBackend(Boto3Backend):
         """
         Infer the region of the bucket via provided credentials.
 
-        If 'LocationConstraint' is not present, we will use the default region.
+        Swift does not support LocationConstraint. We will use the data credential region if
+        provided, otherwise the default region.
         """
-        if self._region is not None:
-            return self._region
-
         if data_cred is None:
             data_cred = self.resolved_data_credential
 
-        match data_cred:
-            case credentials.StaticDataCredential():
-                pass
-            case credentials.DefaultDataCredential():
-                raise NotImplementedError(
-                    'Default data credentials are not supported for Swift backend')
-            case _ as unreachable:
-                assert_never(unreachable)
-
-        if data_cred.region is not None:
-            return data_cred.region
-
-        s3_client = s3.create_client(
-            data_cred=data_cred,
-            scheme=self.scheme,
-            endpoint_url=self.auth_endpoint,
-            # No region, we need to get it from the bucket location
-        )
-
-        def _get_region() -> str:
-            bucket_location_resp = s3_client.get_bucket_location(Bucket=self.container)
-            return (
-                bucket_location_resp.get('LocationConstraint', self.default_region)
-                or self.default_region
-            )
-
-        self._region = client.execute_api(_get_region, s3.S3ErrorHandler()).result
-        return self._region
+        return data_cred.region or self.default_region
 
 
 class S3Backend(Boto3Backend):
@@ -382,7 +418,6 @@ class S3Backend(Boto3Backend):
         uri: str,
         url_details: parse.ParseResult,
         is_profile: bool = False,
-        override_endpoint: str | None = None,
     ) -> 'S3Backend':
         """
         Constructs a S3Backend from a URI.
@@ -402,12 +437,11 @@ class S3Backend(Boto3Backend):
             netloc='',
             container=url_details.netloc,
             path=parsed_path.lstrip('/'),
-            override_endpoint=override_endpoint,
         )
 
     @override
     @property
-    def auth_endpoint(self) -> str:
+    def endpoint(self) -> str:
         return ''
 
     @override
@@ -445,6 +479,17 @@ class S3Backend(Boto3Backend):
         if _skip_data_auth():
             return
 
+        if data_cred is None:
+            data_cred = self.resolved_data_credential
+
+        # Check if using a non-AWS S3-compatible endpoint (MinIO, Ceph, etc.)
+        # Priority: credential's override_url > environment variables
+        # IAM policy simulation is not available on these backends, so we use
+        # a simpler bucket access check instead.
+        if data_cred.override_url or _is_non_aws_s3_endpoint_configured():
+            self._validate_bucket_access(data_cred=data_cred)
+            return
+
         action = []
         if access_type == common.AccessType.READ:
             action.append('s3:GetObject')
@@ -452,9 +497,6 @@ class S3Backend(Boto3Backend):
             action += ['s3:PutObject', 's3:GetObject']
         elif access_type == common.AccessType.DELETE:
             action.append('s3:DeleteObject')
-
-        if data_cred is None:
-            data_cred = self.resolved_data_credential
 
         match data_cred:
             case credentials.StaticDataCredential():
@@ -564,7 +606,6 @@ class GSBackend(Boto3Backend):
         uri: str,
         url_details: parse.ParseResult,
         is_profile: bool = False,
-        override_endpoint: str | None = None,
     ) -> 'GSBackend':
         """
         Constructs a GSBackend from a URI.
@@ -584,12 +625,11 @@ class GSBackend(Boto3Backend):
             netloc=constants.DEFAULT_GS_HOST,
             container=url_details.netloc,
             path=parsed_path.lstrip('/'),
-            override_endpoint=override_endpoint,
         )
 
     @override
     @property
-    def auth_endpoint(self) -> str:
+    def endpoint(self) -> str:
         return f'https://{self.netloc}'
 
     @override
@@ -628,6 +668,7 @@ class GSBackend(Boto3Backend):
         """
         Validates if the data is valid for the backend
         """
+        # pylint: disable=unused-argument
         if _skip_data_auth():
             return
 
@@ -636,31 +677,14 @@ class GSBackend(Boto3Backend):
 
         match data_cred:
             case credentials.StaticDataCredential():
-                s3_client = s3.create_client(
-                    data_cred=data_cred,
-                    scheme=self.scheme,
-                    endpoint_url=self.auth_endpoint,
-                    region=self.region(data_cred),
-                )
+                # TODO: Have more detailed validation for different access types
+                self._validate_bucket_access(data_cred=data_cred)
             case credentials.DefaultDataCredential():
                 # TODO: Implement Google Cloud Storage DAL for keyless authentication
                 raise NotImplementedError(
                     'Default data credentials are not supported for GS backend yet')
             case _ as unreachable:
                 assert_never(unreachable)
-
-        # TODO: Have more detailed validation for different access types
-        def _validate_auth():
-            if self.container:
-                s3_client.head_bucket(Bucket=self.container)
-            else:
-                s3_client.list_buckets(MaxBuckets=1)
-
-        try:
-            _ = client.execute_api(_validate_auth, s3.S3ErrorHandler())
-        except client.OSMODataStorageClientError as err:
-            raise osmo_errors.OSMOCredentialError(
-                f'Data key validation error: {err.message}: {err.__cause__}')
 
     # TODO: Figure out how to correctly find region
     @override
@@ -703,7 +727,6 @@ class TOSBackend(Boto3Backend):
         uri: str,
         url_details: parse.ParseResult,
         is_profile: bool = False,
-        override_endpoint: str | None = None,
     ) -> 'TOSBackend':
         """
         Constructs a TOSBackend from a URI.
@@ -724,12 +747,11 @@ class TOSBackend(Boto3Backend):
             netloc=url_details.netloc,
             container='' if is_profile else split_path[1],
             path='' if is_profile or len(split_path) != 3 else split_path[2].lstrip('/'),
-            override_endpoint=override_endpoint,
         )
 
     @override
     @property
-    def auth_endpoint(self) -> str:
+    def endpoint(self) -> str:
         return f'https://{self.netloc}'
 
     @override
@@ -765,6 +787,7 @@ class TOSBackend(Boto3Backend):
         """
         Validates if the data is valid for the backend
         """
+        # pylint: disable=unused-argument
         if _skip_data_auth():
             return
 
@@ -773,29 +796,12 @@ class TOSBackend(Boto3Backend):
 
         match data_cred:
             case credentials.StaticDataCredential():
-                s3_client = s3.create_client(
-                    data_cred=data_cred,
-                    scheme=self.scheme,
-                    endpoint_url=self.auth_endpoint,
-                    region=self.region(data_cred),
-                )
+                self._validate_bucket_access(data_cred=data_cred)
             case credentials.DefaultDataCredential():
                 raise NotImplementedError(
                     'Default data credentials are not supported for TOS backend')
             case _ as unreachable:
                 assert_never(unreachable)
-
-        def _validate_auth():
-            if self.container:
-                s3_client.head_bucket(Bucket=self.container)
-            else:
-                s3_client.list_buckets(MaxBuckets=1)
-
-        try:
-            client.execute_api(_validate_auth, s3.S3ErrorHandler())
-        except client.OSMODataStorageClientError as err:
-            raise osmo_errors.OSMOCredentialError(
-                f'Data key validation error: {err.message}: {err.__cause__}')
 
     @override
     def region(self, _: credentials.DataCredential | None = None) -> str:
@@ -837,7 +843,6 @@ class AzureBlobStorageBackend(common.StorageBackend):
         uri: str,
         url_details: parse.ParseResult,
         is_profile: bool = False,
-        override_endpoint: str | None = None,
     ) -> 'AzureBlobStorageBackend':
         """
         Constructs a AzureBlobStorageBackend from a URI.
@@ -859,12 +864,11 @@ class AzureBlobStorageBackend(common.StorageBackend):
             container='' if is_profile else split_path[1],
             path='' if is_profile or len(split_path) != 3 else split_path[2].lstrip('/'),
             storage_account=url_details.netloc,
-            override_endpoint=override_endpoint,
         )
 
     @override
     @property
-    def auth_endpoint(self) -> str:
+    def endpoint(self) -> str:
         return f'https://{self.storage_account}.{self.netloc}'
 
     @override
@@ -910,7 +914,7 @@ class AzureBlobStorageBackend(common.StorageBackend):
         def _validate_auth():
             with azure.create_client(
                 data_cred,
-                account_url=self.auth_endpoint,
+                account_url=self.endpoint,
             ) as service_client:
                 if self.container:
                     with service_client.get_container_client(self.container) as container_client:
@@ -959,14 +963,13 @@ class AzureBlobStorageBackend(common.StorageBackend):
 
         return azure.AzureBlobStorageClientFactory(
             data_cred=data_cred,
-            account_url=self.auth_endpoint,
+            account_url=self.endpoint,
         )
 
 
 def construct_storage_backend(
     uri: str,
     profile: bool = False,
-    cache_config: cache.CacheConfig | None = None,
 ) -> common.StorageBackend:
     """
     Parses a storage backend uri and returns a StorageBackend instance.
@@ -974,20 +977,16 @@ def construct_storage_backend(
     Args:
         uri: The uri to parse.
         profile: Whether the uri is a profile uri.
-        cache_config: The cache config to use.
 
     Returns:
         A StorageBackend instance.
     """
     url_details = parse.urlparse(uri)
-    override_endpoint = cache_config.get_cache_endpoint(uri) if cache_config else None
-
     if url_details.scheme == common.StorageBackendType.SWIFT.value:
         return SwiftBackend.create(
             uri=uri,
             url_details=url_details,
             is_profile=profile,
-            override_endpoint=override_endpoint,
         )
 
     elif url_details.scheme == common.StorageBackendType.S3.value:
@@ -995,7 +994,6 @@ def construct_storage_backend(
             uri=uri,
             url_details=url_details,
             is_profile=profile,
-            override_endpoint=override_endpoint,
         )
 
     elif url_details.scheme == common.StorageBackendType.GS.value:
@@ -1003,7 +1001,6 @@ def construct_storage_backend(
             uri=uri,
             url_details=url_details,
             is_profile=profile,
-            override_endpoint=override_endpoint,
         )
 
     elif url_details.scheme == common.StorageBackendType.TOS.value:
@@ -1011,7 +1008,6 @@ def construct_storage_backend(
             uri=uri,
             url_details=url_details,
             is_profile=profile,
-            override_endpoint=override_endpoint,
         )
 
     elif url_details.scheme == common.StorageBackendType.AZURE.value:
@@ -1019,7 +1015,6 @@ def construct_storage_backend(
             uri=uri,
             url_details=url_details,
             is_profile=profile,
-            override_endpoint=override_endpoint,
         )
 
     raise osmo_errors.OSMOError(f'Unknown URI scheme: {url_details.scheme}')

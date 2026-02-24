@@ -42,14 +42,6 @@ osmo_py_library(
 )
 
 osmo_py_library(
-    name = "cache",
-    srcs = ["cache.py"],
-    deps = [
-        requirement("pydantic"),
-    ],
-)
-
-osmo_py_library(
     name = "jinja_sandbox",
     srcs = ["jinja_sandbox.py"],
     deps = [
@@ -80,7 +72,6 @@ osmo_py_library(
     srcs = ["client_configs.py"],
     deps = [
         requirement("pyyaml"),
-        ":cache",
         ":common",
     ],
 )

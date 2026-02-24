@@ -19,8 +19,9 @@ export const Select = ({
   id,
   label,
   value,
-  errorText,
-  helperText,
+  message,
+  isError,
+  leaveSpaceForMessage,
   onChange,
   slotLeft,
   className,
@@ -31,8 +32,9 @@ export const Select = ({
   id: string;
   label?: string;
   value: string;
-  errorText?: string;
-  helperText?: string;
+  message?: string;
+  isError?: boolean;
+  leaveSpaceForMessage?: boolean;
   type?: string;
   slotLeft?: React.ReactNode;
   required?: boolean;
@@ -49,27 +51,21 @@ export const Select = ({
           id={id}
           value={value}
           onChange={onChange}
-          aria-describedby={errorText ? `${id}-error` : helperText ? `${id}-helper` : undefined}
+          aria-describedby={message ? `${id}-helper` : undefined}
           className={`min-h-8 ${className} ${slotLeft ? "pl-8" : ""}`}
           {...props}
         />
       </div>
-      {errorText && (
+      {message ? (
         <p
-          className="text-red-600 text-xs"
-          id={`${id}-error`}
-        >
-          {errorText}
-        </p>
-      )}
-      {helperText && (
-        <p
-          className="text-gray-800 italic text-xs"
+          className={`${isError ? "text-red-600" : "text-gray-600"} italic text-xs`}
           id={`${id}-helper`}
         >
-          {helperText}
+          {message}
         </p>
-      )}
+      ) : leaveSpaceForMessage ? (
+        <div className="h-4" />
+      ) : null}
     </div>
   );
 };

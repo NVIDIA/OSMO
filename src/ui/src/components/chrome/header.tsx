@@ -1,0 +1,205 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+"use client";
+
+import { Link } from "@/components/link";
+import { Home, ChevronRight, Menu } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/shadcn/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { useSidebar } from "@/components/shadcn/sidebar";
+import { useUser } from "@/lib/auth/user-context";
+import { useVersion } from "@/lib/api/adapter/hooks";
+import { usePageConfig, type BreadcrumbSegment } from "@/components/chrome/page-context";
+import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
+import { useRouter, usePathname } from "next/navigation";
+
+export function Header() {
+  const { user, isLoading, logout } = useUser();
+  const pageConfig = usePageConfig();
+  const { toggleSidebar } = useSidebar();
+
+  return (
+    <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
+      {/* Left: Mobile menu trigger, Breadcrumbs and Title */}
+      <nav
+        aria-label="Breadcrumb"
+        className="flex min-w-0 items-center gap-1.5"
+      >
+        {/* Mobile sidebar trigger - hamburger menu */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="mr-1 -ml-1 size-8 md:hidden"
+          onClick={toggleSidebar}
+          aria-label="Open menu"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+        {/* Home link */}
+        <Link
+          href="/"
+          className="flex items-center justify-center rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Home"
+        >
+          <Home className="h-4 w-4" />
+        </Link>
+
+        {/* Breadcrumb segments */}
+        {pageConfig?.breadcrumbs?.map((segment) => (
+          <BreadcrumbItem
+            key={segment.href ?? segment.label}
+            segment={segment}
+          />
+        ))}
+
+        {/* Current page title */}
+        {pageConfig?.title && (
+          <>
+            <ChevronRight
+              className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
+              aria-hidden="true"
+            />
+            <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{pageConfig.title}</span>
+          </>
+        )}
+
+        {/* Custom header actions from page */}
+        {pageConfig?.headerActions && <div className="ml-4 flex items-center">{pageConfig.headerActions}</div>}
+      </nav>
+
+      {/* Right: Theme, User */}
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+
+        {/* User menu */}
+        {user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--nvidia-green)] text-sm font-medium text-black">
+                  {user.initials}
+                </div>
+                <span className="sr-only">User menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-56"
+            >
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-medium">{user.name}</p>
+                <p className="text-xs text-zinc-500">{user.email}</p>
+                {user.isAdmin && (
+                  <span className="mt-1 inline-block rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/profile">Profile Settings</Link>
+              </DropdownMenuItem>
+              <VersionMenuItem />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 dark:text-red-400"
+                onClick={() => logout()}
+              >
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : isLoading ? (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800">
+            <span className="h-4 w-4 animate-pulse rounded-full bg-zinc-300 dark:bg-zinc-700" />
+          </div>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+/**
+ * Lazy version display — only fetches /api/version when the dropdown mounts.
+ * Radix DropdownMenuContent is unmounted until opened, so the fetch is deferred
+ * until the user actually opens their profile menu. Once fetched, TanStack Query
+ * caches it with Infinity staleTime so subsequent opens are instant.
+ */
+function VersionMenuItem() {
+  const { version } = useVersion();
+  if (!version) return null;
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <div className="px-2 py-1.5">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          OSMO {version.major}.{version.minor}.{version.revision}
+          {version.hash && ` (${version.hash.slice(0, 7)})`}
+        </p>
+      </div>
+    </>
+  );
+}
+
+/** Navigates to stored origin (with filters) if available, otherwise uses default href */
+function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { getOrigin } = useBreadcrumbOrigin();
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!segment.href) return;
+
+    const origin = getOrigin(pathname);
+    if (origin) {
+      e.preventDefault();
+      router.push(origin);
+    }
+  };
+
+  return (
+    <>
+      <ChevronRight
+        className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
+        aria-hidden="true"
+      />
+      {segment.href ? (
+        <Link
+          href={segment.href}
+          onClick={handleClick}
+          className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          {segment.label}
+        </Link>
+      ) : (
+        <span className="truncate text-sm text-zinc-500 dark:text-zinc-400">{segment.label}</span>
+      )}
+    </>
+  );
+}

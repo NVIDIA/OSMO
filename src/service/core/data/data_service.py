@@ -197,7 +197,6 @@ def get_dataset_info(postgres: connectors.PostgresConnector,
             created_by=row.created_by,
             created_date=row.created_date.replace(microsecond=0),
             last_used=row.last_used.replace(microsecond=0),
-            retention_policy=row.retention_policy,
             size=row.size if row.size else 0,
             checksum=row.checksum if row.checksum else 0,
             location=storage.construct_storage_backend(row.location)\
@@ -304,9 +303,9 @@ def upload_start(bucket: objects.DatasetPattern,
                     )
                     INSERT INTO dataset_version
                     (dataset_id, version_id, location, status, created_by,
-                    created_date, last_used, metadata, retention_policy)
+                    created_date, last_used, metadata)
                     SELECT %s, updated_version.last_version,
-                    %s || updated_version.last_version || '.json', %s, %s, %s, %s, %s, %s
+                    %s || updated_version.last_version || '.json', %s, %s, %s, %s, %s
                     FROM updated_version
                     RETURNING version_id, location;
                 '''
@@ -317,7 +316,7 @@ def upload_start(bucket: objects.DatasetPattern,
                     (dataset_id, dataset_id,
                     f'{bucket_config.dataset_path}/{dataset_id}/manifests/',
                     objects.DatasetStatus.PENDING.name,
-                    user_header, current_time, current_time, json.dumps(metadata), 'P3M'))
+                    user_header, current_time, current_time, json.dumps(metadata)))
                 break
             except osmo_errors.OSMODatabaseError as err:
                 if retry >= 5:
@@ -1175,7 +1174,6 @@ def query_dataset(
                 name=row.name,
                 version=row.version_id,
                 status=row.status,
-                retention_policy=row.retention_policy,
                 created_by=row.created_by,
                 created_date=row.created_date.replace(microsecond=0),
                 last_used=row.last_used.replace(microsecond=0),

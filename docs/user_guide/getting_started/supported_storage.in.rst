@@ -16,7 +16,7 @@
   SPDX-License-Identifier: Apache-2.0
 ..
 
-* `AWS S3 <https://aws.amazon.com/s3>`_
+* `S3-Compatible Storage <https://aws.amazon.com/s3>`_ (AWS S3, MinIO, LocalStack, and any S3 API-compatible services)
 * `GCP Google Storage <https://cloud.google.com/storage/docs/buckets>`_
 * `Azure Blob Storage <https://azure.microsoft.com/en-us/products/storage/blobs>`_
 * `Torch Object Storage <https://docs.byteplus.com/en/docs/tos>`_

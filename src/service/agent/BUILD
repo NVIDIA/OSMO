@@ -129,7 +129,6 @@ osmo_py_library(
         requirement("pydantic"),
         requirement("redis"),
         requirement("websockets"),
-        "//src/lib/utils:cache",
         "//src/lib/utils:common",
         "//src/lib/utils:logging",
         "//src/lib/utils:osmo_errors",

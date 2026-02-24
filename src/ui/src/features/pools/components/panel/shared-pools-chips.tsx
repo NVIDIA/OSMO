@@ -1,0 +1,143 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+"use client";
+
+import { ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useExpandableChips } from "@/components/filter-bar/hooks/use-expandable-chips";
+import { usePanelAnimationContext } from "@/components/panel/panel-animation-context";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+interface SharedPoolsChipsProps {
+  /** Pool names that share capacity with the current pool */
+  pools: string[];
+  /** Callback when a pool chip is clicked */
+  onPoolClick?: (poolName: string) => void;
+}
+
+// =============================================================================
+// Styles (shared between measure and visible containers)
+// =============================================================================
+
+const chipClassName =
+  "group inline-flex shrink-0 items-center gap-1 rounded-md bg-white/60 px-2 py-1 text-xs font-medium text-zinc-700 ring-1 ring-zinc-200 ring-inset dark:bg-zinc-800/60 dark:text-zinc-300 dark:ring-zinc-700";
+
+const overflowClassName =
+  "inline-flex shrink-0 items-center rounded-md bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 ring-1 ring-violet-200 ring-inset dark:bg-violet-900/50 dark:text-violet-300 dark:ring-violet-700";
+
+// =============================================================================
+// Component
+// =============================================================================
+
+/**
+ * Shared Pools Chips - Expandable chip list for shared capacity pools.
+ *
+ * Uses CSS-driven measurement - no configuration needed. The hook measures
+ * actual rendered chip widths to calculate how many fit.
+ *
+ * Defers measurement until the panel animation fully completes (phase='open')
+ * to avoid layout thrashing during GPU-accelerated animations.
+ */
+export function SharedPoolsChips({ pools, onPoolClick }: SharedPoolsChipsProps) {
+  const { phase } = usePanelAnimationContext();
+  const deferMeasurement = phase !== "open";
+
+  const { containerRef, measureRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
+    useExpandableChips({ items: pools, deferMeasurement });
+
+  return (
+    <div className="relative min-w-0">
+      {/* Hidden measurement container - renders all chips to measure actual widths */}
+      {/* CSS containment for layout isolation */}
+      <div
+        ref={measureRef}
+        className="contain-layout-style pointer-events-none invisible absolute flex w-full items-center gap-1.5"
+        aria-hidden="true"
+      >
+        {sortedItems.map((poolName) => (
+          <span
+            key={poolName}
+            data-chip
+            className={chipClassName}
+          >
+            <span>{poolName}</span>
+            <ExternalLink className="size-3" />
+          </span>
+        ))}
+        {/* Overflow button placeholder for measuring its width */}
+        <span
+          data-overflow
+          className={overflowClassName}
+        >
+          +{overflowCount || 1}
+        </span>
+      </div>
+
+      {/* Visible container */}
+      <div
+        ref={containerRef}
+        className={cn(
+          "-m-0.5 flex w-full min-w-0 items-center gap-1.5 p-0.5",
+          expanded ? "flex-wrap content-start" : "flex-nowrap overflow-hidden",
+        )}
+      >
+        {displayedItems.map((poolName) => (
+          <button
+            key={poolName}
+            type="button"
+            onClick={() => onPoolClick?.(poolName)}
+            className={cn(
+              chipClassName,
+              "transition-colors hover:bg-violet-100 hover:text-violet-700 hover:ring-violet-300 dark:hover:bg-violet-900/50 dark:hover:text-violet-300 dark:hover:ring-violet-600",
+              expanded && "max-w-full",
+            )}
+            title={`View ${poolName}`}
+          >
+            <span className={expanded ? "truncate" : undefined}>{poolName}</span>
+            <ExternalLink className="size-3 opacity-0 transition-opacity group-hover:opacity-100" />
+          </button>
+        ))}
+
+        {/* Overflow indicator */}
+        {!expanded && overflowCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className={cn(overflowClassName, "transition-colors hover:bg-violet-200 dark:hover:bg-violet-800/50")}
+            title={`${overflowCount} more: ${sortedItems.slice(visibleCount).join(", ")}`}
+          >
+            +{overflowCount}
+          </button>
+        )}
+
+        {/* Collapse button */}
+        {expanded && sortedItems.length > 1 && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className={cn(overflowClassName, "transition-colors hover:bg-violet-200 dark:hover:bg-violet-800/50")}
+          >
+            less
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

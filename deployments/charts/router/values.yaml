@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -355,46 +355,17 @@ sidecars:
         timeout: 0s
 
 
-    ## OAuth2 authentication filter configuration
+    ## IDP (Identity Provider) configuration for JWT JWKS fetching
+    ##
+    idp:
+      ## Hostname for the identity provider (e.g., login.microsoftonline.com)
+      ##
+      host: ""
+
+    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
     ##
     oauth2Filter:
-      ## Enable OAuth2 authentication for incoming requests
-      ##
-      enabled: true
-
-      ## Forward bearer token to upstream service
-      ##
-      forwardBearerToken: true
-
-      ## OAuth2 token endpoint URL for token exchange
-      ##
-      tokenEndpoint: ""
-
-      ## OAuth2 authorization endpoint URL for user authentication
-      ##
-      authEndpoint: ""
-
-      ## Redirect path for OAuth2 callback after authentication
-      ##
-      redirectPath: api/auth/getAToken
-
-      ## OAuth2 client ID for this application
-      ##
-      clientId: ""
-
-      ## OAuth2 authentication provider identifier
-      ##
-      authProvider: ""
-
-      ## Logout path for ending user sessions
-      ##
-      logoutPath: logout
-
-      ## Kubernetes secret keys (when useKubernetesSecrets is true)
-      ##
-      secretName: oidc-secrets
-      clientSecretKey: client_secret
-      hmacSecretKey: hmac_secret
+      enabled: false
 
     ## JWT (JSON Web Token) authentication configuration
     ##
@@ -430,11 +401,10 @@ sidecars:
       ##
       address: osmo-service
 
-    ## Secret paths for OAuth2 secrets
+    ## Secret paths (legacy, kept for backward compatibility)
     ##
     secretPaths:
       clientSecret: /etc/envoy/secrets/client_secret
-      hmacSecret: /etc/envoy/secrets/hmac_secret
 
     ## Additional volume mounts for the Envoy container
     ##
@@ -466,6 +436,111 @@ sidecars:
       periodSeconds: 5
       timeoutSeconds: 3
 
+
+  ## OAuth2 Proxy sidecar configuration
+  ##
+  oauth2Proxy:
+    ## Enable OAuth2 Proxy sidecar container
+    ##
+    enabled: true
+
+    ## OAuth2 Proxy container image
+    ##
+    image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
+
+    ## Image pull policy
+    ##
+    imagePullPolicy: IfNotPresent
+
+    ## HTTP port for OAuth2 Proxy
+    ##
+    httpPort: 4180
+
+    ## Metrics port for OAuth2 Proxy
+    ##
+    metricsPort: 44180
+
+    ## OIDC provider type
+    ##
+    provider: oidc
+
+    ## OIDC issuer URL
+    ##
+    oidcIssuerUrl: ""
+
+    ## OAuth2 client ID
+    ##
+    clientId: ""
+
+    ## Cookie name for session management
+    ##
+    cookieName: _osmo_session
+
+    ## Whether to set the secure flag on cookies
+    ##
+    cookieSecure: true
+
+    ## Cookie domain (leave empty for default)
+    ##
+    cookieDomain: ""
+
+    ## Cookie expiration duration
+    ##
+    cookieExpire: 168h
+
+    ## Cookie refresh interval
+    ##
+    cookieRefresh: 1h
+
+    ## OAuth2 scopes to request
+    ##
+    scope: "openid email profile"
+
+    ## Pass the access token to upstream (disabled to reduce cookie size)
+    ##
+    passAccessToken: false
+
+    ## Use Kubernetes secrets for credentials
+    ##
+    useKubernetesSecrets: false
+
+    ## Kubernetes secret configuration (when useKubernetesSecrets is true)
+    ##
+    secretName: oauth2-proxy-secrets
+    clientSecretKey: client_secret
+    cookieSecretKey: cookie_secret
+
+    ## Secret file paths (when using vault or other secret managers)
+    ##
+    secretPaths:
+      clientSecret: /etc/oauth2-proxy/client-secret
+      cookieSecret: /etc/oauth2-proxy/cookie-secret
+
+    ## Additional arguments passed to oauth2-proxy
+    ##
+    extraArgs: []
+
+    ## Additional volume mounts
+    ##
+    extraVolumeMounts: []
+
+    ## Security context for OAuth2 Proxy container
+    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
+
+    ## Resource limits and requests
+    ##
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        memory: "128Mi"
 
   ## Log agent sidecar configuration for centralized logging on AWS CloudWatch
   ##
@@ -539,21 +614,99 @@ sidecars:
     ##
     extraVolumeMounts: []
 
-    ## Health check probes for log agent container
+  ## Authorization sidecar configuration (role-based access control)
+  ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
+  ##
+  authz:
+    ## Enable authorization sidecar
+    ##
+    enabled: true
+
+    ## Authorization sidecar Docker image
+    ##
+    imageName: "authz-sidecar"
+
+    ## Image pull policy for authorization sidecar
+    ##
+    imagePullPolicy: Always
+
+    ## gRPC port for authorization service
+    ##
+    grpcPort: 50052
+
+    ## Extra environment variables for the authz sidecar container
+    ##
+    extraEnv: []
+
+    ## PostgreSQL connection pool configuration
+    ## Note: Host, port, database, user, and password are inherited from services.postgres
+    ##
+    postgres:
+      ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
+      ##
+      sslMode: prefer
+
+      ## Maximum number of connections in the pool
+      ##
+      maxConns: 10
+
+      ## Minimum number of connections in the pool
+      ##
+      minConns: 2
+
+      ## Maximum lifetime of a connection in minutes
+      ##
+      maxConnLifetimeMin: 5
+
+    ## Role cache configuration
+    ##
+    cache:
+      ## Cache time-to-live (how long to cache role policies in seconds)
+      ##
+      ttl: 300
+
+      ## Maximum number of role combinations to cache
+      ##
+      maxSize: 1000
+
+    ## Resource limits and requests for authorization sidecar
+    ##
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    ## Liveness probe configuration
     ##
     livenessProbe:
-      httpGet:
-        path: /api/v1/health
-        port: 2020
+      grpc:
+        port: 50052
       initialDelaySeconds: 10
       periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 3
 
+    ## Readiness probe configuration
+    ##
     readinessProbe:
-      httpGet:
-        path: /api/v1/health
-        port: 2020
+      grpc:
+        port: 50052
       initialDelaySeconds: 5
       periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 2
+
+    ## Security context for authorization sidecar
+    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 10001
 
 ## Additional configurations for extensibility
 ##

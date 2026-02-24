@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,33 +32,6 @@ admin:
 {{- end }}
 
 {{/*
-Generate secrets configuration - supports both custom path and Kubernetes secrets
-*/}}
-{{- define "router.envoy.secrets" -}}
-{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-secrets:
-- name: token
-  generic_secret:
-    secret:
-      filename: /etc/envoy/secrets/{{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
-- name: hmac
-  generic_secret:
-    secret:
-      filename: /etc/envoy/secrets/{{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
-{{- else }}
-secrets:
-- name: token
-  generic_secret:
-    secret:
-      filename: {{ .Values.sidecars.envoy.secretPaths.clientSecret }}
-- name: hmac
-  generic_secret:
-    secret:
-      filename: {{ .Values.sidecars.envoy.secretPaths.hmacSecret }}
-{{- end }}
-{{- end }}
-
-{{/*
 Generate listeners configuration
 */}}
 {{- define "router.envoy.listeners" -}}
@@ -81,7 +54,7 @@ listeners:
             "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
             path: "/logs/envoy_access_log.txt"
             log_format: {
-              text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
+              text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\" \"%REQ(X-OSMO-TOKEN-NAME)%\" \"%REQ(X-OSMO-WORKFLOW-ID)%\"\n"
             }
         # Dedicated API path logging - captures all /api/* requests
         - name: envoy.access_loggers.file
@@ -95,7 +68,7 @@ listeners:
             "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
             path: "/logs/envoy_api_access_log.txt"
             log_format: {
-              text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
+              text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\" \"%REQ(X-OSMO-TOKEN-NAME)%\" \"%REQ(X-OSMO-WORKFLOW-ID)%\"\n"
             }
         codec_type: AUTO
         route_config:
@@ -104,10 +77,19 @@ listeners:
           internal_only_headers:
           - x-osmo-auth-skip
           - x-osmo-user
+          - x-osmo-token-name
+          - x-osmo-workflow-id
+          - x-osmo-allowed-pools
           virtual_hosts:
           - name: service
             domains: ["*"]
             routes:
+            {{- if $.Values.sidecars.oauth2Proxy.enabled }}
+            - match:
+                prefix: /oauth2/
+              route:
+                cluster: oauth2-proxy
+            {{- end }}
             {{- toYaml .Values.sidecars.envoy.routes | nindent 12}}
         upgrade_configs:
         - upgrade_type: websocket
@@ -124,6 +106,9 @@ listeners:
                    request_handle:headers():remove("x-osmo-auth-skip")
                    request_handle:headers():remove("x-osmo-user")
                    request_handle:headers():remove("x-osmo-roles")
+                   request_handle:headers():remove("x-osmo-token-name")
+                   request_handle:headers():remove("x-osmo-workflow-id")
+                   request_handle:headers():remove("x-osmo-allowed-pools")
                    request_handle:headers():remove("x-envoy-internal")
                  end
         - name: add-auth-skip
@@ -159,135 +144,82 @@ listeners:
                   end
                 end
 
-        - name: envoy.filters.http.lua.pre_oauth2
-          typed_config:
-            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-            default_source_code:
-              inline_string: |
-                function update_cookie_age(cookie, new_ages)
-                  local new_cookie = ''
-                  local first = true
-                  local new_age = nil
-                  local hostname = "{{ .Values.sidecars.envoy.service.hostname }}"
-                  local cookie_name = nil
-
-                  for all, key, value in string.gmatch(cookie, "(([^=;]+)=?([^;]*))") do
-                    -- Do nothing if this isnt the target cookie
-                    if first then
-                      if new_ages[key] == nil then
-                        return cookie
-                      end
-                      cookie_name = key
-                      new_cookie = new_cookie .. all
-                      new_age = new_ages[key]
-                      first = false
-
-                    -- Otherwise, if this is the max-age, update it
-                    elseif key == 'Max-Age' then
-                      new_cookie = new_cookie .. ';' .. 'Max-Age=' .. new_age
-                    -- For Domain, keep it for non-auth cookies
-                    elseif key == 'Domain' then
-                      if cookie_name ~= "RefreshToken" and cookie_name ~= "BearerToken" and
-                         cookie_name ~= "IdToken" and cookie_name ~= "OauthHMAC" then
-                        new_cookie = new_cookie .. ';' .. all
-                      end
-                    -- If this is Http-Only, discard it, otherwise, append the property as is
-                    elseif all ~= 'HttpOnly' then
-                      new_cookie = new_cookie .. ';' .. all
-                    end
-                  end
-
-                  -- Add domain for auth cookies if no domain was present
-                  if cookie_name == "RefreshToken" or cookie_name == "BearerToken" or
-                     cookie_name == "IdToken" or cookie_name == "OauthHMAC" then
-                    new_cookie = new_cookie .. '; Domain=' .. hostname
-                  end
-
-                  return new_cookie
-                end
-
-                function increase_refresh_age(set_cookie_header, new_ages)
-                  cookies = {}
-                  for cookie in string.gmatch(set_cookie_header, "([^,]+)") do
-                    cookies[#cookies + 1] = update_cookie_age(cookie, new_ages)
-                  end
-                  return cookies
-                end
-
-                function envoy_on_response(response_handle)
-                  local header = response_handle:headers():get("set-cookie")
-                  if header ~= nil then
-                    local new_cookies = increase_refresh_age(header, {
-                      RefreshToken=604800,
-                      BearerToken=604800,
-                      IdToken=300,
-                      OauthHMAC=295,
-                    })
-                    response_handle:headers():remove("set-cookie")
-                    for index, cookie in pairs(new_cookies) do
-                      response_handle:headers():add("set-cookie", cookie)
-                    end
-                  end
-                end
-
-        {{- if .Values.sidecars.envoy.oauth2Filter.enabled }}
-        - name: oauth2-with-matcher
+        {{- if $.Values.sidecars.oauth2Proxy.enabled }}
+        - name: ext-authz-oauth2-proxy
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
-
-            # If any of these paths match, then skip the oauth filter
             xds_matcher:
               matcher_list:
                 matchers:
                 - predicate:
-                    single_predicate:
-                      input:
-                        name: request-headers
-                        typed_config:
-                          "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
-                          header_name: x-osmo-auth-skip
-                      value_match:
-                        exact: "true"
+                    or_matcher:
+                      predicate:
+                      - single_predicate:
+                          input:
+                            name: request-headers
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                              header_name: x-osmo-auth-skip
+                          value_match:
+                            exact: "true"
+                      - single_predicate:
+                          input:
+                            name: request-headers
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                              header_name: x-osmo-auth
+                          value_match:
+                            safe_regex:
+                              google_re2: {}
+                              regex: ".+"
                   on_match:
                     action:
                       name: skip
                       typed_config:
                         "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
-
-            # Otherwise, go through the regular oauth2 process
             extension_config:
-              name: envoy.filters.http.oauth2
+              name: envoy.filters.http.ext_authz
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.oauth2.v3.OAuth2
-                config:
-                  token_endpoint:
-                    cluster: oauth
-                    uri: {{ .Values.sidecars.envoy.oauth2Filter.tokenEndpoint }}
+                "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                http_service:
+                  server_uri:
+                    uri: http://127.0.0.1:{{ $.Values.sidecars.oauth2Proxy.httpPort }}/oauth2/auth
+                    cluster: oauth2-proxy
                     timeout: 3s
-                  authorization_endpoint: {{ .Values.sidecars.envoy.oauth2Filter.authEndpoint }}
-                  redirect_uri: "https://{{ .Values.sidecars.envoy.service.hostname }}/{{ .Values.sidecars.envoy.oauth2Filter.redirectPath }}"
-                  redirect_path_matcher:
-                    path:
-                      exact: "/{{ .Values.sidecars.envoy.oauth2Filter.redirectPath }}"
-                  signout_path:
-                    path:
-                      exact: "/{{ .Values.sidecars.envoy.oauth2Filter.logoutPath | default "logout" }}"
-                  {{- if .Values.sidecars.envoy.oauth2Filter.forwardBearerToken }}
-                  forward_bearer_token: {{ .Values.sidecars.envoy.oauth2Filter.forwardBearerToken }}
-                  {{- end }}
-                  credentials:
-                    client_id: {{ .Values.sidecars.envoy.oauth2Filter.clientId }}
-                    token_secret:
-                      name: token
-                    hmac_secret:
-                      name: hmac
-                  auth_scopes:
-                  - openid
-                  use_refresh_token: true
-                  pass_through_matcher:
-                  - name: x-osmo-auth
-                    safe_regex_match:
-                      regex: ".*"
+                  authorization_request:
+                    allowed_headers:
+                      patterns:
+                      - exact: cookie
+                  authorization_response:
+                    allowed_upstream_headers:
+                      patterns:
+                      - exact: authorization
+                      - exact: x-auth-request-user
+                      - exact: x-auth-request-email
+                      - exact: x-auth-request-preferred-username
+                    allowed_client_headers_on_success:
+                      patterns:
+                      - exact: set-cookie
+                      - exact: x-auth-request-user
+                      - exact: x-auth-request-email
+                      - exact: x-auth-request-preferred-username
+                failure_mode_allow: false
+        - name: envoy.filters.http.lua.copy-auth-header
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+            default_source_code:
+              inline_string: |
+                function envoy_on_request(request_handle)
+                  -- After ext_authz sets Authorization: Bearer <id_token>, copy it to
+                  -- x-osmo-auth so downstream services can authenticate without going
+                  -- through OAuth2 Proxy again.
+                  local auth = request_handle:headers():get("authorization")
+                  local osmo_auth = request_handle:headers():get("x-osmo-auth")
+                  if auth and not osmo_auth and auth:sub(1, 7) == "Bearer " then
+                    request_handle:headers():add("x-osmo-auth", auth:sub(8))
+                  end
+                end
+        {{- end }}
 
         - name: jwt-authn-with-matcher
           typed_config:
@@ -325,9 +257,9 @@ listeners:
                     - {{ $provider.audience }}
                     forward: true
                     payload_in_metadata: verified_jwt
-                    from_cookies:
-                    - IdToken
                     from_headers:
+                    - name: authorization
+                      value_prefix: "Bearer "
                     - name: x-osmo-auth
                     remote_jwks:
                       http_uri:
@@ -375,9 +307,31 @@ listeners:
                         -- Create the roles list
                         local roles_list = table.concat(meta.verified_jwt.roles, ',')
 
-                        -- Add the header
+                        -- Add the headers
                         request_handle:headers():replace('x-osmo-roles', roles_list)
+                        if (meta.verified_jwt.osmo_token_name ~= nil) then
+                          request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
+                        end
+                        if (meta.verified_jwt.osmo_workflow_id ~= nil) then
+                          request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
+                        end
                       end
+
+        {{- if .Values.sidecars.authz.enabled }}
+        - name: envoy.filters.http.ext_authz
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+            transport_api_version: V3
+            with_request_body:
+              max_request_bytes: 8192
+              allow_partial_message: true
+            failure_mode_allow: false
+            grpc_service:
+              envoy_grpc:
+                cluster_name: authz-sidecar
+              timeout: 0.5s
+            metadata_context_namespaces:
+              - envoy.filters.http.jwt_authn
         {{- end }}
         - name: envoy.filters.http.router
           typed_config:
@@ -427,8 +381,30 @@ clusters:
               address: {{ .Values.sidecars.envoy.osmoauth.address | default "osmo-service" }}
               port_value: {{ .Values.sidecars.envoy.osmoauth.port | default 80 }}
 {{- end }}
-{{- if .Values.sidecars.envoy.oauth2Filter.enabled }}
-- name: oauth
+
+{{- if .Values.sidecars.authz.enabled }}
+- name: authz-sidecar
+  typed_extension_protocol_options:
+    envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+      "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+      explicit_http_config:
+        http2_protocol_options: {}
+  connect_timeout: 0.25s
+  type: STRICT_DNS
+  lb_policy: ROUND_ROBIN
+  load_assignment:
+    cluster_name: authz-sidecar
+    endpoints:
+    - lb_endpoints:
+      - endpoint:
+          address:
+            socket_address:
+              address: 127.0.0.1
+              port_value: {{ .Values.sidecars.authz.grpcPort }}
+{{- end }}
+
+{{- if .Values.sidecars.envoy.idp.host }}
+- name: idp
   connect_timeout: 3s
   type: STRICT_DNS
   dns_refresh_rate: 5s
@@ -436,19 +412,34 @@ clusters:
   dns_lookup_family: V4_ONLY
   lb_policy: ROUND_ROBIN
   load_assignment:
-    cluster_name: oauth
+    cluster_name: idp
     endpoints:
     - lb_endpoints:
       - endpoint:
           address:
             socket_address:
-              address: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+              address: {{ .Values.sidecars.envoy.idp.host }}
               port_value: 443
   transport_socket:
     name: envoy.transport_sockets.tls
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-      sni: {{ .Values.sidecars.envoy.oauth2Filter.authProvider }}
+      sni: {{ .Values.sidecars.envoy.idp.host }}
+{{- end }}
+{{- if $.Values.sidecars.oauth2Proxy.enabled }}
+- name: oauth2-proxy
+  connect_timeout: 0.25s
+  type: STRICT_DNS
+  lb_policy: ROUND_ROBIN
+  load_assignment:
+    cluster_name: oauth2-proxy
+    endpoints:
+    - lb_endpoints:
+      - endpoint:
+          address:
+            socket_address:
+              address: 127.0.0.1
+              port_value: {{ $.Values.sidecars.oauth2Proxy.httpPort }}
 {{- end }}
 {{- end }}
 
@@ -458,7 +449,6 @@ Complete Envoy configuration
 {{- define "router.envoy.config" -}}
 {{ include "router.envoy.admin" . }}
 static_resources:
-  {{ include "router.envoy.secrets" . | nindent 2 }}
   {{ include "router.envoy.listeners" . | nindent 2 }}
   {{ include "router.envoy.clusters" . | nindent 2 }}
 {{- end }}

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,22 +27,6 @@ Envoy sidecar container
   command: ["/bin/sh", "-c"]
   args:
     - |
-      echo "$(date -Iseconds) Waiting to populate secrets..."
-      {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-      # For Kubernetes secrets, just wait and start
-      sleep 5
-      {{- else }}
-      # For Other secrets, wait for files and process config
-      while [ ! -f "{{ .Values.sidecars.envoy.secretPaths.clientSecret }}" ] || [ ! -s "{{ .Values.sidecars.envoy.secretPaths.clientSecret }}" ]; do
-        echo "$(date -Iseconds) Waiting for client secret file..."
-        sleep 2
-      done
-      while [ ! -f "{{ .Values.sidecars.envoy.secretPaths.hmacSecret }}" ] || [ ! -s "{{ .Values.sidecars.envoy.secretPaths.hmacSecret }}" ]; do
-        echo "$(date -Iseconds) Waiting for HMAC secret file..."
-        sleep 2
-      done
-      echo "$(date -Iseconds) Secret files ready..."
-      {{- end }}
       echo "$(date -Iseconds) Starting Envoy..."
       exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level {{ .Values.sidecars.envoy.logLevel | default "info" }} --log-path /logs/envoy.txt
   ports:
@@ -57,11 +41,6 @@ Envoy sidecar container
     {{- if .Values.global.logs.enabled }}
     - name: logs
       mountPath: /logs
-    {{- end }}
-    {{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-    - name: envoy-secrets
-      mountPath: /etc/envoy/secrets
-      readOnly: true
     {{- end }}
     {{- with .Values.sidecars.envoy.extraVolumeMounts }}
       {{- toYaml . | nindent 4 }}
@@ -185,16 +164,6 @@ Envoy volumes
   configMap:
     name: {{ .Values.services.service.serviceName }}-envoy-config
 {{- end }}
-{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
-- name: envoy-secrets
-  secret:
-    secretName: {{ .Values.sidecars.envoy.oauth2Filter.secretName | default "oidc-secrets" }}
-    items:
-    - key: {{ .Values.sidecars.envoy.oauth2Filter.clientSecretKey | default "client_secret" }}
-      path: client_secret
-    - key: {{ .Values.sidecars.envoy.oauth2Filter.hmacSecretKey | default "hmac_secret" }}
-      path: hmac_secret
-{{- end }}
 {{- end }}
 
 {{/*
@@ -205,6 +174,150 @@ Log agent volumes
 - name: log-agent-config
   configMap:
     name: {{ .Values.sidecars.logAgent.configName }}
+{{- end }}
+{{- end }}
+
+{{/*
+OAuth2 Proxy sidecar container
+*/}}
+{{- define "router.oauth2-proxy-sidecar-container" -}}
+{{- if .Values.sidecars.oauth2Proxy.enabled }}
+- name: oauth2-proxy
+  image: "{{ .Values.sidecars.oauth2Proxy.image }}"
+  imagePullPolicy: {{ .Values.sidecars.oauth2Proxy.imagePullPolicy }}
+  securityContext:
+    {{- toYaml .Values.sidecars.oauth2Proxy.securityContext | nindent 4 }}
+  args:
+    - --config={{ .Values.sidecars.oauth2Proxy.secretPaths.cookieSecret }}
+    - --http-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.httpPort }}
+    - --metrics-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.metricsPort }}
+    - --reverse-proxy=true
+    - --provider={{ .Values.sidecars.oauth2Proxy.provider }}
+    - --oidc-issuer-url={{ .Values.sidecars.oauth2Proxy.oidcIssuerUrl }}
+    - --client-id={{ .Values.sidecars.oauth2Proxy.clientId }}
+    - --cookie-secure={{ .Values.sidecars.oauth2Proxy.cookieSecure }}
+    - --cookie-name={{ .Values.sidecars.oauth2Proxy.cookieName }}
+    {{- if .Values.sidecars.oauth2Proxy.cookieDomain }}
+    - --cookie-domain={{ .Values.sidecars.oauth2Proxy.cookieDomain }}
+    {{- end }}
+    - --cookie-expire={{ .Values.sidecars.oauth2Proxy.cookieExpire }}
+    - --cookie-refresh={{ .Values.sidecars.oauth2Proxy.cookieRefresh }}
+    - --scope={{ .Values.sidecars.oauth2Proxy.scope }}
+    - --email-domain=*
+    - --set-xauthrequest=true
+    - --set-authorization-header=true
+    - --pass-access-token={{ .Values.sidecars.oauth2Proxy.passAccessToken }}
+    - --upstream=static://200
+    - --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
+    - --silence-ping-logging=true
+    - --skip-provider-button=true
+    {{- range .Values.sidecars.oauth2Proxy.extraArgs }}
+    - {{ . }}
+    {{- end }}
+  ports:
+  - name: http
+    containerPort: {{ .Values.sidecars.oauth2Proxy.httpPort }}
+  - name: metrics
+    containerPort: {{ .Values.sidecars.oauth2Proxy.metricsPort }}
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+  resources:
+    {{- toYaml .Values.sidecars.oauth2Proxy.resources | nindent 4 }}
+  volumeMounts:
+    {{- if .Values.sidecars.oauth2Proxy.useKubernetesSecrets }}
+    - name: oauth2-proxy-secrets
+      mountPath: /etc/oauth2-proxy
+      readOnly: true
+    {{- end }}
+    {{- with .Values.sidecars.oauth2Proxy.extraVolumeMounts }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+OAuth2 Proxy volumes
+*/}}
+{{- define "router.oauth2-proxy-volumes" -}}
+{{- if .Values.sidecars.oauth2Proxy.enabled }}
+{{- if .Values.sidecars.oauth2Proxy.useKubernetesSecrets }}
+- name: oauth2-proxy-secrets
+  secret:
+    secretName: {{ .Values.sidecars.oauth2Proxy.secretName | default "oauth2-proxy-secrets" }}
+    items:
+    - key: {{ .Values.sidecars.oauth2Proxy.clientSecretKey | default "client_secret" }}
+      path: client-secret
+    - key: {{ .Values.sidecars.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
+      path: cookie-secret
+{{- end }}
+{{- end }}
+{{- end }}
+Authorization sidecar container
+*/}}
+{{- define "router.authz-sidecar-container" -}}
+{{- if .Values.sidecars.authz.enabled }}
+- name: authz-sidecar
+  securityContext:
+    {{- toYaml .Values.sidecars.authz.securityContext | nindent 4 }}
+  image: "{{ .Values.global.osmoImageLocation }}/{{ .Values.sidecars.authz.imageName }}:{{ .Values.global.osmoImageTag }}"
+  imagePullPolicy: {{ .Values.sidecars.authz.imagePullPolicy }}
+  args:
+    - "--grpc-port={{ .Values.sidecars.authz.grpcPort }}"
+    - "--postgres-host={{ .Values.services.postgres.serviceName }}"
+    - "--postgres-port={{ .Values.services.postgres.port }}"
+    - "--postgres-database={{ .Values.services.postgres.db }}"
+    - "--postgres-user={{ .Values.services.postgres.user }}"
+    - "--postgres-ssl-mode={{ .Values.sidecars.authz.postgres.sslMode }}"
+    - "--postgres-max-conns={{ .Values.sidecars.authz.postgres.maxConns }}"
+    - "--postgres-min-conns={{ .Values.sidecars.authz.postgres.minConns }}"
+    - "--postgres-max-conn-lifetime={{ .Values.sidecars.authz.postgres.maxConnLifetimeMin }}"
+    - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
+    - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
+    {{- if .Values.global.logs.enabled }}
+    - "--log-dir=/logs"
+    - "--log-name=authz_sidecar"
+    {{- end }}
+  env:
+    {{- with .Values.sidecars.authz.extraEnv }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if .Values.services.postgres.password }}
+    - name: OSMO_POSTGRES_PASSWORD
+      value: {{ .Values.services.postgres.password }}
+    {{- else if .Values.services.configFile.enabled }}
+    - name: OSMO_POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: db-secret
+          key: db-password
+    {{- end }}
+  {{- if .Values.global.logs.enabled }}
+  volumeMounts:
+    - name: logs
+      mountPath: /logs
+  {{- end }}
+  {{- with .Values.sidecars.authz.livenessProbe }}
+  livenessProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.sidecars.authz.readinessProbe }}
+  readinessProbe:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  resources:
+    {{- toYaml .Values.sidecars.authz.resources | nindent 4 }}
 {{- end }}
 {{- end }}
 

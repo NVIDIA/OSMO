@@ -1,0 +1,87 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+"use client";
+
+import { QueryClientProvider, HydrationBoundary } from "@tanstack/react-query";
+import type { DehydratedState } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { useState } from "react";
+import { PageProvider } from "@/components/chrome/page-context";
+import { BreadcrumbOriginProvider } from "@/components/chrome/breadcrumb-origin-context";
+import { ConfigProvider } from "@/contexts/config-context";
+import { ServiceProvider } from "@/contexts/service-context";
+import { RuntimeEnvProvider, type RuntimeEnv } from "@/contexts/runtime-env-context";
+import { UserProvider } from "@/lib/auth/user-context";
+import { MockProvider } from "@/mocks/mock-provider";
+import { createQueryClient } from "@/lib/query-client";
+import { QueryDevtools } from "@/components/query-devtools";
+import { DevAuthInit } from "@/components/dev-auth-init";
+
+// =============================================================================
+// Provider Props
+// =============================================================================
+
+interface ProvidersProps {
+  children: React.ReactNode;
+  /** Enables instant navigation via prefetched data. */
+  dehydratedState?: DehydratedState;
+  /** Prevents baking env vars into bundle, keeping Docker image portable. */
+  runtimeEnv: RuntimeEnv;
+}
+
+// =============================================================================
+// Main Providers Component
+// =============================================================================
+
+export function Providers({ children, dehydratedState, runtimeEnv }: ProvidersProps) {
+  const [queryClient] = useState(createQueryClient);
+
+  return (
+    <RuntimeEnvProvider value={runtimeEnv}>
+      <ConfigProvider>
+        <ServiceProvider>
+          <DevAuthInit />
+          <MockProvider>
+            <NuqsAdapter>
+              <QueryClientProvider client={queryClient}>
+                <HydrationBoundary state={dehydratedState}>
+                  <ThemeProvider
+                    attribute="class"
+                    defaultTheme="system"
+                    enableSystem
+                    disableTransitionOnChange
+                  >
+                    <UserProvider>
+                      <PageProvider>
+                        <BreadcrumbOriginProvider>{children}</BreadcrumbOriginProvider>
+                      </PageProvider>
+                    </UserProvider>
+                  </ThemeProvider>
+                </HydrationBoundary>
+                <QueryDevtools />
+              </QueryClientProvider>
+            </NuqsAdapter>
+          </MockProvider>
+        </ServiceProvider>
+      </ConfigProvider>
+    </RuntimeEnvProvider>
+  );
+}
+
+// NOTE: Server components should import createServerQueryClient directly from
+// "@/lib/query-client" -- it uses server-optimized settings (no retries, fail fast).

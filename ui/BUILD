@@ -194,7 +194,7 @@ oci_push(
 
 oci_image(
     name = "web_ui_image_arm64",
-    base = "@node_22_distroless_linux_arm64_v8",
+    base = "@node_22_distroless_linux_arm64",
     tars = [
         ":standalone_layers",
         ":react_overlay_tar",

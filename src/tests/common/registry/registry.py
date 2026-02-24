@@ -163,6 +163,10 @@ class DockerRegistryFixture(network.NetworkFixture):
         cls.registry_container.with_network(cls.network)
         cls.registry_container.with_network_aliases(REGISTRY_NAME)
         cls.registry_container.with_exposed_ports(REGISTRY_PORT)
+        cls.registry_container.with_kwargs(
+            mem_limit='256m',
+            memswap_limit='256m'
+        )
 
         cls.registry_container.start()
         cls.networked_containers.append(cls.registry_container)

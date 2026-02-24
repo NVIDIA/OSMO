@@ -1,0 +1,193 @@
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const FEATURE_NAMES = ["dashboard", "datasets", "log-viewer", "pools", "profile", "resources", "workflows"];
+const crossFeatureZones = FEATURE_NAMES.map((featureName) => ({
+  target: `./src/features/${featureName}`,
+  from: "./src/features",
+  except: [`./${featureName}`],
+  message:
+    `Feature isolation: '${featureName}' must not import from other features. ` +
+    "Extract shared logic to shared modules (src/components, src/hooks, src/lib, src/stores).",
+}));
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    // Auto-generated API client
+    "src/lib/api/generated.ts",
+    // E2E tests (Playwright, not React)
+    "e2e/**",
+    // Vendored/third-party code
+    "public/**",
+  ]),
+  // Custom rules
+  {
+    rules: {
+      // Allow unused variables/args that start with underscore
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  // ============================================================================
+  // Architecture Boundaries (ratchet mode)
+  // ============================================================================
+  // Start as "warn" while migrating slices; raise to "error" after burn-down.
+  // Applies to production + test + mock code under src/.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "import/no-restricted-paths": [
+        "warn",
+        {
+          zones: [
+            // Enforce one-way boundary: features must not import app route internals.
+            {
+              target: "./src/features",
+              from: "./src/app",
+              message:
+                "Features must not import from src/app. Move reusable logic outside app and import from shared/feature modules.",
+            },
+            // Enforce one-way boundary: shared modules must not import app or features.
+            {
+              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/testing", "./src/mocks"],
+              from: "./src/app",
+              message:
+                "Shared modules must not import from src/app route internals.",
+            },
+            {
+              target: ["./src/components", "./src/hooks", "./src/lib", "./src/stores", "./src/testing", "./src/mocks"],
+              from: "./src/features",
+              message:
+                "Shared modules must not import from src/features. Lift shared concerns into shared modules instead.",
+            },
+            ...crossFeatureZones,
+          ],
+        },
+      ],
+    },
+  },
+  // Prevent production code from importing experimental code
+  // Experimental code can import production code, but not vice versa
+  {
+    ignores: ["src/app/**/experimental/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/experimental/**", "@/app/**/experimental/**"],
+              message:
+                "Production code must not import from /experimental. Only experimental code may import production code.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // ============================================================================
+  // CRITICAL: Single-Use Session APIs
+  // ============================================================================
+  // Prevent direct use of generated exec/portforward hooks.
+  // These APIs generate SINGLE-USE session tokens that must never be cached.
+  // Always use adapter hooks that ensure unique mutation keys.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost",
+                "usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost",
+                "usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost",
+              ],
+              importNames: [
+                "useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost",
+                "usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost",
+                "usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost",
+              ],
+              message:
+                "CRITICAL: Do not use generated exec/portforward hooks directly. These APIs generate single-use session tokens that must never be cached. Import from '@/lib/api/adapter' instead: useExecIntoTask, usePortForwardTask, usePortForwardWebserver",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // ============================================================================
+  // Prevent Barrel Exports (index.ts files)
+  // ============================================================================
+  // Barrel exports cause tree-shaking failures, HMR issues, and RSC boundary
+  // confusion. All imports must be direct to the source file.
+  //
+  // Good: import { Button } from "@/components/shadcn/button";
+  // Bad:  import { Button } from "@/components/shadcn";
+  //
+  // This is enforced as an error to prevent regression after full migration.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/index", "**/index.ts", "**/index.tsx"],
+              message:
+                "Barrel exports (index.ts) are forbidden. Import directly from the source file. Example: import { Button } from '@/components/shadcn/button' (not '@/components/shadcn')",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // ============================================================================
+  // MANDATORY: Absolute Imports Only
+  // ============================================================================
+  // All imports must use absolute @/ paths. Relative imports are FORBIDDEN.
+  // This ensures:
+  // - Refactor-safety (moving files never breaks imports)
+  // - HMR stability (clearer module graph)
+  // - Searchability (grep finds all usages)
+  // - Consistency (zero decision fatigue)
+  //
+  // Good: import { Button } from "@/components/shadcn/button";
+  // Bad:  import { Button } from "./button";
+  // Bad:  import { Button } from "../shadcn/button";
+  //
+  // NO EXCEPTIONS. NO EXEMPTIONS. This is strictly enforced.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["./*", "../*"],
+              message:
+                "Relative imports are FORBIDDEN. Use absolute imports with @/ prefix. Example: import { Button } from '@/components/shadcn/button' (not './button' or '../button')",
+            },
+          ],
+        },
+      ],
+    },
+  },
+]);
+
+export default eslintConfig;
