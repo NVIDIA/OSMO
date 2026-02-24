@@ -171,6 +171,10 @@ class SSLProxy(network.NetworkAwareContainer):
             for port in ports.values()
         ])
         self.with_exposed_ports(ENVOY_ADMIN_PORT)
+        self.with_kwargs(
+            mem_limit='256m',
+            memswap_limit='256m'
+        )
 
         # Wait for certs and config to be copied into the container before starting envoy
         # This ensures that envoy is started in the main process, allowing logs to be

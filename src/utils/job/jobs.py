@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -476,6 +476,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             )
 
             self.k8s_resources = resources
+            group_obj.update_group_template_resource_types()
 
             upload_task = UploadWorkflowFiles(
                 workflow_id=workflow_obj.workflow_id,
@@ -778,9 +779,26 @@ class UpdateGroup(WorkflowJob):
         else:
             factory = group_obj.get_k8s_object_factory(backend)
             cleanup_specs = [
-                backend_job_defs.BackendCleanupSpec(resource_type='Secret', labels=labels),
-                backend_job_defs.BackendCleanupSpec(resource_type='Service', labels=labels),
+                backend_job_defs.BackendCleanupSpec(
+                    generic_api=backend_job_defs.BackendGenericApi(
+                        api_version='v1', kind='Secret'),
+                    labels=labels),
+                backend_job_defs.BackendCleanupSpec(
+                    generic_api=backend_job_defs.BackendGenericApi(
+                        api_version='v1', kind='Service'),
+                    labels=labels),
             ] + factory.get_group_cleanup_specs(labels)
+
+            for resource_type in group_obj.group_template_resource_types:
+                cleanup_specs.append(
+                    backend_job_defs.BackendCleanupSpec(
+                        generic_api=backend_job_defs.BackendGenericApi(
+                            api_version=resource_type['apiVersion'],
+                            kind=resource_type['kind'],
+                        ),
+                        labels=labels,
+                    )
+                )
 
             force_job_id = f'{self.workflow_uuid}-{self.group_name}-'\
                         f'{common.generate_unique_id(6)}-force-backend-cleanup'
@@ -1381,21 +1399,22 @@ class CleanupWorkflow(WorkflowJob):
         async def migrate_logs(redis_url: str, redis_key: str, file_name: str):
             ''' Uploads logs to S3 and deletes them from Redis. Returns the S3 file path. '''
 
-            async with aiofiles.tempfile.NamedTemporaryFile(mode='w+') as temp_file:
+            fd, tmp_path = tempfile.mkstemp(suffix='.log')
+            try:
+                os.close(fd)
+
                 await connectors.write_redis_log_to_disk(
                     redis_url,
                     redis_key,
-                    str(temp_file.name),
+                    tmp_path,
                 )
 
                 await progress_writer.report_progress_async()
 
-                await temp_file.flush()
-
                 # Wrap the call in a concrete no-arg function to avoid overload issues during lint.
                 def _upload_logs() -> storage.UploadSummary:
                     return storage_client.upload_objects(
-                        source=str(temp_file.name),
+                        source=tmp_path,
                         destination_prefix=self.workflow_id,
                         destination_name=file_name,
                     )
@@ -1403,6 +1422,12 @@ class CleanupWorkflow(WorkflowJob):
                 await asyncio.to_thread(_upload_logs)
 
                 await progress_writer.report_progress_async()
+            finally:
+                # Clean up the temp file ourselves
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
         semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
 

@@ -57,6 +57,9 @@ global:
     ## Object storage endpoint URL for workflow logs, datasets, and other data
     ##
     endpoint: "s3://osmo"
+    ## Object storage override URL for the storage backend
+    ##
+    overrideUrl: "http://localstack-s3.osmo:4566"
     ## Object storage access key ID for authentication
     ##
     accessKeyId: "test"
@@ -66,11 +69,6 @@ global:
     ## Object storage region where the bucket is located
     ##
     region: "us-east-1"
-    ## AWS endpoint URL
-    ##
-    ## Changed for localstack-s3
-    ##
-    awsEndpointUrlS3: "http://localstack-s3.osmo:4566"
 
 ## Ingress NGINX Controller configuration
 ##
@@ -274,8 +272,6 @@ service:
         value: "true"
       - name: AWS_DEFAULT_REGION
         value: us-east-1
-      - name: OSMO_SKIP_DATA_AUTH
-        value: "1"
 
     ## Worker service configuration for background job processing
     ##

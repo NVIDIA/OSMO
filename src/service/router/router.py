@@ -423,9 +423,6 @@ def main():
 
     connectors.PostgresConnector(config)
 
-    app.add_middleware(connectors.AccessControlMiddleware, method=config.method,
-                       domain_access_check=helper.resolve_session_key_decorator(config.hostname))
-
     uvicorn_config = uvicorn.Config(app, host=host, port=port)
     uvicorn_server = uvicorn.Server(config=uvicorn_config)
     loop = asyncio.get_event_loop()

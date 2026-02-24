@@ -67,10 +67,10 @@ This chart installs and configures:
 | `global.containerRegistry.username`     | Container registry username                                             | `$oauthtoken`                      |
 | `global.containerRegistry.password`     | Container registry password (NGC API key)                               | `""`                               |
 | `global.objectStorage.endpoint`         | Object storage endpoint URL for workflow logs, datasets, and other data | `"s3://osmo"`                      |
+| `global.objectStorage.overrideUrl`      | Object storage override URL (changed for localstack-s3)                 | `"http://localstack-s3.osmo:4566"` |
 | `global.objectStorage.accessKeyId`      | Object storage access key ID for authentication                         | `"test"`                           |
 | `global.objectStorage.accessKey`        | Object storage access key for authentication                            | `"test"`                           |
 | `global.objectStorage.region`           | Object storage region where the bucket is located                       | `"us-east-1"`                      |
-| `global.objectStorage.awsEndpointUrlS3` | AWS endpoint URL (changed for localstack-s3)                            | `"http://localstack-s3.osmo:4566"` |
 
 ### Ingress NGINX Configuration
 

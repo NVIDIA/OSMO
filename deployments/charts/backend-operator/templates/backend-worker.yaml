@@ -108,6 +108,8 @@ spec:
         - '{{ .Values.sidecars.OTEL.host }}'
         - --metrics_otel_collector_port
         - '{{ include "backend-operator.otel.getPort" (dict "root" . "portName" "otlp-grpc") }}'
+        - --node_condition_prefix
+        - '{{ .Values.global.nodeConditionPrefix }}'
         - --progress_iter_frequency
         - {{ .Values.services.backendWorker.progressIterFrequency | quote }}
         {{- if .Values.global.backendTestNamespace }}
@@ -119,7 +121,7 @@ spec:
         - "/tmp/backend-test-runner/spec.yaml"
         {{- end }}
         {{- range $arg := .Values.services.backendWorker.extraArgs }}
-        - {{$arg}}
+        - {{$arg | quote}}
         {{- end }}
         env:
         {{- with .Values.services.backendWorker.extraEnvs }}

@@ -110,7 +110,6 @@ class DataInfoDatasetEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     created_by: str
     created_date: datetime.datetime
     last_used: datetime.datetime
-    retention_policy: datetime.timedelta
     size: int
     checksum: str
     location: str

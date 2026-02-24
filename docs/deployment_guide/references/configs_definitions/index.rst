@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -41,6 +41,8 @@ The following table provides a list of API endpoints that admins can use to conf
      - Compute pool configurations for workload distribution
    * - :ref:`/api/configs/pod_template <pod_template_config>`
      - Kubernetes pod template configurations
+   * - :ref:`/api/configs/group_template <group_template_config>`
+     - Kubernetes resource templates created alongside workflow task groups
    * - :ref:`/api/configs/resource_validation <resource_validation_config>`
      - Rules for validating resource requirements
    * - :ref:`/api/configs/role <roles_config>`
@@ -62,5 +64,6 @@ Admins can access the Swagger UI at ``http://osmo.example.com/api/docs`` to use 
    backend
    pool
    pod_template
+   group_template
    resource_validation
    roles

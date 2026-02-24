@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -74,6 +74,7 @@ osmo_py_library(
         "kb_objects.py",
         "task.py",
         "task_io.py",
+        "topology.py",
         "workflow.py",
     ],
     deps = [
@@ -86,7 +87,6 @@ osmo_py_library(
         requirement("urllib3"),
         "//src/lib/data/storage",
         "//src/lib/data/storage/constants",
-        "//src/lib/utils:cache",
         "//src/lib/utils:common",
         "//src/lib/utils:credentials",
         "//src/lib/utils:jinja_sandbox",

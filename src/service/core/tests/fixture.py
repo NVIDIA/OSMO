@@ -82,6 +82,28 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         jinja_sandbox.SandboxedJinjaRenderer._instance = \
             jinja_sandbox.SandboxedJinjaRenderer(max_time=5)  # pylint: disable=protected-access
 
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            # Reset singleton connectors to prevent leaks
+            # pylint: disable=protected-access  # Accessing singleton instances for test cleanup
+            if connectors.postgres.PostgresConnector._instance:
+                connectors.postgres.PostgresConnector._instance.close()
+                connectors.postgres.PostgresConnector._instance = None
+
+            if connectors.redis.RedisConnector._instance:
+                connectors.redis.RedisConnector._instance.close()
+                connectors.redis.RedisConnector._instance = None
+
+            # Shutdown Jinja renderer workers
+            if jinja_sandbox.SandboxedJinjaRenderer._instance:
+                jinja_sandbox.SandboxedJinjaRenderer._instance.shutdown()
+
+            # Close TestClient
+            if hasattr(cls, 'client'):
+                cls.client.close()
+        finally:
+            super().tearDownClass()
 
     def tearDown(self):
         # Delete all objects in the bucket

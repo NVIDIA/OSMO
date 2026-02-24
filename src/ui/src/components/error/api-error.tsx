@@ -1,0 +1,101 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+"use client";
+
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
+import { ErrorDetails } from "@/components/error/error-details";
+import { cn } from "@/lib/utils";
+
+/** Error-like object that has at least a message or detail */
+interface ErrorLike {
+  message?: string;
+  detail?: string | { msg: string }[];
+  stack?: string;
+}
+
+export interface ApiErrorProps {
+  /** Error object from React Query (can be Error or API error response) */
+  error: ErrorLike | null;
+  /** Retry function (usually refetch from React Query) */
+  onRetry?: () => void;
+  /** Optional title override */
+  title?: string;
+  /** Optional className for container */
+  className?: string;
+}
+
+/**
+ * Inline error display for API failures.
+ *
+ * Use this when a query fails but the page should still render.
+ * Shows the actual error message with optional retry.
+ *
+ * @example
+ * ```tsx
+ * <ApiError error={error} onRetry={refetch} title="Unable to load pools" />
+ * ```
+ */
+
+/** Extract message from various error formats */
+function getErrorMessage(error: ErrorLike): string {
+  if (error.message) return error.message;
+  if (typeof error.detail === "string") return error.detail;
+  if (Array.isArray(error.detail) && error.detail[0]?.msg) {
+    return error.detail.map((d) => d.msg).join(", ");
+  }
+  return "An unexpected error occurred";
+}
+
+export function ApiError({ error, onRetry, title = "Failed to load data", className }: ApiErrorProps) {
+  if (!error) return null;
+
+  const message = getErrorMessage(error);
+
+  // Standard error display
+  return (
+    <div
+      data-testid="api-error"
+      className={cn("rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900", className)}
+    >
+      {/* Header with title and retry */}
+      <div className="flex items-center justify-between gap-4 p-4">
+        <p className="font-medium text-zinc-900 dark:text-zinc-100">{title}</p>
+
+        {onRetry && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onRetry()}
+            className="shrink-0 gap-1.5"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </Button>
+        )}
+      </div>
+
+      {/* Error message and stack trace */}
+      <div className="border-t border-zinc-200 dark:border-zinc-800">
+        <ErrorDetails
+          error={{ message, stack: error.stack } as Error}
+          className="rounded-none border-0"
+        />
+      </div>
+    </div>
+  );
+}

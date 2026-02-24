@@ -43,6 +43,7 @@ osmo_py_library(
         "profile.py",
         "resources.py",
         "task.py",
+        "user.py",
         "version.py",
         "workflow.py",
     ],

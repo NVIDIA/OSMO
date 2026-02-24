@@ -1,0 +1,184 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+"use client";
+
+import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from "react-error-boundary";
+import { RefreshCw, AlertCircle } from "lucide-react";
+import { Button } from "@/components/shadcn/button";
+import { ErrorDetails } from "@/components/error/error-details";
+import { cn } from "@/lib/utils";
+import { logError } from "@/lib/logger";
+
+function toError(value: unknown): Error {
+  if (value instanceof Error) return value;
+  return new Error(typeof value === "string" ? value : "An unexpected error occurred");
+}
+
+// =============================================================================
+// Inline Fallback Component
+// =============================================================================
+
+export interface InlineFallbackProps extends FallbackProps {
+  /** Optional title */
+  title?: string;
+  /** Custom className */
+  className?: string;
+  /** Compact mode - smaller, less prominent */
+  compact?: boolean;
+}
+
+/**
+ * Inline error fallback - shows error without disrupting page layout.
+ * Uses amber colors for warnings, red for critical errors.
+ */
+export function InlineFallback({
+  error,
+  resetErrorBoundary,
+  title = "Something went wrong",
+  className,
+  compact = false,
+}: InlineFallbackProps) {
+  const normalizedError = toError(error);
+  const message = normalizedError.message || "An unexpected error occurred";
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-900 dark:bg-red-950/30",
+          className,
+        )}
+      >
+        <AlertCircle className="size-4 shrink-0 text-red-500" />
+        <span className="flex-1 truncate text-red-700 dark:text-red-300">{message}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={resetErrorBoundary}
+          className="h-6 gap-1 px-2 text-xs text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-900"
+        >
+          <RefreshCw className="size-3" />
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn("rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30", className)}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
+          <AlertCircle className="size-5 text-red-600 dark:text-red-400" />
+        </div>
+
+        <div className="min-w-0 flex-1 space-y-3">
+          <div>
+            <h3 className="font-medium text-red-900 dark:text-red-100">{title}</h3>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-300">{message}</p>
+          </div>
+
+          <ErrorDetails error={normalizedError} />
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetErrorBoundary}
+            className="gap-1.5 border-red-300 text-red-700 hover:bg-red-100 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900"
+          >
+            <RefreshCw className="size-3.5" />
+            Try again
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Inline Error Boundary
+// =============================================================================
+
+export interface InlineErrorBoundaryProps {
+  /** Children to render */
+  children: React.ReactNode;
+  /** Optional title for fallback */
+  title?: string;
+  /** Custom className for fallback */
+  className?: string;
+  /** Compact mode for fallback */
+  compact?: boolean;
+  /** Reset keys - when these change, the boundary resets */
+  resetKeys?: unknown[];
+  /** Callback when error is caught */
+  onError?: (error: unknown, info: React.ErrorInfo) => void;
+  /** Callback when boundary resets */
+  onReset?: () => void;
+}
+
+/**
+ * Inline error boundary that doesn't disrupt page layout.
+ *
+ * Uses react-error-boundary under the hood for reliable error catching.
+ * Logs errors automatically and provides retry functionality.
+ *
+ * @example
+ * ```tsx
+ * // Wrap a component that might fail
+ * <InlineErrorBoundary title="Unable to load pools">
+ *   <PoolsTable />
+ * </InlineErrorBoundary>
+ *
+ * // Compact mode for smaller areas
+ * <InlineErrorBoundary compact resetKeys={[poolId]}>
+ *   <PoolDetails poolId={poolId} />
+ * </InlineErrorBoundary>
+ * ```
+ */
+export function InlineErrorBoundary({
+  children,
+  title,
+  className,
+  compact = false,
+  resetKeys,
+  onError,
+  onReset,
+}: InlineErrorBoundaryProps) {
+  const handleError = (error: unknown, info: React.ErrorInfo) => {
+    logError("Inline error boundary caught:", error, info);
+    onError?.(error, info);
+  };
+
+  return (
+    <ReactErrorBoundary
+      fallbackRender={(props) => (
+        <InlineFallback
+          {...props}
+          title={title}
+          className={className}
+          compact={compact}
+        />
+      )}
+      onError={handleError}
+      onReset={onReset}
+      resetKeys={resetKeys}
+    >
+      {children}
+    </ReactErrorBoundary>
+  );
+}

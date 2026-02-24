@@ -43,6 +43,9 @@ profile, including bucket and pool defaults.
     accessible:
     - my-pool
     - team-pool
+  roles:
+  - osmo-user
+  - osmo-ml-team
 
 .. _profile_default_dataset_bucket:
 

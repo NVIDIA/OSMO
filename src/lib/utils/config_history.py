@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ class ConfigHistoryType(enum.Enum):
     BACKEND = 'BACKEND'
     POOL = 'POOL'
     POD_TEMPLATE = 'POD_TEMPLATE'
+    GROUP_TEMPLATE = 'GROUP_TEMPLATE'
     RESOURCE_VALIDATION = 'RESOURCE_VALIDATION'
     BACKEND_TEST = 'BACKEND_TEST'
     ROLE = 'ROLE'

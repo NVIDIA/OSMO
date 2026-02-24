@@ -1,0 +1,154 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * Server-Side Resource Fetching
+ *
+ * Fetch resources data on the server for SSR/RSC.
+ * Uses React's cache() for request deduplication.
+ */
+
+import { cache } from "react";
+import { QueryClient } from "@tanstack/react-query";
+import type { AllResourcesResponse, PoolResourcesResponse } from "@/lib/api/adapter/types";
+import {
+  buildResourcesQueryKey,
+  getResourcesCacheSnapshot,
+  RESOURCES_SHIM_SEED_KEY,
+} from "@/lib/api/adapter/resources-shim";
+
+// =============================================================================
+// Fetch Functions
+// =============================================================================
+
+/**
+ * Fetch all resources across all pools.
+ *
+ * Uses React's cache() for request deduplication within a single render.
+ *
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
+ *
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
+ * @returns Transformed resources data
+ */
+export const fetchResources = cache(async (): Promise<AllResourcesResponse> => {
+  const { getResourcesApiResourcesGet } = await import("../generated");
+  const { transformAllResourcesResponse } = await import("../adapter/transforms");
+
+  const rawData = await getResourcesApiResourcesGet({ all_pools: true });
+  return transformAllResourcesResponse(rawData);
+});
+
+/**
+ * Fetch resources for a specific pool.
+ *
+ * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
+ *
+ * @param poolName - The pool to fetch resources for
+ * @param options - Fetch options - DEPRECATED: Not used with adapter
+ * @returns Resources for the pool
+ */
+export const fetchResourcesByPool = cache(async (poolName: string): Promise<PoolResourcesResponse> => {
+  const { getResourcesApiResourcesGet } = await import("../generated");
+  const { transformResourcesResponse } = await import("../adapter/transforms");
+
+  const rawData = await getResourcesApiResourcesGet({
+    pools: [poolName],
+    all_pools: false,
+  });
+  return transformResourcesResponse(rawData, poolName);
+});
+
+// =============================================================================
+// Prefetch for TanStack Query Hydration
+// =============================================================================
+
+/**
+ * Prefetch resources into a QueryClient for hydration.
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param options - Fetch options
+ */
+export async function prefetchResources(queryClient: QueryClient): Promise<void> {
+  await queryClient.prefetchQuery({
+    queryKey: ["resources", "all"],
+    queryFn: () => fetchResources(),
+  });
+}
+
+import type { SearchChip } from "@/stores/types";
+
+/**
+ * Prefetch the first page of resources for infinite query hydration.
+ *
+ * Uses prefetchInfiniteQuery to match the client's useInfiniteQuery.
+ * Only prefetches the first page - subsequent pages are fetched on demand.
+ *
+ * SHIM NOTE:
+ * - Uses adapter's fetchPaginatedResources which handles client-side filtering
+ * - Returns aggregates computed from the full filtered dataset
+ * - When backend supports filtering/aggregation, adapter will pass through to server
+ *
+ * nuqs Compatibility:
+ * - Accepts filter chips parsed from URL searchParams
+ * - Builds query key matching what client will use
+ * - Ensures cache hit even with URL filters
+ *
+ * @param queryClient - The QueryClient to prefetch into
+ * @param filterChips - Filter chips from URL (optional, for nuqs compatibility)
+ */
+export async function prefetchResourcesList(queryClient: QueryClient, filterChips: SearchChip[] = []): Promise<void> {
+  const queryKey = buildResourcesQueryKey(filterChips);
+
+  // Import adapter function (uses resources-shim with aggregates)
+  const { fetchResources: fetchResourcesWithAggregates } = await import("../adapter/hooks");
+
+  // Convert chips to filter params (matching client-side logic)
+  const pools = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
+  const platforms = filterChips.filter((c) => c.field === "platform").map((c) => c.value);
+  const resourceTypes = filterChips.filter((c) => c.field === "type").map((c) => c.value);
+  const backends = filterChips.filter((c) => c.field === "backend").map((c) => c.value);
+  const search = filterChips.find((c) => c.field === "name")?.value;
+  const hostname = filterChips.find((c) => c.field === "hostname")?.value;
+
+  await queryClient.prefetchInfiniteQuery({
+    queryKey,
+    queryFn: async () => {
+      // Use adapter which goes through shim - returns with aggregates
+      return fetchResourcesWithAggregates({
+        pools: pools.length > 0 ? pools : undefined,
+        platforms: platforms.length > 0 ? platforms : undefined,
+        resourceTypes: resourceTypes.length > 0 ? resourceTypes : undefined,
+        backends: backends.length > 0 ? backends : undefined,
+        search,
+        hostname,
+        limit: 50,
+        offset: 0,
+      });
+    },
+    initialPageParam: { cursor: undefined, offset: 0 },
+  });
+
+  // SHIM: Store the full resource list for client-side cache seeding.
+  // The prefetch above populated resourcesCache with all resources server-side.
+  // Dehydrating this snapshot lets the client warm its shim cache on mount,
+  // avoiding a redundant all_pools=true fetch on first scroll.
+  // Remove when migrating to server-side pagination (Option C).
+  const seed = getResourcesCacheSnapshot();
+  if (seed) {
+    queryClient.setQueryData(RESOURCES_SHIM_SEED_KEY, seed);
+  }
+}

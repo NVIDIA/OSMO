@@ -57,8 +57,6 @@ services:
       value: "true"
     - name: AWS_DEFAULT_REGION
       value: us-east-1
-    - name: OSMO_SKIP_DATA_AUTH
-      value: "1"
 
   worker:
     scaling:

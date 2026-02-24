@@ -1,0 +1,263 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * DataTable Styles
+ *
+ * CSS for the virtualized data table component.
+ * Uses @reference to access Tailwind theme without duplicating CSS.
+ * See: https://tailwindcss.com/docs/functions-and-directives#reference-directive
+ */
+@reference "../../app/globals.css";
+
+/* =============================================================================
+   Base Table Styles
+   ============================================================================= */
+
+.data-table {
+  --data-table-header-height: 2.75rem;
+  --data-table-section-height: 2.25rem;
+  border-collapse: collapse;
+}
+
+/* Virtualized table body - container for absolute positioned rows */
+.data-table-body {
+  position: relative;
+  display: block;
+  /* Background prevents "white flash" during fast scroll when rows aren't rendered yet */
+  @apply bg-white dark:bg-zinc-950;
+}
+
+/* =============================================================================
+   Row Styles - Virtualized Positioning
+   ============================================================================= */
+
+/* Data row - absolute positioned for virtualization */
+.data-table-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  align-items: stretch;
+  will-change: transform;
+  backface-visibility: hidden;
+  /* Subtle fade-in prevents jarring "pop" when rows appear during fast scroll */
+  animation: row-fade-in var(--duration-quick) var(--ease-out);
+
+  /* Fill remaining space to extend row background */
+  &::after {
+    content: "";
+    flex: 1 0 0;
+    min-width: 0;
+  }
+}
+
+/* Fast, subtle fade-in for virtualized rows */
+@keyframes row-fade-in {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Section header row - virtualized */
+.data-table-section-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  /* Use flex layout to ensure proper height distribution */
+  display: flex;
+  align-items: stretch;
+  /* Match data row fade-in for consistency */
+  animation: row-fade-in var(--duration-quick) var(--ease-out);
+  cursor: pointer;
+}
+
+/* Section header cell - ensure vertical centering */
+.data-table-section-row td {
+  /* Make cell a flex container that takes full height */
+  display: flex;
+  align-items: center;
+  flex: 1;
+  padding: 0;
+}
+
+/* Focus state for group rows */
+.data-table-section-row:focus-visible {
+  @apply outline-ring z-1 outline-2;
+  outline-offset: -2px;
+}
+
+/* Header row - flex layout for column alignment */
+.data-table-header-row {
+  display: flex;
+  width: 100%;
+
+  &::after {
+    content: "";
+    flex: 1 0 0;
+    min-width: 0;
+  }
+}
+
+/* =============================================================================
+   Focus States - Keyboard Navigation
+   ============================================================================= */
+
+.data-table-row:focus-visible {
+  @apply z-1 outline-2 outline-blue-500;
+  outline-offset: -2px;
+}
+
+.data-table-row td:focus-visible,
+.data-table-row [role="gridcell"]:focus-visible {
+  @apply bg-blue-50 outline-2 outline-blue-500 dark:bg-blue-500/15;
+  outline-offset: -2px;
+}
+
+.data-table th:focus-visible,
+.data-table [role="columnheader"]:focus-visible {
+  @apply outline-2 outline-blue-500;
+  outline-offset: -2px;
+}
+
+/* =============================================================================
+   Scroll Container
+   ============================================================================= */
+
+.data-table-scroll {
+  @apply overscroll-contain;
+  /* Prevent flex item from growing beyond container width */
+  min-width: 0;
+  /* Ensure scroll container doesn't exceed parent - critical for proper sizing */
+  max-width: 100%;
+  width: 100%;
+  /* Enable scrolling on both axes */
+  overflow: auto;
+}
+
+/* =============================================================================
+   Column Resize Styles
+   ============================================================================= */
+
+.data-table th {
+  position: relative;
+}
+
+/* Resize handle - positioned at right edge of header cell */
+.resize-handle {
+  @apply absolute inset-y-0 end-0 z-1 w-2 cursor-col-resize touch-none select-none;
+
+  &::after {
+    content: "";
+    @apply absolute end-[3px] top-1/4 bottom-1/4 w-0.5 rounded-sm bg-transparent transition-colors duration-150;
+  }
+
+  &:hover::after {
+    @apply bg-zinc-400 dark:bg-zinc-500;
+  }
+
+  &:active::after,
+  &.is-dragging::after {
+    @apply bg-zinc-500 dark:bg-zinc-400;
+  }
+}
+
+.data-table th:hover .resize-handle::after {
+  @apply bg-zinc-300 dark:bg-zinc-700;
+}
+
+.data-table th:hover .resize-handle:hover::after {
+  @apply bg-zinc-400 dark:bg-zinc-500;
+}
+
+/* =============================================================================
+   Smooth Layout Transitions
+   ============================================================================= */
+
+/*
+ * PERFORMANCE NOTE: Transitioning width causes reflow on every animation frame.
+ * However, for table column resizing, this is unavoidable - we need the actual
+ * width to change so content inside cells can reflow properly.
+ *
+ * Mitigations applied:
+ * - Transitions disabled during active resize (line 212: transition: none)
+ * - CSS containment used to limit reflow scope (line 214: contain: layout style)
+ * - Transitions only happen on resize complete (user releases handle)
+ *
+ * Alternative considered: transform: scaleX() - rejected because it distorts text
+ */
+.data-table:not(.is-resizing) th,
+.data-table:not(.is-resizing) td {
+  transition:
+    width var(--duration-normal) var(--ease-out),
+    min-width var(--duration-normal) var(--ease-out);
+}
+
+.is-transitioning th,
+.is-transitioning td {
+  transition:
+    width var(--duration-normal) var(--ease-out),
+    min-width var(--duration-normal) var(--ease-out),
+    opacity var(--duration-normal) var(--ease-out);
+}
+
+/* =============================================================================
+   High-Performance Resize Mode
+   ============================================================================= */
+
+.is-resizing {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  user-select: none;
+  touch-action: none;
+  --is-resizing: 1;
+}
+
+.is-resizing .data-table {
+  will-change: contents;
+  contain: strict;
+}
+
+.is-resizing .data-table th,
+.is-resizing .data-table td {
+  transition: none !important;
+  will-change: width;
+  contain: layout style;
+}
+
+.is-resizing .data-table-row:hover {
+  background: inherit !important;
+}
+
+.is-resizing,
+.is-resizing * {
+  cursor: col-resize !important;
+}
+
+.is-resizing .data-table tbody {
+  pointer-events: none;
+}
+
+.is-resizing .data-table * {
+  box-shadow: none !important;
+}

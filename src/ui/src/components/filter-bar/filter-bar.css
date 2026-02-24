@@ -1,0 +1,380 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * FilterBar component styles.
+ * Uses data attributes for state/variant styling following CLAUDE.md guidance.
+ * Uses semantic design tokens and CSS custom properties instead of Tailwind @apply.
+ *
+ * IMPORTANT: Color variables in globals.css store complete oklch() values
+ * (e.g., --primary: oklch(0.205 0 0)). Use var(--primary) directly -- do NOT
+ * wrap in hsl(). For opacity variants, use color-mix(in oklch, ..., transparent).
+ */
+@reference "../../app/globals.css";
+
+/* =============================================================================
+   CSS Custom Properties (Single Source of Truth)
+   ============================================================================= */
+
+:root {
+  /* FilterBar-specific blue accent colors (matches original design) */
+  --fb-accent-light: rgb(219 234 254); /* blue-100 */
+  --fb-accent-light-hover: rgb(191 219 254); /* blue-200 */
+  --fb-accent: var(--search-accent); /* Uses global search accent for consistency */
+  --fb-accent-dark: rgb(29 78 216); /* blue-700 */
+
+  /* Dropdown max height */
+  --fb-dropdown-max-height: 380px;
+}
+
+/* Dark mode blue accents */
+:is(.dark *) {
+  --fb-accent-light: rgb(30 58 138 / 0.4); /* blue-900/40 */
+  --fb-accent-light-hover: rgb(30 64 175); /* blue-800 */
+  --fb-accent: var(--search-accent); /* Uses global search accent for consistency */
+  --fb-accent-dark: rgb(147 197 253); /* blue-300 */
+}
+
+/* =============================================================================
+   Input Container
+   Extends .search-input-container (from utilities.css) with FilterBar-specific
+   overrides: chip wrapping, tighter gap, error states.
+   ============================================================================= */
+
+.fb-input-container {
+  z-index: 50;
+  flex-wrap: wrap;
+  gap: 0.375rem; /* tighter gap for inline chips */
+}
+
+.fb-input-container[data-error] {
+  animation: fb-shake 0.3s;
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 1px var(--destructive);
+}
+
+.fb-input-container[data-error]:focus-within {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 1px var(--destructive);
+}
+
+/* FilterBar input needs wider min-width to accommodate filter expressions */
+.fb-input {
+  min-width: 150px;
+}
+
+.fb-clear-button {
+  margin-left: 0.25rem;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+  transition-property: color, background-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.fb-clear-button:hover {
+  color: var(--foreground);
+}
+
+/* =============================================================================
+   Search Icon - Error State
+   Base styles come from .search-input-icon (utilities.css).
+   Only the FilterBar-specific error variant is defined here.
+   ============================================================================= */
+
+.fb-search-icon[data-error] {
+  color: var(--destructive);
+}
+
+/* =============================================================================
+   Chips
+   ============================================================================= */
+
+.fb-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  background-color: var(--fb-accent-light);
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--fb-accent-dark);
+  transition-property: color, background-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.fb-chip[data-focused] {
+  outline: 2px solid var(--fb-accent);
+  outline-offset: 1px;
+}
+
+.fb-chip-button {
+  border-radius: 9999px;
+  padding: 0.125rem;
+}
+
+.fb-chip-button:hover {
+  background-color: var(--fb-accent-light-hover);
+}
+
+/* Chip variant styling (Free/Used) */
+.fb-chip-variant {
+  font-weight: 600;
+}
+
+.fb-chip-variant[data-variant="free"] {
+  color: rgb(5 150 105); /* emerald-600 */
+}
+
+/* Dark mode uses .dark class, not prefers-color-scheme */
+:is(.dark *) .fb-chip-variant[data-variant="free"] {
+  color: rgb(52 211 153); /* emerald-400 */
+}
+
+.fb-chip-variant[data-variant="used"] {
+  color: rgb(217 119 6); /* amber-600 */
+}
+
+:is(.dark *) .fb-chip-variant[data-variant="used"] {
+  color: rgb(251 191 36); /* amber-400 */
+}
+
+/* =============================================================================
+   Dropdown
+   ============================================================================= */
+
+.fb-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  margin-top: 0.25rem;
+  display: flex;
+  max-height: var(--fb-dropdown-max-height);
+  flex-direction: column;
+  overflow: hidden; /* single clip boundary — inner .fb-suggestions-scroll is the only scrollbar */
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.fb-dropdown[data-error] {
+  border-color: color-mix(in oklch, var(--destructive) 50%, transparent);
+}
+
+/* =============================================================================
+   Dropdown Content Areas
+   ============================================================================= */
+
+.fb-validation-error {
+  border-bottom: 1px solid color-mix(in oklch, var(--destructive) 20%, transparent);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--destructive);
+  pointer-events: none;
+  user-select: none;
+}
+
+.fb-dropdown-item {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.fb-hint {
+  font-style: italic;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  user-select: none;
+}
+
+.fb-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* =============================================================================
+   Suggestions (Field Prefixes and Values)
+   ============================================================================= */
+
+.fb-suggestion-field-prefix {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--fb-accent);
+}
+
+/* =============================================================================
+   Dropdown Footer
+   ============================================================================= */
+
+.fb-footer {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.fb-footer-kbd {
+  border-radius: 0.25rem;
+  background-color: var(--muted);
+  padding-left: 0.25rem;
+  padding-right: 0.25rem;
+  color: var(--muted-foreground);
+}
+
+/* =============================================================================
+   Preset Buttons
+   ============================================================================= */
+
+.fb-preset-group {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+}
+
+.fb-preset-group [cmdk-group-heading] {
+  padding-left: 0;
+  padding-right: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.fb-preset-group [cmdk-group-items] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+/* =============================================================================
+   Suggestions Group (top padding matches preset group spacing)
+   ============================================================================= */
+
+.fb-suggestions-group {
+  padding-top: 0.5rem;
+}
+
+/* =============================================================================
+   Virtualized Suggestions Container
+   ============================================================================= */
+
+/* cmdk wraps CommandList children in div[cmdk-list-sizer] — thread flex-1
+   through it so the height constraint from .fb-dropdown reaches the scroll container. */
+.fb-dropdown [cmdk-list-sizer] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Fixed-height sections must not shrink when the flex layout constrains height. */
+.fb-preset-group,
+.fb-section-border,
+.fb-loading {
+  flex-shrink: 0;
+}
+
+/* cmdk renders [cmdk-group] > [cmdk-group-items] — thread flex-1 through so
+   .fb-suggestions-scroll can fill the remaining CommandList height. */
+.fb-suggestions-group [cmdk-group-items] {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.fb-suggestions-scroll {
+  contain: layout paint;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* =============================================================================
+   Results Count
+   ============================================================================= */
+
+.fb-results-count {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.fb-results-count-highlight {
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+/* =============================================================================
+   Section Borders
+   ============================================================================= */
+
+.fb-section-border {
+  border-bottom: 1px solid var(--border);
+}
+
+/* =============================================================================
+   Animations
+   ============================================================================= */
+
+@keyframes fb-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(2px);
+  }
+}

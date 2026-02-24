@@ -179,7 +179,7 @@ const LogFilter = ({
                 }}
                 label="Lines"
                 readOnly={localFullLog}
-                helperText="Show last # lines"
+                message="Show last # lines"
               />
               <div className="flex flex-col items-end gap-1">
                 <label htmlFor="fullLog">Full Log</label>
