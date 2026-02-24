@@ -35,6 +35,7 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "workflow name (substring match)",
     prefix: "name:",
     freeFormHint: "Type any name, press Enter",
+    singular: true,
     getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
   },
   {
@@ -61,6 +62,7 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     hint: "app name",
     prefix: "app:",
     freeFormHint: "Type any app, press Enter",
+    singular: true,
     getValues: (workflows) =>
       [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(naturalCompare),
   },

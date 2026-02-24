@@ -56,6 +56,12 @@ interface BaseSearchField<T> {
    * User must select from suggestions; typed values that don't match are rejected.
    */
   requiresValidValue?: boolean;
+  /**
+   * If true, only one chip of this field can exist at a time.
+   * Adding a new chip replaces the existing one instead of appending.
+   * Use for fields where multiple values don't make sense (e.g., search, scope).
+   */
+  singular?: boolean;
   /** Custom hint text shown in dropdown (defaults to label) */
   hint?: string;
   /**
@@ -277,6 +283,12 @@ export interface FilterBarProps<T> {
    * This is independent of pagination/virtualization - it's the true total.
    */
   resultsCount?: ResultsCount;
+  /**
+   * Field ID to use for free-text input (no prefix typed).
+   * When set, typing "foo" and pressing Enter creates a chip for this field
+   * (e.g., "Name: foo") instead of a generic text chip.
+   */
+  defaultField?: string;
 }
 
 /**

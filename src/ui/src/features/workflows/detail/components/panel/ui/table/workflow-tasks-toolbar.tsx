@@ -72,6 +72,7 @@ export const WorkflowTasksToolbar = memo(function WorkflowTasksToolbar({
       onToggleColumn={toggleColumn}
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
+      defaultField="name"
       placeholder="Search tasks... (try 'name:', 'status:', 'node:', 'duration:')"
       searchPresets={TASK_PRESETS}
       resultsCount={resultsCount}

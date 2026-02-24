@@ -36,7 +36,9 @@ import { useMemo } from "react";
 import { useFilteredPools, type PoolFilterParams, type PoolMetadata } from "@/lib/api/adapter/hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
-import { chipsToParams, type ChipMappingConfig } from "@/lib/api/chip-filter-utils";
+import { chipsToParams, filterChipsByFields, type ChipMappingConfig } from "@/lib/api/chip-filter-utils";
+import { filterByChips } from "@/components/filter-bar/lib/filter";
+import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
 
 // =============================================================================
 // Types
@@ -77,6 +79,9 @@ interface UsePoolsDataReturn {
 // Chip to Filter Mapping
 // =============================================================================
 
+/** Fields handled by the shim (converted to PoolFilterParams) */
+const SHIM_HANDLED_FIELDS = new Set(["status", "platform", "backend", "shared", "pool"]);
+
 /**
  * Mapping of FilterBar chip fields to pool filter params.
  *
@@ -88,8 +93,7 @@ const POOL_CHIP_MAPPING: ChipMappingConfig<PoolFilterParams> = {
   platform: { type: "array", paramKey: "platforms" },
   backend: { type: "array", paramKey: "backends" },
   shared: { type: "single", paramKey: "sharedWith" },
-  search: { type: "single", paramKey: "search" },
-  pool: { type: "single", paramKey: "search" },
+  pool: { type: "array", paramKey: "pools" },
 };
 
 // =============================================================================
@@ -108,15 +112,18 @@ export function usePoolsData({
   // Filter out scope chip before passing to adapter (adapter doesn't know about scope)
   const adapterChips = useMemo(() => searchChips.filter((c) => c.field !== "scope"), [searchChips]);
 
-  // Convert chips to filter params using shared utility
+  // Convert shim-handled chips to filter params
   const filterParams = useMemo(
     () => chipsToParams(adapterChips, POOL_CHIP_MAPPING) as PoolFilterParams,
     [adapterChips],
   );
 
+  // Get chips the shim doesn't handle (description, numeric quota/capacity filters)
+  const clientOnlyChips = useMemo(() => filterChipsByFields(adapterChips, SHIM_HANDLED_FIELDS, true), [adapterChips]);
+
   // Use adapter hook (handles client/server filtering transparently)
   const {
-    pools: chipFilteredPools,
+    pools: shimFilteredPools,
     allPools,
     sharingGroups,
     metadata,
@@ -127,6 +134,15 @@ export function usePoolsData({
     error,
     refetch,
   } = useFilteredPools(filterParams, refetchInterval);
+
+  // Build search fields for client-only filtering (description, quota, capacity)
+  const searchFields = useMemo(() => createPoolSearchFields(sharingGroups), [sharingGroups]);
+
+  // Apply client-only chips via match functions in search field definitions
+  const chipFilteredPools = useMemo(() => {
+    if (clientOnlyChips.length === 0) return shimFilteredPools;
+    return filterByChips(shimFilteredPools, clientOnlyChips, searchFields);
+  }, [shimFilteredPools, clientOnlyChips, searchFields]);
 
   // When showAllPools is false, further filter to only accessible pools
   const accessibleSet = useMemo(
@@ -145,9 +161,9 @@ export function usePoolsData({
   }, [showOnlyMyPools, accessibleSet, chipTotal, allPools]);
 
   const filteredTotal = pools.length;
-  // Only chip filters count as "active filters" for the "X of Y" display.
+  // Chip filters (shim + client-only) count as "active filters" for the "X of Y" display.
   // The my/all pools toggle changes scope silently (consistent with workflows/datasets).
-  const hasActiveFilters = hasActiveChipFilters;
+  const hasActiveFilters = hasActiveChipFilters || clientOnlyChips.length > 0;
 
   return {
     pools,

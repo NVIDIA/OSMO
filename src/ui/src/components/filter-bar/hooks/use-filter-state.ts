@@ -49,6 +49,7 @@ interface UseFilterStateOptions<T> {
   fields: readonly SearchField<T>[];
   displayMode?: "free" | "used";
   presets?: { label: string; items: SearchPreset[] }[];
+  defaultField?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,6 +106,7 @@ export function useFilterState<T>({
   fields,
   displayMode,
   presets,
+  defaultField,
 }: UseFilterStateOptions<T>): UseFilterStateReturn<T> {
   // ========== Local UI state ==========
 
@@ -141,7 +143,7 @@ export function useFilterState<T>({
     validationError,
     setValidationError,
     clearValidationError,
-  } = useChips({ chips, onChipsChange, data, fields, displayMode });
+  } = useChips({ chips, onChipsChange, data, fields, displayMode, defaultField });
 
   const { parsedInput, selectables, hints } = useSuggestions({
     inputValue,
