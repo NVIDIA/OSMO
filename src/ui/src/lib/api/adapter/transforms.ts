@@ -307,7 +307,7 @@ function extractCapacity(resource: ResourcesEntry, key: string, conversion: Unit
     used = bytesToGiB(used);
   }
 
-  return { total, used };
+  return { total, used, free: total - used };
 }
 
 /**

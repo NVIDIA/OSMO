@@ -17,12 +17,13 @@
 "use client";
 
 import { memo } from "react";
-import { formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
+import { formatCompact, formatBytes, formatBytesTriple } from "@/lib/utils";
 import type { DisplayMode } from "@/stores/shared-preferences-store";
 
 interface CapacityCellProps {
   used: number;
   total: number;
+  free: number;
   /** If true, values are in GiB and will be formatted with appropriate binary unit */
   isBytes?: boolean;
   mode?: DisplayMode;
@@ -38,6 +39,7 @@ interface CapacityCellProps {
 export const CapacityCell = memo(function CapacityCell({
   used,
   total,
+  free,
   isBytes = false,
   mode = "free",
 }: CapacityCellProps) {
@@ -45,10 +47,8 @@ export const CapacityCell = memo(function CapacityCell({
     return <span className="text-zinc-400 dark:text-zinc-600">—</span>;
   }
 
-  // For bytes, use pair formatting to ensure consistent units
   if (isBytes) {
     if (mode === "free") {
-      const free = total - used;
       const formatted = formatBytes(free);
       return (
         <span className="text-zinc-900 dark:text-zinc-100">
@@ -58,8 +58,7 @@ export const CapacityCell = memo(function CapacityCell({
       );
     }
 
-    // Used/total mode: use consistent units
-    const pair = formatBytesPair(used, total);
+    const pair = formatBytesTriple(used, total, free);
     return (
       <span>
         <span className="text-zinc-900 dark:text-zinc-100">{pair.used}</span>
@@ -68,9 +67,6 @@ export const CapacityCell = memo(function CapacityCell({
       </span>
     );
   }
-
-  // Non-bytes: use compact formatting
-  const free = total - used;
 
   if (mode === "free") {
     return <span className="text-zinc-900 dark:text-zinc-100">{formatCompact(free)}</span>;

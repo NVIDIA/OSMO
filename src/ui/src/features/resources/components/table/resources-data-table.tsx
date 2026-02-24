@@ -78,22 +78,16 @@ function sortResources(resources: Resource[], sort: SortState<string> | null, di
         cmp = naturalCompare(a.backend, b.backend);
         break;
       case "gpu":
-        cmp = displayMode === "free" ? a.gpu.total - a.gpu.used - (b.gpu.total - b.gpu.used) : a.gpu.used - b.gpu.used;
+        cmp = displayMode === "free" ? a.gpu.free - b.gpu.free : a.gpu.used - b.gpu.used;
         break;
       case "cpu":
-        cmp = displayMode === "free" ? a.cpu.total - a.cpu.used - (b.cpu.total - b.cpu.used) : a.cpu.used - b.cpu.used;
+        cmp = displayMode === "free" ? a.cpu.free - b.cpu.free : a.cpu.used - b.cpu.used;
         break;
       case "memory":
-        cmp =
-          displayMode === "free"
-            ? a.memory.total - a.memory.used - (b.memory.total - b.memory.used)
-            : a.memory.used - b.memory.used;
+        cmp = displayMode === "free" ? a.memory.free - b.memory.free : a.memory.used - b.memory.used;
         break;
       case "storage":
-        cmp =
-          displayMode === "free"
-            ? a.storage.total - a.storage.used - (b.storage.total - b.storage.used)
-            : a.storage.used - b.storage.used;
+        cmp = displayMode === "free" ? a.storage.free - b.storage.free : a.storage.used - b.storage.used;
         break;
     }
     return sort.direction === "asc" ? cmp : -cmp;

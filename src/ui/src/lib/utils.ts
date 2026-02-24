@@ -120,18 +120,20 @@ function gibToUnit(gib: number, unit: ByteUnit): number {
   }
 }
 
-// Format used/total with consistent units, using the more granular unit
-export function formatBytesPair(
+// Format used/total/free with consistent units, using the more granular unit
+export function formatBytesTriple(
   usedGib: number,
   totalGib: number,
+  freeGib: number,
 ): { used: string; total: string; unit: ByteUnit; freeDisplay: string } {
   if (usedGib === 0) {
     const totalFormatted = formatBytes(totalGib);
+    const freeFormatted = formatBytes(freeGib);
     return {
       used: "0",
       total: totalFormatted.value,
       unit: totalFormatted.unit,
-      freeDisplay: totalFormatted.display,
+      freeDisplay: freeFormatted.display,
     };
   }
 
@@ -154,7 +156,7 @@ export function formatBytesPair(
 
   const usedInUnit = gibToUnit(usedGib, unit);
   const totalInUnit = gibToUnit(totalGib, unit);
-  const freeInUnit = totalInUnit - usedInUnit;
+  const freeInUnit = gibToUnit(freeGib, unit);
 
   return {
     used: formatDecimal(usedInUnit),
