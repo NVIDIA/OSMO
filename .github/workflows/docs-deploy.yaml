@@ -59,7 +59,7 @@ jobs:
       - name: Build Sphinx documentation
         run: |
           make -C docs build-multiversion ERR_DIR=build_error_logs OUT_DIR=public
-          rm -rf docs/public/.doctrees
+          rm -rf docs/public/**/.doctrees
 
       - name: Check for build errors
         run: |
