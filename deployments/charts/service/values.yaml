@@ -117,6 +117,19 @@ services:
     tolerations: []
     resources: {}
 
+    ## Annotations on the Job and ConfigMap resources.
+    ## Use this to configure Helm hooks, ArgoCD hooks, or other orchestration.
+    ## Example for ArgoCD PreSync:
+    ##   extraAnnotations:
+    ##     argocd.argoproj.io/hook: PreSync
+    ##     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    ## Example for Helm pre-upgrade:
+    ##   extraAnnotations:
+    ##     "helm.sh/hook": pre-install,pre-upgrade
+    ##     "helm.sh/hook-delete-policy": hook-succeeded
+    ##
+    extraAnnotations: {}
+
     ## Extra configuration for extensibility
     ##
     extraPodAnnotations: {}

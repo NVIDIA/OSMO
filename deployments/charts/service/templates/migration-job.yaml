@@ -26,9 +26,12 @@ kind: ConfigMap
 metadata:
   name: pgroll-migration-files
   annotations:
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": hook-succeeded
+    {{- with .Values.services.migration.extraAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 data:
   {{- range $path, $content := .Files.Glob "migrations/*" }}
   {{ base $path }}: |
@@ -40,9 +43,12 @@ kind: Job
 metadata:
   name: pgroll-migrate-{{ .Release.Revision }}
   annotations:
-    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-5"
     "helm.sh/hook-delete-policy": hook-succeeded
+    {{- with .Values.services.migration.extraAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   backoffLimit: 0
   ttlSecondsAfterFinished: 300
