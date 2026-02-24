@@ -23,10 +23,10 @@ import type { Resource } from "@/lib/api/adapter/types";
  * Computed server-side on initial load, client-side when filters change.
  */
 export interface ResourceAggregates {
-  gpu: { used: number; total: number };
-  cpu: { used: number; total: number };
-  memory: { used: number; total: number };
-  storage: { used: number; total: number };
+  gpu: { used: number; total: number; free: number };
+  cpu: { used: number; total: number; free: number };
+  memory: { used: number; total: number; free: number };
+  storage: { used: number; total: number; free: number };
 }
 
 /**
@@ -40,29 +40,37 @@ export interface ResourceAggregates {
  */
 export function computeAggregates(resources: Resource[]): ResourceAggregates {
   let gpuUsed = 0,
-    gpuTotal = 0;
+    gpuTotal = 0,
+    gpuFree = 0;
   let cpuUsed = 0,
-    cpuTotal = 0;
+    cpuTotal = 0,
+    cpuFree = 0;
   let memUsed = 0,
-    memTotal = 0;
+    memTotal = 0,
+    memFree = 0;
   let storUsed = 0,
-    storTotal = 0;
+    storTotal = 0,
+    storFree = 0;
 
   for (const r of resources) {
     gpuUsed += r.gpu.used;
     gpuTotal += r.gpu.total;
+    gpuFree += r.gpu.free;
     cpuUsed += r.cpu.used;
     cpuTotal += r.cpu.total;
+    cpuFree += r.cpu.free;
     memUsed += r.memory.used;
     memTotal += r.memory.total;
+    memFree += r.memory.free;
     storUsed += r.storage.used;
     storTotal += r.storage.total;
+    storFree += r.storage.free;
   }
 
   return {
-    gpu: { used: gpuUsed, total: gpuTotal },
-    cpu: { used: cpuUsed, total: cpuTotal },
-    memory: { used: memUsed, total: memTotal },
-    storage: { used: storUsed, total: storTotal },
+    gpu: { used: gpuUsed, total: gpuTotal, free: gpuFree },
+    cpu: { used: cpuUsed, total: cpuTotal, free: cpuFree },
+    memory: { used: memUsed, total: memTotal, free: memFree },
+    storage: { used: storUsed, total: storTotal, free: storFree },
   };
 }

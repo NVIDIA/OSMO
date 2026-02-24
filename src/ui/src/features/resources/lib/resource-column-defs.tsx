@@ -140,7 +140,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "gpu",
-      accessorFn: (row) => (displayMode === "free" ? row.gpu.total - row.gpu.used : row.gpu.used),
+      accessorFn: (row) => (displayMode === "free" ? row.gpu.free : row.gpu.used),
       header: COLUMN_LABELS.gpu,
       minSize: getMinSize("gpu"),
       cell: ({ row }) => (
@@ -148,6 +148,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.gpu.used}
             total={row.original.gpu.total}
+            free={row.original.gpu.free}
             mode={displayMode}
           />
         </div>
@@ -156,7 +157,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "cpu",
-      accessorFn: (row) => (displayMode === "free" ? row.cpu.total - row.cpu.used : row.cpu.used),
+      accessorFn: (row) => (displayMode === "free" ? row.cpu.free : row.cpu.used),
       header: COLUMN_LABELS.cpu,
       minSize: getMinSize("cpu"),
       cell: ({ row }) => (
@@ -164,6 +165,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.cpu.used}
             total={row.original.cpu.total}
+            free={row.original.cpu.free}
             mode={displayMode}
           />
         </div>
@@ -172,7 +174,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "memory",
-      accessorFn: (row) => (displayMode === "free" ? row.memory.total - row.memory.used : row.memory.used),
+      accessorFn: (row) => (displayMode === "free" ? row.memory.free : row.memory.used),
       header: COLUMN_LABELS.memory,
       minSize: getMinSize("memory"),
       cell: ({ row }) => (
@@ -180,6 +182,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.memory.used}
             total={row.original.memory.total}
+            free={row.original.memory.free}
             isBytes
             mode={displayMode}
           />
@@ -189,7 +192,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "storage",
-      accessorFn: (row) => (displayMode === "free" ? row.storage.total - row.storage.used : row.storage.used),
+      accessorFn: (row) => (displayMode === "free" ? row.storage.free : row.storage.used),
       header: COLUMN_LABELS.storage,
       minSize: getMinSize("storage"),
       cell: ({ row }) => (
@@ -197,6 +200,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.storage.used}
             total={row.original.storage.total}
+            free={row.original.storage.free}
             isBytes
             mode={displayMode}
           />
