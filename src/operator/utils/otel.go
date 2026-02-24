@@ -101,7 +101,7 @@ type otelFlagPointers struct {
 func RegisterOTELFlags(defaultComponent string) func() OTELConfig {
 	ptrs := &otelFlagPointers{
 		enable: flag.Bool("metricsOtelEnable",
-			sharedutils.GetEnvBool("METRICS_OTEL_ENABLE", true),
+			sharedutils.GetEnvBool("METRICS_OTEL_ENABLE", false),
 			"Enable OpenTelemetry metrics"),
 		host: flag.String("metricsOtelCollectorHost",
 			sharedutils.GetEnv("METRICS_OTEL_COLLECTOR_HOST", "127.0.0.1"),
