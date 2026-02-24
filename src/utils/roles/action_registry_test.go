@@ -296,6 +296,82 @@ func TestInternalActionsRestricted(t *testing.T) {
 	}
 }
 
+func TestGRPCPathsResolveToActionInternalOperator(t *testing.T) {
+	tests := []struct {
+		name       string
+		path       string
+		method     string
+		wantAction string
+	}{
+		{
+			name:       "ListenerStream resolves to ActionInternalOperator",
+			path:       "/operator.ListenerService/ListenerStream",
+			method:     "POST",
+			wantAction: ActionInternalOperator,
+		},
+		{
+			name:       "NodeConditionStream resolves to ActionInternalOperator",
+			path:       "/operator.ListenerService/NodeConditionStream",
+			method:     "POST",
+			wantAction: ActionInternalOperator,
+		},
+		{
+			name:       "InitBackend resolves to ActionInternalOperator",
+			path:       "/operator.ListenerService/InitBackend",
+			method:     "POST",
+			wantAction: ActionInternalOperator,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action, _ := ResolvePathToAction(context.Background(), tt.path, tt.method, nil)
+			if action != tt.wantAction {
+				t.Errorf("ResolvePathToAction(%q, %q) = %q, want %q",
+					tt.path, tt.method, action, tt.wantAction)
+			}
+		})
+	}
+}
+
+func TestExtractResourceFromPathGRPC(t *testing.T) {
+	tests := []struct {
+		name         string
+		path         string
+		action       string
+		wantResource string
+	}{
+		{
+			name:         "gRPC path returns backend wildcard (no agent segment)",
+			path:         "/operator.ListenerService/ListenerStream",
+			action:       ActionInternalOperator,
+			wantResource: "backend/*",
+		},
+		{
+			name:         "gRPC NodeConditionStream returns backend wildcard",
+			path:         "/operator.ListenerService/NodeConditionStream",
+			action:       ActionInternalOperator,
+			wantResource: "backend/*",
+		},
+		{
+			name:         "gRPC InitBackend returns backend wildcard",
+			path:         "/operator.ListenerService/InitBackend",
+			action:       ActionInternalOperator,
+			wantResource: "backend/*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractResourceFromPath(context.Background(), tt.path, tt.action, nil)
+			if got != tt.wantResource {
+				t.Errorf("extractResourceFromPath(%q, %q) = %q, want %q",
+					tt.path, tt.action, got, tt.wantResource)
+			}
+		})
+	}
+}
+
 // ============================================================================
 // Legacy to Semantic Conversion Tests
 // ============================================================================

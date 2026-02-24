@@ -64,7 +64,11 @@ func (ncrl *NodeConditionRuleListener) Run(ctx context.Context) error {
 
 	client := pb.NewListenerServiceClient(conn)
 
-	md := metadata.Pairs("backend-name", ncrl.args.Backend)
+	md := metadata.Pairs(
+		"backend-name", ncrl.args.Backend,
+		"x-osmo-user", ncrl.args.ServiceUser,
+		"x-osmo-roles", ncrl.args.ServiceRoles,
+	)
 	streamCtx := metadata.NewOutgoingContext(ctx, md)
 
 	stream, err := client.NodeConditionStream(streamCtx, &pb.NodeConditionStreamRequest{})

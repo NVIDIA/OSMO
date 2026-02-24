@@ -28,6 +28,8 @@ import (
 type ListenerArgs struct {
 	ServiceURL            string
 	Backend               string
+	ServiceUser           string
+	ServiceRoles          string
 	Namespace             string
 	PodUpdateChanSize     int
 	NodeUpdateChanSize    int // Buffer size for node update channel
@@ -56,6 +58,12 @@ func ListenerParse() ListenerArgs {
 	backend := flag.String("backend",
 		sharedutils.GetEnv("BACKEND", "default"),
 		"The backend to connect to.")
+	serviceUser := flag.String("service-user",
+		sharedutils.GetEnv("SERVICE_USER", ""),
+		"The service user identity sent in gRPC auth metadata.")
+	serviceRoles := flag.String("service-roles",
+		sharedutils.GetEnv("SERVICE_ROLES", ""),
+		"Comma-separated list of roles sent in gRPC auth metadata (e.g. osmo-operator,osmo-internal).")
 	namespace := flag.String("namespace",
 		sharedutils.GetEnv("OSMO_NAMESPACE", "osmo"),
 		"Kubernetes namespace to watch")
@@ -110,6 +118,8 @@ func ListenerParse() ListenerArgs {
 	return ListenerArgs{
 		ServiceURL:            *serviceURL,
 		Backend:               *backend,
+		ServiceUser:           *serviceUser,
+		ServiceRoles:          *serviceRoles,
 		Namespace:             *namespace,
 		PodUpdateChanSize:     *podUpdateChanSize,
 		NodeUpdateChanSize:    *nodeUpdateChanSize,

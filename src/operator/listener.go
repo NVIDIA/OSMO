@@ -70,8 +70,13 @@ func main() {
 		inst = utils.NewNoopInstruments()
 	}
 
-	// Add backend-name to metadata
-	md := metadata.Pairs("backend-name", cmdArgs.Backend)
+	// Add backend-name and service identity to metadata
+	md := metadata.Pairs(
+		"backend-name", cmdArgs.Backend,
+		"x-osmo-user", cmdArgs.ServiceUser,
+		"x-osmo-roles", cmdArgs.ServiceRoles,
+	)
+
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	if err := initializeBackend(ctx, cmdArgs, inst); err != nil {
