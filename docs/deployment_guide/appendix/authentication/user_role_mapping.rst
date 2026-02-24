@@ -18,30 +18,74 @@
 .. _user_role_mapping:
 
 ================================================
-Managing User Role Mapping in OSMO
+IdP Role Mapping and Sync Modes
 ================================================
 
-This section describes how to manage which roles users have in OSMO: by assigning roles directly via the CLI, by mapping roles from your identity provider (IdP), and how **role sync mode** controls whether IdP claims can add or remove roles.
+When you use an identity provider (IdP) with OSMO, your IdP sends group or role claims in the JWT at login (e.g. a ``groups`` claim from Microsoft Entra ID, or a custom claim from Okta). OSMO uses these claims to determine which OSMO roles a user should receive. This page explains how that mapping works and how **sync modes** control whether IdP claims can add, remove, or leave roles unchanged.
 
-Ways to assign roles
-====================
+For creating users and assigning roles directly via the CLI (with or without an IdP), see :doc:`managing_users`.
 
-**1. Direct assignment via OSMO CLI**
+How IdP roles connect to OSMO roles
+=====================================
 
-Roles can be assigned to users regardless of whether you use an IdP:
+OSMO does not use IdP group names directly as role names. Instead, it maintains a mapping layer (``role_external_mappings``) that translates **external** names (what your IdP sends) into **OSMO role** names.
 
-- **Assign a role to a user:** ``osmo user roles add <user_id> <role_name>``
-- **Remove a role:** ``osmo user roles remove <user_id> <role_name>``
-- **List a user's roles:** ``osmo user roles list <user_id>``
+**Flow:** IdP group claim (e.g. ``LDAP_ML_TEAM``) → external mapping → OSMO role (e.g. ``ml-team``) → policies → allow/deny
 
-When you create a user with ``osmo user create``, you can optionally pass roles to assign initial roles. Only users with the ``osmo-admin`` role can assign or remove roles.
+Key points:
 
-**2. IdP group/role claims (when using an IdP)**
+- **Many-to-many mapping:** Multiple external names can map to one OSMO role, and one external name can map to multiple OSMO roles.
+- **Default 1:1 mapping:** When a role is created in OSMO, it automatically gets a mapping from its own name (e.g. role ``osmo-user`` maps from external name ``osmo-user``). If your IdP already sends OSMO role names, no extra configuration is needed.
+- **Custom mappings:** If your IdP sends different names (e.g. ``ad-developers`` instead of ``osmo-user``), configure the ``external_roles`` field on the role to map from those names. See :ref:`configuring_external_mappings` below.
 
-When users log in via an IdP, the IdP may send group or role names in the JWT (e.g. ``groups`` or a custom claim). OSMO can map those **external** names to OSMO role names using the ``role_external_mappings`` table, then apply those roles to the user according to each role's **sync mode** (see below).
+Example
+-------
 
-- **External name to OSMO role:** e.g. map ``LDAP_ML_TEAM`` to ``ml-team``, or ``ad-developers`` to ``osmo-user``. Multiple external roles can map to one OSMO role, and one external role can map to multiple OSMO roles.
-- **Where to configure:** Role external mappings are managed in the database (e.g. via migrations or admin tooling). By default, each OSMO role gets a 1:1 mapping (OSMO role name to same external name) so if your IdP already sends OSMO role names, no extra mapping is needed.
+Your IdP sends a ``groups`` claim with the value ``["LDAP_ML_TEAM", "ad-developers"]`` for a user. You have configured:
+
+- OSMO role ``ml-team`` with ``external_roles: ["LDAP_ML_TEAM"]``
+- OSMO role ``osmo-user`` with ``external_roles: ["ad-developers", "osmo-user"]``
+
+On login, OSMO resolves the IdP groups through the mapping and assigns ``ml-team`` and ``osmo-user`` to the user (subject to each role's sync mode).
+
+.. _configuring_external_mappings:
+
+Configuring external mappings
+-----------------------------
+
+External mappings are configured via the ``external_roles`` field on each role. Use the ``osmo config`` CLI to update a role's mappings:
+
+.. code-block:: bash
+
+   # View current role definition including external_roles
+   $ osmo config show ROLE ml-team
+
+   # Update the role to map from specific IdP group names
+   $ cat > ml-team-role.json <<EOF
+   [
+     {
+       "name": "ml-team",
+       "description": "ML team role",
+       "external_roles": ["LDAP_ML_TEAM", "ml-engineering"],
+       "policies": [
+         {
+           "actions": ["workflow:*", "pool:List"],
+           "resources": ["pool/ml-training"]
+         }
+       ]
+     }
+   ]
+   EOF
+
+   $ osmo config update ROLE -f ml-team-role.json
+
+The ``external_roles`` field accepts:
+
+- ``null`` (not set): Preserves existing mappings. For new roles, OSMO creates a default 1:1 mapping.
+- ``[]`` (empty list): Clears all external mappings. The role will not be assigned via IdP sync.
+- ``["group-a", "group-b"]``: Maps the specified external names to this role.
+
+.. _role_sync_modes:
 
 Role sync modes
 ===============
@@ -100,6 +144,7 @@ Sync mode is a property of the **role** in the OSMO database (e.g. ``roles.sync_
 
 .. seealso::
 
+   - :doc:`managing_users` for creating users and assigning roles via the CLI
    - :doc:`index` for authentication overview with and without an IdP
    - :doc:`roles_policies` for role and policy definitions
    - :doc:`identity_provider_setup` for IdP configuration
