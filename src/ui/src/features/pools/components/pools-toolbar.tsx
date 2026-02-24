@@ -132,6 +132,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       onToggleColumn={toggleColumn}
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
+      defaultField="pool"
       placeholder="Search pools... (try 'pool:', 'platform:', 'status:')"
       searchPresets={[
         { label: "User", items: [myPoolsPreset] },

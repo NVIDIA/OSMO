@@ -424,7 +424,7 @@ export function buildResourcesQueryKey(chips: SearchChip[] = [], clientFilters =
     .map((c) => c.value)
     .sort()
     .join(",");
-  const search = chips.find((c) => c.field === "text")?.value ?? "";
+  const search = "";
   const hostname = chips.find((c) => c.field === "hostname")?.value ?? "";
 
   return [

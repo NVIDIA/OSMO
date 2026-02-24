@@ -87,7 +87,7 @@ interface UseResourcesDataReturn {
 // =============================================================================
 
 /** Fields handled by the shim (these get converted to params) */
-const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "resource", "hostname", "text"]);
+const SHIM_HANDLED_FIELDS = new Set(["pool", "platform", "type", "backend", "resource", "hostname"]);
 
 /**
  * Mapping of FilterBar chip fields to resource filter params.
@@ -102,7 +102,6 @@ const RESOURCE_CHIP_MAPPING: ChipMappingConfig<ResourceFilterParams> = {
   backend: { type: "array", paramKey: "backends" },
   resource: { type: "array", paramKey: "resources" },
   hostname: { type: "single", paramKey: "hostname" },
-  text: { type: "single", paramKey: "search" },
 };
 
 // =============================================================================

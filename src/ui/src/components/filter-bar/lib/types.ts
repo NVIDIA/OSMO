@@ -283,6 +283,12 @@ export interface FilterBarProps<T> {
    * This is independent of pagination/virtualization - it's the true total.
    */
   resultsCount?: ResultsCount;
+  /**
+   * Field ID to use for free-text input (no prefix typed).
+   * When set, typing "foo" and pressing Enter creates a chip for this field
+   * (e.g., "Name: foo") instead of a generic text chip.
+   */
+  defaultField?: string;
 }
 
 /**

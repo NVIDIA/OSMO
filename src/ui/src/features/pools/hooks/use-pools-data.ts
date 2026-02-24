@@ -80,7 +80,7 @@ interface UsePoolsDataReturn {
 // =============================================================================
 
 /** Fields handled by the shim (converted to PoolFilterParams) */
-const SHIM_HANDLED_FIELDS = new Set(["status", "platform", "backend", "shared", "text", "pool"]);
+const SHIM_HANDLED_FIELDS = new Set(["status", "platform", "backend", "shared", "pool"]);
 
 /**
  * Mapping of FilterBar chip fields to pool filter params.
@@ -93,7 +93,6 @@ const POOL_CHIP_MAPPING: ChipMappingConfig<PoolFilterParams> = {
   platform: { type: "array", paramKey: "platforms" },
   backend: { type: "array", paramKey: "backends" },
   shared: { type: "single", paramKey: "sharedWith" },
-  text: { type: "single", paramKey: "search" },
   pool: { type: "array", paramKey: "pools" },
 };
 
