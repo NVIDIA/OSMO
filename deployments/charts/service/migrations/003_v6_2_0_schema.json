@@ -1,0 +1,170 @@
+{
+  "operations": [
+    {
+      "create_table": {
+        "name": "users",
+        "columns": [
+          { "name": "id", "type": "TEXT", "pk": true },
+          { "name": "created_at", "type": "TIMESTAMP WITH TIME ZONE", "nullable": false, "default": "NOW()" },
+          { "name": "created_by", "type": "TEXT", "nullable": true }
+        ]
+      }
+    },
+    {
+      "create_table": {
+        "name": "user_roles",
+        "columns": [
+          { "name": "id", "type": "UUID", "pk": true, "default": "gen_random_uuid()" },
+          {
+            "name": "user_id",
+            "type": "TEXT",
+            "nullable": false,
+            "references": {
+              "name": "fk_user_roles_user",
+              "table": "users",
+              "column": "id",
+              "on_delete": "CASCADE"
+            }
+          },
+          {
+            "name": "role_name",
+            "type": "TEXT",
+            "nullable": false,
+            "references": {
+              "name": "fk_user_roles_role",
+              "table": "roles",
+              "column": "name",
+              "on_delete": "CASCADE"
+            }
+          },
+          { "name": "assigned_by", "type": "TEXT", "nullable": false },
+          { "name": "assigned_at", "type": "TIMESTAMP WITH TIME ZONE", "nullable": false, "default": "NOW()" }
+        ]
+      }
+    },
+    {
+      "create_index": {
+        "name": "idx_user_roles_user",
+        "table": "user_roles",
+        "columns": [{"column": "user_id"}]
+      }
+    },
+    {
+      "create_index": {
+        "name": "idx_user_roles_role",
+        "table": "user_roles",
+        "columns": [{"column": "role_name"}]
+      }
+    },
+    {
+      "create_table": {
+        "name": "access_token_roles",
+        "columns": [
+          { "name": "user_name", "type": "TEXT", "nullable": false },
+          { "name": "token_name", "type": "TEXT", "nullable": false },
+          {
+            "name": "user_role_id",
+            "type": "UUID",
+            "nullable": false,
+            "references": {
+              "name": "fk_atr_user_role",
+              "table": "user_roles",
+              "column": "id",
+              "on_delete": "CASCADE"
+            }
+          },
+          { "name": "assigned_by", "type": "TEXT", "nullable": false },
+          { "name": "assigned_at", "type": "TIMESTAMP WITH TIME ZONE", "nullable": false, "default": "NOW()" }
+        ]
+      }
+    },
+    {
+      "create_index": {
+        "name": "idx_access_token_roles_token",
+        "table": "access_token_roles",
+        "columns": [{"column": "user_name"}, {"column": "token_name"}]
+      }
+    },
+    {
+      "create_index": {
+        "name": "idx_access_token_roles_user_role",
+        "table": "access_token_roles",
+        "columns": [{"column": "user_role_id"}]
+      }
+    },
+    {
+      "add_column": {
+        "table": "access_token",
+        "column": {
+          "name": "last_seen_at",
+          "type": "TIMESTAMP WITH TIME ZONE",
+          "nullable": true
+        }
+      }
+    },
+    {
+      "add_column": {
+        "table": "roles",
+        "up": "'import'",
+        "column": {
+          "name": "sync_mode",
+          "type": "TEXT",
+          "nullable": false,
+          "default": "'import'"
+        }
+      }
+    },
+    {
+      "create_table": {
+        "name": "role_external_mappings",
+        "columns": [
+          {
+            "name": "role_name",
+            "type": "TEXT",
+            "nullable": false,
+            "references": {
+              "name": "fk_rem_role",
+              "table": "roles",
+              "column": "name",
+              "on_delete": "CASCADE"
+            }
+          },
+          { "name": "external_role", "type": "TEXT", "nullable": false }
+        ]
+      }
+    },
+    {
+      "create_index": {
+        "name": "idx_role_external_mappings_external_role",
+        "table": "role_external_mappings",
+        "columns": [{"column": "external_role"}]
+      }
+    },
+    {
+      "drop_column": {
+        "table": "access_token",
+        "column": "access_type",
+        "down": "'USER'"
+      }
+    },
+    {
+      "drop_column": {
+        "table": "access_token",
+        "column": "roles",
+        "down": "'{}'"
+      }
+    },
+    {
+      "drop_column": {
+        "table": "dataset_version",
+        "column": "retention_policy"
+      }
+    },
+    {
+      "drop_column": {
+        "table": "pools",
+        "column": "action_permissions"
+      }
+    }
+  ]
+}

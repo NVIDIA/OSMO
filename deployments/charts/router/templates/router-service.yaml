@@ -114,6 +114,8 @@ spec:
         {{- end }}
         {{- end }}
         env:
+        - name: OSMO_SCHEMA_VERSION
+          value: {{ .Values.schemaVersion | default "public" }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
