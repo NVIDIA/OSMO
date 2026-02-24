@@ -88,7 +88,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
 
         return {
           id,
-          chips: [{ field: "status", value: id, label: `Status: ${label}` }],
+          chips: [{ field: "status", value: id, label: `status: ${label}` }],
           // Custom render matching the table's status badge exactly
           render: ({ active }: PresetRenderProps) => (
             <span className={presetPillClasses(styles.bg, active)}>

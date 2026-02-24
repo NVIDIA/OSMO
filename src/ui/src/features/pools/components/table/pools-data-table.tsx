@@ -134,7 +134,7 @@ export const PoolsDataTable = memo(function PoolsDataTable({
               {
                 field: "shared",
                 value: poolName,
-                label: `Shared: ${poolName}`,
+                label: `shared: ${poolName}`,
               },
             ]);
           });

@@ -623,6 +623,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
           onToggleColumn={toggleColumn}
           searchChips={searchChips}
           onSearchChipsChange={setSearchChips}
+          defaultField="name"
           placeholder="Filter by name, status:, ip:, duration:..."
           searchPresets={TASK_PRESETS}
           resultsCount={resultsCount}

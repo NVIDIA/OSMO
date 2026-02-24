@@ -97,7 +97,7 @@ export function useChips<T>({
 
       // Resolve shorthand fields to explicit form
       let resolvedField = field;
-      let resolvedLabel = `${field.label}: ${value}`;
+      let resolvedLabel = `${field.id}: ${value}`;
       let chipVariant = field.variant;
 
       if (field.resolveTo && displayMode) {
@@ -105,7 +105,7 @@ export function useChips<T>({
         const targetField = fields.find((f) => f.id === targetFieldId);
         if (targetField) {
           resolvedField = targetField;
-          resolvedLabel = `${targetField.label}: ${value}`;
+          resolvedLabel = `${targetField.id}: ${value}`;
           chipVariant = targetField.variant;
         }
       }
@@ -139,7 +139,7 @@ export function useChips<T>({
         const newChip: SearchChip = {
           field: fieldDef.id,
           value,
-          label: `${fieldDef.label}: ${value}`,
+          label: `${fieldDef.id}: ${value}`,
           variant: fieldDef.variant,
         };
         if (fieldDef.singular) {

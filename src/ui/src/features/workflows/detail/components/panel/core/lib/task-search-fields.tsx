@@ -342,6 +342,7 @@ export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
     id: "duration",
     label: "Duration",
     prefix: "duration:",
+    singular: true,
     getValues: () => [],
     match: (task, value) => {
       const durationMs = (task.duration ?? 0) * 1000;
@@ -354,6 +355,7 @@ export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
     id: "started",
     label: "Started",
     prefix: "started:",
+    singular: true,
     getValues: () => ["last 10m", "last 1h", "last 24h", "last 7d", "today", "yesterday"],
     match: (task, value) => {
       if (!task.start_time) return false;
@@ -366,6 +368,7 @@ export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
     id: "ended",
     label: "Ended",
     prefix: "ended:",
+    singular: true,
     getValues: () => ["last 10m", "last 1h", "last 24h", "last 7d", "today", "yesterday"],
     match: (task, value) => {
       if (!task.end_time) return false;
@@ -432,7 +435,7 @@ export function createPresetChips(stateCategory: StateCategory): SearchChip[] {
   return statuses.map((status) => ({
     field: "status",
     value: status,
-    label: `Status: ${status}`,
+    label: `status: ${status}`,
   }));
 }
 
@@ -471,7 +474,7 @@ export function togglePreset(stateCategory: StateCategory, chips: SearchChip[]):
         newChips.push({
           field: "status",
           value: status,
-          label: `Status: ${STATUS_LABELS[status] ?? status}`,
+          label: `status: ${STATUS_LABELS[status] ?? status}`,
         });
       }
     }
