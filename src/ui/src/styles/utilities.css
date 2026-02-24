@@ -1,0 +1,306 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* =============================================================================
+   CUSTOM UTILITIES
+   Performance optimizations, layout utilities, and custom Tailwind extensions
+   ============================================================================= */
+
+@layer utilities {
+  /* ==========================================================================
+     Performance Utilities
+     GPU-accelerated transforms and optimizations for smooth animations
+     ========================================================================== */
+
+  /* Force GPU layer for smooth transforms and animations */
+  .gpu-layer {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  /* ==========================================================================
+     CSS Containment - Isolate layout/paint calculations for performance
+
+     Usage:
+     - contain-layout: Basic layout isolation
+     - contain-style: Style isolation only
+     - contain-layout-style: Layout + style isolation (recommended for most cases)
+     - contain-layout-paint: Layout + paint isolation (clips overflow)
+     - contain-strict: Strongest isolation, equivalent to size + layout + style + paint
+     - contain-size-layout-style: Size + layout + style (for virtualized lists)
+     ========================================================================== */
+  .contain-layout {
+    contain: layout;
+  }
+
+  .contain-style {
+    contain: style;
+  }
+
+  .contain-layout-style {
+    contain: layout style;
+  }
+
+  .contain-layout-paint {
+    contain: layout paint;
+  }
+
+  .contain-strict {
+    contain: strict;
+  }
+
+  .contain-size-layout-style {
+    contain: size layout style;
+  }
+
+  /* ==========================================================================
+     Chrome Layout Utilities
+     ========================================================================== */
+
+  /* Fixed overlay that covers only the page content area */
+  .fixed-below-header {
+    position: fixed;
+    inset: 0;
+    top: var(--chrome-header-height);
+  }
+
+  /* ==========================================================================
+     Table Container - Semantic table styling with bevel and header shadow
+     ========================================================================== */
+  .table-container {
+    background: var(--table-surface);
+    border-radius: theme(borderRadius.md);
+    overflow: hidden;
+    /* Bevel borders */
+    border-top: 1px solid var(--table-border-top);
+    border-left: 1px solid var(--table-border-left);
+    border-right: 1px solid var(--table-border-right);
+    border-bottom: 1px solid var(--table-border-bottom);
+  }
+
+  .table-header {
+    background: var(--table-header);
+    /* Sharp shadow - z-index handled by sticky class when needed */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+
+    :is(.dark &) {
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  /* ==========================================================================
+     Scrollbar Styling
+     Subtle, elegant scrollbars for scroll containers
+     ========================================================================== */
+  .scrollbar-styled {
+    scrollbar-width: thin;
+    scrollbar-color: theme(colors.zinc.400 / 50%) theme(colors.zinc.100 / 60%);
+
+    &::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+
+    &::-webkit-scrollbar-track {
+      background: theme(colors.zinc.100 / 60%);
+      border-radius: 5px;
+      margin: 2px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: theme(colors.zinc.400 / 50%);
+      border-radius: 5px;
+      border: 2px solid theme(colors.zinc.100 / 60%);
+      transition: background var(--duration-normal) var(--ease-out);
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background: theme(colors.zinc.500 / 70%);
+    }
+
+    &::-webkit-scrollbar-corner {
+      background: theme(colors.zinc.100 / 60%);
+      border-radius: 5px;
+    }
+
+    :is(.dark &) {
+      scrollbar-color: theme(colors.zinc.500 / 40%) theme(colors.zinc.800 / 50%);
+
+      &::-webkit-scrollbar-track {
+        background: theme(colors.zinc.800 / 60%);
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: theme(colors.zinc.500 / 50%);
+        border-color: theme(colors.zinc.800 / 60%);
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: theme(colors.zinc.400 / 60%);
+      }
+
+      &::-webkit-scrollbar-corner {
+        background: theme(colors.zinc.800 / 60%);
+      }
+    }
+  }
+
+  /* ==========================================================================
+     Portal Containers
+     ========================================================================== */
+
+  /* Snap zone portal - fixed overlay for drag/drop indicators */
+  .snap-zone-portal {
+    @apply pointer-events-none fixed inset-0 z-[5] overflow-hidden;
+  }
+
+  /* ==========================================================================
+     Log Viewer Utilities
+     ========================================================================== */
+
+  /* Dashed line separator for log entries */
+  .dashed-line-separator {
+    background-image: linear-gradient(to right, transparent 50%, var(--border) 50%);
+    background-size: 6px 1px;
+    opacity: 0.4;
+  }
+
+  /* ==========================================================================
+     NVIDIA Brand Component Utilities
+     Reusable branded patterns used across profile and form components
+     ========================================================================== */
+
+  /* Primary action button with NVIDIA brand styling */
+  .btn-nvidia {
+    @apply bg-nvidia hover:bg-nvidia-dark disabled:opacity-50;
+  }
+
+  /* Count badge with NVIDIA brand tinting */
+  .badge-nvidia-count {
+    @apply bg-nvidia-bg text-nvidia-dark dark:text-nvidia-light ml-1 text-xs;
+  }
+
+  /* ==========================================================================
+     Profile Page Utilities
+     Scoped layout values for the profile settings page
+     ========================================================================== */
+
+  /* Scroll offset for profile sections to clear the sticky header */
+  .profile-scroll-offset {
+    scroll-margin-top: var(--profile-scroll-offset);
+  }
+
+  /* Selected list item left accent border with compensated padding */
+  .selected-accent-border {
+    border-left-width: var(--profile-selected-border-width);
+    padding-left: calc(1rem - var(--profile-selected-border-width));
+  }
+
+  /* ==========================================================================
+     Search Input - Reusable bordered search field with icon
+     Composable pattern: container + icon + input.
+
+     Usage:
+       <div class="search-input-container">
+         <Search class="search-input-icon" />
+         <input class="search-input" placeholder="Search..." />
+       </div>
+
+     Compose with Tailwind utilities for variants:
+       - Add bg-background for opaque backgrounds
+       - Add flex-wrap gap-1.5 for chip-style inputs (FilterBar)
+       - Override --search-focus-ring for custom accent colors
+     ========================================================================== */
+
+  .search-input-container {
+    --search-focus-ring: var(--search-accent);
+
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    transition-property: color, background-color, border-color;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--duration-normal);
+  }
+
+  .search-input-container:focus-within {
+    border-color: var(--search-focus-ring);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--search-focus-ring);
+  }
+
+  .search-input-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    color: color-mix(in oklch, var(--muted-foreground) 60%, transparent);
+    transition-property: color;
+    transition-timing-function: var(--ease-in-out);
+    transition-duration: var(--duration-normal);
+  }
+
+  .search-input {
+    min-width: 120px;
+    flex: 1 1 0%;
+    border: 0;
+    background-color: transparent;
+    padding: 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: none;
+  }
+
+  .search-input::placeholder {
+    color: var(--muted-foreground);
+  }
+
+  .search-input:focus {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* ==========================================================================
+     Card Variant: Sectioned (bordered sections)
+     Eliminates gap-6 + pb-* stacking by using a single spacing model.
+     Sections own their own padding; Card provides zero gap/padding.
+     Borders are applied via Tailwind's border-b/border-t classes.
+     ========================================================================== */
+
+  [data-slot="card"][data-variant="sectioned"] {
+    gap: 0;
+    padding-block: 0;
+  }
+
+  [data-slot="card"][data-variant="sectioned"] > [data-slot="card-header"] {
+    padding-block: var(--card-header-padding);
+  }
+
+  [data-slot="card"][data-variant="sectioned"] > [data-slot="card-content"] {
+    padding-block: var(--card-section-padding);
+  }
+
+  [data-slot="card"][data-variant="sectioned"] > [data-slot="card-footer"] {
+    padding-block: var(--card-section-padding);
+  }
+}

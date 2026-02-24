@@ -1,0 +1,4 @@
+*.yaml
+*.md
+openapi.json
+src/lib/api/generated.ts

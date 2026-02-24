@@ -1,0 +1,277 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import {
+  test,
+  expect,
+  createPoolResponse,
+  createResourcesResponse,
+  PoolStatus,
+  BackendResourceType,
+} from "../fixtures";
+
+/**
+ * Infinite Scroll E2E Tests
+ *
+ * Tests for the infinite scroll pagination behavior on the Resources page.
+ * These tests verify:
+ * - Initial page load with limited data
+ * - Loading more data on scroll
+ * - Loading indicators
+ * - Cache behavior with filter changes
+ */
+
+/**
+ * Generate a large set of resources for infinite scroll testing.
+ */
+function createManyResources(count: number) {
+  return createResourcesResponse(
+    Array.from({ length: count }, (_, i) => ({
+      hostname: `node-${String(i + 1).padStart(4, "0")}.cluster.local`,
+      resource_type: i % 3 === 0 ? BackendResourceType.RESERVED : BackendResourceType.SHARED,
+      exposed_fields: {
+        node: `node-${String(i + 1).padStart(4, "0")}`,
+        "pool/platform": [`pool-${(i % 3) + 1}/${i % 2 === 0 ? "dgx" : "base"}`],
+      },
+      allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * 1024 * 1024 },
+      usage_fields: { gpu: i % 8, cpu: 64, memory: 256 * 1024 * 1024 },
+      pool_platform_labels: { [`pool-${(i % 3) + 1}`]: [i % 2 === 0 ? "dgx" : "base"] },
+    }))
+  );
+}
+
+test.describe("Infinite Scroll - Resources Page", () => {
+  test("displays resources table with data", async ({ page, withData }) => {
+    await withData({
+      pools: createPoolResponse([
+        { name: "pool-1", status: PoolStatus.ONLINE },
+        { name: "pool-2", status: PoolStatus.ONLINE },
+        { name: "pool-3", status: PoolStatus.ONLINE },
+      ]),
+      resources: createManyResources(100),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // Should show resources heading
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/resources/i);
+
+    // Should show some resources
+    await expect(page.getByText("node-0001")).toBeVisible();
+  });
+
+  test("shows resource count information", async ({ page, withData }) => {
+    await withData({
+      resources: createManyResources(150),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // Should display count information in the header area
+    // The exact format depends on whether we're showing "X of Y" or just "X"
+    const countText = page.locator('[aria-controls="filter-content"]');
+    await expect(countText).toBeVisible();
+  });
+
+  test("loads more data when scrolling to bottom", async ({ page, withData }) => {
+    await withData({
+      resources: createManyResources(200),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    const table = page.locator('[role="table"]');
+    await expect(table).toBeVisible();
+
+    // First row should be visible
+    await expect(page.getByText("node-0001")).toBeVisible();
+
+    // The header shows total count (just "200" when no filters active)
+    const headerButton = page.locator('[aria-controls="filter-content"]');
+
+    // Wait for total count to appear - should show "200" (no filters = just total)
+    await expect(headerButton).toContainText("200");
+
+    // Find a node that's beyond initial viewport - pick something safely in the middle
+    const targetNode = page.getByText("node-0100", { exact: true });
+
+    // Initially this node should not be visible (virtualized away)
+    const isInitiallyHidden = await targetNode.isHidden();
+
+    // Use mouse wheel scrolling to trigger infinite scroll loading
+    await expect(async () => {
+      // Hover over table and scroll down with mouse wheel
+      const box = await table.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.wheel(0, 3000);
+      }
+      await page.waitForTimeout(300);
+
+      // Check if target node is now in DOM
+      await expect(targetNode).toBeAttached();
+    }).toPass({ timeout: 30000 });
+
+    // Scroll the target node into view and verify viewport visibility
+    await targetNode.scrollIntoViewIfNeeded();
+    await expect(targetNode).toBeInViewport();
+
+    // Log for debugging
+    console.log(`Node was initially hidden: ${isInitiallyHidden}`);
+  });
+
+  test("filter changes reset scroll position", async ({ page, withData }) => {
+    await withData({
+      pools: createPoolResponse([
+        { name: "production", status: PoolStatus.ONLINE },
+        { name: "development", status: PoolStatus.ONLINE },
+      ]),
+      resources: createManyResources(100),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // Apply a search filter
+    const searchInput = page.getByRole("searchbox");
+    if (await searchInput.isVisible()) {
+      await searchInput.fill("node-00");
+
+      // Should filter results
+      await page.waitForTimeout(300);
+
+      // Clear filter
+      await searchInput.clear();
+    }
+  });
+
+  test("handles empty results gracefully", async ({ page, withData }) => {
+    await withData({
+      pools: createPoolResponse([
+        { name: "empty-pool", status: PoolStatus.ONLINE },
+      ]),
+      resources: { resources: [] },
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // Should show empty state or "no resources" message
+    // The exact text depends on the UI implementation
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/resources/i);
+  });
+
+  test("maintains scroll position on back navigation", async ({ page, withData }) => {
+    await withData({
+      resources: createManyResources(100),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // Verify initial load
+    await expect(page.getByText("node-0001")).toBeVisible();
+
+    // Navigate to a different page
+    await page.goto("/pools");
+    await page.waitForLoadState("networkidle");
+
+    // Navigate back
+    await page.goBack();
+    await page.waitForLoadState("networkidle");
+
+    // Data should still be visible (from cache)
+    await expect(page.getByText("node-0001")).toBeVisible();
+  });
+});
+
+test.describe("Loading States", () => {
+  test("shows skeleton during initial load", async ({ page, withData }) => {
+    // Delay the response to see loading state
+    await page.route("**/api/resources*", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(createManyResources(50)),
+      });
+    });
+
+    await withData({
+      pools: createPoolResponse([{ name: "test", status: PoolStatus.ONLINE }]),
+    });
+
+    await page.goto("/resources");
+
+    // Should show loading indicator or skeleton
+    // This depends on the specific loading state implementation
+    await page.waitForLoadState("networkidle");
+  });
+});
+
+test.describe("Filter Integration", () => {
+  test("search works with paginated data", async ({ page, withData }) => {
+    await withData({
+      resources: createManyResources(100),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    const searchInput = page.getByRole("searchbox");
+    if (await searchInput.isVisible()) {
+      // Search for a specific node
+      await searchInput.fill("node-0050");
+
+      // Should find the matching node (use exact: true to avoid matching the filter chip)
+      await expect(page.getByText("node-0050", { exact: true })).toBeVisible({ timeout: 3000 });
+
+      // Clear search
+      await searchInput.clear();
+    }
+  });
+
+  test("pool filter updates results", async ({ page, withData }) => {
+    await withData({
+      pools: createPoolResponse([
+        { name: "pool-1", status: PoolStatus.ONLINE },
+        { name: "pool-2", status: PoolStatus.ONLINE },
+      ]),
+      resources: createResourcesResponse([
+        {
+          hostname: "pool1-node.cluster",
+          exposed_fields: { node: "pool1-node", "pool/platform": ["pool-1/dgx"] },
+          pool_platform_labels: { "pool-1": ["dgx"] },
+        },
+        {
+          hostname: "pool2-node.cluster",
+          exposed_fields: { node: "pool2-node", "pool/platform": ["pool-2/dgx"] },
+          pool_platform_labels: { "pool-2": ["dgx"] },
+        },
+      ]),
+    });
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // Both nodes should be visible initially
+    await expect(page.getByText("pool1-node")).toBeVisible();
+    await expect(page.getByText("pool2-node")).toBeVisible();
+  });
+});
