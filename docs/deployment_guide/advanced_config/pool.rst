@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -433,6 +433,66 @@ Additional Examples
         }
       }
 
+
+Enabling Topology-Aware Scheduling
+------------------------------------
+
+Topology-aware scheduling ensures that tasks requiring high-bandwidth or low-latency
+communication are placed on physically co-located nodes—such as the same NVLink rack, spine
+switch, or availability zone. This requires KAI Scheduler v0.10 or later and nodes with the
+appropriate Kubernetes labels applied.
+
+.. note::
+
+  ``topology_keys`` can only be configured on pools backed by a KAI Scheduler backend.
+  Configuring it on a pool with an unsupported scheduler will be rejected.
+
+**Step 1: Verify Node Labels**
+
+Confirm that your cluster nodes have labels for each topology level you want to expose. The
+label keys must match what you will configure in ``topology_keys``:
+
+.. code-block:: bash
+
+  $ kubectl get nodes -o jsonpath='{.items[*].metadata.labels}' | jq -r 'to_entries[] | select(.key | test("topology.kubernetes.io|nvidia.com/gpu-clique")) | "\(.key)=\(.value)"'
+
+**Step 2: Add Topology Keys to the Pool Config**
+
+Add a ``topology_keys`` list to your pool configuration, ordered from **coarsest to finest**
+granularity. Each entry maps a user-friendly ``key`` name (which users reference in their
+workflow specs) to the actual Kubernetes node ``label``:
+
+.. code-block:: bash
+
+  $ cat << EOF > topology_pool.json
+  {
+    "pools": {
+      "my-pool": {
+        "name": "my-pool",
+        "backend": "my-backend",
+        "topology_keys": [
+          {"key": "zone",       "label": "topology.kubernetes.io/zone"},
+          {"key": "spine",      "label": "topology.kubernetes.io/spine"},
+          {"key": "rack",       "label": "topology.kubernetes.io/rack"},
+          {"key": "gpu-clique", "label": "nvidia.com/gpu-clique"}
+        ]
+      }
+    }
+  }
+  EOF
+
+**Step 3: Apply the Pool Configuration**
+
+.. code-block:: bash
+
+  $ osmo config update POOL --file topology_pool.json
+
+OSMO will create a KAI Topology CRD in the cluster for this pool. Users can then reference
+the configured key names when specifying topology requirements in their workflow specs.
+
+.. seealso::
+
+  See :ref:`concepts_topology` for how users specify topology requirements in their workflows.
 
 Troubleshooting
 ----------------

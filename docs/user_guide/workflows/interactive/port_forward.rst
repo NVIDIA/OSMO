@@ -51,9 +51,9 @@ Browser
 
 Forwarding a port through the browser is useful when your task has a web service running that
 listens on a single port and serves http traffic, such as a
-`Jupyter Notebook <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/jupyterlab>`_,
-a `VSCode Server <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/vscode>`_
-or a `Ray dashboard <https://github.com/NVIDIA/OSMO/tree/main/workflows/integration_and_tools/ray>`_ .
+`Jupyter Notebook <https://github.com/NVIDIA/OSMO/tree/main/cookbook/integration_and_tools/jupyterlab>`_,
+a `VSCode Server <https://github.com/NVIDIA/OSMO/tree/main/cookbook/integration_and_tools/vscode>`_
+or a `Ray dashboard <https://github.com/NVIDIA/OSMO/tree/main/cookbook/integration_and_tools/ray>`_ .
 
 You can forward a port from **a running workflow task** in the browser using the ``Port Forward``
 option in the ``Task Details`` menu for that task. You may select the task, enter the port number

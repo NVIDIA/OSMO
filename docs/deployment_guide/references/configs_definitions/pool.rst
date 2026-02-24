@@ -1,5 +1,6 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES.
+  All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -92,10 +93,6 @@ Pool
      - Dict[String, Integer]
      - Default actions to perform when tasks exit with a specific exit code. The available actions are: `COMPLETE`, `FAIL`, `RESCHEDULE`.
      - ``{}``
-   * - ``action_permissions``
-     - `Action Permissions`_
-     - Permissions for various pool actions.
-     - Default configuration
    * - ``resources``
      - Dict[String, `Resource Constraint`_]
      - Resource allocation configuration for the pool.
@@ -112,55 +109,20 @@ Pool
      - Array[String]
      - List of pod template names applied to all platforms in the pool. Read more about pod templates in :ref:`pod_template`.
      - ``[]``
+   * - ``common_group_templates``
+     - Array[String]
+     - List of group template names applied to all task groups in the pool. These Kubernetes resources are created before the group's pods. Read more about group templates in :ref:`group_template`.
+     - ``[]``
    * - ``platforms``
      - Dict[String, `Platform`_]
      - Dictionary of platform configurations available in this pool.
      - ``{}``
-
-Permission Level
-================
-
-.. list-table::
-   :header-rows: 1
-   :widths: 30 55
-
-   * - **Permission Level**
-     - **Description**
-   * - ``PUBLIC``
-     - Access available to all authenticated users
-   * - ``POOL``
-     - Access available to all users with pool access
-   * - ``PRIVATE``
-     - Access restricted to the user who submitted the workflow
-
-Action Permissions
-==================
-
-.. list-table::
-   :header-rows: 1
-   :widths: 25 12 43 20
-
-   * - **Field**
-     - **Type**
-     - **Description**
-     - **Default Values**
-   * - ``execute``
-     - `Permission Level`_
-     - Permission level required to execute tasks.
-     - ``POOL``
-   * - ``portforward``
-     - `Permission Level`_
-     - Permission level required for port forwarding operations.
-     - ``POOL``
-   * - ``cancel``
-     - `Permission Level`_
-     - Permission level required to cancel tasks.
-     - ``POOL``
-   * - ``rsync``
-     - `Permission Level`_
-     - Permission level required for rsync operations.
-     - ``POOL``
-
+   * - ``topology_keys``
+     - Array[`TopologyKey`_]
+     - Ordered list of topology levels available in this pool, from coarsest to finest
+       granularity. Enables topology-aware scheduling when non-empty. Only supported on pools
+       backed by KAI Scheduler v0.10 or later. See :ref:`concepts_topology` for details.
+     - ``[]``
 
 .. _pool_config-resource-constraint:
 
@@ -195,6 +157,28 @@ For more explanations and examples, see :ref:`scheduler`.
   To set up priority and preemption for pools sharing the same resource nodes, admins need to configure ALL pools
   with the `guarantee`, `weight`, and `maximum` settings. Otherwise, preemption will not be enabled across pools
   (e.g. Pool A cannot preempt a workflow from Pool B).
+
+TopologyKey
+===========
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 12 43 20
+
+   * - **Field**
+     - **Type**
+     - **Description**
+     - **Default Values**
+   * - ``key``
+     - String
+     - User-friendly name for this topology level. This is the name users reference in their
+       workflow spec ``topology`` requirements (e.g., ``zone``, ``rack``, ``gpu-clique``).
+     - Required field
+   * - ``label``
+     - String
+     - The Kubernetes node label used to identify nodes at this topology level
+       (e.g., ``topology.kubernetes.io/zone``, ``nvidia.com/gpu-clique``).
+     - Required field
 
 Platform
 ========

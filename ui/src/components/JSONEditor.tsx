@@ -15,6 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 import { useState, useEffect } from "react";
 
+import { OutlinedIcon } from "./Icon";
 import { InlineBanner } from "./InlineBanner";
 
 // Helper function to set nested values in an object
@@ -175,13 +176,15 @@ export const JSONEditor: React.FC<JSONEditorProps> = ({
                   type="button"
                   onClick={onCancel}
                 >
-                  Cancel
+                  <OutlinedIcon name="close" />
+                  Cancel Changes
                 </button>
                 <button
                   className="btn btn-primary"
                   type="submit"
                 >
-                  Save
+                  <OutlinedIcon name="save" />
+                  Save Changes
                 </button>
               </>
             ) : (
@@ -190,7 +193,8 @@ export const JSONEditor: React.FC<JSONEditorProps> = ({
                 type="button"
                 onClick={() => setIsEditMode(true)}
               >
-                Edit
+                <OutlinedIcon name="edit" />
+                Edit JSON
               </button>
             )}
           </div>

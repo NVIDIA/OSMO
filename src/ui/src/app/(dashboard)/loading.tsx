@@ -1,0 +1,86 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import { Skeleton } from "@/components/shadcn/skeleton";
+
+/**
+ * Dashboard loading skeleton.
+ *
+ * Performance optimized:
+ * - Matches actual page layout to prevent CLS
+ * - Uses shadcn Skeleton with pulse animation
+ * - Semantic structure for screen readers
+ */
+export default function Loading() {
+  return (
+    <div
+      className="flex h-full flex-col gap-6 p-6 contain-layout"
+      role="status"
+      aria-label="Loading content"
+    >
+      {/* Page header skeleton - matches actual header dimensions */}
+      <div className="shrink-0 space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+
+      {/* Main content skeleton - fills remaining space */}
+      <div className="contain-layout-paint min-h-0 flex-1 gap-0 rounded-lg border border-zinc-200 bg-white py-0 dark:border-zinc-800 dark:bg-zinc-950">
+        {/* Filter bar skeleton */}
+        <div className="border-border border-b p-4">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-64" />
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-24" />
+          </div>
+        </div>
+
+        {/* Table skeleton */}
+        <div className="p-4">
+          {/* Table header skeleton */}
+          <div className="border-border mb-4 flex items-center gap-4 border-b pb-3">
+            {(["h1", "h2", "h3", "h4", "h5", "h6"] as const).map((id) => (
+              <Skeleton
+                key={id}
+                className="h-4 flex-1"
+              />
+            ))}
+          </div>
+
+          {/* Table rows skeleton */}
+          <div className="space-y-3">
+            {(["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"] as const).map((rowId) => (
+              <div
+                key={rowId}
+                className="flex items-center gap-4"
+              >
+                {(["c1", "c2", "c3", "c4", "c5", "c6"] as const).map((colId) => (
+                  <Skeleton
+                    key={`${rowId}-${colId}`}
+                    className="h-6 flex-1"
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Screen reader announcement */}
+      <span className="sr-only">Content is loading, please wait...</span>
+    </div>
+  );
+}

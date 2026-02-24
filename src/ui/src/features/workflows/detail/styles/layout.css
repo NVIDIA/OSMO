@@ -1,0 +1,70 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/* =============================================================================
+   WORKFLOW DETAIL GRID
+   Layout for workflow detail page with resizable DAG panel
+   ============================================================================= */
+
+@layer components {
+  /* Activity Strip: Fixed pixel width for consistent appearance across all window sizes.
+     This ensures the strip is ALWAYS exactly 40px wide, preventing any flex/responsive behavior. */
+  :root {
+    --activity-strip-width: 40px;
+  }
+  /* SSR-safe default: 50/50 split with DAG visible.
+     State machine overrides this via React-controlled inline styles. */
+  .workflow-detail-grid {
+    grid-template-columns: 50% 50%;
+    transition: grid-template-columns 200ms ease-out;
+  }
+
+  /* Disable transitions during drag for 60fps performance.
+     React also sets inline style.transition = 'none' for explicit control.
+     data-phase is set by WorkflowDetailLayout based on state machine phase. */
+  .workflow-detail-grid[data-phase="DRAGGING"] {
+    transition: none;
+  }
+
+  /* Respect user's motion preferences for accessibility */
+  @media (prefers-reduced-motion: reduce) {
+    .workflow-detail-grid {
+      transition: none;
+    }
+  }
+
+  /* Performance optimization: Isolate layout impact of grid items.
+     When grid-template-columns changes, containment prevents child reflow
+     from cascading beyond each grid item's boundary. This improves transition
+     performance by ~10-20%, getting closer to 60fps during snap animations. */
+  .workflow-detail-grid > main,
+  .workflow-detail-grid > aside {
+    contain: layout style paint;
+  }
+
+  /* During drag: Use strictest containment and GPU compositing for 60fps resizing.
+     contain: strict isolates layout so content size changes don't propagate back
+     to the grid item (prevents scrollbar jitter from column recalculation).
+     translate3d creates a compositing layer for GPU-accelerated rendering. */
+  .workflow-detail-grid[data-phase="DRAGGING"] > main,
+  .workflow-detail-grid[data-phase="DRAGGING"] > aside {
+    contain: strict;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+  }
+}

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -96,19 +96,10 @@ def _run_setting_set(service_client: client.ServiceClient, args: argparse.Namesp
 def _run_setting_list(service_client: client.ServiceClient, args: argparse.Namespace):
     # pylint: disable=unused-argument
     result = service_client.request(client.RequestMethod.GET, 'api/profile/settings')
-    if service_client.login_manager.using_osmo_token():
-        access_token = service_client.login_manager.get_access_token()
-        if access_token:
-            # Get the roles for the token
-            roles_result = service_client.request(
-                client.RequestMethod.GET,
-                'api/auth/access_token',
-                params={'access_token': access_token})
-            result['token'] = roles_result
     if args.format_type == 'text':
         print('user:')
         login_dir = client_configs.get_client_config_dir()
-        login_file = login_dir  + '/login.yaml'
+        login_file = login_dir + '/login.yaml'
         try:
             with open(os.path.expanduser(login_file), 'r', encoding='utf-8') as file:
                 login_dict = yaml.safe_load(file.read())
@@ -117,8 +108,6 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
         except FileNotFoundError:
             pass
         profile_result = result.get('profile', {})
-        pools_result = [f'{common.TAB}- {pool_name}' for pool_name in result.get('pools', [])]
-        pools_output = '\n'.join(pools_result)
         email = profile_result.get('username', '')
         print(f'{common.TAB}email: {email}')
         print('notifications:\n'
@@ -128,15 +117,17 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
               f'{common.TAB}default: {profile_result.get("bucket", "")}\n'
               'pool:\n'
               f'{common.TAB}default: {profile_result.get("pool", "")}\n'
-              f'{common.TAB}accessible:\n'
-              f'{pools_output}')
-        token_result = result.get('token', {})
+              f'{common.TAB}accessible:')
+        for pool_name in result.get('pools', []):
+            print(f'{common.TAB}{common.TAB}- {pool_name}')
+        token_result = result.get('token')
         if token_result:
+            print(f'token: {token_result.get("name", "")}')
             expires_at = common.convert_str_to_time(token_result['expires_at'].split('T')[0],
                                                     '%Y-%m-%d').date()
-            print(f'token roles:\n'
-                  f'{common.TAB}name: {token_result.get("token_name", "")}\n'
-                  f'{common.TAB}expires_at: {expires_at}\n'
-                  f'{common.TAB}roles: {", ".join(token_result.get("roles", []))}')
+            print(f'{common.TAB}expires_at: {expires_at}')
+        print('roles:')
+        for role in result.get('roles', []):
+            print(f'{common.TAB}- {role}')
     else:
         print(json.dumps(result, indent=2))
