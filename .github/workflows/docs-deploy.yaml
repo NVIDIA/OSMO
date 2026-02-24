@@ -93,3 +93,4 @@ jobs:
             pr-preview/
             .nojekyll
           force: false
+          single-commit: true
