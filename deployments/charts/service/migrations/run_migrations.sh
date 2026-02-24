@@ -37,17 +37,27 @@ urlencode() {
     printf '%s' "$encoded"
 }
 
-ENCODED_USER=$(urlencode "${OSMO_POSTGRES_USER:-postgres}")
-ENCODED_PASSWORD=$(urlencode "${OSMO_POSTGRES_PASSWORD}")
-export PGROLL_URL="postgres://${ENCODED_USER}:${ENCODED_PASSWORD}@${OSMO_POSTGRES_HOST:-localhost}:${OSMO_POSTGRES_PORT:-5432}/${OSMO_POSTGRES_DATABASE_NAME:-osmo_db}?sslmode=require"
+# Resolve postgres password: env var first, then Vault-rendered config file
+DB_PASSWORD="${OSMO_POSTGRES_PASSWORD:-}"
+if [ -z "$DB_PASSWORD" ] && [ -f "${OSMO_CONFIG_FILE:-}" ]; then
+    DB_PASSWORD=$(grep -oP 'postgres_password:\s*\K\S+' "$OSMO_CONFIG_FILE" || true)
+fi
+if [ -z "$DB_PASSWORD" ]; then
+    echo "ERROR: No postgres password. Set OSMO_POSTGRES_PASSWORD or OSMO_CONFIG_FILE."
+    exit 1
+fi
 
 DB_HOST="${OSMO_POSTGRES_HOST:-localhost}"
 DB_PORT="${OSMO_POSTGRES_PORT:-5432}"
 DB_NAME="${OSMO_POSTGRES_DATABASE_NAME:-osmo_db}"
 DB_USER="${OSMO_POSTGRES_USER:-postgres}"
 
+ENCODED_USER=$(urlencode "$DB_USER")
+ENCODED_PASSWORD=$(urlencode "$DB_PASSWORD")
+export PGROLL_URL="postgres://${ENCODED_USER}:${ENCODED_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
+
 run_psql() {
-    PGPASSWORD="${OSMO_POSTGRES_PASSWORD}" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "$1" 2>&1
+    PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "$1" 2>&1
 }
 
 TARGET_SCHEMA="${1:?Usage: $0 <target_schema> (e.g., public_v6_2_0)}"
