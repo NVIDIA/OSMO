@@ -110,15 +110,18 @@ export function useChips<T>({
       // Don't add duplicate chips
       const exists = chips.some((c) => c.field === resolvedField.id && c.value.toLowerCase() === value.toLowerCase());
       if (!exists) {
-        onChipsChange([
-          ...chips,
-          {
-            field: resolvedField.id,
-            value,
-            label: resolvedLabel,
-            variant: chipVariant,
-          },
-        ]);
+        const newChip: SearchChip = {
+          field: resolvedField.id,
+          value,
+          label: resolvedLabel,
+          variant: chipVariant,
+        };
+
+        if (resolvedField.singular) {
+          onChipsChange([...chips.filter((c) => c.field !== resolvedField.id), newChip]);
+        } else {
+          onChipsChange([...chips, newChip]);
+        }
       }
 
       return true;
@@ -128,7 +131,7 @@ export function useChips<T>({
 
   const addTextChip = useCallback(
     (value: string) => {
-      onChipsChange([...chips, { field: "text", value, label: value }]);
+      onChipsChange([...chips.filter((c) => c.field !== "text"), { field: "text", value, label: value }]);
     },
     [chips, onChipsChange],
   );

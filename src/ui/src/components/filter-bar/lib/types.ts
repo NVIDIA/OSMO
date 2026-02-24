@@ -56,6 +56,12 @@ interface BaseSearchField<T> {
    * User must select from suggestions; typed values that don't match are rejected.
    */
   requiresValidValue?: boolean;
+  /**
+   * If true, only one chip of this field can exist at a time.
+   * Adding a new chip replaces the existing one instead of appending.
+   * Use for fields where multiple values don't make sense (e.g., search, scope).
+   */
+  singular?: boolean;
   /** Custom hint text shown in dropdown (defaults to label) */
   hint?: string;
   /**
