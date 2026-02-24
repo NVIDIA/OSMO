@@ -108,7 +108,7 @@ When a request carries an IdP-issued JWT:
    - Merge roles from the IdP with roles stored in OSMO's ``user_roles`` table and apply role ``sync_mode`` (e.g. ``import`` vs ``force``).
 3. The final list of roles for the request is used to load policies and allow or deny the action.
 
-So roles can come from the IdP (mapped into OSMO role names) and/or from OSMO's user/role tables. See the :doc:`user_role_mapping` for details.
+So roles can come from the IdP (mapped into OSMO role names) and/or from OSMO's user/role tables. See the :doc:`idp_role_mapping` for details.
 
 Token validation and headers
 ============================

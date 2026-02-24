@@ -451,7 +451,7 @@ When creating a pool named ``my-pool``, create a corresponding role:
 
       $ osmo user update <user_id> --add-roles osmo-my-pool
 
-   See :doc:`managing_users` for full details on user creation and role assignment. If you use an identity provider, you can instead (or additionally) map IdP groups to this role via ``external_roles``; see :doc:`user_role_mapping`.
+   See :doc:`managing_users` for full details on user creation and role assignment. If you use an identity provider, you can instead (or additionally) map IdP groups to this role via ``external_roles``; see :doc:`idp_role_mapping`.
 
 Assigning roles to users and creating access tokens
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

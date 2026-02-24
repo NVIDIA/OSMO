@@ -25,7 +25,7 @@ This guide covers how to create users and assign roles to them in OSMO using the
 
 .. note::
 
-   If you use an identity provider (IdP), users can also be created automatically when they first log in (just-in-time provisioning). In that case, you may only need the CLI to manage roles for existing users. See :doc:`user_role_mapping` for how IdP group claims map to OSMO roles.
+   If you use an identity provider (IdP), users can also be created automatically when they first log in (just-in-time provisioning). In that case, you may only need the CLI to manage roles for existing users. See :doc:`idp_role_mapping` for how IdP group claims map to OSMO roles.
 
 Prerequisites
 =============
@@ -160,7 +160,7 @@ See :doc:`service_accounts` for detailed guidance on service account patterns an
 .. seealso::
 
    - :ref:`preconfigured_roles` for built-in role descriptions
-   - :doc:`user_role_mapping` for IdP role mapping and sync modes
+   - :doc:`idp_role_mapping` for IdP role mapping and sync modes
    - :doc:`service_accounts` for service account and token management patterns
    - :ref:`cli_reference_user` for full ``osmo user`` CLI reference
    - :ref:`cli_reference_token` for full ``osmo token`` CLI reference

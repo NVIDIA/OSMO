@@ -754,9 +754,11 @@ Step 6: Post-deployment Configuration
 
 2. Test authentication flow
 
-3. Verify access to the UI at https://osmo.example.com through your domain
+3. Configure IdP role mapping to map your IdP groups to OSMO roles: :doc:`../appendix/authentication/idp_role_mapping`
 
-4. Create and configure data storage to store service data: :ref:`configure_data`
+4. Verify access to the UI at https://osmo.example.com through your domain
+
+5. Create and configure data storage to store service data: :ref:`configure_data`
 
 
 Troubleshooting

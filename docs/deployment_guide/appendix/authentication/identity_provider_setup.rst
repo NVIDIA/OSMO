@@ -182,7 +182,7 @@ Managing users and roles with an IdP
 - **Users** can be created in OSMO automatically when they first log in (just-in-time provisioning), or via the CLI (e.g. ``osmo user create``).
 - **Roles** can be assigned in OSMO via the CLI (e.g. ``osmo user roles add <user_id> <role_name>``). They can also be derived from IdP claims: configure ``role_external_mappings`` so that IdP group or role names map to OSMO role names. The OSMO service then merges IdP-derived roles with roles stored in the database.
 
-For more details, see :doc:`user_role_mapping`.
+For more details, see :doc:`idp_role_mapping`.
 
 Verification
 ============
