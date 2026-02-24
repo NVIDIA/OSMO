@@ -117,6 +117,8 @@ export interface PaginatedResourcesResult extends PaginatedResponse<Resource> {
   aggregates: ResourceAggregates;
   /** Aggregated metrics for entire unfiltered dataset (for comparison) */
   unfilteredAggregates: ResourceAggregates;
+  /** SHIM: All unfiltered resources for FilterBar suggestions. Removed when shim is deleted. */
+  allItems: Resource[];
 }
 
 /**
@@ -128,7 +130,9 @@ export interface ResourceFilterParams {
   platforms?: string[];
   resourceTypes?: string[];
   backends?: string[];
-  /** Text search across name */
+  /** Filter by specific resource names (OR'd, substring match) */
+  resources?: string[];
+  /** Text search across name, platform, type, pools */
   search?: string;
   /** Hostname substring match */
   hostname?: string;
@@ -169,6 +173,12 @@ function applyClientSideFilters(resources: Resource[], params: ResourceFilterPar
   if (params.backends && params.backends.length > 0) {
     const backendSet = new Set(params.backends.map((b) => b.toLowerCase()));
     result = result.filter((resource) => backendSet.has(resource.backend.toLowerCase()));
+  }
+
+  // SHIM: Filter by resource names (should be server-side)
+  if (params.resources && params.resources.length > 0) {
+    const namesLower = params.resources.map((n) => n.toLowerCase());
+    result = result.filter((resource) => namesLower.some((name) => resource.name.toLowerCase().includes(name)));
   }
 
   // SHIM: Filter by search/name (should be server-side)
@@ -228,6 +238,7 @@ export async function fetchPaginatedResources(
       platforms: resourcesCache.platforms,
       aggregates: filteredAggregates,
       unfilteredAggregates: resourcesCache.aggregates, // Use cached unfiltered aggregates
+      allItems: resourcesCache.allItems,
     };
   }
 
@@ -267,6 +278,7 @@ export async function fetchPaginatedResources(
     platforms: transformed.platforms,
     aggregates: filteredAggregates,
     unfilteredAggregates,
+    allItems: transformed.resources,
   };
 }
 
@@ -407,12 +419,17 @@ export function buildResourcesQueryKey(chips: SearchChip[] = [], clientFilters =
     .map((c) => c.value)
     .sort()
     .join(",");
-  const search = chips.find((c) => c.field === "name")?.value ?? "";
+  const resources = chips
+    .filter((c) => c.field === "resource")
+    .map((c) => c.value)
+    .sort()
+    .join(",");
+  const search = chips.find((c) => c.field === "text")?.value ?? "";
   const hostname = chips.find((c) => c.field === "hostname")?.value ?? "";
 
   return [
     "resources",
     "filtered",
-    { pools, platforms, resourceTypes, backends, search, hostname, clientFilters },
+    { pools, platforms, resourceTypes, backends, resources, search, hostname, clientFilters },
   ] as const;
 }

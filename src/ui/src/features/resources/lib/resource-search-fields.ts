@@ -25,13 +25,12 @@ import { createNumericSearchFieldPair } from "@/lib/filter-utils";
 
 const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
   {
-    id: "name",
-    label: "Name",
+    id: "resource",
+    label: "Resource",
     hint: "resource name",
-    prefix: "name:",
-    freeFormHint: "Type any name, press Enter",
-    singular: true,
-    getValues: () => [],
+    prefix: "resource:",
+    freeFormHint: "Type any resource, press Enter",
+    getValues: (resources) => [...new Set(resources.map((r) => r.name))].sort(),
     match: (resource, value) => resource.name.toLowerCase().includes(value.toLowerCase()),
   },
   {
