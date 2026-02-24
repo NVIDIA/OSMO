@@ -31,7 +31,6 @@ import time
 from typing import List, Dict, Tuple, Type
 import urllib.parse
 
-import aiofiles
 import redis  # type: ignore
 import redis.asyncio  # type: ignore
 import pydantic
