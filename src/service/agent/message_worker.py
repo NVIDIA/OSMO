@@ -23,7 +23,9 @@ import socket
 import sys
 import time
 import traceback
+from typing import Iterable
 
+import opentelemetry.metrics as otelmetrics
 import pydantic
 import redis  # type: ignore
 
@@ -88,11 +90,25 @@ class MessageWorker:
         # Progress writer for liveness/readiness probes
         self._progress_writer = progress.ProgressWriter(config.progress_file)
 
+        # Register observable gauge for stream queue length
+        self.metric_creator.send_observable_gauge(
+            'osmo_backend_messages_queue_length',
+            callbacks=self.get_operator_stream_length,
+            description='Messages queue length for backend listener messages queue',
+            unit='count'
+        )
+
         # Create consumer group if it doesn't exist
         self._ensure_consumer_group()
 
         logging.info('Message worker initialized: stream=%s, group=%s, consumer=%s',
-                    self.stream_name, self.group_name, self.consumer_name)
+                     self.stream_name, self.group_name, self.consumer_name)
+
+    def get_operator_stream_length(self, *args) -> Iterable[otelmetrics.Observation]:
+        """Callback to send the operator messages Redis Stream queue length."""
+        # pylint: disable=unused-argument
+        length = self.redis_client.xlen(self.stream_name)
+        yield otelmetrics.Observation(length, {'stream': self.stream_name})
 
     def _ensure_consumer_group(self):
         """Create the consumer group if it doesn't exist."""
