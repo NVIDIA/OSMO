@@ -16,16 +16,13 @@
 
 "use client";
 
-import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import { getBasePathUrl } from "@/lib/config";
 
 export interface User {
   id: string;
-  /** Display name for UI (e.g., "Alice Smith") */
   name: string;
-  /** Email address */
   email: string;
-  /** Backend username - matches x-osmo-user header from Envoy (e.g., "alice.smith" or "alice.smith@company.com") */
   username: string;
   isAdmin: boolean;
   initials: string;
@@ -41,71 +38,23 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 interface UserProviderProps {
   children: ReactNode;
-}
-
-interface UserProviderState {
-  user: User | null;
-  isLoading: boolean;
-}
-
-type UserProviderAction = { type: "LOAD_SUCCESS"; user: User | null } | { type: "LOAD_FAILURE" } | { type: "LOGOUT" };
-
-function userProviderReducer(state: UserProviderState, action: UserProviderAction): UserProviderState {
-  switch (action.type) {
-    case "LOAD_SUCCESS":
-      return { user: action.user, isLoading: false };
-    case "LOAD_FAILURE":
-      return { user: null, isLoading: false };
-    case "LOGOUT":
-      return { ...state, user: null };
-  }
+  initialUser: User | null;
 }
 
 /**
- * Fetches user info from the server.
+ * Provides user identity from Envoy-injected headers.
  *
- * In production, /api/me reads the JWT from the Authorization header (injected by Envoy).
- * In local dev, /api/me returns dev user info.
+ * The user is resolved server-side from x-osmo-user, x-osmo-roles, x-osmo-name
+ * headers and passed as initialUser prop. No client-side fetch needed.
  */
-export function UserProvider({ children }: UserProviderProps) {
-  const [state, dispatch] = useReducer(userProviderReducer, { user: null, isLoading: true });
-  const { user, isLoading } = state;
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadUser() {
-      try {
-        const response = await fetch(getBasePathUrl("/api/me"), { credentials: "include" });
-        if (!response.ok) {
-          dispatch({ type: "LOAD_FAILURE" });
-          return;
-        }
-        const userData: User = await response.json();
-        if (!cancelled) {
-          dispatch({ type: "LOAD_SUCCESS", user: userData });
-        }
-      } catch (error) {
-        console.error("Failed to load user:", error);
-        if (!cancelled) {
-          dispatch({ type: "LOAD_FAILURE" });
-        }
-      }
-    }
-
-    loadUser();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+export function UserProvider({ children, initialUser }: UserProviderProps) {
+  const [user] = useState<User | null>(initialUser);
 
   const logout = () => {
-    dispatch({ type: "LOGOUT" });
     window.location.href = getBasePathUrl("/oauth2/sign_out");
   };
 
-  return <UserContext.Provider value={{ user, isLoading, logout }}>{children}</UserContext.Provider>;
+  return <UserContext.Provider value={{ user, isLoading: false, logout }}>{children}</UserContext.Provider>;
 }
 
 export function useUser() {

@@ -23,6 +23,7 @@
 
 import { headers } from "next/headers";
 import { hasAdminRole } from "@/lib/auth/roles";
+import type { User } from "@/lib/auth/user-context";
 
 /**
  * Get user roles from Envoy-injected x-osmo-roles header.
@@ -90,4 +91,61 @@ export async function hasServerAdminRole(): Promise<boolean> {
 export async function getServerUsername(): Promise<string | null> {
   const headersList = await headers();
   return headersList.get("x-osmo-user");
+}
+
+/**
+ * Build a User object from Envoy-injected headers.
+ *
+ * Reads x-osmo-user, x-osmo-roles, x-osmo-name, and x-auth-request-email
+ * set by Envoy + OAuth2 Proxy on every authenticated request.
+ *
+ * Returns null if no user headers are present (e.g., local dev without Envoy).
+ */
+export async function getServerUser(): Promise<User | null> {
+  const headersList = await headers();
+
+  const username = headersList.get("x-osmo-user");
+  if (!username) {
+    if (process.env.NODE_ENV === "development") {
+      return {
+        id: "dev-user",
+        name: process.env.DEV_USER_NAME || "Dev User",
+        email: process.env.DEV_USER_EMAIL || "dev@localhost",
+        username: process.env.DEV_USER_NAME || "dev-user",
+        isAdmin: true,
+        initials: "DU",
+      };
+    }
+    return null;
+  }
+
+  const email = headersList.get("x-auth-request-email") || username;
+  const name = headersList.get("x-osmo-name") || deriveDisplayName(username);
+  const roles = await getServerUserRoles();
+
+  return {
+    id: username,
+    name,
+    email,
+    username,
+    isAdmin: hasAdminRole(roles),
+    initials: getInitials(name),
+  };
+}
+
+function deriveDisplayName(username: string): string {
+  const namePart = username.includes("@") ? username.split("@")[0] : username;
+  if (!namePart) return "User";
+  return namePart
+    .split(/[._-]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/[\s@]+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
 }

@@ -932,12 +932,8 @@ export const handlers = [
   // ==========================================================================
   // Auth / User
   // ==========================================================================
-  // /api/me is NOT intercepted by MSW - it bypasses to the Next.js route handler.
-  //
-  // - Production: Envoy injects Authorization header (via OAuth2 Proxy) → /api/me decodes JWT
-  // - Dev/Mock: No Authorization header → /api/me returns dev user info fallback
-  //
-  // No handler needed here - MSW's onUnhandledRequest: "bypass" lets it through.
+  // User identity is resolved server-side from Envoy headers (x-osmo-user, x-osmo-roles,
+  // x-osmo-name) and passed to the client via React context. No /api/me endpoint needed.
 
   // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:
   // - GET /api/workflow/:name/exec/task/:taskName/session/:sessionId

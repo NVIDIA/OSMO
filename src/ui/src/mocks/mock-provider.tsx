@@ -52,12 +52,6 @@ declare global {
       getVolumes: () => Promise<MockVolumes>;
       help: () => void;
     };
-    __dev?: {
-      clearServiceWorker: () => Promise<void>;
-      serviceWorkerStatus: () => Promise<void>;
-      clearCaches: () => Promise<void>;
-      help: () => void;
-    };
   }
 }
 
@@ -142,26 +136,6 @@ Get current server state:
 Changes take effect on the next API request.`);
       },
     };
-
-    // Developer utilities for service worker management
-    import("@/lib/dev/service-worker-manager")
-      .then(({ clearServiceWorker, showServiceWorkerStatus, clearAllCaches }) => {
-        window.__dev = {
-          clearServiceWorker: () => clearServiceWorker(true),
-          serviceWorkerStatus: () => showServiceWorkerStatus(),
-          clearCaches: () => clearAllCaches(),
-          help: () => {
-            console.log(`Developer Utilities
-
-  await __dev.clearServiceWorker()    // Unregister SW, clear caches, reload
-  await __dev.serviceWorkerStatus()   // Check SW status
-  await __dev.clearCaches()           // Clear all caches only`);
-          },
-        };
-      })
-      .catch(() => {
-        // Service worker manager not available - non-critical
-      });
 
     console.log("[MockProvider] Mock mode active. Type __mockConfig.help() for options.");
   }, []);
