@@ -19,42 +19,35 @@ global:
   ## Base location for Osmo Docker images in the registry
   ##
   osmoImageLocation: nvcr.io/nvidia/osmo
-
   ## Docker image tag for Osmo services
   ##
-  osmoImageTag: latest
-
+  osmoImageTag: "6.2"
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
   imagePullSecret: null
-
   ## Node selector constraints for pod scheduling
   ##
   nodeSelector: {}
-    # Add node selectors here as needed
-    # kubernetes.io/arch: amd64
-    # node-type: cpu
-    # zone: us-west-2a
+  # Add node selectors here as needed
+  # kubernetes.io/arch: amd64
+  # node-type: cpu
+  # zone: us-west-2a
 
   ## Service account name for the OSMO services
   ##
   serviceAccountName: osmo
-
   ## Logging configuration for all Osmo services
   ##
   logs:
     ## Enable centralized logging collection and log volume mounting
     ##
     enabled: true
-
     ## Application log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     ##
     logLevel: DEBUG
-
     ## Kubernetes system log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     ##
     k8sLogLevel: WARNING
-
 ## Service account configuration for core Osmo services
 ##
 serviceAccount:
@@ -62,16 +55,13 @@ serviceAccount:
   ## an existing ServiceAccount that already has workload identity bindings.
   ##
   create: true
-
   ## ServiceAccount name override. When empty, uses global.serviceAccountName.
   ##
   name: ""
-
   ## Extra ServiceAccount annotations such as
   ## `azure.workload.identity/client-id` for AKS workload identity.
   ##
   annotations: {}
-
 ## Configuration for individual Osmo services
 ##
 services:
@@ -81,11 +71,9 @@ services:
     ## Enable external configuration file loading
     ##
     enabled: false
-
     ## Path to the configuration file (used when enabled is true)
     ##
     path: /opt/osmo/config.yaml
-
   ## PostgreSQL database service configuration
   ## Set enabled to false if using an external PostgreSQL deployment
   ##
@@ -94,44 +82,34 @@ services:
     ## Set to false if using external PostgreSQL or managed service
     ##
     enabled: false
-
     ## PostgreSQL Docker image to use
     ##
     image: "postgres:15.1"
-
     ## Kubernetes image pull policy for PostgreSQL
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for PostgreSQL
     ##
     serviceName: postgres
-
     ## PostgreSQL service port
     ##
     port: 5432
-
     ## Database name to create and use
     ##
     db: osmo
-
     ## Enable NodePort service for external access
     ##
     enableNodePort: true
-
     ## NodePort number for external access (when enableNodePort is true)
     ##
     nodePort: 30033
-
     ## Persistent volume size for PostgreSQL data
     ##
     storageSize: 20Gi
-
     ## Storage class name for persistent volume
     ## Leave empty to use default storage class
     ##
     storageClassName: ""
-
     ## Node selector constraints for PostgreSQL pod scheduling
     ##
     nodeSelector: {}
@@ -149,16 +127,13 @@ services:
     ## PostgreSQL username
     ##
     user: postgres
-
     ## PostgreSQL password secret configuration
     ## Name of the Kubernetes secret containing the PostgreSQL password
     ##
     passwordSecretName: postgres-secret
-
     ## Key name in the secret that contains the PostgreSQL password
     ##
     passwordSecretKey: password
-
   ## Default admin user configuration
   ## When configured, the service will create an admin user on startup with the osmo-admin role
   ## and an access_token set to the specified password
@@ -168,19 +143,15 @@ services:
     ## When enabled, username and password must be configured
     ##
     enabled: false
-
     ## Username for the default admin user
     ##
     username: "admin"
-
     ## Name of the Kubernetes secret containing the default admin password
     ##
     passwordSecretName: default-admin-secret
-
     ## Key name in the secret that contains the default admin password
     ##
     passwordSecretKey: password
-
   ## Redis cache service configuration
   ## Set enabled to false if using an external Redis deployment
   ##
@@ -189,44 +160,34 @@ services:
     ## Set to false if using external Redis or managed service
     ##
     enabled: false
-
     ## Redis Docker image to use
     ##
     image: "redis:7.0"
-
     ## Kubernetes image pull policy for Redis
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for Redis
     ##
     serviceName: redis
-
     ## Redis service port
     ##
     port: 6379
-
     ## Redis database number to use (0-15)
     ##
     dbNumber: 0
-
     ## Enable NodePort service for external access
     ##
     enableNodePort: true
-
     ## NodePort number for external access (when enableNodePort is true)
     ##
     nodePort: 30034
-
     ## Persistent volume size for Redis data
     ##
     storageSize: 20Gi
-
     ## Storage class name for persistent volume
     ## Leave empty to use default storage class
     ##
     storageClassName: ""
-
     ## Node selector constraints for Redis pod scheduling
     ##
     nodeSelector: {}
@@ -244,7 +205,6 @@ services:
     ## Enable TLS encryption for Redis connections
     ##
     tlsEnabled: true
-
   ## Localstack S3 Object storage service configuration (local development + testing only)
   ## Set enabled to false if using an external Object storage deployment
   ##
@@ -253,85 +213,66 @@ services:
     ## Set to false if using external Localstack S3 Object storage or managed service
     ##
     enabled: false
-
     ## Localstack S3 Object storage Docker image to use
     ##
     image: "gresau/localstack-persist:latest"
-
     ## Kubernetes image pull policy for Localstack S3 Object storage
     ##
     imagePullPolicy: Always
-
     ## Localstack S3 Object storage service name
     ##
     serviceName: localstack-s3
-
     ## Localstack S3 service port
     ##
     port: 4566
-
     ## Enable NodePort service for external access
     ##
     enableNodePort: true
-
     ## NodePort number for external access (when enableNodePort is true)
     ##
     nodePort: 30035
-
     ## Region for the Localstack S3 Object storage
     ##
     region: us-east-1
-
     ## Access key for the Localstack S3 Object storage
     ##
     accessKeyId: test
-
     ## Secret key for the Localstack S3 Object storage
     ##
     accessKey: test
-
     ## Buckets for the Localstack S3 Object storage
     ##
     buckets: []
-
     ## Image for the Localstack S3 Object storage bucket initialization
     ##
     bucketInitImage: amazon/aws-cli:2.15.33
-
     ## Persistent volume configuration for Localstack S3 Object storage
     ##
     persistence:
       enabled: true
       size: 5Gi
       storageClassName: standard
-
     ## Resource limits and requests for the Localstack S3 Object storage container
     ##
     resources: {}
-
   ## Delayed job monitor service configuration
   ##
   delayedJobMonitor:
     ## Number of delayed job monitor replicas to run
     ##
     replicas: 1
-
     ## Docker image name for the delayed job monitor service
     ##
     imageName: delayed-job-monitor
-
     ## Kubernetes image pull policy for the delayed job monitor service
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the delayed job monitor service
     ##
     serviceName: osmo-delayed-job-monitor
-
     ## Init containers for delayed job monitor
     ##
     initContainers: []
-
     ## Node selector constraints for delayed job monitor pod scheduling
     ##
     nodeSelector: {}
@@ -344,14 +285,12 @@ services:
     volumes:
       - name: progress-files
         emptyDir: {}
-
     ## Volume mounts for delayed job monitor
     ## Default includes progress files for liveness and startup probes
     ##
     volumeMounts:
       - name: progress-files
         mountPath: /var/run/osmo
-
     ## Resource limits and requests for the delayed job monitor container
     ##
     resources: {}
@@ -373,36 +312,28 @@ services:
     ## Extra pod annotations for the delayed job monitor service
     ##
     extraPodAnnotations: {}
-
     ## Extra pod labels for the delayed job monitor service pods.
     ## Use for workload identity labels like `azure.workload.identity/use`.
     ##
     extraPodLabels: {}
-
     ## Extra environment variables for the delayed job monitor service container
     ##
     extraEnv: []
-
     ## Extra command line arguments for the delayed job monitor service
     ##
     extraArgs: []
-
     ## Extra volume mounts for the delayed job monitor service container
     ##
     extraVolumeMounts: []
-
     ## Extra volumes for the delayed job monitor service pod
     ##
     extraVolumes: []
-
     ## Extra sidecar containers for the delayed job monitor service pod
     ##
     extraSidecars: []
-
     ## Service account name for the delayed job monitor service
     ##
     serviceAccountName: ""
-
   ## Worker service configuration for background job processing
   ##
   worker:
@@ -412,55 +343,46 @@ services:
       ## Minimum number of worker replicas
       ##
       minReplicas: 2
-
       ## Maximum number of worker replicas when scaling
       ##
       maxReplicas: 10
-
       ## Target Memory utilization percentage for HPA scaling
       ##
       hpaMemoryTarget: 80
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
-
     ## Docker image name for the worker service
     ##
     imageName: worker
-
     ## Kubernetes image pull policy for the worker service
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the worker service
     ##
     serviceName: osmo-worker
-
     ## Init containers for worker
     ##
     initContainers: []
-
     ## Node selector constraints for worker pod scheduling
     ##
     nodeSelector: {}
     # kubernetes.io/os: linux
     # node-type: cpu
 
-
     ## Topology spread constraints to distribute worker pods across nodes/zones
     ##
     topologySpreadConstraints:
-    ## Spread worker pods across different hostnames (nodes)
-    ##
-    - topologyKey: kubernetes.io/hostname
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-    ## Spread worker pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
+      ## Spread worker pods across different hostnames (nodes)
+      ##
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      ## Spread worker pods across different availability zones
+      ##
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     ## Resource limits and requests for the worker container
     ##
     resources: {}
@@ -482,16 +404,13 @@ services:
     ## Extra pod annotations for the worker service
     ##
     extraPodAnnotations: {}
-
     ## Extra pod labels for the worker service pods.
     ## Use for workload identity labels like `azure.workload.identity/use`.
     ##
     extraPodLabels: {}
-
     ## Extra environment variables for the worker service container
     ##
     extraEnv: []
-
     ## Additional command line arguments to pass to the worker service
     ##
     extraArgs: []
@@ -501,19 +420,15 @@ services:
     ## Extra volume mounts for the worker service container
     ##
     extraVolumeMounts: []
-
     ## Extra volumes for the worker service pod
     ##
     extraVolumes: []
-
     ## Extra sidecar containers for the worker service pod
     ##
     extraSidecars: []
-
     ## Service account name for the worker service
     ##
     serviceAccountName: ""
-
   ## Main API service configuration
   ##
   service:
@@ -523,39 +438,31 @@ services:
       ## Minimum number of API service replicas
       ##
       minReplicas: 3
-
       ## Maximum number of API service replicas when scaling
       ##
       maxReplicas: 9
-
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaMemoryTarget: 80
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
-
     ## Docker image name for the API service
     ##
     imageName: service
-
     ## Kubernetes image pull policy for the API service
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the API service
     ##
     serviceName: osmo-service
-
     ## Init containers for API service
     ##
     initContainers: []
-
     ## Hostname on which the ingress is served
     ## Leave empty to use the default cluster hostname
     ##
     hostname: ""
-
     ## Host aliases for custom DNS resolution within the API service pods
     ##
     hostAliases: []
@@ -566,11 +473,9 @@ services:
     ## URL for the client install script shown in version update messages
     ##
     clientInstallUrl: "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"
-
     ## Disable task metrics collection (set to true to disable)
     ##
     disableTaskMetrics: false
-
     ## Enable authentication for the API service
     ## An example when using Keycloak is:
     ##
@@ -596,71 +501,56 @@ services:
     ##
     auth:
       enabled: false
-
       ## URL for the device endpoint
       ##
       device_endpoint: ""
-
       ## Client ID for the device endpoint
       ##
       device_client_id: ""
-
       ## URL for the browser endpoint
       ##
       browser_endpoint: ""
-
       ## Client ID for the browser endpoint
       ##
       browser_client_id: ""
-
       ## URL for the token endpoint
       ##
       token_endpoint: ""
-
       ## URL for the logout endpoint
       ##
       logout_endpoint: ""
-
     ## Ingress configuration for external access to the API service
     ##
     ingress:
       ## Enable ingress for external access
       ##
       enabled: true
-
       ## URL path prefix for all ingress rules
       ##
       prefix: /
-
       ## Ingress controller class to use for routing traffic
       ##
       ingressClass: nginx
-
       ## AWS Application Load Balancer (ALB) specific annotations
       ##
       albAnnotations:
         ## Enable ALB-specific annotations in the ingress
         ##
         enabled: false
-
         ## ARN of the SSL certificate for HTTPS traffic
         ##
         sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
       ## Enable SSL/TLS encryption for the ingress
       ##
       sslEnabled: true
-
       ## Name of the Kubernetes secret containing SSL/TLS certificates
       ##
       sslSecret: osmo-tls
-
       ## Additional custom annotations for the ingress resource
       ##
       annotations: {}
       # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
       # alb.ingress.kubernetes.io/target-type: ip
-
     ## Liveness probe configuration for the API service
     ##
     livenessProbe:
@@ -678,7 +568,6 @@ services:
       ## How often to perform the probe
       ##
       periodSeconds: 45
-
     ## Node selector constraints for API service pod scheduling
     ##
     nodeSelector: {}
@@ -688,12 +577,11 @@ services:
     ## Topology spread constraints to distribute API service pods across zones
     ##
     topologySpreadConstraints:
-    ## Spread API service pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
+      ## Spread API service pods across different availability zones
+      ##
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     ## Resource limits and requests for the API service container
     ##
     resources: {}
@@ -715,16 +603,13 @@ services:
     ## Extra pod annotations for the API service
     ##
     extraPodAnnotations: {}
-
     ## Extra pod labels for the API service pods.
     ## Use for workload identity labels like `azure.workload.identity/use`.
     ##
     extraPodLabels: {}
-
     ## Extra environment variables for the API service container
     ##
     extraEnv: []
-
     ## Additional command line arguments to pass to the API service
     ##
     extraArgs: []
@@ -734,19 +619,15 @@ services:
     ## Extra volume mounts for the API service container
     ##
     extraVolumeMounts: []
-
     ## Extra volumes for the API service pod
     ##
     extraVolumes: []
-
     ## Extra sidecar containers for the API service pod
     ##
     extraSidecars: []
-
     ## Service account name for the API service
     ##
     serviceAccountName: ""
-
     ## Per-service Envoy proxy configuration overrides
     ## These settings override the global sidecars.envoy configuration for this service only
     ## Any field from sidecars.envoy can be specified here to override the global default
@@ -755,7 +636,6 @@ services:
     # maxRequests: 200
     # routes: [...]
     # skipAuthPaths: [...]
-
   ## Logger service configuration for log collection and processing
   ##
   logger:
@@ -765,34 +645,27 @@ services:
       ## Minimum number of logger service replicas
       ##
       minReplicas: 3
-
       ## Maximum number of logger service replicas when scaling
       ##
       maxReplicas: 9
-
       ## Target Memory utilization percentage for HPA scaling
       ##
       hpaMemoryTarget: 80
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
-
     ## Docker image name for the logger service
     ##
     imageName: logger
-
     ## Kubernetes image pull policy for the logger service
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the logger service
     ##
     serviceName: osmo-logger
-
     ## Init containers for logger service
     ##
     initContainers: []
-
     ## Node selector constraints for logger service pod scheduling
     ##
     nodeSelector: {}
@@ -802,12 +675,11 @@ services:
     ## Topology spread constraints to distribute logger service pods across zones
     ##
     topologySpreadConstraints:
-    ## Spread logger service pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
+      ## Spread logger service pods across different availability zones
+      ##
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     ## Resource limits and requests for the logger service container
     ##
     resources:
@@ -820,7 +692,6 @@ services:
       ##
       limits:
         memory: "1Gi"
-
     ## Tolerations for logger service pod scheduling on tainted nodes
     ##
     tolerations: []
@@ -832,36 +703,28 @@ services:
     ## Extra pod annotations for the logger service
     ##
     extraPodAnnotations: {}
-
     ## Extra pod labels for the logger service pods.
     ## Use for workload identity labels like `azure.workload.identity/use`.
     ##
     extraPodLabels: {}
-
     ## Extra environment variables for the logger service container
     ##
     extraEnv: []
-
     ## Extra command line arguments for the logger service
     ##
     extraArgs: []
-
     ## Extra volume mounts for the logger service container
     ##
     extraVolumeMounts: []
-
     ## Extra volumes for the logger service pod
     ##
     extraVolumes: []
-
     ## Extra sidecar containers for the logger service pod
     ##
     extraSidecars: []
-
     ## Service account name for the logger service
     ##
     serviceAccountName: ""
-
     ## Per-service Envoy proxy configuration overrides
     ## These settings override the global sidecars.envoy configuration for this service only
     ## Any field from sidecars.envoy can be specified here to override the global default
@@ -869,7 +732,6 @@ services:
     envoy: {}
     # maxRequests: 50
     # routes: [...]
-
   ## Agent service configuration for client communication and management
   ##
   agent:
@@ -879,34 +741,27 @@ services:
       ## Minimum number of agent service replicas
       ##
       minReplicas: 1
-
       ## Maximum number of agent service replicas when scaling
       ##
       maxReplicas: 9
-
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaMemoryTarget: 80
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
-
     ## Docker image name for the agent service
     ##
     imageName: agent
-
     ## Kubernetes image pull policy for the agent service
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the agent service
     ##
     serviceName: osmo-agent
-
     ## Init containers for agent service
     ##
     initContainers: []
-
     ## Node selector constraints for agent service pod scheduling
     ##
     nodeSelector: {}
@@ -916,12 +771,11 @@ services:
     ## Topology spread constraints to distribute agent service pods across zones
     ##
     topologySpreadConstraints:
-    ## Spread agent service pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
+      ## Spread agent service pods across different availability zones
+      ##
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     ## Resource limits and requests for the agent service container
     ##
     resources:
@@ -934,7 +788,6 @@ services:
       ##
       limits:
         memory: "500Mi"
-
     ## Tolerations for agent service pod scheduling on tainted nodes
     ##
     tolerations: []
@@ -946,36 +799,28 @@ services:
     ## Extra pod annotations for the agent service
     ##
     extraPodAnnotations: {}
-
     ## Extra pod labels for the agent service pods.
     ## Use for workload identity labels like `azure.workload.identity/use`.
     ##
     extraPodLabels: {}
-
     ## Extra environment variables for the agent service container
     ##
     extraEnv: []
-
     ## Extra command line arguments for the agent service
     ##
     extraArgs: []
-
     ## Extra volume mounts for the agent service container
     ##
     extraVolumeMounts: []
-
     ## Extra volumes for the agent service pod
     ##
     extraVolumes: []
-
     ## Extra sidecar containers for the agent service pod
     ##
     extraSidecars: []
-
     ## Service account name for the agent service
     ##
     serviceAccountName: ""
-
     ## Per-service Envoy proxy configuration overrides
     ## These settings override the global sidecars.envoy configuration for this service only
     ## Any field from sidecars.envoy can be specified here to override the global default
@@ -983,11 +828,9 @@ services:
     envoy: {}
     # maxRequests: 100
     # routes: [...]
-
 ## Configuration for service sidecar containers
 ##
 sidecars:
-
   ## Global Envoy proxy configuration shared across all services
   ## Applied to: osmo-service, osmo-logger, osmo-agent
   ## To override these settings per-service, use services.<service>.envoy
@@ -997,15 +840,12 @@ sidecars:
     ## List of IP addresses to block
     ##
     blockedIPs: []
-
     ## Enable Envoy proxy sidecar container
     ##
     enabled: true
-
     ## Use Kubernetes secret for credentials
     ##
     useKubernetesSecrets: false
-
     livenessProbe:
       httpGet:
         path: /ready
@@ -1013,7 +853,6 @@ sidecars:
       initialDelaySeconds: 10
       periodSeconds: 10
       timeoutSeconds: 3
-
     readinessProbe:
       httpGet:
         path: /ready
@@ -1021,7 +860,6 @@ sidecars:
       initialDelaySeconds: 5
       periodSeconds: 5
       timeoutSeconds: 3
-
     startupProbe:
       httpGet:
         path: /ready
@@ -1029,7 +867,6 @@ sidecars:
       initialDelaySeconds: 15
       periodSeconds: 5
       timeoutSeconds: 3
-
     ## IDP (Identity Provider) configuration for JWT JWKS fetching
     ##
     idp:
@@ -1042,40 +879,34 @@ sidecars:
       ## Enable in-cluster routing for specific paths
       ##
       enabled: false
-
       ## Port for in-cluster communication
       ##
       port: 8081
-
       ## List of paths that are allowed to be accessed without authentication in the cluster
       ##
       paths:
-      - /api/resources
-      - /api/configs/pool
-      - /api/bucket/list_dataset
-      - /api/workflow
-      - /api/router/version
-      - /api/task
-
+        - /api/resources
+        - /api/configs/pool
+        - /api/bucket/list_dataset
+        - /api/workflow
+        - /api/router/version
+        - /api/task
     ## Maximum number of concurrent requests Envoy will handle
     ##
     maxRequests: 100
-
     ## Default service name for Envoy configuration
     ##
     serviceName: osmo
-
     ## List of paths that are allowed to be accessed without authentication to the public
     ##
     skipAuthPaths:
-    - /api/version
-    - /api/auth/login
-    - /api/auth/keys
-    - /api/auth/refresh_token
-    - /api/auth/jwt/refresh_token
-    - /api/auth/jwt/access_token
-    - /client/version
-
+      - /api/version
+      - /api/auth/login
+      - /api/auth/keys
+      - /api/auth/refresh_token
+      - /api/auth/jwt/refresh_token
+      - /api/auth/jwt/access_token
+      - /client/version
     ## Advanced routing configuration for Envoy proxy
     ## Contains detailed regex-based routing rules for various API endpoints
     ## including workflow logs, agent backends, pool management, data operations,
@@ -1083,219 +914,215 @@ sidecars:
     ## rate limiting configurations as needed.
     ##
     routes:
-    - match:
-        safe_regex:
-          regex: "/api/workflow/[^/]+/logs"
-      route:
-        cluster: service
-        timeout: 0s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow_artifact
-              descriptor_value: workflow_artifact_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "/api/agent/worker/backend/[^/]+"
-      route:
-        cluster: service
-        timeout: 0s
-    - match:
-        safe_regex:
-          regex: "/api/agent/listener/[^/]+/backend/[^/]+"
-      route:
-        cluster: service
-        timeout: 0s
-    - match:
-        safe_regex:
-          regex: "^/api/pool(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "pool_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: pool
-              descriptor_value: pool_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "^/api/bucket(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "/api/workflow/[^/]+/spec"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow_artifact
-              descriptor_value: workflow_artifact_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "^/api/workflow(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow
-              descriptor_value: workflow_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "^/api/task(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "task_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: task
-              descriptor_value: task_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "^/api/resources(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "resource_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: resource
-              descriptor_value: resource_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: "/client"
-      route:
-        cluster: service
-        timeout: 0s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "client_path_limit"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: "/api/configs"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: /api/auth/jwt/refresh_token
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "refresh_token_path_limit"
-    - match:
-        prefix: /api/version
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - generic_key:
-              descriptor_key: version_path
-              descriptor_value: version_path_user_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "version_path_limit"
-    - match:
-        prefix: "/"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-
+      - match:
+          safe_regex:
+            regex: "/api/workflow/[^/]+/logs"
+        route:
+          cluster: service
+          timeout: 0s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "workflow_artifact_path_limit"
+            - actions:
+                - generic_key:
+                    descriptor_key: workflow_artifact
+                    descriptor_value: workflow_artifact_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: OSMO_USER
+      - match:
+          safe_regex:
+            regex: "/api/agent/worker/backend/[^/]+"
+        route:
+          cluster: service
+          timeout: 0s
+      - match:
+          safe_regex:
+            regex: "/api/agent/listener/[^/]+/backend/[^/]+"
+        route:
+          cluster: service
+          timeout: 0s
+      - match:
+          safe_regex:
+            regex: "^/api/pool(/.*)?$"
+        route:
+          cluster: service
+          timeout: 60s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "pool_path_limit"
+            - actions:
+                - generic_key:
+                    descriptor_key: pool
+                    descriptor_value: pool_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: OSMO_USER
+      - match:
+          safe_regex:
+            regex: "^/api/bucket(/.*)?$"
+        route:
+          cluster: service
+          timeout: 60s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "PATH"
+            - actions:
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+      - match:
+          safe_regex:
+            regex: "/api/workflow/[^/]+/spec"
+        route:
+          cluster: service
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "workflow_artifact_path_limit"
+            - actions:
+                - generic_key:
+                    descriptor_key: workflow_artifact
+                    descriptor_value: workflow_artifact_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: OSMO_USER
+      - match:
+          safe_regex:
+            regex: "^/api/workflow(/.*)?$"
+        route:
+          cluster: service
+          timeout: 60s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "workflow_artifact_path_limit"
+            - actions:
+                - generic_key:
+                    descriptor_key: workflow
+                    descriptor_value: workflow_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+      - match:
+          safe_regex:
+            regex: "^/api/task(/.*)?$"
+        route:
+          cluster: service
+          timeout: 60s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "task_path_limit"
+            - actions:
+                - generic_key:
+                    descriptor_key: task
+                    descriptor_value: task_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+      - match:
+          safe_regex:
+            regex: "^/api/resources(/.*)?$"
+        route:
+          cluster: service
+          timeout: 60s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "resource_path_limit"
+            - actions:
+                - generic_key:
+                    descriptor_key: resource
+                    descriptor_value: resource_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+      - match:
+          prefix: "/client"
+        route:
+          cluster: service
+          timeout: 0s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "client_path_limit"
+            - actions:
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+      - match:
+          prefix: "/api/configs"
+        route:
+          cluster: service
+          timeout: 60s
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "PATH"
+            - actions:
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+      - match:
+          prefix: /api/auth/jwt/refresh_token
+        route:
+          cluster: service
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "refresh_token_path_limit"
+      - match:
+          prefix: /api/version
+        route:
+          cluster: service
+          rate_limits:
+            - actions:
+                - generic_key:
+                    descriptor_key: version_path
+                    descriptor_value: version_path_user_limit
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "version_path_limit"
+      - match:
+          prefix: "/"
+        route:
+          cluster: service
+          rate_limits:
+            - actions:
+                - request_headers:
+                    header_name: X-OSMO-USER
+                    descriptor_key: "OSMO_USER"
+            - actions:
+                - request_headers:
+                    header_name: ":path"
+                    descriptor_key: "PATH"
     ## Envoy proxy container image
     ##
     image: "envoyproxy/envoy:v1.29.0"
-
     ## Init container image for setup tasks
     ##
     initImage: busybox
-
     ## Image pull policy for Envoy containers
     ##
     imagePullPolicy: IfNotPresent
-
     ## Security context for Envoy containers
     ##
     securityContext:
@@ -1304,24 +1131,18 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
-
     ## Volume mounts for Envoy containers
     ##
     extraVolumeMounts: []
-
     ## Listener port for Envoy proxy
     ##
     listenerPort: 8080
-
     ## Maximum size of all http headers in kb
     ##
     maxHeadersSizeKb: 128
-
     ## Log level for Envoy proxy
     ##
     logLevel: info
-
     ## Resource limits and requests for Envoy containers
     ##
     resources:
@@ -1330,7 +1151,6 @@ sidecars:
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
     ## SSL/TLS configuration
     ##
     ssl:
@@ -1341,34 +1161,28 @@ sidecars:
       privateKey:
         secretName: envoy-ssl-cert
         secretKey: privateKey
-
     ## Service configuration for Envoy proxy
     ##
     service:
       ## Port on which Envoy proxy listens
       ##
       port: 8000
-
       ## Hostname for the Envoy service (leave empty for default)
       ##
       hostname: ""
-
       ## Address for the main service backend
       ##
       address: 127.0.0.1
-
     ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
     ##
     oauth2Filter:
       enabled: false
-
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:
       ## HTTP header name that contains the user information
       ##
       user_header: x-osmo-user
-
       ## List of JWT providers for token validation
       ##
       ## An example when using Keycloak is:
@@ -1389,115 +1203,94 @@ sidecars:
       ##   user_claim: unique_name
       ##   cluster: idp
       providers:
-      ## External OAuth provider configuration (provider 1)
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: unique_name
-        cluster: idp
-      ## External OAuth provider configuration (provider 2)
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: preferred_username
-        cluster: idp
-      ## Internal Osmo JWT provider configuration
-      ##
-      - issuer: osmo
-        audience: osmo
-        jwks_uri: http://localhost:8000/api/auth/keys
-        user_claim: unique_name
-        cluster: service
-
+        ## External OAuth provider configuration (provider 1)
+        ##
+        - issuer: ""
+          audience: ""
+          jwks_uri: ""
+          user_claim: unique_name
+          cluster: idp
+        ## External OAuth provider configuration (provider 2)
+        ##
+        - issuer: ""
+          audience: ""
+          jwks_uri: ""
+          user_claim: preferred_username
+          cluster: idp
+        ## Internal Osmo JWT provider configuration
+        ##
+        - issuer: osmo
+          audience: osmo
+          jwks_uri: http://localhost:8000/api/auth/keys
+          user_claim: unique_name
+          cluster: service
   ## OAuth2 Proxy sidecar configuration
   ##
   oauth2Proxy:
     ## Enable OAuth2 Proxy sidecar container
     ##
     enabled: true
-
     ## OAuth2 Proxy container image
     ##
     image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
-
     ## Image pull policy
     ##
     imagePullPolicy: IfNotPresent
-
     ## HTTP port for OAuth2 Proxy
     ##
     httpPort: 4180
-
     ## Metrics port for OAuth2 Proxy
     ##
     metricsPort: 44180
-
     ## OIDC provider type
     ##
     provider: oidc
-
     ## OIDC issuer URL
     ##
     oidcIssuerUrl: ""
-
     ## OAuth2 client ID
     ##
     clientId: ""
-
     ## Cookie name for session management
     ##
     cookieName: _osmo_session
-
     ## Whether to set the secure flag on cookies
     ##
     cookieSecure: true
-
     ## Cookie domain (leave empty for default)
     ##
     cookieDomain: ""
-
     ## Cookie expiration duration
     ##
     cookieExpire: 168h
-
     ## Cookie refresh interval
     ##
     cookieRefresh: 1h
-
     ## OAuth2 scopes to request
     ##
     scope: "openid email profile"
-
     ## Pass the access token to upstream (disabled to reduce cookie size)
     ##
     passAccessToken: false
-
     ## Use Kubernetes secrets for credentials
     ##
     useKubernetesSecrets: false
-
     ## Kubernetes secret configuration (when useKubernetesSecrets is true)
     ##
     secretName: oauth2-proxy-secrets
     clientSecretKey: client_secret
     cookieSecretKey: cookie_secret
-
     ## Secret file paths (when using vault or other secret managers)
     ##
     secretPaths:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
-
     ## Additional arguments passed to oauth2-proxy
     ##
     extraArgs: []
-
     ## Additional volume mounts
     ##
     extraVolumeMounts: []
-
     ## Security context for OAuth2 Proxy container
     ##
     securityContext:
@@ -1506,7 +1299,6 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
     ## Resource limits and requests
     ##
     resources:
@@ -1515,61 +1307,48 @@ sidecars:
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
   ## Log agent configuration for centralized log collection
   ##
   logAgent:
     ## Enable log agent sidecar
     ##
     enabled: true
-
     ## Log agent container image
     ##
     image: fluent/fluent-bit:4.0.8-debug
-
     ## Image pull policy for log agent containers
     ##
     imagePullPolicy: IfNotPresent
-
     ## Prometheus metrics port
     ##
     prometheusPort: 2020
-
     ## Log rotation configuration
     ##
     logrotate:
       ## Enable automatic log rotation
       ##
       enabled: true
-
       ## Log rotation frequency
       ##
       frequency: hourly
-
       ## Maximum log file size before rotation
       ##
       maxSize: 10M
-
       ## Number of rotated files to keep
       ##
       rotateCount: 5
-
       ## Sleep interval between rotation checks (seconds)
       ##
       sleepSeconds: 60
-
     ## ConfigMap name for log agent configuration
     ##
     configName: osmo-log-agent-config
-
-
     ## CloudWatch logging configuration
     ##
     cloudwatch:
       enabled: false
       region: us-west-2
       clusterName: ""
-
     ## Resource limits and requests for log agent containers
     ##
     resources:
@@ -1578,30 +1357,24 @@ sidecars:
         memory: "400Mi"
       limits:
         memory: "400Mi"
-
     ## Extra volume mounts for log agent
     ##
     extraVolumeMounts: []
-
     ## Extra volumes for log agent
     ##
     volumes: []
-
   ## OpenTelemetry (OTEL) configuration for observability
   ##
   otel:
     ## Enable OTEL collector sidecar for metrics and tracing
     ##
     enabled: true
-
     ## OTEL collector container image
     ##
     image: otel/opentelemetry-collector-contrib:0.68.0
-
     ## ConfigMap name for OTEL collector configuration
     ##
     configName: otel-config
-
     ## Resource limits and requests for OTEL containers
     ##
     resources:
@@ -1610,47 +1383,38 @@ sidecars:
         memory: "128Mi"
       limits:
         memory: "128Mi"
-
     ## Ports for OTEL collector
     ##
     ports:
       - containerPort: 4000
         name: metrics
-
   ## Rate limiting service configuration
   ##
   rateLimit:
     ## Enable rate limiting service
     ##
     enabled: true
-
     ## Rate limiting service image
     ##
     image: envoyproxy/ratelimit:9d8d70a8 # 2022/08/16
-
     ## Image pull policy for rate limiting service
     ##
     imagePullPolicy: IfNotPresent
-
     ## Redis configuration for rate limit storage
     ##
     redis:
       ## Redis service name for rate limit data storage
       ##
       serviceName: ""
-
       ## Redis port for rate limit data storage
       ##
       port: 6379
-
     ## ConfigMap name for rate limiting configuration
     ##
     configName: ratelimit-config
-
     ## Service name for rate limiting service
     ##
     serviceName: ratelimit
-
     ## Node selector constraints for rate limiting pod scheduling
     ##
     nodeSelector: {}
@@ -1676,19 +1440,15 @@ sidecars:
       ##
       limits:
         memory: "200Mi"
-
     ## HTTP port for rate limiting service
     ##
     httpPort: 8090
-
     ## gRPC port for rate limiting service
     ##
     grpcPort: 8091
-
     ## Debug port for rate limiting service
     ##
     debugPort: 6070
-
   ## Authorization sidecar configuration (role-based access control)
   ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
   ##
@@ -1696,23 +1456,18 @@ sidecars:
     ## Enable authorization sidecar
     ##
     enabled: true
-
     ## Authorization sidecar Docker image
     ##
     imageName: "authz-sidecar"
-
     ## Image pull policy for authorization sidecar
     ##
     imagePullPolicy: Always
-
     ## gRPC port for authorization service
     ##
     grpcPort: 50052
-
     ## Extra environment variables for the API service container
     ##
     extraEnv: []
-
     ## PostgreSQL connection pool configuration
     ## Note: Host, port, database, user, and password are inherited from services.postgres
     ##
@@ -1720,30 +1475,24 @@ sidecars:
       ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
       ##
       sslMode: prefer
-
       ## Maximum number of connections in the pool
       ##
       maxConns: 10
-
       ## Minimum number of connections in the pool
       ##
       minConns: 2
-
       ## Maximum lifetime of a connection in minutes
       ##
       maxConnLifetimeMin: 5
-
     ## Role cache configuration
     ##
     cache:
       ## Cache time-to-live (how long to cache role policies in seconds)
       ##
       ttl: 300
-
       ## Maximum number of role combinations to cache
       ##
       maxSize: 1000
-
     ## Resource limits and requests for authorization sidecar
     ##
     resources:
@@ -1757,7 +1506,6 @@ sidecars:
       limits:
         cpu: 500m
         memory: 256Mi
-
     ## Liveness probe configuration
     ##
     livenessProbe:
@@ -1767,7 +1515,6 @@ sidecars:
       periodSeconds: 10
       timeoutSeconds: 3
       failureThreshold: 3
-
     ## Readiness probe configuration
     ##
     readinessProbe:
@@ -1777,7 +1524,6 @@ sidecars:
       periodSeconds: 5
       timeoutSeconds: 3
       failureThreshold: 2
-
     ## Security context for authorization sidecar
     ##
     securityContext:
@@ -1786,7 +1532,6 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 10001
-
 ## Global configuration for extra ConfigMaps
 ## These ConfigMaps can be used for custom configurations
 ##
