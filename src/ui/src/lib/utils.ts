@@ -167,23 +167,24 @@ export function formatBytesTriple(
 }
 
 // Format react-hotkeys-hook syntax for display: "mod+]" → "⌘]" (Mac) or "Ctrl+]" (Windows)
-export function formatHotkey(hotkey: string): string {
+// Optional `mac` parameter overrides platform detection (used by useFormattedHotkey for SSR safety).
+export function formatHotkey(hotkey: string, mac?: boolean): string {
+  const useMacSymbols = mac ?? isMac;
   const parts = hotkey.toLowerCase().split("+");
 
   const symbols = parts.map((part) => {
     switch (part) {
       case "mod":
-        return isMac ? "⌘" : "Ctrl+";
+        return useMacSymbols ? "⌘" : "Ctrl+";
       case "shift":
-        return isMac ? "⇧" : "Shift+";
+        return useMacSymbols ? "⇧" : "Shift+";
       case "alt":
-        return isMac ? "⌥" : "Alt+";
+        return useMacSymbols ? "⌥" : "Alt+";
       case "ctrl":
-        return isMac ? "⌃" : "Ctrl+";
+        return useMacSymbols ? "⌃" : "Ctrl+";
       case "escape":
         return "Esc";
       default:
-        // Uppercase single letters, keep symbols as-is
         return part.length === 1 ? part.toUpperCase() : part;
     }
   });

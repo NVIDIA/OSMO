@@ -19,7 +19,8 @@
 import { memo, useMemo, useRef, useCallback, useEffect, useState, startTransition, useDeferredValue } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
-import { cn, formatHotkey, modKey } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormattedHotkey, useModKey } from "@/hooks/use-hotkey-label";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
 import { formatLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import type { SearchChip, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
@@ -202,6 +203,9 @@ function ErrorState({ error, onRetry }: ErrorStateProps) {
 // =============================================================================
 
 function LogViewerInner({ data, filter, timeline, className, showTimeline = true }: LogViewerProps) {
+  const searchShortcut = useFormattedHotkey("mod+f");
+  const modKeyLabel = useModKey();
+
   // Refs for focus management
   const containerRef = useRef<HTMLDivElement>(null);
   const filterBarRef = useRef<FilterBarHandle>(null);
@@ -484,7 +488,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
           chips={filterChips}
           onChipsChange={handleFilterChipsChange}
           presets={LOG_FILTER_PRESETS}
-          placeholder={`Search logs (${formatHotkey("mod+f")})...`}
+          placeholder={`Search logs (${searchShortcut})...`}
         />
       </div>
 
@@ -541,7 +545,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <span className="text-xs">Zoom in ({modKey}+Wheel up)</span>
+                    <span className="text-xs">Zoom in ({modKeyLabel}+Wheel up)</span>
                   </TooltipContent>
                 </Tooltip>
                 <Tooltip>
@@ -560,7 +564,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <span className="text-xs">Zoom out ({modKey}+Wheel down)</span>
+                    <span className="text-xs">Zoom out ({modKeyLabel}+Wheel down)</span>
                   </TooltipContent>
                 </Tooltip>
               </div>

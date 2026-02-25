@@ -27,7 +27,8 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { cn, formatHotkey } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormattedHotkey } from "@/hooks/use-hotkey-label";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -172,6 +173,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
   const { clipboard } = useServices();
+  const copyShortcut = useFormattedHotkey("mod+c");
 
   // Track programmatic scrolls to avoid unpinning during auto-scroll
   const isAutoScrollingRef = useRef(false);
@@ -560,7 +562,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
           disabled={!effectiveSelection}
         >
           Copy
-          <ContextMenuShortcut>{formatHotkey("mod+c")}</ContextMenuShortcut>
+          <ContextMenuShortcut>{copyShortcut}</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
