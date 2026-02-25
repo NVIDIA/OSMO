@@ -19,22 +19,32 @@ import { extractToken } from "@/lib/auth/jwt-utils";
 import { decodeUserFromToken } from "@/lib/auth/decode-user";
 
 /**
- * Get current user info from JWT
+ * Returns current user info.
  *
- * This endpoint exists for future SSR needs (e.g., server-side auth checks,
- * personalized metadata, audit logging). Currently, the client decodes JWTs
- * directly for performance.
+ * Production: Envoy injects Authorization header with the JWT (via OAuth2 Proxy).
+ * The JWT is decoded server-side to extract user claims.
  *
- * In production: Envoy forwards JWT in Authorization header
- * In local dev: Supports cookie fallback for mock mode
+ * Dev: When no Authorization header is present, returns dev user info
+ * so the UI renders without a real auth session.
  */
 export async function GET(request: NextRequest) {
   const token = extractToken(request);
   const user = decodeUserFromToken(token);
 
-  if (!user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (user) {
+    return NextResponse.json(user);
   }
 
-  return NextResponse.json(user);
+  if (process.env.NODE_ENV === "development") {
+    return NextResponse.json({
+      id: "dev-user",
+      name: process.env.DEV_USER_NAME || "Dev User",
+      email: process.env.DEV_USER_EMAIL || "dev@localhost",
+      username: process.env.DEV_USER_NAME || "dev-user",
+      isAdmin: true,
+      initials: "DU",
+    });
+  }
+
+  return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 }

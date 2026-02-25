@@ -18,10 +18,6 @@
 
 import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
 import { getBasePathUrl } from "@/lib/config";
-import { getClientToken, decodeUserFromToken } from "@/lib/auth/decode-user";
-
-/** Event dispatched after successful token refresh for user state sync. */
-export const TOKEN_REFRESHED_EVENT = "osmo:token-refreshed";
 
 export interface User {
   id: string;
@@ -47,10 +43,6 @@ interface UserProviderProps {
   children: ReactNode;
 }
 
-// =============================================================================
-// UserProvider State Reducer
-// =============================================================================
-
 interface UserProviderState {
   user: User | null;
   isLoading: boolean;
@@ -69,36 +61,48 @@ function userProviderReducer(state: UserProviderState, action: UserProviderActio
   }
 }
 
-/** Decodes user from JWT token in localStorage or cookies. No network call needed. */
+/**
+ * Fetches user info from the server.
+ *
+ * In production, /api/me reads the JWT from the Authorization header (injected by Envoy).
+ * In local dev, /api/me returns dev user info.
+ */
 export function UserProvider({ children }: UserProviderProps) {
   const [state, dispatch] = useReducer(userProviderReducer, { user: null, isLoading: true });
   const { user, isLoading } = state;
 
   useEffect(() => {
-    const loadUser = () => {
+    let cancelled = false;
+
+    async function loadUser() {
       try {
-        const token = getClientToken();
-        const decodedUser = decodeUserFromToken(token);
-        dispatch({ type: "LOAD_SUCCESS", user: decodedUser });
+        const response = await fetch(getBasePathUrl("/api/me"), { credentials: "include" });
+        if (!response.ok) {
+          dispatch({ type: "LOAD_FAILURE" });
+          return;
+        }
+        const userData: User = await response.json();
+        if (!cancelled) {
+          dispatch({ type: "LOAD_SUCCESS", user: userData });
+        }
       } catch (error) {
-        console.error("Failed to decode user from token:", error);
-        dispatch({ type: "LOAD_FAILURE" });
+        console.error("Failed to load user:", error);
+        if (!cancelled) {
+          dispatch({ type: "LOAD_FAILURE" });
+        }
       }
-    };
+    }
 
     loadUser();
 
-    // Re-read user when server-side refresh gets a new token
-    window.addEventListener(TOKEN_REFRESHED_EVENT, loadUser);
-
     return () => {
-      window.removeEventListener(TOKEN_REFRESHED_EVENT, loadUser);
+      cancelled = true;
     };
   }, []);
 
   const logout = () => {
     dispatch({ type: "LOGOUT" });
-    window.location.href = getBasePathUrl("/logout");
+    window.location.href = getBasePathUrl("/oauth2/sign_out");
   };
 
   return <UserContext.Provider value={{ user, isLoading, logout }}>{children}</UserContext.Provider>;

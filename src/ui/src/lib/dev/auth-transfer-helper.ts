@@ -17,53 +17,33 @@
 /**
  * Dev Auth Transfer Helper
  *
- * Provides console helpers for copying authentication from production to local dev.
- * Only loaded in development mode - tree-shaken in production.
+ * Helps copy the _osmo_session cookie from a production browser to local dev.
+ * The cookie is encrypted and validated by OAuth2 Proxy on the production Envoy.
+ * Local dev proxies requests to prod Envoy, forwarding this cookie for auth.
+ *
+ * Only loaded in development mode.
  */
 
-/**
- * Command that extracts auth cookies and copies a paste-ready command to clipboard.
- * User runs this in production console, then pastes the result in dev console.
- */
-const EXTRACT_AUTH_COMMAND = `(() => { const tokens = document.cookie.split(';').map(c => c.trim()).filter(c => c.startsWith('IdToken=') || c.startsWith('BearerToken=')); if (tokens.length === 0) { console.error('❌ No auth tokens found'); return; } const commands = tokens.map(token => { const [name, value] = token.split('='); return \`document.cookie = "\${name}=\${value}; path=/; max-age=28800";\`; }).join(' '); copy(commands + ' location.reload();'); console.log('✅ Auth command copied! Paste in dev console.'); })();`;
-
-/**
- * Expose helper to window for easier access
- */
 declare global {
   interface Window {
     copyAuthFromProduction?: () => void;
   }
 }
 
-/**
- * Print auth transfer instructions to console.
- */
 function printAuthInstructions() {
-  console.log(
-    "%c┌─────────────────────────────────────────────────────────────┐",
-    "color: #3b82f6; font-weight: bold;",
-  );
-  console.log(
-    "%c│  🔐 Local Dev Auth Helper                                   │",
-    "color: #3b82f6; font-weight: bold;",
-  );
-  console.log(
-    "%c└─────────────────────────────────────────────────────────────┘",
-    "color: #3b82f6; font-weight: bold;",
-  );
+  console.log("%c Local Dev Auth Helper", "color: #3b82f6; font-weight: bold; font-size: 14px;");
   console.log("");
-  console.log("%cTo copy auth from production:", "font-weight: bold;");
+  console.log("%cTo authenticate local dev against production:", "font-weight: bold;");
   console.log("");
-  console.log("%c1. Copy this command:", "color: #64748b;");
+  console.log("%c1. Open production app in browser", "color: #64748b;");
+  console.log("%c2. DevTools > Application > Cookies", "color: #64748b;");
+  console.log("%c3. Copy the _osmo_session cookie value", "color: #64748b;");
+  console.log("%c   (If split: also copy _osmo_session_0, _osmo_session_1, etc.)", "color: #94a3b8;");
+  console.log("%c4. Come back here and run:", "color: #64748b;");
   console.log(
-    "%c" + EXTRACT_AUTH_COMMAND,
+    '%cdocument.cookie = "_osmo_session=<value>; path=/; max-age=604800";',
     "background: #1e293b; color: #22d3ee; padding: 8px; border-radius: 4px; font-family: monospace;",
   );
-  console.log("");
-  console.log("%c2. Open production app console", "color: #64748b;");
-  console.log("%c3. Paste and run the command", "color: #64748b;");
-  console.log("%c4. Come back here and paste the result", "color: #64748b;");
   console.log("");
   console.log(
     "%cAlternatively, use mock mode: %cpnpm dev:mock",
@@ -72,18 +52,12 @@ function printAuthInstructions() {
   );
 }
 
-/**
- * Initialize auth transfer helper in dev mode.
- * Prints instructions to console on app load.
- */
 export function initAuthTransferHelper() {
   if (typeof window === "undefined" || process.env.NODE_ENV === "production") {
     return;
   }
 
-  // Expose helper to window for easy access
   window.copyAuthFromProduction = printAuthInstructions;
 
-  // Wait for console to be ready, then print instructions
   setTimeout(printAuthInstructions, 1000);
 }

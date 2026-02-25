@@ -934,11 +934,9 @@ export const handlers = [
   // ==========================================================================
   // /api/me is NOT intercepted by MSW - it bypasses to the Next.js route handler.
   //
-  // This keeps mock mode high-fidelity with production:
-  // - Production: Envoy sets JWT in Authorization header → /api/me decodes it
-  // - Mock: MockProvider sets JWT in cookie → /api/me decodes it (cookie fallback)
+  // - Production: Envoy injects Authorization header (via OAuth2 Proxy) → /api/me decodes JWT
+  // - Dev/Mock: No Authorization header → /api/me returns dev user info fallback
   //
-  // Both use the same Next.js route handler (/api/me/route.ts) and JWT decoding.
   // No handler needed here - MSW's onUnhandledRequest: "bypass" lets it through.
 
   // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:

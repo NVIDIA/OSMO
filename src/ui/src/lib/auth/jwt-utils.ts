@@ -17,60 +17,31 @@
 /**
  * JWT Utilities - Development Version
  *
- * Extends the production JWT utilities with cookie fallback for mock mode.
- * In production builds, this file is replaced with jwt-utils.ts via next.config.ts alias.
+ * In production, this file is replaced with jwt-utils.production.ts
+ * via next.config.ts alias.
  *
- * DEVELOPMENT ONLY: Supports cookie fallback for local testing without Envoy.
+ * Development: Extracts token from Authorization header only.
+ * When running locally against prod Envoy, the Authorization header
+ * is not present on the Next.js inbound request (it's on the Envoy side).
+ * The /api/me endpoint falls back to dev user info in this case.
  */
 
 import { jwtDecode } from "jwt-decode";
 import type { JwtClaims } from "@/lib/auth/jwt-utils.production";
 
-// Re-export types, constants, and utilities that don't depend on extractToken
 export type { JwtClaims };
 export { FALLBACK_TOKEN_LIFETIME_SECONDS, decodeJwtPayload } from "@/lib/auth/jwt-utils.production";
 
-/**
- * Extract JWT token from Authorization header or cookies.
- *
- * DEVELOPMENT: Supports cookie fallback for mock mode
- * PRODUCTION: This entire file is replaced with jwt-utils.ts
- *
- * @param request - The request object with headers
- * @returns The JWT token string or null if not found
- */
 export function extractToken(request: Request): string | null {
-  // Always check Authorization header first (production with Envoy)
   const authHeader = request.headers.get("authorization");
   if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice(7); // Remove "Bearer " prefix
+    return authHeader.slice(7);
   }
-
-  // DEV ONLY: Check cookies for mock mode
-  // This entire cookie parsing block will be removed in production builds
-  const cookieHeader = request.headers.get("cookie");
-  if (cookieHeader) {
-    const cookies = cookieHeader.split(";").reduce(
-      (acc, cookie) => {
-        const [key, value] = cookie.trim().split("=");
-        if (key) acc[key] = value;
-        return acc;
-      },
-      {} as Record<string, string>,
-    );
-
-    // Check IdToken first (what Envoy sets), then BearerToken
-    return cookies["IdToken"] || cookies["BearerToken"] || null;
-  }
-
   return null;
 }
 
-/**
- * Decode and parse JWT claims using dev extractToken (with cookie fallback).
- */
 export function getJwtClaims(request: Request): JwtClaims | null {
-  const token = extractToken(request); // Uses dev version with cookie fallback
+  const token = extractToken(request);
   if (!token) {
     return null;
   }
@@ -83,9 +54,6 @@ export function getJwtClaims(request: Request): JwtClaims | null {
   }
 }
 
-/**
- * Get the username from the JWT token (uses dev getJwtClaims).
- */
 export function getUsername(request: Request): string | null {
   const claims = getJwtClaims(request);
   return claims?.preferred_username ?? null;

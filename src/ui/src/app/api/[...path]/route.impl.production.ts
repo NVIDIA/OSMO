@@ -17,25 +17,16 @@
 /**
  * Dynamic API Proxy Route Handler (Production Build)
  *
- * PRODUCTION VERSION - ZERO MOCK CODE
- *
  * Proxies ALL /api/* requests to the backend API at RUNTIME.
- * This replaces the build-time rewrite in next.config.ts.
  *
- * Benefits:
- * - Backend hostname configurable at RUNTIME (not build time)
- * - Single Docker image works for all environments
- * - Perfect for open source - users set hostname via env var
+ * Authentication:
+ * - Production: Envoy injects Authorization header (via OAuth2 Proxy)
+ * - Local dev: Forwards _osmo_session cookie to prod Envoy for validation
+ * - In dev mode, rewrites Set-Cookie domains so OAuth2 Proxy session
+ *   refreshes propagate back to the localhost browser.
  *
- * Authentication Flow:
- * - In production: Envoy injects Authorization and x-osmo-user headers
- * - In local dev: Forwards any auth headers from client
- * - This proxy simply forwards headers to backend
- *
- * This catches all /api/* routes EXCEPT:
- * - /api/health - Handled by app/api/health/route.ts
- *
- * Route Handlers have higher priority than catch-all routes, so they work correctly.
+ * Catches all /api/* routes except explicit route handlers
+ * (e.g., /api/health, /api/me) which take priority.
  */
 
 import { type NextRequest } from "next/server";
@@ -62,6 +53,18 @@ const HOP_BY_HOP_HEADERS = new Set([
 // Client request headers worth forwarding for content-negotiation & streaming
 // ---------------------------------------------------------------------------
 const FORWARDED_REQUEST_HEADERS = ["accept", "accept-encoding", "accept-language"] as const;
+
+/**
+ * In dev mode, rewrite Set-Cookie headers from the production backend
+ * so OAuth2 Proxy session refreshes propagate to the localhost browser.
+ * Strips domain, Secure, and HttpOnly attributes.
+ */
+function rewriteSetCookieForDev(setCookie: string): string {
+  return setCookie
+    .replace(/;\s*domain=[^;]*/gi, "")
+    .replace(/;\s*secure/gi, "")
+    .replace(/;\s*httponly/gi, "");
+}
 
 /**
  * Proxy all API requests to backend.
@@ -127,14 +130,17 @@ async function proxyRequest(request: NextRequest, method: string) {
       redirect: "manual",
     });
 
-    // Forward response headers from backend as-is (transparent proxy)
     const responseHeaders = new Headers();
 
-    // Copy all headers from backend response, skipping hop-by-hop headers
     response.headers.forEach((value, key) => {
-      if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
-        responseHeaders.set(key, value);
+      if (HOP_BY_HOP_HEADERS.has(key.toLowerCase())) return;
+
+      if (key.toLowerCase() === "set-cookie" && process.env.NODE_ENV === "development") {
+        responseHeaders.append(key, rewriteSetCookieForDev(value));
+        return;
       }
+
+      responseHeaders.append(key, value);
     });
 
     // Disable buffering in upstream proxies (Nginx, Envoy, ALB).
@@ -214,7 +220,7 @@ export async function OPTIONS(_request: NextRequest) {
     headers: {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-osmo-auth, x-osmo-user",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400",
       "Cache-Control": "no-store, no-cache, must-revalidate",
       Pragma: "no-cache",

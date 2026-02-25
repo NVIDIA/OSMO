@@ -18,58 +18,12 @@ import { jwtDecode } from "jwt-decode";
 import type { JwtClaims } from "@/lib/auth/jwt-utils.production";
 import { extractRolesFromClaims, hasAdminRole } from "@/lib/auth/roles";
 import type { User } from "@/lib/auth/user-context";
-import { getCookie } from "@/lib/auth/cookies";
-
-/**
- * Get JWT token from client-side storage (localStorage or cookies).
- *
- * CLIENT-SIDE ONLY: This function requires window/localStorage.
- *
- * IMPORTANT: Only returns IdToken (ID token), never BearerToken (access token).
- * Access tokens don't have the "aud" (audience) claim required for JWT validation.
- *
- * Checks:
- * 1. localStorage (dev mode with injected tokens)
- * 2. Cookies (set by Envoy in production, or dev helpers)
- *
- * @returns JWT token string or null if not found
- */
-export function getClientToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  // Check cookies (production with Envoy, or dev mode) - ONLY IdToken
-  return getCookie("IdToken") || null;
-}
-
-/**
- * Get initials from a name string.
- *
- * @param name - User's full name or email
- * @returns Two-letter initials (e.g., "John Doe" → "JD")
- */
-function getInitials(name: string): string {
-  return name
-    .split(/[\s@]+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() || "")
-    .join("");
-}
 
 /**
  * Decode user information from JWT token.
  *
- * SHARED LOGIC: Used by both client (UserProvider) and server (/api/me).
- *
- * Transforms JWT claims into User object:
- * - id: claims.sub
- * - name: claims.name || claims.email (first part) - for display
- * - username: claims.unique_name || claims.preferred_username - matches Envoy's x-osmo-user header
- * - email: claims.email || claims.preferred_username
- * - isAdmin: hasAdminRole(roles)
- * - initials: Two letters from name
- *
- * @param token - JWT token string
- * @returns User object or null if token is invalid
+ * Used server-side by /api/me to extract user claims from the
+ * Authorization header (injected by Envoy via OAuth2 Proxy).
  */
 export function decodeUserFromToken(token: string | null): User | null {
   if (!token) {
@@ -80,16 +34,9 @@ export function decodeUserFromToken(token: string | null): User | null {
     const claims = jwtDecode<JwtClaims>(token);
 
     const roles = extractRolesFromClaims(claims);
-
-    // Extract email from multiple possible sources
-    // Some auth providers use 'email', others use 'preferred_username'
     const email = claims.email || claims.preferred_username || "";
-
-    // Extract username that matches Envoy's x-osmo-user header
-    // Envoy uses unique_name (primary) or preferred_username (secondary)
     const username = claims.unique_name || claims.preferred_username || email.split("@")[0] || "user";
 
-    // Build User object
     return {
       id: claims.sub || "",
       name: claims.name || email.split("@")[0] || "User",
@@ -102,4 +49,12 @@ export function decodeUserFromToken(token: string | null): User | null {
     console.error("Failed to decode JWT:", error);
     return null;
   }
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/[\s@]+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
 }
