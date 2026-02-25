@@ -374,7 +374,7 @@ def _start_ui_service():
         name='ui',
         env=ui_env
     )
-    if not _wait_for_http_service(f'http://{host_ip}:3000', 'UI service'):
+    if not _wait_for_http_service(f'http://{host_ip}:3000/health', 'UI service'):
         raise RuntimeError('UI service failed to become ready')
 
 
