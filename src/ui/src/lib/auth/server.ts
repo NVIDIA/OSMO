@@ -76,7 +76,11 @@ export async function hasServerAdminRole(): Promise<boolean> {
 }
 
 /**
- * Get username from Envoy-injected x-osmo-user header.
+ * Get username from OAuth2 Proxy headers.
+ *
+ * Reads x-auth-request-preferred-username (human-readable username from
+ * the preferred_username OIDC claim) with fallback to x-auth-request-user
+ * (user ID, typically email).
  *
  * @returns Username or null if not authenticated
  *
@@ -90,21 +94,29 @@ export async function hasServerAdminRole(): Promise<boolean> {
  */
 export async function getServerUsername(): Promise<string | null> {
   const headersList = await headers();
-  return headersList.get("x-osmo-user");
+  return (
+    headersList.get("x-auth-request-preferred-username") ||
+    headersList.get("x-auth-request-user") ||
+    null
+  );
 }
 
 /**
- * Build a User object from Envoy-injected headers.
+ * Build a User object from OAuth2 Proxy and Envoy-injected headers.
  *
- * Reads x-osmo-user, x-osmo-roles, x-osmo-name, and x-auth-request-email
- * set by Envoy + OAuth2 Proxy on every authenticated request.
+ * Reads x-auth-request-preferred-username, x-auth-request-email,
+ * x-auth-request-name, and x-osmo-roles set by OAuth2 Proxy + Envoy
+ * on every authenticated request.
  *
  * Returns null if no user headers are present (e.g., local dev without Envoy).
  */
 export async function getServerUser(): Promise<User | null> {
   const headersList = await headers();
 
-  const username = headersList.get("x-osmo-user");
+  const username =
+    headersList.get("x-auth-request-preferred-username") ||
+    headersList.get("x-auth-request-user");
+
   if (!username) {
     if (process.env.NODE_ENV === "development") {
       return {
@@ -120,7 +132,7 @@ export async function getServerUser(): Promise<User | null> {
   }
 
   const email = headersList.get("x-auth-request-email") || username;
-  const name = headersList.get("x-osmo-name") || deriveDisplayName(username);
+  const name = headersList.get("x-auth-request-name") || deriveDisplayName(username);
   const roles = await getServerUserRoles();
 
   return {
@@ -136,10 +148,9 @@ export async function getServerUser(): Promise<User | null> {
 function deriveDisplayName(username: string): string {
   const namePart = username.includes("@") ? username.split("@")[0] : username;
   if (!namePart) return "User";
-  return namePart
-    .split(/[._-]+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+  const parts = namePart.split(/[._-]+/).filter(Boolean);
+  if (parts.length <= 1) return namePart;
+  return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
 function getInitials(name: string): string {

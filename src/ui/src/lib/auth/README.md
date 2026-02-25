@@ -8,11 +8,12 @@ Authentication is handled by **Envoy sidecar** + **OAuth2 Proxy sidecar** in the
 2. **No valid session?** -- OAuth2 Proxy redirects to the IDP (Keycloak, Microsoft, etc.)
 3. **User logs in** -- IDP redirects to `/oauth2/callback`, OAuth2 Proxy sets `_osmo_session` cookie
 4. **Subsequent requests** -- OAuth2 Proxy validates the session cookie, Envoy validates the JWT
-5. **Envoy enriches headers** on the request to Next.js:
-   - `x-osmo-user` -- username (from JWT claim)
-   - `x-osmo-roles` -- comma-separated roles
-   - `x-osmo-name` -- display name
+5. **Headers enriched** on the request to Next.js:
+   - `x-auth-request-preferred-username` -- username (from OAuth2 Proxy, `preferred_username` OIDC claim)
+   - `x-auth-request-user` -- user ID, typically email (from OAuth2 Proxy)
    - `x-auth-request-email` -- email (from OAuth2 Proxy)
+   - `x-auth-request-name` -- display name (from JWT `name` claim, via Envoy Lua filter)
+   - `x-osmo-roles` -- comma-separated roles (from JWT `roles` claim, via Envoy Lua filter)
 
 Token refresh is handled transparently by OAuth2 Proxy.
 

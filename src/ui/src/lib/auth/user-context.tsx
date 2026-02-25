@@ -42,10 +42,11 @@ interface UserProviderProps {
 }
 
 /**
- * Provides user identity from Envoy-injected headers.
+ * Provides user identity from OAuth2 Proxy and Envoy-injected headers.
  *
- * The user is resolved server-side from x-osmo-user, x-osmo-roles, x-osmo-name
- * headers and passed as initialUser prop. No client-side fetch needed.
+ * The user is resolved server-side from x-auth-request-preferred-username,
+ * x-auth-request-email, x-auth-request-name, and x-osmo-roles headers
+ * and passed as initialUser prop. No client-side fetch needed.
  */
 export function UserProvider({ children, initialUser }: UserProviderProps) {
   const logout = () => {

@@ -932,8 +932,9 @@ export const handlers = [
   // ==========================================================================
   // Auth / User
   // ==========================================================================
-  // User identity is resolved server-side from Envoy headers (x-osmo-user, x-osmo-roles,
-  // x-osmo-name) and passed to the client via React context. No /api/me endpoint needed.
+  // User identity is resolved server-side from OAuth2 Proxy / Envoy headers
+  // (x-auth-request-preferred-username, x-auth-request-email, x-auth-request-name,
+  // x-osmo-roles) and passed to the client via React context. No /api/me endpoint needed.
 
   // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:
   // - GET /api/workflow/:name/exec/task/:taskName/session/:sessionId
@@ -1440,7 +1441,7 @@ export const handlers = [
   // - Callback: Envoy handles at /v2/getAToken
   // - Token refresh: Envoy manages automatically
   // - Logout: Envoy handles at /v2/logout
-  // - User info: Envoy injects x-osmo-user header and forwards Bearer token
+  // - User info: OAuth2 Proxy injects x-auth-request-* headers and Envoy forwards Bearer token
   //
   // In mock mode (local dev), auth is disabled for simplicity.
   // Custom OAuth routes (/auth/callback, /auth/initiate, /auth/refresh_token)
