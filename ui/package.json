@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
-    "@next/env": "^14.2.32",
+    "@next/env": "^14.2.34",
     "@react-dnd/invariant": "^2.0.0",
     "@swc/helpers": "^0.5.1",
     "@t3-oss/env-nextjs": "^0.7.0",
@@ -40,7 +40,7 @@
     "date-fns": "^2.30.0",
     "focus-trap-react": "^11.0.3",
     "material-icons": "^1.13.14",
-    "next": "^14.2.32",
+    "next": "^14.2.34",
     "next-themes": "^0.4.6",
     "postcss": "^8.4.31",
     "prismjs": "^1.30.0",
