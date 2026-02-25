@@ -97,7 +97,7 @@ services:
 
     ## Target pgroll schema version. Named after the app version: public_v{MAJOR}_{MINOR}_{PATCH}
     ##
-    targetSchema: public_v6_2_0
+    targetSchema: public
 
     ## Public image with bash, psql, and curl
     ##
@@ -123,10 +123,6 @@ services:
     ##   extraAnnotations:
     ##     argocd.argoproj.io/hook: PreSync
     ##     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-    ## Example for Helm pre-upgrade:
-    ##   extraAnnotations:
-    ##     "helm.sh/hook": pre-install,pre-upgrade
-    ##     "helm.sh/hook-delete-policy": hook-succeeded
     ##
     extraAnnotations: {}
 
