@@ -253,6 +253,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
           onToggleColumn={toggleColumn}
           searchChips={searchChips}
           onSearchChipsChange={setSearchChips}
+          defaultField="name"
           placeholder="Filter by name, status:, ip:, duration:..."
           searchPresets={taskPresets}
           resultsCount={resultsCount}

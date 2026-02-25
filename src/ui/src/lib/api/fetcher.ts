@@ -25,6 +25,7 @@
  *   /api/auth/refresh, then transparently retries the failed request with fresh token
  */
 
+import { toast } from "sonner";
 import { getBasePathUrl } from "@/lib/config";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 import { getClientToken } from "@/lib/auth/decode-user";
@@ -83,12 +84,23 @@ export function isApiError(error: unknown): error is ApiError {
 // =============================================================================
 
 let refreshPromise: Promise<void> | null = null;
+let lastRefreshFailureTime = 0;
+const REFRESH_COOLDOWN_MS = 30_000;
 
 /**
  * Performs server-side token refresh using RefreshToken cookie.
  * Multiple concurrent calls share the same refresh Promise to avoid race conditions.
+ *
+ * Includes a cooldown circuit breaker: if the last refresh failed within
+ * REFRESH_COOLDOWN_MS, immediately throws instead of hitting the server again.
+ * This prevents infinite loops when the session is fully expired and the
+ * RefreshToken cookie is gone.
  */
 async function performTokenRefresh(): Promise<void> {
+  if (Date.now() - lastRefreshFailureTime < REFRESH_COOLDOWN_MS) {
+    throw new Error("Token refresh recently failed — cooldown active");
+  }
+
   // If already refreshing, wait for that refresh to complete
   if (refreshPromise) {
     return refreshPromise;
@@ -103,6 +115,7 @@ async function performTokenRefresh(): Promise<void> {
       });
 
       if (!response.ok) {
+        lastRefreshFailureTime = Date.now();
         const error = await response.json().catch(() => ({ error: "Token refresh failed" }));
         throw new Error(error.error || `HTTP ${response.status}`);
       }
@@ -220,9 +233,16 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
         );
       } catch (refreshError) {
         console.error("Token refresh failed:", refreshError);
-        // Token refresh failed - redirect to login
-        window.location.href = getBasePathUrl("/");
-        throw createApiError("Session expired. Redirecting to login...", response.status, false);
+        toast.error("Session expired", {
+          description: "Please refresh the page to log in again.",
+          duration: Infinity,
+          id: "session-expired",
+          action: {
+            label: "Refresh",
+            onClick: () => window.location.reload(),
+          },
+        });
+        throw createApiError("Session expired. Please refresh the page to log in again.", response.status, false);
       }
     }
 

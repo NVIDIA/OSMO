@@ -54,6 +54,7 @@ function FilterBarInner<T>(
     displayMode,
     presets,
     resultsCount,
+    defaultField,
   }: FilterBarProps<T>,
   ref: React.Ref<FilterBarHandle>,
 ) {
@@ -90,6 +91,7 @@ function FilterBarInner<T>(
     fields,
     displayMode,
     presets,
+    defaultField,
   });
 
   // ========== Wire input ref to orchestration hook ==========

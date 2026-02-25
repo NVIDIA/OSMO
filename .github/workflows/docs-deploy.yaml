@@ -23,7 +23,8 @@ on:
     branches: [ main ]
     paths:
       - 'docs/**'
-      - 'workflows/**'
+      - 'cookbook/**'
+      - '.github/workflows/docs-deploy.yaml'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -58,6 +59,7 @@ jobs:
       - name: Build Sphinx documentation
         run: |
           make -C docs build-multiversion ERR_DIR=build_error_logs OUT_DIR=public
+          rm -rf docs/public/**/.doctrees
 
       - name: Check for build errors
         run: |
@@ -92,3 +94,4 @@ jobs:
             pr-preview/
             .nojekyll
           force: false
+          single-commit: true

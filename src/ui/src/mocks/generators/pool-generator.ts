@@ -100,7 +100,9 @@ export class PoolGenerator {
 
     // GPU capacity
     const totalGpus = faker.helpers.arrayElement(this.config.patterns.quota.gpuCounts);
-    const utilization = faker.number.float(this.config.patterns.quota.utilizationRange);
+    // Index 1: simulate oversubscribed pool where usage exceeds capacity
+    const isOversubscribed = index === 1;
+    const utilization = isOversubscribed ? 1.2 : faker.number.float(this.config.patterns.quota.utilizationRange);
     const usedGpus = Math.floor(totalGpus * utilization);
     const availableGpus = totalGpus - usedGpus;
 

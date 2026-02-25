@@ -72,6 +72,8 @@ export interface TableToolbarProps<T> {
   resultsCount?: ResultsCount;
   /** Optional auto-refresh controls (if not provided, no refresh button shown) */
   autoRefreshProps?: RefreshControlProps;
+  /** Field ID to use for free-text input (no prefix typed) */
+  defaultField?: string;
 }
 
 function TableToolbarInner<T>({
@@ -87,6 +89,7 @@ function TableToolbarInner<T>({
   children,
   resultsCount,
   autoRefreshProps,
+  defaultField,
 }: TableToolbarProps<T>) {
   // Shared preferences (across pools & resources)
   const compactMode = useCompactMode(); // Hydration-safe
@@ -103,6 +106,7 @@ function TableToolbarInner<T>({
           placeholder={placeholder}
           presets={searchPresets}
           resultsCount={resultsCount}
+          defaultField={defaultField}
         />
       </div>
 
