@@ -37,7 +37,11 @@ type NodeConditionRuleListener struct {
 }
 
 // NewNodeConditionRuleListener creates a new node condition rule listener instance.
-func NewNodeConditionRuleListener(args utils.ListenerArgs, nodeConditionRules *utils.NodeConditionRules, inst *utils.Instruments) *NodeConditionRuleListener {
+func NewNodeConditionRuleListener(
+	args utils.ListenerArgs,
+	nodeConditionRules *utils.NodeConditionRules,
+	inst *utils.Instruments,
+) *NodeConditionRuleListener {
 	return &NodeConditionRuleListener{
 		args:               args,
 		nodeConditionRules: nodeConditionRules,
@@ -52,11 +56,13 @@ func (ncrl *NodeConditionRuleListener) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to parse service URL: %w", err)
 	}
 
+	dialOpts, err := utils.GetDialOptions(ncrl.args)
+	if err != nil {
+		return fmt.Errorf("failed to get dial options: %w", err)
+	}
+
 	// Create connection
-	conn, err := grpc.NewClient(
-		serviceAddr,
-		grpc.WithTransportCredentials(utils.GetTransportCredentials(ncrl.args.ServiceURL)),
-	)
+	conn, err := grpc.NewClient(serviceAddr, dialOpts...)
 	if err != nil {
 		return fmt.Errorf("failed to create gRPC connection: %w", err)
 	}

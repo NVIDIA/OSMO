@@ -19,10 +19,12 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
+	"fmt"
 	"log"
 	"net/url"
 	"strings"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -38,6 +40,21 @@ func ParseServiceURL(serviceURL string) (string, error) {
 
 	// If no scheme or parsing failed, assume it's already in "host:port" format
 	return serviceURL, nil
+}
+
+// GetDialOptions returns grpc.DialOptions with transport credentials and optional per-RPC auth.
+func GetDialOptions(args ListenerArgs) ([]grpc.DialOption, error) {
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(GetTransportCredentials(args.ServiceURL)),
+	}
+	creds, err := NewCredentials(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build auth credentials: %w", err)
+	}
+	if creds != nil {
+		opts = append(opts, grpc.WithPerRPCCredentials(creds))
+	}
+	return opts, nil
 }
 
 // GetTransportCredentials returns appropriate gRPC transport credentials based on service URL

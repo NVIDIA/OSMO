@@ -46,6 +46,7 @@ go_library(
         "base_listener.go",
         "container_status.go",
         "helpers.go",
+        "login.go",
         "instruments.go",
         "k8s_helpers.go",
         "listener_args.go",

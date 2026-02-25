@@ -18,10 +18,14 @@ SPDX-License-Identifier: Apache-2.0
 
 package utils
 
-import "time"
+import (
+	"math/rand"
+	"time"
+)
 
-// CalculateBackoff returns exponential backoff duration with a max cap.
+// CalculateBackoff returns exponential backoff duration with a max cap and random jitter.
 // Sequence: 1s, 2s, 4s, 8s, 16s, then capped at maxBackoff.
+// A random jitter in [0, 1min] is added to the base duration, then capped at maxBackoff.
 func CalculateBackoff(retryCount int, maxBackoff time.Duration) time.Duration {
 	if retryCount <= 0 {
 		return 0
@@ -30,5 +34,10 @@ func CalculateBackoff(retryCount int, maxBackoff time.Duration) time.Duration {
 	if d > maxBackoff {
 		d = maxBackoff
 	}
-	return d
+	jitter := time.Duration(rand.Float64() * float64(time.Minute))
+	result := d + jitter
+	if result > maxBackoff {
+		result = maxBackoff
+	}
+	return result
 }
