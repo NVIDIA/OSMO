@@ -31,6 +31,7 @@
  *   displays it directly; the header dropdown lazy-fetches it on open
  */
 
+import { connection } from "next/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { prefetchPoolsForDashboard } from "@/lib/api/server/pools";
 import { prefetchWorkflowsList } from "@/lib/api/server/workflows";
@@ -46,6 +47,8 @@ function computeSubmittedAfterCutoff(): string {
 }
 
 export async function DashboardWithData() {
+  await connection();
+
   // Create server-optimized QueryClient (no retries -- fail fast for SSR)
   const queryClient = createServerQueryClient();
 
