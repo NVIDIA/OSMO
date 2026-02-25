@@ -121,6 +121,8 @@ spec:
         - {{ $arg | quote }}
         {{- end }}
         env:
+        - name: OSMO_SCHEMA_VERSION
+          value: {{ .Values.services.migration.targetSchema | default "public" }}
         {{- include "osmo.extra-env" .Values.services.worker | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
