@@ -49,6 +49,8 @@ export interface WorkflowFilterParams {
   showAllUsers?: boolean;
   /** Sort direction */
   sortDirection?: "ASC" | "DESC";
+  /** ISO date string — only return workflows submitted after this time */
+  submittedAfter?: string;
 }
 
 export interface RawWorkflowsResponse {
@@ -83,6 +85,7 @@ function buildApiParams(
   offset: number,
   limit: number,
   sortDirection: ListOrder,
+  submittedAfter?: string,
 ): ListWorkflowApiWorkflowGetParams {
   const poolChips = getChipValues(chips, "pool");
   const statusChips = getChipValues(chips, "status");
@@ -108,6 +111,7 @@ function buildApiParams(
     all_users: userChips.length === 0 ? showAllUsers : undefined,
     // all_pools is implicit: true when no pool filter, false when pool filter exists
     all_pools: poolChips.length === 0,
+    submitted_after: submittedAfter,
   };
 }
 
@@ -142,10 +146,17 @@ export function parseWorkflowsResponse(rawData: unknown): RawWorkflowsResponse |
 export async function fetchPaginatedWorkflows(
   params: PaginationParams & WorkflowFilterParams,
 ): Promise<PaginatedResponse<WorkflowListEntry>> {
-  const { offset = 0, limit, searchChips, showAllUsers = false, sortDirection = "DESC" } = params;
+  const { offset = 0, limit, searchChips, showAllUsers = false, sortDirection = "DESC", submittedAfter } = params;
 
   // Build API params from chips
-  const apiParams = buildApiParams(searchChips, showAllUsers, offset, limit, sortDirection as ListOrder);
+  const apiParams = buildApiParams(
+    searchChips,
+    showAllUsers,
+    offset,
+    limit,
+    sortDirection as ListOrder,
+    submittedAfter,
+  );
 
   // Fetch from API
   const rawData = await listWorkflowApiWorkflowGet(apiParams);
@@ -186,6 +197,7 @@ export function buildWorkflowsQueryKey(
   searchChips: SearchChip[],
   showAllUsers: boolean = false,
   sortDirection: string = "DESC",
+  submittedAfter?: string,
 ): readonly unknown[] {
   // Extract filter values by field
   const name = getFirstChipValue(searchChips, "name");
@@ -213,6 +225,7 @@ export function buildWorkflowsQueryKey(
       ...filters,
       showAllUsers,
       sortDirection,
+      ...(submittedAfter ? { submittedAfter } : {}),
     },
   ] as const;
 }

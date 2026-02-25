@@ -60,6 +60,12 @@ export interface WorkflowsQueryParams {
   offset?: number;
   /** Sort order (default: DESC — newest first) */
   order?: "ASC" | "DESC";
+  /** When false, scope results to current user only (default: backend decides) */
+  all_users?: boolean;
+  /** When true, include workflows from all pools */
+  all_pools?: boolean;
+  /** ISO date string — only return workflows submitted after this time */
+  submitted_after?: string;
 }
 
 // =============================================================================
@@ -91,6 +97,9 @@ export const fetchWorkflows = cache(async (params: WorkflowsQueryParams = {}): P
     limit: params.limit,
     offset: params.offset,
     order: (params.order ?? "DESC") as ListOrder,
+    all_users: params.all_users,
+    all_pools: params.all_pools,
+    submitted_after: params.submitted_after,
   };
 
   const rawData = await listWorkflowApiWorkflowGet(apiParams);
@@ -198,16 +207,26 @@ export async function prefetchWorkflows(queryClient: QueryClient, params: Workfl
  *
  * @param queryClient - The QueryClient to prefetch into
  * @param filterChips - Filter chips from URL (optional, for nuqs compatibility)
- * @param options - Fetch options
+ * @param showAllUsers - When true, fetch all users' workflows (default: false = current user only)
+ * @param sortDirection - Sort order (default: DESC — newest first)
+ * @param submittedAfter - ISO date string — only return workflows submitted after this time
  */
-export async function prefetchWorkflowsList(queryClient: QueryClient, filterChips: SearchChip[] = []): Promise<void> {
-  // Build query key matching client format exactly
-  const queryKey = buildWorkflowsQueryKey(filterChips, false, "DESC");
-
-  // Extract filter values from chips for API call
+export async function prefetchWorkflowsList(
+  queryClient: QueryClient,
+  filterChips: SearchChip[] = [],
+  showAllUsers = false,
+  sortDirection: "ASC" | "DESC" = "DESC",
+  submittedAfter?: string,
+): Promise<void> {
+  // Derive all_users/all_pools from chips, mirroring client-side buildApiParams logic
   const statusFilters = filterChips.filter((c) => c.field === "status").map((c) => c.value as WorkflowStatus);
   const poolFilters = filterChips.filter((c) => c.field === "pool").map((c) => c.value);
   const userFilters = filterChips.filter((c) => c.field === "user").map((c) => c.value);
+  const hasUserChips = userFilters.length > 0;
+  const effectiveShowAllUsers = hasUserChips ? false : showAllUsers;
+
+  // Build query key matching client format exactly
+  const queryKey = buildWorkflowsQueryKey(filterChips, effectiveShowAllUsers, sortDirection, submittedAfter);
 
   await queryClient.prefetchInfiniteQuery({
     queryKey,
@@ -215,10 +234,13 @@ export async function prefetchWorkflowsList(queryClient: QueryClient, filterChip
       const response = await fetchWorkflows({
         limit: 50,
         offset: 0,
-        order: "DESC",
+        order: sortDirection,
+        all_users: hasUserChips ? undefined : effectiveShowAllUsers,
+        all_pools: poolFilters.length === 0,
         status: statusFilters.length > 0 ? statusFilters : undefined,
         pools: poolFilters.length > 0 ? poolFilters : undefined,
         users: userFilters.length > 0 ? userFilters : undefined,
+        submitted_after: submittedAfter,
       });
 
       // Parse the response (backend returns string)
