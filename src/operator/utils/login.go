@@ -122,8 +122,13 @@ func NewCredentials(args ListenerArgs) (credentials.PerRPCCredentials, error) {
 		return nil, fmt.Errorf("read token file %q: %w", args.TokenFile, err)
 	}
 	token := strings.TrimSpace(string(tokenBytes))
-	base := strings.TrimRight(args.ServiceURL, "/")
-	refreshURL := base + "/api/auth/jwt/access_token?access_token=" + url.QueryEscape(token)
+	baseURL, err := url.Parse(args.ServiceURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid service URL %q: %w", args.ServiceURL, err)
+	}
+	refreshURLParsed := baseURL.JoinPath("/api/auth/jwt/access_token")
+	refreshURLParsed.RawQuery = "access_token=" + url.QueryEscape(token)
+	refreshURL := refreshURLParsed.String()
 	return &TokenCredentials{
 		refreshURL: refreshURL,
 		httpClient: &http.Client{Timeout: 60 * time.Second},
