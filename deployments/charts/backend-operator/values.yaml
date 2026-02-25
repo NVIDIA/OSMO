@@ -20,26 +20,22 @@ global:
   ## Name to use for this deployment (if not provided, uses the Helm release name)
   ##
   name: null
-
   ## Base location for Osmo Docker images in the registry
   ##
   osmoImageLocation: nvcr.io/nvidia/osmo
-
   ## Docker image tag for Osmo backend operators
   ##
-  osmoImageTag: latest
-
+  osmoImageTag: "6.2"
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
   imagePullSecret: null
-
   ## Node selector constraints for pod scheduling
   ##
   nodeSelector: {}
-    # Add node selectors here as needed
-    # kubernetes.io/arch: amd64
-    # node-type: cpu
-    # zone: us-west-2a
+  # Add node selectors here as needed
+  # kubernetes.io/arch: amd64
+  # node-type: cpu
+  # zone: us-west-2a
 
   ## Network configuration for backend operators
   ##
@@ -47,26 +43,21 @@ global:
     ## Whether to restrict egress traffic from workflow pods
     ##
     restrictEgress: false
-
     ## Egress allowlist configuration for controlled external access
     ##
     allowlistEgress:
       ## Enable egress allowlist with squid proxy
       ##
       enabled: false
-
       ## Number of replicas for the squid proxy
       ##
       proxyReplicas: 1
-
       ## Node selector for the squid proxy pod
       #
       nodeSelector: {}
-
       ## Kubernetes namespace where the squid proxy will be deployed
       ##
       proxyNamespace: osmo-squid-proxy
-
       ## Additional domains to allow through the proxy
       ##
       additionalAllowedDomains: []
@@ -87,7 +78,6 @@ global:
           memory: "4Gi"
         limits:
           memory: "4Gi"
-
       ## Sidecar containers for the proxy deployment
       ##
       sidecarContainers:
@@ -107,7 +97,6 @@ global:
               mountPath: /etc/envoy
             - name: envoy-certs
               mountPath: /certs
-
       ## Additional volumes for the proxy deployment
       ##
       additionalVolumes:
@@ -117,99 +106,77 @@ global:
         - name: envoy-certs
           secret:
             secretName: bridge-envoy-certs
-
       ## Host aliases for custom DNS resolution within proxy pods
       ##
       hostAliases: []
-
   ## OSMO service connection configuration
   ##
   ## URL of the OSMO service that backend operators will connect to
   ##
   serviceUrl: ""
-
   ## Username for authenticating with OSMO service (when using password authentication)
   ##
   accountUsername: ""
-
   ## Kubernetes secret containing the password for OSMO service authentication
   ##
   accountPasswordSecret: svc-osmo-admin
-
   ## Key within the password secret containing the actual password
   ##
   accountPasswordSecretKey: password
-
   ## Kubernetes secret containing the token for OSMO service authentication
   ##
   accountTokenSecret: agent-token
-
   ## Key within the token secret containing the actual token
   ##
   accountTokenSecretKey: token
-
   ## Authentication method to use with OSMO service (password or token)
   ##
   loginMethod: password
-
   ## Kubernetes namespace where backend operators will be deployed
   ##
   agentNamespace: osmo
-
   ## Name identifier for this backend
   ##
   backendName: default
-
   ## Kubernetes namespace where backend workloads will be scheduled
   ##
   backendNamespace: osmo-namespace
-
   ## Kubernetes namespace where backend cluster validation tests will be deployed
   ##
   backendTestNamespace: null
-
   ## Prefix for node condition labels (leave empty for no prefix)
   ##
   nodeConditionPrefix: ""
-
-
   ## Logging configuration for backend operators
   ##
   logs:
     ## Application log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     ##
     logLevel: DEBUG
-
     ## Kubernetes system log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     ##
     k8sLogLevel: WARNING
-
   ## Comma-separated list of namespaces to include in usage monitoring
   ##
   includeNamespaceUsage: 'osmo-staging,osmo-prod'
-
   ## Enable cluster-wide RBAC roles for backend operators
   ##
   enableClusterRoles: true
-
   ## Enable namespace-scoped RBAC roles for backend operators
   ##
   enableNonClusterRoles: true
-
   ## Tolerations for backend pod scheduling on tainted nodes
   ##
   tolerations:
-  - key: "ops"
-    operator: "Exists"
-    effect: "NoSchedule"
-
+    - key: "ops"
+      operator: "Exists"
+      effect: "NoSchedule"
   ## Priority class configuration for backend workloads to be used for scheduling
   ## only used if kaischeduler plugin is enabled
   priorityClasses:
     ## Enable creation of priority classes
     ##
     enabled: true
-
     ## List of priority classes to create
     ##
     classes:
@@ -222,7 +189,6 @@ global:
       - name: osmo-low
         value: 50
         description: "Schedule last. Preemptible."
-
 ## Configuration for individual backend operators
 ##
 services:
@@ -233,35 +199,27 @@ services:
     ## Enable automatic node label updates based on cluster state
     ##
     enableNodeLabelUpdate: false
-
     ## Docker image name for the backend listener
     ##
     imageName: backend-listener
-
     ## Kubernetes image pull policy for the backend listener
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the backend listener
     ##
     serviceName: osmo-backend-listener
-
     ## Init containers for backend listener
     ##
     initContainers: []
-
     ## Kubernetes service account name for the backend listener
     ##
     serviceAccount: backend-listener
-
     ## Maximum number of unacknowledged websocket messages
     ##
     max_unacked_messages: 100
-
     ## Time-to-live for pod cache entries (in seconds)
     ##
     podCacheTtl: 15
-
     ## Additional command line arguments to pass to the backend listener
     ##
     extraArgs: []
@@ -322,7 +280,6 @@ services:
     volumeMounts:
       - name: progress-files
         mountPath: /var/run/osmo
-
     ## Resource limits and requests for the backend listener container
     ##
     resources:
@@ -331,15 +288,12 @@ services:
         memory: "2Gi"
       limits:
         memory: "2Gi"
-
     ## Kubernetes API client QPS (queries per second) setting.
     ##
     apiQps: 20
-
     ## Kubernetes API client burst setting.
     ##
     apiBurst: 30
-
   ## Backend worker configuration
   ## Executes jobs received from the backend listener
   ##
@@ -347,27 +301,21 @@ services:
     ## Docker image name for the backend worker
     ##
     imageName: backend-worker
-
     ## Kubernetes image pull policy for the backend worker
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the backend worker
     ##
     serviceName: osmo-backend-worker
-
     ## Init containers for backend worker
     ##
     initContainers: []
-
     ## Kubernetes service account name for the backend worker
     ##
     serviceAccount: backend-worker
-
     ## How often to write progress during task processing loops
     ##
     progressIterFrequency: "15s"
-
     ## Additional command line arguments to pass to the backend worker
     ##
     extraArgs: []
@@ -428,7 +376,6 @@ services:
     volumeMounts:
       - name: progress-files
         mountPath: /var/run/osmo
-
     ## Resource limits and requests for the backend worker container
     ##
     resources:
@@ -437,8 +384,6 @@ services:
         memory: "1Gi"
       limits:
         memory: "1Gi"
-
-
 ## Backend Test Runner CronJob Configuration
 ## This is used to setup backend tests
 ##
@@ -446,70 +391,55 @@ backendTestRunner:
   ## Enable backend test runner CronJob creation
   ##
   enabled: true
-
   ## CronJob scheduling configuration
   ##
   cronJob:
     ## Default schedule for running backend tests (cron format)
     ##
-    schedule: "0 2 * * *"  # Daily at 2 AM
-
+    schedule: "0 2 * * *" # Daily at 2 AM
     ## Timezone for the CronJob schedule
     ##
     timezone: "UTC"
-
     ## Starting deadline in seconds for late CronJob executions
     ##
     startingDeadlineSeconds: 300
-
     ## Concurrency policy for CronJob execution
     ## Options: Allow, Forbid, Replace
     ##
     concurrencyPolicy: "Forbid"
-
     ## Whether to suspend CronJob execution
     ##
     suspend: false
-
     ## Number of successful job history entries to keep
     ##
     successfulJobsHistoryLimit: 1
-
     ## Number of failed job history entries to keep
     ##
     failedJobsHistoryLimit: 3
-
   ## Job template configuration
   ##
   jobTemplate:
     ## Number of parallel job executions
     ##
     parallelism: 1
-
     ## Number of successful completions required
     ##
     completions: 1
-
     ## Number of retries before marking job as failed
     ##
     backoffLimit: 2
-
     ## Maximum time in seconds for job execution
     ##
     activeDeadlineSeconds: 3600
-
     ## Time to live for completed jobs in seconds
     ##
     ttlSecondsAfterFinished: 86400
-
     ## Completion mode for the job
     ##
     completionMode: "NonIndexed"
-
     ## Whether to suspend job execution
     ##
     suspend: false
-
   ## Pod template configuration
   ##
   podTemplate:
@@ -519,26 +449,21 @@ backendTestRunner:
       ## Docker image for backend test runner
       ##
       repository: "nvcr.io/nvidia/osmo/backend-test-runner"
-
       ## Image tag (if not specified, uses global.osmoImageTag)
       ##
       tag: ""
-
       ## Image pull policy
       ##
       pullPolicy: "Always"
-
     ## Init container configuration for config validation
     ##
     initContainer:
       ## Docker image for init container
       ##
       image: "ubuntu:22.04"
-
       ## Image pull policy for init container
       ##
       imagePullPolicy: "IfNotPresent"
-
       ## Resource limits and requests for init container
       ##
       resources:
@@ -548,7 +473,6 @@ backendTestRunner:
         limits:
           memory: "128Mi"
           cpu: "100m"
-
     ## Main container configuration
     ##
     container:
@@ -561,8 +485,6 @@ backendTestRunner:
         - '/test-config/test_config.json'
         - '--prefix'
         - 'osmo'
-
-
       ## Resource limits and requests for test runner container
       ##
       resources:
@@ -572,38 +494,31 @@ backendTestRunner:
         limits:
           memory: "1Gi"
           cpu: "500m"
-
     ## Security context for pods
     ##
     securityContext:
       ## Run as non-root user
       ##
       runAsNonRoot: true
-
       ## User ID to run containers
       ##
       runAsUser: 1000
-
       ## Group ID to run containers
       ##
       runAsGroup: 1000
-
       ## File system group ID
       ##
       fsGroup: 1000
-
       ## Seccomp profile type
       ##
       seccompProfile:
         type: "RuntimeDefault"
-
     ## Container security context
     ##
     containerSecurityContext:
       ## Prevent privilege escalation
       ##
       allowPrivilegeEscalation: false
-
       ## Capabilities configuration
       ##
       capabilities:
@@ -615,56 +530,44 @@ backendTestRunner:
         ##
         add:
           - "NET_BIND_SERVICE"
-
       ## Read-only root filesystem
       ##
       readOnlyRootFilesystem: true
-
     ## Kubernetes service account name for test runner pods
     ##
     serviceAccount: test-runner
-
     ## Whether to automount service account token
     ##
     automountServiceAccountToken: true
-
     ## Pod restart policy
     ##
     restartPolicy: "Never"
-
     ## Termination grace period in seconds
     ##
     terminationGracePeriodSeconds: 30
-
     ## DNS policy for pods
     ##
     dnsPolicy: "ClusterFirst"
-
     ## DNS configuration
     ##
     dnsConfig: {}
-
     ## Pod hostname template
     ##
     hostnameTemplate: "{{.BackendName}}-{{.TestName}}-runner"
-
     ## Pod subdomain
     ##
     subdomain: "backend-tests"
-
     ## Additional labels for pods
     ##
     labels:
       component: "backend-test-pod"
       pod-type: "test-runner"
-
     ## Additional annotations for pods
     ##
     annotations:
       prometheus.io/scrape: "true"
       prometheus.io/port: "8080"
       prometheus.io/path: "/metrics"
-
     ## Node selector (inherits from global if not specified)
     ##
     nodeSelector: {}
@@ -674,7 +577,6 @@ backendTestRunner:
     ## Tolerations (inherits from global if not specified)
     ##
     tolerations: []
-
     ## Host aliases for custom DNS resolution within backend test runner pods
     ##
     hostAliases: []
@@ -685,22 +587,18 @@ backendTestRunner:
     ## Affinity configuration
     ##
     affinity: {}
-
   ## ConfigMap configuration for test data
   ##
   configMap:
     ## ConfigMap name template
     ##
     nameTemplate: "{{.BackendName}}-{{.TestName}}-config"
-
     ## Default mode for ConfigMap files
     ##
     defaultMode: 0644
-
     ## Whether ConfigMap is optional
     ##
     optional: false
-
   ## Environment variables for test runner
   ##
   env:
@@ -708,29 +606,24 @@ backendTestRunner:
     ##
     additional: {}
     # CUSTOM_VAR: "custom_value"
-
   ## Volume configuration
   ##
   volumes:
     ## Test configuration volume name
     ##
     testConfigName: "test-config"
-
     ## Test configuration mount path
     ##
     testConfigMountPath: "/test-config"
-
   ## Labels to apply to all created resources
   ##
   labels:
     managed-by: "backend-operator"
-
   ## Annotations to apply to CronJob resources
   ##
   annotations:
     description: "Automated test runner for {{.BackendName}} - {{.TestName}}"
     scheduler: "backend-test-scheduler"
-
   ## Extra test runner roles for cross-namespace access
   ## These are additional Role/RoleBinding resources for the test runner to access
   ## resources in other namespaces (e.g., backend namespace, gpu-operator namespace)
@@ -768,7 +661,6 @@ backendTestRunner:
   #     kind: Role
   #     name: test-runner-backend-ns
   #     apiGroup: rbac.authorization.k8s.io
-
 ## Extra ConfigMaps
 ## Define additional ConfigMaps to be created alongside the chart
 ##
@@ -796,21 +688,17 @@ sidecars:
     ## Enable OTEL collector sidecar for metrics and tracing
     ##
     enabled: false
-
     ## Docker image for OTEL collector
     ##
     image: otel/opentelemetry-collector-contrib:0.68.0
-
     ## ConfigMap name for OTEL collector configuration
     ##
     configName: otel-config
-
     ## Container ports configuration
     ##
     ports:
-    - containerPort: 4000
-      name: metrics
-
+      - containerPort: 4000
+        name: metrics
     ## Resource limits and requests for OTEL container
     ##
     resources:

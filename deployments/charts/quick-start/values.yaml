@@ -20,22 +20,18 @@ global:
   ## Base location for OSMO Docker images in the registry
   ##
   osmoImageLocation: nvcr.io/nvidia/osmo
-
   ## Docker image tag for OSMO services
   ##
-  osmoImageTag: latest
-
+  osmoImageTag: "6.2"
   ## Node selector constraints for pod scheduling
   ##
   nodeSelector:
     ## Schedule pods only on service nodes
     ##
     node_group: service
-
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
   imagePullSecret: null
-
   ## Container registry configuration for OSMO images
   ##
   ## TODO: Remove credentials once we can use public registry
@@ -50,7 +46,6 @@ global:
     ## Container registry password (NGC API key)
     ##
     password: ""
-
   ## Object storage configuration for workflow data storage
   ##
   objectStorage:
@@ -69,7 +64,6 @@ global:
     ## Object storage region where the bucket is located
     ##
     region: "us-east-1"
-
 ## Ingress NGINX Controller configuration
 ##
 ingress-nginx:
@@ -105,18 +99,17 @@ ingress-nginx:
     ## Wait for the web UI to be up before starting ingress controller
     ##
     extraInitContainers:
-    - name: wait-for-web-ui
-      image: busybox:1.37.0
-      command:
-      - sh
-      - -c
-      - |
-        until nc -z osmo-ui 80; do
-          echo "Waiting for web-ui..."
-          sleep 2
-        done
-        echo "Web UI is ready"
-
+      - name: wait-for-web-ui
+        image: busybox:1.37.0
+        command:
+          - sh
+          - -c
+          - |
+            until nc -z osmo-ui 80; do
+              echo "Waiting for web-ui..."
+              sleep 2
+            done
+            echo "Web UI is ready"
 ## OSMO main service configuration
 ##
 service:
@@ -132,7 +125,6 @@ service:
       ## Path to the Master Encryption Key (MEK) configuration file
       ##
       path: /home/osmo/config/mek.yaml
-
     ## PostgreSQL database service configuration
     ##
     postgres:
@@ -154,7 +146,6 @@ service:
         ## Schedule pods only on data nodes
         ##
         node_group: data
-
     ## Redis cache service configuration
     ##
     redis:
@@ -176,7 +167,6 @@ service:
         ## Schedule pods only on data nodes
         ##
         node_group: data
-
     ## Localstack S3 Object storage configuration
     ##
     localstackS3:
@@ -200,7 +190,6 @@ service:
         ## Schedule pods only on data nodes
         ##
         node_group: data
-
     ## Main API service configuration
     ##
     service:
@@ -230,49 +219,48 @@ service:
       ## Wait for data infra to be up before starting service
       ##
       initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-      - name: wait-for-localstack-s3
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z localstack-s3 4566; do
-            echo "Waiting for localstack-s3..."
-            sleep 2
-          done
-          echo "Localstack S3 is ready"
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready"
+        - name: wait-for-redis
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+        - name: wait-for-localstack-s3
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z localstack-s3 4566; do
+                echo "Waiting for localstack-s3..."
+                sleep 2
+              done
+              echo "Localstack S3 is ready"
       ## Additional environment variables for the API service
       ##
       extraEnv:
-      - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3.osmo:4566
-      - name: AWS_S3_FORCE_PATH_STYLE
-        value: "true"
-      - name: AWS_DEFAULT_REGION
-        value: us-east-1
-
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://localstack-s3.osmo:4566
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
     ## Worker service configuration for background job processing
     ##
     worker:
@@ -293,49 +281,48 @@ service:
       ## Wait for data infra to be up before starting service
       ##
       initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-      - name: wait-for-localstack-s3
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z localstack-s3 4566; do
-            echo "Waiting for localstack-s3..."
-            sleep 2
-          done
-          echo "Localstack S3 is ready"
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready"
+        - name: wait-for-redis
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+        - name: wait-for-localstack-s3
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z localstack-s3 4566; do
+                echo "Waiting for localstack-s3..."
+                sleep 2
+              done
+              echo "Localstack S3 is ready"
       ## Additional environment variables for the worker service
       ##
       extraEnv:
-      - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3.osmo:4566
-      - name: AWS_S3_FORCE_PATH_STYLE
-        value: "true"
-      - name: AWS_DEFAULT_REGION
-        value: us-east-1
-
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://localstack-s3.osmo:4566
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
     ## Logger service configuration for log collection and processing
     ##
     logger:
@@ -356,49 +343,48 @@ service:
       ## Wait for data infra to be up before starting service
       ##
       initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-      - name: wait-for-localstack-s3
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z localstack-s3 4566; do
-            echo "Waiting for localstack-s3..."
-            sleep 2
-          done
-          echo "Localstack S3 is ready"
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready"
+        - name: wait-for-redis
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+        - name: wait-for-localstack-s3
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z localstack-s3 4566; do
+                echo "Waiting for localstack-s3..."
+                sleep 2
+              done
+              echo "Localstack S3 is ready"
       ## Additional environment variables for the logger service
       ##
       extraEnv:
-      - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3.osmo:4566
-      - name: AWS_S3_FORCE_PATH_STYLE
-        value: "true"
-      - name: AWS_DEFAULT_REGION
-        value: us-east-1
-
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://localstack-s3.osmo:4566
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
     ## Agent service configuration for client communication and management
     ##
     agent:
@@ -419,49 +405,48 @@ service:
       ## Wait for data infra to be up before starting service
       ##
       initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-      - name: wait-for-localstack-s3
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z localstack-s3 4566; do
-            echo "Waiting for localstack-s3..."
-            sleep 2
-          done
-          echo "Localstack S3 is ready"
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready"
+        - name: wait-for-redis
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+        - name: wait-for-localstack-s3
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z localstack-s3 4566; do
+                echo "Waiting for localstack-s3..."
+                sleep 2
+              done
+              echo "Localstack S3 is ready"
       ## Additional environment variables for the agent service
       ##
       extraEnv:
-      - name: AWS_ENDPOINT_URL_S3
-        value: http://localstack-s3.osmo:4566
-      - name: AWS_S3_FORCE_PATH_STYLE
-        value: "true"
-      - name: AWS_DEFAULT_REGION
-        value: us-east-1
-
+        - name: AWS_ENDPOINT_URL_S3
+          value: http://localstack-s3.osmo:4566
+        - name: AWS_S3_FORCE_PATH_STYLE
+          value: "true"
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
     ## Delayed job monitor service configuration
     ##
     delayedJobMonitor:
@@ -473,40 +458,39 @@ service:
       ## Wait for data infra to be up before starting service
       ##
       initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-      - name: wait-for-localstack-s3
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z localstack-s3 4566; do
-            echo "Waiting for localstack-s3..."
-            sleep 2
-          done
-          echo "Localstack S3 is ready"
-
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready"
+        - name: wait-for-redis
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
+        - name: wait-for-localstack-s3
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z localstack-s3 4566; do
+                echo "Waiting for localstack-s3..."
+                sleep 2
+              done
+              echo "Localstack S3 is ready"
   ## Configuration for service sidecar containers
   ##
   sidecars:
@@ -540,7 +524,6 @@ service:
       ## Enable rate limiting service
       ##
       enabled: false
-
 ## Web UI service configuration
 ##
 web-ui:
@@ -555,17 +538,17 @@ web-ui:
       ## Wait for the API service to be up before starting the UI
       ##
       initContainers:
-      - name: wait-for-service
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z osmo-service 80; do
-            echo "Waiting for osmo-service..."
-            sleep 2
-          done
-          echo "OSMO service is ready"
+        - name: wait-for-service
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z osmo-service 80; do
+                echo "Waiting for osmo-service..."
+                sleep 2
+              done
+              echo "OSMO service is ready"
       ## Skip authentication for UI service
       ##
       skipAuth: true
@@ -578,7 +561,6 @@ web-ui:
         ## Enable SSL/TLS encryption for the ingress
         ##
         sslEnabled: false
-
   ## Configuration for web UI sidecar containers
   ##
   sidecars:
@@ -588,7 +570,6 @@ web-ui:
       ## Enable Envoy proxy sidecar container
       ##
       enabled: false
-
 ## Router service configuration
 ##
 router:
@@ -604,7 +585,6 @@ router:
       ## Path to the Master Encryption Key (MEK) configuration file
       ##
       path: /home/osmo/config/mek.yaml
-
     ## Main router service configuration
     ##
     service:
@@ -634,36 +614,34 @@ router:
       ## Wait for data infra to be up before starting service
       ##
       initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-
+        - name: wait-for-postgres
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."
+                sleep 2
+              done
+              echo "Postgres is ready"
+        - name: wait-for-redis
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."
+                sleep 2
+              done
+              echo "Redis is ready"
     ## PostgreSQL database service configuration
     ##
     postgres:
       ## PostgreSQL password
       ##
       password: "osmo"
-
   ## Configuration for router service sidecar containers
   ##
   sidecars:
@@ -679,7 +657,6 @@ router:
       ## Enable log agent sidecar for centralized log collection
       ##
       enabled: false
-
 ## Backend operator configuration for managing compute workloads
 ##
 backend-operator:
@@ -707,7 +684,6 @@ backend-operator:
     ## Authentication method for backend operator
     ##
     loginMethod: token
-
   ## Configuration for backend operator services
   ##
   services:
@@ -722,33 +698,33 @@ backend-operator:
       ## Wait for the agent service to be up before starting backend listener
       ##
       initContainers:
-      - name: wait-for-ingress
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z quick-start 80; do
-            echo "Waiting for quick-start..."
-            sleep 2
-          done
-          echo "OSMO quick start ingress is ready"
-      - name: wait-for-token
-        image: alpine:3.18
-        command:
-        - sh
-        - -c
-        - |
-          # Mostly used to fail fast if there is a transient issue with apk add.
-          # For simplicity let K8s restart and retry the container.
-          set -e
-          apk add --no-cache curl jq
-          echo "Waiting for backend-operator-token to be created..."
-          until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
-            echo "Token backend-operator-token not found, waiting..."
-            sleep 2
-          done
-          echo "Backend operator token is ready"
+        - name: wait-for-ingress
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z quick-start 80; do
+                echo "Waiting for quick-start..."
+                sleep 2
+              done
+              echo "OSMO quick start ingress is ready"
+        - name: wait-for-token
+          image: alpine:3.18
+          command:
+            - sh
+            - -c
+            - |
+              # Mostly used to fail fast if there is a transient issue with apk add.
+              # For simplicity let K8s restart and retry the container.
+              set -e
+              apk add --no-cache curl jq
+              echo "Waiting for backend-operator-token to be created..."
+              until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
+                echo "Token backend-operator-token not found, waiting..."
+                sleep 2
+              done
+              echo "Backend operator token is ready"
       ## Resource limits and requests for the backend listener container
       ##
       resources:
@@ -773,33 +749,33 @@ backend-operator:
       ## Wait for the agent service to be up before starting backend worker
       ##
       initContainers:
-      - name: wait-for-ingress
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z quick-start 80; do
-            echo "Waiting for quick-start..."
-            sleep 2
-          done
-          echo "OSMO quick start ingress is ready"
-      - name: wait-for-token
-        image: alpine:3.18
-        command:
-        - sh
-        - -c
-        - |
-          # Mostly used to fail fast if there is a transient issue with apk add.
-          # For simplicity let K8s restart and retry the container.
-          set -e
-          apk add --no-cache curl jq
-          echo "Waiting for backend-operator-token to be created..."
-          until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
-            echo "Token backend-operator-token not found, waiting..."
-            sleep 2
-          done
-          echo "Backend operator token is ready"
+        - name: wait-for-ingress
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z quick-start 80; do
+                echo "Waiting for quick-start..."
+                sleep 2
+              done
+              echo "OSMO quick start ingress is ready"
+        - name: wait-for-token
+          image: alpine:3.18
+          command:
+            - sh
+            - -c
+            - |
+              # Mostly used to fail fast if there is a transient issue with apk add.
+              # For simplicity let K8s restart and retry the container.
+              set -e
+              apk add --no-cache curl jq
+              echo "Waiting for backend-operator-token to be created..."
+              until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
+                echo "Token backend-operator-token not found, waiting..."
+                sleep 2
+              done
+              echo "Backend operator token is ready"
       ## Resource limits and requests for the backend worker container
       ##
       resources:
@@ -813,14 +789,12 @@ backend-operator:
         limits:
           cpu: "250m"
           memory: "256Mi"
-
   ## Backend test runner configuration
   ##
   backendTestRunner:
     ## Enable backend test runner
     ##
     enabled: false
-
   ## Configuration for backend operator sidecar containers
   ##
   sidecars:

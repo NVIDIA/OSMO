@@ -21,23 +21,19 @@ global:
   ## Base location for Osmo Docker images in the registry
   ##
   osmoImageLocation: nvcr.io/nvidia/osmo
-
-
   ## Docker image tag for Osmo server components
   ##
-  osmoImageTag: latest
-
+  osmoImageTag: "6.2"
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
   imagePullSecret: null
-
   ## Node selector constraints for pod scheduling
   ##
   nodeSelector: {}
-    # Add node selectors here as needed
-    # kubernetes.io/arch: amd64
-    # node-type: cpu
-    # zone: us-west-2a
+  # Add node selectors here as needed
+  # kubernetes.io/arch: amd64
+  # node-type: cpu
+  # zone: us-west-2a
 
   ## Logging configuration for all Osmo services
   ##
@@ -45,9 +41,6 @@ global:
     ## Enable centralized logging collection and log volume mounting
     ##
     enabled: true
-
-
-
 ## Configuration for individual Osmo services
 ##
 services:
@@ -57,53 +50,42 @@ services:
     ## Number of UI service replicas to run
     ##
     replicas: 1
-
     ## Docker image name for the UI service (without registry or tag)
     ##
     imageName: web-ui
-
     ## Kubernetes image pull policy for the UI service
     ## Options: Always, IfNotPresent, Never
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the UI service
     ##
     serviceName: osmo-ui
-
     ## Hostname on which the ingress is served
     ##
     hostname: ""
-
     ## Hostname on which the osmo API server is hosted
     ## Default is the local cluster hostname
     ## Can be overridden to serve the API from public domain
     ## e.g. "osmo.your-domain.com"
     ##
     apiHostname: "osmo-service.osmo.svc.cluster.local:80"
-
     ## Enable port-forwarding through Web UI
     ##
     portForwardEnabled: false
-
     ## Enable SSL/TLS encryption for nextjs server to connect to the osmo API server
     ##
     nextjsSslEnabled: false
-
     ## Container port for the UI service
     ##
     containerPort: 8000
-
     ## Kubernetes service account name for the pods
     ##
     serviceAccountName: osmo
-
     ## Maximum HTTP header size in KB for Node.js server
     ## Prevents 431 "Request Header Fields Too Large" errors
     ## Should match sidecars.envoy.maxHeadersSizeKb
     ##
     maxHttpHeaderSizeKb: 128
-
     ## Command override for the container
     ## Leave empty to use the default command from the image
     ##
@@ -126,30 +108,24 @@ services:
     ## Documentation base URL
     ##
     docsBaseUrl: "https://nvidia.github.io/OSMO/main/user_guide/"
-
     ## CLI Installation Script URL
     ##
     cliInstallScriptUrl: "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"
-
     ## Horizontal Pod Autoscaler (HPA) configuration
     ##
     scaling:
       ## Enable automatic scaling based on CPU usage
       ##
       enabled: false
-
       ## Minimum number of replicas when scaling is enabled
       ##
       minReplicas: 1
-
       ## Maximum number of replicas when scaling is enabled
       ##
       maxReplicas: 3
-
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaTarget: 85
-
     ## Kubernetes service configuration
     ##
     service:
@@ -157,19 +133,15 @@ services:
       ## Leave empty to use default behavior
       ##
       type: ""
-
       ## Service port
       ##
       port: 80
-
       ## Service port name
       ##
       portName: http
-
       ## Service protocol
       ##
       protocol: TCP
-
       ## Additional labels for the service
       ##
       labels: {}
@@ -194,47 +166,38 @@ services:
       ##
       selector: {}
       # version: v1.0.0
-
     ## Ingress configuration for external access to the UI service
     ##
     ingress:
       ## Enable ingress for the UI service
       ##
       enabled: true
-
       ## URL path prefix for all ingress rules
       ##
       prefix: /
-
       ## Ingress controller class to use for routing traffic
       ##
       ingressClass: nginx
-
       ## AWS Application Load Balancer (ALB) specific annotations
       ##
       albAnnotations:
         ## Enable ALB-specific annotations in the ingress
         ##
         enabled: false
-
         ## ARN of the SSL certificate for HTTPS traffic
         ##
         sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
       ## Enable SSL/TLS encryption for the ingress
       ##
       sslEnabled: true
-
       ## Name of the Kubernetes secret containing SSL/TLS certificates
       ##
       sslSecret: osmo-tls
-
       ## Additional custom annotations for the ingress resource
       ##
       annotations: {}
       # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
       # nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "10"
-
     ## Node selector constraints for UI pod scheduling
     ## Leave empty to allow scheduling on any node
     ##
@@ -245,17 +208,16 @@ services:
     ## Topology spread constraints to distribute pods across nodes/zones
     ##
     topologySpreadConstraints:
-    ## Spread pods across different hostnames (nodes)
-    ##
-    - topologyKey: kubernetes.io/hostname
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-    ## Spread pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
+      ## Spread pods across different hostnames (nodes)
+      ##
+      - topologyKey: kubernetes.io/hostname
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+      ## Spread pods across different availability zones
+      ##
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     ## Host aliases for custom DNS resolution within the UI pods
     ## Leave empty if no custom host aliases are needed
     ##
@@ -299,7 +261,6 @@ services:
     #   value: "false"
     # - name: NEXT_PUBLIC_USE_MOCK_DATA
     #   value: "true"
-
 
     ## Environment variables from ConfigMaps and Secrets
     ##
@@ -359,7 +320,6 @@ services:
       periodSeconds: 5
       timeoutSeconds: 3
       initialDelaySeconds: 5
-
     ## Readiness probe configuration
     ## Leave empty to use the default hardcoded probe
     ##
@@ -370,8 +330,6 @@ services:
       failureThreshold: 2
       timeoutSeconds: 3
       periodSeconds: 5
-
-
 ## Configuration for sidecar containers
 ##
 sidecars:
@@ -382,7 +340,6 @@ sidecars:
     ## Set to false when managing secrets with custom secrets management solution
     ##
     useKubernetesSecrets: false
-
     ## Secret file paths (legacy, kept for backward compatibility)
     ##
     secretPaths:
@@ -390,18 +347,15 @@ sidecars:
     ## Enable Envoy proxy sidecar container
     ##
     enabled: true
-
     ## The maximum size of all http headers in kb
     ##
     maxHeadersSizeKb: 128
-
     ## Allow accessing certain paths from inside the cluster without auth
     ##
     inClusterPaths:
       enabled: false
       port: 8081
       paths: []
-
     livenessProbe:
       httpGet:
         path: /ready
@@ -409,7 +363,6 @@ sidecars:
       initialDelaySeconds: 10
       periodSeconds: 10
       timeoutSeconds: 3
-
     readinessProbe:
       httpGet:
         path: /ready
@@ -417,7 +370,6 @@ sidecars:
       initialDelaySeconds: 5
       periodSeconds: 5
       timeoutSeconds: 3
-
     startupProbe:
       httpGet:
         path: /ready
@@ -425,38 +377,31 @@ sidecars:
       initialDelaySeconds: 15
       periodSeconds: 5
       timeoutSeconds: 3
-
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
     ## If we go over this number of concurrent requests, throw an error
     ## If its empty then do nothing
     ##
     maxRequests: null
-
     ## Paths that skip authentication
     ##
     skipAuthPaths: []
-
     ## Container image configuration for Envoy and its dependencies
     ##
     images:
       ## Init container image for setup tasks
       ##
       init: busybox
-
       ## Envoy proxy container image
       ##
       envoy: "envoyproxy/envoy:v1.29.0"
-
       ## Image pull policy for all Envoy-related containers
       ##
       pullPolicy: IfNotPresent
-
     ## Resource limits and requests for Envoy containers
     ##
     resources:
@@ -465,53 +410,43 @@ sidecars:
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
-
     ## Enable JWT authentication
     ##
     jwtEnable: true
-
     ## IDP (Identity Provider) configuration for JWT JWKS fetching
     ##
     idp:
       ## Hostname for the identity provider (e.g., login.microsoftonline.com)
       ##
       host: ""
-
     ## Route configuration for Envoy proxy
     ##
     routes:
-    ## Default route matching all paths
-    ##
-    - match:
-        prefix: "/"
-      route:
-        cluster: service
-
+      ## Default route matching all paths
+      ##
+      - match:
+          prefix: "/"
+        route:
+          cluster: service
     ## Port that Envoy listens on
     ##
     listenerPort: 8080
-
     ## Service configuration for Envoy proxy
     ##
     service:
       ## Port on which the service runs
       ##
       port: 8000
-
       ## Hostname for the Envoy service
       ##
       hostname: ""
-
       ## Service address for upstream cluster
       ##
       address: 127.0.0.1
-
     ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
     ##
     oauth2Filter:
       enabled: false
-
     ## SSL configuration
     ##
     ssl:
@@ -522,127 +457,103 @@ sidecars:
       privateKey:
         secretName: envoy-ssl-cert
         secretKey: privateKey
-
     ## Volume mounts for the Envoy container
     ##
     volumeMounts:
-    ## Mount logs volume for log collection
-    ##
-    - name: logs
-      mountPath: /logs
-
+      ## Mount logs volume for log collection
+      ##
+      - name: logs
+        mountPath: /logs
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:
       ## HTTP header name where the authenticated user will be set
       ##
       user_header: x-osmo-user
-
       ## List of JWT token providers for authentication
       ##
       providers:
-      ## Primary JWT provider configuration
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: unique_name
-        cluster: idp
-      ## Secondary JWT provider configuration
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: preferred_username
-        cluster: idp
-
+        ## Primary JWT provider configuration
+        ##
+        - issuer: ""
+          audience: ""
+          jwks_uri: ""
+          user_claim: unique_name
+          cluster: idp
+        ## Secondary JWT provider configuration
+        ##
+        - issuer: ""
+          audience: ""
+          jwks_uri: ""
+          user_claim: preferred_username
+          cluster: idp
   ## OAuth2 Proxy sidecar configuration
   ##
   oauth2Proxy:
     ## Enable OAuth2 Proxy sidecar container
     ##
     enabled: true
-
     ## OAuth2 Proxy container image
     ##
     image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
-
     ## Image pull policy
     ##
     imagePullPolicy: IfNotPresent
-
     ## HTTP port for OAuth2 Proxy
     ##
     httpPort: 4180
-
     ## Metrics port for OAuth2 Proxy
     ##
     metricsPort: 44180
-
     ## OIDC provider type
     ##
     provider: oidc
-
     ## OIDC issuer URL
     ##
     oidcIssuerUrl: ""
-
     ## OAuth2 client ID
     ##
     clientId: ""
-
     ## Cookie name for session management
     ##
     cookieName: _osmo_session
-
     ## Whether to set the secure flag on cookies
     ##
     cookieSecure: true
-
     ## Cookie domain (leave empty for default)
     ##
     cookieDomain: ""
-
     ## Cookie expiration duration
     ##
     cookieExpire: 168h
-
     ## Cookie refresh interval
     ##
     cookieRefresh: 1h
-
     ## OAuth2 scopes to request
     ##
     scope: "openid email profile"
-
     ## Pass the access token to upstream (disabled to reduce cookie size)
     ##
     passAccessToken: false
-
     ## Use Kubernetes secrets for credentials
     ##
     useKubernetesSecrets: false
-
     ## Kubernetes secret configuration (when useKubernetesSecrets is true)
     ##
     secretName: oauth2-proxy-secrets
     clientSecretKey: client_secret
     cookieSecretKey: cookie_secret
-
     ## Secret file paths (when using vault or other secret managers)
     ##
     secretPaths:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
-
     ## Additional arguments passed to oauth2-proxy
     ##
     extraArgs: []
-
     ## Additional volume mounts
     ##
     extraVolumeMounts: []
-
     ## Security context for OAuth2 Proxy container
     ##
     securityContext:
@@ -651,7 +562,6 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
     ## Resource limits and requests
     ##
     resources:
@@ -660,7 +570,6 @@ sidecars:
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
   ## Log agent sidecar configuration (FluentBit)
   ## Collects and forwards logs from the application and Envoy
   ##
@@ -668,48 +577,38 @@ sidecars:
     ## Enable log agent sidecar container
     ##
     enabled: false
-
     ## Log rotation configuration
     ## logAgent.enabled must be true for logrotate to be enabled
     ##
     logrotate:
       enabled: false
-
       ## How often to rotate the logs. Valid options are:
       ## - daily, hourly, monthly, weekly, yearly
       ## - `minutes <size>` - rotate every <size> minutes
       ##
       frequency: hourly
-
       ## Log files are rotated when they reach this size
       ##
       maxSize: 10M
-
       ## How many log files to rotate before deleting the oldest one
       ##
       rotateCount: 5
-
       ## How many seconds to sleep between rotations
       ##
       sleepSeconds: 60
-
     ## FluentBit image configuration
     ##
     image:
       repository: fluent/fluent-bit:4.0.8-debug
       pullPolicy: IfNotPresent
-
     ## FluentBit Prometheus metrics port
     ##
     fluentBitPrometheusPort: 2020
-
     ## AWS CloudWatch logging configuration
     ##
     aws:
       region: us-west-2
       clusterName: ""
-
-
     ## Resource limits and requests for log agent container
     ##
     resources:
@@ -718,18 +617,14 @@ sidecars:
         memory: "400Mi"
       limits:
         memory: "400Mi"
-
     ## Additional volumes for log agent
     ##
     volumes: []
-
     ## Additional volume mounts for log agent
     ##
     volumeMounts:
-    - name: logs
-      mountPath: /var/log
-
-
+      - name: logs
+        mountPath: /var/log
 ## Additional ConfigMaps to create
 ##
 extraConfigMaps: []
