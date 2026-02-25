@@ -1132,10 +1132,23 @@ func CheckSemanticAction(
 	pgClient *postgres.PostgresClient,
 ) AccessResult {
 	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
+	matched, result := checkResolvedAction(policyAction.Action, policyResources, resolvedAction, resolvedResource)
+	if !matched {
+		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+	}
+	return result
+}
 
+// checkResolvedAction checks if a policy action string matches a pre-resolved
+// action and resource pair. Returns (true, result) on match, (false, _) otherwise.
+func checkResolvedAction(
+	policyActionStr string,
+	policyResources []string,
+	resolvedAction, resolvedResource string,
+) (bool, AccessResult) {
 	// Universal wildcard — admin roles that should have access to all endpoints,
 	// even ones not registered in the action registry.
-	if policyAction.Action == "*:*" || policyAction.Action == "*" {
+	if policyActionStr == "*:*" || policyActionStr == "*" {
 		resourceAllowed := len(policyResources) == 0
 		for _, pr := range policyResources {
 			if pr == "*" {
@@ -1146,9 +1159,9 @@ func CheckSemanticAction(
 		if resourceAllowed {
 			matchedAction := resolvedAction
 			if matchedAction == "" {
-				matchedAction = policyAction.Action
+				matchedAction = policyActionStr
 			}
-			return AccessResult{
+			return true, AccessResult{
 				Allowed:         true,
 				Matched:         true,
 				MatchedAction:   matchedAction,
@@ -1159,11 +1172,11 @@ func CheckSemanticAction(
 	}
 
 	if resolvedAction == "" {
-		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+		return false, AccessResult{}
 	}
 
-	if !matchSemanticAction(policyAction.Action, resolvedAction) {
-		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+	if !matchSemanticAction(policyActionStr, resolvedAction) {
+		return false, AccessResult{}
 	}
 
 	// Check if the resource matches (if resources are specified)
@@ -1176,11 +1189,11 @@ func CheckSemanticAction(
 			}
 		}
 		if !resourceMatched {
-			return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
+			return false, AccessResult{}
 		}
 	}
 
-	return AccessResult{
+	return true, AccessResult{
 		Allowed:         true,
 		Matched:         true,
 		MatchedAction:   resolvedAction,
@@ -1272,21 +1285,34 @@ func matchResource(pattern, resource string) bool {
 func CheckPolicyAccess(
 	ctx context.Context, role *Role, path, method string, pgClient *postgres.PostgresClient,
 ) AccessResult {
-	// Single pass: Deny takes precedence, so return immediately on a Deny match.
-	// Track the first Allow match and return it at the end if no Deny was found.
-	var allowResult *AccessResult
+	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
+	return checkPolicyResolved(role, resolvedAction, resolvedResource)
+}
+
+// checkPolicyResolved checks if a role's policies match a pre-resolved action
+// and resource pair. This avoids redundant ResolvePathToAction calls when
+// checking multiple roles against the same request.
+//
+// Single pass: Deny takes precedence, so return immediately on a Deny match.
+// Track the first Allow match and return it at the end if no Deny was found.
+func checkPolicyResolved(role *Role, resolvedAction, resolvedResource string) AccessResult {
+	var allowResult AccessResult
+	hasAllow := false
 	for _, policy := range role.Policies {
 		isDeny := policy.Effect == EffectDeny
 		isAllow := policy.Effect == EffectAllow || policy.Effect == ""
 		if !isDeny && !isAllow {
 			continue
 		}
+		if isAllow && hasAllow {
+			continue
+		}
 		for _, action := range policy.Actions {
-			if !action.IsSemanticAction() {
+			if action.Action == "" {
 				continue
 			}
-			result := CheckSemanticAction(ctx, &action, policy.Resources, path, method, pgClient)
-			if !result.Matched {
+			matched, result := checkResolvedAction(action.Action, policy.Resources, resolvedAction, resolvedResource)
+			if !matched {
 				continue
 			}
 			result.RoleName = role.Name
@@ -1295,16 +1321,17 @@ func CheckPolicyAccess(
 				result.Denied = true
 				return result
 			}
-			if allowResult == nil {
-				allowResult = &result
+			if !hasAllow {
+				allowResult = result
+				hasAllow = true
 			}
+			break
 		}
 	}
-	if allowResult != nil {
-		return *allowResult
+	if hasAllow {
+		return allowResult
 	}
 
-	// No match found
 	return AccessResult{
 		Allowed:    false,
 		Matched:    false,
@@ -1317,13 +1344,18 @@ func CheckPolicyAccess(
 // Deny takes precedence: if any role has a matching Deny policy, access is denied.
 // Otherwise returns the first AccessResult that grants access.
 //
+// The path and method are resolved to a semantic action once, then checked
+// against all roles without redundant resolution.
+//
 // ctx and pgClient are optional - used for pool-scoped resource lookups
 func CheckRolesAccess(
 	ctx context.Context, roles []*Role, path, method string, pgClient *postgres.PostgresClient,
 ) AccessResult {
+	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
+
 	var firstAllow *AccessResult
 	for _, role := range roles {
-		result := CheckPolicyAccess(ctx, role, path, method, pgClient)
+		result := checkPolicyResolved(role, resolvedAction, resolvedResource)
 		if result.Denied {
 			return result
 		}

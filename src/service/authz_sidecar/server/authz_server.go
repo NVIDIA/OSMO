@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	envoy_api_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
@@ -113,6 +114,8 @@ func RegisterAuthzService(grpcServer *grpc.Server, authzServer *AuthzServer) {
 
 // Check implements the Envoy External Authorization Check RPC
 func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.CheckRequest) (*envoy_service_auth_v3.CheckResponse, error) {
+	checkStart := time.Now()
+
 	// Extract request attributes
 	attrs := req.GetAttributes()
 	if attrs == nil {
@@ -144,6 +147,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		}
 	}
 
+	parseDone := time.Now()
+
 	// Sync user_roles table from external IDP roles and retrieve the user's
 	// complete set of assigned OSMO roles in a single atomic operation.
 	// This maps external role names (from the JWT) to OSMO roles via
@@ -161,6 +166,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 
 	// Add default role and deduplicate
 	roleNames = deduplicateRoles(append(roleNames, defaultRole))
+
+	syncDone := time.Now()
 
 	s.logger.Debug("authorization check request",
 		slog.String("user", user),
@@ -180,8 +187,12 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		return s.denyResponse(codes.Internal, "internal error resolving roles"), nil
 	}
 
+	resolveDone := time.Now()
+
 	// Check access
 	result := s.checkAccess(ctx, user, path, method, userRoles)
+
+	accessDone := time.Now()
 
 	if !result.Allowed {
 		s.logger.Info("access denied",
@@ -189,6 +200,11 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 			slog.String("path", path),
 			slog.String("method", method),
 			slog.Any("roles", roleNames),
+			slog.Duration("parse", parseDone.Sub(checkStart)),
+			slog.Duration("sync_roles", syncDone.Sub(parseDone)),
+			slog.Duration("resolve_roles", resolveDone.Sub(syncDone)),
+			slog.Duration("check_access", accessDone.Sub(resolveDone)),
+			slog.Duration("total", accessDone.Sub(checkStart)),
 		)
 		return s.denyResponse(codes.PermissionDenied, "access denied"), nil
 	}
@@ -200,11 +216,26 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	)
 
 	responseHeaders := map[string]string{}
+	var computePoolsDur time.Duration
 	switch result.MatchedAction {
 	case roles.ActionProfileRead, roles.ActionResourcesRead:
+		poolsStart := time.Now()
 		responseHeaders[headerOsmoAllowedPools] = strings.Join(
 			s.computeAllowedPools(ctx, user, userRoles), ",")
+		computePoolsDur = time.Since(poolsStart)
 	}
+
+	s.logger.Info("check timing",
+		slog.String("user", user),
+		slog.String("path", path),
+		slog.String("method", method),
+		slog.Duration("parse", parseDone.Sub(checkStart)),
+		slog.Duration("sync_roles", syncDone.Sub(parseDone)),
+		slog.Duration("resolve_roles", resolveDone.Sub(syncDone)),
+		slog.Duration("check_access", accessDone.Sub(resolveDone)),
+		slog.Duration("compute_pools", computePoolsDur),
+		slog.Duration("total", time.Since(checkStart)),
+	)
 
 	return s.allowResponse(responseHeaders), nil
 }
@@ -228,7 +259,8 @@ func (s *AuthzServer) resolveRoles(ctx context.Context, roleNames []string) ([]*
 }
 
 // checkAccess verifies if the given roles have access to the path and method.
-func (s *AuthzServer) checkAccess(ctx context.Context, user, path, method string, userRoles []*roles.Role) roles.AccessResult {
+func (s *AuthzServer) checkAccess(
+	ctx context.Context, user, path, method string, userRoles []*roles.Role) roles.AccessResult {
 	result := roles.CheckRolesAccess(ctx, userRoles, path, method, s.pgClient)
 	s.logAccessResult(result, user, path, method)
 	return result
@@ -237,7 +269,8 @@ func (s *AuthzServer) checkAccess(ctx context.Context, user, path, method string
 // computeAllowedPools evaluates role policies to determine which pools the
 // user can access, respecting deny rules. Uses the pool name cache to avoid
 // hitting the database on every request.
-func (s *AuthzServer) computeAllowedPools(ctx context.Context, user string, userRoles []*roles.Role) []string {
+func (s *AuthzServer) computeAllowedPools(
+	ctx context.Context, user string, userRoles []*roles.Role) []string {
 	allPoolNames, ok := s.poolNameCache.Get()
 	if !ok {
 		var err error
