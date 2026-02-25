@@ -21,9 +21,6 @@ import {
   Server,
   Database,
   TextSearch,
-  Settings,
-  Shield,
-  Key,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,12 +58,7 @@ const bottomNav: NavItem[] = [];
 /** Admin-facing navigation - conditionally included */
 const adminSection: NavSection = {
   label: "Admin",
-  items: [
-    { name: "Log Viewer", href: "/log-viewer", icon: TextSearch },
-    { name: "Settings", href: "/admin/settings", icon: Settings },
-    { name: "Roles", href: "/admin/roles", icon: Shield },
-    { name: "API Tokens", href: "/admin/tokens", icon: Key },
-  ],
+  items: [{ name: "Log Viewer", href: "/log-viewer", icon: TextSearch }],
 };
 
 // =============================================================================
