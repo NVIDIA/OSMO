@@ -23,6 +23,7 @@
 
 import { headers } from "next/headers";
 import { hasAdminRole } from "@/lib/auth/roles";
+import type { User } from "@/lib/auth/user-context";
 
 /**
  * Get user roles from Envoy-injected x-osmo-roles header.
@@ -75,7 +76,11 @@ export async function hasServerAdminRole(): Promise<boolean> {
 }
 
 /**
- * Get username from Envoy-injected x-osmo-user header.
+ * Get username from OAuth2 Proxy headers.
+ *
+ * Reads x-auth-request-preferred-username (human-readable username from
+ * the preferred_username OIDC claim) with fallback to x-auth-request-user
+ * (user ID, typically email).
  *
  * @returns Username or null if not authenticated
  *
@@ -89,5 +94,63 @@ export async function hasServerAdminRole(): Promise<boolean> {
  */
 export async function getServerUsername(): Promise<string | null> {
   const headersList = await headers();
-  return headersList.get("x-osmo-user");
+  return headersList.get("x-auth-request-preferred-username") || headersList.get("x-auth-request-user") || null;
+}
+
+/**
+ * Build a User object from OAuth2 Proxy and Envoy-injected headers.
+ *
+ * Reads x-auth-request-preferred-username, x-auth-request-email,
+ * x-auth-request-name, and x-osmo-roles set by OAuth2 Proxy + Envoy
+ * on every authenticated request.
+ *
+ * Returns null if no user headers are present (e.g., local dev without Envoy).
+ */
+export async function getServerUser(): Promise<User | null> {
+  const headersList = await headers();
+
+  const username = headersList.get("x-auth-request-preferred-username") || headersList.get("x-auth-request-user");
+
+  if (!username) {
+    if (process.env.NODE_ENV === "development") {
+      return {
+        id: "dev-user",
+        name: process.env.DEV_USER_NAME || "Dev User",
+        email: process.env.DEV_USER_EMAIL || "dev@localhost",
+        username: process.env.DEV_USER_NAME || "dev-user",
+        isAdmin: true,
+        initials: "DU",
+      };
+    }
+    return null;
+  }
+
+  const email = headersList.get("x-auth-request-email") || username;
+  const name = headersList.get("x-auth-request-name") || deriveDisplayName(username);
+  const roles = await getServerUserRoles();
+
+  return {
+    id: username,
+    name,
+    email,
+    username,
+    isAdmin: hasAdminRole(roles),
+    initials: getInitials(name),
+  };
+}
+
+function deriveDisplayName(username: string): string {
+  const namePart = username.includes("@") ? username.split("@")[0] : username;
+  if (!namePart) return "User";
+  const parts = namePart.split(/[._-]+/).filter(Boolean);
+  if (parts.length <= 1) return namePart;
+  return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/[\s@]+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
 }

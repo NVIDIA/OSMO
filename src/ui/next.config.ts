@@ -190,9 +190,6 @@ const nextConfig: NextConfig = {
             // Server-side MSW server (used in instrumentation.ts)
             "@/mocks/server": "@/mocks/server.production",
 
-            // JWT utilities (production version only trusts Envoy Authorization header)
-            "@/lib/auth/jwt-utils": "@/lib/auth/jwt-utils.production",
-
             // Server API config (production version has zero mock awareness)
             "@/lib/api/server/config": "@/lib/api/server/config.production",
 
@@ -253,7 +250,7 @@ const nextConfig: NextConfig = {
           { key: "Access-Control-Allow-Credentials", value: "true" },
           { key: "Access-Control-Allow-Origin", value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT,OPTIONS" },
-          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, x-osmo-auth" },
+          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
         ],
       },
       // Performance headers for static assets - immutable cache for 1 year

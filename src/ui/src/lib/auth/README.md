@@ -1,102 +1,61 @@
-# Authentication with Envoy Sidecar
+# Authentication with Envoy + OAuth2 Proxy
 
-In production, authentication is handled by the **Envoy sidecar** configured in your Kubernetes deployment. The Next.js application does not implement OAuth flows directly.
+Authentication is handled by **Envoy sidecar** + **OAuth2 Proxy sidecar** in the Kubernetes pod. The Next.js application does not implement OAuth flows or decode JWTs.
 
 ## How It Works
 
-1. **User accesses protected route** → Envoy intercepts the request
-2. **No valid session?** → Envoy redirects to OAuth provider (Keycloak)
-3. **User logs in** → Keycloak redirects back to Envoy callback (`/v2/getAToken`)
-4. **Envoy handles callback** → Sets secure cookies, injects headers
-5. **Request forwarded to app** → Next.js receives `x-osmo-user` header and `Authorization: Bearer <token>`
+1. **User accesses the app** -- Envoy's ext_authz filter consults OAuth2 Proxy
+2. **No valid session?** -- OAuth2 Proxy redirects to the IDP (Keycloak, Microsoft, etc.)
+3. **User logs in** -- IDP redirects to `/oauth2/callback`, OAuth2 Proxy sets `_osmo_session` cookie
+4. **Subsequent requests** -- OAuth2 Proxy validates the session cookie, Envoy validates the JWT
+5. **Headers enriched** on the request to Next.js:
+   - `x-auth-request-preferred-username` -- username (from OAuth2 Proxy, `preferred_username` OIDC claim)
+   - `x-auth-request-user` -- user ID, typically email (from OAuth2 Proxy)
+   - `x-auth-request-email` -- email (from OAuth2 Proxy)
+   - `x-auth-request-name` -- display name (from JWT `name` claim, via Envoy Lua filter)
+   - `x-osmo-roles` -- comma-separated roles (from JWT `roles` claim, via Envoy Lua filter)
+
+Token refresh is handled transparently by OAuth2 Proxy.
 
 ## Getting User Information
 
-### Option 1: Read from Header (Simple)
+### Client-Side (useUser hook)
+
+User info is resolved server-side from Envoy headers and passed to the client via React context. No client-side fetch needed.
 
 ```typescript
-// In API routes or server components
-export async function GET(request: Request) {
-  const username = request.headers.get('x-osmo-user');
-  
-  if (!username) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  
-  return Response.json({ username });
+import { useUser } from '@/lib/auth/user-context';
+
+function MyComponent() {
+  const { user, logout } = useUser();
+  // user.name, user.email, user.username, user.isAdmin, user.initials
 }
 ```
 
-### Option 2: Decode JWT (Full Info)
+### Server Components
 
 ```typescript
-import { getJwtClaims, getUserRoles, hasRole } from '@/lib/auth/jwt-helper';
+import { getServerUsername, hasServerAdminRole, getServerUser } from '@/lib/auth/server';
 
-export async function GET(request: Request) {
-  // Get full JWT claims (username, email, roles, etc.)
-  const claims = getJwtClaims(request);
-  
-  if (!claims) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  
-  // Extract specific info
-  const username = claims.preferred_username;
-  const email = claims.email;
-  const roles = getUserRoles(request);
-  
-  // Check permissions
-  if (!hasRole(request, 'admin')) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 });
-  }
-  
-  return Response.json({ username, email, roles });
-}
-```
-
-## Authentication State
-
-The app checks auth status via `/auth/login_info` which queries the backend:
-
-```typescript
-import { getAuthBackend } from '@/lib/auth/auth-backend';
-
-const backend = getAuthBackend();
-const config = await backend.getConfig();
-
-if (config.auth_enabled) {
-  // Auth is enabled - Envoy will handle login automatically
+export default async function Page() {
+  const username = await getServerUsername();
+  const isAdmin = await hasServerAdminRole();
+  const user = await getServerUser(); // full User object from headers
 }
 ```
 
 ## Logout
 
-Logout is handled by Envoy. Redirect users to `/v2/logout` (or use the configured logout path):
-
-```typescript
-import { getAuthBackend } from '@/lib/auth/auth-backend';
-
-const backend = getAuthBackend();
-const logoutUrl = await backend.getLogoutUrl();
-
-if (logoutUrl) {
-  redirect(logoutUrl);
-}
-```
+Redirect to `/oauth2/sign_out` which clears the session and redirects to IDP logout.
 
 ## Local Development
 
-For local development without Envoy:
+For local dev against a production backend:
 
-1. You may need to mock the `x-osmo-user` header
-2. Or implement a simplified auth flow for dev
-3. Or use the mock handlers in `src/mocks/handlers.ts`
+1. Open the production app, go to DevTools > Application > Cookies
+2. Copy the `_osmo_session` cookie value
+3. In localhost console: `document.cookie = "_osmo_session=<value>; path=/; max-age=604800"`
+4. Set `NEXT_PUBLIC_OSMO_API_HOSTNAME` to the production hostname
+5. API requests proxy through Next.js, forwarding the cookie to prod Envoy
 
-## Session Sharing
-
-When deployed at `/v2`, this UI shares sessions with the legacy UI deployed at `/`. Both use:
-- Same OAuth client (`osmo-browser-flow`)
-- Same Envoy configuration
-- Same domain-level cookies
-
-Users can navigate between UIs without re-authenticating.
+For UI-only development, use mock mode: `pnpm dev:mock`

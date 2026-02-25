@@ -22,7 +22,7 @@
 
 "use client";
 
-import { useMemo, useState, useEffect, startTransition } from "react";
+import { useMemo, useEffect } from "react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Link } from "@/components/link";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
@@ -39,20 +39,41 @@ import { STATUS_PRESETS } from "@/lib/workflows/workflow-status-presets";
 // Dashboard Content
 // =============================================================================
 
-export function DashboardContent() {
+interface DashboardContentProps {
+  /** Server-computed 24h cutoff (ISO string) — ensures query key matches between SSR and client */
+  submittedAfter: string;
+}
+
+export function DashboardContent({ submittedAfter }: DashboardContentProps) {
   usePage({ title: "Dashboard" });
 
   // Data from hydrated cache
   const { pools, isLoading: poolsLoading } = usePools();
   const { profile, isLoading: profileLoading } = useProfile();
-  const { workflows, isLoading: workflowsLoading } = useWorkflowsData({ searchChips: [] });
+  const {
+    workflows,
+    isLoading: workflowsLoading,
+    hasMore,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useWorkflowsData({ searchChips: [], submittedAfter });
 
-  // Filter pools to only those accessible to the user
+  // Auto-fetch all pages so dashboard stats cover the full 24h window
+  useEffect(() => {
+    if (hasMore && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasMore, isFetchingNextPage, fetchNextPage]);
+
+  // Filter pools to only those accessible to the user.
+  // Return [] while profile is loading to prevent flashing all pools before scoping.
+  // Empty accessible list means "no restrictions" (admin), so show all pools.
   const accessiblePools = useMemo(() => {
-    if (!profile?.pool.accessible) return pools;
+    if (profileLoading || !profile) return [];
+    if (!profile.pool.accessible || profile.pool.accessible.length === 0) return pools;
     const accessibleSet = new Set(profile.pool.accessible);
     return pools.filter((p) => accessibleSet.has(p.name));
-  }, [pools, profile]);
+  }, [pools, profile, profileLoading]);
 
   // Compute stats from accessible pools only
   const poolStats = useMemo(() => {
@@ -62,41 +83,16 @@ export function DashboardContent() {
     return { online, offline, maintenance, total: accessiblePools.length };
   }, [accessiblePools]);
 
-  // Capture mount time once for stable "last 24h" calculation
-  // Initialize as null for SSR, then set on client after hydration
-  // This prevents hydration mismatch while still providing time-filtered stats after mount
-  const [mountTime, setMountTime] = useState<number | null>(null);
-
-  // Set mount time on client only (after hydration)
-  useEffect(() => {
-    startTransition(() => {
-      setMountTime(Date.now());
-    });
-  }, []);
-
-  // Compute stats from workflows (last 24h)
+  // All workflows are already server-filtered to the last 24h via submittedAfter,
+  // so stats are simple counts by status — no client-side time filtering needed.
   const workflowStats = useMemo(() => {
-    // During SSR/initial render, show all workflows without time filtering
-    if (mountTime === null) {
-      const running = workflows.filter((w) => w.status === WorkflowStatus.RUNNING).length;
-      const completed = workflows.filter((w) => w.status === WorkflowStatus.COMPLETED).length;
-      const failed = workflows.filter((w) => STATUS_PRESETS.failed.includes(w.status)).length;
-      return { running, completed, failed };
-    }
-
-    const oneDayAgo = mountTime - 24 * 60 * 60 * 1000;
-
     const running = workflows.filter((w) => w.status === WorkflowStatus.RUNNING).length;
-    const completed = workflows.filter(
-      (w) => w.status === WorkflowStatus.COMPLETED && w.submit_time && new Date(w.submit_time).getTime() > oneDayAgo,
-    ).length;
-    const failed = workflows.filter(
-      (w) => STATUS_PRESETS.failed.includes(w.status) && w.submit_time && new Date(w.submit_time).getTime() > oneDayAgo,
-    ).length;
-
+    const completed = workflows.filter((w) => w.status === WorkflowStatus.COMPLETED).length;
+    const failed = workflows.filter((w) => STATUS_PRESETS.failed.includes(w.status)).length;
     return { running, completed, failed };
-  }, [workflows, mountTime]);
+  }, [workflows]);
 
+  const allPagesLoaded = !hasMore && !isFetchingNextPage;
   const recentWorkflows = workflows.slice(0, 5);
 
   return (
@@ -109,19 +105,19 @@ export function DashboardContent() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Active Workflows"
-            value={workflowsLoading ? undefined : workflowStats.running}
+            value={workflowsLoading || !allPagesLoaded ? undefined : workflowStats.running}
             href="/workflows?f=status:RUNNING"
             color="text-blue-500"
           />
           <StatCard
             title="Completed (24h)"
-            value={workflowsLoading ? undefined : workflowStats.completed}
+            value={workflowsLoading || !allPagesLoaded ? undefined : workflowStats.completed}
             href="/workflows?f=status:COMPLETED"
             color="text-green-500"
           />
           <StatCard
             title="Failed (24h)"
-            value={workflowsLoading ? undefined : workflowStats.failed}
+            value={workflowsLoading || !allPagesLoaded ? undefined : workflowStats.failed}
             href={`/workflows?f=${STATUS_PRESETS.failed.map((s) => `status:${s}`).join(",")}`}
             color={workflowStats.failed > 0 ? "text-red-500" : "text-zinc-500"}
           />

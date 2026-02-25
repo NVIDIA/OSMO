@@ -20,7 +20,8 @@ import { memo, useCallback, type MouseEvent } from "react";
 import { Network, PanelLeftClose, ArrowRightFromLine, ArrowLeftToLine, type LucideIcon } from "lucide-react";
 import { useEventCallback } from "usehooks-ts";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/shadcn/tooltip";
-import { cn, formatHotkey } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormattedHotkey } from "@/hooks/use-hotkey-label";
 import { ShellSessionIcon } from "@/components/shell/components/shell-session-icon";
 import { VerticalRefreshControl } from "@/components/refresh/vertical-refresh-control";
 import type { RefreshControlProps } from "@/components/refresh/types";
@@ -63,6 +64,7 @@ export const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
   refreshControl,
 }: WorkflowEdgeStripProps) {
   const allSessions = useShellSessions();
+  const toggleDetailShortcut = useFormattedHotkey("mod+i");
 
   const dagVisible = useDisplayDagVisible();
   const isCollapsed = useIsPanelCollapsed();
@@ -251,7 +253,7 @@ export const WorkflowEdgeStrip = memo(function WorkflowEdgeStrip({
               </button>
             </TooltipTrigger>
             <TooltipContent side="left">
-              {isCollapsed ? `Show Details (${formatHotkey("mod+i")})` : `Hide Details (${formatHotkey("mod+i")})`}
+              {isCollapsed ? `Show Details (${toggleDetailShortcut})` : `Hide Details (${toggleDetailShortcut})`}
             </TooltipContent>
           </Tooltip>
         </div>

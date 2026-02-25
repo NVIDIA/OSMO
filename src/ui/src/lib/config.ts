@@ -206,10 +206,8 @@ export function getApiHostname(): string {
 // =============================================================================
 
 /**
- * Auth is handled by Envoy sidecar in production.
- * Envoy injects the x-osmo-user header and forwards the Bearer token.
- *
- * To access user info and roles, decode the JWT from the Authorization header.
+ * Auth is handled by OAuth2 Proxy + Envoy sidecar in production.
+ * OAuth2 Proxy injects x-auth-request-* headers and Envoy forwards the Bearer token.
  */
 
 // =============================================================================
