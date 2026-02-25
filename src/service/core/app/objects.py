@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,9 +17,14 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import datetime
-from typing import List
+from typing import Annotated, List
 
 import pydantic
+
+from src.lib.utils import common
+
+
+AppNamePattern = Annotated[str, pydantic.Field(regex=common.APP_NAME_VALIDATION_REGEX)]
 
 
 class ListEntry(pydantic.BaseModel):
