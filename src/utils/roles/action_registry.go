@@ -312,6 +312,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	ActionInternalOperator: {
 		{Path: "/api/agent/listener/*", Methods: []string{"*"}},
 		{Path: "/api/agent/worker/*", Methods: []string{"*"}},
+		{Path: "/operator.ListenerService/*", Methods: []string{"POST"}},
 	},
 	ActionInternalLogger: {
 		{Path: "/api/logger/workflow/*/osmo_ctrl/*", Methods: []string{"*"}},
