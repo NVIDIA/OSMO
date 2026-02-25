@@ -9,8 +9,8 @@ dependencies:
     specifier: ^5.2.2
     version: 5.2.2(react-hook-form@7.71.1)
   '@next/env':
-    specifier: ^14.2.32
-    version: 14.2.32
+    specifier: ^14.2.34
+    version: 14.2.34
   '@react-dnd/invariant':
     specifier: ^2.0.0
     version: 2.0.0
@@ -40,7 +40,7 @@ dependencies:
     version: 10.45.3(@trpc/server@10.45.3)
   '@trpc/next':
     specifier: ^10.45.3
-    version: 10.45.3(@tanstack/react-query@4.32.6)(@trpc/client@10.45.3)(@trpc/react-query@10.45.3)(@trpc/server@10.45.3)(next@14.2.32)(react-dom@18.2.0)(react@18.2.0)
+    version: 10.45.3(@tanstack/react-query@4.32.6)(@trpc/client@10.45.3)(@trpc/react-query@10.45.3)(@trpc/server@10.45.3)(next@14.2.34)(react-dom@18.2.0)(react@18.2.0)
   '@trpc/react-query':
     specifier: ^10.45.3
     version: 10.45.3(@tanstack/react-query@4.32.6)(@trpc/client@10.45.3)(@trpc/server@10.45.3)(react-dom@18.2.0)(react@18.2.0)
@@ -84,8 +84,8 @@ dependencies:
     specifier: ^1.13.14
     version: 1.13.14
   next:
-    specifier: ^14.2.32
-    version: 14.2.32(@babel/core@7.29.0)(react-dom@18.2.0)(react@18.2.0)
+    specifier: ^14.2.34
+    version: 14.2.34(@babel/core@7.29.0)(react-dom@18.2.0)(react@18.2.0)
   next-themes:
     specifier: ^0.4.6
     version: 0.4.6(react-dom@18.2.0)(react@18.2.0)
@@ -1541,7 +1541,7 @@ packages:
       ignore: 5.3.2
       import-fresh: 3.3.1
       js-yaml: 4.1.1
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
       - supports-color
@@ -1677,7 +1677,7 @@ packages:
     dependencies:
       '@humanwhocodes/object-schema': 2.0.3
       debug: 4.4.3(supports-color@5.5.0)
-      minimatch: 3.1.3
+      minimatch: 3.1.5
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -2266,8 +2266,8 @@ packages:
     dev: true
     optional: true
 
-  /@next/env@14.2.32:
-    resolution: {integrity: sha512-n9mQdigI6iZ/DF6pCTwMKeWgF2e8lg7qgt5M7HXMLtyhZYMnf/u905M18sSpPmHL9MKp9JHo56C6jrD2EvWxng==}
+  /@next/env@14.2.34:
+    resolution: {integrity: sha512-iuGW/UM+EZbn2dm+aLx+avo1rVap+ASoFr7oLpTBVW2G2DqhD5l8Fme9IsLZ6TTsp0ozVSFswidiHK1NGNO+pg==}
     dev: false
 
   /@next/eslint-plugin-next@13.5.7:
@@ -2276,8 +2276,8 @@ packages:
       glob: 7.1.7
     dev: true
 
-  /@next/swc-darwin-arm64@14.2.32:
-    resolution: {integrity: sha512-osHXveM70zC+ilfuFa/2W6a1XQxJTvEhzEycnjUaVE8kpUS09lDpiDDX2YLdyFCzoUbvbo5r0X1Kp4MllIOShw==}
+  /@next/swc-darwin-arm64@14.2.33:
+    resolution: {integrity: sha512-HqYnb6pxlsshoSTubdXKu15g3iivcbsMXg4bYpjL2iS/V6aQot+iyF4BUc2qA/J/n55YtvE4PHMKWBKGCF/+wA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -2285,8 +2285,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-darwin-x64@14.2.32:
-    resolution: {integrity: sha512-P9NpCAJuOiaHHpqtrCNncjqtSBi1f6QUdHK/+dNabBIXB2RUFWL19TY1Hkhu74OvyNQEYEzzMJCMQk5agjw1Qg==}
+  /@next/swc-darwin-x64@14.2.33:
+    resolution: {integrity: sha512-8HGBeAE5rX3jzKvF593XTTFg3gxeU4f+UWnswa6JPhzaR6+zblO5+fjltJWIZc4aUalqTclvN2QtTC37LxvZAA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -2294,8 +2294,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-arm64-gnu@14.2.32:
-    resolution: {integrity: sha512-v7JaO0oXXt6d+cFjrrKqYnR2ubrD+JYP7nQVRZgeo5uNE5hkCpWnHmXm9vy3g6foMO8SPwL0P3MPw1c+BjbAzA==}
+  /@next/swc-linux-arm64-gnu@14.2.33:
+    resolution: {integrity: sha512-JXMBka6lNNmqbkvcTtaX8Gu5by9547bukHQvPoLe9VRBx1gHwzf5tdt4AaezW85HAB3pikcvyqBToRTDA4DeLw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -2303,8 +2303,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-arm64-musl@14.2.32:
-    resolution: {integrity: sha512-tA6sIKShXtSJBTH88i0DRd6I9n3ZTirmwpwAqH5zdJoQF7/wlJXR8DkPmKwYl5mFWhEKr5IIa3LfpMW9RRwKmQ==}
+  /@next/swc-linux-arm64-musl@14.2.33:
+    resolution: {integrity: sha512-Bm+QulsAItD/x6Ih8wGIMfRJy4G73tu1HJsrccPW6AfqdZd0Sfm5Imhgkgq2+kly065rYMnCOxTBvmvFY1BKfg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -2312,8 +2312,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-x64-gnu@14.2.32:
-    resolution: {integrity: sha512-7S1GY4TdnlGVIdeXXKQdDkfDysoIVFMD0lJuVVMeb3eoVjrknQ0JNN7wFlhCvea0hEk0Sd4D1hedVChDKfV2jw==}
+  /@next/swc-linux-x64-gnu@14.2.33:
+    resolution: {integrity: sha512-FnFn+ZBgsVMbGDsTqo8zsnRzydvsGV8vfiWwUo1LD8FTmPTdV+otGSWKc4LJec0oSexFnCYVO4hX8P8qQKaSlg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -2321,8 +2321,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-linux-x64-musl@14.2.32:
-    resolution: {integrity: sha512-OHHC81P4tirVa6Awk6eCQ6RBfWl8HpFsZtfEkMpJ5GjPsJ3nhPe6wKAJUZ/piC8sszUkAgv3fLflgzPStIwfWg==}
+  /@next/swc-linux-x64-musl@14.2.33:
+    resolution: {integrity: sha512-345tsIWMzoXaQndUTDv1qypDRiebFxGYx9pYkhwY4hBRaOLt8UGfiWKr9FSSHs25dFIf8ZqIFaPdy5MljdoawA==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -2330,8 +2330,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-win32-arm64-msvc@14.2.32:
-    resolution: {integrity: sha512-rORQjXsAFeX6TLYJrCG5yoIDj+NKq31Rqwn8Wpn/bkPNy5rTHvOXkW8mLFonItS7QC6M+1JIIcLe+vOCTOYpvg==}
+  /@next/swc-win32-arm64-msvc@14.2.33:
+    resolution: {integrity: sha512-nscpt0G6UCTkrT2ppnJnFsYbPDQwmum4GNXYTeoTIdsmMydSKFz9Iny2jpaRupTb+Wl298+Rh82WKzt9LCcqSQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -2339,8 +2339,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-win32-ia32-msvc@14.2.32:
-    resolution: {integrity: sha512-jHUeDPVHrgFltqoAqDB6g6OStNnFxnc7Aks3p0KE0FbwAvRg6qWKYF5mSTdCTxA3axoSAUwxYdILzXJfUwlHhA==}
+  /@next/swc-win32-ia32-msvc@14.2.33:
+    resolution: {integrity: sha512-pc9LpGNKhJ0dXQhZ5QMmYxtARwwmWLpeocFmVG5Z0DzWq5Uf0izcI8tLc+qOpqxO1PWqZ5A7J1blrUIKrIFc7Q==}
     engines: {node: '>= 10'}
     cpu: [ia32]
     os: [win32]
@@ -2348,8 +2348,8 @@ packages:
     dev: false
     optional: true
 
-  /@next/swc-win32-x64-msvc@14.2.32:
-    resolution: {integrity: sha512-2N0lSoU4GjfLSO50wvKpMQgKd4HdI2UHEhQPPPnlgfBJlOgJxkjpkYBqzk08f1gItBB6xF/n+ykso2hgxuydsA==}
+  /@next/swc-win32-x64-msvc@14.2.33:
+    resolution: {integrity: sha512-nOjfZMy8B94MdisuzZo9/57xuFVLHJaDj5e/xrduJp9CV2/HrfxTRH2fbyLe+K9QT41WBLUd4iXX3R7jBp0EUg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -2868,7 +2868,7 @@ packages:
       '@trpc/server': 10.45.3
     dev: false
 
-  /@trpc/next@10.45.3(@tanstack/react-query@4.32.6)(@trpc/client@10.45.3)(@trpc/react-query@10.45.3)(@trpc/server@10.45.3)(next@14.2.32)(react-dom@18.2.0)(react@18.2.0):
+  /@trpc/next@10.45.3(@tanstack/react-query@4.32.6)(@trpc/client@10.45.3)(@trpc/react-query@10.45.3)(@trpc/server@10.45.3)(next@14.2.34)(react-dom@18.2.0)(react@18.2.0):
     resolution: {integrity: sha512-N9KeGEeSFljDNR43neAlSy8e8gOxvANw9eGvkkf1d5Et1p934cUrEv8Od+lvl2k4TZENW57HY61cWS8ZXMurGA==}
     peerDependencies:
       '@tanstack/react-query': ^4.18.0
@@ -2883,7 +2883,7 @@ packages:
       '@trpc/client': 10.45.3(@trpc/server@10.45.3)
       '@trpc/react-query': 10.45.3(@tanstack/react-query@4.32.6)(@trpc/client@10.45.3)(@trpc/server@10.45.3)(react-dom@18.2.0)(react@18.2.0)
       '@trpc/server': 10.45.3
-      next: 14.2.32(@babel/core@7.29.0)(react-dom@18.2.0)(react@18.2.0)
+      next: 14.2.34(@babel/core@7.29.0)(react-dom@18.2.0)(react@18.2.0)
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
     dev: false
@@ -3576,7 +3576,7 @@ packages:
       debug: 4.4.3(supports-color@5.5.0)
       fast-glob: 3.3.3
       is-glob: 4.0.3
-      minimatch: 9.0.6
+      minimatch: 9.0.8
       semver: 7.7.4
       ts-api-utils: 2.4.0(typescript@5.1.6)
       typescript: 5.1.6
@@ -5750,7 +5750,7 @@ packages:
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       object.fromentries: 2.0.8
       object.groupby: 1.0.3
       object.values: 1.2.1
@@ -5781,7 +5781,7 @@ packages:
       hasown: 2.0.2
       jsx-ast-utils: 3.3.5
       language-tags: 1.0.9
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       object.fromentries: 2.0.8
       safe-regex-test: 1.1.0
       string.prototype.includes: 2.0.1
@@ -5834,7 +5834,7 @@ packages:
       estraverse: 5.3.0
       hasown: 2.0.2
       jsx-ast-utils: 3.3.5
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       object.entries: 1.1.9
       object.fromentries: 2.0.8
       object.values: 1.2.1
@@ -5910,7 +5910,7 @@ packages:
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       natural-compare: 1.4.0
       optionator: 0.9.4
       strip-ansi: 6.0.1
@@ -6077,7 +6077,7 @@ packages:
     resolution: {integrity: sha512-ct/ckWBV/9Dg3MlvCXsLcSUyoWwv9mCKqlhLNB2DAuXR/NZolSXlQqP5dyy6guWlPXBhodZyZ5lGPQcbQDxrEQ==}
     engines: {node: 20 || >=22}
     dependencies:
-      minimatch: 10.2.2
+      minimatch: 10.2.4
     dev: true
 
   /filesize@6.4.0:
@@ -6288,12 +6288,12 @@ packages:
 
   /glob@7.1.7:
     resolution: {integrity: sha512-OvD9ENzPLbegENnYP5UUfJIirTg4+XwMWGaQfQTY0JenxNvvIKP3U3/tAQSPIu/lHxXYSZmpXlUHeqAIdKzBLQ==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
       inherits: 2.0.4
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       once: 1.4.0
       path-is-absolute: 1.0.1
     dev: true
@@ -6305,7 +6305,7 @@ packages:
       fs.realpath: 1.0.0
       inflight: 1.0.6
       inherits: 2.0.4
-      minimatch: 3.1.3
+      minimatch: 3.1.5
       once: 1.4.0
       path-is-absolute: 1.0.1
     dev: true
@@ -7899,8 +7899,8 @@ packages:
       webpack: 5.105.2
     dev: true
 
-  /minimatch@10.2.2:
-    resolution: {integrity: sha512-+G4CpNBxa5MprY+04MbgOw1v7So6n5JY166pFi9KfYwT78fxScCeSNQSNzp6dpPSW2rONOps6Ocam1wFhCgoVw==}
+  /minimatch@10.2.4:
+    resolution: {integrity: sha512-oRjTw/97aTBN0RHbYCdtF1MQfvusSIBQM0IZEgzl6426+8jSC0nF1a/GmnVLpfB9yyr6g6FTqWqiZVbxrtaCIg==}
     engines: {node: 18 || 20 || >=22}
     dependencies:
       brace-expansion: 5.0.3
@@ -7912,14 +7912,14 @@ packages:
       brace-expansion: 1.1.12
     dev: false
 
-  /minimatch@3.1.3:
-    resolution: {integrity: sha512-M2GCs7Vk83NxkUyQV1bkABc4yxgz9kILhHImZiBPAZ9ybuvCb0/H7lEl5XvIg3g+9d4eNotkZA5IWwYl0tibaA==}
+  /minimatch@3.1.5:
+    resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
     dependencies:
       brace-expansion: 1.1.12
     dev: true
 
-  /minimatch@9.0.6:
-    resolution: {integrity: sha512-kQAVowdR33euIqeA0+VZTDqU+qo1IeVY+hrKYtZMio3Pg0P0vuh/kwRylLUddJhB6pf3q/botcOvRtx4IN1wqQ==}
+  /minimatch@9.0.8:
+    resolution: {integrity: sha512-reYkDYtj/b19TeqbNZCV4q9t+Yxylf/rYBsLb42SXJatTv4/ylq5lEiAmhA/IToxO7NI2UzNMghHoHuaqDkAjw==}
     engines: {node: '>=16 || 14 >=14.17'}
     dependencies:
       brace-expansion: 5.0.3
@@ -7973,9 +7973,10 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
     dev: false
 
-  /next@14.2.32(@babel/core@7.29.0)(react-dom@18.2.0)(react@18.2.0):
-    resolution: {integrity: sha512-fg5g0GZ7/nFc09X8wLe6pNSU8cLWbLRG3TZzPJ1BJvi2s9m7eF991se67wliM9kR5yLHRkyGKU49MMx58s3LJg==}
+  /next@14.2.34(@babel/core@7.29.0)(react-dom@18.2.0)(react@18.2.0):
+    resolution: {integrity: sha512-s7mRraWlkEVRLjHHdu5khn0bSnmUh+U+YtigBc+t2Ge7jJHFIVBZna+W9Jcx7b04HhM7eJWrNJ2A+sQs9gJ3eg==}
     engines: {node: '>=18.17.0'}
+    deprecated: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/security-update-2025-12-11 for more details.
     hasBin: true
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
@@ -7991,7 +7992,7 @@ packages:
       sass:
         optional: true
     dependencies:
-      '@next/env': 14.2.32
+      '@next/env': 14.2.34
       '@swc/helpers': 0.5.5
       busboy: 1.6.0
       caniuse-lite: 1.0.30001774
@@ -8001,15 +8002,15 @@ packages:
       react-dom: 18.2.0(react@18.2.0)
       styled-jsx: 5.1.1(@babel/core@7.29.0)(react@18.2.0)
     optionalDependencies:
-      '@next/swc-darwin-arm64': 14.2.32
-      '@next/swc-darwin-x64': 14.2.32
-      '@next/swc-linux-arm64-gnu': 14.2.32
-      '@next/swc-linux-arm64-musl': 14.2.32
-      '@next/swc-linux-x64-gnu': 14.2.32
-      '@next/swc-linux-x64-musl': 14.2.32
-      '@next/swc-win32-arm64-msvc': 14.2.32
-      '@next/swc-win32-ia32-msvc': 14.2.32
-      '@next/swc-win32-x64-msvc': 14.2.32
+      '@next/swc-darwin-arm64': 14.2.33
+      '@next/swc-darwin-x64': 14.2.33
+      '@next/swc-linux-arm64-gnu': 14.2.33
+      '@next/swc-linux-arm64-musl': 14.2.33
+      '@next/swc-linux-x64-gnu': 14.2.33
+      '@next/swc-linux-x64-musl': 14.2.33
+      '@next/swc-win32-arm64-msvc': 14.2.33
+      '@next/swc-win32-ia32-msvc': 14.2.33
+      '@next/swc-win32-x64-msvc': 14.2.33
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
@@ -9550,7 +9551,7 @@ packages:
     dependencies:
       '@istanbuljs/schema': 0.1.3
       glob: 7.2.3
-      minimatch: 3.1.3
+      minimatch: 3.1.5
     dev: true
 
   /text-table@0.2.0:
