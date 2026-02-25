@@ -37,6 +37,7 @@ go_library(
         "@org_golang_google_grpc//health:go_default_library",
         "@org_golang_google_grpc//health/grpc_health_v1:go_default_library",
         "@org_golang_google_grpc//keepalive:go_default_library",
+        "@org_golang_google_grpc//reflection:go_default_library",
     ],
 )
 

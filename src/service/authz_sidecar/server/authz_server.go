@@ -144,8 +144,23 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		}
 	}
 
-	// Add default role
-	roleNames = append(roleNames, defaultRole)
+	// Sync user_roles table from external IDP roles and retrieve the user's
+	// complete set of assigned OSMO roles in a single atomic operation.
+	// This maps external role names (from the JWT) to OSMO roles via
+	// role_external_mappings and applies sync_mode logic (import/force).
+	if user != "" {
+		dbRoleNames, err := roles.SyncUserRoles(ctx, s.pgClient, user, roleNames, s.logger)
+		if err != nil {
+			s.logger.Error("failed to sync user roles",
+				slog.String("user", user),
+				slog.String("error", err.Error()),
+			)
+		}
+		roleNames = append(roleNames, dbRoleNames...)
+	}
+
+	// Add default role and deduplicate
+	roleNames = deduplicateRoles(append(roleNames, defaultRole))
 
 	s.logger.Debug("authorization check request",
 		slog.String("user", user),
@@ -235,7 +250,14 @@ func (s *AuthzServer) computeAllowedPools(ctx context.Context, user string, user
 		}
 		s.poolNameCache.Set(allPoolNames)
 	}
-	return roles.GetAllowedPools(userRoles, allPoolNames)
+	allowed := roles.GetAllowedPools(userRoles, allPoolNames)
+
+	s.logger.Info("computed allowed pools",
+		slog.String("user", user),
+		slog.Any("allowed_pools", allowed),
+	)
+
+	return allowed
 }
 
 // logAccessResult logs the result of an access check with appropriate details
@@ -275,6 +297,20 @@ func (s *AuthzServer) allowResponse(headers map[string]string) *envoy_service_au
 			},
 		},
 	}
+}
+
+// deduplicateRoles returns a new slice with duplicate role names removed,
+// preserving the order of first occurrence.
+func deduplicateRoles(names []string) []string {
+	seen := make(map[string]struct{}, len(names))
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		if _, ok := seen[n]; !ok {
+			seen[n] = struct{}{}
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // denyResponse creates a denial authorization response

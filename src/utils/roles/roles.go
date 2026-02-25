@@ -251,10 +251,16 @@ func GetRoles(ctx context.Context, client *postgres.PostgresClient, roleNames []
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	logger.Info("roles loaded successfully",
-		slog.Int("count", len(result)),
-		slog.Any("requested", roleNames),
-	)
+	loaded := make([]string, len(result))
+	for i, r := range result {
+		loaded[i] = r.Name
+	}
+	if len(result) > 0 {
+		logger.Info("roles loaded successfully",
+			slog.Int("count", len(result)),
+			slog.Any("loaded", loaded),
+		)
+	}
 
 	return result, nil
 }

@@ -1131,10 +1131,11 @@ func CheckSemanticAction(
 	path, method string,
 	pgClient *postgres.PostgresClient,
 ) AccessResult {
-	// Universal wildcard - allow all access without requiring path resolution
-	// This is used for admin roles that should have access to all endpoints
+	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
+
+	// Universal wildcard — admin roles that should have access to all endpoints,
+	// even ones not registered in the action registry.
 	if policyAction.Action == "*:*" || policyAction.Action == "*" {
-		// Check if resources constraint allows it
 		resourceAllowed := len(policyResources) == 0
 		for _, pr := range policyResources {
 			if pr == "*" {
@@ -1143,23 +1144,24 @@ func CheckSemanticAction(
 			}
 		}
 		if resourceAllowed {
+			matchedAction := resolvedAction
+			if matchedAction == "" {
+				matchedAction = policyAction.Action
+			}
 			return AccessResult{
-				Allowed:       true,
-				Matched:       true,
-				MatchedAction: policyAction.Action,
-				ActionType:    ActionTypeSemantic,
+				Allowed:         true,
+				Matched:         true,
+				MatchedAction:   matchedAction,
+				MatchedResource: resolvedResource,
+				ActionType:      ActionTypeSemantic,
 			}
 		}
 	}
 
-	// Resolve the path to a semantic action
-	resolvedAction, resolvedResource := ResolvePathToAction(ctx, path, method, pgClient)
 	if resolvedAction == "" {
-		// Path doesn't map to any known action
 		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
 	}
 
-	// Check if the policy action matches the resolved action
 	if !matchSemanticAction(policyAction.Action, resolvedAction) {
 		return AccessResult{Allowed: false, Matched: false, ActionType: ActionTypeNone}
 	}
@@ -1181,7 +1183,7 @@ func CheckSemanticAction(
 	return AccessResult{
 		Allowed:         true,
 		Matched:         true,
-		MatchedAction:   policyAction.Action,
+		MatchedAction:   resolvedAction,
 		MatchedResource: resolvedResource,
 		ActionType:      ActionTypeSemantic,
 	}

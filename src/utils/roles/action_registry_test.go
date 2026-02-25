@@ -711,6 +711,222 @@ func TestContainsMethod(t *testing.T) {
 	}
 }
 
+// TestWildcardResolvesMatchedAction verifies that *:* policies resolve
+// MatchedAction to the actual semantic action, not the wildcard pattern.
+func TestWildcardResolvesMatchedAction(t *testing.T) {
+	ctx := context.Background()
+
+	wildcardRole := &Role{
+		Name: "admin",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: "*:*"}},
+				Resources: []string{"*"},
+			},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		path              string
+		method            string
+		wantAction        string
+		wantAllowed       bool
+		wantActionNotStar bool
+	}{
+		{
+			name:              "profile read resolves to profile:Read",
+			path:              "/api/profile/settings",
+			method:            "GET",
+			wantAction:        ActionProfileRead,
+			wantAllowed:       true,
+			wantActionNotStar: true,
+		},
+		{
+			name:              "resources read resolves to resources:Read",
+			path:              "/api/resources",
+			method:            "GET",
+			wantAction:        ActionResourcesRead,
+			wantAllowed:       true,
+			wantActionNotStar: true,
+		},
+		{
+			name:              "workflow list resolves to workflow:List",
+			path:              "/api/workflow",
+			method:            "GET",
+			wantAction:        ActionWorkflowList,
+			wantAllowed:       true,
+			wantActionNotStar: true,
+		},
+		{
+			name:              "workflow read resolves to workflow:Read",
+			path:              "/api/workflow/abc123",
+			method:            "GET",
+			wantAction:        ActionWorkflowRead,
+			wantAllowed:       true,
+			wantActionNotStar: true,
+		},
+		{
+			name:              "health resolves to system:Health",
+			path:              "/health",
+			method:            "GET",
+			wantAction:        ActionSystemHealth,
+			wantAllowed:       true,
+			wantActionNotStar: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("CheckSemanticAction/"+tt.name, func(t *testing.T) {
+			result := CheckSemanticAction(
+				ctx, &wildcardRole.Policies[0].Actions[0],
+				wildcardRole.Policies[0].Resources, tt.path, tt.method, nil)
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v", result.Allowed, tt.wantAllowed)
+			}
+			if result.MatchedAction != tt.wantAction {
+				t.Errorf("MatchedAction = %q, want %q", result.MatchedAction, tt.wantAction)
+			}
+		})
+
+		t.Run("CheckPolicyAccess/"+tt.name, func(t *testing.T) {
+			result := CheckPolicyAccess(ctx, wildcardRole, tt.path, tt.method, nil)
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v", result.Allowed, tt.wantAllowed)
+			}
+			if result.MatchedAction != tt.wantAction {
+				t.Errorf("MatchedAction = %q, want %q", result.MatchedAction, tt.wantAction)
+			}
+		})
+
+		t.Run("CheckRolesAccess/"+tt.name, func(t *testing.T) {
+			result := CheckRolesAccess(ctx, []*Role{wildcardRole}, tt.path, tt.method, nil)
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v", result.Allowed, tt.wantAllowed)
+			}
+			if result.MatchedAction != tt.wantAction {
+				t.Errorf("MatchedAction = %q, want %q", result.MatchedAction, tt.wantAction)
+			}
+		})
+	}
+}
+
+// TestWildcardUnknownPathFallback verifies that *:* on an unregistered path
+// still allows access but falls back to *:* as MatchedAction.
+func TestWildcardUnknownPathFallback(t *testing.T) {
+	ctx := context.Background()
+
+	role := &Role{
+		Name: "admin",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: "*:*"}},
+				Resources: []string{"*"},
+			},
+		},
+	}
+
+	result := CheckPolicyAccess(ctx, role, "/some/unknown/path", "GET", nil)
+	if !result.Allowed {
+		t.Error("wildcard should allow unknown paths")
+	}
+	if result.MatchedAction != "*:*" {
+		t.Errorf("MatchedAction = %q, want %q (fallback for unregistered path)",
+			result.MatchedAction, "*:*")
+	}
+}
+
+// TestPartialWildcardResolvesMatchedAction verifies that partial wildcard
+// patterns like workflow:* resolve MatchedAction to the actual action.
+func TestPartialWildcardResolvesMatchedAction(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		action     string
+		path       string
+		method     string
+		wantAction string
+	}{
+		{
+			name:       "workflow:* resolves to workflow:Read",
+			action:     "workflow:*",
+			path:       "/api/workflow/abc123",
+			method:     "GET",
+			wantAction: ActionWorkflowRead,
+		},
+		{
+			name:       "workflow:* resolves to workflow:List",
+			action:     "workflow:*",
+			path:       "/api/workflow",
+			method:     "GET",
+			wantAction: ActionWorkflowList,
+		},
+		{
+			name:       "*:Read resolves to profile:Read",
+			action:     "*:Read",
+			path:       "/api/profile/settings",
+			method:     "GET",
+			wantAction: ActionProfileRead,
+		},
+		{
+			name:       "*:Read resolves to resources:Read",
+			action:     "*:Read",
+			path:       "/api/resources",
+			method:     "GET",
+			wantAction: ActionResourcesRead,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			role := &Role{
+				Name: "test",
+				Policies: []RolePolicy{
+					{
+						Effect:    EffectAllow,
+						Actions:   RoleActions{{Action: tt.action}},
+						Resources: []string{"*"},
+					},
+				},
+			}
+			result := CheckPolicyAccess(ctx, role, tt.path, tt.method, nil)
+			if !result.Allowed {
+				t.Fatalf("Allowed = false, want true")
+			}
+			if result.MatchedAction != tt.wantAction {
+				t.Errorf("MatchedAction = %q, want %q", result.MatchedAction, tt.wantAction)
+			}
+		})
+	}
+}
+
+// TestWildcardWithoutResourcesSkipsPoolMatch verifies that a *:* policy with
+// empty resources does NOT skip path resolution (no early return).
+func TestWildcardWithoutResourcesSkipsPoolMatch(t *testing.T) {
+	ctx := context.Background()
+
+	role := &Role{
+		Name: "no-resources",
+		Policies: []RolePolicy{
+			{
+				Effect:  EffectAllow,
+				Actions: RoleActions{{Action: "*:*"}},
+			},
+		},
+	}
+
+	result := CheckPolicyAccess(ctx, role, "/api/profile/settings", "GET", nil)
+	if !result.Allowed {
+		t.Error("wildcard with empty resources should allow unscoped paths")
+	}
+	if result.MatchedAction != ActionProfileRead {
+		t.Errorf("MatchedAction = %q, want %q", result.MatchedAction, ActionProfileRead)
+	}
+}
+
 // TestCheckPolicyAccessDenyPrecedence verifies that a Deny policy takes precedence over Allow.
 func TestCheckPolicyAccessDenyPrecedence(t *testing.T) {
 	// Role with Allow workflow:* and Deny workflow:Delete on same resources
