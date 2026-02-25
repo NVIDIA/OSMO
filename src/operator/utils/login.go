@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,17 +35,19 @@ import (
 
 const (
 	osmoAuthHeader = "x-osmo-auth"
-	expireWindow   = 3 * time.Second
+	expireWindow   = 4 * time.Second
 )
 
 // jwtExpired reports whether a JWT token's exp claim is within expireWindow of now.
 func jwtExpired(token string) bool {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
+		slog.Debug("JWT token has invalid format (expected 3 parts)", slog.Int("parts", len(parts)))
 		return true
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
+		slog.Debug("JWT payload base64 decode failed", slog.String("error", err.Error()))
 		return true
 	}
 	var claims struct {
