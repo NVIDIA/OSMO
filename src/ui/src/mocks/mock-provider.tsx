@@ -33,8 +33,6 @@
 import { useEffect, useReducer, useRef, type ReactNode } from "react";
 import { setMockVolumes, getMockVolumes } from "@/actions/mock-config";
 import type { MockVolumes } from "@/actions/mock-config.types";
-import { Roles } from "@/lib/auth/roles";
-
 interface MockProviderProps {
   children: ReactNode;
 }
@@ -54,17 +52,7 @@ declare global {
       getVolumes: () => Promise<MockVolumes>;
       help: () => void;
     };
-    __dev?: {
-      clearServiceWorker: () => Promise<void>;
-      serviceWorkerStatus: () => Promise<void>;
-      clearCaches: () => Promise<void>;
-      help: () => void;
-    };
   }
-}
-
-function hasCookie(name: string): boolean {
-  return document.cookie.split(";").some((c) => c.trim().startsWith(`${name}=`));
 }
 
 // =============================================================================
@@ -98,20 +86,9 @@ export function MockProvider({ children }: MockProviderProps) {
       return;
     }
 
-    // Ensure JWT cookie exists for mock auth, then mark ready
-    const ensureAuth = async () => {
-      if (!hasCookie("IdToken") && !hasCookie("BearerToken")) {
-        const { generateMockJWT } = await import("@/mocks/inject-auth");
-        const mockJwt = generateMockJWT("john.doe", [Roles.OSMO_ADMIN, Roles.OSMO_USER]);
-        document.cookie = `IdToken=${mockJwt}; path=/; max-age=28800`;
-      }
-      dispatch({ type: "SET_READY" });
-    };
-
-    ensureAuth().catch((err) => {
-      console.error("[MockProvider] Auth initialization failed:", err);
-      dispatch({ type: "SET_READY" });
-    });
+    // Auth is handled by /api/me which returns dev user info in development mode.
+    // No cookie injection needed -- OAuth2 Proxy handles auth in production.
+    dispatch({ type: "SET_READY" });
 
     // Set up console API for mock volume control
     const createSetter = (key: keyof MockVolumes) => async (n: number) => {
@@ -159,26 +136,6 @@ Get current server state:
 Changes take effect on the next API request.`);
       },
     };
-
-    // Developer utilities for service worker management
-    import("@/lib/dev/service-worker-manager")
-      .then(({ clearServiceWorker, showServiceWorkerStatus, clearAllCaches }) => {
-        window.__dev = {
-          clearServiceWorker: () => clearServiceWorker(true),
-          serviceWorkerStatus: () => showServiceWorkerStatus(),
-          clearCaches: () => clearAllCaches(),
-          help: () => {
-            console.log(`Developer Utilities
-
-  await __dev.clearServiceWorker()    // Unregister SW, clear caches, reload
-  await __dev.serviceWorkerStatus()   // Check SW status
-  await __dev.clearCaches()           // Clear all caches only`);
-          },
-        };
-      })
-      .catch(() => {
-        // Service worker manager not available - non-critical
-      });
 
     console.log("[MockProvider] Mock mode active. Type __mockConfig.help() for options.");
   }, []);

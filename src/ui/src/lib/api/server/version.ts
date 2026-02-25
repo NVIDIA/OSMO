@@ -43,7 +43,6 @@ const fetchVersionRaw = cache(async (): Promise<unknown> => {
  * Prefetch version for Dashboard using the generated hook's query key.
  *
  * @param queryClient - The QueryClient to prefetch into
- * @param options - Fetch options
  */
 export async function prefetchVersion(queryClient: QueryClient): Promise<void> {
   // Query key matches generated: ["/api/version"]

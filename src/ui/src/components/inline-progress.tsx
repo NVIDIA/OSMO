@@ -85,7 +85,8 @@ export const InlineProgress = memo(function InlineProgress({
   const free = total - used;
 
   // Format display label based on mode
-  const displayLabel = displayMode === "used" ? `${used}/${total}` : `${free} ${freeLabel}`;
+  const displayFree = Math.max(0, free);
+  const displayLabel = displayMode === "used" ? `${used}/${total}` : `${displayFree} ${freeLabel}`;
 
   if (compact) {
     return (
