@@ -27,7 +27,11 @@
  * This hook uses useSyncExternalStore to ensure hydration-safe behavior:
  * 1. Server snapshot returns initial state
  * 2. Client snapshot returns initial state during hydration
- * 3. After hydration, client switches to actual store value
+ * 3. useLayoutEffect marks hydration complete BEFORE browser paint
+ * 4. useSyncExternalStore triggers a synchronous re-render with real store values
+ *
+ * The switch from initial to real value happens before the browser paints,
+ * preventing visible flashes (e.g., sidebar expanding then collapsing).
  *
  * Usage:
  * ```tsx
@@ -48,51 +52,36 @@
  * 3. Could affect the rendered output (not just side effects)
  */
 
-import { useSyncExternalStore, useEffect } from "react";
+import { useSyncExternalStore, useLayoutEffect } from "react";
 
-// Track if we're past initial hydration globally
 let isHydrated = false;
 
-// Subscribers waiting for hydration
 const hydrationListeners = new Set<() => void>();
 
-/**
- * Subscribe to hydration state changes.
- * Used internally by useSyncExternalStore.
- */
 function subscribeToHydration(callback: () => void): () => void {
   hydrationListeners.add(callback);
   return () => hydrationListeners.delete(callback);
 }
 
-/**
- * Get current hydration state for client.
- */
 function getHydrationSnapshot(): boolean {
   return isHydrated;
 }
 
-/**
- * Get hydration state for server - always false.
- */
 function getServerHydrationSnapshot(): boolean {
   return false;
 }
 
 /**
  * Hook that returns true only after hydration is complete.
- * This is more reliable than useMounted for store values because
- * it uses useSyncExternalStore's hydration-safe semantics.
  *
- * CRITICAL: Uses useEffect to mark hydration complete AFTER React's commit phase,
- * not queueMicrotask at module level which could fire during hydration.
+ * Uses useLayoutEffect so the hydration flag flips before the browser paints.
+ * useSyncExternalStore schedules a sync-lane re-render when the external store
+ * changes, so consumers see the real localStorage values in the very first paint.
  */
 export function useIsHydrated(): boolean {
   const hydrated = useSyncExternalStore(subscribeToHydration, getHydrationSnapshot, getServerHydrationSnapshot);
 
-  // Mark hydration complete after first client commit
-  // This runs AFTER React's hydration pass completes, unlike queueMicrotask
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isHydrated) {
       isHydrated = true;
       hydrationListeners.forEach((listener) => listener());

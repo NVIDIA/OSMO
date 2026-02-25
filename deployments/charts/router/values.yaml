@@ -100,6 +100,10 @@ services:
       ##
       memoryTarget: 80
 
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
     ## Docker image name for the router service (without registry or tag)
     ##
     imageName: router

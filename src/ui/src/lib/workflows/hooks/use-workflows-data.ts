@@ -35,6 +35,8 @@ interface UseWorkflowsDataParams {
   sortDirection?: "ASC" | "DESC";
   pageSize?: number;
   refetchInterval?: number;
+  /** ISO date string — only return workflows submitted after this time */
+  submittedAfter?: string;
 }
 
 interface UseWorkflowsDataReturn {
@@ -57,13 +59,14 @@ export function useWorkflowsData({
   sortDirection = "DESC",
   pageSize = 50,
   refetchInterval = 0,
+  submittedAfter,
 }: UseWorkflowsDataParams): UseWorkflowsDataReturn {
   const hasUserChips = useMemo(() => searchChips.some((chip) => chip.field === "user"), [searchChips]);
   const showAllUsers = hasUserChips ? false : showAllUsersProp;
 
   const queryKey = useMemo(
-    () => buildWorkflowsQueryKey(searchChips, showAllUsers, sortDirection),
-    [searchChips, showAllUsers, sortDirection],
+    () => buildWorkflowsQueryKey(searchChips, showAllUsers, sortDirection, submittedAfter),
+    [searchChips, showAllUsers, sortDirection, submittedAfter],
   );
 
   const {
@@ -81,7 +84,7 @@ export function useWorkflowsData({
     queryFn: async (params: PaginationParams & WorkflowFilterParams): Promise<PaginatedResponse<WorkflowListEntry>> => {
       return fetchPaginatedWorkflows(params);
     },
-    params: { searchChips, showAllUsers, sortDirection },
+    params: { searchChips, showAllUsers, sortDirection, submittedAfter },
     config: {
       pageSize,
       staleTime: QUERY_STALE_TIME.REALTIME,

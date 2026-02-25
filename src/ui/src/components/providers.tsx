@@ -26,7 +26,7 @@ import { BreadcrumbOriginProvider } from "@/components/chrome/breadcrumb-origin-
 import { ConfigProvider } from "@/contexts/config-context";
 import { ServiceProvider } from "@/contexts/service-context";
 import { RuntimeEnvProvider, type RuntimeEnv } from "@/contexts/runtime-env-context";
-import { UserProvider } from "@/lib/auth/user-context";
+import { UserProvider, type User } from "@/lib/auth/user-context";
 import { MockProvider } from "@/mocks/mock-provider";
 import { createQueryClient } from "@/lib/query-client";
 import { QueryDevtools } from "@/components/query-devtools";
@@ -42,13 +42,15 @@ interface ProvidersProps {
   dehydratedState?: DehydratedState;
   /** Prevents baking env vars into bundle, keeping Docker image portable. */
   runtimeEnv: RuntimeEnv;
+  /** User identity from Envoy headers, resolved server-side. */
+  user: User | null;
 }
 
 // =============================================================================
 // Main Providers Component
 // =============================================================================
 
-export function Providers({ children, dehydratedState, runtimeEnv }: ProvidersProps) {
+export function Providers({ children, dehydratedState, runtimeEnv, user }: ProvidersProps) {
   const [queryClient] = useState(createQueryClient);
 
   return (
@@ -66,7 +68,7 @@ export function Providers({ children, dehydratedState, runtimeEnv }: ProvidersPr
                     enableSystem
                     disableTransitionOnChange
                   >
-                    <UserProvider>
+                    <UserProvider initialUser={user}>
                       <PageProvider>
                         <BreadcrumbOriginProvider>{children}</BreadcrumbOriginProvider>
                       </PageProvider>

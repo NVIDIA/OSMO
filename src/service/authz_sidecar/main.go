@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/reflection"
 
 	"go.corp.nvidia.com/osmo/service/authz_sidecar/server"
 	"go.corp.nvidia.com/osmo/utils/logging"
@@ -44,7 +45,9 @@ const (
 )
 
 var (
-	grpcPort = flag.Int("grpc-port", defaultGRPCPort, "gRPC server port")
+	grpcPort         = flag.Int("grpc-port", defaultGRPCPort, "gRPC server port")
+	enableReflection = flag.Bool("enable-reflection", false,
+		"Enable gRPC reflection (for local testing only)")
 
 	// PostgreSQL flags - registered via postgres package
 	postgresFlagPtrs = postgres.RegisterPostgresFlags()
@@ -112,6 +115,11 @@ func main() {
 
 	// Register authorization service
 	server.RegisterAuthzService(grpcServer, authzServer)
+
+	if *enableReflection {
+		reflection.Register(grpcServer)
+		logger.Warn("gRPC reflection enabled (not recommended for production)")
+	}
 
 	logger.Info("authz server configured",
 		slog.Int("port", *grpcPort),

@@ -19,6 +19,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import { Providers } from "@/components/providers";
 import { Toaster } from "@/components/shadcn/sonner";
+import { getServerUser } from "@/lib/auth/server";
 import "@/app/globals.css";
 
 // Optimized font loading with display: swap for faster FCP
@@ -99,40 +100,45 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Server Components read process.env at request time for portability
-  const runtimeEnv = {
-    docsBaseUrl: process.env.DOCS_BASE_URL,
-    cliInstallScriptUrl: process.env.CLI_INSTALL_SCRIPT_URL,
-  };
-
   return (
     <html
       lang="en"
       suppressHydrationWarning
-      // Prevent layout shift during theme hydration
       className="scroll-smooth"
       data-scroll-behavior="smooth"
     >
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        // Prevent text size adjustment on orientation change
         style={{
           textSizeAdjust: "100%",
           WebkitTextSizeAdjust: "100%",
         }}
       >
-        {/* Suspense boundary required for cacheComponents (Next.js 16) */}
-        {/* Client providers use useState which needs Suspense for prerendering */}
         <Suspense fallback={<AppLoadingFallback />}>
-          <Providers runtimeEnv={runtimeEnv}>
-            {children}
-            <Toaster
-              richColors
-              position="bottom-right"
-            />
-          </Providers>
+          <RootProviders>{children}</RootProviders>
         </Suspense>
       </body>
     </html>
+  );
+}
+
+async function RootProviders({ children }: { children: React.ReactNode }) {
+  const runtimeEnv = {
+    docsBaseUrl: process.env.DOCS_BASE_URL,
+    cliInstallScriptUrl: process.env.CLI_INSTALL_SCRIPT_URL,
+  };
+  const user = await getServerUser();
+
+  return (
+    <Providers
+      runtimeEnv={runtimeEnv}
+      user={user}
+    >
+      {children}
+      <Toaster
+        richColors
+        position="bottom-right"
+      />
+    </Providers>
   );
 }
