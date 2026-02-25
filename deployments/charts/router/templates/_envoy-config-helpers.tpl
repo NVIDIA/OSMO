@@ -329,7 +329,7 @@ listeners:
             grpc_service:
               envoy_grpc:
                 cluster_name: authz-sidecar
-              timeout: 0.5s
+              timeout: 1s
             metadata_context_namespaces:
               - envoy.filters.http.jwt_authn
         {{- end }}
