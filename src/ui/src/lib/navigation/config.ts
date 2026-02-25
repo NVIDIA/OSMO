@@ -14,15 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  LayoutDashboard,
-  Workflow,
-  Layers,
-  Server,
-  Database,
-  TextSearch,
-  type LucideIcon,
-} from "lucide-react";
+import { LayoutDashboard, Workflow, Layers, Server, Database, TextSearch, type LucideIcon } from "lucide-react";
 
 // =============================================================================
 // Types
