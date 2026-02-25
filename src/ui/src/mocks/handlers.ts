@@ -932,14 +932,9 @@ export const handlers = [
   // ==========================================================================
   // Auth / User
   // ==========================================================================
-  // /api/me is NOT intercepted by MSW - it bypasses to the Next.js route handler.
-  //
-  // This keeps mock mode high-fidelity with production:
-  // - Production: Envoy sets JWT in Authorization header → /api/me decodes it
-  // - Mock: MockProvider sets JWT in cookie → /api/me decodes it (cookie fallback)
-  //
-  // Both use the same Next.js route handler (/api/me/route.ts) and JWT decoding.
-  // No handler needed here - MSW's onUnhandledRequest: "bypass" lets it through.
+  // User identity is resolved server-side from OAuth2 Proxy / Envoy headers
+  // (x-auth-request-preferred-username, x-auth-request-email, x-auth-request-name,
+  // x-osmo-roles) and passed to the client via React context. No /api/me endpoint needed.
 
   // NOTE: The following PTY session management endpoints were removed - not real backend endpoints:
   // - GET /api/workflow/:name/exec/task/:taskName/session/:sessionId
@@ -1446,7 +1441,7 @@ export const handlers = [
   // - Callback: Envoy handles at /v2/getAToken
   // - Token refresh: Envoy manages automatically
   // - Logout: Envoy handles at /v2/logout
-  // - User info: Envoy injects x-osmo-user header and forwards Bearer token
+  // - User info: OAuth2 Proxy injects x-auth-request-* headers and Envoy forwards Bearer token
   //
   // In mock mode (local dev), auth is disabled for simplicity.
   // Custom OAuth routes (/auth/callback, /auth/initiate, /auth/refresh_token)

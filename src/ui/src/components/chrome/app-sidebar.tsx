@@ -24,7 +24,8 @@ import type { NavItem as NavItemType, NavSection } from "@/lib/navigation/config
 import { useNavigation } from "@/lib/navigation/use-navigation";
 import { useMounted } from "@/hooks/use-mounted";
 import { NvidiaLogo } from "@/components/chrome/nvidia-logo";
-import { cn, formatHotkey } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormattedHotkey } from "@/hooks/use-hotkey-label";
 import { useCopy } from "@/hooks/use-copy";
 import { useServices } from "@/contexts/service-context";
 import { useRuntimeEnv } from "@/contexts/runtime-env-context";
@@ -278,7 +279,7 @@ function DocumentationLink({ docsBaseUrl, collapsed }: { docsBaseUrl: string; co
  */
 function CollapseButton({ collapsed }: { collapsed: boolean }) {
   const { toggleSidebar } = useSidebar();
-  const shortcutKey = formatHotkey("mod+b");
+  const shortcutKey = useFormattedHotkey("mod+b");
 
   return (
     <SidebarMenu className={cn(collapsed && "items-center")}>

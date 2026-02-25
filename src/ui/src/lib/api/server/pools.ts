@@ -154,7 +154,6 @@ export async function prefetchPools(queryClient: QueryClient): Promise<void> {
  * CLEAN PATH: Uses adapter → generated client → customFetch (no MSW imports)
  *
  * @param queryClient - The QueryClient to prefetch into
- * @param options - Fetch options - DEPRECATED: Not used with adapter
  */
 export async function prefetchPoolsForDashboard(queryClient: QueryClient): Promise<void> {
   // Import generated client for clean path

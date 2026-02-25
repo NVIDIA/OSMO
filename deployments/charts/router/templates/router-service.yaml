@@ -337,3 +337,10 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.service.scaling.memoryTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: {{ .Values.services.service.serviceName }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.service.scaling.hpaCpuTarget }}
