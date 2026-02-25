@@ -346,6 +346,10 @@ def _start_ui_service():
         logger.error('❌ UI directory not found: %s', ui_dir)
         raise RuntimeError(f'UI directory not found: {ui_dir}')
 
+    clean_cmd = ['pnpm', 'clean']
+    run_command_with_logging(
+        cmd=clean_cmd, cwd=ui_dir, description='Cleaning previous UI build artifacts')
+
     install_cmd = ['pnpm', 'install']
     process = run_command_with_logging(
         cmd=install_cmd, cwd=ui_dir, description='Installing pnpm dependencies')
@@ -356,7 +360,7 @@ def _start_ui_service():
         raise RuntimeError('Failed to install pnpm dependencies')
 
     host_ip = get_host_ip()
-    dev_cmd = ['pnpm', 'dev']
+    dev_cmd = ['npx', 'next', 'dev', '--turbopack', '--port', '3000']
 
     ui_env = os.environ.copy()
     ui_env['NEXT_PUBLIC_OSMO_API_HOSTNAME'] = f'{host_ip}:8000'
