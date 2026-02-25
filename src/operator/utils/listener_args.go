@@ -27,6 +27,7 @@ import (
 // ListenerArgs holds configuration for all listeners
 type ListenerArgs struct {
 	ServiceURL            string
+	TokenFile             string // access token; empty means no auth
 	Backend               string
 	Namespace             string
 	PodUpdateChanSize     int
@@ -101,6 +102,9 @@ func ListenerParse() ListenerArgs {
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
 		sharedutils.GetEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
+	tokenFile := flag.String("tokenFile",
+		"",
+		"Path to file containing access token (empty means no auth)")
 
 	// OpenTelemetry metrics configuration
 	buildMetricsConfig := RegisterOTELFlags("osmo-operator")
@@ -108,7 +112,8 @@ func ListenerParse() ListenerArgs {
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL:            *serviceURL,
+		ServiceURL: *serviceURL,
+		TokenFile:  *tokenFile,
 		Backend:               *backend,
 		Namespace:             *namespace,
 		PodUpdateChanSize:     *podUpdateChanSize,

@@ -135,7 +135,6 @@ spec:
               key: redis-password
         {{- end }}
         imagePullPolicy: {{ .Values.services.operator.imagePullPolicy }}
-        ports:
         {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.operator.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
@@ -175,12 +174,17 @@ spec:
           timeoutSeconds: 5
 
 
+      {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
+      {{- include "osmo.authz-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
       {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
       {{- include "osmo.extra-sidecars" .Values.services.operator | nindent 6 }}
       volumes:
+        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.operator.serviceName "serviceEnvoy" .Values.services.operator.envoy "Values" .Values) | nindent 8 }}
+        {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.operator | nindent 8 }}
         {{- if .Values.sidecars.otel.enabled }}
         {{- include "osmo.otel-volumes" . | nindent 8 }}
@@ -201,6 +205,11 @@ spec:
         {{- end}}
 
 ---
+{{- if .Values.sidecars.envoy.enabled }}
+
+{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.operator.serviceName "serviceEnvoy" .Values.services.operator.envoy "Values" .Values "Release" .Release) }}
+---
+{{- end }}
 
 apiVersion: v1
 kind: Service
@@ -211,7 +220,7 @@ metadata:
 spec:
   ports:
     - port: 80
-      targetPort: 8000
+      targetPort: {{ include "service.targetPort" . }}
       protocol: TCP
       name: grpc
   selector:

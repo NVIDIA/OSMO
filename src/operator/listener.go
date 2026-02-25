@@ -185,27 +185,25 @@ func initializeBackend(ctx context.Context, args utils.ListenerArgs, inst *utils
 		},
 	}
 
-	// Create connection (lazy - actual connection happens on first RPC)
-	conn, err := grpc.NewClient(
-		serviceAddr,
-		grpc.WithTransportCredentials(utils.GetTransportCredentials(args.ServiceURL)),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create gRPC client: %w", err)
-	}
-	defer conn.Close()
-
-	client := pb.NewListenerServiceClient(conn)
-
 	// Retry loop for InitBackend RPC call
 	retryCount := 0
 	for {
-		initResp, err := client.InitBackend(ctx, initReq)
+		dialOpts, err := utils.GetDialOptions(args)
 		if err == nil {
-			if !initResp.Success {
-				return fmt.Errorf("backend initialization failed: %s", initResp.Message)
+			var conn *grpc.ClientConn
+			conn, err = grpc.NewClient(serviceAddr, dialOpts...)
+			if err == nil {
+				defer conn.Close()
+				client := pb.NewListenerServiceClient(conn)
+				var initResp *pb.InitBackendResponse
+				initResp, err = client.InitBackend(ctx, initReq)
+				if err == nil {
+					if !initResp.Success {
+						return fmt.Errorf("backend initialization failed: %s", initResp.Message)
+					}
+					return nil
+				}
 			}
-			return nil
 		}
 
 		retryCount++
