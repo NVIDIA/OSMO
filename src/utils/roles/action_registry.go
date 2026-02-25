@@ -918,7 +918,7 @@ func ConvertLegacyActionToSemantic(action *RoleAction) []string {
 
 	// Collect all semantic actions that this pattern could match
 	var semanticActions []string
-	seenActions := make(map[string]bool)
+	seenActions := make(map[string]struct{})
 
 	// For each action in the registry, check if the legacy pattern could match it
 	for semanticAction, endpoints := range ActionRegistry {
@@ -933,8 +933,8 @@ func ConvertLegacyActionToSemantic(action *RoleAction) []string {
 
 			// Check if the path pattern could match the endpoint
 			if pathPatternCouldMatch(legacyPath, ep.Path) {
-				if !seenActions[semanticAction] {
-					seenActions[semanticAction] = true
+				if _, seen := seenActions[semanticAction]; !seen {
+					seenActions[semanticAction] = struct{}{}
 					semanticActions = append(semanticActions, semanticAction)
 				}
 			}
@@ -1023,7 +1023,7 @@ func ConvertRoleToSemantic(role *Role) *Role {
 
 	for _, policy := range role.Policies {
 		var semanticActions []RoleAction
-		seenActions := make(map[string]bool)
+		seenActions := make(map[string]struct{})
 		var resources []string
 
 		// Copy existing resources
@@ -1037,16 +1037,16 @@ func ConvertRoleToSemantic(role *Role) *Role {
 
 		for _, action := range policy.Actions {
 			if action.IsSemanticAction() {
-				if !seenActions[action.Action] {
-					seenActions[action.Action] = true
+				if _, seen := seenActions[action.Action]; !seen {
+					seenActions[action.Action] = struct{}{}
 					semanticActions = append(semanticActions, action)
 				}
 			} else {
 				// Convert legacy action to semantic
 				convertedActions := ConvertLegacyActionToSemantic(&action)
 				for _, sa := range convertedActions {
-					if !seenActions[sa] {
-						seenActions[sa] = true
+					if _, seen := seenActions[sa]; !seen {
+						seenActions[sa] = struct{}{}
 						semanticActions = append(semanticActions, RoleAction{Action: sa})
 					}
 				}
