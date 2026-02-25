@@ -94,11 +94,7 @@ export async function hasServerAdminRole(): Promise<boolean> {
  */
 export async function getServerUsername(): Promise<string | null> {
   const headersList = await headers();
-  return (
-    headersList.get("x-auth-request-preferred-username") ||
-    headersList.get("x-auth-request-user") ||
-    null
-  );
+  return headersList.get("x-auth-request-preferred-username") || headersList.get("x-auth-request-user") || null;
 }
 
 /**
@@ -113,9 +109,7 @@ export async function getServerUsername(): Promise<string | null> {
 export async function getServerUser(): Promise<User | null> {
   const headersList = await headers();
 
-  const username =
-    headersList.get("x-auth-request-preferred-username") ||
-    headersList.get("x-auth-request-user");
+  const username = headersList.get("x-auth-request-preferred-username") || headersList.get("x-auth-request-user");
 
   if (!username) {
     if (process.env.NODE_ENV === "development") {
