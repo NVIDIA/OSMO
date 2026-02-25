@@ -16,20 +16,13 @@
 
 "use client";
 
-import { createContext, useContext, useEffect, useReducer, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { getBasePathUrl } from "@/lib/config";
-import { getClientToken, decodeUserFromToken } from "@/lib/auth/decode-user";
-
-/** Event dispatched after successful token refresh for user state sync. */
-export const TOKEN_REFRESHED_EVENT = "osmo:token-refreshed";
 
 export interface User {
   id: string;
-  /** Display name for UI (e.g., "Alice Smith") */
   name: string;
-  /** Email address */
   email: string;
-  /** Backend username - matches x-osmo-user header from Envoy (e.g., "alice.smith" or "alice.smith@company.com") */
   username: string;
   isAdmin: boolean;
   initials: string;
@@ -45,63 +38,24 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 interface UserProviderProps {
   children: ReactNode;
+  initialUser: User | null;
 }
 
-// =============================================================================
-// UserProvider State Reducer
-// =============================================================================
-
-interface UserProviderState {
-  user: User | null;
-  isLoading: boolean;
-}
-
-type UserProviderAction = { type: "LOAD_SUCCESS"; user: User | null } | { type: "LOAD_FAILURE" } | { type: "LOGOUT" };
-
-function userProviderReducer(state: UserProviderState, action: UserProviderAction): UserProviderState {
-  switch (action.type) {
-    case "LOAD_SUCCESS":
-      return { user: action.user, isLoading: false };
-    case "LOAD_FAILURE":
-      return { user: null, isLoading: false };
-    case "LOGOUT":
-      return { ...state, user: null };
-  }
-}
-
-/** Decodes user from JWT token in localStorage or cookies. No network call needed. */
-export function UserProvider({ children }: UserProviderProps) {
-  const [state, dispatch] = useReducer(userProviderReducer, { user: null, isLoading: true });
-  const { user, isLoading } = state;
-
-  useEffect(() => {
-    const loadUser = () => {
-      try {
-        const token = getClientToken();
-        const decodedUser = decodeUserFromToken(token);
-        dispatch({ type: "LOAD_SUCCESS", user: decodedUser });
-      } catch (error) {
-        console.error("Failed to decode user from token:", error);
-        dispatch({ type: "LOAD_FAILURE" });
-      }
-    };
-
-    loadUser();
-
-    // Re-read user when server-side refresh gets a new token
-    window.addEventListener(TOKEN_REFRESHED_EVENT, loadUser);
-
-    return () => {
-      window.removeEventListener(TOKEN_REFRESHED_EVENT, loadUser);
-    };
-  }, []);
-
+/**
+ * Provides user identity from OAuth2 Proxy and Envoy-injected headers.
+ *
+ * The user is resolved server-side from x-auth-request-preferred-username,
+ * x-auth-request-email, x-auth-request-name, and x-osmo-roles headers
+ * and passed as initialUser prop. No client-side fetch needed.
+ */
+export function UserProvider({ children, initialUser }: UserProviderProps) {
   const logout = () => {
-    dispatch({ type: "LOGOUT" });
-    window.location.href = getBasePathUrl("/logout");
+    window.location.href = getBasePathUrl("/oauth2/sign_out");
   };
 
-  return <UserContext.Provider value={{ user, isLoading, logout }}>{children}</UserContext.Provider>;
+  return (
+    <UserContext.Provider value={{ user: initialUser, isLoading: false, logout }}>{children}</UserContext.Provider>
+  );
 }
 
 export function useUser() {

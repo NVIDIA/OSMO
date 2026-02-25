@@ -15,12 +15,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Next.js Proxy -- Security headers + auth header injection.
+ * Next.js Proxy -- Security headers.
  *
- * In production, Envoy injects x-osmo-user / x-osmo-roles before the request
- * reaches Next.js. In local dev (no Envoy), this proxy reads the JWT from
- * IdToken/BearerToken cookies and injects the same headers so server components
- * behave identically.
+ * Authentication is handled entirely by Envoy + OAuth2 Proxy in production.
+ * In local dev, the _osmo_session cookie is forwarded to prod Envoy
+ * via the Next.js API proxy route handler.
  */
 
 import { NextResponse } from "next/server";
@@ -57,62 +56,8 @@ const permissionsPolicy = [
   "usb=()",
 ].join(", ");
 
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(base64)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function extractRoles(claims: Record<string, unknown>): string[] {
-  if (Array.isArray(claims.roles)) {
-    return claims.roles.filter((r): r is string => typeof r === "string");
-  }
-  const realmAccess = claims.realm_access;
-  if (realmAccess && typeof realmAccess === "object" && "roles" in realmAccess) {
-    const roles = (realmAccess as { roles?: unknown }).roles;
-    if (Array.isArray(roles)) {
-      return roles.filter((r): r is string => typeof r === "string");
-    }
-  }
-  return [];
-}
-
-/**
- * Inject x-osmo-user / x-osmo-roles from JWT cookie when Envoy headers are absent.
- * Returns modified headers, or null if no injection needed.
- */
-function injectAuthHeaders(request: NextRequest): Headers | null {
-  if (request.headers.get("x-osmo-user")) return null;
-
-  const token = request.cookies.get("IdToken")?.value ?? request.cookies.get("BearerToken")?.value;
-  if (!token) return null;
-
-  const claims = decodeJwtPayload(token);
-  if (!claims) return null;
-
-  const username = typeof claims.preferred_username === "string" ? claims.preferred_username : null;
-  if (!username) return null;
-
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-osmo-user", username);
-
-  const roles = extractRoles(claims);
-  if (roles.length > 0) {
-    requestHeaders.set("x-osmo-roles", roles.join(","));
-  }
-
-  return requestHeaders;
-}
-
-export function proxy(request: NextRequest): NextResponse {
-  const injectedHeaders = injectAuthHeaders(request);
-
-  const response = injectedHeaders ? NextResponse.next({ request: { headers: injectedHeaders } }) : NextResponse.next();
+export function proxy(_request: NextRequest): NextResponse {
+  const response = NextResponse.next();
 
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
