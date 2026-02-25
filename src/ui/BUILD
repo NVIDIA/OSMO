@@ -28,6 +28,13 @@ SPDX-License-Identifier: Apache-2.0
 
 package(default_visibility = ["//visibility:public"])
 
+# Expose scripts as file targets so ci/push_images.py can find them via runfiles
+exports_files([
+    "scripts/build_push_web_ui_x86_64.sh",
+    "scripts/build_push_web_ui_arm64.sh",
+])
+
+# sh_binary targets for direct `bazel run` usage
 sh_binary(
     name = "build_push_web_ui_x86_64",
     srcs = ["scripts/build_push_web_ui_x86_64.sh"],
