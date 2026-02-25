@@ -75,6 +75,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `services.service.scaling.minReplicas` | Minimum number of replicas | `3` |
 | `services.service.scaling.maxReplicas` | Maximum number of replicas | `5` |
 | `services.service.scaling.memoryTarget` | Target memory utilization percentage for HPA | `80` |
+| `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
 
 #### Ingress Configuration
 
