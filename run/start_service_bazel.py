@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -337,35 +337,33 @@ def _start_ui_service():
 
     workspace_root = os.environ.get('BUILD_WORKSPACE_DIRECTORY', os.getcwd())
 
-    # Check if we're running from the repo root (which contains external/)
-    # or from external/ directly
     if os.path.exists(os.path.join(workspace_root, 'external')):
-        ui_dir = os.path.join(workspace_root, 'external', 'ui')
+        ui_dir = os.path.join(workspace_root, 'external', 'src', 'ui')
     else:
-        ui_dir = os.path.join(workspace_root, 'ui')
+        ui_dir = os.path.join(workspace_root, 'src', 'ui')
 
     if not os.path.exists(ui_dir):
         logger.error('❌ UI directory not found: %s', ui_dir)
         raise RuntimeError(f'UI directory not found: {ui_dir}')
 
-    npm_install_cmd = ['npm', 'install']
+    install_cmd = ['pnpm', 'install']
     process = run_command_with_logging(
-        cmd=npm_install_cmd, cwd=ui_dir, description='Installing npm dependencies')
+        cmd=install_cmd, cwd=ui_dir, description='Installing pnpm dependencies')
 
     if process.has_failed():
         with open(process.stderr_file, 'r', encoding='utf-8') as f:
-            logger.error('❌ Failed to install npm dependencies: %s', f.read())
-        raise RuntimeError('Failed to install npm dependencies')
+            logger.error('❌ Failed to install pnpm dependencies: %s', f.read())
+        raise RuntimeError('Failed to install pnpm dependencies')
 
     host_ip = get_host_ip()
-    npm_dev_cmd = ['npm', 'run', 'dev']
+    dev_cmd = ['pnpm', 'dev']
 
     ui_env = os.environ.copy()
     ui_env['NEXT_PUBLIC_OSMO_API_HOSTNAME'] = f'{host_ip}:8000'
     ui_env['NEXT_PUBLIC_OSMO_SSL_ENABLED'] = 'false'
 
     process = run_command_with_logging(
-        cmd=npm_dev_cmd,
+        cmd=dev_cmd,
         cwd=ui_dir,
         description='Starting OSMO UI service',
         async_mode=True,
@@ -427,7 +425,7 @@ def _start_router_service():
 
 def start_service_bazel():
     """Start the OSMO service using bazel."""
-    check_required_tools(['bazel', 'docker', 'npm', 'aws'])
+    check_required_tools(['bazel', 'docker', 'pnpm', 'aws'])
 
     try:
         _start_redis()

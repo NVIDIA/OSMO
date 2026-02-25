@@ -24,31 +24,31 @@
 #   cd external/src/ui
 #   docker login $REGISTRY
 #   docker buildx build --platform linux/amd64 \
-#     -t $REGISTRY/osmo/web-ui-next:YOUR_TAG .
-#   docker push $REGISTRY/osmo/web-ui-next:YOUR_TAG
+#     -t $REGISTRY/osmo/web-ui:YOUR_TAG .
+#   docker push $REGISTRY/osmo/web-ui:YOUR_TAG
 #
 # Build for Kubernetes (from Linux/Intel Mac):
-#   docker build -t $REGISTRY/osmo/web-ui-next:YOUR_TAG .
-#   docker push $REGISTRY/osmo/web-ui-next:YOUR_TAG
+#   docker build -t $REGISTRY/osmo/web-ui:YOUR_TAG .
+#   docker push $REGISTRY/osmo/web-ui:YOUR_TAG
 #
 # Multi-arch build (supports both amd64 and arm64 clusters):
 #   docker buildx build --platform linux/amd64,linux/arm64 \
-#     -t $REGISTRY/osmo/web-ui-next:YOUR_TAG --push .
+#     -t $REGISTRY/osmo/web-ui:YOUR_TAG --push .
 #
-# Build with custom basePath (e.g., for canonical deployment at /):
-#   docker build --build-arg NEXT_PUBLIC_BASE_PATH="" \
-#     -t $REGISTRY/osmo/web-ui-next:YOUR_TAG .
+# Build with custom basePath (e.g., for subpath deployment at /v2):
+#   docker build --build-arg NEXT_PUBLIC_BASE_PATH="/v2" \
+#     -t $REGISTRY/osmo/web-ui:YOUR_TAG .
 #
 # Build with source maps enabled (for debugging):
 #   docker build --build-arg ENABLE_SOURCE_MAPS=true \
-#     -t $REGISTRY/osmo/web-ui-next:YOUR_TAG .
+#     -t $REGISTRY/osmo/web-ui:YOUR_TAG .
 #
 # Note: Backend API hostname is configured at RUNTIME via Kubernetes environment
 # variables (NEXT_PUBLIC_OSMO_API_HOSTNAME), not at build time. This makes the
 # Docker image portable across environments - critical for open source deployment.
 #
 # Debug build (no cache, verbose output):
-#   docker build --no-cache --progress=plain -t web-ui-next:debug .
+#   docker build --no-cache --progress=plain -t web-ui:debug .
 #
 # =============================================================================
 
