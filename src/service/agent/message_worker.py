@@ -90,13 +90,14 @@ class MessageWorker:
         # Progress writer for liveness/readiness probes
         self._progress_writer = progress.ProgressWriter(config.progress_file)
 
-        # Register observable gauge for stream queue length
-        self.metric_creator.send_observable_gauge(
-            'osmo_backend_messages_queue_length',
-            callbacks=self.get_operator_stream_length,
-            description='Messages queue length for backend listener messages queue',
-            unit='count'
-        )
+        if config.method != 'dev':
+            # Register observable gauge for stream queue length
+            self.metric_creator.send_observable_gauge(
+                'osmo_backend_messages_queue_length',
+                callbacks=self.get_operator_stream_length,
+                description='Messages queue length for backend listener messages queue',
+                unit='count'
+            )
 
         # Create consumer group if it doesn't exist
         self._ensure_consumer_group()
