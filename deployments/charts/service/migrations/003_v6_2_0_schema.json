@@ -165,6 +165,30 @@
         "table": "pools",
         "column": "action_permissions"
       }
+    },
+    {
+      "add_column": {
+        "table": "pools",
+        "column": { "name": "common_group_templates", "type": "TEXT[]", "nullable": true, "default": "'{}'" }
+      }
+    },
+    {
+      "add_column": {
+        "table": "pools",
+        "column": { "name": "parsed_group_templates", "type": "JSONB", "nullable": true, "default": "'[]'::jsonb" }
+      }
+    },
+    {
+      "add_column": {
+        "table": "pools",
+        "column": { "name": "topology_keys", "type": "JSONB", "nullable": true, "default": "'[]'::jsonb" }
+      }
+    },
+    {
+      "add_column": {
+        "table": "groups",
+        "column": { "name": "group_template_resource_types", "type": "JSONB", "nullable": true, "default": "'[]'::jsonb" }
+      }
     }
   ]
 }
