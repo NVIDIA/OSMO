@@ -39,9 +39,19 @@ import { prefetchProfile } from "@/lib/api/server/profile";
 import { DashboardContent } from "@/features/dashboard/dashboard-content";
 import { createServerQueryClient } from "@/lib/query-client";
 
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+function computeSubmittedAfterCutoff(): string {
+  return new Date(Date.now() - TWENTY_FOUR_HOURS_MS).toISOString();
+}
+
 export async function DashboardWithData() {
   // Create server-optimized QueryClient (no retries -- fail fast for SSR)
   const queryClient = createServerQueryClient();
+
+  // Compute 24h cutoff once on the server so the query key matches between
+  // server prefetch and client hydration (avoids cache miss + refetch flash).
+  const submittedAfter = computeSubmittedAfterCutoff();
 
   // This await causes the component to suspend (PPR: streams after static shell)
   // Parallel prefetch - all APIs called simultaneously for fastest loading
@@ -49,7 +59,7 @@ export async function DashboardWithData() {
   try {
     await Promise.all([
       prefetchPoolsForDashboard(queryClient),
-      prefetchWorkflowsList(queryClient),
+      prefetchWorkflowsList(queryClient, [], false, "DESC", submittedAfter),
       prefetchVersion(queryClient),
       prefetchProfile(queryClient),
     ]);
@@ -63,9 +73,11 @@ export async function DashboardWithData() {
   }
 
   // Wrap in HydrationBoundary so client gets the cached data
+  // submittedAfter is passed as a prop so the client uses the exact same value
+  // for the query key, guaranteeing a hydration cache hit.
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <DashboardContent />
+      <DashboardContent submittedAfter={submittedAfter} />
     </HydrationBoundary>
   );
 }
