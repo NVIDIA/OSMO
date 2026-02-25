@@ -16,7 +16,7 @@
 
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 import { getBasePathUrl } from "@/lib/config";
 
 export interface User {
@@ -48,13 +48,13 @@ interface UserProviderProps {
  * headers and passed as initialUser prop. No client-side fetch needed.
  */
 export function UserProvider({ children, initialUser }: UserProviderProps) {
-  const [user] = useState<User | null>(initialUser);
-
   const logout = () => {
     window.location.href = getBasePathUrl("/oauth2/sign_out");
   };
 
-  return <UserContext.Provider value={{ user, isLoading: false, logout }}>{children}</UserContext.Provider>;
+  return (
+    <UserContext.Provider value={{ user: initialUser, isLoading: false, logout }}>{children}</UserContext.Provider>
+  );
 }
 
 export function useUser() {
