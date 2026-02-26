@@ -93,6 +93,7 @@ def main():
             f'--target-arch={args.target_arch}',
             '--codesign-identity=-',  # Ad-hoc signing
             '--osx-bundle-identifier=com.nvidia.osmo',
+            '--exclude-module', 'pkg_resources',
             '--noupx',
             '--clean',
             '-y',
