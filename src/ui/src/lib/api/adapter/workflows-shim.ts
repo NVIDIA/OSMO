@@ -156,8 +156,8 @@ export async function fetchPaginatedWorkflows(
   );
 
   // Fetch from API
-  const rawData = await listWorkflowApiWorkflowGet(apiParams);
-  const parsed = parseWorkflowsResponse(rawData);
+  const response = await listWorkflowApiWorkflowGet(apiParams);
+  const parsed = parseWorkflowsResponse(response.data);
   const workflows = parsed?.workflows ?? [];
 
   const hasMore = parsed?.more_entries ?? false;
