@@ -47,6 +47,27 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
 
+### Database Migration Settings (pgroll)
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.migration.enabled` | Enable the pgroll migration Job (Helm pre-upgrade hook) | `false` |
+| `services.migration.targetSchema` | Target pgroll schema version. Convention: `public_v{MAJOR}_{MINOR}_{PATCH}`. Set to `public` to apply migrations without versioned schemas. | `public` |
+| `services.migration.image` | Container image for the migration Job | `postgres:15-alpine` |
+| `services.migration.pgrollVersion` | pgroll release version to download | `v0.16.1` |
+| `services.migration.serviceAccountName` | Service account name (defaults to global if empty) | `""` |
+| `services.migration.nodeSelector` | Node selector for the migration Job pod | `{}` |
+| `services.migration.tolerations` | Tolerations for the migration Job pod | `[]` |
+| `services.migration.resources` | Resource limits and requests for the migration Job | `{}` |
+| `services.migration.extraAnnotations` | Annotations on the Job and ConfigMap (e.g., ArgoCD hooks) | `{}` |
+| `services.migration.extraPodAnnotations` | Annotations on the Job pod (e.g., Vault agent) | `{}` |
+| `services.migration.extraEnv` | Extra environment variables for the migration container | `[]` |
+| `services.migration.extraVolumeMounts` | Extra volume mounts for the migration container | `[]` |
+| `services.migration.extraVolumes` | Extra volumes for the migration Job pod | `[]` |
+| `services.migration.initContainers` | Init containers for the migration Job pod | `[]` |
+
+To add new migrations for future releases, drop JSON files into the chart's `migrations/` directory. They are automatically included via `.Files.Glob`.
+
 ### PostgreSQL Settings
 
 | Parameter | Description | Default |

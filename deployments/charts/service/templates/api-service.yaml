@@ -158,8 +158,10 @@ spec:
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
+        {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
-          value: {{ .Values.services.migration.targetSchema | default "public" }}
+          value: {{ .Values.services.migration.targetSchema }}
+        {{- end }}
         {{- include "osmo.extra-env" .Values.services.service | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
