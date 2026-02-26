@@ -37,7 +37,14 @@ import type {
 } from "@/lib/api/generated";
 import { PoolStatus } from "@/lib/api/generated";
 
-import { MOCK_CONFIG, type PoolPatterns } from "@/mocks/seed/types";
+import {
+  MOCK_CONFIG,
+  type PoolPatterns,
+  SHARED_POOL_ALPHA,
+  SHARED_POOL_BETA,
+  SHARED_PLATFORM,
+  ALPHA_EXTRA_PLATFORM,
+} from "@/mocks/seed/types";
 
 // Re-export for convenience
 export type { PoolResourceUsage, PoolResponse };
@@ -131,49 +138,74 @@ export class PoolGenerator {
 
     // Platform configuration - some pools have multiple platforms
     const platforms: Record<string, PlatformMinimal> = {};
+    const isSharedPool = name === SHARED_POOL_ALPHA || name === SHARED_POOL_BETA;
 
-    // Always include the primary platform
-    platforms[platform] = {
-      description: `${gpuType} platform in ${region}`,
-      host_network_allowed: false,
-      privileged_allowed: false,
-      allowed_mounts: ["/data", "/models", "/scratch"],
-      default_mounts: ["/data"],
-    };
+    if (isSharedPool) {
+      // Shared pools always have the common platform
+      platforms[SHARED_PLATFORM] = {
+        description: `${gpuType} shared platform in ${region}`,
+        host_network_allowed: false,
+        privileged_allowed: false,
+        allowed_mounts: ["/data", "/models", "/scratch"],
+        default_mounts: ["/data"],
+      };
 
-    // ~40% of pools have 2+ platforms, ~20% have 3+, ~10% have 4+
-    const platformCount = faker.helpers.weightedArrayElement([
-      { value: 1, weight: 0.4 },
-      { value: 2, weight: 0.25 },
-      { value: 3, weight: 0.15 },
-      { value: 4, weight: 0.1 },
-      { value: 5, weight: 0.05 },
-      { value: 6, weight: 0.03 },
-      { value: 7, weight: 0.02 },
-    ]);
-
-    if (platformCount > 1) {
-      const additionalPlatforms = faker.helpers.arrayElements(
-        this.config.patterns.platforms.filter((p) => p !== platform),
-        Math.min(platformCount - 1, this.config.patterns.platforms.length - 1),
-      );
-      for (const addPlatform of additionalPlatforms) {
-        platforms[addPlatform] = {
-          description: `${faker.helpers.arrayElement(this.config.patterns.gpuTypes)} platform`,
-          host_network_allowed: faker.datatype.boolean(),
+      // Alpha pool additionally has an extra platform (covers half the resources)
+      if (name === SHARED_POOL_ALPHA) {
+        platforms[ALPHA_EXTRA_PLATFORM] = {
+          description: `${gpuType} on-prem platform`,
+          host_network_allowed: true,
           privileged_allowed: false,
           allowed_mounts: ["/data", "/models"],
           default_mounts: ["/data"],
         };
       }
+    } else {
+      // Always include the primary platform
+      platforms[platform] = {
+        description: `${gpuType} platform in ${region}`,
+        host_network_allowed: false,
+        privileged_allowed: false,
+        allowed_mounts: ["/data", "/models", "/scratch"],
+        default_mounts: ["/data"],
+      };
+
+      // ~40% of pools have 2+ platforms, ~20% have 3+, ~10% have 4+
+      const platformCount = faker.helpers.weightedArrayElement([
+        { value: 1, weight: 0.4 },
+        { value: 2, weight: 0.25 },
+        { value: 3, weight: 0.15 },
+        { value: 4, weight: 0.1 },
+        { value: 5, weight: 0.05 },
+        { value: 6, weight: 0.03 },
+        { value: 7, weight: 0.02 },
+      ]);
+
+      if (platformCount > 1) {
+        const additionalPlatforms = faker.helpers.arrayElements(
+          this.config.patterns.platforms.filter((p) => p !== platform),
+          Math.min(platformCount - 1, this.config.patterns.platforms.length - 1),
+        );
+        for (const addPlatform of additionalPlatforms) {
+          platforms[addPlatform] = {
+            description: `${faker.helpers.arrayElement(this.config.patterns.gpuTypes)} platform`,
+            host_network_allowed: faker.datatype.boolean(),
+            privileged_allowed: false,
+            allowed_mounts: ["/data", "/models"],
+            default_mounts: ["/data"],
+          };
+        }
+      }
     }
+
+    const effectivePlatform = isSharedPool ? SHARED_PLATFORM : platform;
 
     return {
       name,
-      description: `${gpuType} cluster in ${region} running on ${platform}`,
+      description: `${gpuType} cluster in ${region} running on ${effectivePlatform}`,
       status,
-      backend: platform,
-      default_platform: platform,
+      backend: effectivePlatform,
+      default_platform: effectivePlatform,
       default_exec_timeout: "24h",
       default_queue_timeout: "48h",
       max_exec_timeout: "168h",
