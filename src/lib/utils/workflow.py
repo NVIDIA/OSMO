@@ -47,9 +47,7 @@ def parse_workflow_spec(workflow_spec: str) -> Tuple[str, Dict | None]:
     if len(workflows) > 1:
         raise osmo_errors.OSMOUserError('Multiple workflows sections found in the workflow spec.')
 
-    if workflows:
-        workflow_portion = workflows[0]
-    else:
+    if not workflows:
         raise osmo_errors.OSMOUserError('Workflow spec not found.')
 
     default_values_pattern = re.compile(r'(^default-values:.*?)(?=^(?![#\s])\S|\Z)',
@@ -65,4 +63,6 @@ def parse_workflow_spec(workflow_spec: str) -> Tuple[str, Dict | None]:
     if default_locs:
         default_values = yaml.safe_load(default_locs[0])['default-values']
 
-    return workflow_portion, default_values
+    # Return the full spec so that top-level sections (e.g. resources:) are included in
+    # Jinja rendering regardless of their position relative to workflow:.
+    return workflow_spec, default_values
