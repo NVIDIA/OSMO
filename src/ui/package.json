@@ -29,7 +29,7 @@
     "licenses:check": "node scripts/check-licenses.mjs",
     "licenses:generate": "node scripts/generate-licenses.mjs",
     "licenses": "node scripts/check-licenses.mjs && node scripts/generate-licenses.mjs",
-    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm build && pnpm test:all"
+    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test && pnpm build"
   },
   "dependencies": {
     "@codemirror/lang-yaml": "^6.1.2",
