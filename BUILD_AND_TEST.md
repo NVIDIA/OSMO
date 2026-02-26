@@ -144,8 +144,8 @@ bazel run @osmo_workspace//src/service/worker:worker_push_x86_64                
 # OSMO Backend Operators
 bazel run @osmo_workspace//src/operator:backend_listener_push_x86_64                       # Image name: backend-listener
 bazel run @osmo_workspace//src/operator:backend_worker_push_x86_64                         # Image name: backend-worker
-# OSMO UI (built via Docker, not Bazel)
-bazel run @osmo_workspace//src/ui:build_push_web_ui_x86_64 -- --repository REGISTRY/web-ui --tag TAG  # Image name: web-ui
+# OSMO UI (built via Docker)
+bazel run @osmo_workspace//src/ui:build_push_web_ui_x86_64                                 # Image name: web-ui
 # OSMO Runtime
 bazel run @osmo_workspace//src/runtime:init_push_x86_64                                    # Image name: init-container
 # OSMO Client
@@ -165,8 +165,8 @@ bazel run @osmo_workspace//src/service/worker:worker_push_arm64                 
 # OSMO Backend Operators
 bazel run @osmo_workspace//src/operator:backend_listener_push_arm64                       # Image name: backend-listener
 bazel run @osmo_workspace//src/operator:backend_worker_push_arm64                         # Image name: backend-worker
-# OSMO UI (built via Docker, not Bazel)
-bazel run @osmo_workspace//src/ui:build_push_web_ui_arm64 -- --repository REGISTRY/web-ui --tag TAG  # Image name: web-ui
+# OSMO UI (built via Docker)
+bazel run @osmo_workspace//src/ui:build_push_web_ui_arm64                                 # Image name: web-ui
 # OSMO Runtime
 bazel run @osmo_workspace//src/runtime:init_push_arm64                                    # Image name: init-container
 # OSMO Client
