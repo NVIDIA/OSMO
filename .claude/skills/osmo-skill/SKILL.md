@@ -5,8 +5,9 @@ description: >
   Use this skill whenever the user asks about available resources, nodes, pools, GPUs,
   or compute capacity on OSMO — even if they don't say "OSMO" explicitly. Also use it
   when they ask what they can run, whether they have quota, want to check their profile
-  or pool access, want to submit a workflow (SDG, RL training, or custom), or want to
-  check the status or logs of a running/completed workflow.
+  or pool access, want to submit a workflow (SDG, RL training, or custom), want to
+  check the status or logs of a running/completed workflow, or want to understand what
+  a specific workflow does or is configured to do.
 ---
 
 # OSMO Skill
@@ -70,10 +71,15 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    If the user provides a workflow YAML, use it as-is. Otherwise, generate one based on
    what they want to run. Write the spec to `workflow.yaml` in the current directory.
 
-   **When generating a workflow spec, consult `references/cookbook.md` for the closest
-   example and fetch its YAML as a starting point via WebFetch. Adapt it to the user's
-   request rather than generating from scratch. If no example closely matches, fall back
-   to the scaffold template below.**
+   **When generating a workflow spec:**
+   - Consult `references/cookbook.md` for the closest real-world example and fetch its
+     YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
+   - If the workflow involves **multiple tasks, parallel execution, data dependencies
+     between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
+     the correct spec patterns before writing anything.
+   - If the user asks for **checkpointing, retry/exit behavior, or node exclusion**,
+     read `references/advanced-patterns.md`.
+   - If no cookbook example closely matches, fall back to the scaffold template below.
 
    The OSMO workflow spec format follows this structure:
    ```yaml
@@ -164,3 +170,32 @@ status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz"
    ```
    osmo resource list -p <pool>
    ```
+
+---
+
+## Use Case: Explain What a Workflow Does
+
+**When to use:** The user asks what a workflow does, what it's configured to run, or
+wants to understand its purpose (e.g. "what does workflow abc-123 do?", "explain this
+workflow", "what is workflow xyz running?").
+
+### Steps
+
+1. **Fetch the workflow template:**
+   ```
+   osmo workflow spec <workflow_id> --template
+   ```
+   This returns the original workflow spec YAML that was used to submit the job,
+   including the container image, entrypoint scripts, environment variables, and
+   resource requests.
+
+2. **Read and summarize the spec.** Based on the YAML output, give the user a concise
+   plain-language summary covering:
+   - **What it does**: the high-level task (e.g. "runs SDG data generation using the
+     Isaac container", "trains a policy with RL")
+   - **How it runs**: the container image, the entrypoint script or command, and any
+     notable environment variables that control its behavior
+   - **What it produces**: any declared outputs (datasets, artifacts)
+
+   Keep the summary short — a few sentences or a brief bullet list. The user asked
+   what it does, not for a line-by-line YAML walkthrough.
