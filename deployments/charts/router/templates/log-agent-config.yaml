@@ -138,10 +138,6 @@ data:
         log_stream_prefix   ${NODE_NAME}-flb-
         auto_create_group   true
         extra_user_agent    container-insights
-        {{- if .Values.sidecars.logAgent.cloudwatch.role }}
-        role_arn            {{ .Values.sidecars.logAgent.cloudwatch.role }}
-        {{- end }}
-
 
   parsers.conf: |
     [PARSER]
