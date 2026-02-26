@@ -360,7 +360,7 @@ def _start_ui_service():
         raise RuntimeError('Failed to install pnpm dependencies')
 
     host_ip = get_host_ip()
-    dev_cmd = ['npx', 'next', 'dev', '--turbopack', '--port', '3000']
+    dev_cmd = ['pnpm', 'dev', '--port', '3000']
 
     ui_env = os.environ.copy()
     ui_env['NEXT_PUBLIC_OSMO_API_HOSTNAME'] = f'{host_ip}:8000'
