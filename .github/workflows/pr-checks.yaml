@@ -122,7 +122,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          bazel test --test_output=errors -- //... -//ui/...
+          bazel test --test_output=errors -- //...
 
   ci-internal:
     timeout-minutes: 30
@@ -209,8 +209,7 @@ jobs:
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             -- \
-            //... \
-            -//ui/...
+            //...
 
       - name: Docker cleanup
         if: always()
