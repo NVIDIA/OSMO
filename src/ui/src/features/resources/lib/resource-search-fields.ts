@@ -55,8 +55,8 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "platform name",
     prefix: "platform:",
     freeFormHint: "Type any platform, press Enter",
-    getValues: (resources) => [...new Set(resources.map((r) => r.platform))].sort(),
-    match: (resource, value) => resource.platform.toLowerCase() === value.toLowerCase(),
+    getValues: (resources) => [...new Set(resources.flatMap((r) => r.poolMemberships.map((m) => m.platform)))].sort(),
+    match: (resource, value) => resource.poolMemberships.some((m) => m.platform.toLowerCase() === value.toLowerCase()),
   },
   {
     id: "pool",
