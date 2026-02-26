@@ -55,7 +55,7 @@ global:
 ## Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
 ## will use default schema if not set
 ##
-schemaVersion: ""
+targetSchema: ""
 
 ## Service account configuration for router service
 ##

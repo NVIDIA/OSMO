@@ -123,7 +123,7 @@ helm upgrade my-router ./router -f my-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `schemaVersion` | pgroll schema version for search_path (e.g., `public_v6_2_0`). Leave empty to use the default `public` schema. | `""` |
+| `targetSchema` | pgroll schema version for search_path (e.g., `public_v6_2_0`). Leave empty to use the default `public` schema. | `""` |
 | `services.postgres.serviceName` | PostgreSQL service name | `postgres` |
 | `services.postgres.port` | PostgreSQL service port | `5432` |
 | `services.postgres.db` | PostgreSQL database name | `osmo` |
