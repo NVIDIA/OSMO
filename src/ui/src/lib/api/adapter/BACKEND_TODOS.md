@@ -134,18 +134,6 @@ function parseNumber(value: string | number | undefined | null): number {
 
 ---
 
-### 3. Auth Configuration Embedded in OpenAPI Schema
-
-**Priority:** Low
-**Status:** No workaround needed (schema hygiene issue)
-
-The `service_auth` field in `ServiceConfigs` has a default value that embeds RSA keys into the OpenAPI schema.
-
-**Fix options:**
-1. Use `Field(exclude=True)` to hide from schema
-2. Don't set default at model level
-3. Use `schema_extra` to exclude sensitive defaults
-
 ---
 
 ### 4. Version Endpoint Returns Unknown Type
@@ -249,26 +237,31 @@ When `concise=true` is passed to `/api/resources`, response structure changes:
 
 ---
 
-### 9. No Single-Resource Endpoint with Full Details
+### 9. Single-Resource Endpoint Lacks Full Details
 
 **Priority:** Medium
-**Status:** Active workaround in `hooks.ts` (`useResourceInfo`)
+**Status:** Partially fixed — endpoint exists but incomplete. Active workaround in `hooks.ts` (`useResourceInfo`)
 
-To display full resource details (including all pool memberships and task configs), the UI currently needs:
-1. Query `/api/resources?pools=X` for resource capacity (filtered to one pool)
-2. Query `/api/resources?all_pools=true` to get ALL pool memberships (expensive)
-3. Query `/api/pool_quota?pools=X` to get platform task configurations
+The endpoint `GET /api/resources/{name}` now exists (`workflow_service.py:912-918`) but returns the same `ResourcesResponse` as the list endpoint. It does **not** include:
+- All pool memberships (still filtered by query — see Issue #7)
+- Task configs (host network, privileged, mounts)
+- Conditions
 
-**Ideal behavior:** A single endpoint `GET /api/resources/{name}` that returns:
+The UI still needs multiple queries to assemble full resource details:
+1. `GET /api/resources/{name}` for resource capacity
+2. `GET /api/resources?all_pools=true` to get ALL pool memberships (expensive)
+3. `GET /api/pool_quota?pools=X` to get platform task configurations
+
+**Ideal response from `GET /api/resources/{name}`:**
 ```typescript
 interface ResourceDetail {
   hostname: string;
-  name: string;  // Resource name
+  name: string;
   resourceType: "SHARED" | "RESERVED" | "UNUSED";
   poolMemberships: Array<{ pool: string; platform: string }>;
   capacity: { gpu, cpu, memory, storage };
   usage: { gpu, cpu, memory, storage };
-  taskConfig: {  // from current pool's platform config
+  taskConfig: {
     hostNetworkAllowed: boolean;
     privilegedAllowed: boolean;
     allowedMounts: string[];
@@ -283,7 +276,7 @@ interface ResourceDetail {
 - Only fetched for SHARED resources (RESERVED belong to single pool)
 - Result cached for 5 minutes to reduce API calls
 
-**Fix:** Add `GET /api/resources/{name}` endpoint returning complete resource info.
+**Fix:** Enrich the existing `GET /api/resources/{name}` endpoint to return complete resource info (all pool memberships, task configs, conditions).
 
 ---
 
@@ -1196,43 +1189,46 @@ For OSMO's dataset counts this is appropriate. See issue #25 for the full backen
 
 ---
 
-### 25. Dataset List API Missing Date Filtering and Sorting Parameters
+### 25. Dataset List API Missing Sort-By Field, Distinct Date Filters, and Response Totals
 
 **Priority:** High
-**Status:** Active workaround in `datasets-shim.ts` (client-side filtering) and `datasets.ts` (fetch-all)
+**Status:** Partially present — Active workaround in `datasets-shim.ts` (client-side filtering) and `datasets.ts` (fetch-all)
 
-The dataset list API does not support date range filtering or server-side sorting. The UI works around this by fetching all datasets at once and filtering/sorting client-side via `datasets-shim.ts`.
+The dataset list API (`data_service.py:991-1003`) already supports:
+- `latest_before` / `latest_after` — date range filtering (covers a combined "most recent" date)
+- `order` — sort direction (`ASC` / `DESC`)
 
-**Desired API behavior:**
+What's still **missing**:
+- **`sort_by`** — field to sort on (currently hardcoded to `combined_date` in SQL)
+- **`created_after` / `created_before`** — filtering specifically by creation date (distinct from `latest_*`)
+- **`updated_after` / `updated_before`** — filtering specifically by update date
+- **`offset`** — pagination offset (see also Issue #23)
+- **Response totals** — `total` and `filtered_total` counts
 
-```
-GET /api/bucket/list_dataset
-  ?name=foo
-  &buckets=ml-data
-  &user=alice
-  &all_users=false
-  &dataset_type=DATASET
-  &created_after=2024-01-01T00:00:00Z
-  &created_before=2024-12-31T23:59:59Z
-  &updated_after=2024-01-01T00:00:00Z
-  &updated_before=2024-12-31T23:59:59Z
-  &sort_by=name
-  &sort_dir=asc
-  &count=50
-  &offset=0
-```
+**Existing parameters (already working):**
 
-**New parameters needed:**
+| Parameter | Status | Notes |
+|-----------|--------|-------|
+| `name` | ✅ Exists | Search filter |
+| `buckets` | ✅ Exists | Bucket filter |
+| `user` | ✅ Exists | User filter |
+| `all_users` | ✅ Exists | Show all users |
+| `dataset_type` | ✅ Exists | Type filter |
+| `count` | ✅ Exists | Limit |
+| `order` | ✅ Exists | Sort direction (ASC/DESC) |
+| `latest_before` | ✅ Exists | Date ceiling (combined date) |
+| `latest_after` | ✅ Exists | Date floor (combined date) |
+
+**Still needed:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `created_after` | ISO 8601 datetime | Include only datasets created on or after this time |
-| `created_before` | ISO 8601 datetime | Include only datasets created on or before this time |
-| `updated_after` | ISO 8601 datetime | Include only datasets last updated on or after this time |
-| `updated_before` | ISO 8601 datetime | Include only datasets last updated on or before this time |
 | `sort_by` | string | Field to sort by: `name`, `bucket`, `created_at`, `updated_at`, `size_bytes`, `version` |
-| `sort_dir` | `asc` \| `desc` | Sort direction (default: `desc` for dates, `asc` for name) |
-| `offset` | number | Offset for pagination (enables proper paging with filters active) |
+| `created_after` | ISO 8601 datetime | Filter by creation date (distinct from `latest_after`) |
+| `created_before` | ISO 8601 datetime | Filter by creation date |
+| `updated_after` | ISO 8601 datetime | Filter by update date |
+| `updated_before` | ISO 8601 datetime | Filter by update date |
+| `offset` | number | Offset for pagination (see Issue #23) |
 
 **New response fields needed:**
 
@@ -1248,9 +1244,8 @@ GET /api/bucket/list_dataset
 
 | Filter | Workaround location | Remove when fixed |
 |--------|---------------------|-------------------|
-| `created_at` date range | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `created_after`/`created_before` to API |
-| `updated_at` date range | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `updated_after`/`updated_before` to API |
-| Sorting | `datasets-shim.ts` `applyDatasetsFiltersSync` (Phase 4) | Pass `sort_by`/`sort_dir` to API |
+| Distinct date range filters | `datasets-shim.ts` `applyDatasetsFiltersSync` | Use `created_*`/`updated_*` params, or map to `latest_*` |
+| Sort-by field | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `sort_by` to API |
 | Fetch all instead of paginating | `datasets.ts` `fetchAllDatasets` (count: 10_000) | Use proper offset pagination |
 
 **Migration path (when backend adds these params):**
@@ -1363,13 +1358,13 @@ Option B: Include pod phase in plain text header
 |-------|----------|---------------------|------------|
 | #1 Incorrect response types | High | transforms.ts, hooks.ts | Remove casts |
 | #2 String numbers | Medium | transforms.ts | Remove parseNumber |
-| #3 Auth in schema | Low | N/A | N/A |
+| #3 Auth in schema | Low | N/A | ✅ FIXED — `default_factory` prevents schema embedding |
 | #4 Version unknown | Low | transforms.ts | Use generated type |
 | #5 Untyped dictionaries | Medium | transforms.ts | Access fields directly |
 | #6 Unit conversion | Medium | transforms.ts | Remove conversion |
 | #7 Filtered pool_platform_labels | Medium | hooks.ts | Remove all_pools query |
 | #8 Concise changes structure | Low | N/A | N/A |
-| #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
+| #9 Single-resource endpoint incomplete | Medium | hooks.ts | Enrich existing endpoint |
 | #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
 | #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
 | #12 Server-side summary aggregates | **High** | resource-summary-card.tsx | Use server summary |
@@ -1385,7 +1380,7 @@ Option B: Include pod phase in plain text header
 | #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
 | #23 Dataset pagination missing offset | **High** | datasets.ts (fetch-all workaround) | Add offset param to API |
 | #24 Events API lacks pod status data | Medium | events-parser.ts, events-utils.ts, events-grouping.ts | Use actual pod status from API |
-| #25 Dataset API missing date/sort params | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |
+| #25 Dataset API missing sort_by, distinct dates | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |
 
 ### Priority Guide
 
@@ -1418,3 +1413,7 @@ Backend now checks `has_more_entries = len(rows) > limit` before slicing. UI wor
 ### 17. Workflow List `order` Parameter Ignored for Pagination — ✅ FIXED
 
 Backend inner query now respects the `order` parameter for both inner and outer SQL queries. No UI changes needed.
+
+### 3. Auth Configuration Embedded in OpenAPI Schema — ✅ FIXED
+
+Changed `service_auth` default from inline `generate_default()` call to `pydantic.Field(default_factory=...)` in `postgres.py`. Pydantic v1 does not serialize `default_factory` values into the JSON schema, so RSA keys no longer appear in the OpenAPI spec.
