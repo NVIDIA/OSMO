@@ -6,8 +6,9 @@ description: >
   or compute capacity on OSMO — even if they don't say "OSMO" explicitly. Also use it
   when they ask what they can run, whether they have quota, want to check their profile
   or pool access, want to submit a workflow (SDG, RL training, or custom), want to
-  check the status or logs of a running/completed workflow, or want to understand what
-  a specific workflow does or is configured to do.
+  check the status or logs of a running/completed workflow, list or browse recent
+  workflow submissions, or want to understand what a specific workflow does or is
+  configured to do.
 ---
 
 # OSMO CLI Use Cases
@@ -56,6 +57,10 @@ When summarizing results for the user, highlight:
 - Effective availability = min(Quota Free, Total Free) — this is the true number of
   GPUs a workflow can actually use, since both limits apply
 - Any pools that appear at capacity
+- **LOW priority opportunity:** if a pool has Quota Free = 0 but Total Free > 0, the
+  user's quota is exhausted but physical GPUs are physically idle. They can still submit
+  with `--priority LOW`, which bypasses quota limits and runs on available capacity.
+  Mention this as an option whenever you see this condition.
 
 ---
 
@@ -75,7 +80,7 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    - Consult `references/cookbook.md` for the closest real-world example and fetch its
      YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
      Fetch the README as well, substituting the YAML file name with README. Summarize the
-     README, and add is as a comment in the generated workflow spec.
+     README, and add it as a comment in the generated workflow spec.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
      the correct spec patterns before writing anything.
@@ -125,6 +130,14 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    submit the same YAML file multiple times — do not create duplicate YAML files.
    Report each workflow ID returned by the CLI so the user can track them.
 
+   **When quota is exhausted but GPUs are physically free (Quota Free = 0, Total Free > 0):**
+   Offer to submit with `--priority LOW`, which bypasses quota limits and schedules on
+   idle capacity. LOW priority jobs may be preempted if quota-holding jobs need those
+   GPUs, so let the user know before proceeding. If they agree, run:
+   ```
+   osmo workflow submit workflow.yaml --pool <pool_name> --priority LOW
+   ```
+
    **Validation errors:** If submission fails with a validation error indicating that
    resources failed assertions, read the node capacity values from the error table and
    adjust the `resources` section of `workflow.yaml` using these rules, then resubmit:
@@ -135,6 +148,27 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    - **Proportionality:** after setting GPU, scale memory and CPU proportionally to the
      ratio of requested GPUs to total allocatable GPUs on the node
      (e.g. requesting 2 of 8 GPUs → use 25% of the adjusted memory/CPU values)
+
+---
+
+## Use Case: List Workflows
+
+**When to use:** The user wants to see all their workflows or recent submissions (e.g.
+"what are my workflows?", "show me my recent jobs", "what's the status of my workflows?").
+
+### Steps
+
+1. **List all workflows:**
+   ```
+   osmo workflow list --format-type json
+   ```
+
+2. **Summarize results** in a table showing workflow name, pool, status, and duration.
+   Group or sort by status if helpful. Use clear symbols to indicate outcome:
+   - ✅ COMPLETED
+   - ❌ FAILED / FAILED_CANCELED / FAILED_EXEC_TIMEOUT / FAILED_SERVER_ERROR
+   - 🔄 RUNNING
+   - ⏳ PENDING
 
 ---
 
@@ -150,7 +184,7 @@ status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz"
    osmo workflow query <workflow_id> --format-type json
    ```
 
-2. **Get recent logs** — this command streams live, so run it with a 10-second timeout
+2. **Get recent logs** — this command streams live, so run it with a 5-second timeout
    and use whatever output was captured. Check how many tasks are in the query response:
    - **1 task:** run the standard command:
      ```
