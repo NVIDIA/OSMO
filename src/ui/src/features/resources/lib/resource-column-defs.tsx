@@ -73,7 +73,12 @@ const PoolPlatformCell = memo(function PoolPlatformCell({ resource }: { resource
     () => resource.poolMemberships.map((m) => `${m.pool}/${m.platform}`),
     [resource.poolMemberships],
   );
-  return <ExpandableChips items={items} renderLabel={renderPoolPlatformLabel} />;
+  return (
+    <ExpandableChips
+      items={items}
+      renderLabel={renderPoolPlatformLabel}
+    />
+  );
 });
 
 /** Text cell (platform, backend) */
