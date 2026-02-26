@@ -222,11 +222,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                type=int,
                                help='The retry ID for the task which to fetch the events. '
                                     'If not provided, the latest retry ID will be used.')
-    events_parser.add_argument('-n',
-                               dest='last_n_lines',
-                               type=int,
-                               default=None,
-                               help='Show last n lines of events')
     events_parser.set_defaults(func=_workflow_events)
 
     # Handle 'cancel' command
@@ -873,8 +868,6 @@ def _workflow_events(service_client: client.ServiceClient, args: argparse.Namesp
         raise osmo_errors.OSMOUserError('Specify task for retry ID.')
 
     params = {}
-    if args.last_n_lines:
-        params['last_n_lines'] = args.last_n_lines
     if args.task:
         params['task_name'] = args.task
     if args.retry_id:
