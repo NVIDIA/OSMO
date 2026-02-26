@@ -295,7 +295,8 @@ export async function fetchAllDatasets(showAllUsers: boolean, searchChips: Searc
   const apiParams = buildApiParams(searchChips, showAllUsers, 10_000);
   const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
 
-  const parsed: DataListResponse = typeof response === "string" ? JSON.parse(response) : (response as DataListResponse);
+  const rawData = response.data;
+  const parsed: DataListResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
   return transformDatasetList(parsed);
 }
 
@@ -325,7 +326,8 @@ export async function fetchPaginatedDatasets(
   const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
 
   // Parse response (backend may return string or object)
-  const parsed: DataListResponse = typeof response === "string" ? JSON.parse(response) : (response as DataListResponse);
+  const rawData = response.data;
+  const parsed: DataListResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
 
   const datasets = transformDatasetList(parsed);
 
@@ -356,7 +358,8 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
   const response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
 
   // Parse response
-  const parsed: DataInfoResponse = typeof response === "string" ? JSON.parse(response) : (response as DataInfoResponse);
+  const rawData = response.data;
+  const parsed: DataInfoResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
 
   return transformDatasetDetail(parsed);
 }
@@ -377,11 +380,14 @@ export async function fetchDatasetFiles(location: string | null): Promise<RawFil
 
   const { customFetch } = await import("@/lib/api/fetcher");
 
-  return customFetch<RawFileItem[]>({
-    url: "/api/datasets/location-files",
-    method: "GET",
-    params: { url: location },
-  });
+  const params = new URLSearchParams({ url: location });
+  const response = await customFetch<{ data: RawFileItem[]; status: number }>(
+    `/api/datasets/location-files?${params.toString()}`,
+    {
+      method: "GET",
+    },
+  );
+  return response.data;
 }
 
 /**

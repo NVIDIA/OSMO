@@ -327,8 +327,15 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         params: { entry_command: shellRef.current },
       });
 
-      if (response.cookie) {
-        updateALBCookies(response.cookie);
+      if (response.status !== 200) {
+        dispatch({ type: "API_ERROR", error: "Exec request failed" });
+        _updateSession(sessionKey, { isConnecting: false });
+        return;
+      }
+
+      const execData = response.data;
+      if (execData.cookie) {
+        updateALBCookies(execData.cookie);
       }
 
       const currentSession = _getSession(sessionKey);
@@ -405,8 +412,8 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       _updateSession(sessionKey, { onDataDisposable });
 
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const routerAddress = response.router_address.replace(/^https?:/, wsProtocol);
-      const wsUrl = `${routerAddress}/api/router/exec/${workflowNameRef.current}/client/${response.key}`;
+      const routerAddress = execData.router_address.replace(/^https?:/, wsProtocol);
+      const wsUrl = `${routerAddress}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
 
       dispatch({ type: "API_SUCCESS", terminal, wsUrl });
 
