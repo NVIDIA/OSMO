@@ -44,20 +44,6 @@ from scratch.
 | **Nut Pouring Pipeline** | Step 4 — MP4 to HDF5 conversion | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/nut_pouring/04_mp4_to_hdf5.yaml |
 | **Nut Pouring Pipeline** | Step 5 — LeRobot conversion | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/nut_pouring/05_lerobot_conversion.yaml |
 | **Nut Pouring Pipeline** | Step 6 — GR00T fine-tuning | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/nut_pouring/06_groot_finetune.yaml |
-| **Tutorials** | Hello world | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/hello_world.yaml |
-| **Tutorials** | Serial workflow | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/serial_workflow.yaml |
-| **Tutorials** | Parallel tasks | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/parallel_tasks.yaml |
-| **Tutorials** | Group tasks | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/group_tasks.yaml |
-| **Tutorials** | Group tasks with communication | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/group_tasks_communication.yaml |
-| **Tutorials** | Data download | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/data_download.yaml |
-| **Tutorials** | Data upload | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/data_upload.yaml |
-| **Tutorials** | Dataset download | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/dataset_download.yaml |
-| **Tutorials** | Dataset upload | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/dataset_upload.yaml |
-| **Tutorials** | Resource config (basic) | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/resources_basic.yaml |
-| **Tutorials** | Resource config (multiple) | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/resources_multiple.yaml |
-| **Tutorials** | Platform targeting | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/resources_platforms.yaml |
-| **Tutorials** | Robot simulation | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/robot_simulation.yaml |
-| **Tutorials** | Token example | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/tutorials/token_example.yaml |
 
 ---
 
