@@ -81,7 +81,7 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
      read `references/advanced-patterns.md`.
    - If no cookbook example closely matches, fall back to the scaffold template below.
 
-   The OSMO workflow spec format follows this structure:
+   The simple OSMO workflow spec format follows this structure:
    ```yaml
    workflow:
      name: <workflow-name>
@@ -91,7 +91,7 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
        command: ["bash"]
        args: ["/tmp/entry.sh"]
        environment:
-         ACCEPT_EULA: Y
+         <ENV VARIABLE>: <VALUE>
        files:
        - contents: |
            <shell script to run>
