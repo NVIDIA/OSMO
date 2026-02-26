@@ -17,7 +17,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { ArrowUpRight } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
@@ -46,7 +46,7 @@ export function ResourcePanelContent({
   selectedPool: initialSelectedPool,
   onPoolSelect,
 }: ResourcePanelContentProps) {
-  const router = useRouter();
+  const router = useNavigationRouter();
   const { startTransition } = useViewTransition();
 
   const { pools, initialPool, taskConfigByPool, isLoadingPools, error, refetch } = useResourceDetail(
