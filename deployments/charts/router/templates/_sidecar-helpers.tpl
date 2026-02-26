@@ -290,6 +290,8 @@ Authorization sidecar container
     - "--log-name=authz_sidecar"
     {{- end }}
   env:
+    - name: OSMO_SCHEMA_VERSION
+      value: {{ .Values.schemaVersion | default "public" }}
     {{- with .Values.sidecars.authz.extraEnv }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
