@@ -93,23 +93,15 @@ listeners:
                     return
                   end
                   local roles_list = table.concat(meta.verified_jwt.roles, ',')
-                  -- Add the headers
                   request_handle:headers():replace('x-osmo-roles', roles_list)
+                  if meta.verified_jwt.name then
+                    request_handle:headers():replace('x-auth-request-name', meta.verified_jwt.name)
+                  end
                   if (meta.verified_jwt.osmo_token_name ~= nil) then
                     request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
                   end
                   if (meta.verified_jwt.osmo_workflow_id ~= nil) then
                     request_handle:headers():replace('x-osmo-workflow-id', tostring(meta.verified_jwt.osmo_workflow_id))
-                  end
-                end
-
-                function envoy_on_response(response_handle)
-                  local meta = response_handle:streamInfo():dynamicMetadata():get('envoy.filters.http.jwt_authn')
-                  if (meta == nil or meta.verified_jwt == nil) then
-                    return
-                  end
-                  if meta.verified_jwt.name then
-                    response_handle:headers():add('x-osmo-name', meta.verified_jwt.name)
                   end
                 end
         {{- end }}
@@ -128,7 +120,7 @@ access_log:
     "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
     path: "/logs/envoy_access_log.txt"
     log_format: {
-      text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\"\n"
+      text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%\"\n"
     }
 - name: envoy.access_loggers.file
   filter:
@@ -141,7 +133,7 @@ access_log:
     "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
     path: "/logs/envoy_api_access_log.txt"
     log_format: {
-      text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
+      text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
     }
 {{- end }}
 
@@ -294,9 +286,6 @@ Generate ext_authz filter for OAuth2 Proxy
             allowed_client_headers_on_success:
               patterns:
               - exact: set-cookie
-              - exact: x-auth-request-user
-              - exact: x-auth-request-email
-              - exact: x-auth-request-preferred-username
         failure_mode_allow: false
 {{- end }}
 
