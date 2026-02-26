@@ -291,7 +291,7 @@ Authorization sidecar container
     {{- end }}
   env:
     - name: OSMO_SCHEMA_VERSION
-      value: {{ .Values.schemaVersion | default "public" }}
+      value: {{ .Values.targetSchema | default "public" }}
     {{- with .Values.sidecars.authz.extraEnv }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
