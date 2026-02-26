@@ -25,8 +25,7 @@ export type ResourceColumnId =
   | "resource"
   | "hostname"
   | "type"
-  | "pools"
-  | "platform"
+  | "pool-platform"
   | "backend"
   | "gpu"
   | "cpu"
@@ -38,13 +37,12 @@ export type ResourceColumnId =
 // =============================================================================
 
 const resourceColumnConfig = createColumnConfig<ResourceColumnId>({
-  columns: ["resource", "hostname", "type", "pools", "platform", "backend", "gpu", "cpu", "memory", "storage"] as const,
+  columns: ["resource", "hostname", "type", "pool-platform", "backend", "gpu", "cpu", "memory", "storage"] as const,
   labels: {
     resource: "Resource",
     hostname: "Hostname",
     type: "Type",
-    pools: "Pools",
-    platform: "Platform",
+    "pool-platform": "Pool / Platform",
     backend: "Backend",
     gpu: "GPU",
     cpu: "CPU",
@@ -52,8 +50,8 @@ const resourceColumnConfig = createColumnConfig<ResourceColumnId>({
     storage: "Storage",
   },
   mandatory: ["resource"],
-  defaultVisible: ["resource", "type", "platform", "gpu", "cpu", "memory", "storage"],
-  defaultOrder: ["resource", "type", "pools", "platform", "backend", "hostname", "gpu", "cpu", "memory", "storage"],
+  defaultVisible: ["resource", "type", "pool-platform", "gpu", "cpu", "memory", "storage"],
+  defaultOrder: ["resource", "type", "pool-platform", "backend", "hostname", "gpu", "cpu", "memory", "storage"],
   sizeConfig: [
     {
       id: "resource",
@@ -66,14 +64,9 @@ const resourceColumnConfig = createColumnConfig<ResourceColumnId>({
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
     },
     {
-      id: "pools",
+      id: "pool-platform",
       minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE,
-    },
-    {
-      id: "platform",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_SHORT,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_SHORT,
     },
     {
       id: "backend",
@@ -106,11 +99,9 @@ const resourceColumnConfig = createColumnConfig<ResourceColumnId>({
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_WITH_UNIT,
     },
   ],
-  // Custom optional columns to maintain original order (not alphabetical from labels)
   optionalColumns: [
     { id: "type", label: "Type", menuLabel: "Type" },
-    { id: "pools", label: "Pools", menuLabel: "Pools" },
-    { id: "platform", label: "Platform", menuLabel: "Platform" },
+    { id: "pool-platform", label: "Pool / Platform", menuLabel: "Pool / Platform" },
     { id: "backend", label: "Backend", menuLabel: "Backend" },
     { id: "hostname", label: "Hostname", menuLabel: "Hostname" },
     { id: "gpu", label: "GPU", menuLabel: "GPU" },

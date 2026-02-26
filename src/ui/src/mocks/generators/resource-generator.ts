@@ -25,7 +25,14 @@
 
 import { faker } from "@faker-js/faker";
 import { BackendResourceType, type ResourcesEntry } from "@/lib/api/generated";
-import { MOCK_CONFIG, type ResourcePatterns } from "@/mocks/seed/types";
+import {
+  MOCK_CONFIG,
+  type ResourcePatterns,
+  SHARED_POOL_ALPHA,
+  SHARED_POOL_BETA,
+  SHARED_PLATFORM,
+  ALPHA_EXTRA_PLATFORM,
+} from "@/mocks/seed/types";
 import { hashString } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 
@@ -81,7 +88,10 @@ export class ResourceGenerator {
    * DETERMINISTIC: Same pool + index always produces the same resource.
    */
   generate(poolName: string, index: number): ResourcesEntry {
-    faker.seed(this.config.baseSeed + hashString(poolName) + index);
+    // Shared pools use the same seed so they produce identical resources
+    const isSharedPool = poolName === SHARED_POOL_ALPHA || poolName === SHARED_POOL_BETA;
+    const seedPoolName = isSharedPool ? SHARED_POOL_ALPHA : poolName;
+    faker.seed(this.config.baseSeed + hashString(seedPoolName) + index);
 
     const gpuType = faker.helpers.arrayElement(this.config.patterns.gpuTypes);
     const gpuTotal = faker.helpers.arrayElement(this.config.patterns.gpusPerNode);
@@ -117,16 +127,35 @@ export class ResourceGenerator {
     const platform = faker.helpers.arrayElement(MOCK_CONFIG.pools.platforms);
     const region = faker.helpers.arrayElement(MOCK_CONFIG.pools.regions);
 
-    // Determine resource type based on usage status
-    // - Fully used resources are typically RESERVED
-    // - Available resources are SHARED
-    // - Offline/cordoned are UNUSED
-    const resourceType: BackendResourceType =
-      statusKey === "OFFLINE" || statusKey === "CORDONED"
-        ? BackendResourceType.UNUSED
-        : gpuUsed === gpuTotal
-          ? BackendResourceType.RESERVED
-          : BackendResourceType.SHARED;
+    // Determine resource type based on pool membership count
+    // - SHARED: resource belongs to multiple pools
+    // - RESERVED: resource belongs to exactly one pool
+    const resourceType: BackendResourceType = isSharedPool ? BackendResourceType.SHARED : BackendResourceType.RESERVED;
+
+    // Build pool/platform mappings (shared pools reference both pools)
+    let poolPlatformLabels: Record<string, string[]>;
+    let exposedPoolPlatform: string[];
+    let labelPool: string;
+
+    if (isSharedPool) {
+      // First half of resources get the extra platform on alpha
+      const isFirstHalf = index < Math.floor(this.perPool / 2);
+      const alphaPlatforms = isFirstHalf ? [SHARED_PLATFORM, ALPHA_EXTRA_PLATFORM] : [SHARED_PLATFORM];
+
+      poolPlatformLabels = {
+        [SHARED_POOL_ALPHA]: alphaPlatforms,
+        [SHARED_POOL_BETA]: [SHARED_PLATFORM],
+      };
+      exposedPoolPlatform = [
+        ...alphaPlatforms.map((p) => `${SHARED_POOL_ALPHA}/${p}`),
+        `${SHARED_POOL_BETA}/${SHARED_PLATFORM}`,
+      ];
+      labelPool = `${SHARED_POOL_ALPHA},${SHARED_POOL_BETA}`;
+    } else {
+      poolPlatformLabels = { [poolName]: [platform] };
+      exposedPoolPlatform = [`${poolName}/${platform}`];
+      labelPool = poolName;
+    }
 
     // Build ResourcesEntry matching the generated type
     const resourceEntry: ResourcesEntry = {
@@ -137,7 +166,7 @@ export class ResourceGenerator {
       // Exposed fields: contains node name and pool/platform mapping
       exposed_fields: {
         node: hostname,
-        "pool/platform": [`${poolName}/${platform}`],
+        "pool/platform": exposedPoolPlatform,
         "gpu-type": gpuType,
         region,
         status: statusKey,
@@ -197,15 +226,13 @@ export class ResourceGenerator {
       // Labels
       label_fields: {
         "gpu-type": gpuType,
-        pool: poolName,
+        pool: labelPool,
         "node-type": "gpu",
         region,
       },
 
       // Pool/Platform labels mapping
-      pool_platform_labels: {
-        [poolName]: [platform],
-      },
+      pool_platform_labels: poolPlatformLabels,
 
       // Conditions
       conditions: this.generateConditions(statusKey),
