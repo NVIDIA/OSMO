@@ -506,7 +506,12 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, oklch(98% 0 0deg / 20%) 0%, oklch(98% 0 0deg / 70%) 30%, oklch(98% 0 0deg / 85%) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(98% 0 0deg / 20%) 0%,
+    oklch(98% 0 0deg / 70%) 30%,
+    oklch(98% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -523,7 +528,12 @@
 }
 
 .dark .snap-full-overlay {
-  background: linear-gradient(90deg, oklch(15% 0 0deg / 20%) 0%, oklch(15% 0 0deg / 70%) 30%, oklch(15% 0 0deg / 85%) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(15% 0 0deg / 20%) 0%,
+    oklch(15% 0 0deg / 70%) 30%,
+    oklch(15% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -564,7 +574,12 @@
   bottom: 0;
   right: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, oklch(98% 0 0deg / 20%) 0%, oklch(98% 0 0deg / 70%) 30%, oklch(98% 0 0deg / 85%) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(98% 0 0deg / 20%) 0%,
+    oklch(98% 0 0deg / 70%) 30%,
+    oklch(98% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -578,7 +593,12 @@
 }
 
 .dark .snap-strip-washout {
-  background: linear-gradient(90deg, oklch(15% 0 0deg / 20%) 0%, oklch(15% 0 0deg / 50%) 30%, oklch(15% 0 0deg / 85%) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(15% 0 0deg / 20%) 0%,
+    oklch(15% 0 0deg / 50%) 30%,
+    oklch(15% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,

@@ -27,7 +27,7 @@
     --panel-tabs-bg: white;
   }
   .dark .panel-tabs {
-    --panel-tabs-bg: theme(colors.zinc.900);
+    --panel-tabs-bg: var(--color-zinc-900);
   }
 
   /* ==========================================================================

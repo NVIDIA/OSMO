@@ -84,7 +84,7 @@
      ========================================================================== */
   .table-container {
     background: var(--table-surface);
-    border-radius: theme(borderradius.md);
+    border-radius: var(--radius-md);
     overflow: hidden;
     /* Bevel borders */
     border-top: 1px solid var(--table-border-top);
