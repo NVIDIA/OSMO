@@ -109,8 +109,7 @@ spec:
         - '{{ .Values.services.backendListener.eventChanSize }}'
         - --eventCacheTTLMin
         - '{{ .Values.services.backendListener.eventCacheTTLMin }}'
-        - --enableNodeLabelUpdate
-        - '{{ .Values.services.backendListener.enableNodeLabelUpdate }}'
+        - '--enableNodeLabelUpdate={{ .Values.services.backendListener.enableNodeLabelUpdate }}'
         - --labelUpdateChanSize
         - '{{ .Values.services.backendListener.labelUpdateChanSize }}'
         - --metricsOtelEnable
