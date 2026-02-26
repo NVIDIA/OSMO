@@ -835,6 +835,16 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
 
     def construct_workflow_spec_from_dict(self, workflow_dict: Dict)\
         -> workflow.WorkflowSpec:
+        # The OSMO workflow YAML format allows resources: as a top-level key alongside workflow:.
+        # After CLI serialization (yaml.dump sorts keys alphabetically), resources: precedes
+        # workflow:, so the workflow portion regex strips it out. Merge it into the workflow
+        # sub-dict here so VersionedWorkflowSpec (extra=forbid) accepts the input and
+        # WorkflowSpec.resources is populated correctly.
+        if 'resources' in workflow_dict and 'workflow' in workflow_dict:
+            if 'resources' not in workflow_dict['workflow']:
+                workflow_dict['workflow']['resources'] = workflow_dict.pop('resources')
+            else:
+                del workflow_dict['resources']
         try:
             versioned_workflow_spec = workflow.VersionedWorkflowSpec(
                 **workflow_dict)
