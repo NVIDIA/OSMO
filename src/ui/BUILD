@@ -38,7 +38,17 @@ exports_files([
     "scripts/build_push_web_ui_arm64.sh",
 ])
 
-# sh_binary targets for direct `bazel run` usage
+# sh_binary targets for direct `bazel run` usage.
+#
+# To build and push the web UI Docker image:
+#
+#   x86_64:  bazel run //src/ui:build_push_web_ui_x86_64
+#   arm64:   bazel run //src/ui:build_push_web_ui_arm64
+#
+# You can override the repository and/or tag by passing arguments, e.g.:
+#   bazel run //src/ui:build_push_web_ui_x86_64 -- --repository myrepo/web-ui --tag v1.2.3
+#   bazel run //src/ui:build_push_web_ui_arm64 -- --repository myrepo/web-ui --tag v1.2.3
+
 sh_binary(
     name = "build_push_web_ui_x86_64",
     srcs = ["scripts/build_push_web_ui_x86_64.sh"],
