@@ -70,6 +70,11 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    If the user provides a workflow YAML, use it as-is. Otherwise, generate one based on
    what they want to run. Write the spec to `workflow.yaml` in the current directory.
 
+   **When generating a workflow spec, consult `references/cookbook.md` for the closest
+   example and fetch its YAML as a starting point via WebFetch. Adapt it to the user's
+   request rather than generating from scratch. If no example closely matches, fall back
+   to the scaffold template below.**
+
    The OSMO workflow spec format follows this structure:
    ```yaml
    workflow:
@@ -95,16 +100,6 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
          memory: <NGi>
          storage: <NGi>
    ```
-
-   **SDG example** (Isaac Sim synthetic data generation):
-   - image: `nvcr.io/nvidia/isaac-sim:5.1.0`
-   - typical resources: `cpu: 4, gpu: 1, memory: 32Gi, storage: 10Gi`
-   - env: `ACCEPT_EULA: Y, NO_NUCLEUS: Y`
-
-   **RL training example** (Isaac Lab):
-   - image: `nvcr.io/nvidia/isaac-lab:2.2.0`
-   - typical resources: `cpu: 30, gpu: 1, memory: 64Gi, storage: 64Gi`
-   - env: `ACCEPT_EULA: Y, NO_NUCLEUS: Y, OMNI_KIT_ALLOW_ROOT: '1'`
 
    Use `{{output}}` as a placeholder in the script wherever the task should write its
    output data — OSMO replaces this at runtime with the output dataset path.
