@@ -286,6 +286,21 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | `sidecars.envoy.extraVolumeMounts` | Additional volume mounts for Envoy container | `[]` |
 | `sidecars.envoy.jwt.user_header` | JWT user header | `x-osmo-user` |
 | `sidecars.envoy.jwt.providers` | JWT providers configuration | See values.yaml |
+| `sidecars.envoy.osmoauth.enabled` | Enable OSMO auth cluster (for JWKS) | `true` |
+| `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
+| `sidecars.envoy.osmoauth.port` | OSMO auth service port | `80` |
+| `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 filter | `true` |
+| `sidecars.envoy.oauth2Filter.tokenEndpoint` | Token endpoint URL | `""` |
+| `sidecars.envoy.oauth2Filter.authEndpoint` | Auth endpoint URL | `""` |
+| `sidecars.envoy.oauth2Filter.redirectPath` | OAuth redirect path | `api/auth/getAToken` |
+| `sidecars.envoy.oauth2Filter.clientId` | OAuth client ID | `""` |
+| `sidecars.envoy.oauth2Filter.authProvider` | Auth provider | `""` |
+| `sidecars.envoy.oauth2Filter.logoutPath` | OAuth logout path | `logout` |
+| `sidecars.envoy.oauth2Filter.forwardBearerToken` | Forward bearer token | `true` |
+| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name for OIDC secrets | `oidc-secrets` |
+| `sidecars.envoy.oauth2Filter.clientSecretKey` | Key name for client secret in Kubernetes secret | `client_secret` |
+| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Key name for HMAC secret in Kubernetes secret | `hmac_secret` |
+| `sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken` | Force re-auth when IdToken missing on refresh | `false` |
 
 
 #### Log Agent Settings
