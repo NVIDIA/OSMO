@@ -74,6 +74,8 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    **When generating a workflow spec:**
    - Consult `references/cookbook.md` for the closest real-world example and fetch its
      YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
+     Fetch the README as well, substituting the YAML file name with README. Summarize the
+     README, and add is as a comment in the generated workflow spec.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
      the correct spec patterns before writing anything.
@@ -114,7 +116,8 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    availability using the steps in the "Check Available Resources" use case to confirm
    the right pool to use.
 
-3. **Submit the workflow:**
+3. **Ask the user if they want to submit**, then execute the command yourself — do not
+   tell the user to run it. Once confirmed, run:
    ```
    osmo workflow submit workflow.yaml --pool <pool_name>
    ```
@@ -148,16 +151,29 @@ status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz"
    ```
 
 2. **Get recent logs** — this command streams live, so run it with a 10-second timeout
-   and use whatever output was captured:
-   ```
-   osmo workflow logs <workflow_id> -n 10000
-   ```
+   and use whatever output was captured. Check how many tasks are in the query response:
+   - **1 task:** run the standard command:
+     ```
+     osmo workflow logs <workflow_id> -n 10000
+     ```
+   - **2–5 tasks:** fetch logs per task in parallel for clearer separation:
+     ```
+     osmo workflow logs <workflow_id> --task <task_name> -n 10000
+     ```
+   - **More than 5 tasks:** fall back to the standard command without `--task`.
 
 3. **Report to the user:**
    - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED, PENDING)
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
+   - **If the workflow is COMPLETED and has output datasets**, ask the user if they
+     would like to download the dataset and whether they want to specify an output
+     folder. Then run the download yourself:
+     ```
+     osmo dataset download <dataset_name> <path>
+     ```
+     Use `~/` as the output path if the user doesn't specify one.
 
    **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
    ```
