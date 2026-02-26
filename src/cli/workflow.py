@@ -211,6 +211,27 @@ def setup_parser(parser: argparse._SubParsersAction):
                              help='Show last n lines of logs')
     logs_parser.set_defaults(func=_workflow_logs)
 
+    # Handle 'events' command
+    events_parser = subparsers.add_parser('events', help='Get the events from a workflow.')
+    events_parser.add_argument('workflow_id',
+                               help='The workflow ID or UUID for which to fetch the events.')
+    events_parser.add_argument('--task', '-t',
+                               type=str,
+                               help='The task name for which to fetch the events.')
+    events_parser.add_argument('--retry-id', '-r',
+                               type=int,
+                               help='The retry ID for the task which to fetch the events. '
+                                    'If not provided, the latest retry ID will be used.')
+    events_parser.add_argument('--error',
+                               action='store_true',
+                               help='Show task error events instead of regular events')
+    events_parser.add_argument('-n',
+                               dest='last_n_lines',
+                               type=int,
+                               default=None,
+                               help='Show last n lines of events')
+    events_parser.set_defaults(func=_workflow_events)
+
     # Handle 'cancel' command
     cancel_parser = subparsers.add_parser('cancel', help='Cancel a queued or running workflow.')
     cancel_parser.add_argument('workflow_ids', nargs='+',
@@ -847,6 +868,48 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
                   'Please run the command again to continue viewing logs.')
             return
         raise osmo_errors.OSMOServerError(f'Failed to fetch logs: {error}') from error
+
+
+def _workflow_events(service_client: client.ServiceClient, args: argparse.Namespace):
+    logging.debug('Fetch workflow events for workflow %s.', args.workflow_id)
+    if (args.error or args.retry_id) and not args.task:
+        raise osmo_errors.OSMOUserError('Specify task for retry ID or error events.')
+
+    params = {}
+    if args.last_n_lines:
+        params['last_n_lines'] = args.last_n_lines
+    if args.task:
+        params['task_name'] = args.task
+    if args.retry_id:
+        params['retry_id'] = args.retry_id
+    if not args.error:
+        result = service_client.request(
+            client.RequestMethod.GET,
+            f'api/workflow/{args.workflow_id}/events',
+            mode=client.ResponseMode.STREAMING,
+            params=params)
+    else:
+        result = service_client.request(
+            client.RequestMethod.GET,
+            f'api/workflow/{args.workflow_id}/error_events',
+            mode=client.ResponseMode.STREAMING,
+            params=params)
+    if args.error:
+        print(f'Workflow {args.workflow_id} has error events:')
+    else:
+        print(f'Workflow {args.workflow_id} has events:')
+    try:
+        for line in result.iter_lines():
+            print(line.decode('utf-8'))
+    # Give friendly message on broken connection
+    except requests.exceptions.ChunkedEncodingError as error:
+        # Check if this is specifically the timeout case with InvalidChunkLength
+        error_str = str(error)
+        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+            print('\nEvent stream has timed out or failed. '
+                  'Please run the command again to continue viewing events.')
+            return
+        raise osmo_errors.OSMOServerError(f'Failed to fetch events: {error}') from error
 
 
 def _cancel_workflow(service_client: client.ServiceClient, args: argparse.Namespace):
