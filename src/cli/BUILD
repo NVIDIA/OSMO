@@ -93,6 +93,7 @@ osmo_py_binary(
     srcs = ["cli_builder.py"],
     deps = [
         ":cli_lib",
+        requirement("backports-tarfile"),
         requirement("pyinstaller"),
         requirement("shtab"),
     ],
