@@ -102,7 +102,7 @@ const DateSeparator = memo(function DateSeparator({ date, className }: DateSepar
 
   return (
     <div
-      className={cn("flex items-center gap-2 px-3 py-1", className)}
+      className={cn("flex items-center gap-2 px-3 py-0.5", className)}
       role="separator"
       aria-label={`Logs from ${formattedDate}`}
     >
@@ -183,6 +183,21 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   const showTaskStore = useLogViewerStore((s) => s.showTask);
   // Force-hide task tags when scoped to a single task (hideTask overrides store)
   const showTask = hideTask ? false : showTaskStore;
+
+  // Per-row expanded state — preserved across autowrap toggles
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const handleToggleExpand = useCallback((entryId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
+        next.add(entryId);
+      }
+      return next;
+    });
+  }, []);
 
   // Flatten entries with date separators using incremental algorithm
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
@@ -548,6 +563,8 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
                     wrapLines={wrapLines}
                     showTask={showTask}
                     isSelected={isSelected}
+                    isExpanded={expandedIds.has(item.entry.id)}
+                    onToggleExpand={handleToggleExpand}
                   />
                 </div>
               );

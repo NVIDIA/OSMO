@@ -151,6 +151,12 @@ export function parseLogLine(line: string): LogEntry | null {
     pos += 6; // Skip "[osmo]"
   }
 
+  // Ensure one space after "[task_name]" or "[task_name retry-N]" or after "[osmo]"
+  // before log message starts.
+  if (line.charAt(pos) === " ") {
+    pos += 1;
+  }
+
   // Extract message, strip ANSI codes only - preserve leading space and all content as-is
   const message = line.slice(pos).replace(ANSI_RE, "");
 
