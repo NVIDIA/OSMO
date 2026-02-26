@@ -303,4 +303,46 @@
   [data-slot="card"][data-variant="sectioned"] > [data-slot="card-footer"] {
     padding-block: var(--card-section-padding);
   }
+
+  /* ==========================================================================
+     Navigation Progress Bar
+     Top-of-viewport loading indicator for client-side route navigations.
+     Driven by data-status attribute: idle | loading | complete
+     ========================================================================== */
+
+  .nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: left;
+    background: var(--nvidia-green);
+  }
+
+  .nav-progress[data-status="loading"] {
+    opacity: 1;
+    animation: nav-progress-load 10s cubic-bezier(0.4, 0, 0, 1) forwards;
+  }
+
+  .nav-progress[data-status="complete"] {
+    opacity: 0;
+    transform: scaleX(1);
+    transition:
+      transform 200ms ease,
+      opacity 300ms ease 200ms;
+  }
+}
+
+@keyframes nav-progress-load {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.8);
+  }
 }

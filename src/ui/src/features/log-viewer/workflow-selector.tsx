@@ -17,7 +17,7 @@
 "use client";
 
 import { useState, useCallback, FormEvent, useId, MouseEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { Search, Clock, AlertCircle, X, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePage } from "@/components/chrome/page-context";
@@ -32,7 +32,7 @@ interface WorkflowSelectorProps {
 }
 
 export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSelectorProps) {
-  const router = useRouter();
+  const router = useNavigationRouter();
   const [workflowId, setWorkflowId] = useState(() => initialWorkflowId);
   const [recentWorkflows, setRecentWorkflows] = useState<string[]>(() => getRecentWorkflows());
   const workflowInputId = useId();

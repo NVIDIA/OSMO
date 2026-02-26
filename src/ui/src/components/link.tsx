@@ -15,8 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useViewTransition } from "@/hooks/use-view-transition";
+import { startProgressIfNavigating } from "@/lib/navigation-progress";
 import NextLink from "next/link";
 import { useCallback, type ComponentProps } from "react";
+import { usePathname } from "next/navigation";
 
 /**
  * Custom Link wrapper that disables prefetching by default and supports View Transitions.
@@ -34,32 +36,25 @@ import { useCallback, type ComponentProps } from "react";
  */
 export function Link({ prefetch = false, onClick, ...props }: ComponentProps<typeof NextLink>) {
   const { startTransition } = useViewTransition();
+  const currentPathname = usePathname();
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLAnchorElement>) => {
-      // Call original onClick if provided
       onClick?.(e);
 
-      // If default was prevented or it's a special click (cmd/ctrl), don't intercept
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
         return;
       }
 
-      // Only transition for internal links
       const href = props.href.toString();
       const isInternal = href.startsWith("/") || href.startsWith(window.location.origin);
 
       if (isInternal) {
-        // We don't prevent default because NextLink needs to handle the actual navigation.
-        // Instead, we just wrap the start of the transition.
-        // Note: This is a "best effort" transition for route changes.
-        startTransition(() => {
-          // No-op callback, the actual DOM update happens via Next.js navigation
-          // which is triggered by the default link behavior.
-        });
+        startProgressIfNavigating(href, currentPathname);
+        startTransition(() => {});
       }
     },
-    [onClick, props.href, startTransition],
+    [onClick, props.href, startTransition, currentPathname],
   );
 
   return (

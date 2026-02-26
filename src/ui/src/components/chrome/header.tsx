@@ -32,7 +32,8 @@ import { useUser } from "@/lib/auth/user-context";
 import { useVersion } from "@/lib/api/adapter/hooks";
 import { usePageConfig, type BreadcrumbSegment } from "@/components/chrome/page-context";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 
 export function Header() {
   const { user, isLoading, logout } = useUser();
@@ -169,7 +170,7 @@ function VersionMenuItem() {
 
 /** Navigates to stored origin (with filters) if available, otherwise uses default href */
 function BreadcrumbItem({ segment }: { segment: BreadcrumbSegment }) {
-  const router = useRouter();
+  const router = useNavigationRouter();
   const pathname = usePathname();
   const { getOrigin } = useBreadcrumbOrigin();
 
