@@ -61,10 +61,7 @@ export function printHelp(): void {
   console.log("");
   console.log("%cTo authenticate local dev against production:", "font-weight: bold;");
   console.log("");
-  console.log(
-    "%c1. Open the production app in Chrome DevTools → Application → Cookies",
-    "color: #64748b;",
-  );
+  console.log("%c1. Open the production app in Chrome DevTools → Application → Cookies", "color: #64748b;");
   console.log(
     "%c2. Find the %c_osmo_session_*%c cookies and copy each name + value",
     "color: #64748b;",
