@@ -268,6 +268,9 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | `sidecars.envoy.extraVolumeMounts` | Additional volume mounts for Envoy container | `[]` |
 | `sidecars.envoy.jwt.user_header` | JWT user header | `x-osmo-user` |
 | `sidecars.envoy.jwt.providers` | JWT providers configuration | See values.yaml |
+| `sidecars.envoy.osmoauth.enabled` | Enable OSMO auth cluster (for JWKS) | `true` |
+| `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
+| `sidecars.envoy.osmoauth.port` | OSMO auth service port | `80` |
 | `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 filter | `true` |
 | `sidecars.envoy.oauth2Filter.tokenEndpoint` | Token endpoint URL | `""` |
 | `sidecars.envoy.oauth2Filter.authEndpoint` | Auth endpoint URL | `""` |

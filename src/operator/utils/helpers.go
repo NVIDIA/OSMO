@@ -63,12 +63,9 @@ func GetTransportCredentials(serviceURL string) credentials.TransportCredentials
 	// Try parsing as URL to check for https scheme
 	parsedURL, err := url.Parse(serviceURL)
 	if err == nil && strings.ToLower(parsedURL.Scheme) == "https" {
-		// Use system TLS certificates for HTTPS with server name from URL
-		log.Printf("Using TLS credentials for HTTPS connection (server name: %s)", parsedURL.Host)
 		return credentials.NewClientTLSFromCert(nil, parsedURL.Host)
 	}
 	// Use insecure credentials for http or plain host:port
 	log.Printf("Using insecure credentials for connection")
 	return insecure.NewCredentials()
 }
-
