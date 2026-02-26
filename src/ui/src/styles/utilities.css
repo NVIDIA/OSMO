@@ -84,7 +84,7 @@
      ========================================================================== */
   .table-container {
     background: var(--table-surface);
-    border-radius: theme(borderRadius.md);
+    border-radius: var(--radius-md);
     overflow: hidden;
     /* Bevel borders */
     border-top: 1px solid var(--table-border-top);
@@ -96,10 +96,10 @@
   .table-header {
     background: var(--table-header);
     /* Sharp shadow - z-index handled by sticky class when needed */
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 15%);
 
     :is(.dark &) {
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 50%);
     }
   }
 
@@ -109,7 +109,7 @@
      ========================================================================== */
   .scrollbar-styled {
     scrollbar-width: thin;
-    scrollbar-color: theme(colors.zinc.400 / 50%) theme(colors.zinc.100 / 60%);
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 
     &::-webkit-scrollbar {
       width: 10px;
@@ -117,46 +117,25 @@
     }
 
     &::-webkit-scrollbar-track {
-      background: theme(colors.zinc.100 / 60%);
+      background: var(--scrollbar-track);
       border-radius: 5px;
       margin: 2px;
     }
 
     &::-webkit-scrollbar-thumb {
-      background: theme(colors.zinc.400 / 50%);
+      background: var(--scrollbar-thumb);
       border-radius: 5px;
-      border: 2px solid theme(colors.zinc.100 / 60%);
+      border: 2px solid var(--scrollbar-track);
       transition: background var(--duration-normal) var(--ease-out);
     }
 
     &::-webkit-scrollbar-thumb:hover {
-      background: theme(colors.zinc.500 / 70%);
+      background: var(--scrollbar-thumb-hover);
     }
 
     &::-webkit-scrollbar-corner {
-      background: theme(colors.zinc.100 / 60%);
+      background: var(--scrollbar-track);
       border-radius: 5px;
-    }
-
-    :is(.dark &) {
-      scrollbar-color: theme(colors.zinc.500 / 40%) theme(colors.zinc.800 / 50%);
-
-      &::-webkit-scrollbar-track {
-        background: theme(colors.zinc.800 / 60%);
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background: theme(colors.zinc.500 / 50%);
-        border-color: theme(colors.zinc.800 / 60%);
-      }
-
-      &::-webkit-scrollbar-thumb:hover {
-        background: theme(colors.zinc.400 / 60%);
-      }
-
-      &::-webkit-scrollbar-corner {
-        background: theme(colors.zinc.800 / 60%);
-      }
     }
   }
 

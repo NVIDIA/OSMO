@@ -27,7 +27,7 @@
     --panel-tabs-bg: white;
   }
   .dark .panel-tabs {
-    --panel-tabs-bg: theme(colors.zinc.900);
+    --panel-tabs-bg: var(--color-zinc-900);
   }
 
   /* ==========================================================================
@@ -52,11 +52,11 @@
   }
 
   .panel-tabs .panel-tab[data-active="false"]:hover::before {
-    background: rgba(0, 0, 0, 0.08);
+    background: rgb(0 0 0 / 8%);
   }
 
   .dark .panel-tabs .panel-tab[data-active="false"]:hover::before {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgb(255 255 255 / 8%);
   }
 
   /* ==========================================================================
