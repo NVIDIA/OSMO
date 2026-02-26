@@ -26,10 +26,10 @@
 // =============================================================================
 
 /** Estimated row height for virtualization (pixels) */
-export const ROW_HEIGHT_ESTIMATE = 32;
+export const ROW_HEIGHT_ESTIMATE = 28;
 
 /** Height of date separator row (pixels) */
-export const DATE_SEPARATOR_HEIGHT = 28;
+export const DATE_SEPARATOR_HEIGHT = 24;
 
 /** Overscan count for smooth scrolling */
 export const OVERSCAN_COUNT = 10;

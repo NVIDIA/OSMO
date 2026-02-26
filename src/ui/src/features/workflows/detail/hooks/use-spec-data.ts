@@ -68,10 +68,12 @@ const SPEC_GC_TIME = 30 * 60 * 1000;
 // =============================================================================
 
 /**
- * Fetch spec from backend URL (provided by workflow.spec or workflow.template_spec)
+ * Fetch spec directly from the backend URL (workflow.spec / workflow.template_spec).
  *
- * Note: Token refresh is handled automatically by the fetcher's 401 handler,
- * no manual refresh needed before fetch.
+ * Uses the default credentials mode ("same-origin") so that:
+ * - Production (same origin behind Envoy): cookies are sent for auth
+ * - Local dev (cross-origin, different port): cookies are omitted,
+ *   allowing the backend's Access-Control-Allow-Origin: * to work
  */
 async function fetchSpec(specUrl: string): Promise<string> {
   const response = await fetch(specUrl, {
@@ -79,8 +81,7 @@ async function fetchSpec(specUrl: string): Promise<string> {
     headers: {
       Accept: "text/plain",
     },
-    credentials: "include",
-    redirect: "manual", // Prevent automatic redirect following (prevents CORS errors on auth expiry)
+    redirect: "manual",
   });
 
   // Check for redirect responses and throw appropriate error

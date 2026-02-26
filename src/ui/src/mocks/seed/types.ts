@@ -46,7 +46,7 @@ const isDev = process.env.NODE_ENV === "development";
 
 export const DEFAULT_VOLUME: MockVolume = {
   workflows: isDev ? 100 : 10_000, // 100 in dev, 10k for production/stress testing
-  pools: isDev ? 4 : 8,
+  pools: isDev ? 6 : 8,
   resourcesPerPool: isDev ? 20 : 50,
   tasksPerWorkflow: { min: 1, max: isDev ? 4 : 16 },
   logsPerTask: { min: 10, max: isDev ? 50 : 500 },
@@ -143,6 +143,8 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
     "dgx-cloud-us-east-1",
     "dgx-cloud-eu-west-1",
     "dgx-cloud-ap-northeast-1",
+    "shared-pool-alpha",
+    "shared-pool-beta",
     "gpu-cluster-prod",
     "gpu-cluster-dev",
     "gpu-cluster-staging",
@@ -568,6 +570,17 @@ export const DEFAULT_IMAGE_PATTERNS: ImagePatterns = {
   ],
   tags: ["24.08-py3", "24.07-py3", "24.06-py3", "24.05-py3", "12.4.0-devel-ubuntu22.04", "latest"],
 };
+
+// ============================================================================
+// Shared Pool Configuration
+// ============================================================================
+// Two pools that share all their resources under a common platform.
+// The "alpha" pool additionally has a second platform covering half the resources.
+
+export const SHARED_POOL_ALPHA = "shared-pool-alpha";
+export const SHARED_POOL_BETA = "shared-pool-beta";
+export const SHARED_PLATFORM = "dgx-cloud";
+export const ALPHA_EXTRA_PLATFORM = "on-prem";
 
 // ============================================================================
 // Export all defaults

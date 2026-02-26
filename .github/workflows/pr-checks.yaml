@@ -62,10 +62,7 @@ jobs:
               - 'cookbook/**'
             ui:
               - '.github/workflows/pr-checks.yaml'
-              - 'BUILD'
-              - 'MODULE.bazel'
-              - 'bzl/**'
-              - 'ui/**'
+              - 'src/ui/**'
 
   #######################
   #      CI Tests       #
@@ -125,7 +122,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          bazel test --test_output=errors -- //... -//ui/...
+          bazel test --test_output=errors -- //...
 
   ci-internal:
     timeout-minutes: 30
@@ -212,8 +209,7 @@ jobs:
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             -- \
-            //... \
-            -//ui/...
+            //...
 
       - name: Docker cleanup
         if: always()
@@ -376,17 +372,28 @@ jobs:
         with:
           lfs: true
 
-      - name: Setup Bazel
-        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          bazelisk-cache: true
-          bazelisk-version: 1.27.0
-          disk-cache: ${{ github.workflow }}
-          repository-cache: true
-          external-cache: |
-            manifest:
-              npm: ui/pnpm-lock.yaml
+          package_json_file: src/ui/package.json
 
-      - name: Build UI
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version-file: src/ui/.nvmrc
+          cache: pnpm
+          cache-dependency-path: src/ui/pnpm-lock.yaml
+
+      - name: Cache Next.js build
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: src/ui/.next/cache
+          key: nextjs-${{ hashFiles('src/ui/pnpm-lock.yaml') }}-${{ hashFiles('src/ui/src/**') }}
+          restore-keys: |
+            nextjs-${{ hashFiles('src/ui/pnpm-lock.yaml') }}-
+
+      - name: Validate UI
+        working-directory: src/ui
         run: |
-          bazel build //ui/...
+          pnpm install --frozen-lockfile
+          pnpm validate

@@ -324,7 +324,7 @@ export function useResourceDetail(
       return {
         pools: [] as string[],
         initialPool: null as string | null,
-        taskConfigByPool: {} as Record<string, TaskConfig>,
+        taskConfigByPool: {} as Record<string, Record<string, TaskConfig>>,
       };
     }
 
@@ -343,8 +343,8 @@ export function useResourceDetail(
     // Initial pool: if context pool exists and is valid, use it; otherwise first alphabetically
     const initialPool = contextPool && pools.includes(contextPool) ? contextPool : (pools[0] ?? null);
 
-    // Build task config for each pool
-    const taskConfigByPool: Record<string, TaskConfig> = {};
+    // Build task config for each pool, keyed by platform within that pool
+    const taskConfigByPool: Record<string, Record<string, TaskConfig>> = {};
 
     if (poolsQuery.data) {
       const allPools = transformPoolsResponse(poolsQuery.data).pools;
@@ -352,16 +352,26 @@ export function useResourceDetail(
 
       for (const poolName of pools) {
         const pool = poolsMap.get(poolName);
-        if (pool) {
-          const platformConfig = pool.platformConfigs[resource.platform];
+        if (!pool) continue;
+
+        // Get platforms for THIS resource in THIS pool
+        const platformsInPool = [...new Set(memberships.filter((m) => m.pool === poolName).map((m) => m.platform))];
+
+        const configsForPool: Record<string, TaskConfig> = {};
+        for (const platformName of platformsInPool) {
+          const platformConfig = pool.platformConfigs[platformName];
           if (platformConfig) {
-            taskConfigByPool[poolName] = {
+            configsForPool[platformName] = {
               hostNetworkAllowed: platformConfig.hostNetworkAllowed,
               privilegedAllowed: platformConfig.privilegedAllowed,
               allowedMounts: platformConfig.allowedMounts,
               defaultMounts: platformConfig.defaultMounts,
             };
           }
+        }
+
+        if (Object.keys(configsForPool).length > 0) {
+          taskConfigByPool[poolName] = configsForPool;
         }
       }
     }

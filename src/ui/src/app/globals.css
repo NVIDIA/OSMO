@@ -131,6 +131,23 @@
   --color-minimap-node-stroke: var(--minimap-node-stroke);
 
   /* ==========================================================================
+     Zinc Palette
+     Raw palette values for direct use in CSS custom properties.
+     Available as: bg-zinc-100, text-zinc-500, border-zinc-800, etc.
+     ========================================================================== */
+  --color-zinc-50: #fafafa;
+  --color-zinc-100: #f4f4f5;
+  --color-zinc-200: #e4e4e7;
+  --color-zinc-300: #d4d4d8;
+  --color-zinc-400: #a1a1aa;
+  --color-zinc-500: #71717a;
+  --color-zinc-600: #52525b;
+  --color-zinc-700: #3f3f46;
+  --color-zinc-800: #27272a;
+  --color-zinc-900: #18181b;
+  --color-zinc-950: #09090b;
+
+  /* ==========================================================================
      Border Radius Scale
      ========================================================================== */
   --radius-sm: calc(var(--radius) - 4px);
@@ -200,37 +217,37 @@
   --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
 
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --background: oklch(100% 0 0deg);
+  --foreground: oklch(14.5% 0 0deg);
+  --card: oklch(100% 0 0deg);
+  --card-foreground: oklch(14.5% 0 0deg);
+  --popover: oklch(100% 0 0deg);
+  --popover-foreground: oklch(14.5% 0 0deg);
+  --primary: oklch(20.5% 0 0deg);
+  --primary-foreground: oklch(98.5% 0 0deg);
+  --secondary: oklch(97% 0 0deg);
+  --secondary-foreground: oklch(20.5% 0 0deg);
+  --muted: oklch(97% 0 0deg);
+  --muted-foreground: oklch(55.6% 0 0deg);
+  --accent: oklch(97% 0 0deg);
+  --accent-foreground: oklch(20.5% 0 0deg);
+  --destructive: oklch(57.7% 0.245 27.325deg);
+  --border: oklch(92.2% 0 0deg);
+  --input: oklch(92.2% 0 0deg);
+  --ring: oklch(70.8% 0 0deg);
+  --chart-1: oklch(64.6% 0.222 41.116deg);
+  --chart-2: oklch(60% 0.118 184.704deg);
+  --chart-3: oklch(39.8% 0.07 227.392deg);
+  --chart-4: oklch(82.8% 0.189 84.429deg);
+  --chart-5: oklch(76.9% 0.188 70.08deg);
+  --sidebar: oklch(100% 0 0deg);
+  --sidebar-foreground: oklch(14.5% 0 0deg);
+  --sidebar-primary: oklch(20.5% 0 0deg);
+  --sidebar-primary-foreground: oklch(98.5% 0 0deg);
+  --sidebar-accent: oklch(97% 0 0deg);
+  --sidebar-accent-foreground: oklch(20.5% 0 0deg);
+  --sidebar-border: oklch(92.2% 0 0deg);
+  --sidebar-ring: oklch(70.8% 0 0deg);
 
   /* Brand colors */
   --nvidia-green: #76b900;
@@ -240,64 +257,69 @@
   --nvidia-green-bg-dark: #1a2e0a;
 
   /* CodeMirror theme tokens (light mode) */
-  --cm-bg: oklch(1 0 0); /* Same as --background */
-  --cm-gutter-bg: oklch(1 0 0);
-  --cm-line-number: oklch(0.556 0 0); /* Same as --muted-foreground */
-  --cm-line-number-active: oklch(0.145 0 0); /* Same as --foreground */
-  --cm-matching-bracket: rgba(0, 0, 0, 0.1);
+  --cm-bg: oklch(100% 0 0deg); /* Same as --background */
+  --cm-gutter-bg: oklch(100% 0 0deg);
+  --cm-line-number: oklch(55.6% 0 0deg); /* Same as --muted-foreground */
+  --cm-line-number-active: oklch(14.5% 0 0deg); /* Same as --foreground */
+  --cm-matching-bracket: rgb(0 0 0 / 10%);
   --cm-selection-bg: #f3f9e8; /* Same as --nvidia-green-bg */
-  --nvidia-green-active-line: rgba(118, 185, 0, 0.04);
+  --nvidia-green-active-line: rgb(118 185 0 / 4%);
 
   /* Semantic status colors */
-  --status-success: oklch(0.7 0.15 145);
-  --status-warning: oklch(0.75 0.15 75);
-  --status-danger: oklch(0.65 0.2 25);
+  --status-success: oklch(70% 0.15 145deg);
+  --status-warning: oklch(75% 0.15 75deg);
+  --status-danger: oklch(65% 0.2 25deg);
 
   /* Search input accent (blue-600 for consistent focus rings) */
-  --search-accent: oklch(0.532 0.218 264.376);
+  --search-accent: oklch(53.2% 0.218 264.376deg);
 
   /* Status background colors (light mode) */
-  --status-success-bg: oklch(0.95 0.05 145);
-  --status-warning-bg: oklch(0.95 0.05 85);
-  --status-danger-bg: oklch(0.95 0.05 25);
+  --status-success-bg: oklch(95% 0.05 145deg);
+  --status-warning-bg: oklch(95% 0.05 85deg);
+  --status-danger-bg: oklch(95% 0.05 25deg);
 
   /* Lifecycle progress stage colors (light mode) */
-  --stage-pending: oklch(0.75 0.12 75);
-  --stage-pending-bg: oklch(0.95 0.04 85);
-  --stage-init: oklch(0.6 0.15 260);
-  --stage-init-bg: oklch(0.95 0.04 260);
-  --stage-running: oklch(0.6 0.15 250);
-  --stage-running-bg: oklch(0.95 0.04 250);
-  --stage-completed: oklch(0.7 0.15 145);
-  --stage-completed-bg: oklch(0.95 0.05 145);
-  --stage-failed: oklch(0.65 0.2 25);
-  --stage-failed-bg: oklch(0.95 0.05 25);
-  --stage-inactive: oklch(0.92 0 0);
-  --stage-inactive-fg: oklch(0.7 0 0);
-  --stage-inferred: oklch(0.72 0 0);
-  --stage-inferred-fg: oklch(0.92 0 0);
+  --stage-pending: oklch(75% 0.12 75deg);
+  --stage-pending-bg: oklch(95% 0.04 85deg);
+  --stage-init: oklch(60% 0.15 260deg);
+  --stage-init-bg: oklch(95% 0.04 260deg);
+  --stage-running: oklch(60% 0.15 250deg);
+  --stage-running-bg: oklch(95% 0.04 250deg);
+  --stage-completed: oklch(70% 0.15 145deg);
+  --stage-completed-bg: oklch(95% 0.05 145deg);
+  --stage-failed: oklch(65% 0.2 25deg);
+  --stage-failed-bg: oklch(95% 0.05 25deg);
+  --stage-inactive: oklch(92% 0 0deg);
+  --stage-inactive-fg: oklch(70% 0 0deg);
+  --stage-inferred: oklch(72% 0 0deg);
+  --stage-inferred-fg: oklch(92% 0 0deg);
 
   /* Timeline status colors (light mode) - semantic colors for event-based timeline */
-  --timeline-green: oklch(0.7 0.15 145); /* Success/healthy */
-  --timeline-blue: oklch(0.6 0.15 260); /* In-progress */
-  --timeline-amber: oklch(0.75 0.16 95); /* Warning/non-terminal failure - more yellow */
-  --timeline-red: oklch(0.65 0.2 25); /* Terminal failure */
+  --timeline-green: oklch(70% 0.15 145deg); /* Success/healthy */
+  --timeline-blue: oklch(60% 0.15 260deg); /* In-progress */
+  --timeline-amber: oklch(75% 0.16 95deg); /* Warning/non-terminal failure - more yellow */
+  --timeline-red: oklch(65% 0.2 25deg); /* Terminal failure */
 
   /* Table colors (light mode) */
-  --table-surface: #ffffff;
+  --table-surface: #fff;
   --table-header: #f0f0f0;
-  --table-border: oklch(0.9 0 0);
+  --table-border: oklch(90% 0 0deg);
   /* Bevel borders for 3D effect */
-  --table-border-top: oklch(0.93 0 0);
-  --table-border-left: oklch(0.92 0 0);
-  --table-border-right: oklch(0.86 0 0);
-  --table-border-bottom: oklch(0.85 0 0);
+  --table-border-top: oklch(93% 0 0deg);
+  --table-border-left: oklch(92% 0 0deg);
+  --table-border-right: oklch(86% 0 0deg);
+  --table-border-bottom: oklch(85% 0 0deg);
 
   /* Tree connector lines (light mode) - more prominent than regular borders */
-  --tree-line: oklch(0.8 0 0);
+  --tree-line: oklch(80% 0 0deg);
 
   /* Shell/Terminal colors */
   --shell-bg: #0a0a0f;
+
+  /* Scrollbar colors (light mode) */
+  --scrollbar-thumb: rgb(161 161 170 / 50%); /* zinc-400 / 50% */
+  --scrollbar-thumb-hover: rgb(113 113 122 / 70%); /* zinc-500 / 70% */
+  --scrollbar-track: rgb(244 244 245 / 60%); /* zinc-100 / 60% */
 
   /* Minimap colors (light mode) */
   --minimap-node-fill: #d4d4d8; /* zinc-300 */
@@ -314,37 +336,37 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.145 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(14.5% 0 0deg);
+  --foreground: oklch(98.5% 0 0deg);
+  --card: oklch(20.5% 0 0deg);
+  --card-foreground: oklch(98.5% 0 0deg);
+  --popover: oklch(20.5% 0 0deg);
+  --popover-foreground: oklch(98.5% 0 0deg);
+  --primary: oklch(92.2% 0 0deg);
+  --primary-foreground: oklch(20.5% 0 0deg);
+  --secondary: oklch(26.9% 0 0deg);
+  --secondary-foreground: oklch(98.5% 0 0deg);
+  --muted: oklch(26.9% 0 0deg);
+  --muted-foreground: oklch(70.8% 0 0deg);
+  --accent: oklch(26.9% 0 0deg);
+  --accent-foreground: oklch(98.5% 0 0deg);
+  --destructive: oklch(70.4% 0.191 22.216deg);
+  --border: oklch(100% 0 0deg / 10%);
+  --input: oklch(100% 0 0deg / 15%);
+  --ring: oklch(55.6% 0 0deg);
+  --chart-1: oklch(48.8% 0.243 264.376deg);
+  --chart-2: oklch(69.6% 0.17 162.48deg);
+  --chart-3: oklch(76.9% 0.188 70.08deg);
+  --chart-4: oklch(62.7% 0.265 303.9deg);
+  --chart-5: oklch(64.5% 0.246 16.439deg);
+  --sidebar: oklch(14.5% 0 0deg);
+  --sidebar-foreground: oklch(98.5% 0 0deg);
+  --sidebar-primary: oklch(48.8% 0.243 264.376deg);
+  --sidebar-primary-foreground: oklch(98.5% 0 0deg);
+  --sidebar-accent: oklch(26.9% 0 0deg);
+  --sidebar-accent-foreground: oklch(98.5% 0 0deg);
+  --sidebar-border: oklch(100% 0 0deg / 10%);
+  --sidebar-ring: oklch(55.6% 0 0deg);
 
   /* Brand colors - same in dark mode except bg */
   --nvidia-green: #76b900;
@@ -356,57 +378,62 @@
   /* CodeMirror theme tokens (dark mode) */
   --cm-bg: #18181b; /* Same as --table-header (zinc-900) */
   --cm-gutter-bg: #18181b;
-  --cm-line-number: oklch(0.708 0 0); /* Same as --muted-foreground */
-  --cm-line-number-active: oklch(0.985 0 0); /* Same as --foreground */
-  --cm-matching-bracket: rgba(255, 255, 255, 0.1);
+  --cm-line-number: oklch(70.8% 0 0deg); /* Same as --muted-foreground */
+  --cm-line-number-active: oklch(98.5% 0 0deg); /* Same as --foreground */
+  --cm-matching-bracket: rgb(255 255 255 / 10%);
   --cm-selection-bg: #1a2e0a; /* Same as --nvidia-green-bg-dark */
-  --nvidia-green-active-line: rgba(118, 185, 0, 0.08);
+  --nvidia-green-active-line: rgb(118 185 0 / 8%);
 
   /* Status background colors (dark mode) */
-  --status-success-bg: oklch(0.25 0.05 145);
-  --status-warning-bg: oklch(0.25 0.05 85);
-  --status-danger-bg: oklch(0.25 0.05 25);
+  --status-success-bg: oklch(25% 0.05 145deg);
+  --status-warning-bg: oklch(25% 0.05 85deg);
+  --status-danger-bg: oklch(25% 0.05 25deg);
 
   /* Search input accent (blue-400 for dark mode) */
-  --search-accent: oklch(0.696 0.17 264.376);
+  --search-accent: oklch(69.6% 0.17 264.376deg);
 
   /* Lifecycle progress stage colors (dark mode) */
-  --stage-pending: oklch(0.8 0.12 75);
-  --stage-pending-bg: oklch(0.25 0.04 85);
-  --stage-init: oklch(0.7 0.12 260);
-  --stage-init-bg: oklch(0.25 0.04 260);
-  --stage-running: oklch(0.7 0.12 250);
-  --stage-running-bg: oklch(0.25 0.04 250);
-  --stage-completed: oklch(0.75 0.12 145);
-  --stage-completed-bg: oklch(0.25 0.05 145);
-  --stage-failed: oklch(0.75 0.18 25);
-  --stage-failed-bg: oklch(0.25 0.05 25);
-  --stage-inactive: oklch(0.25 0 0);
-  --stage-inactive-fg: oklch(0.5 0 0);
-  --stage-inferred: oklch(0.45 0 0);
-  --stage-inferred-fg: oklch(0.2 0 0);
+  --stage-pending: oklch(80% 0.12 75deg);
+  --stage-pending-bg: oklch(25% 0.04 85deg);
+  --stage-init: oklch(70% 0.12 260deg);
+  --stage-init-bg: oklch(25% 0.04 260deg);
+  --stage-running: oklch(70% 0.12 250deg);
+  --stage-running-bg: oklch(25% 0.04 250deg);
+  --stage-completed: oklch(75% 0.12 145deg);
+  --stage-completed-bg: oklch(25% 0.05 145deg);
+  --stage-failed: oklch(75% 0.18 25deg);
+  --stage-failed-bg: oklch(25% 0.05 25deg);
+  --stage-inactive: oklch(25% 0 0deg);
+  --stage-inactive-fg: oklch(50% 0 0deg);
+  --stage-inferred: oklch(45% 0 0deg);
+  --stage-inferred-fg: oklch(20% 0 0deg);
 
   /* Timeline status colors (dark mode) - semantic colors for event-based timeline */
-  --timeline-green: oklch(0.75 0.12 145); /* Success/healthy */
-  --timeline-blue: oklch(0.7 0.12 260); /* In-progress */
-  --timeline-amber: oklch(0.8 0.16 95); /* Warning/non-terminal failure - more yellow */
-  --timeline-red: oklch(0.75 0.18 25); /* Terminal failure */
+  --timeline-green: oklch(75% 0.12 145deg); /* Success/healthy */
+  --timeline-blue: oklch(70% 0.12 260deg); /* In-progress */
+  --timeline-amber: oklch(80% 0.16 95deg); /* Warning/non-terminal failure - more yellow */
+  --timeline-red: oklch(75% 0.18 25deg); /* Terminal failure */
 
   /* Table colors (dark mode) */
   --table-surface: #09090b; /* zinc-950 / sidebar */
   --table-header: #18181b; /* zinc-900 */
-  --table-border: oklch(0.15 0 0);
+  --table-border: oklch(15% 0 0deg);
   /* Bevel borders for 3D effect */
-  --table-border-top: oklch(0.18 0 0);
-  --table-border-left: oklch(0.17 0 0);
-  --table-border-right: oklch(0.1 0 0);
-  --table-border-bottom: oklch(0.09 0 0);
+  --table-border-top: oklch(18% 0 0deg);
+  --table-border-left: oklch(17% 0 0deg);
+  --table-border-right: oklch(10% 0 0deg);
+  --table-border-bottom: oklch(9% 0 0deg);
 
   /* Tree connector lines (dark mode) - more prominent than regular borders */
-  --tree-line: oklch(0.45 0 0);
+  --tree-line: oklch(45% 0 0deg);
 
   /* Shell/Terminal colors - same in dark mode */
   --shell-bg: #0a0a0f;
+
+  /* Scrollbar colors (dark mode) */
+  --scrollbar-thumb: rgb(113 113 122 / 50%); /* zinc-500 / 50% */
+  --scrollbar-thumb-hover: rgb(161 161 170 / 60%); /* zinc-400 / 60% */
+  --scrollbar-track: rgb(39 39 42 / 60%); /* zinc-800 / 60% */
 
   /* Minimap colors (dark mode) */
   --minimap-node-fill: #52525b; /* zinc-600 */

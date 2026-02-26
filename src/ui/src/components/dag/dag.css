@@ -35,35 +35,35 @@
 
 :root {
   /* Surfaces */
-  --dag-surface-elevated: oklch(0.98 0 0);
+  --dag-surface-elevated: oklch(98% 0 0deg);
 
   /* Borders */
-  --dag-border-strong: oklch(0.8 0 0);
+  --dag-border-strong: oklch(80% 0 0deg);
 
   /* Text */
-  --dag-text-tertiary: oklch(0.6 0 0);
+  --dag-text-tertiary: oklch(60% 0 0deg);
 
   /* Handles */
   --dag-handle-size: 0.5rem;
 
   /* Selection */
-  --dag-selection-ring: oklch(0.6 0.15 250);
+  --dag-selection-ring: oklch(60% 0.15 250deg);
 
   /* Scrollbar */
-  --dag-scrollbar-thumb: oklch(0.75 0 0);
-  --dag-scrollbar-thumb-hover: oklch(0.65 0 0);
+  --dag-scrollbar-thumb: oklch(75% 0 0deg);
+  --dag-scrollbar-thumb-hover: oklch(65% 0 0deg);
 
   /* Controls */
-  --dag-controls-bg: oklch(0.98 0 0);
-  --dag-controls-border: oklch(0.9 0 0);
-  --dag-controls-text: oklch(0.4 0 0);
-  --dag-controls-hover: oklch(0.94 0 0);
+  --dag-controls-bg: oklch(98% 0 0deg);
+  --dag-controls-border: oklch(90% 0 0deg);
+  --dag-controls-text: oklch(40% 0 0deg);
+  --dag-controls-hover: oklch(94% 0 0deg);
 
   /* Minimap */
-  --dag-minimap-bg: oklch(0.97 0.008 80);
-  --dag-minimap-mask: oklch(0.45 0.02 250 / 0.15);
-  --dag-minimap-border: oklch(0.88 0.01 80);
-  --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+  --dag-minimap-bg: oklch(97% 0.008 80deg);
+  --dag-minimap-mask: oklch(45% 0.02 250deg / 15%);
+  --dag-minimap-border: oklch(88% 0.01 80deg);
+  --dag-minimap-inner-shadow: inset 0 1px 3px rgb(0 0 0 / 4%);
 
   /* Dimensions */
   --dag-edge-stroke-width: 0.125rem;
@@ -80,26 +80,26 @@
    ========================================================================== */
 
 .dark {
-  --dag-surface-elevated: oklch(0.2 0 0);
+  --dag-surface-elevated: oklch(20% 0 0deg);
 
-  --dag-border-strong: oklch(0.35 0 0);
+  --dag-border-strong: oklch(35% 0 0deg);
 
-  --dag-text-tertiary: oklch(0.5 0 0);
+  --dag-text-tertiary: oklch(50% 0 0deg);
 
-  --dag-selection-ring: oklch(0.7 0.15 195);
+  --dag-selection-ring: oklch(70% 0.15 195deg);
 
-  --dag-scrollbar-thumb: oklch(0.4 0 0);
-  --dag-scrollbar-thumb-hover: oklch(0.5 0 0);
+  --dag-scrollbar-thumb: oklch(40% 0 0deg);
+  --dag-scrollbar-thumb-hover: oklch(50% 0 0deg);
 
-  --dag-controls-bg: oklch(0.2 0 0);
-  --dag-controls-border: oklch(0.3 0 0);
-  --dag-controls-text: oklch(0.64 0 0);
-  --dag-controls-hover: oklch(0.3 0 0);
+  --dag-controls-bg: oklch(20% 0 0deg);
+  --dag-controls-border: oklch(30% 0 0deg);
+  --dag-controls-text: oklch(64% 0 0deg);
+  --dag-controls-hover: oklch(30% 0 0deg);
 
-  --dag-minimap-bg: oklch(0.24 0.018 250);
-  --dag-minimap-mask: oklch(0.08 0.015 250 / 0.55);
-  --dag-minimap-border: oklch(0.32 0.02 250);
-  --dag-minimap-inner-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.15);
+  --dag-minimap-bg: oklch(24% 0.018 250deg);
+  --dag-minimap-mask: oklch(8% 0.015 250deg / 55%);
+  --dag-minimap-border: oklch(32% 0.02 250deg);
+  --dag-minimap-inner-shadow: inset 0 1px 3px rgb(0 0 0 / 15%);
 }
 
 /* ==========================================================================
@@ -109,8 +109,8 @@
 .dag-node {
   overflow: visible;
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 2px 4px rgba(0, 0, 0, 0.06);
+    0 1px 2px rgb(0 0 0 / 6%),
+    0 2px 4px rgb(0 0 0 / 6%);
   transition:
     box-shadow var(--dag-transition-normal),
     border-color var(--dag-transition-normal);
@@ -118,8 +118,8 @@
 
 .dark .dag-node {
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.2),
-    0 2px 4px rgba(0, 0, 0, 0.15);
+    0 1px 2px rgb(0 0 0 / 20%),
+    0 2px 4px rgb(0 0 0 / 15%);
 }
 
 /* Selection state */
@@ -127,14 +127,14 @@
   outline: 2px solid var(--dag-selection-ring);
   outline-offset: 2px;
   box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.08),
-    0 4px 8px rgba(0, 0, 0, 0.08);
+    0 2px 4px rgb(0 0 0 / 8%),
+    0 4px 8px rgb(0 0 0 / 8%);
 }
 
 .dark .dag-node[data-selected="true"] {
   box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.25),
-    0 4px 8px rgba(0, 0, 0, 0.2);
+    0 2px 4px rgb(0 0 0 / 25%),
+    0 4px 8px rgb(0 0 0 / 20%);
 }
 
 /* ==========================================================================
@@ -221,11 +221,11 @@
   background: var(--dag-controls-bg);
   border: 1px solid var(--dag-controls-border);
   border-radius: var(--dag-radius-md);
-  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgb(0 0 0 / 10%);
 }
 
 .dark .react-flow__controls {
-  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0.25rem 0.375rem -0.0625rem rgb(0 0 0 / 30%);
 }
 
 .react-flow__controls-button {
@@ -255,16 +255,16 @@
   border-radius: var(--dag-radius-md);
   box-shadow:
     var(--dag-minimap-inner-shadow),
-    0 1px 2px rgba(0, 0, 0, 0.06),
-    0 2px 4px rgba(0, 0, 0, 0.04);
+    0 1px 2px rgb(0 0 0 / 6%),
+    0 2px 4px rgb(0 0 0 / 4%);
   overflow: hidden;
 }
 
 .dark .react-flow__minimap {
   box-shadow:
     var(--dag-minimap-inner-shadow),
-    0 1px 2px rgba(0, 0, 0, 0.25),
-    0 2px 4px rgba(0, 0, 0, 0.15);
+    0 1px 2px rgb(0 0 0 / 25%),
+    0 2px 4px rgb(0 0 0 / 15%);
 }
 
 .react-flow__minimap-mask {
