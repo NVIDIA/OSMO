@@ -38,7 +38,7 @@ import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle"
 import { usePanelWidth } from "@/components/panel/hooks/use-panel-width";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { DatasetsDataTable } from "@/features/datasets/list/components/table/datasets-data-table";
 import { DatasetsToolbar } from "@/features/datasets/list/components/toolbar/datasets-toolbar";
 import { DatasetPanel } from "@/features/datasets/list/components/panel/dataset-panel";
@@ -66,7 +66,7 @@ interface DatasetsPageContentProps {
 export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProps) {
   usePage({ title: "Datasets" });
   const { startTransition: startViewTransition } = useViewTransition();
-  const router = useRouter();
+  const router = useNavigationRouter();
   const { user } = useUser();
 
   const currentUsername = initialUsername ?? user?.username ?? null;

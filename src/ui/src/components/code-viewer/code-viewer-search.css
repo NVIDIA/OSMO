@@ -30,28 +30,28 @@
   --search-input-bg: #09090b;
   --search-text: #e4e4e7;
   --search-muted: #71717a;
-  --search-hover-bg: rgba(255, 255, 255, 0.1);
+  --search-hover-bg: rgb(255 255 255 / 10%);
   --search-active-color: var(--nvidia-green);
   --search-active-hover: var(--nvidia-green-light);
-  --search-active-bg: rgba(118, 185, 0, 0.15);
+  --search-active-bg: rgb(118 185 0 / 15%);
   --search-focus-border: var(--nvidia-green);
-  --search-shadow: rgba(0, 0, 0, 0.3);
+  --search-shadow: rgb(0 0 0 / 30%);
 }
 
 .code-viewer-search[data-theme="light"] {
-  --search-bg: #ffffff;
+  --search-bg: #fff;
   --search-border: #e4e4e7;
   --search-input-bg: #fafafa;
   --search-input-border: #d4d4d8;
   --search-text: #18181b;
   --search-muted: #71717a;
-  --search-hover-bg: rgba(0, 0, 0, 0.05);
+  --search-hover-bg: rgb(0 0 0 / 5%);
   --search-hover-text: #3f3f46;
   --search-active-color: var(--nvidia-green);
   --search-active-hover: var(--nvidia-green-dark);
-  --search-active-bg: rgba(118, 185, 0, 0.1);
+  --search-active-bg: rgb(118 185 0 / 10%);
   --search-focus-border: var(--nvidia-green);
-  --search-shadow: rgba(0, 0, 0, 0.1);
+  --search-shadow: rgb(0 0 0 / 10%);
 }
 
 /* Panel mount point - positions the search as a floating overlay */

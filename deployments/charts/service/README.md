@@ -47,6 +47,36 @@ This Helm chart deploys the OSMO platform with its core services and required si
 | `services.configFile.enabled` | Enable external configuration file loading | `false` |
 | `services.configFile.path` | Path to the configuration file | `/opt/osmo/config.yaml` |
 
+### Database Migration Settings (pgroll)
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.migration.enabled` | Enable the pgroll migration Job (Helm pre-upgrade hook) | `false` |
+| `services.migration.targetSchema` | Target pgroll schema version. Convention: `public_v{MAJOR}_{MINOR}_{PATCH}`. Updated per chart release. Set to `public_v{MAJOR}_{MINOR}_{PATCH}` to use versioned schemas. Versioned schemas ensure zero downtime between pod roll over. Setting to `public` will cause temporary disruption to existing pods as there could be database operations that are incompatible between versions. | `public` |
+| `services.migration.image` | Container image for the migration Job | `postgres:15-alpine` |
+| `services.migration.pgrollVersion` | pgroll release version to download | `v0.16.1` |
+| `services.migration.serviceAccountName` | Service account name (defaults to global if empty) | `""` |
+| `services.migration.nodeSelector` | Node selector for the migration Job pod | `{}` |
+| `services.migration.tolerations` | Tolerations for the migration Job pod | `[]` |
+| `services.migration.resources` | Resource limits and requests for the migration Job | `{}` |
+| `services.migration.extraAnnotations` | Annotations on the Job and ConfigMap (e.g., ArgoCD hooks) | `{}` |
+| `services.migration.extraPodAnnotations` | Annotations on the Job pod (e.g., Vault agent) | `{}` |
+| `services.migration.extraEnv` | Extra environment variables for the migration container | `[]` |
+| `services.migration.extraVolumeMounts` | Extra volume mounts for the migration container | `[]` |
+| `services.migration.extraVolumes` | Extra volumes for the migration Job pod | `[]` |
+| `services.migration.initContainers` | Init containers for the migration Job pod | `[]` |
+
+To add new migrations for future releases, drop JSON files into the chart's `migrations/` directory. They are automatically included via `.Files.Glob`.
+
+#### Choosing `targetSchema`
+
+| Scenario | `targetSchema` value | What happens |
+|----------|---------------------|--------------|
+| **Zero-downtime upgrades with multiple versions coexisting** | `public_v6_2_0` (default) | Creates a versioned schema with views. Old pods use `public`, new pods use versioned views. Both run simultaneously during gradual rollout. Re-deploys of the same version are instant no-ops (schema already exists). |
+| **Simple migration without versioned schemas** | `public` | Applies migrations directly to `public`. No views created. Simpler but old and new pods cannot coexist safely if schema changes are breaking. |
+
+When using the versioned schema (`public_v6_2_0`), also set `targetSchema` in the router chart and `OSMO_SCHEMA_VERSION` will be automatically injected into all service pods when `migration.enabled` is true.
+
 ### PostgreSQL Settings
 
 | Parameter | Description | Default |

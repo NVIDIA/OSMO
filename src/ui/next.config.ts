@@ -241,18 +241,11 @@ const nextConfig: NextConfig = {
   // }
   //
 
-  // Handle CORS for preflight requests during development
+  // CORS headers are not needed for /api/* because all requests go through the
+  // same-origin Next.js proxy route handler (app/api/[...path]/route.ts).
+  // The proxy makes server-to-server requests to the backend, so CORS never applies.
   async headers() {
     return [
-      {
-        source: "/api/:path*",
-        headers: [
-          { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" },
-          { key: "Access-Control-Allow-Methods", value: "GET,DELETE,PATCH,POST,PUT,OPTIONS" },
-          { key: "Access-Control-Allow-Headers", value: "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version" },
-        ],
-      },
       // Performance headers for static assets - immutable cache for 1 year
       {
         source: "/:all*(svg|jpg|jpeg|png|gif|ico|webp|woff|woff2)",

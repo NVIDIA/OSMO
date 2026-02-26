@@ -44,7 +44,7 @@
 
 /* Dark mode blue accents */
 :is(.dark *) {
-  --fb-accent-light: rgb(30 58 138 / 0.4); /* blue-900/40 */
+  --fb-accent-light: rgb(30 58 138 / 40%); /* blue-900/40 */
   --fb-accent-light-hover: rgb(30 64 175); /* blue-800 */
   --fb-accent: var(--search-accent); /* Uses global search accent for consistency */
   --fb-accent-dark: rgb(147 197 253); /* blue-300 */
@@ -182,8 +182,8 @@
   border-radius: 0.375rem;
   border: 1px solid var(--border);
   box-shadow:
-    0 10px 15px -3px rgb(0 0 0 / 0.1),
-    0 4px 6px -4px rgb(0 0 0 / 0.1);
+    0 10px 15px -3px rgb(0 0 0 / 10%),
+    0 4px 6px -4px rgb(0 0 0 / 10%);
 }
 
 .fb-dropdown[data-error] {
