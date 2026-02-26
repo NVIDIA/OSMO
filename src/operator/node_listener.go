@@ -315,12 +315,6 @@ func (nl *NodeListener) buildResourceMessage(
 		},
 	}
 
-	action := "update"
-	if isDelete {
-		action = "delete"
-	}
-	log.Printf("Sent Node (%s): hostname=%s, available=%v", action, hostname, body.Available)
-
 	return msg
 }
 

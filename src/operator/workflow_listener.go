@@ -120,12 +120,16 @@ func (wl *WorkflowListener) sendMessages(
 
 // drainMessageChannel reads remaining messages from ch and adds them to unacked queue.
 // This prevents message loss during connection breaks
+// TODO watch should call drainMessageChannel before returning
 func (wl *WorkflowListener) drainMessageChannel(ch <-chan *pb.ListenerMessage) {
 	drained := 0
 	unackedMessages := wl.GetUnackedMessages()
 	for {
 		select {
-		case msg := <-ch:
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
 			unackedMessages.AddMessageForced(msg)
 			drained++
 		default:
