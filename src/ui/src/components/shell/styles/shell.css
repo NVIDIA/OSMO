@@ -26,7 +26,7 @@
 
   /* Shell Colors (always dark) */
   --shell-bg: #09090b;
-  --shell-bg-overlay: rgba(9, 9, 11, 0.95);
+  --shell-bg-overlay: rgb(9 9 11 / 95%);
   --shell-border: #27272a;
   --shell-fg: #e4e4e7;
   --shell-fg-dim: #71717a;
@@ -36,7 +36,7 @@
 
   /* Shell Focus */
   --shell-focus-ring: var(--dag-selection-ring, #76b900);
-  --shell-active-glow: rgba(118, 185, 0, 0.3);
+  --shell-active-glow: rgb(118 185 0 / 30%);
 
   /* Transitions */
   --shell-transition-fast: 100ms ease-out;
@@ -59,7 +59,7 @@
   overflow: hidden;
 
   /* Subtle inset shadow for depth */
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1px 2px rgb(0 0 0 / 20%);
 
   /* Performance: CSS containment for paint/layout isolation */
   contain: layout style paint;
@@ -73,7 +73,7 @@
 .shell-container[data-active="true"] {
   box-shadow:
     0 0 0 1px var(--shell-active-glow),
-    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+    inset 0 1px 2px rgb(0 0 0 / 20%);
 }
 
 /* =============================================================================
@@ -254,8 +254,8 @@
   justify-content: center;
   gap: 8px;
   padding: 8px 16px;
-  background: linear-gradient(to top, rgba(9, 9, 11, 0.95), rgba(9, 9, 11, 0.8));
-  border-top: 1px solid rgba(63, 63, 70, 0.5);
+  background: linear-gradient(to top, rgb(9 9 11 / 95%), rgb(9 9 11 / 80%));
+  border-top: 1px solid rgb(63 63 70 / 50%);
 
   /* Performance: Prep GPU for animation */
   will-change: opacity;
@@ -308,7 +308,7 @@
   background: #18181b;
   border: 1px solid var(--shell-border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
 
   /* Performance: Prep GPU for animation */
   will-change: opacity, transform;
@@ -374,7 +374,7 @@
 
 .shell-search-option:hover {
   color: var(--shell-fg);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(255 255 255 / 10%);
 }
 
 .shell-search-option.active {
@@ -383,7 +383,7 @@
 
 .shell-search-option.active:hover {
   color: var(--nvidia-green-light);
-  background: rgba(118, 185, 0, 0.15);
+  background: rgb(118 185 0 / 15%);
 }
 
 .shell-search-count {
@@ -411,16 +411,16 @@
 /* All search matches (subtle yellow background) */
 .shell-body .xterm-decoration,
 .shell-body .xterm-decoration-cursor-offset {
-  background-color: rgba(255, 255, 0, 0.25) !important;
-  border-bottom: 1px solid rgba(255, 255, 0, 0.6);
+  background-color: rgb(255 255 0 / 25%) !important;
+  border-bottom: 1px solid rgb(255 255 0 / 60%);
   box-sizing: border-box;
 }
 
 /* Active/selected match (bright orange/yellow highlight) */
 .shell-body .xterm-decoration-top,
 .shell-body .xterm-decoration-top-cursor-offset {
-  background-color: rgba(255, 200, 0, 0.45) !important;
-  border-bottom: 2px solid rgba(255, 165, 0, 1);
+  background-color: rgb(255 200 0 / 45%) !important;
+  border-bottom: 2px solid rgb(255 165 0 / 100%);
   box-sizing: border-box;
 }
 
@@ -507,7 +507,7 @@
    Responsive Adjustments
    ============================================================================= */
 
-@media (max-width: 400px) {
+@media (width <= 400px) {
   .shell-container {
     --shell-padding: 4px;
   }
