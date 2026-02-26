@@ -10,7 +10,7 @@ description: >
   a specific workflow does or is configured to do.
 ---
 
-# OSMO Skill
+# OSMO CLI Use Cases
 
 OSMO is a cloud platform for robotics compute and data storage. This skill covers
 common OSMO CLI workflows.
