@@ -1215,9 +1215,11 @@ services:
 
     ## Per-service Envoy proxy configuration overrides
     ## These settings override the global sidecars.envoy configuration for this service only
-    ## Any field from sidecars.envoy can be specified here to override the global default
+    ## Operator backend is gRPC and requires HTTP/2 for the service cluster
     ##
-    envoy: {}
+    envoy:
+      service:
+        useHttp2: true
 
 ## Configuration for service sidecar containers
 ##
@@ -1592,6 +1594,14 @@ sidecars:
       ##
       address: 127.0.0.1
 
+    ## Osmo authentication service configuration (for JWKS fetch from api-service)
+    ##
+    osmoauth:
+      enabled: true
+      address: osmo-service
+      port: 80
+      hostname: ""
+
     ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
     ##
     oauth2Filter:
@@ -1642,9 +1652,9 @@ sidecars:
       ##
       - issuer: osmo
         audience: osmo
-        jwks_uri: http://localhost:8000/api/auth/keys
+        jwks_uri: http://osmo-service/api/auth/keys
         user_claim: unique_name
-        cluster: service
+        cluster: osmoauth
 
   ## OAuth2 Proxy sidecar configuration
   ##
