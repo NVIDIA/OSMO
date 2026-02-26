@@ -52,245 +52,245 @@ export interface WorkflowStatusMetadata {
 // =============================================================================
 
 export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> = {
-  "SUBMITTING": {
-    "category": "pending",
-    "isTerminal": false,
-    "isOngoing": false,
-    "isFailed": false,
-    "isInQueue": true
+  SUBMITTING: {
+    category: "pending",
+    isTerminal: false,
+    isOngoing: false,
+    isFailed: false,
+    isInQueue: true,
   },
-  "WAITING": {
-    "category": "waiting",
-    "isTerminal": false,
-    "isOngoing": false,
-    "isFailed": false,
-    "isInQueue": true
+  WAITING: {
+    category: "waiting",
+    isTerminal: false,
+    isOngoing: false,
+    isFailed: false,
+    isInQueue: true,
   },
-  "PROCESSING": {
-    "category": "pending",
-    "isTerminal": false,
-    "isOngoing": false,
-    "isFailed": false,
-    "isInQueue": true
+  PROCESSING: {
+    category: "pending",
+    isTerminal: false,
+    isOngoing: false,
+    isFailed: false,
+    isInQueue: true,
   },
-  "SCHEDULING": {
-    "category": "pending",
-    "isTerminal": false,
-    "isOngoing": false,
-    "isFailed": false,
-    "isInQueue": true
+  SCHEDULING: {
+    category: "pending",
+    isTerminal: false,
+    isOngoing: false,
+    isFailed: false,
+    isInQueue: true,
   },
-  "INITIALIZING": {
-    "category": "running",
-    "isTerminal": false,
-    "isOngoing": true,
-    "isFailed": false,
-    "isInQueue": false
+  INITIALIZING: {
+    category: "running",
+    isTerminal: false,
+    isOngoing: true,
+    isFailed: false,
+    isInQueue: false,
   },
-  "RUNNING": {
-    "category": "running",
-    "isTerminal": false,
-    "isOngoing": true,
-    "isFailed": false,
-    "isInQueue": false
+  RUNNING: {
+    category: "running",
+    isTerminal: false,
+    isOngoing: true,
+    isFailed: false,
+    isInQueue: false,
   },
-  "COMPLETED": {
-    "category": "completed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": false,
-    "isInQueue": false
+  COMPLETED: {
+    category: "completed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: false,
+    isInQueue: false,
   },
-  "RESCHEDULED": {
-    "category": "completed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": false,
-    "isInQueue": false
+  RESCHEDULED: {
+    category: "completed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: false,
+    isInQueue: false,
   },
-  "FAILED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_CANCELED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_CANCELED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_SERVER_ERROR": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_SERVER_ERROR: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_BACKEND_ERROR": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_BACKEND_ERROR: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_EXEC_TIMEOUT": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_EXEC_TIMEOUT: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_QUEUE_TIMEOUT": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_QUEUE_TIMEOUT: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_IMAGE_PULL": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_IMAGE_PULL: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_UPSTREAM": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_UPSTREAM: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_EVICTED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_EVICTED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_START_ERROR": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_START_ERROR: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_START_TIMEOUT": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
+  FAILED_START_TIMEOUT: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
   },
-  "FAILED_PREEMPTED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true,
-    "isInQueue": false
-  }
+  FAILED_PREEMPTED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+    isInQueue: false,
+  },
 } as const;
 
 export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMetadata> = {
-  "PENDING": {
-    "category": "pending",
-    "isTerminal": false,
-    "isOngoing": false,
-    "isFailed": false
+  PENDING: {
+    category: "pending",
+    isTerminal: false,
+    isOngoing: false,
+    isFailed: false,
   },
-  "RUNNING": {
-    "category": "running",
-    "isTerminal": false,
-    "isOngoing": true,
-    "isFailed": false
+  RUNNING: {
+    category: "running",
+    isTerminal: false,
+    isOngoing: true,
+    isFailed: false,
   },
-  "WAITING": {
-    "category": "waiting",
-    "isTerminal": false,
-    "isOngoing": true,
-    "isFailed": false
+  WAITING: {
+    category: "waiting",
+    isTerminal: false,
+    isOngoing: true,
+    isFailed: false,
   },
-  "COMPLETED": {
-    "category": "completed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": false
+  COMPLETED: {
+    category: "completed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: false,
   },
-  "FAILED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_SUBMISSION": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_SUBMISSION: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_SERVER_ERROR": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_SERVER_ERROR: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_EXEC_TIMEOUT": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_EXEC_TIMEOUT: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_QUEUE_TIMEOUT": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_QUEUE_TIMEOUT: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_CANCELED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_CANCELED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_BACKEND_ERROR": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_BACKEND_ERROR: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_IMAGE_PULL": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_IMAGE_PULL: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_EVICTED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_EVICTED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_START_ERROR": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_START_ERROR: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_START_TIMEOUT": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
+  FAILED_START_TIMEOUT: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
   },
-  "FAILED_PREEMPTED": {
-    "category": "failed",
-    "isTerminal": true,
-    "isOngoing": false,
-    "isFailed": true
-  }
+  FAILED_PREEMPTED: {
+    category: "failed",
+    isTerminal: true,
+    isOngoing: false,
+    isFailed: true,
+  },
 } as const;
 
 // =============================================================================
@@ -341,4 +341,3 @@ export function isWorkflowOngoing(status: WorkflowStatus): boolean {
 export function isWorkflowFailed(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isFailed ?? false;
 }
-
