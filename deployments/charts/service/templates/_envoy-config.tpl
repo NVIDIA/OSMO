@@ -18,6 +18,7 @@
 {{- $serviceEnvoy := .serviceEnvoy | default dict }}
 {{- $envoy := mergeOverwrite (deepCopy .Values.sidecars.envoy) $serviceEnvoy }}
 {{- $serviceName := .serviceName | default $envoy.serviceName }}
+{{- $useHttp2 := $envoy.service.useHttp2 }}
 {{- if $envoy.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -523,7 +524,37 @@ data:
                     port_value: {{ .Values.sidecars.oauth2Proxy.httpPort }}
       {{- end }}
 
+      {{- if $envoy.osmoauth.enabled }}
+      - name: osmoauth
+        connect_timeout: 3s
+        type: STRICT_DNS
+        dns_lookup_family: V4_ONLY
+        lb_policy: ROUND_ROBIN
+        {{- if $envoy.maxRequests }}
+        circuit_breakers:
+          thresholds:
+          - priority: DEFAULT
+            max_requests: {{ $envoy.maxRequests }}
+        {{- end }}
+        load_assignment:
+          cluster_name: osmoauth
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: {{ $envoy.osmoauth.address | default .Values.services.service.serviceName }}
+                    port_value: {{ $envoy.osmoauth.port | default 80 }}
+      {{- end }}
+
       - name: service
+        {{- if $useHttp2 }}
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+        {{- end }}
         connect_timeout: 3s
         type: STRICT_DNS
         dns_lookup_family: V4_ONLY

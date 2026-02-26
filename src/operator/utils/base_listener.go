@@ -144,8 +144,6 @@ func (bl *BaseListener) receiveAcks(ctx context.Context) error {
 		bl.inst.MessageAckReceivedTotal.Add(ctx, 1, bl.MetricAttrs)
 		bl.inst.UnackedMessageQueueDepth.Record(ctx, float64(bl.unackedMessages.Qsize()), bl.MetricAttrs)
 
-		log.Printf("Received ACK for %s message: uuid=%s", bl.streamName, msg.AckUuid)
-
 		// Report progress after receiving ACK (rate-limited)
 		now := time.Now()
 		if bl.progressWriter != nil && now.Sub(lastProgressReport) >= progressInterval {
