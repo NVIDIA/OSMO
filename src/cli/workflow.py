@@ -222,9 +222,6 @@ def setup_parser(parser: argparse._SubParsersAction):
                                type=int,
                                help='The retry ID for the task which to fetch the events. '
                                     'If not provided, the latest retry ID will be used.')
-    events_parser.add_argument('--error',
-                               action='store_true',
-                               help='Show task error events instead of regular events')
     events_parser.add_argument('-n',
                                dest='last_n_lines',
                                type=int,
@@ -872,8 +869,8 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
 
 def _workflow_events(service_client: client.ServiceClient, args: argparse.Namespace):
     logging.debug('Fetch workflow events for workflow %s.', args.workflow_id)
-    if (args.error or args.retry_id) and not args.task:
-        raise osmo_errors.OSMOUserError('Specify task for retry ID or error events.')
+    if args.retry_id and not args.task:
+        raise osmo_errors.OSMOUserError('Specify task for retry ID.')
 
     params = {}
     if args.last_n_lines:
@@ -882,22 +879,12 @@ def _workflow_events(service_client: client.ServiceClient, args: argparse.Namesp
         params['task_name'] = args.task
     if args.retry_id:
         params['retry_id'] = args.retry_id
-    if not args.error:
-        result = service_client.request(
-            client.RequestMethod.GET,
-            f'api/workflow/{args.workflow_id}/events',
-            mode=client.ResponseMode.STREAMING,
-            params=params)
-    else:
-        result = service_client.request(
-            client.RequestMethod.GET,
-            f'api/workflow/{args.workflow_id}/error_events',
-            mode=client.ResponseMode.STREAMING,
-            params=params)
-    if args.error:
-        print(f'Workflow {args.workflow_id} has error events:')
-    else:
-        print(f'Workflow {args.workflow_id} has events:')
+    result = service_client.request(
+        client.RequestMethod.GET,
+        f'api/workflow/{args.workflow_id}/events',
+        mode=client.ResponseMode.STREAMING,
+        params=params)
+    print(f'Workflow {args.workflow_id} has events:')
     try:
         for line in result.iter_lines():
             print(line.decode('utf-8'))
