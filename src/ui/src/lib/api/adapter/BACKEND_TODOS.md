@@ -582,58 +582,6 @@ GET /api/pools?status=online,maintenance&platform=dgx&search=ml-team
 
 ---
 
-### 14. Workflow List API `more_entries` Always Returns False
-
-**Priority:** High
-**Status:** Active workaround in `workflows-shim.ts`
-
-The `/api/workflow` list endpoint has a bug where `more_entries` is always `false`, preventing infinite scroll pagination from working.
-
-**Root cause:** In `workflow_service.py` lines 569-577:
-
-```python
-# Fetch limit+1 to check if there are more
-rows = helpers.get_workflows(..., limit+1, ...)
-
-# Slice to limit rows
-if order == connectors.ListOrder.DESC:
-    rows = rows[:limit]
-elif len(rows) > limit:
-    rows = rows[1:]
-
-# BUG: Check AFTER slicing - always returns False!
-return objects.ListResponse.from_db_rows(rows, service_url,
-                                         more_entries=len(rows) > limit)
-```
-
-After slicing, `len(rows)` is at most `limit`, so `len(rows) > limit` is always `False`.
-
-**Fix required:**
-```python
-has_more = len(rows) > limit  # Check BEFORE slicing
-if order == connectors.ListOrder.DESC:
-    rows = rows[:limit]
-elif has_more:
-    rows = rows[1:]
-return objects.ListResponse.from_db_rows(rows, service_url, more_entries=has_more)
-```
-
-**Current UI workaround:**
-```typescript
-// workflows-shim.ts - Infer hasMore from item count
-const hasMore = workflows.length === limit;
-```
-
-If we received exactly `limit` items, assume there are more. Only set `hasMore: false` when we receive fewer than `limit` items.
-
-**Impact:** Without workaround, UI only makes one API request and never fetches additional pages.
-
-**When fixed:**
-1. Remove workaround in `workflows-shim.ts`
-2. Use `more_entries` from API response directly
-
----
-
 ### 15. Workflow List Response Missing Tags Field
 
 **Priority:** Low
@@ -785,92 +733,6 @@ timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
 1. Remove `parseTimestamp()` workaround from `utils.ts`
 2. Use `new Date(timeStr)` directly throughout codebase
 3. All duration/timeline calculations work correctly regardless of user timezone
-
----
-
-### 17. Workflow List `order` Parameter Ignored for Pagination
-
-**Priority:** High
-**Status:** UI shows wrong sort order (ASC shows newest first)
-
-The `/api/workflow` list endpoint ignores the `order` parameter for pagination purposes. The inner SQL query hardcodes `ORDER BY submit_time DESC`, making the `order` parameter only re-sort the already-paginated results.
-
-**Root cause:** In `helpers.py` lines 105-113:
-
-```python
-# Line 105: Inner query ALWAYS uses DESC for pagination
-fetch_cmd += ' ORDER BY submit_time DESC LIMIT %s OFFSET %s'
-fetch_input.extend([limit, offset])
-
-# Lines 108-113: Outer query re-sorts the paginated slice
-fetch_cmd = f'SELECT * FROM ({fetch_cmd}) as wf'
-if order == connectors.ListOrder.ASC:
-    fetch_cmd += ' ORDER BY submit_time ASC'
-else:
-    fetch_cmd += ' ORDER BY submit_time DESC'
-```
-
-**What happens:**
-
-```sql
--- User requests: order=ASC, limit=50, offset=0
--- Expected: oldest 50 workflows
-
--- Actual SQL generated:
-SELECT * FROM (
-    SELECT ... FROM workflows
-    ORDER BY submit_time DESC  -- ❌ Always fetches NEWEST first
-    LIMIT 51 OFFSET 0
-) as wf
-ORDER BY submit_time ASC;      -- ✓ Re-sorts, but wrong data fetched
-```
-
-**Impact:**
-
-| Request | Expected | Actual (Bug) |
-|---------|----------|--------------|
-| `order=ASC, limit=50` | Oldest 50 workflows | Newest 50, re-sorted oldest-first |
-| `order=DESC, limit=50` | Newest 50 workflows | Newest 50 ✓ (works by accident) |
-
-Users clicking to sort "oldest first" see newest workflows re-sorted, not actual oldest workflows.
-
-**Fix required:**
-
-```python
-# In helpers.py, line 105 should respect the order parameter:
-
-# BEFORE (broken):
-fetch_cmd += ' ORDER BY submit_time DESC LIMIT %s OFFSET %s'
-
-# AFTER (fixed):
-order_direction = 'ASC' if order == connectors.ListOrder.ASC else 'DESC'
-fetch_cmd += f' ORDER BY submit_time {order_direction} LIMIT %s OFFSET %s'
-
-# The outer re-sort (lines 108-113) can then be removed as redundant
-```
-
-**Also fix pagination slicing in `workflow_service.py` lines 572-575:**
-
-```python
-# BEFORE (broken - asymmetric slicing):
-if order == connectors.ListOrder.DESC:
-    rows = rows[:limit]
-elif len(rows) > limit:
-    rows = rows[1:]  # ❌ Why skip first row for ASC?
-
-# AFTER (fixed - consistent slicing):
-if len(rows) > limit:
-    rows = rows[:limit]  # Always take first `limit` rows
-```
-
-**Current UI impact:**
-- No workaround possible in frontend
-- UI correctly sends `order=ASC` but backend returns wrong data
-- Sort indicator shows ↑ (ASC) but data appears DESC
-
-**When fixed:**
-1. No UI changes needed (already sends correct parameter)
-2. Sorting will work correctly for both directions
 
 ---
 
@@ -1512,10 +1374,10 @@ Option B: Include pod phase in plain text header
 | #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
 | #12 Server-side summary aggregates | **High** | resource-summary-card.tsx | Use server summary |
 | #13 Pools server-side filtering | Medium | pools-shim.ts | Delete shim, pass filters to API |
-| #14 Workflow more_entries bug | **High** | workflows-shim.ts | Use more_entries directly |
+| #14 Workflow more_entries bug | **High** | ~~workflows-shim.ts~~ | ✅ FIXED — using `more_entries` directly |
 | #15 Workflow list missing tags | Low | workflow-search-fields.ts | Add tags column |
 | #16 Timestamps missing timezone | Medium | hooks.ts (useWorkflow), utils.ts | Remove normalizeWorkflowTimestamps |
-| #17 Workflow order param ignored | **High** | N/A (no workaround) | Sorting will work correctly |
+| #17 Workflow order param ignored | **High** | N/A | ✅ FIXED — backend respects order param |
 | #18 Status labels not generated | Low | status-utils.ts, workflow-constants.ts | Use generated labels |
 | #19 Status sort order not generated | Low | status-utils.ts | Use generated sortOrder |
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
@@ -1544,3 +1406,15 @@ When a backend fix is applied:
 4. Update this document
 
 **Ultimate goal:** When all issues are fixed, the adapter layer can be removed and UI imports directly from `generated.ts`.
+
+---
+
+## Appendix: Resolved Issues
+
+### 14. Workflow List API `more_entries` Always Returns False — ✅ FIXED
+
+Backend now checks `has_more_entries = len(rows) > limit` before slicing. UI workaround removed; `workflows-shim.ts` uses `more_entries` directly.
+
+### 17. Workflow List `order` Parameter Ignored for Pagination — ✅ FIXED
+
+Backend inner query now respects the `order` parameter for both inner and outer SQL queries. No UI changes needed.
