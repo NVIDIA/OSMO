@@ -86,13 +86,13 @@
 
   /* Base badge styling - default/info state */
   .event-badge {
-    background-color: oklch(0.95 0.03 250);
-    color: oklch(0.45 0.1 250);
+    background-color: oklch(95% 0.03 250deg);
+    color: oklch(45% 0.1 250deg);
   }
 
   :is(.dark *) .event-badge {
-    background-color: oklch(0.25 0.04 250);
-    color: oklch(0.75 0.1 250);
+    background-color: oklch(25% 0.04 250deg);
+    color: oklch(75% 0.1 250deg);
   }
 
   /* Error severity */
@@ -204,7 +204,7 @@
     display: flex;
     align-items: center;
     position: relative;
-    padding: 0.5rem 1.5rem 1.5rem 1.5rem;
+    padding: 0.5rem 1.5rem 1.5rem;
   }
 
   .timeline-step {
@@ -255,14 +255,14 @@
   /* Active: glow effect to indicate current stage */
   .timeline-dot[data-state="active"] {
     box-shadow: 0 0 0 var(--timeline-glow-spread)
-      color-mix(in srgb, var(--current-timeline-color) var(--timeline-glow-opacity), transparent);
+      color-mix(in sRGB, var(--current-timeline-color) var(--timeline-glow-opacity), transparent);
   }
 
   /* Connecting line (background - always visible, muted for inactive segments) */
   .timeline-line {
     flex: 1;
     height: var(--timeline-line-height);
-    background: color-mix(in srgb, var(--stage-inactive) 30%, transparent);
+    background: color-mix(in sRGB, var(--stage-inactive) 30%, transparent);
     position: relative;
   }
 
