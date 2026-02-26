@@ -36,6 +36,11 @@ type NodeConditionRuleListener struct {
 	inst               *utils.Instruments
 }
 
+// Logf logs with stream name prefix.
+func (ncrl *NodeConditionRuleListener) Logf(format string, args ...interface{}) {
+	log.Printf("["+string(utils.StreamNameNodeConditionRule)+"] "+format, args...)
+}
+
 // NewNodeConditionRuleListener creates a new node condition rule listener instance.
 func NewNodeConditionRuleListener(
 	args utils.ListenerArgs,
@@ -78,24 +83,24 @@ func (ncrl *NodeConditionRuleListener) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create node condition stream: %w", err)
 	}
 
-	log.Println("Connected to node condition stream")
+	ncrl.Logf("Connected to node condition stream")
 
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
 			if err == io.EOF {
-				log.Println("Node condition stream closed by server")
+				ncrl.Logf("Node condition stream closed by server")
 				return nil // Clean closure, not an error
 			}
 			if ctx.Err() != nil {
-				log.Println("Node condition stream stopped due to context cancellation")
+				ncrl.Logf("Node condition stream stopped due to context cancellation")
 				return ctx.Err()
 			}
-			log.Printf("Error receiving from node condition stream: %v", err)
+			ncrl.Logf("Error receiving from node condition stream: %v", err)
 			return fmt.Errorf("stream receive error: %w", err)
 		}
 
 		ncrl.nodeConditionRules.SetRules(msg.Rules)
-		log.Printf("Updated node condition rules: %v", msg.Rules)
+		ncrl.Logf("Updated node condition rules: %v", msg.Rules)
 	}
 }

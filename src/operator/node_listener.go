@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -89,7 +88,7 @@ func (nl *NodeListener) sendMessages(
 			progressWriter := nl.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
-					log.Printf("Warning: failed to report progress: %v", err)
+					nl.Logf("Warning: failed to report progress: %v", err)
 				}
 			}
 		case msg, ok := <-ch:
@@ -116,7 +115,7 @@ func (nl *NodeListener) watchNodes(
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	log.Println("Starting node watcher")
+	nl.Logf("Starting node watcher")
 
 	// Create label update channel and start worker if enabled
 	var labelUpdateChan chan labelUpdateRequest
@@ -166,12 +165,12 @@ func (nl *NodeListener) watchNodes(
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					log.Printf("Error: unexpected object type in node DeleteFunc: %T", obj)
+					nl.Logf("Error: unexpected object type in node DeleteFunc: %T", obj)
 					return
 				}
 				node, ok = tombstone.Obj.(*corev1.Node)
 				if !ok {
-					log.Printf("Error: tombstone contained unexpected object: %T",
+					nl.Logf("Error: tombstone contained unexpected object: %T",
 						tombstone.Obj)
 					return
 				}
@@ -184,29 +183,29 @@ func (nl *NodeListener) watchNodes(
 	}
 
 	nodeInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
-		log.Printf("Node watch error, will rebuild from store: %v", err)
+		nl.Logf("Node watch error, will rebuild from store: %v", err)
 		nl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nl.MetricAttrs)
 		nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan, labelUpdateChan)
-		log.Println("Sending NODE_INVENTORY after watch gap recovery")
+		nl.Logf("Sending NODE_INVENTORY after watch gap recovery")
 		nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 	})
 
 	nodeInformerFactory.Start(done)
 
-	log.Println("Waiting for node informer cache to sync...")
+	nl.Logf("Waiting for node informer cache to sync...")
 	if !cache.WaitForCacheSync(done, nodeInformer.HasSynced) {
 		nl.inst.InformerCacheSyncFailure.Add(ctx, 1, nl.MetricAttrs)
 		return fmt.Errorf("failed to sync node informer cache")
 	}
-	log.Println("Node informer cache synced successfully")
+	nl.Logf("Node informer cache synced successfully")
 	nl.inst.InformerCacheSyncSuccess.Add(ctx, 1, nl.MetricAttrs)
 
 	nl.rebuildNodesFromStore(ctx, nodeInformer, nodeStateTracker, nodeChan, labelUpdateChan)
-	log.Println("Sending initial NODE_INVENTORY after cache sync")
+	nl.Logf("Sending initial NODE_INVENTORY after cache sync")
 	nl.sendNodeInventory(ctx, nodeInformer, nodeChan)
 
 	<-done
-	log.Println("Node resource watcher stopped")
+	nl.Logf("Node resource watcher stopped")
 	return nil
 }
 
@@ -216,8 +215,8 @@ func (nl *NodeListener) runLabelUpdateWorker(
 	labelUpdateChan <-chan labelUpdateRequest,
 	clientset *kubernetes.Clientset,
 ) {
-	log.Println("Label update worker started")
-	defer log.Println("Label update worker stopped")
+	nl.Logf("Label update worker started")
+	defer nl.Logf("Label update worker stopped")
 
 	labelName := nl.args.NodeConditionPrefix + "verified"
 
@@ -237,7 +236,7 @@ func (nl *NodeListener) runLabelUpdateWorker(
 				labelName,
 			)
 			if err != nil {
-				log.Printf("Warning: Failed to update %s label on node %s: %v",
+				nl.Logf("Warning: Failed to update %s label on node %s: %v",
 					labelName, req.nodeName, err)
 			}
 		}
@@ -252,7 +251,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 	nodeChan chan<- *pb.ListenerMessage,
 	labelUpdateChan chan<- labelUpdateRequest,
 ) {
-	log.Println("Rebuilding node resource state from informer store...")
+	nl.Logf("Rebuilding node resource state from informer store...")
 
 	nl.inst.InformerRebuildTotal.Add(ctx, 1, nl.MetricAttrs)
 
@@ -273,7 +272,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 				nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.MetricAttrs)
 				nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.MetricAttrs)
 			case <-ctx.Done():
-				log.Printf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
+				nl.Logf("Node rebuild interrupted: sent=%d, skipped=%d", sent, skipped)
 				return
 			}
 		} else {
@@ -281,7 +280,7 @@ func (nl *NodeListener) rebuildNodesFromStore(
 		}
 	}
 
-	log.Printf("Node rebuild complete: sent=%d, skipped=%d", sent, skipped)
+	nl.Logf("Node rebuild complete: sent=%d, skipped=%d", sent, skipped)
 }
 
 // buildResourceMessage creates a ListenerMessage with UpdateNode body from a node
@@ -315,12 +314,6 @@ func (nl *NodeListener) buildResourceMessage(
 		},
 	}
 
-	action := "update"
-	if isDelete {
-		action = "delete"
-	}
-	log.Printf("Sent Node (%s): hostname=%s, available=%v", action, hostname, body.Available)
-
 	return msg
 }
 
@@ -339,7 +332,7 @@ func (nl *NodeListener) queueLabelUpdate(
 	case labelUpdateChan <- req:
 	default:
 		//  Non-blocking send - drop if channel is full
-		log.Printf("Warning: Label update channel full, skipping update for node %s",
+		nl.Logf("Warning: Label update channel full, skipping update for node %s",
 			node.Name)
 	}
 
@@ -352,7 +345,7 @@ func (nl *NodeListener) sendNodeInventory(
 	nodeChan chan<- *pb.ListenerMessage,
 ) {
 	if nodeInformer == nil {
-		log.Println("sendNodeInventory: informer is nil, skipping")
+		nl.Logf("sendNodeInventory: informer is nil, skipping")
 		return
 	}
 
@@ -385,9 +378,9 @@ func (nl *NodeListener) sendNodeInventory(
 	case nodeChan <- msg:
 		nl.inst.MessageQueuedTotal.Add(ctx, 1, nl.MetricAttrs)
 		nl.inst.MessageChannelPending.Record(ctx, float64(len(nodeChan)), nl.MetricAttrs)
-		log.Printf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
+		nl.Logf("Sent NODE_INVENTORY with %d hostnames", len(hostnames))
 	case <-ctx.Done():
-		log.Println("sendNodeInventory: context cancelled while sending")
+		nl.Logf("sendNodeInventory: context cancelled while sending")
 		return
 	}
 }

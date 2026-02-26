@@ -85,8 +85,8 @@ func (wl *WorkflowListener) sendMessages(
 	ctx context.Context,
 	ch <-chan *pb.ListenerMessage,
 ) error {
-	log.Printf("Starting message sender for workflow channel")
-	defer log.Printf("Stopping workflow message sender")
+	wl.Logf("Starting message sender for workflow channel")
+	defer wl.Logf("Stopping workflow message sender")
 
 	progressTicker := time.NewTicker(time.Duration(wl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
@@ -94,19 +94,19 @@ func (wl *WorkflowListener) sendMessages(
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Stopping message sender, draining channel...")
+			wl.Logf("Stopping message sender, draining channel...")
 			wl.drainMessageChannel(ch)
 			return nil
 		case <-progressTicker.C:
 			progressWriter := wl.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
-					log.Printf("Warning: failed to report progress: %v", err)
+					wl.Logf("Warning: failed to report progress: %v", err)
 				}
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				log.Println("Pod watcher stopped, draining channel...")
+				wl.Logf("Pod watcher stopped, draining channel...")
 				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.MetricAttrs)
 				wl.drainMessageChannel(ch)
 				return fmt.Errorf("pod watcher stopped")
@@ -120,17 +120,21 @@ func (wl *WorkflowListener) sendMessages(
 
 // drainMessageChannel reads remaining messages from ch and adds them to unacked queue.
 // This prevents message loss during connection breaks
+// TODO watch should call drainMessageChannel before returning
 func (wl *WorkflowListener) drainMessageChannel(ch <-chan *pb.ListenerMessage) {
 	drained := 0
 	unackedMessages := wl.GetUnackedMessages()
 	for {
 		select {
-		case msg := <-ch:
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
 			unackedMessages.AddMessageForced(msg)
 			drained++
 		default:
 			if drained > 0 {
-				log.Printf("Drained %d messages from channel to unacked queue", drained)
+				wl.Logf("Drained %d messages from channel to unacked queue", drained)
 			}
 			return
 		}
@@ -148,7 +152,7 @@ func (wl *WorkflowListener) watchPods(
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	log.Printf("Starting pod watcher for namespace: %s", wl.args.Namespace)
+	wl.Logf("Starting pod watcher for namespace: %s", wl.args.Namespace)
 
 	// State tracker to avoid sending duplicate updates
 	stateTracker := newPodStateTracker(time.Duration(wl.args.StateCacheTTLMin) * time.Minute)
@@ -177,7 +181,8 @@ func (wl *WorkflowListener) watchPods(
 
 		// shouldProcess calculates status once and returns it to avoid duplicate calculation
 		if changed, statusResult := stateTracker.shouldProcess(pod); changed {
-			msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
+			msg := createPodUpdateMessage(
+				pod, statusResult, wl.args.Backend, string(wl.GetStreamName()), wl.inst)
 			select {
 			case ch <- msg:
 				wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
@@ -204,12 +209,12 @@ func (wl *WorkflowListener) watchPods(
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					log.Printf("Error: unexpected object type in DeleteFunc: %T", obj)
+					wl.Logf("Error: unexpected object type in DeleteFunc: %T", obj)
 					return
 				}
 				pod, ok = tombstone.Obj.(*corev1.Pod)
 				if !ok {
-					log.Printf("Error: tombstone contained unexpected object: %T", tombstone.Obj)
+					wl.Logf("Error: tombstone contained unexpected object: %T", tombstone.Obj)
 					return
 				}
 			}
@@ -220,7 +225,8 @@ func (wl *WorkflowListener) watchPods(
 			}
 
 			if changed, statusResult := stateTracker.shouldProcess(pod); changed {
-				msg := createPodUpdateMessage(pod, statusResult, wl.args.Backend, wl.inst)
+				msg := createPodUpdateMessage(
+					pod, statusResult, wl.args.Backend, string(wl.GetStreamName()), wl.inst)
 				select {
 				case ch <- msg:
 					wl.inst.WorkflowPodStateChangeTotal.Add(ctx, 1, wl.statusAttrs.Get(statusResult.Status))
@@ -241,7 +247,7 @@ func (wl *WorkflowListener) watchPods(
 	// Set watch error handler
 	// No act because OSMO pod has finializers
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
-		log.Printf("Pod watch error: %v", err)
+		wl.Logf("Pod watch error: %v", err)
 		wl.inst.EventWatchConnectionErrorCount.Add(ctx, 1, wl.MetricAttrs)
 	})
 
@@ -249,17 +255,17 @@ func (wl *WorkflowListener) watchPods(
 	informerFactory.Start(ctx.Done())
 
 	// Wait for cache sync
-	log.Println("Waiting for pod informer cache to sync...")
+	wl.Logf("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		wl.inst.InformerCacheSyncFailure.Add(ctx, 1, wl.MetricAttrs)
 		return fmt.Errorf("failed to sync pod informer cache")
 	}
-	log.Println("Pod informer cache synced successfully")
+	wl.Logf("Pod informer cache synced successfully")
 	wl.inst.InformerCacheSyncSuccess.Add(ctx, 1, wl.MetricAttrs)
 
 	// Keep the watcher running
 	<-ctx.Done()
-	log.Println("Pod watcher stopped")
+	wl.Logf("Pod watcher stopped")
 	return nil
 }
 
@@ -351,6 +357,7 @@ func createPodUpdateMessage(
 	pod *corev1.Pod,
 	statusResult utils.TaskStatusResult,
 	backend string,
+	streamName string,
 	inst *utils.Instruments,
 ) *pb.ListenerMessage {
 	// Build pod update structure using proto-generated type
@@ -396,8 +403,8 @@ func createPodUpdateMessage(
 	}
 
 	log.Printf(
-		"Sent update_pod: (pod=%s, status=%s)",
-		pod.Name, podUpdate.Status,
+		"[%s] Sent update_pod: (pod=%s, status=%s)",
+		streamName, pod.Name, podUpdate.Status,
 	)
 
 	return msg

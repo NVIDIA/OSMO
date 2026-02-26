@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -81,7 +80,7 @@ func (nul *NodeUsageListener) sendMessages(
 			progressWriter := nul.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
-					log.Printf("Warning: failed to report progress: %v", err)
+					nul.Logf("Warning: failed to report progress: %v", err)
 				}
 			}
 		case msg, ok := <-ch:
@@ -107,7 +106,7 @@ func (nul *NodeUsageListener) watchPods(
 		return fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
 
-	log.Printf("Starting pod watcher for namespace: %s", nul.args.Namespace)
+	nul.Logf("Starting pod watcher for namespace: %s", nul.args.Namespace)
 
 	// Create informer factory for pods (all namespaces)
 	// Disable informer resync - rely on watch + error handlers
@@ -160,12 +159,12 @@ func (nul *NodeUsageListener) watchPods(
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					log.Printf("Error: unexpected object type in pod DeleteFunc: %T", obj)
+					nul.Logf("Error: unexpected object type in pod DeleteFunc: %T", obj)
 					return
 				}
 				pod, ok = tombstone.Obj.(*corev1.Pod)
 				if !ok {
-					log.Printf("Error: tombstone contained unexpected object: %T", tombstone.Obj)
+					nul.Logf("Error: tombstone contained unexpected object: %T", tombstone.Obj)
 					return
 				}
 			}
@@ -179,7 +178,7 @@ func (nul *NodeUsageListener) watchPods(
 
 	// Set watch error handler for rebuild on watch gaps
 	podInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
-		log.Printf("Pod watch error, will rebuild from store: %v", err)
+		nul.Logf("Pod watch error, will rebuild from store: %v", err)
 		nul.inst.EventWatchConnectionErrorCount.Add(ctx, 1, nul.MetricAttrs)
 		nul.rebuildPodsFromStore(podInformer)
 	})
@@ -188,12 +187,12 @@ func (nul *NodeUsageListener) watchPods(
 	podInformerFactory.Start(ctx.Done())
 
 	// Wait for cache sync
-	log.Println("Waiting for pod informer cache to sync...")
+	nul.Logf("Waiting for pod informer cache to sync...")
 	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced) {
 		nul.inst.InformerCacheSyncFailure.Add(ctx, 1, nul.MetricAttrs)
 		return fmt.Errorf("failed to sync pod informer cache")
 	}
-	log.Println("Pod informer cache synced successfully")
+	nul.Logf("Pod informer cache synced successfully")
 	nul.inst.InformerCacheSyncSuccess.Add(ctx, 1, nul.MetricAttrs)
 
 	// Initial rebuild from store after sync
@@ -207,7 +206,7 @@ func (nul *NodeUsageListener) watchPods(
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Pod watcher stopped")
+			nul.Logf("Pod watcher stopped")
 			return nil
 		case <-flushTicker.C:
 			// Debounced flush of dirty nodes - send usage messages
@@ -220,7 +219,7 @@ func (nul *NodeUsageListener) watchPods(
 
 // rebuildPodsFromStore rebuilds aggregator state from pod informer cache
 func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndexInformer) {
-	log.Println("Rebuilding pod aggregator state from informer store...")
+	nul.Logf("Rebuilding pod aggregator state from informer store...")
 
 	nul.inst.InformerRebuildTotal.Add(context.Background(), 1, nul.MetricAttrs)
 
@@ -239,7 +238,7 @@ func (nul *NodeUsageListener) rebuildPodsFromStore(podInformer cache.SharedIndex
 		}
 	}
 
-	log.Printf("Pod rebuild complete: processed %d pods", len(pods))
+	nul.Logf("Pod rebuild complete: processed %d pods", len(pods))
 }
 
 // flushDirtyNodes sends resource usage updates for all dirty nodes
@@ -263,7 +262,7 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 				nul.inst.MessageQueuedTotal.Add(ctx, 1, nul.MetricAttrs)
 				nul.inst.MessageChannelPending.Record(ctx, float64(len(usageChan)), nul.MetricAttrs)
 			case <-ctx.Done():
-				log.Printf("Flushed %d/%d resource usage messages before shutdown",
+				nul.Logf("Flushed %d/%d resource usage messages before shutdown",
 					sent, len(dirtyNodes))
 				return
 			}
@@ -271,7 +270,7 @@ func (nul *NodeUsageListener) flushDirtyNodes(
 	}
 
 	if sent > 0 {
-		log.Printf("Flushed %d resource usage messages", sent)
+		nul.Logf("Flushed %d resource usage messages", sent)
 	}
 }
 

@@ -114,7 +114,7 @@ func TestCreatePodEventMessage(t *testing.T) {
 		LastTimestamp: now,
 	}
 
-	msg := createPodEventMessage(event)
+	msg := createPodEventMessage(event, "event")
 
 	if msg.Uuid == "" {
 		t.Error("Message UUID should not be empty")
@@ -166,7 +166,7 @@ func TestCreatePodEventMessageWithEventTime(t *testing.T) {
 		EventTime: eventTime,
 	}
 
-	msg := createPodEventMessage(event)
+	msg := createPodEventMessage(event, "event")
 
 	podEvent := msg.GetPodEvent()
 	if podEvent == nil {
@@ -197,7 +197,7 @@ func TestCreatePodEventMessageNilTimestamp(t *testing.T) {
 		// No timestamps set - should fallback to time.Now()
 	}
 
-	msg := createPodEventMessage(event)
+	msg := createPodEventMessage(event, "event")
 
 	podEvent := msg.GetPodEvent()
 	if podEvent == nil {
@@ -245,7 +245,7 @@ func TestListenerMessageTypeAssertion(t *testing.T) {
 		LastTimestamp: metav1.Now(),
 	}
 
-	msg := createPodEventMessage(event)
+	msg := createPodEventMessage(event, "event")
 
 	// Verify message body is PodEvent variant
 	switch msg.Body.(type) {

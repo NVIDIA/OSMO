@@ -49,10 +49,11 @@ type SendMessagesFunc func(
 type StreamName string
 
 const (
-	StreamNameWorkflow  StreamName = "workflow"
-	StreamNameNodeUsage StreamName = "node_usage"
-	StreamNameNode      StreamName = "node"
-	StreamNameEvent     StreamName = "event"
+	StreamNameWorkflow          StreamName = "workflow"
+	StreamNameNodeUsage         StreamName = "node_usage"
+	StreamNameNode              StreamName = "node"
+	StreamNameNodeConditionRule StreamName = "node_condition_rule"
+	StreamNameEvent             StreamName = "event"
 )
 
 // BaseListener contains common functionality for all listeners
@@ -86,10 +87,10 @@ func NewBaseListener(
 	progressFile := filepath.Join(args.ProgressDir, progressFileName)
 	progressWriter, err := progress_check.NewProgressWriter(progressFile)
 	if err != nil {
-		log.Printf("Warning: failed to create progress writer: %v", err)
+		log.Printf("[%s] Warning: failed to create progress writer: %v", streamName, err)
 		progressWriter = nil
 	} else {
-		log.Printf("Progress writer initialized: %s", progressFile)
+		log.Printf("[%s] Progress writer initialized: %s", streamName, progressFile)
 	}
 
 	bl := &BaseListener{
@@ -102,6 +103,11 @@ func NewBaseListener(
 			attribute.String("listener", string(streamName)))),
 	}
 	return bl
+}
+
+// Logf logs with stream name prefix.
+func (bl *BaseListener) Logf(format string, args ...interface{}) {
+	log.Printf("["+string(bl.streamName)+"] "+format, args...)
 }
 
 // initConnection establishes a gRPC connection to the service
@@ -148,7 +154,7 @@ func (bl *BaseListener) receiveAcks(ctx context.Context) error {
 		now := time.Now()
 		if bl.progressWriter != nil && now.Sub(lastProgressReport) >= progressInterval {
 			if err := bl.progressWriter.ReportProgress(); err != nil {
-				log.Printf("Warning: failed to report progress: %v", err)
+				bl.Logf("Warning: failed to report progress: %v", err)
 			}
 			lastProgressReport = now
 		}
@@ -163,10 +169,10 @@ func (bl *BaseListener) waitForCompletion(ctx context.Context, streamCtx context
 	// Check if error came from a goroutine or parent context
 	var finalErr error
 	if cause := context.Cause(streamCtx); cause != nil && cause != context.Canceled && cause != io.EOF {
-		log.Printf("Error from goroutine: %v", cause)
+		bl.Logf("Error from goroutine: %v", cause)
 		finalErr = fmt.Errorf("stream error: %w", cause)
 	} else if ctx.Err() != nil {
-		log.Println("Context cancelled, initiating graceful shutdown...")
+		bl.Logf("Context cancelled, initiating graceful shutdown...")
 		finalErr = ctx.Err()
 	}
 
@@ -179,9 +185,9 @@ func (bl *BaseListener) waitForCompletion(ctx context.Context, streamCtx context
 
 	select {
 	case <-shutdownComplete:
-		log.Println("All listener goroutines stopped gracefully")
+		bl.Logf("All listener goroutines stopped gracefully")
 	case <-time.After(5 * time.Second):
-		log.Println("Warning: listener goroutines did not stop within timeout")
+		bl.Logf("Warning: listener goroutines did not stop within timeout")
 	}
 
 	return finalErr
@@ -200,7 +206,7 @@ func (bl *BaseListener) close() error {
 		if stream != nil {
 			streamErr = stream.CloseSend()
 			if streamErr != nil {
-				log.Printf("Error closing stream: %v", streamErr)
+				bl.Logf("Error closing stream: %v", streamErr)
 			}
 		}
 	})
@@ -210,7 +216,7 @@ func (bl *BaseListener) close() error {
 		if bl.conn != nil {
 			connErr = bl.conn.Close()
 			if connErr != nil {
-				log.Printf("Error closing connection: %v", connErr)
+				bl.Logf("Error closing connection: %v", connErr)
 			}
 		}
 	})
@@ -230,6 +236,11 @@ func (bl *BaseListener) GetUnackedMessages() *UnackMessages {
 // GetProgressWriter returns the progress writer
 func (bl *BaseListener) GetProgressWriter() *progress_check.ProgressWriter {
 	return bl.progressWriter
+}
+
+// GetStreamName returns the stream name for log prefixes.
+func (bl *BaseListener) GetStreamName() StreamName {
+	return bl.streamName
 }
 
 // Run manages the bidirectional streaming lifecycle with three goroutines:
@@ -264,7 +275,7 @@ func (bl *BaseListener) Run(
 	bl.stream = stream
 	bl.mu.Unlock()
 
-	log.Printf("%s", logMessage)
+	bl.Logf("%s", logMessage)
 
 	// Resend all unacked messages from previous connection (if any)
 	if err := bl.unackedMessages.ResendAll(bl.stream); err != nil {
@@ -277,7 +288,7 @@ func (bl *BaseListener) Run(
 		defer bl.wg.Done()
 		err = bl.receiveAcks(streamCtx)
 		if err != nil {
-			log.Printf("Error in receiveAcks goroutine: %v", err)
+			bl.Logf("Error in receiveAcks goroutine: %v", err)
 			streamCancel(err)
 		}
 	}()
@@ -287,7 +298,7 @@ func (bl *BaseListener) Run(
 		defer close(msgChan)
 		err = watch(streamCtx, msgChan)
 		if err != nil {
-			log.Printf("Error in watch goroutine: %v", err)
+			bl.Logf("Error in watch goroutine: %v", err)
 			streamCancel(err)
 		}
 	}()
@@ -296,7 +307,7 @@ func (bl *BaseListener) Run(
 		defer bl.wg.Done()
 		err = sendMessages(streamCtx, msgChan)
 		if err != nil {
-			log.Printf("Error in sendMessages goroutine: %v", err)
+			bl.Logf("Error in sendMessages goroutine: %v", err)
 			streamCancel(err)
 		}
 	}()
@@ -315,7 +326,7 @@ func (bl *BaseListener) GetStream() pb.ListenerService_ListenerStreamClient {
 // SendMessage sends a single listener message
 func (bl *BaseListener) SendMessage(ctx context.Context, msg *pb.ListenerMessage) error {
 	if err := bl.GetUnackedMessages().AddMessage(ctx, msg); err != nil {
-		log.Printf("Failed to add message to unacked queue: %v", err)
+		bl.Logf("Failed to add message to unacked queue: %v", err)
 		return nil
 	}
 

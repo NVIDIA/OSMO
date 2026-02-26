@@ -20,13 +20,14 @@ package utils
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 // ParseServiceURL extracts host:port from a URL string (supports both "host:port" and "scheme://host:port")
@@ -46,6 +47,11 @@ func ParseServiceURL(serviceURL string) (string, error) {
 func GetDialOptions(args ListenerArgs) ([]grpc.DialOption, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(GetTransportCredentials(args.ServiceURL)),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                40 * time.Second,
+			Timeout:             20 * time.Second,
+			PermitWithoutStream: true,
+		}),
 	}
 	creds, err := NewCredentials(args)
 	if err != nil {
@@ -65,7 +71,5 @@ func GetTransportCredentials(serviceURL string) credentials.TransportCredentials
 	if err == nil && strings.ToLower(parsedURL.Scheme) == "https" {
 		return credentials.NewClientTLSFromCert(nil, parsedURL.Host)
 	}
-	// Use insecure credentials for http or plain host:port
-	log.Printf("Using insecure credentials for connection")
 	return insecure.NewCredentials()
 }

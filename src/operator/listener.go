@@ -91,11 +91,12 @@ func main() {
 
 	// Launch all listeners in parallel
 	wg.Add(5)
-	go runListenerWithRetry(ctx, workflowListener, "WorkflowListener", inst, &wg)
-	go runListenerWithRetry(ctx, nodeUsageListener, "NodeUsageListener", inst, &wg)
-	go runListenerWithRetry(ctx, nodeListener, "NodeListener", inst, &wg)
-	go runListenerWithRetry(ctx, nodeConditionRuleListener, "NodeConditionRuleListener", inst, &wg)
-	go runListenerWithRetry(ctx, eventListener, "EventListener", inst, &wg)
+	go runListenerWithRetry(ctx, workflowListener, string(utils.StreamNameWorkflow), inst, &wg)
+	go runListenerWithRetry(ctx, nodeUsageListener, string(utils.StreamNameNodeUsage), inst, &wg)
+	go runListenerWithRetry(ctx, nodeListener, string(utils.StreamNameNode), inst, &wg)
+	go runListenerWithRetry(ctx, nodeConditionRuleListener,
+		string(utils.StreamNameNodeConditionRule), inst, &wg)
+	go runListenerWithRetry(ctx, eventListener, string(utils.StreamNameEvent), inst, &wg)
 
 	// Wait for all listeners to complete
 	wg.Wait()

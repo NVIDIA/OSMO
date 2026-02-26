@@ -89,7 +89,7 @@ func main() {
 			Timeout: 20 * time.Second,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             30 * time.Second,
+			MinTime:             20 * time.Second,
 			PermitWithoutStream: true,
 		}),
 	}

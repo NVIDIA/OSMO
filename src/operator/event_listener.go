@@ -68,8 +68,8 @@ func (el *EventListener) sendMessages(
 	ctx context.Context,
 	ch <-chan *pb.ListenerMessage,
 ) error {
-	log.Printf("Starting message sender for event channel")
-	defer log.Printf("Stopping event message sender")
+	el.Logf("Starting message sender for event channel")
+	defer el.Logf("Stopping event message sender")
 
 	progressTicker := time.NewTicker(time.Duration(el.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
@@ -82,7 +82,7 @@ func (el *EventListener) sendMessages(
 			progressWriter := el.GetProgressWriter()
 			if progressWriter != nil {
 				if err := progressWriter.ReportProgress(); err != nil {
-					log.Printf("Warning: failed to report progress: %v", err)
+					el.Logf("Warning: failed to report progress: %v", err)
 				}
 			}
 		case msg, ok := <-ch:
@@ -121,7 +121,7 @@ func (el *EventListener) watchEvents(
 				size := len(tracker.sent)
 				tracker.mu.RUnlock()
 				el.inst.EventTrackerSize.Record(ctx, float64(size))
-				log.Println("Event tracker cleanup completed")
+				el.Logf("Event tracker cleanup completed")
 			}
 		}
 	}()
@@ -156,7 +156,7 @@ func (el *EventListener) watchEvents(
 			return
 		}
 
-		msg := createPodEventMessage(event)
+		msg := createPodEventMessage(event, string(el.GetStreamName()))
 		select {
 		case ch <- msg:
 			el.inst.MessageQueuedTotal.Add(ctx, 1, el.MetricAttrs)
@@ -182,25 +182,25 @@ func (el *EventListener) watchEvents(
 
 	// Set watch error handler
 	eventInformer.SetWatchErrorHandler(func(r *cache.Reflector, err error) {
-		log.Printf("Event watch error: %v", err)
+		el.Logf("Event watch error: %v", err)
 		el.inst.EventWatchConnectionErrorCount.Add(ctx, 1, el.MetricAttrs)
 	})
 
 	// Start the informer
 	eventInformerFactory.Start(ctx.Done())
-	log.Printf("Starting event informer for namespace: %s", el.args.Namespace)
+	el.Logf("Starting event informer for namespace: %s", el.args.Namespace)
 
 	// Wait for cache sync
 	if !cache.WaitForCacheSync(ctx.Done(), eventInformer.HasSynced) {
 		el.inst.InformerCacheSyncFailure.Add(ctx, 1, el.MetricAttrs)
 		return fmt.Errorf("failed to sync event informer cache")
 	}
-	log.Println("Event informer cache synced successfully")
+	el.Logf("Event informer cache synced successfully")
 	el.inst.InformerCacheSyncSuccess.Add(ctx, 1, el.MetricAttrs)
 
 	// Keep the watcher running
 	<-ctx.Done()
-	log.Println("Event watcher stopped")
+	el.Logf("Event watcher stopped")
 	return nil
 }
 
@@ -257,7 +257,7 @@ func (t *eventSentTracker) cleanup() {
 }
 
 // createPodEventMessage creates a ListenerMessage from an Event object
-func createPodEventMessage(event *corev1.Event) *pb.ListenerMessage {
+func createPodEventMessage(event *corev1.Event, streamName string) *pb.ListenerMessage {
 	// Extract timestamp (priority: LastTimestamp > EventTime > Now)
 	var timestamp time.Time
 	if !event.LastTimestamp.IsZero() {
@@ -288,8 +288,8 @@ func createPodEventMessage(event *corev1.Event) *pb.ListenerMessage {
 	}
 
 	log.Printf(
-		"Sent pod_event: (pod=%s, reason=%s, type=%s)",
-		event.InvolvedObject.Name, event.Reason, event.Type,
+		"[%s] Sent pod_event: (pod=%s, reason=%s, type=%s)",
+		streamName, event.InvolvedObject.Name, event.Reason, event.Type,
 	)
 
 	return msg
