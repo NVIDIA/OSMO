@@ -45,6 +45,13 @@ global:
     ## Kubernetes system log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     ##
     k8sLogLevel: WARNING
+
+## pgroll schema version for search_path.
+## Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
+## Set to "public" to use the default schema without pgroll versioning.
+##
+schemaVersion: public_v6_2_0
+
 ## Service account configuration for router service
 ##
 serviceAccount:

@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ bazel run @osmo_workspace//run:start_service -- --mode bazel
 This command:
 
 - Creates postgres, redis, and localstack-s3 docker containers if they do not exist
-- Starts core OSMO services (osmo, ui, router) using bazel
+- Starts core OSMO services (osmo, router) using bazel and the UI using pnpm (from `src/ui/`)
 
 ### Start OSMO Backend
 

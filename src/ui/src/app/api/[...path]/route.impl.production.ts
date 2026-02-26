@@ -213,12 +213,14 @@ export async function HEAD(request: NextRequest) {
   return proxyRequest(request, "HEAD");
 }
 
-export async function OPTIONS(_request: NextRequest) {
-  // Handle CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get("origin") ?? "*";
+
   return new Response(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400",

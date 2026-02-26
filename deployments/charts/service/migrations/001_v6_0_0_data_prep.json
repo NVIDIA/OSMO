@@ -1,0 +1,9 @@
+{
+  "operations": [
+    {
+      "sql": {
+        "up": "DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'backends' AND column_name = 'node_condition_prefix') THEN UPDATE backends SET node_conditions = jsonb_set(node_conditions, '{prefix}', to_jsonb(node_condition_prefix)) WHERE node_condition_prefix IS NOT NULL; END IF; UPDATE backends SET node_conditions = node_conditions - 'additional_node_conditions' - 'ignore_node_conditions' WHERE node_conditions ? 'additional_node_conditions' OR node_conditions ? 'ignore_node_conditions'; UPDATE configs SET value = jsonb_set(value::jsonb, '{init}', '\"\"', true)::text WHERE key = 'backend_images' AND type = 'WORKFLOW'; UPDATE configs SET value = jsonb_set(value::jsonb, '{client}', '\"\"', true)::text WHERE key = 'backend_images' AND type = 'WORKFLOW'; END $$"
+      }
+    }
+  ]
+}
