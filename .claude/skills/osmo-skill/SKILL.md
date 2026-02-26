@@ -148,7 +148,19 @@ status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz"
    ```
 
 3. **Report to the user:**
-   - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED)
+   - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED, PENDING)
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
+
+   **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
+   ```
+   osmo workflow events <workflow_id>
+   ```
+   These are Kubernetes pod conditions and cluster events — translate them into plain
+   language without Kubernetes jargon (e.g. "there aren't enough free GPUs in the pool
+   to schedule your job" rather than "Insufficient nvidia.com/gpu"). Also direct the
+   user to check resource availability in the pool their workflow is waiting in:
+   ```
+   osmo resource list -p <pool>
+   ```
