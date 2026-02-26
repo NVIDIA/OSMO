@@ -518,6 +518,18 @@ service:
       ## Enable OTEL collector sidecar for metrics and tracing
       ##
       enabled: false
+    ## OAuth2 Proxy sidecar configuration
+    ##
+    oauth2Proxy:
+      ## Enable OAuth2 Proxy sidecar container
+      ##
+      enabled: false
+    ## Authorization sidecar configuration
+    ##
+    authz:
+      ## Enable authorization sidecar
+      ##
+      enabled: false
     ## Rate limiting sidecar configuration
     ##
     rateLimit:
@@ -570,6 +582,13 @@ web-ui:
       ## Enable Envoy proxy sidecar container
       ##
       enabled: false
+    ## OAuth2 Proxy sidecar configuration
+    ##
+    oauth2Proxy:
+      ## Enable OAuth2 Proxy sidecar container
+      ##
+      enabled: false
+
 ## Router service configuration
 ##
 router:
@@ -657,6 +676,19 @@ router:
       ## Enable log agent sidecar for centralized log collection
       ##
       enabled: false
+    ## OAuth2 Proxy sidecar configuration
+    ##
+    oauth2Proxy:
+      ## Enable OAuth2 Proxy sidecar container
+      ##
+      enabled: false
+    ## Authorization sidecar configuration
+    ##
+    authz:
+      ## Enable authorization sidecar
+      ##
+      enabled: false
+
 ## Backend operator configuration for managing compute workloads
 ##
 backend-operator:

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -59,7 +59,7 @@ def list_apps(name: str | None = None,
 
 
 @router.get('/api/app/user/{name}', response_class=common.PrettyJSONResponse)
-def get_app(name: str,
+def get_app(name: objects.AppNamePattern,
             version: int | None = None,
             limit: int = 20,
             order: connectors.ListOrder = fastapi.Query(default=connectors.ListOrder.ASC)):
@@ -79,7 +79,7 @@ def get_app(name: str,
 
 
 @router.get('/api/app/user/{name}/spec', response_class=common.PrettyJSONResponse)
-def get_app_content(name: str,
+def get_app_content(name: objects.AppNamePattern,
                     version: int | None = None):
     postgres = connectors.PostgresConnector.get_instance()
     app_info = app.AppVersion.fetch_from_db(
@@ -104,7 +104,7 @@ def get_app_content(name: str,
 
 
 @router.post('/api/app/user/{name}')
-def create_app(name: str,
+def create_app(name: objects.AppNamePattern,
                description: str,
                app_content: str = fastapi.Body(...),
                username: str = fastapi.Depends(connectors.parse_username)):
@@ -122,7 +122,7 @@ def create_app(name: str,
 
 
 @router.patch('/api/app/user/{name}')
-def update_app(name: str,
+def update_app(name: objects.AppNamePattern,
                app_content: str = fastapi.Body(...),
                username: str = fastapi.Depends(connectors.parse_username)) \
                -> objects.EditResponse:
@@ -146,7 +146,7 @@ def update_app(name: str,
 
 
 @router.delete('/api/app/user/{name}')
-def delete_app(name: str,
+def delete_app(name: objects.AppNamePattern,
                version: int | None = None,
                all_versions: bool = False,
                username: str = fastapi.Depends(connectors.parse_username)) \
@@ -189,8 +189,8 @@ def delete_app(name: str,
 
 
 @router.post('/api/app/user/{name}/rename')
-def rename_app(name: str,
-               new_name: str = fastapi.Body(...),
+def rename_app(name: objects.AppNamePattern,
+               new_name: objects.AppNamePattern = fastapi.Body(...),
                username: str = fastapi.Depends(connectors.parse_username)) \
                -> str:
     postgres = connectors.PostgresConnector.get_instance()
