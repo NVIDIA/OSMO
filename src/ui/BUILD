@@ -16,13 +16,17 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
+
 # Light Bazel bridge for the Next.js UI.
 #
 # The UI is built via its Dockerfile (not Bazel internals).
 #
-# Usage:
+# Default repository and tags are loaded from @osmo_constants, matching the
+# old oci_push rules. Override with explicit flags when needed:
+#
 #   bazel run @osmo_workspace//src/ui:build_push_web_ui_x86_64 -- \
-#       --repository example.io/osmo/web-ui --tag latest
+#       --repository example.io/osmo/web-ui --tag custom
 #
 # The scripts accept the same --repository / --tag interface as oci_push rules.
 
@@ -38,11 +42,15 @@ exports_files([
 sh_binary(
     name = "build_push_web_ui_x86_64",
     srcs = ["scripts/build_push_web_ui_x86_64.sh"],
+    args = ["--repository", BASE_IMAGE_URL + "web-ui"] +
+           (["--tag", IMAGE_TAG + "-amd64"] if IMAGE_TAG else []),
     tags = ["manual"],
 )
 
 sh_binary(
     name = "build_push_web_ui_arm64",
     srcs = ["scripts/build_push_web_ui_arm64.sh"],
+    args = ["--repository", BASE_IMAGE_URL + "web-ui"] +
+           (["--tag", IMAGE_TAG + "-arm64"] if IMAGE_TAG else []),
     tags = ["manual"],
 )
