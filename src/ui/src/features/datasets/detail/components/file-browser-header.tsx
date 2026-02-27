@@ -27,7 +27,7 @@ import { PanelRightOpen } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { FileBrowserBreadcrumb } from "@/features/datasets/detail/components/file-browser-breadcrumb";
 import { VersionSwitcher } from "@/features/datasets/detail/components/version-switcher";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
+import type { DatasetVersion, RawFileItem } from "@/lib/api/adapter/datasets";
 
 interface FileBrowserHeaderProps {
   /** Dataset name — first breadcrumb segment */
@@ -46,6 +46,8 @@ interface FileBrowserHeaderProps {
   detailsOpen: boolean;
   /** Called to toggle the details panel */
   onToggleDetails: () => void;
+  /** Full flat file manifest — enables sibling folder popovers in the breadcrumb */
+  rawFiles?: RawFileItem[];
 }
 
 export const FileBrowserHeader = memo(function FileBrowserHeader({
@@ -57,6 +59,7 @@ export const FileBrowserHeader = memo(function FileBrowserHeader({
   onVersionChange,
   detailsOpen,
   onToggleDetails,
+  rawFiles,
 }: FileBrowserHeaderProps) {
   return (
     <div className="flex shrink-0 items-center justify-between border-b border-zinc-200 bg-white px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
@@ -64,6 +67,7 @@ export const FileBrowserHeader = memo(function FileBrowserHeader({
         datasetName={datasetName}
         path={path}
         onNavigate={onNavigate}
+        rawFiles={rawFiles}
       />
       <div className="flex items-center gap-2">
         {versions.length > 0 && (

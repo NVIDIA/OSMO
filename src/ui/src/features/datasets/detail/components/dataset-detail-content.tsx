@@ -222,6 +222,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           onVersionChange={setVersion}
           detailsOpen={isDetailsPanelOpen}
           onToggleDetails={handleToggleDetails}
+          rawFiles={rawFiles ?? undefined}
         />
       </InlineErrorBoundary>
 

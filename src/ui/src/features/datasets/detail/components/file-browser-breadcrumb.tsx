@@ -21,34 +21,151 @@
  *
  * - Home and Datasets are page-level links (router.push)
  * - Dataset name links to file browser root (path="")
- * - Each intermediate segment is clickable (navigate to that path level)
- * - Last segment is plain text (current location)
+ * - Each path segment opens a popover listing sibling folders (when rawFiles provided)
  * - Deep paths (> 2 segments) collapse to: datasetName > … > parent > current
  */
 
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Button } from "@/components/shadcn/button";
-import { ChevronRight } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
+import { ChevronRight, Folder, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
+import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
+import type { RawFileItem } from "@/lib/api/adapter/datasets";
 
 /** Show all segments when depth ≤ this; collapse with ellipsis when deeper. */
 const COLLAPSE_THRESHOLD = 2;
+
+// =============================================================================
+// SiblingPopover — popover trigger + folder list for one breadcrumb segment
+// =============================================================================
+
+interface SiblingPopoverProps {
+  /** The name of the current segment (highlighted in the list) */
+  segment: string;
+  /** The parent directory path used to compute siblings */
+  parentPath: string;
+  /** Full flat file manifest */
+  rawFiles: RawFileItem[];
+  /** Whether this is the last (current) segment */
+  isCurrent: boolean;
+  /** Called to navigate to a sibling folder */
+  onNavigate: (path: string) => void;
+}
+
+function SiblingPopover({ segment, parentPath, rawFiles, isCurrent, onNavigate }: SiblingPopoverProps) {
+  const siblings = useMemo(
+    () => buildDirectoryListing(rawFiles, parentPath).filter((f) => f.type === "folder"),
+    [rawFiles, parentPath],
+  );
+
+  // Fall back to plain text for the current segment when no siblings exist
+  if (siblings.length === 0) {
+    return isCurrent ? (
+      <span
+        className="truncate px-2 py-1 font-medium text-zinc-900 dark:text-zinc-100"
+        aria-current="page"
+      >
+        {segment}
+      </span>
+    ) : null;
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        {isCurrent ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 max-w-[12rem] min-w-0 shrink-0 truncate px-2 font-medium text-zinc-900 aria-current-page:text-zinc-900 dark:text-zinc-100"
+            aria-current="page"
+            aria-haspopup="listbox"
+          >
+            {segment}
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 max-w-[12rem] min-w-0 shrink-0 truncate px-2 text-zinc-600 dark:text-zinc-400"
+            aria-haspopup="listbox"
+          >
+            {segment}
+          </Button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-52 p-1"
+        align="start"
+        sideOffset={4}
+      >
+        <div
+          role="listbox"
+          aria-label="Sibling folders"
+          className="flex flex-col"
+        >
+          {siblings.map((sibling) => {
+            const siblingPath = parentPath ? `${parentPath}/${sibling.name}` : sibling.name;
+            const isActive = sibling.name === segment;
+            return (
+              <button
+                key={sibling.name}
+                role="option"
+                type="button"
+                aria-selected={isActive}
+                onClick={() => onNavigate(siblingPath)}
+                className={cn(
+                  "flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm",
+                  "hover:bg-zinc-100 dark:hover:bg-zinc-800",
+                  isActive
+                    ? "font-medium text-zinc-900 dark:text-zinc-100"
+                    : "text-zinc-600 dark:text-zinc-400",
+                )}
+              >
+                <Folder
+                  className="size-3.5 shrink-0 text-amber-500"
+                  aria-hidden="true"
+                />
+                <span className="min-w-0 truncate">{sibling.name}</span>
+                {isActive && (
+                  <Check
+                    className="ml-auto size-3 shrink-0 text-zinc-400"
+                    aria-hidden="true"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// =============================================================================
+// FileBrowserBreadcrumb
+// =============================================================================
 
 interface FileBrowserBreadcrumbProps {
   /** Dataset name — links to file browser root (path="") */
   datasetName: string;
   /** Current path (e.g., "train/n00000001"), empty string = root */
   path: string;
-  /** Called when a path segment is clicked with the target path */
+  /** Called when a path segment or sibling is clicked with the target path */
   onNavigate: (path: string) => void;
+  /** Full flat file manifest — enables sibling folder popovers when provided */
+  rawFiles?: RawFileItem[];
 }
 
 export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
   datasetName,
   path,
   onNavigate,
+  rawFiles,
 }: FileBrowserBreadcrumbProps) {
   const router = useNavigationRouter();
   const segments = path ? path.split("/").filter(Boolean) : [];
@@ -125,6 +242,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
         const absoluteIndex = visibleOffset + localIndex;
         const isLast = absoluteIndex === segments.length - 1;
         const segmentPath = segments.slice(0, absoluteIndex + 1).join("/");
+        const parentPath = segments.slice(0, absoluteIndex).join("/");
 
         return (
           <span
@@ -135,7 +253,15 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
               className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
               aria-hidden="true"
             />
-            {isLast ? (
+            {rawFiles ? (
+              <SiblingPopover
+                segment={segment}
+                parentPath={parentPath}
+                rawFiles={rawFiles}
+                isCurrent={isLast}
+                onNavigate={onNavigate}
+              />
+            ) : isLast ? (
               <span
                 className="truncate px-2 py-1 font-medium text-zinc-900 dark:text-zinc-100"
                 aria-current="page"
