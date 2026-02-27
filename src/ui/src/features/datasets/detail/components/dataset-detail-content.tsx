@@ -17,8 +17,14 @@
 /**
  * Dataset Detail Content (Client Component)
  *
- * Google Drive-style file browser for a dataset version.
- * URL state: ?path= (current directory), ?version= (version tag), ?file= (selected file)
+ * Google Drive-style file browser for a dataset version or collection.
+ *
+ * For datasets: ?version= selects which version's files to browse.
+ * For collections: the file browser root lists member datasets; navigating into
+ * one sets ?path= to the member ID (e.g., "imagenet-1k:2"), and deeper paths
+ * are within that member's file manifest.
+ *
+ * URL state: ?path= (current directory), ?version= (dataset version), ?file= (selected file)
  */
 
 "use client";
@@ -38,6 +44,9 @@ import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-d
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
+import { DatasetType } from "@/lib/api/generated";
+import type { SwitcherItem } from "@/features/datasets/detail/components/version-switcher";
+import type { DatasetFile } from "@/lib/api/adapter/datasets";
 
 interface Props {
   bucket: string;
@@ -46,29 +55,96 @@ interface Props {
 
 export function DatasetDetailContent({ bucket, name }: Props) {
   // ==========================================================================
-  // Dataset metadata + versions
+  // Dataset/collection metadata
   // ==========================================================================
 
-  const { dataset, versions, error: datasetError, refetch: refetchDataset } = useDatasetDetail(bucket, name);
+  const { detail, error: datasetError, refetch: refetchDataset } = useDatasetDetail(bucket, name);
 
   // ==========================================================================
-  // URL state: path, version, selected file
+  // URL state: path, version (datasets only), selected file
   // ==========================================================================
 
   const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
 
   // ==========================================================================
-  // File listing — fetch full manifest for selected version, filter client-side
+  // Resolve location + files based on type
   // ==========================================================================
 
-  // Determine which version to show files for
-  const sortedVersions = useMemo(
-    () => [...versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10)),
-    [versions],
-  );
-  const latestVersion = sortedVersions.at(-1) ?? null;
-  const currentVersionData = (version ? sortedVersions.find((v) => v.version === version) : null) ?? latestVersion;
-  const location = currentVersionData?.location ?? null;
+  const {
+    switcherItems,
+    location,
+    files: virtualFiles,
+    memberSubPath,
+    segmentLabels,
+  } = useMemo(() => {
+    if (!detail) {
+      return {
+        switcherItems: [] as SwitcherItem[],
+        location: null as string | null,
+        files: null as DatasetFile[] | null,
+        memberSubPath: "",
+        segmentLabels: {} as Record<string, string>,
+      };
+    }
+
+    if (detail.type === DatasetType.DATASET) {
+      const sorted = [...detail.versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10));
+      const latestVersion = sorted.at(-1) ?? null;
+      const items: SwitcherItem[] = sorted.map((v) => ({
+        id: v.version,
+        label: `v${v.version}`,
+        isLatest: v.version === latestVersion?.version,
+      }));
+      const currentVersionData = (version ? sorted.find((v) => v.version === version) : null) ?? latestVersion;
+      return {
+        switcherItems: items,
+        location: currentVersionData?.location ?? null,
+        files: null,
+        memberSubPath: path,
+        segmentLabels: {},
+      };
+    }
+
+    // COLLECTION
+    // Build segment label map: memberId → "name v{version}"
+    const labels: Record<string, string> = {};
+    for (const m of detail.members) {
+      labels[m.id] = `${m.name} v${m.version}`;
+    }
+
+    if (!path) {
+      // Collection root: show member datasets as virtual top-level entries
+      const memberEntries: DatasetFile[] = detail.members.map((m) => ({
+        name: m.id,
+        type: "dataset-member" as const,
+        label: `${m.name} v${m.version}`,
+        size: m.size,
+      }));
+      return {
+        switcherItems: [] as SwitcherItem[],
+        location: null,
+        files: memberEntries,
+        memberSubPath: "",
+        segmentLabels: labels,
+      };
+    }
+
+    // Inside a collection member: first path segment = member ID
+    const memberId = path.split("/")[0];
+    const member = detail.members.find((m) => m.id === memberId) ?? null;
+    const subPath = path.split("/").slice(1).join("/");
+    return {
+      switcherItems: [] as SwitcherItem[],
+      location: member?.location ?? null,
+      files: null,
+      memberSubPath: subPath,
+      segmentLabels: labels,
+    };
+  }, [detail, version, path]);
+
+  // ==========================================================================
+  // File listing — fetch manifest for selected version/member, filter client-side
+  // ==========================================================================
 
   const {
     data: rawFiles,
@@ -77,8 +153,11 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     refetch: refetchFiles,
   } = useDatasetFiles(location);
 
-  // Build directory listing for the current path from the flat file manifest
-  const files = useMemo(() => buildDirectoryListing(rawFiles ?? [], path), [rawFiles, path]);
+  // Build directory listing for the current path
+  const files = useMemo(
+    () => virtualFiles ?? buildDirectoryListing(rawFiles ?? [], memberSubPath),
+    [virtualFiles, rawFiles, memberSubPath],
+  );
 
   // ==========================================================================
   // File preview panel — side-by-side split with drag-to-resize
@@ -87,12 +166,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(35);
 
-  // Tracks which file path the user explicitly closed the preview for.
-  // Preview is considered open whenever selectedFile differs from this value.
-  // Selecting a new file (different path) automatically re-opens the preview.
-  // Escape two-step:
-  //   1st press: set closedForFile = selectedFile (hide preview, keep row highlighted)
-  //   2nd press: clearSelection() (deselect row entirely)
   const [closedForFile, setClosedForFile] = useState<string | null>(null);
   const previewPanelOpen = !!selectedFile && closedForFile !== selectedFile;
 
@@ -101,7 +174,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       setClosedForFile(selectedFile);
     } else {
       clearSelection();
-      // Blur the focused row so the focus ring disappears after full deselection
       if (document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
@@ -116,7 +188,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     containerRef,
   });
 
-  // Resolve the DatasetFile object for the selected file path.
   const selectedFileData = useMemo(() => {
     if (!selectedFile) return null;
     const fileName = selectedFile.split("/").pop() ?? "";
@@ -150,30 +221,34 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // Chrome: breadcrumbs + inline path + controls
   // ==========================================================================
 
-  // Memoize ReactNode values used in usePage to avoid unnecessary effect re-runs
+  // For collections, don't pass rawFiles to breadcrumb (disables sibling popovers
+  // which don't make sense for member-level segments)
+  const breadcrumbRawFiles = detail?.type === DatasetType.COLLECTION ? undefined : (rawFiles ?? undefined);
+
   const breadcrumbTrail = useMemo(
     () => (
       <FileBrowserBreadcrumb
         datasetName={name}
         path={path}
         onNavigate={navigateTo}
-        rawFiles={rawFiles ?? undefined}
+        rawFiles={breadcrumbRawFiles}
+        segmentLabels={Object.keys(segmentLabels).length > 0 ? segmentLabels : undefined}
       />
     ),
-    [name, path, navigateTo, rawFiles],
+    [name, path, navigateTo, breadcrumbRawFiles, segmentLabels],
   );
 
   const headerControls = useMemo(
     () => (
       <FileBrowserControls
-        versions={versions}
-        selectedVersion={version}
-        onVersionChange={setVersion}
+        items={switcherItems}
+        selectedId={version}
+        onSelectionChange={setVersion}
         detailsOpen={isPanelOpen}
         onToggleDetails={handleToggleDetails}
       />
     ),
-    [versions, version, setVersion, isPanelOpen, handleToggleDetails],
+    [switcherItems, version, setVersion, isPanelOpen, handleToggleDetails],
   );
 
   usePage({
@@ -187,7 +262,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   });
 
   // ==========================================================================
-  // Error state — dataset failed to load
+  // Error state — dataset/collection failed to load
   // ==========================================================================
 
   if (datasetError) {
@@ -207,7 +282,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     );
   }
 
-  if (!dataset) {
+  if (!detail) {
     return null; // Loading state handled by skeleton
   }
 
@@ -236,7 +311,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       onNavigateUp={handleNavigateUp}
       onClearSelection={handleClearSelection}
       previewOpen={previewPanelOpen}
-      isLoading={isFilesLoading}
+      isLoading={isFilesLoading && !virtualFiles}
     />
   );
 
@@ -246,7 +321,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* File browser + file preview panel side-by-side */}
       <InlineErrorBoundary
         title="Unable to display file browser"
         resetKeys={[files.length]}
@@ -256,13 +330,10 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           ref={containerRef}
           className="flex min-h-0 flex-1 overflow-hidden"
         >
-          {/* File browser — shrinks to give space to preview panel */}
           <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
 
-          {/* Drag handle + preview panel — only mounted when a file is selected */}
           {previewPanelOpen && (
             <>
-              {/* Thin drag separator */}
               <div
                 {...bindResizeHandle()}
                 className={cn(

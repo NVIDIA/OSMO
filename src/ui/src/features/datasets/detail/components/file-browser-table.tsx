@@ -25,7 +25,7 @@
 
 import { useMemo, useCallback, memo, useRef, useEffect } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Folder, File, FileText, FileImage, FileVideo, Copy } from "lucide-react";
+import { Folder, File, FileText, FileImage, FileVideo, Copy, Database } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton } from "@/components/data-table/table-states";
@@ -65,7 +65,15 @@ interface FileBrowserTableProps {
 // File icon helper
 // =============================================================================
 
-function FileIcon({ name, type }: { name: string; type: "file" | "folder" }) {
+function FileIcon({ name, type }: { name: string; type: DatasetFile["type"] }) {
+  if (type === "dataset-member") {
+    return (
+      <Database
+        className="size-4 shrink-0 text-emerald-500"
+        aria-hidden="true"
+      />
+    );
+  }
   if (type === "folder") {
     return (
       <Folder
@@ -153,7 +161,8 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       accessorKey: "name",
       header: "Name",
       cell: ({ row }) => {
-        const { name, type, s3Path } = row.original;
+        const { name, type, label, s3Path } = row.original;
+        const displayName = label ?? name;
         return (
           <span className="flex w-full min-w-0 items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2">
@@ -163,11 +172,11 @@ function createColumns(): ColumnDef<DatasetFile>[] {
               />
               {type === "file" ? (
                 <MidTruncate
-                  text={name}
+                  text={displayName}
                   className="text-sm text-zinc-900 dark:text-zinc-100"
                 />
               ) : (
-                <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{name}</span>
+                <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{displayName}</span>
               )}
             </span>
             {type === "file" && s3Path && <CopyPathButton s3Path={s3Path} />}
@@ -181,9 +190,10 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       header: "Size",
       cell: ({ row }) => {
         const { size, type } = row.original;
-        if (type === "folder" || size === undefined) {
+        if (type === "folder" || (type !== "dataset-member" && size === undefined)) {
           return <span className="text-sm text-zinc-400 dark:text-zinc-600">—</span>;
         }
+        if (size === undefined) return <span className="text-sm text-zinc-400 dark:text-zinc-600">—</span>;
         return (
           <span className="text-sm text-zinc-600 dark:text-zinc-400">{formatBytes(size / 1024 ** 3).display}</span>
         );
@@ -195,6 +205,9 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       header: "Type",
       cell: ({ row }) => {
         const { name, type } = row.original;
+        if (type === "dataset-member") {
+          return <span className="text-sm text-zinc-500 dark:text-zinc-400">Dataset</span>;
+        }
         if (type === "folder") {
           return <span className="text-sm text-zinc-500 dark:text-zinc-400">Folder</span>;
         }
@@ -223,12 +236,14 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   const compactMode = useCompactMode();
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
-  // Sort: folders first, then files — both groups sorted alphabetically
+  // Sort: dataset-members first, then folders, then files — each group alphabetically
   const sortedFiles = useMemo(
     () =>
       [...files].sort((a, b) => {
-        if (a.type !== b.type) return a.type === "folder" ? -1 : 1;
-        return a.name.localeCompare(b.name);
+        const rank = (t: DatasetFile["type"]) => (t === "dataset-member" ? 0 : t === "folder" ? 1 : 2);
+        const diff = rank(a.type) - rank(b.type);
+        if (diff !== 0) return diff;
+        return (a.label ?? a.name).localeCompare(b.label ?? b.name);
       }),
     [files],
   );
@@ -236,10 +251,10 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   // Row ID = full path so it matches selectedFile from URL state
   const getRowId = useCallback((file: DatasetFile) => (path ? `${path}/${file.name}` : file.name), [path]);
 
-  // Single click: folders navigate, files select
+  // Single click: folders and dataset-members navigate, files select
   const handleRowClick = useCallback(
     (file: DatasetFile) => {
-      if (file.type === "folder") {
+      if (file.type === "folder" || file.type === "dataset-member") {
         const newPath = path ? `${path}/${file.name}` : file.name;
         onNavigate(newPath);
       } else {
@@ -264,9 +279,9 @@ export const FileBrowserTable = memo(function FileBrowserTable({
 
     const raf = requestAnimationFrame(() => {
       // aria-rowindex is 1-based: header=1, first data row=2.
-    // Select by aria-rowindex rather than tabindex="0" so that stale focusedRowIndex
-    // state from the previous directory doesn't cause a non-first row to be focused.
-    const firstRow = tableAreaRef.current?.querySelector<HTMLElement>('[aria-rowindex="2"]');
+      // Select by aria-rowindex rather than tabindex="0" so that stale focusedRowIndex
+      // state from the previous directory doesn't cause a non-first row to be focused.
+      const firstRow = tableAreaRef.current?.querySelector<HTMLElement>('[aria-rowindex="2"]');
       firstRow?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(raf);
@@ -276,7 +291,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   // or when preview is closed (avoids opening it unexpectedly during j/k navigation)
   const handleFocusedRowChange = useCallback(
     (file: DatasetFile | null) => {
-      if (!file || file.type !== "file") return;
+      if (!file || file.type !== "file") return; // folders and dataset-members are not previewable
       if (!previewOpen) return;
       const filePath = path ? `${path}/${file.name}` : file.name;
       onSelectFile(filePath);

@@ -159,6 +159,8 @@ interface FileBrowserBreadcrumbProps {
   onNavigate: (path: string) => void;
   /** Full flat file manifest — enables sibling folder popovers when provided */
   rawFiles?: RawFileItem[];
+  /** Optional display labels for path segments (e.g., member ID → "imagenet-1k v2") */
+  segmentLabels?: Record<string, string>;
 }
 
 /**
@@ -171,6 +173,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
   path,
   onNavigate,
   rawFiles,
+  segmentLabels,
 }: FileBrowserBreadcrumbProps) {
   const segments = path ? path.split("/").filter(Boolean) : [];
 
@@ -223,6 +226,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
         const segmentPath = segments.slice(0, absoluteIndex + 1).join("/");
         const parentPath = segments.slice(0, absoluteIndex).join("/");
 
+        const displaySegment = segmentLabels?.[segment] ?? segment;
         return (
           <span
             key={segmentPath}
@@ -245,7 +249,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
                 className="min-w-0 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100"
                 aria-current="page"
               >
-                {segment}
+                {displaySegment}
               </span>
             ) : (
               <button
@@ -253,7 +257,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
                 onClick={() => onNavigate(segmentPath)}
                 className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
               >
-                {segment}
+                {displaySegment}
               </button>
             )}
           </span>
