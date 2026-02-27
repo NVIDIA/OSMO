@@ -75,6 +75,9 @@ export function Header() {
           />
         ))}
 
+        {/* Inline breadcrumbs — flows in the nav without extra margin (e.g. file browser path) */}
+        {pageConfig?.trailingBreadcrumbs}
+
         {/* Current page title */}
         {pageConfig?.title && (
           <>
@@ -86,12 +89,11 @@ export function Header() {
           </>
         )}
 
-        {/* Custom header actions from page */}
-        {pageConfig?.headerActions && <div className="ml-4 flex items-center">{pageConfig.headerActions}</div>}
       </nav>
 
-      {/* Right: Theme, User */}
+      {/* Right: Custom page actions, Theme, User */}
       <div className="flex items-center gap-2">
+        {pageConfig?.headerActions}
         <ThemeToggle />
 
         {/* User menu */}

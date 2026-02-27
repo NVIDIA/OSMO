@@ -29,7 +29,8 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
-import { FileBrowserHeader } from "@/features/datasets/detail/components/file-browser-header";
+import { FileBrowserBreadcrumb } from "@/features/datasets/detail/components/file-browser-breadcrumb";
+import { FileBrowserControls } from "@/features/datasets/detail/components/file-browser-controls";
 import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
 import { FilePreviewPanel } from "@/features/datasets/detail/components/file-preview-panel";
 import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
@@ -121,16 +122,43 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   }, [refetchFiles]);
 
   // ==========================================================================
-  // Chrome: page title + breadcrumbs
+  // Chrome: breadcrumbs + inline path + controls
   // ==========================================================================
 
+  // Memoize ReactNode values used in usePage to avoid unnecessary effect re-runs
+  const breadcrumbTrail = useMemo(
+    () => (
+      <FileBrowserBreadcrumb
+        datasetName={name}
+        path={path}
+        onNavigate={navigateTo}
+        rawFiles={rawFiles ?? undefined}
+      />
+    ),
+    [name, path, navigateTo, rawFiles],
+  );
+
+  const headerControls = useMemo(
+    () => (
+      <FileBrowserControls
+        versions={versions}
+        selectedVersion={version}
+        onVersionChange={setVersion}
+        detailsOpen={isPanelOpen}
+        onToggleDetails={handleToggleDetails}
+      />
+    ),
+    [versions, version, setVersion, isPanelOpen, handleToggleDetails],
+  );
+
   usePage({
-    title: "Files",
+    title: "",
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
-      { label: name, href: null },
     ],
+    trailingBreadcrumbs: breadcrumbTrail,
+    headerActions: headerControls,
   });
 
   // ==========================================================================
@@ -190,24 +218,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Sticky header: breadcrumb + version nav + details toggle */}
-      <InlineErrorBoundary
-        title="File browser header error"
-        compact
-      >
-        <FileBrowserHeader
-          datasetName={name}
-          path={path}
-          versions={versions}
-          selectedVersion={version}
-          onNavigate={navigateTo}
-          onVersionChange={setVersion}
-          detailsOpen={isPanelOpen}
-          onToggleDetails={handleToggleDetails}
-          rawFiles={rawFiles ?? undefined}
-        />
-      </InlineErrorBoundary>
-
       {/* File browser + file preview panel side-by-side */}
       <InlineErrorBoundary
         title="Unable to display file browser"

@@ -15,11 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * FileBrowserBreadcrumb — Full-path navigation breadcrumb for the dataset file browser.
+ * FileBrowserBreadcrumb — In-browser path navigation for the dataset file browser.
  *
- * Renders: Home > Datasets > datasetName > segment > segment > ...
+ * Renders: > datasetName > segment > segment > ...
  *
- * - Home and Datasets are page-level links (router.push)
+ * Designed to be placed in the chrome header's `trailingBreadcrumbs` slot (inline in the nav
+ * after the standard page breadcrumbs). The leading ChevronRight is included so it flows
+ * seamlessly after "bucket" in the breadcrumb trail.
+ *
  * - Dataset name links to file browser root (path="")
  * - Each path segment opens a popover listing sibling folders (when rawFiles provided)
  * - Deep paths (> 2 segments) collapse to: datasetName > … > parent > current
@@ -32,7 +35,6 @@ import { Button } from "@/components/shadcn/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { ChevronRight, Folder, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
 import type { RawFileItem } from "@/lib/api/adapter/datasets";
 
@@ -159,13 +161,17 @@ interface FileBrowserBreadcrumbProps {
   rawFiles?: RawFileItem[];
 }
 
+/**
+ * Renders the dataset name + path segments as inline breadcrumb items.
+ * Includes a leading ChevronRight separator so it flows after the preceding chrome breadcrumbs.
+ * Intended to be placed in the `trailingBreadcrumbs` slot of `usePage()`.
+ */
 export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
   datasetName,
   path,
   onNavigate,
   rawFiles,
 }: FileBrowserBreadcrumbProps) {
-  const router = useNavigationRouter();
   const segments = path ? path.split("/").filter(Boolean) : [];
 
   // When deeply nested, show only the last COLLAPSE_THRESHOLD segments
@@ -174,60 +180,35 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
   const visibleOffset = collapsed ? segments.length - COLLAPSE_THRESHOLD : 0;
 
   return (
-    <nav
-      aria-label="File browser path"
-      className="flex min-w-0 items-center gap-0.5 overflow-hidden text-sm"
-    >
-      {/* Home */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 shrink-0 px-2 text-zinc-500 dark:text-zinc-400"
-        onClick={() => router.push("/")}
-      >
-        Home
-      </Button>
-
+    <>
+      {/* Separator between preceding chrome breadcrumbs and dataset name */}
       <ChevronRight
-        className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
+        className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
         aria-hidden="true"
       />
 
-      {/* Datasets page */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 shrink-0 px-2 text-zinc-500 dark:text-zinc-400"
-        onClick={() => router.push("/datasets")}
-      >
-        Datasets
-      </Button>
-
-      <ChevronRight
-        className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
-        aria-hidden="true"
-      />
-
-      {/* Dataset name — links to file browser root */}
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 shrink-0 px-2 font-medium text-zinc-900 dark:text-zinc-100"
-        onClick={() => onNavigate("")}
-        aria-current={segments.length === 0 ? "page" : undefined}
-      >
-        {datasetName}
-      </Button>
+      {/* Dataset name — links to file browser root, or plain text if already at root */}
+      {segments.length === 0 ? (
+        <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{datasetName}</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onNavigate("")}
+          className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        >
+          {datasetName}
+        </button>
+      )}
 
       {/* Ellipsis when deep path is collapsed */}
       {collapsed && (
         <>
           <ChevronRight
-            className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
+            className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
             aria-hidden="true"
           />
           <span
-            className="shrink-0 px-1.5 text-zinc-400 dark:text-zinc-600"
+            className="shrink-0 px-1 text-zinc-400 dark:text-zinc-600"
             aria-label="collapsed path segments"
           >
             …
@@ -245,10 +226,10 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
         return (
           <span
             key={segmentPath}
-            className="flex min-w-0 items-center gap-0.5"
+            className="flex min-w-0 items-center gap-1.5"
           >
             <ChevronRight
-              className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
+              className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
               aria-hidden="true"
             />
             {rawFiles && isLast ? (
@@ -261,24 +242,23 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
               />
             ) : isLast ? (
               <span
-                className="truncate px-2 py-1 font-medium text-zinc-900 dark:text-zinc-100"
+                className="min-w-0 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100"
                 aria-current="page"
               >
                 {segment}
               </span>
             ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 min-w-0 shrink-0 truncate px-2 text-zinc-600 dark:text-zinc-400"
+              <button
+                type="button"
                 onClick={() => onNavigate(segmentPath)}
+                className="truncate text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
               >
                 {segment}
-              </Button>
+              </button>
             )}
           </span>
         );
       })}
-    </nav>
+    </>
   );
 });
