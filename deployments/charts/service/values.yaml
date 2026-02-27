@@ -1401,11 +1401,6 @@ sidecars:
       ##
       address: 127.0.0.1
 
-    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
-    ##
-    oauth2Filter:
-      enabled: false
-
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:
@@ -1422,7 +1417,7 @@ sidecars:
       ##   audience: osmo-device
       ##   jwks_uri: https://auth-name.osmo.nvidia.com/realms/osmo/protocol/openid-connect/certs
       ##   user_claim: preferred_username
-      ##   cluster: oauth
+      ##   cluster: idp
       ##
       ## An example when using Microsoft Azure AD is:
       ##
