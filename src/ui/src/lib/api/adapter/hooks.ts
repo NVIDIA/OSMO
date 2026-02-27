@@ -408,7 +408,6 @@ import {
   usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost,
   usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost,
   useGetUsersApiUsersGet,
-  type getUsersApiUsersGetResponse,
 } from "@/lib/api/generated";
 
 type WorkflowQueryData = getWorkflowApiWorkflowNameGetResponse;
