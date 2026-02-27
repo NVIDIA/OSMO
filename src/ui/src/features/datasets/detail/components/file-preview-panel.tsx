@@ -23,9 +23,9 @@
  *
  * - image/* → <img> via proxy
  * - video/* → <video controls> via proxy
- * - other  → "preview unavailable" with copy-path hint
- * - 401/403 → lock icon + "bucket must be public" error + copy-path button
- * - 404    → "file not found" error + copy-path button
+ * - other  → "preview unavailable" message
+ * - 401/403 → lock icon + "bucket must be public" error
+ * - 404    → "file not found" error
  * - No URL → metadata-only view
  */
 
@@ -43,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeFull } from "@/lib/format-date";
 import { useCopy } from "@/hooks/use-copy";
+import { getBasePathUrl } from "@/lib/config";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
@@ -66,7 +67,7 @@ interface HeadResult {
 // =============================================================================
 
 function toProxyUrl(url: string): string {
-  return `/api/datasets/file-proxy?url=${encodeURIComponent(url)}`;
+  return getBasePathUrl(`/api/datasets/file-proxy?url=${encodeURIComponent(url)}`);
 }
 
 async function fetchHeadResult(url: string): Promise<HeadResult> {
@@ -92,16 +93,10 @@ function PreviewError({
   message,
   icon = "alert",
   onRetry,
-  onCopyPath,
-  copyPath,
-  copied = false,
 }: {
   message: string;
   icon?: "alert" | "lock";
   onRetry?: () => void;
-  onCopyPath?: () => void;
-  copyPath?: string;
-  copied?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
@@ -117,26 +112,6 @@ function PreviewError({
         />
       )}
       <p className="max-w-xs text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
-      {onCopyPath && copyPath && (
-        <Tooltip open={copied}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onCopyPath}
-              className="gap-1.5"
-              aria-label={`Copy path: ${copyPath}`}
-            >
-              <Copy
-                className="size-3.5"
-                aria-hidden="true"
-              />
-              Copy path
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Copied!</TooltipContent>
-        </Tooltip>
-      )}
       {onRetry && (
         <Button
           variant="outline"
@@ -244,15 +219,26 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
         <video
+          key={proxyUrl}
           src={proxyUrl}
           controls
+          autoPlay
+          loop
           className="max-h-full max-w-full rounded"
         />
       </div>
     );
   }
 
-  if (contentType.startsWith("text/")) {
+  if (
+    contentType.startsWith("text/") ||
+    contentType.includes("json") ||
+    contentType.includes("xml") ||
+    contentType.includes("yaml") ||
+    contentType.startsWith("application/javascript") ||
+    contentType.startsWith("application/x-sh") ||
+    contentType.startsWith("application/x-python")
+  ) {
     return (
       <TextPreview
         url={proxyUrl}
@@ -277,10 +263,12 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
 export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
   const { copied, copy } = useCopy();
   const fullPath = path ? `${path}/${file.name}` : file.name;
+  // Copy S3 URI when available; fall back to relative path
+  const copyTarget = file.s3Path ?? fullPath;
 
   const handleCopyPath = useCallback(() => {
-    void copy(fullPath);
-  }, [copy, fullPath]);
+    void copy(copyTarget);
+  }, [copy, copyTarget]);
 
   // HEAD preflight — only when we have a URL to check
   const {
@@ -316,7 +304,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-xs"
                   onClick={handleCopyPath}
-                  aria-label={`Copy path: ${fullPath}`}
+                  aria-label={`Copy path: ${copyTarget}`}
                 >
                   <Copy
                     className="size-3.5"
@@ -354,20 +342,10 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <PreviewError
             icon="lock"
             message="The bucket must be public to preview files. Contact your administrator to enable public access."
-            onCopyPath={handleCopyPath}
-            copyPath={fullPath}
-            copied={copied}
           />
         )}
 
-        {showPreview && notFound && (
-          <PreviewError
-            message="File not found at this path."
-            onCopyPath={handleCopyPath}
-            copyPath={fullPath}
-            copied={copied}
-          />
-        )}
+        {showPreview && notFound && <PreviewError message="File not found at this path." />}
 
         {showPreview && previewReady && (
           <PreviewContent

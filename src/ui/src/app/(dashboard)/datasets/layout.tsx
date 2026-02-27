@@ -15,22 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Hook for fetching dataset or collection detail data.
+ * Datasets Route Layout
  *
- * Returns `detail` as a discriminated union — callers narrow via `detail.type`.
+ * Mounts the shared dataset details panel for all /datasets/** pages.
+ * The panel persists across navigation between the list and detail pages
+ * so it does not close/reopen when the user clicks "Browse files" or a version.
  */
 
-"use client";
+import { DatasetsPanelLayout } from "@/features/datasets/layout/datasets-panel-layout";
 
-import { useDataset } from "@/lib/api/adapter/datasets-hooks";
-
-export function useDatasetDetail(bucket: string, name: string) {
-  const { data, isLoading, error, refetch } = useDataset(bucket, name);
-
-  return {
-    detail: data,
-    isLoading,
-    error,
-    refetch,
-  };
+export default function DatasetsLayout({ children }: { children: React.ReactNode }) {
+  return <DatasetsPanelLayout>{children}</DatasetsPanelLayout>;
 }

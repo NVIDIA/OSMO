@@ -15,58 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dataset File Proxy
- *
- * Server-side proxy for fetching dataset files from storage URLs.
- * Routes requests through the server to avoid CSP restrictions.
- *
- * GET /api/datasets/file-proxy?url={encodedFileUrl}  → streams file content
- * HEAD /api/datasets/file-proxy?url={encodedFileUrl} → returns headers only
+ * Dataset File Proxy (Thin Wrapper)
+ * Re-exports from route.impl.ts (aliased to route.impl.production.ts in prod builds).
  */
-
-const FORWARDED_HEADERS = ["content-type", "content-length", "last-modified", "etag", "cache-control"] as const;
-
-function parseAndValidateUrl(request: Request): { url: string } | Response {
-  const { searchParams } = new URL(request.url);
-  const url = searchParams.get("url");
-
-  if (!url) {
-    return Response.json({ error: "url parameter is required" }, { status: 400 });
-  }
-
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return Response.json({ error: "Only http/https URLs are supported" }, { status: 400 });
-  }
-
-  return { url };
-}
-
-export async function GET(request: Request) {
-  const result = parseAndValidateUrl(request);
-  if (result instanceof Response) return result;
-
-  const upstream = await fetch(result.url);
-
-  const headers = new Headers();
-  for (const header of FORWARDED_HEADERS) {
-    const value = upstream.headers.get(header);
-    if (value) headers.set(header, value);
-  }
-
-  return new Response(upstream.body, { status: upstream.status, headers });
-}
-
-export async function HEAD(request: Request) {
-  const result = parseAndValidateUrl(request);
-  if (result instanceof Response) return result;
-
-  const upstream = await fetch(result.url, { method: "HEAD" });
-
-  const headers = new Headers();
-  for (const header of FORWARDED_HEADERS) {
-    const value = upstream.headers.get(header);
-    if (value) headers.set(header, value);
-  }
-
-  return new Response(null, { status: upstream.status, headers });
-}
+export * from "@/app/api/datasets/file-proxy/route.impl";

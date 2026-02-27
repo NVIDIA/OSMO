@@ -15,22 +15,26 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Hook for fetching dataset or collection detail data.
+ * Datasets panel store — ephemeral state for the layout-level dataset details panel.
  *
- * Returns `detail` as a discriminated union — callers narrow via `detail.type`.
+ * Tracks which dataset (bucket + name) is selected and whether the panel is open.
+ * Not persisted — resets on page reload.
  */
 
-"use client";
+import { create } from "zustand";
 
-import { useDataset } from "@/lib/api/adapter/datasets-hooks";
-
-export function useDatasetDetail(bucket: string, name: string) {
-  const { data, isLoading, error, refetch } = useDataset(bucket, name);
-
-  return {
-    detail: data,
-    isLoading,
-    error,
-    refetch,
-  };
+interface DatasetsPanelState {
+  bucket: string | null;
+  name: string | null;
+  isOpen: boolean;
+  open: (bucket: string, name: string) => void;
+  close: () => void;
 }
+
+export const useDatasetsPanel = create<DatasetsPanelState>((set) => ({
+  bucket: null,
+  name: null,
+  isOpen: false,
+  open: (bucket, name) => set({ bucket, name, isOpen: true }),
+  close: () => set({ isOpen: false }),
+}));
