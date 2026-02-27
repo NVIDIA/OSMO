@@ -29,7 +29,7 @@
 
 "use client";
 
-import { useState, useCallback, memo } from "react";
+import { useState, useCallback, memo, useRef, useEffect } from "react";
 import { useMediaQuery } from "@react-hookz/web";
 import { XCircle, Info } from "lucide-react";
 import { toast } from "sonner";
@@ -52,8 +52,8 @@ export interface CancelWorkflowDialogProps {
   open: boolean;
   /** Callback when dialog open state changes */
   onOpenChange: (open: boolean) => void;
-  /** Optional refetch function for manual refresh in toast */
-  onRefetch?: () => void;
+  /** Called automatically after mutation success; secondary toast shown only on failure */
+  onRefetch?: () => Promise<{ status: "error" | "success" | "pending" }> | void;
 }
 
 // =============================================================================
@@ -183,6 +183,14 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
 }: CancelWorkflowDialogProps) {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
+  // Guard: prevents stale toast from firing after unmount/navigation
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // Track how many times the dialog has opened so CancelWorkflowContent can be keyed.
   // Using "setState during render" (React-approved pattern) instead of useEffect to avoid
   // the react-hooks/set-state-in-effect lint rule and cascading renders.
@@ -195,21 +203,27 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
 
   const { execute, isPending, error, resetError } = useServerMutation(cancelWorkflow, {
     onSuccess: () => {
-      // Show success toast with manual refresh action
-      toast.success("Workflow cancellation initiated", {
-        action: onRefetch
-          ? {
-              label: "Refresh",
-              onClick: onRefetch,
-            }
-          : undefined,
-      });
+      // Phase 1: Mutation confirmed — immediate, no doubt implied
+      toast.success("Cancellation request accepted");
 
       // Only close — no state resets here. CancelWorkflowContent remounts fresh on next open
       // via the openCount key, preventing re-renders during the exit animation (which caused flashing).
       onOpenChange(false);
+
+      // Phase 2: Background refresh — secondary toast only on failure
+      const maybePromise = onRefetch?.();
+      if (!maybePromise) return;
+
+      maybePromise.then((result) => {
+        if (!isMountedRef.current) return;
+        if (result.status === "error") {
+          toast.warning("Cancellation accepted — status couldn't refresh automatically", {
+            action: { label: "Retry", onClick: () => void onRefetch?.() },
+          });
+        }
+      });
     },
-    successMessage: "Workflow cancellation initiated",
+    successMessage: "Cancellation request accepted",
     errorMessagePrefix: "Failed to cancel workflow",
   });
 

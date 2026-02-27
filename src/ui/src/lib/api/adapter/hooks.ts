@@ -429,7 +429,7 @@ interface UseWorkflowReturn {
   workflow: WorkflowQueryResponse | null;
   isLoading: boolean;
   error: Error | null;
-  refetch: () => void;
+  refetch: () => Promise<{ status: "error" | "success" | "pending" }>;
   isNotFound: boolean;
 }
 
