@@ -43,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeFull } from "@/lib/format-date";
 import { useCopy } from "@/hooks/use-copy";
+import { getBasePathUrl } from "@/lib/config";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
@@ -66,7 +67,7 @@ interface HeadResult {
 // =============================================================================
 
 function toProxyUrl(url: string): string {
-  return `/api/datasets/file-proxy?url=${encodeURIComponent(url)}`;
+  return getBasePathUrl(`/api/datasets/file-proxy?url=${encodeURIComponent(url)}`);
 }
 
 async function fetchHeadResult(url: string): Promise<HeadResult> {
@@ -252,7 +253,15 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
     );
   }
 
-  if (contentType.startsWith("text/")) {
+  if (
+    contentType.startsWith("text/") ||
+    contentType.includes("json") ||
+    contentType.includes("xml") ||
+    contentType.includes("yaml") ||
+    contentType.startsWith("application/javascript") ||
+    contentType.startsWith("application/x-sh") ||
+    contentType.startsWith("application/x-python")
+  ) {
     return (
       <TextPreview
         url={proxyUrl}
@@ -277,10 +286,12 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
 export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
   const { copied, copy } = useCopy();
   const fullPath = path ? `${path}/${file.name}` : file.name;
+  // Copy S3 URI when available; fall back to relative path
+  const copyTarget = file.s3Path ?? fullPath;
 
   const handleCopyPath = useCallback(() => {
-    void copy(fullPath);
-  }, [copy, fullPath]);
+    void copy(copyTarget);
+  }, [copy, copyTarget]);
 
   // HEAD preflight — only when we have a URL to check
   const {
@@ -316,7 +327,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
                   size="sm"
                   className="h-7 gap-1.5 px-2 text-xs"
                   onClick={handleCopyPath}
-                  aria-label={`Copy path: ${fullPath}`}
+                  aria-label={`Copy path: ${copyTarget}`}
                 >
                   <Copy
                     className="size-3.5"
@@ -355,7 +366,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
             icon="lock"
             message="The bucket must be public to preview files. Contact your administrator to enable public access."
             onCopyPath={handleCopyPath}
-            copyPath={fullPath}
+            copyPath={copyTarget}
             copied={copied}
           />
         )}
@@ -364,7 +375,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <PreviewError
             message="File not found at this path."
             onCopyPath={handleCopyPath}
-            copyPath={fullPath}
+            copyPath={copyTarget}
             copied={copied}
           />
         )}
