@@ -29,14 +29,11 @@ import { Folder, File, FileText, FileImage, FileVideo, Copy } from "lucide-react
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton } from "@/components/data-table/table-states";
-import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";
 import { useCopy } from "@/hooks/use-copy";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
-import { remToPx } from "@/components/data-table/utils/column-sizing";
-import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
 import { MidTruncate } from "@/components/mid-truncate";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 
@@ -105,7 +102,7 @@ function FileIcon({ name, type }: { name: string; type: "file" | "folder" }) {
 }
 
 // =============================================================================
-// Copy path button (always visible, copies S3 URI)
+// Copy path button (inline in name cell, copies S3 URI)
 // =============================================================================
 
 function CopyPathButton({ s3Path }: { s3Path: string }) {
@@ -120,22 +117,21 @@ function CopyPathButton({ s3Path }: { s3Path: string }) {
   );
 
   return (
-    <Tooltip open={copied}>
+    <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 w-6 p-0"
+        <button
+          type="button"
           onClick={handleCopy}
+          className="shrink-0 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
           aria-label={`Copy S3 path: ${s3Path}`}
         >
           <Copy
             className="size-3.5"
             aria-hidden="true"
           />
-        </Button>
+        </button>
       </TooltipTrigger>
-      <TooltipContent>Copied!</TooltipContent>
+      <TooltipContent>{copied ? "Copied!" : "Copy path"}</TooltipContent>
     </Tooltip>
   );
 }
@@ -147,38 +143,28 @@ function CopyPathButton({ s3Path }: { s3Path: string }) {
 function createColumns(): ColumnDef<DatasetFile>[] {
   return [
     {
-      id: "_copy",
-      header: "",
-      enableResizing: false,
-      enableSorting: false,
-      size: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
-      meta: { cellClassName: "p-0" },
-      cell: ({ row }) => {
-        const { type, s3Path } = row.original;
-        if (type === "folder" || !s3Path) return null;
-        return <CopyPathButton s3Path={s3Path} />;
-      },
-    },
-    {
       id: "name",
       accessorKey: "name",
       header: "Name",
       cell: ({ row }) => {
-        const { name, type } = row.original;
+        const { name, type, s3Path } = row.original;
         return (
-          <span className="flex min-w-0 items-center gap-2">
-            <FileIcon
-              name={name}
-              type={type}
-            />
-            {type === "file" ? (
-              <MidTruncate
-                text={name}
-                className="text-sm text-zinc-900 dark:text-zinc-100"
+          <span className="flex w-full min-w-0 items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-2">
+              <FileIcon
+                name={name}
+                type={type}
               />
-            ) : (
-              <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{name}</span>
-            )}
+              {type === "file" ? (
+                <MidTruncate
+                  text={name}
+                  className="text-sm text-zinc-900 dark:text-zinc-100"
+                />
+              ) : (
+                <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{name}</span>
+              )}
+            </span>
+            {type === "file" && s3Path && <CopyPathButton s3Path={s3Path} />}
           </span>
         );
       },
