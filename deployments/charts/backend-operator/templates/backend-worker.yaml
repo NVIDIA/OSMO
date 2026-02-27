@@ -103,7 +103,7 @@ spec:
         - --metrics_otel_collector_component
         - {{ $name }}-{{ .Values.services.backendWorker.serviceName }}
         - --metrics_otel_enable
-        - {{ .Values.sidecars.OTEL.enabled | quote }}
+        - '{{ .Values.sidecars.OTEL.enabled }}'
         - --metrics_otel_collector_host
         - '{{ .Values.sidecars.OTEL.host }}'
         - --metrics_otel_collector_port
