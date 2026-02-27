@@ -37,6 +37,7 @@ import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
+import { MidTruncate } from "@/components/mid-truncate";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
@@ -170,7 +171,14 @@ function createColumns(): ColumnDef<DatasetFile>[] {
               name={name}
               type={type}
             />
-            <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{name}</span>
+            {type === "file" ? (
+              <MidTruncate
+                text={name}
+                className="text-sm text-zinc-900 dark:text-zinc-100"
+              />
+            ) : (
+              <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{name}</span>
+            )}
           </span>
         );
       },

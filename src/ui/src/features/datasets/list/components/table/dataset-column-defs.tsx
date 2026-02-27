@@ -20,6 +20,7 @@ import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
 import { formatBytes } from "@/lib/utils";
+import { MidTruncate } from "@/components/mid-truncate";
 import type { Dataset } from "@/lib/api/adapter/datasets";
 import {
   DATASET_COLUMN_SIZE_CONFIG,
@@ -67,9 +68,10 @@ export function createDatasetColumns({ onOpenPanel }: CreateDatasetColumnsOption
       minSize: getMinSize("name"),
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="truncate font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
-          {row.original.name}
-        </span>
+        <MidTruncate
+          text={row.original.name}
+          className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100"
+        />
       ),
     },
     {
