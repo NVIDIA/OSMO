@@ -104,13 +104,13 @@ Create secrets for the database and Redis:
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo
 
 
-Create the secret used by Envoy for the OAuth2 client secret and session signing (HMAC). Use the client secret from your IdP application registration:
+Create the secret used by OAuth2 Proxy for the client secret and session cookie encryption. Use the client secret from your IdP application registration:
 
 .. code-block:: bash
 
-   $ kubectl create secret generic oidc-secrets \
+   $ kubectl create secret generic oauth2-proxy-secrets \
      --from-literal=client_secret=<your-idp-client-secret> \
-     --from-literal=hmac_secret=$(openssl rand -base64 32) \
+     --from-literal=cookie_secret=$(openssl rand -base64 32) \
      --namespace osmo
 
 
@@ -209,14 +209,14 @@ Create a values file for each OSMO component.
 
    See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``oauth2Filter``, ``jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
+Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``oauth2Proxy``, ``jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
 
 .. dropdown:: ``osmo_values.yaml``
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 19-31, 38-52, 55-65, 141, 148-165, 170-195
+    :emphasize-lines: 4, 19-31, 38-46, 57, 148, 156-160, 192-202
 
     # Global configuration shared across all OSMO services
     global:
@@ -368,30 +368,16 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           hostname: <your-domain>
           address: 127.0.0.1
 
-        # OAuth2 filter configuration
-        # Set endpoints and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
-        oauth2Filter:
-          enabled: true
-          tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token  # (1)
-          authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize  # (2)
-          clientId: <client-id>  # (3)
-          redirectPath: api/auth/getAToken
-          logoutPath: logout
-          forwardBearerToken: true
-          secretName: oidc-secrets
-          clientSecretKey: client_secret
-          hmacSecretKey: hmac_secret
-
         # JWT validation: configure providers for your IdP and (if using access tokens) for OSMO-issued tokens
         jwt:
           user_header: x-osmo-user
           providers:
           # Example: Microsoft Entra ID. Add or replace with your IdP (see identity_provider_setup).
-          - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+          - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0  # (1)
             audience: <client-id>
             jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
             user_claim: preferred_username
-            cluster: oauth
+            cluster: idp
           # OSMO-issued JWTs (e.g. for access-token-based access)
           - issuer: osmo
             audience: osmo
@@ -421,10 +407,24 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
         #   serviceName: <your-redis-host>
         #   port: 6379
 
+      # OAuth2 Proxy sidecar configuration
+      # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
+      oauth2Proxy:
+        enabled: true
+        provider: oidc
+        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0  # (2)
+        clientId: <client-id>  # (3)
+        cookieDomain: .<your-domain>
+        scope: "openid email profile"
+        useKubernetesSecrets: true
+        secretName: oauth2-proxy-secrets
+        clientSecretKey: client_secret
+        cookieSecretKey: cookie_secret
+
   .. code-annotations::
 
-    1. Token endpoint from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
-    2. Authorization endpoint from your IdP.
+    1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
+    2. OIDC issuer URL from your IdP (same as the JWT issuer).
     3. Client ID from your IdP application registration.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
@@ -436,7 +436,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 22, 27-45, 57-60, 77, 84-87, 99-108, 119-120
+    :emphasize-lines: 4, 22, 29, 57-60, 77, 84-88, 99, 111-121
 
     # Global configuration shared across router services
     global:
@@ -516,19 +516,6 @@ Create ``router_values.yaml`` for router with the following sample configuration
         service:
           hostname: <your-domain>
 
-        # OAuth2 filter (when using an IdP for browser login). Set endpoints from your IdP; see identity_provider_setup.
-        oauth2Filter:
-          enabled: false
-          forwardBearerToken: true
-          tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token
-          authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
-          clientId: <client-id>
-          redirectPath: api/auth/getAToken
-          logoutPath: logout
-          secretName: oidc-secrets
-          clientSecretKey: client_secret
-          hmacSecretKey: hmac_secret
-
         # JWT validation: IdP provider(s) and OSMO-issued tokens
         jwt:
           enabled: true
@@ -538,7 +525,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
             audience: <client-id>
             jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
             user_claim: preferred_username
-            cluster: oauth
+            cluster: idp
           - issuer: osmo
             audience: osmo
             jwks_uri: http://osmo-service/api/auth/keys
@@ -560,6 +547,19 @@ Create ``router_values.yaml`` for router with the following sample configuration
         #     cluster: service
         #     timeout: 0s
 
+      # OAuth2 Proxy sidecar configuration
+      oauth2Proxy:
+        enabled: true
+        provider: oidc
+        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
+        clientId: <client-id>
+        cookieDomain: .<your-domain>
+        scope: "openid email profile"
+        useKubernetesSecrets: true
+        secretName: oauth2-proxy-secrets
+        clientSecretKey: client_secret
+        cookieSecretKey: cookie_secret
+
       # Log agent configuration (optional)
       logAgent:
         enabled: false
@@ -579,7 +579,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 10, 13-31, 49, 56-60, 70-79
+    :emphasize-lines: 4, 10, 15, 49, 57-61, 64-74
 
     # Global configuration shared across UI services
     global:
@@ -633,33 +633,28 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
           address: 127.0.0.1
           port: 8000
 
-        # OAuth2 filter configuration
-        oauth2Filter:
-          enabled: true
-          tokenEndpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/token
-          authEndpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/auth
-          redirectPath: getAToken
-          clientId: osmo-browser-flow
-          authProvider: auth-<your-domain>
-          logoutPath: logout
-          secretName: oidc-secrets
-          clientSecretKey: client_secret
-          hmacSecretKey: hmac_secret
-
         # JWT configuration
         jwt:
           user_header: x-osmo-user
           providers:
-          - issuer: https://auth-<your-domain>/realms/osmo
-            audience: osmo-device
-            jwks_uri: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/certs
-            user_claim: unique_name
-            cluster: oauth
-          - issuer: https://auth-<your-domain>/realms/osmo
-            audience: osmo-browser-flow
-            jwks_uri: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/certs
+          - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
+            audience: <client-id>
+            jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
             user_claim: preferred_username
-            cluster: oauth
+            cluster: idp
+
+      # OAuth2 Proxy sidecar configuration
+      oauth2Proxy:
+        enabled: true
+        provider: oidc
+        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
+        clientId: <client-id>
+        cookieDomain: .<your-domain>
+        scope: "openid email profile"
+        useKubernetesSecrets: true
+        secretName: oauth2-proxy-secrets
+        clientSecretKey: client_secret
+        cookieSecretKey: cookie_secret
 
       # Log agent configuration (optional only used for AWS CloudWatch)
       logAgent:

@@ -96,7 +96,7 @@ Microsoft Entra ID (Azure AD)
    * - Issuer
      - ``https://login.microsoftonline.com/<tenant-id>/v2.0``
 
-**Example Envoy-related Helm values:**
+**Example Helm values:**
 
 .. code-block:: yaml
 
@@ -105,17 +105,6 @@ Microsoft Entra ID (Azure AD)
        enabled: true
        service:
          hostname: <your-domain>
-       oauth2Filter:
-         enabled: true
-         tokenEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token
-         authEndpoint: https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/authorize
-         clientId: <client-id>
-         redirectPath: api/auth/getAToken
-         logoutPath: logout
-         forwardBearerToken: true
-         secretName: oidc-secrets
-         clientSecretKey: client_secret
-         hmacSecretKey: hmac_secret
        jwt:
          user_header: x-osmo-user
          providers:
@@ -123,7 +112,18 @@ Microsoft Entra ID (Azure AD)
            audience: <client-id>
            jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
            user_claim: preferred_username
-           cluster: oauth
+           cluster: idp
+     oauth2Proxy:
+       enabled: true
+       provider: oidc
+       oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
+       clientId: <client-id>
+       cookieDomain: .<your-domain>
+       scope: "openid email profile"
+       useKubernetesSecrets: true
+       secretName: oauth2-proxy-secrets
+       clientSecretKey: client_secret
+       cookieSecretKey: cookie_secret
 
 Google OAuth2
 =============

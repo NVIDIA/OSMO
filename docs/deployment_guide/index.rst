@@ -167,6 +167,7 @@ An OSMO deployment consists of two main components:
   appendix/deploy_local
   appendix/deploy_minimal
   appendix/workflow_execution
+  appendix/keycloak_setup
   appendix/authentication/index
 
 ..
