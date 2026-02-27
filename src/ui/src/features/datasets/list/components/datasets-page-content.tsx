@@ -49,7 +49,7 @@ import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { PANEL } from "@/components/panel/lib/panel-constants";
 import type { SearchChip } from "@/stores/types";
 import type { SortState } from "@/components/data-table/types";
-import type { Dataset } from "@/lib/api/adapter/datasets";
+import type { Dataset, DatasetVersion } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
 // Types
@@ -124,7 +124,7 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
       }),
   });
 
-  const handleRowSelect = useCallback(
+  const handleOpenPanel = useCallback(
     (dataset: Dataset) => {
       startViewTransition(() => {
         void setSelectedView(`${dataset.bucket}/${dataset.name}`);
@@ -133,13 +133,16 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
     [setSelectedView, startViewTransition],
   );
 
-  const handleRowDoubleClick = useCallback(
-    (dataset: Dataset) => {
+  const handleVersionClick = useCallback(
+    (version: DatasetVersion) => {
+      if (!selectedBucket || !selectedName) return;
       startViewTransition(() => {
-        router.push(`/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`);
+        router.push(
+          `/datasets/${encodeURIComponent(selectedBucket)}/${encodeURIComponent(selectedName)}?version=${version.version}`,
+        );
       });
     },
-    [router, startViewTransition],
+    [router, startViewTransition, selectedBucket, selectedName],
   );
 
   const selectedDatasetId = useMemo(() => {
@@ -216,8 +219,7 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
             onRetry={refetch}
             sorting={sortState}
             onSortingChange={handleSortingChange}
-            onRowSelect={handleRowSelect}
-            onRowDoubleClick={handleRowDoubleClick}
+            onOpenPanel={handleOpenPanel}
             selectedDatasetId={selectedDatasetId}
           />
         </InlineErrorBoundary>
@@ -248,6 +250,7 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
             bucket={selectedBucket}
             name={selectedName}
             onClose={handleClosePanel}
+            onVersionClick={handleVersionClick}
           />
         </InlineErrorBoundary>
       )}

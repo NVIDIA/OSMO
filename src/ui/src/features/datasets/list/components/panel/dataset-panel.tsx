@@ -23,12 +23,18 @@
 
 "use client";
 
+import { useCallback } from "react";
+import { FolderOpen } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button } from "@/components/shadcn/button";
 import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
 import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
+import { useViewTransition } from "@/hooks/use-view-transition";
 import { useDataset } from "@/lib/api/adapter/datasets-hooks";
 import { DatasetPanelDetails } from "@/features/datasets/list/components/panel/dataset-panel-details";
 import { DatasetPanelVersions } from "@/features/datasets/list/components/panel/dataset-panel-versions";
+import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
 // Types
@@ -38,17 +44,26 @@ interface DatasetPanelProps {
   bucket: string;
   name: string;
   onClose: () => void;
+  onVersionClick?: (version: DatasetVersion) => void;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function DatasetPanel({ bucket, name, onClose }: DatasetPanelProps) {
+export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetPanelProps) {
+  const router = useNavigationRouter();
+  const { startTransition } = useViewTransition();
   const { data, isLoading, error } = useDataset(bucket, name, { enabled: !!bucket && !!name });
 
   const dataset = data?.dataset;
   const versions = data?.versions ?? [];
+
+  const handleBrowseFiles = useCallback(() => {
+    startTransition(() => {
+      router.push(`/datasets/${encodeURIComponent(bucket)}/${encodeURIComponent(name)}`);
+    });
+  }, [router, startTransition, bucket, name]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -56,10 +71,25 @@ export function DatasetPanel({ bucket, name, onClose }: DatasetPanelProps) {
       <PanelHeader
         title={<PanelTitle>{name}</PanelTitle>}
         actions={
-          <PanelHeaderActions
-            badge="Dataset"
-            onClose={onClose}
-          />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={handleBrowseFiles}
+              aria-label={`Browse files for ${name}`}
+            >
+              <FolderOpen
+                className="size-3.5"
+                aria-hidden="true"
+              />
+              Browse files
+            </Button>
+            <PanelHeaderActions
+              badge="Dataset"
+              onClose={onClose}
+            />
+          </div>
         }
       />
 
@@ -87,6 +117,7 @@ export function DatasetPanel({ bucket, name, onClose }: DatasetPanelProps) {
             <DatasetPanelVersions
               versions={versions}
               currentVersion={dataset.version}
+              onVersionClick={onVersionClick}
             />
           </div>
         )}
