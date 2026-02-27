@@ -27,15 +27,6 @@ import { toast } from "sonner";
 import { getBasePathUrl } from "@/lib/config";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 
-interface RequestConfig {
-  url: string;
-  method: string;
-  headers?: HeadersInit;
-  data?: unknown;
-  params?: Record<string, unknown>;
-  signal?: AbortSignal;
-}
-
 // =============================================================================
 // API Error
 // =============================================================================
@@ -70,9 +61,7 @@ export function isApiError(error: unknown): error is ApiError {
 // Fetcher
 // =============================================================================
 
-export const customFetch = async <T>(config: RequestConfig, options?: RequestInit): Promise<T> => {
-  const { url, method, headers, data, params, signal } = config;
-
+export const customFetch = async <T>(url: string, init?: RequestInit): Promise<T> => {
   let fullUrl = url;
 
   let serverAuthHeaders: HeadersInit = {};
@@ -85,37 +74,16 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
     fullUrl = getBasePathUrl(url);
   }
 
-  if (params) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        if (Array.isArray(value)) {
-          value.forEach((v) => searchParams.append(key, String(v)));
-        } else {
-          searchParams.append(key, String(value));
-        }
-      }
-    });
-    const queryString = searchParams.toString();
-    if (queryString) {
-      fullUrl = `${fullUrl}?${queryString}`;
-    }
-  }
-
   let response: Response;
 
   try {
     response = await fetch(fullUrl, {
-      method,
+      ...init,
       headers: {
-        "Content-Type": "application/json",
         ...serverAuthHeaders,
-        ...headers,
+        ...init?.headers,
       },
-      body: data ? JSON.stringify(data) : undefined,
-      signal,
       credentials: "include",
-      ...options,
     });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
@@ -173,15 +141,13 @@ export const customFetch = async <T>(config: RequestConfig, options?: RequestIni
   }
 
   const text = await response.text();
+  let data: unknown;
   if (!text) {
-    return {} as T;
+    data = {};
+  } else {
+    const contentType = response.headers.get("content-type");
+    data = contentType?.includes("text/plain") ? text : JSON.parse(text);
   }
 
-  const contentType = response.headers.get("content-type");
-
-  if (contentType?.includes("text/plain")) {
-    return text as T;
-  }
-
-  return JSON.parse(text);
+  return { data, status: response.status, headers: response.headers } as T;
 };

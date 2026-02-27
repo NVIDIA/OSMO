@@ -2799,7 +2799,8 @@ class ServiceConfig(DynamicConfig):
     """ Stores any configs OSMO Admins control """
     service_base_url: str = ''
 
-    service_auth: auth.AuthenticationConfig = auth.AuthenticationConfig.generate_default()
+    service_auth: auth.AuthenticationConfig = pydantic.Field(
+        default_factory=auth.AuthenticationConfig.generate_default)
 
     cli_config: CliConfig = CliConfig()
 
