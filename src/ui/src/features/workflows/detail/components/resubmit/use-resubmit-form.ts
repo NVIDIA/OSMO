@@ -97,8 +97,8 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
   const { execute, isPending, error, resetError } = useResubmitMutation({
     onSuccess: (newWorkflowName) => {
       const message = newWorkflowName
-        ? `Workflow ${newWorkflowName} submitted successfully`
-        : "Workflow submitted successfully";
+        ? `Workflow resubmitted as ${newWorkflowName}`
+        : "Workflow resubmitted successfully";
 
       toast.success(message, {
         action: newWorkflowName

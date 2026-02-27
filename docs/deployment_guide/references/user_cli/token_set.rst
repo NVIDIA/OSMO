@@ -15,18 +15,16 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-:tocdepth: 3
+.. _cli_reference_token_set:
 
-.. _cli_reference_user:
-
-================================================
-osmo user
-================================================
+==============
+osmo token set
+==============
 
 .. argparse-with-postprocess::
    :module: src.cli.main_parser
    :func: create_cli_parser
    :prog: osmo
-   :path: user
-   :ref-prefix: cli_reference_user
+   :path: token set
+   :ref-prefix: cli_reference_token_set
    :argument-anchor:

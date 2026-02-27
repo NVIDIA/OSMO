@@ -179,10 +179,12 @@ services:
     ## PostgreSQL password secret configuration
     ## Name of the Kubernetes secret containing the PostgreSQL password
     ##
-    passwordSecretName: postgres-secret
+    passwordSecretName: db-secret
+
     ## Key name in the secret that contains the PostgreSQL password
     ##
-    passwordSecretKey: password
+    passwordSecretKey: db-password
+
   ## Default admin user configuration
   ## When configured, the service will create an admin user on startup with the osmo-admin role
   ## and an access_token set to the specified password
@@ -892,9 +894,6 @@ sidecars:
     ## Enable Envoy proxy sidecar container
     ##
     enabled: true
-    ## Use Kubernetes secret for credentials
-    ##
-    useKubernetesSecrets: false
     livenessProbe:
       httpGet:
         path: /ready
@@ -1222,10 +1221,6 @@ sidecars:
       ## Address for the main service backend
       ##
       address: 127.0.0.1
-    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
-    ##
-    oauth2Filter:
-      enabled: false
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:
@@ -1241,7 +1236,7 @@ sidecars:
       ##   audience: osmo-device
       ##   jwks_uri: https://auth-name.osmo.nvidia.com/realms/osmo/protocol/openid-connect/certs
       ##   user_claim: preferred_username
-      ##   cluster: oauth
+      ##   cluster: idp
       ##
       ## An example when using Microsoft Azure AD is:
       ##

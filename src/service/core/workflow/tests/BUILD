@@ -35,3 +35,14 @@ osmo_py_test(
     ],
     visibility = ["//visibility:public"],
 )
+
+py_test(
+    name = "test_calculate_pool_quotas",
+    srcs = ["test_calculate_pool_quotas.py"],
+    deps = [
+        "//src/service/core/workflow",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+)
+

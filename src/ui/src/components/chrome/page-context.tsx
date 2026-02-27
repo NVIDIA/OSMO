@@ -36,6 +36,12 @@ export interface PageConfig {
   title: string;
   /** Breadcrumb trail (excluding the current page title) */
   breadcrumbs?: BreadcrumbSegment[];
+  /**
+   * Inline breadcrumbs rendered after `breadcrumbs` in the nav flow (no extra margin).
+   * Use for dynamic in-page navigation that can't be expressed as BreadcrumbSegment hrefs,
+   * e.g. callback-based path navigation in the dataset file browser.
+   */
+  trailingBreadcrumbs?: React.ReactNode;
   /** Custom actions to render in the header after the title */
   headerActions?: React.ReactNode;
 }
@@ -87,7 +93,7 @@ export function usePage(config: PageConfig) {
     // Only re-run when actual content changes (primitives, not object reference)
     // Note: headerActions is intentionally included as-is since React handles ReactNode comparison
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.title, breadcrumbsKey, config.headerActions, setConfig]);
+  }, [config.title, breadcrumbsKey, config.trailingBreadcrumbs, config.headerActions, setConfig]);
 }
 
 /**

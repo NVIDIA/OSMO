@@ -242,7 +242,12 @@ OAuth2 Proxy sidecar container
   securityContext:
     {{- toYaml .Values.sidecars.oauth2Proxy.securityContext | nindent 4 }}
   args:
+    {{- if .Values.sidecars.oauth2Proxy.useKubernetesSecrets }}
+    - --client-secret-file=/etc/oauth2-proxy/client-secret
+    - --cookie-secret-file=/etc/oauth2-proxy/cookie-secret
+    {{- else }}
     - --config={{ .Values.sidecars.oauth2Proxy.secretPaths.cookieSecret }}
+    {{- end }}
     - --http-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.httpPort }}
     - --metrics-address=0.0.0.0:{{ .Values.sidecars.oauth2Proxy.metricsPort }}
     - --reverse-proxy=true

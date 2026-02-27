@@ -19,10 +19,12 @@
  *
  * Pool-style card with a compact table: version (+ tags), created by, date, size.
  * Sorted latest-first (descending by version number).
+ * When onVersionClick is provided, rows are clickable to navigate to that version.
  */
 
 "use client";
 
+import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeSuccinct } from "@/lib/format-date";
@@ -31,9 +33,10 @@ import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 interface DatasetPanelVersionsProps {
   versions: DatasetVersion[];
   currentVersion?: number;
+  onVersionClick?: (version: DatasetVersion) => void;
 }
 
-export function DatasetPanelVersions({ versions, currentVersion }: DatasetPanelVersionsProps) {
+export function DatasetPanelVersions({ versions, currentVersion, onVersionClick }: DatasetPanelVersionsProps) {
   const sorted = [...versions].sort((a, b) => parseInt(b.version) - parseInt(a.version));
 
   return (
@@ -63,7 +66,11 @@ export function DatasetPanelVersions({ versions, currentVersion }: DatasetPanelV
                     const isCurrent = currentVersion !== undefined && parseInt(version.version) === currentVersion;
                     const sizeGib = version.size / 1024 ** 3;
                     return (
-                      <tr key={version.version}>
+                      <tr
+                        key={version.version}
+                        onClick={onVersionClick ? () => onVersionClick(version) : undefined}
+                        className={cn(onVersionClick && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50")}
+                      >
                         <td className="px-3 py-2 align-top">
                           <span className={isCurrent ? "text-nvidia font-mono font-semibold" : "font-mono"}>
                             {version.version}

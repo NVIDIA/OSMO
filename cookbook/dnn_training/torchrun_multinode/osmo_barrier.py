@@ -47,6 +47,10 @@ class SyncServer:
             server_task = loop.create_task(self._server.serve_forever())
             loop.create_task(self.status_print())
 
+            # If there are no other nodes to wait for, we're already done
+            if self._num_nodes == 1:
+                self._ready_to_send.set()
+
             # Wait for all connections, or for something to go wrong
             await self._ready_to_send.wait()
             for connection in self._connections:
