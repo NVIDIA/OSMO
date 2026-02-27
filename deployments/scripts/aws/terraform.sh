@@ -204,7 +204,7 @@ node_group_max_size    = 5
 node_group_desired_size = 3
 
 # RDS Configuration
-rds_engine_version = "15.4"
+rds_engine_version = "15.12"
 rds_instance_class = "db.t3.medium"
 rds_db_name        = "osmo"
 rds_username       = "postgres"

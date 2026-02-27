@@ -76,6 +76,7 @@ SKIP_OSMO=false
 DESTROY=false
 DRY_RUN=false
 NON_INTERACTIVE=false
+NGC_API_KEY="${NGC_API_KEY:-}"
 
 # Output files
 OUTPUTS_FILE=""
@@ -103,6 +104,7 @@ General Options:
   --destroy              Destroy all resources
   --dry-run              Show what would be done without making changes
   --non-interactive      Fail if required parameters are missing (for CI/CD)
+  --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io
   -h, --help             Show this help message
 
 Azure-specific Options:
@@ -125,6 +127,7 @@ Environment Variables:
   OSMO_IMAGE_REGISTRY    OSMO image registry (default: nvcr.io/nvidia/osmo)
   OSMO_IMAGE_TAG         OSMO image tag (default: latest)
   BACKEND_TOKEN_EXPIRY   Backend token expiry date (default: 2027-01-01)
+  NGC_API_KEY            NGC API key (alternative to --ngc-api-key flag)
 
 Examples:
   # Interactive Azure deployment
@@ -185,14 +188,33 @@ while [[ $# -gt 0 ]]; do
             NON_INTERACTIVE=true
             shift
             ;;
+        --ngc-api-key)
+            NGC_API_KEY="$2"; shift 2 ;;
         -h|--help)
             show_help
             exit 0
             ;;
-        # Pass through other arguments (handled by provider scripts)
-        --subscription-id|--resource-group|--postgres-password|--cluster-name|--region|--environment|--k8s-version|--aws-region|--aws-profile)
-            shift 2
-            ;;
+        # Provider-specific arguments - set TF_ variables used by provider scripts
+        --subscription-id)
+            TF_SUBSCRIPTION_ID="$2"; shift 2 ;;
+        --resource-group)
+            TF_RESOURCE_GROUP="$2"; shift 2 ;;
+        --postgres-password)
+            TF_POSTGRES_PASSWORD="$2"; shift 2 ;;
+        --redis-password)
+            TF_REDIS_PASSWORD="$2"; shift 2 ;;
+        --cluster-name)
+            TF_CLUSTER_NAME="$2"; shift 2 ;;
+        --region)
+            TF_REGION="$2"; shift 2 ;;
+        --aws-region)
+            TF_AWS_REGION="$2"; shift 2 ;;
+        --aws-profile)
+            TF_AWS_PROFILE="$2"; shift 2 ;;
+        --environment)
+            TF_ENVIRONMENT="$2"; shift 2 ;;
+        --k8s-version)
+            TF_K8S_VERSION="$2"; shift 2 ;;
         *)
             shift
             ;;
@@ -344,7 +366,36 @@ verify_provider_config() {
 handle_configuration() {
     local tfvars_file="$TERRAFORM_DIR/terraform.tfvars"
 
-    if [[ ! -f "$tfvars_file" ]]; then
+    # Determine whether all required values were supplied via flags/env vars.
+    # If so, always regenerate tfvars so that flag values (e.g. a new postgres
+    # version or region) are never silently overridden by a stale file.
+    local has_all_required=false
+    case "$PROVIDER" in
+        azure)
+            if [[ -n "$TF_POSTGRES_PASSWORD" ]]; then
+                has_all_required=true
+            fi
+            ;;
+        aws)
+            if [[ -n "$TF_POSTGRES_PASSWORD" && -n "$TF_REDIS_PASSWORD" ]]; then
+                has_all_required=true
+            fi
+            ;;
+    esac
+
+    if [[ "$has_all_required" == true ]]; then
+        # All required values provided — regenerate so flags always win.
+        case "$PROVIDER" in
+            azure)
+                azure_configure_interactively
+                azure_generate_tfvars "$tfvars_file"
+                ;;
+            aws)
+                aws_configure_interactively
+                aws_generate_tfvars "$tfvars_file"
+                ;;
+        esac
+    elif [[ ! -f "$tfvars_file" ]]; then
         log_info "terraform.tfvars not found."
 
         if [[ "$NON_INTERACTIVE" == true ]]; then
@@ -501,6 +552,12 @@ main() {
     if [[ "$SKIP_TERRAFORM" == false ]]; then
         run_terraform_init
         run_terraform_apply
+    fi
+
+    # Dry-run ends after the plan - no state exists to query
+    if [[ "$DRY_RUN" == true ]]; then
+        log_success "Dry-run complete. No resources were created."
+        exit 0
     fi
 
     # Get Terraform outputs
