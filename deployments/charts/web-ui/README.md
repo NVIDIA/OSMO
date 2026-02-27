@@ -91,9 +91,6 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `sidecars.envoy.enabled` | Enable Envoy proxy sidecar | `true` |
-| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets for Envoy | `false` |
-| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret file | `/etc/envoy/secrets/client_secret` |
-| `sidecars.envoy.secretPaths.hmacSecret` | Path to OAuth2 HMAC secret file | `/etc/envoy/secrets/hmac_secret` |
 | `sidecars.envoy.image.repository` | Envoy image repository | `envoyproxy/envoy:v1.29.0` |
 | `sidecars.envoy.image.pullPolicy` | Envoy image pull policy | `IfNotPresent` |
 | `sidecars.envoy.service.address` | Backend service address | `127.0.0.1` |
@@ -112,23 +109,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.envoy.jwt.providers[].audience` | JWT token audience | `""` (empty, must be configured) |
 | `sidecars.envoy.jwt.providers[].jwks_uri` | JWT JWKS URI | `""` (empty, must be configured) |
 | `sidecars.envoy.jwt.providers[].user_claim` | JWT user claim field | `preferred_username` |
-| `sidecars.envoy.jwt.providers[].cluster` | Target cluster name | `oauth` |
-
-#### OAuth2 Filter Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 filter | `true` |
-| `sidecars.envoy.oauth2Filter.tokenEndpoint` | OAuth2 token endpoint URL | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.authEndpoint` | OAuth2 authorization endpoint URL | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.redirectPath` | OAuth2 redirect path | `getAToken` |
-| `sidecars.envoy.oauth2Filter.clientId` | OAuth2 client ID | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.logoutPath` | OAuth2 logout path | `logout` |
-| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name (when useKubernetesSecrets is true) | `oidc-secrets` |
-| `sidecars.envoy.oauth2Filter.clientSecretKey` | Secret key for OAuth2 client secret | `client_secret` |
-| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Secret key for OAuth2 HMAC secret | `hmac_secret` |
-| `sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken` | Force re-auth when IdToken missing on refresh | `false` |
+| `sidecars.envoy.jwt.providers[].cluster` | Target cluster name | `idp` |
 
 #### Log Agent Sidecar
 
