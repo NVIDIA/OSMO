@@ -23,6 +23,7 @@
  * - Dataset name links to file browser root (path="")
  * - Each intermediate segment is clickable (navigate to that path level)
  * - Last segment is plain text (current location)
+ * - Deep paths (> 2 segments) collapse to: datasetName > … > parent > current
  */
 
 "use client";
@@ -31,6 +32,9 @@ import { memo } from "react";
 import { Button } from "@/components/shadcn/button";
 import { ChevronRight } from "lucide-react";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
+
+/** Show all segments when depth ≤ this; collapse with ellipsis when deeper. */
+const COLLAPSE_THRESHOLD = 2;
 
 interface FileBrowserBreadcrumbProps {
   /** Dataset name — links to file browser root (path="") */
@@ -48,6 +52,11 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
 }: FileBrowserBreadcrumbProps) {
   const router = useNavigationRouter();
   const segments = path ? path.split("/").filter(Boolean) : [];
+
+  // When deeply nested, show only the last COLLAPSE_THRESHOLD segments
+  const collapsed = segments.length > COLLAPSE_THRESHOLD;
+  const visibleSegments = collapsed ? segments.slice(-COLLAPSE_THRESHOLD) : segments;
+  const visibleOffset = collapsed ? segments.length - COLLAPSE_THRESHOLD : 0;
 
   return (
     <nav
@@ -95,10 +104,27 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
         {datasetName}
       </Button>
 
-      {/* Path segments */}
-      {segments.map((segment, index) => {
-        const isLast = index === segments.length - 1;
-        const segmentPath = segments.slice(0, index + 1).join("/");
+      {/* Ellipsis when deep path is collapsed */}
+      {collapsed && (
+        <>
+          <ChevronRight
+            className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
+            aria-hidden="true"
+          />
+          <span
+            className="shrink-0 px-1.5 text-zinc-400 dark:text-zinc-600"
+            aria-label="collapsed path segments"
+          >
+            …
+          </span>
+        </>
+      )}
+
+      {/* Visible path segments */}
+      {visibleSegments.map((segment, localIndex) => {
+        const absoluteIndex = visibleOffset + localIndex;
+        const isLast = absoluteIndex === segments.length - 1;
+        const segmentPath = segments.slice(0, absoluteIndex + 1).join("/");
 
         return (
           <span
