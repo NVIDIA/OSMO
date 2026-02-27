@@ -61,6 +61,14 @@ export interface GeneratedDatasetVersion {
   collections: string[];
 }
 
+export interface GeneratedCollectionMember {
+  name: string;
+  version: string;
+  location: string;
+  uri: string;
+  size: number;
+}
+
 export interface DatasetFile {
   name: string;
   type: "file" | "folder";
@@ -92,6 +100,19 @@ const DATASET_PATTERNS = {
   buckets: ["osmo-datasets", "ml-data", "training-data"],
   modalities: ["text", "image", "audio", "video", "multimodal"],
   retentionPolicies: ["30d", "90d", "1y", "forever"],
+};
+
+const COLLECTION_PATTERNS = {
+  names: [
+    "training-bundle",
+    "eval-suite",
+    "multimodal-mix",
+    "research-corpus",
+    "benchmark-pack",
+    "production-set",
+    "experiment-v2",
+    "curated-collection",
+  ],
 };
 
 // ============================================================================
@@ -221,6 +242,84 @@ export class DatasetGenerator {
     }
 
     return versions;
+  }
+
+  /**
+   * Total number of collections (20% of total datasets, at least 5).
+   */
+  get totalCollections(): number {
+    return Math.max(5, Math.floor(this.totalDatasets * 0.2));
+  }
+
+  /**
+   * Generate a collection at a specific index.
+   * DETERMINISTIC: Same index always produces the same collection.
+   */
+  generateCollection(index: number): GeneratedDataset {
+    faker.seed(this.config.baseSeed + 99999 + index);
+
+    const baseName = COLLECTION_PATTERNS.names[index % COLLECTION_PATTERNS.names.length];
+    const uniqueSuffix =
+      index >= COLLECTION_PATTERNS.names.length ? `-${Math.floor(index / COLLECTION_PATTERNS.names.length)}` : "";
+    const name = `${baseName}${uniqueSuffix}`;
+
+    const bucket = faker.helpers.arrayElement(DATASET_PATTERNS.buckets);
+    const user = faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
+
+    return {
+      name,
+      bucket,
+      path: `s3://${bucket}/collections/${name}/`,
+      version: 0,
+      created_at: faker.date.past({ years: 2 }).toISOString(),
+      updated_at: faker.date.past({ years: 1 }).toISOString(),
+      size_bytes: faker.number.int({ min: 1e10, max: 5e12 }),
+      labels: {
+        type: "collection",
+        team: faker.helpers.arrayElement(["ml-platform", "cv-team", "nlp-team"]),
+      },
+      description: `${name} — curated collection of datasets`,
+      user,
+    };
+  }
+
+  /**
+   * Generate collection members (matches backend DataInfoCollectionEntry).
+   */
+  generateCollectionMembers(collectionName: string): GeneratedCollectionMember[] {
+    faker.seed(this.config.baseSeed + hashString(collectionName) + 77777);
+
+    const count = faker.number.int({ min: 3, max: 5 });
+    const members: GeneratedCollectionMember[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const datasetIndex = Math.abs(hashString(collectionName + i)) % this.totalDatasets;
+      const dataset = this.generate(datasetIndex);
+      const version = String(faker.number.int({ min: 1, max: 5 }));
+
+      members.push({
+        name: dataset.name,
+        version,
+        location: `s3://osmo-datasets/datasets/${dataset.name}/v${version}/`,
+        uri: `s3://osmo-datasets/datasets/${dataset.name}/v${version}/`,
+        size: faker.number.int({ min: 1e9, max: 5e11 }),
+      });
+    }
+
+    return members;
+  }
+
+  /**
+   * Get collection by name. Returns null if not found.
+   */
+  getCollectionByName(name: string): GeneratedDataset | null {
+    for (let i = 0; i < this.totalCollections; i++) {
+      const collection = this.generateCollection(i);
+      if (collection.name === name) {
+        return collection;
+      }
+    }
+    return null;
   }
 
   /**
