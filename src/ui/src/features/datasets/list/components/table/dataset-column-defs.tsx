@@ -22,6 +22,7 @@ import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
 import { formatBytes } from "@/lib/utils";
 import { MidTruncate } from "@/components/mid-truncate";
 import type { Dataset } from "@/lib/api/adapter/datasets";
+import { DatasetType } from "@/lib/api/generated";
 import {
   DATASET_COLUMN_SIZE_CONFIG,
   COLUMN_LABELS,
@@ -70,6 +71,27 @@ export function createDatasetColumns({ onOpenPanel }: CreateDatasetColumnsOption
           </Tooltip>
         </span>
       ),
+    },
+    {
+      id: "type",
+      accessorKey: "type",
+      header: COLUMN_LABELS.type,
+      minSize: getMinSize("type"),
+      enableSorting: true,
+      cell: ({ row }) => {
+        if (row.original.type === DatasetType.COLLECTION) {
+          return (
+            <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 ring-inset dark:text-indigo-300 dark:ring-indigo-700">
+              Collection
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium text-zinc-600 ring-1 ring-zinc-200 ring-inset dark:text-zinc-400 dark:ring-zinc-700">
+            Dataset
+          </span>
+        );
+      },
     },
     {
       id: "bucket",
