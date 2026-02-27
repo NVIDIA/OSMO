@@ -17,8 +17,8 @@
 /**
  * FileBrowserTable — Google Drive-style file listing for a dataset directory.
  *
- * Renders folders before files with columns for name, size, type,
- * and a per-row copy-path button.
+ * Renders folders before files with columns for name, size, and type.
+ * A leading fixed copy-path button is shown for each file row (always visible).
  */
 
 "use client";
@@ -104,18 +104,18 @@ function FileIcon({ name, type }: { name: string; type: "file" | "folder" }) {
 }
 
 // =============================================================================
-// Copy path cell (needs hook so defined as component)
+// Copy path button (always visible, copies S3 URI)
 // =============================================================================
 
-function CopyPathButton({ url }: { url: string }) {
+function CopyPathButton({ s3Path }: { s3Path: string }) {
   const { copied, copy } = useCopy();
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      void copy(url);
+      void copy(s3Path);
     },
-    [copy, url],
+    [copy, s3Path],
   );
 
   return (
@@ -124,9 +124,9 @@ function CopyPathButton({ url }: { url: string }) {
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+          className="h-6 w-6 p-0"
           onClick={handleCopy}
-          aria-label={`Copy path: ${url}`}
+          aria-label={`Copy S3 path: ${s3Path}`}
         >
           <Copy
             className="size-3.5"
@@ -145,6 +145,19 @@ function CopyPathButton({ url }: { url: string }) {
 
 function createColumns(): ColumnDef<DatasetFile>[] {
   return [
+    {
+      id: "_copy",
+      header: "",
+      enableResizing: false,
+      enableSorting: false,
+      size: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
+      meta: { cellClassName: "p-0" },
+      cell: ({ row }) => {
+        const { type, s3Path } = row.original;
+        if (type === "folder" || !s3Path) return null;
+        return <CopyPathButton s3Path={s3Path} />;
+      },
+    },
     {
       id: "name",
       accessorKey: "name",
@@ -187,17 +200,6 @@ function createColumns(): ColumnDef<DatasetFile>[] {
         }
         const ext = name.split(".").pop()?.toUpperCase() ?? "—";
         return <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{ext}</span>;
-      },
-    },
-    {
-      id: "copy",
-      header: "",
-      minSize: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
-      maxSize: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
-      cell: ({ row }) => {
-        const { type, url } = row.original;
-        if (type === "folder" || !url) return null;
-        return <CopyPathButton url={url} />;
       },
     },
   ];
@@ -265,7 +267,6 @@ export const FileBrowserTable = memo(function FileBrowserTable({
       emptyContent={emptyContent}
       className="text-sm"
       scrollClassName="flex-1"
-      rowClassName="group"
     />
   );
 });
