@@ -181,18 +181,18 @@ status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz"
 
 1. **Get the workflow status:**
    ```
-   osmo workflow query <workflow_id> --format-type json
+   osmo workflow query <workflow name> --format-type json
    ```
 
 2. **Get recent logs** — this command streams live, so run it with a 5-second timeout
    and use whatever output was captured. Check how many tasks are in the query response:
    - **1 task:** run the standard command:
      ```
-     osmo workflow logs <workflow_id> -n 10000
+     osmo workflow logs <workflow name> -n 10000
      ```
    - **2–5 tasks:** fetch logs per task in parallel for clearer separation:
      ```
-     osmo workflow logs <workflow_id> --task <task_name> -n 10000
+     osmo workflow logs <workflow name> --task <task_name> -n 10000
      ```
    - **More than 5 tasks:** fall back to the standard command without `--task`.
 
@@ -211,7 +211,7 @@ status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz"
 
    **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
    ```
-   osmo workflow events <workflow_id>
+   osmo workflow events <workflow name>
    ```
    These are Kubernetes pod conditions and cluster events — translate them into plain
    language without Kubernetes jargon (e.g. "there aren't enough free GPUs in the pool
@@ -233,7 +233,7 @@ workflow", "what is workflow xyz running?").
 
 1. **Fetch the workflow template:**
    ```
-   osmo workflow spec <workflow_id> --template
+   osmo workflow spec <workflow name> --template
    ```
    This returns the original workflow spec YAML that was used to submit the job,
    including the container image, entrypoint scripts, environment variables, and
