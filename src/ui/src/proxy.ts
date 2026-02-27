@@ -25,27 +25,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
-const scheme = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false" ? "https" : "http";
-const apiUrl = `${scheme}://${apiHostname}`;
-
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self'",
-  `connect-src 'self' ${apiUrl} ws: wss:`,
-  "worker-src 'self' blob:",
-  "frame-src 'none'",
-  "frame-ancestors 'self'",
-  "form-action 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
-].join("; ");
-
-const permissionsPolicy = [
+const PERMISSIONS_POLICY = [
   "accelerometer=()",
   "camera=()",
   "geolocation=()",
@@ -56,14 +36,43 @@ const permissionsPolicy = [
   "usb=()",
 ].join(", ");
 
+function buildProductionCsp(): string {
+  const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
+  const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
+  const apiUrl = `${sslEnabled ? "https" : "http"}://${apiHostname}`;
+
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    `connect-src 'self' ${apiUrl} ws: wss:`,
+    "worker-src 'self' blob:",
+    "frame-src 'none'",
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
 export function proxy(_request: NextRequest): NextResponse {
   const response = NextResponse.next();
 
-  response.headers.set("Content-Security-Policy", csp);
+  // CSP is only set in production where Envoy proxies everything through the
+  // same origin. In local dev the backend runs on a different port/IP and
+  // NEXT_PUBLIC_* env vars are not reliably available in the edge runtime,
+  // so enforcing CSP would block legitimate direct browser → backend requests.
+  if (process.env.NODE_ENV === "production") {
+    response.headers.set("Content-Security-Policy", buildProductionCsp());
+  }
+
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", permissionsPolicy);
+  response.headers.set("Permissions-Policy", PERMISSIONS_POLICY);
 
   return response;
 }

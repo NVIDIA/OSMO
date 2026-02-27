@@ -219,6 +219,10 @@ def setup_parser(parser: argparse._SubParsersAction):
 
 
 def _create_app(service_client: client.ServiceClient, args: argparse.Namespace):
+    app_info = common.AppStructure(args.name)
+    if app_info.version:
+        raise osmo_errors.OSMOUserError('Cannot create a specific version of an app.')
+
     if args.file:
         with open(args.file, 'r', encoding='utf-8') as tf:
             app_content = tf.read()
@@ -241,7 +245,8 @@ def _create_app(service_client: client.ServiceClient, args: argparse.Namespace):
     except Exception as e:  # pylint: disable=broad-except
         file_name = editor.save_to_temp_file(app_content, suffix='.yaml')
         raise osmo_errors.OSMOUserError(
-            f'Error creating app: {e}\n\nSaved content to file: {file_name}')
+            f'Error creating app: {e}\nIf you wanted to update the app, use the "update" command.\n'
+            f'Saved content to file: {file_name}')
 
 
 def _update_app(service_client: client.ServiceClient, args: argparse.Namespace):

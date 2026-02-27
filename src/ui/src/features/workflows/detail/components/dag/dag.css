@@ -32,44 +32,44 @@
 
 :root {
   /* Waiting */
-  --dag-status-waiting-bg: oklch(0.96 0 0);
-  --dag-status-waiting-border: oklch(0.8 0 0);
-  --dag-status-waiting-text: oklch(0.5 0 0);
+  --dag-status-waiting-bg: oklch(96% 0 0deg);
+  --dag-status-waiting-border: oklch(80% 0 0deg);
+  --dag-status-waiting-text: oklch(50% 0 0deg);
   --dag-status-waiting-color: #a1a1aa; /* zinc-400 — matches STATUS_STYLES */
 
   /* Pending (amber - processing/scheduling states) */
-  --dag-status-pending-bg: oklch(0.97 0.04 85);
-  --dag-status-pending-border: oklch(0.7 0.14 85);
-  --dag-status-pending-text: oklch(0.5 0.12 85);
+  --dag-status-pending-bg: oklch(97% 0.04 85deg);
+  --dag-status-pending-border: oklch(70% 0.14 85deg);
+  --dag-status-pending-text: oklch(50% 0.12 85deg);
   --dag-status-pending-color: #fbbf24; /* amber-400 — matches STATUS_STYLES */
 
   /* Running */
-  --dag-status-running-bg: oklch(0.95 0.04 250);
-  --dag-status-running-border: oklch(0.6 0.15 250);
-  --dag-status-running-text: oklch(0.45 0.15 250);
+  --dag-status-running-bg: oklch(95% 0.04 250deg);
+  --dag-status-running-border: oklch(60% 0.15 250deg);
+  --dag-status-running-text: oklch(45% 0.15 250deg);
   --dag-status-running-color: #60a5fa; /* blue-400 — matches STATUS_STYLES */
 
   /* Completed */
-  --dag-status-completed-bg: oklch(0.95 0.04 160);
-  --dag-status-completed-border: oklch(0.6 0.12 160);
-  --dag-status-completed-text: oklch(0.4 0.12 160);
+  --dag-status-completed-bg: oklch(95% 0.04 160deg);
+  --dag-status-completed-border: oklch(60% 0.12 160deg);
+  --dag-status-completed-text: oklch(40% 0.12 160deg);
   --dag-status-completed-color: #34d399; /* emerald-400 — matches STATUS_STYLES */
 
   /* Failed */
-  --dag-status-failed-bg: oklch(0.95 0.04 25);
-  --dag-status-failed-border: oklch(0.6 0.18 25);
-  --dag-status-failed-text: oklch(0.45 0.18 25);
+  --dag-status-failed-bg: oklch(95% 0.04 25deg);
+  --dag-status-failed-border: oklch(60% 0.18 25deg);
+  --dag-status-failed-text: oklch(45% 0.18 25deg);
   --dag-status-failed-color: #f87171; /* red-400 — matches STATUS_STYLES */
 
   /* Timeline - Brighter, more vibrant variants for better visibility */
-  --timeline-running-marker: oklch(0.59 0.24 250);
-  --timeline-running-text: oklch(0.48 0.2 250);
-  --timeline-completed-marker: oklch(0.6 0.19 155);
-  --timeline-completed-text: oklch(0.45 0.16 155);
-  --timeline-failed-marker: oklch(0.58 0.24 25);
-  --timeline-failed-text: oklch(0.5 0.21 25);
-  --timeline-pending-marker: oklch(0.7 0.16 85);
-  --timeline-pending-text: oklch(0.5 0.14 85);
+  --timeline-running-marker: oklch(59% 0.24 250deg);
+  --timeline-running-text: oklch(48% 0.2 250deg);
+  --timeline-completed-marker: oklch(60% 0.19 155deg);
+  --timeline-completed-text: oklch(45% 0.16 155deg);
+  --timeline-failed-marker: oklch(58% 0.24 25deg);
+  --timeline-failed-text: oklch(50% 0.21 25deg);
+  --timeline-pending-marker: oklch(70% 0.16 85deg);
+  --timeline-pending-text: oklch(50% 0.14 85deg);
 }
 
 /* ==========================================================================
@@ -78,44 +78,44 @@
 
 .dark {
   /* Waiting */
-  --dag-status-waiting-bg: oklch(0.27 0 0);
-  --dag-status-waiting-border: oklch(0.37 0 0);
-  --dag-status-waiting-text: oklch(0.64 0 0);
+  --dag-status-waiting-bg: oklch(27% 0 0deg);
+  --dag-status-waiting-border: oklch(37% 0 0deg);
+  --dag-status-waiting-text: oklch(64% 0 0deg);
   --dag-status-waiting-color: #71717a; /* zinc-500 — matches STATUS_STYLES */
 
   /* Pending (amber - processing/scheduling states) */
-  --dag-status-pending-bg: oklch(0.28 0.06 85);
-  --dag-status-pending-border: oklch(0.6 0.14 85);
-  --dag-status-pending-text: oklch(0.75 0.12 85);
+  --dag-status-pending-bg: oklch(28% 0.06 85deg);
+  --dag-status-pending-border: oklch(60% 0.14 85deg);
+  --dag-status-pending-text: oklch(75% 0.12 85deg);
   --dag-status-pending-color: #f59e0b; /* amber-500 — matches STATUS_STYLES */
 
   /* Running */
-  --dag-status-running-bg: oklch(0.25 0.07 250);
-  --dag-status-running-border: oklch(0.55 0.15 250);
-  --dag-status-running-text: oklch(0.7 0.12 250);
+  --dag-status-running-bg: oklch(25% 0.07 250deg);
+  --dag-status-running-border: oklch(55% 0.15 250deg);
+  --dag-status-running-text: oklch(70% 0.12 250deg);
   --dag-status-running-color: #3b82f6; /* blue-500 — matches STATUS_STYLES */
 
   /* Completed */
-  --dag-status-completed-bg: oklch(0.3 0.08 160);
-  --dag-status-completed-border: oklch(0.55 0.12 160);
-  --dag-status-completed-text: oklch(0.7 0.14 160);
+  --dag-status-completed-bg: oklch(30% 0.08 160deg);
+  --dag-status-completed-border: oklch(55% 0.12 160deg);
+  --dag-status-completed-text: oklch(70% 0.14 160deg);
   --dag-status-completed-color: #10b981; /* emerald-500 — matches STATUS_STYLES */
 
   /* Failed */
-  --dag-status-failed-bg: oklch(0.28 0.08 25);
-  --dag-status-failed-border: oklch(0.55 0.2 25);
-  --dag-status-failed-text: oklch(0.7 0.18 25);
+  --dag-status-failed-bg: oklch(28% 0.08 25deg);
+  --dag-status-failed-border: oklch(55% 0.2 25deg);
+  --dag-status-failed-text: oklch(70% 0.18 25deg);
   --dag-status-failed-color: #ef4444; /* red-500 — matches STATUS_STYLES */
 
   /* Timeline - Brighter, more vibrant variants for better visibility */
-  --timeline-running-marker: oklch(0.68 0.2 250);
-  --timeline-running-text: oklch(0.76 0.16 250);
-  --timeline-completed-marker: oklch(0.72 0.2 155);
-  --timeline-completed-text: oklch(0.78 0.17 155);
-  --timeline-failed-marker: oklch(0.65 0.22 25);
-  --timeline-failed-text: oklch(0.74 0.2 25);
-  --timeline-pending-marker: oklch(0.75 0.18 85);
-  --timeline-pending-text: oklch(0.78 0.14 85);
+  --timeline-running-marker: oklch(68% 0.2 250deg);
+  --timeline-running-text: oklch(76% 0.16 250deg);
+  --timeline-completed-marker: oklch(72% 0.2 155deg);
+  --timeline-completed-text: oklch(78% 0.17 155deg);
+  --timeline-failed-marker: oklch(65% 0.22 25deg);
+  --timeline-failed-text: oklch(74% 0.2 25deg);
+  --timeline-pending-marker: oklch(75% 0.18 85deg);
+  --timeline-pending-text: oklch(78% 0.14 85deg);
 }
 
 /* ==========================================================================
@@ -179,14 +179,14 @@
 /* Selection ring - applied on top of status colors */
 .dag-node[data-selected="true"] {
   box-shadow:
-    0 0 0 2px oklch(0.55 0.2 250),
-    0 2px 8px -2px rgba(0, 0, 0, 0.15);
+    0 0 0 2px oklch(55% 0.2 250deg),
+    0 2px 8px -2px rgb(0 0 0 / 15%);
 }
 
 .dark .dag-node[data-selected="true"] {
   box-shadow:
-    0 0 0 2px oklch(0.6 0.18 250),
-    0 2px 12px -2px rgba(0, 0, 0, 0.4);
+    0 0 0 2px oklch(60% 0.18 250deg),
+    0 2px 12px -2px rgb(0 0 0 / 40%);
 }
 
 /* ==========================================================================
@@ -194,19 +194,19 @@
    ========================================================================== */
 
 .dag-node-header-expanded {
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 4px -1px rgb(0 0 0 / 8%);
 }
 
 .dark .dag-node-header-expanded {
-  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 2px 4px -1px rgb(0 0 0 / 25%);
 }
 
 .dag-collapse-lip {
-  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 -2px 4px -1px rgb(0 0 0 / 6%);
 }
 
 .dark .dag-collapse-lip {
-  box-shadow: 0 -2px 4px -1px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 -2px 4px -1px rgb(0 0 0 / 20%);
 }
 
 /* ==========================================================================
@@ -227,19 +227,19 @@
   line-height: 18px;
   text-align: center;
   font-feature-settings: "tnum" 1;
-  background: oklch(0.55 0 0);
-  color: oklch(0.98 0 0);
+  background: oklch(55% 0 0deg);
+  color: oklch(98% 0 0deg);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.5);
+    0 1px 2px rgb(0 0 0 / 15%),
+    0 0 0 1px rgb(255 255 255 / 50%);
 }
 
 .dark .dag-count-badge {
-  background: oklch(0.5 0 0);
-  color: oklch(0.95 0 0);
+  background: oklch(50% 0 0deg);
+  color: oklch(95% 0 0deg);
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.08);
+    0 1px 3px rgb(0 0 0 / 40%),
+    0 0 0 1px rgb(255 255 255 / 8%);
 }
 
 /* ==========================================================================
@@ -324,7 +324,7 @@
   background: linear-gradient(
     90deg,
     var(--timeline-running-marker) 0%,
-    oklch(0.65 0.28 250) 50%,
+    oklch(65% 0.28 250deg) 50%,
     var(--timeline-running-marker) 100%
   );
   background-size: 200% 100%;
@@ -493,12 +493,12 @@
 
 :root {
   --snap-primary: rgb(59 130 246);
-  --snap-overlay: rgb(59 130 246 / 0.12);
+  --snap-overlay: rgb(59 130 246 / 12%);
 }
 
 .dark {
   --snap-primary: rgb(59 130 246);
-  --snap-overlay: rgb(59 130 246 / 0.15);
+  --snap-overlay: rgb(59 130 246 / 15%);
 }
 
 /* Full Snap Overlay (90%+) */
@@ -506,7 +506,12 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, oklch(0.98 0 0 / 0.2) 0%, oklch(0.98 0 0 / 0.7) 30%, oklch(0.98 0 0 / 0.85) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(98% 0 0deg / 20%) 0%,
+    oklch(98% 0 0deg / 70%) 30%,
+    oklch(98% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -523,7 +528,12 @@
 }
 
 .dark .snap-full-overlay {
-  background: linear-gradient(90deg, oklch(0.15 0 0 / 0.2) 0%, oklch(0.15 0 0 / 0.7) 30%, oklch(0.15 0 0 / 0.85) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(15% 0 0deg / 20%) 0%,
+    oklch(15% 0 0deg / 70%) 30%,
+    oklch(15% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -564,7 +574,12 @@
   bottom: 0;
   right: 0;
   pointer-events: none;
-  background: linear-gradient(90deg, oklch(0.98 0 0 / 0.2) 0%, oklch(0.98 0 0 / 0.7) 30%, oklch(0.98 0 0 / 0.85) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(98% 0 0deg / 20%) 0%,
+    oklch(98% 0 0deg / 70%) 30%,
+    oklch(98% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,
@@ -578,7 +593,12 @@
 }
 
 .dark .snap-strip-washout {
-  background: linear-gradient(90deg, oklch(0.15 0 0 / 0.2) 0%, oklch(0.15 0 0 / 0.5) 30%, oklch(0.15 0 0 / 0.85) 100%);
+  background: linear-gradient(
+    90deg,
+    oklch(15% 0 0deg / 20%) 0%,
+    oklch(15% 0 0deg / 50%) 30%,
+    oklch(15% 0 0deg / 85%) 100%
+  );
   background-image: linear-gradient(
     135deg,
     transparent 46%,

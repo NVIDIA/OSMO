@@ -68,12 +68,12 @@ function sortResources(resources: Resource[], sort: SortState<string> | null, di
       case "type":
         cmp = naturalCompare(a.resourceType, b.resourceType);
         break;
-      case "pools":
-        cmp = naturalCompare(a.poolMemberships[0]?.pool ?? "", b.poolMemberships[0]?.pool ?? "");
+      case "pool-platform": {
+        const aLabel = a.poolMemberships[0] ? `${a.poolMemberships[0].pool}/${a.poolMemberships[0].platform}` : "";
+        const bLabel = b.poolMemberships[0] ? `${b.poolMemberships[0].pool}/${b.poolMemberships[0].platform}` : "";
+        cmp = naturalCompare(aLabel, bLabel);
         break;
-      case "platform":
-        cmp = naturalCompare(a.platform, b.platform);
-        break;
+      }
       case "backend":
         cmp = naturalCompare(a.backend, b.backend);
         break;
@@ -167,7 +167,7 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
   // Merge showPoolsColumn prop with store visibility
   const effectiveVisibleIds = useMemo(() => {
     if (!showPoolsColumn) {
-      return storeVisibleColumnIds.filter((id) => id !== "pools");
+      return storeVisibleColumnIds.filter((id) => id !== "pool-platform");
     }
     return storeVisibleColumnIds;
   }, [storeVisibleColumnIds, showPoolsColumn]);

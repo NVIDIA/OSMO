@@ -86,6 +86,54 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
+  ## Database migration configuration (pgroll)
+  ## When enabled, a Helm pre-upgrade hook Job runs migrations before pods are updated.
+  ## Uses postgres:15-alpine with pgroll downloaded at runtime.
+  ##
+  migration:
+    ## Enable the migration Job
+    ##
+    enabled: false
+
+    ## Target pgroll schema version. Named after the app version: public_v{MAJOR}_{MINOR}_{PATCH}
+    ##
+    targetSchema: public
+
+    ## Public image with bash, psql, and curl
+    ##
+    image: postgres:15-alpine
+
+    ## pgroll release version to download
+    ##
+    pgrollVersion: v0.16.1
+
+    ## Service account name (defaults to global if empty)
+    ##
+    serviceAccountName: ""
+
+    ## Node selector, tolerations, and resources for the migration Job pod
+    ##
+    nodeSelector: {}
+    tolerations: []
+    resources: {}
+
+    ## Annotations on the Job and ConfigMap resources.
+    ## Use this to configure Helm hooks, ArgoCD hooks, or other orchestration.
+    ## Example for ArgoCD PreSync:
+    ##   extraAnnotations:
+    ##     argocd.argoproj.io/hook: PreSync
+    ##     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    ##
+    extraAnnotations: {}
+
+    ## Extra configuration for extensibility
+    ##
+    extraPodAnnotations: {}
+    extraEnv: []
+    extraVolumeMounts: []
+    extraVolumes: []
+    initContainers: []
+
   ## PostgreSQL database service configuration
   ## Set enabled to false if using an external PostgreSQL deployment
   ##

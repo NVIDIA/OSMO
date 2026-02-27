@@ -87,6 +87,7 @@ DATASET_BUCKET_NAME_TAG_IN_WORKFLOW_REGEX =\
 
 # Regex rules for apps
 APP_NAME_REGEX = r'(?:[a-zA-Z0-9_-]+)'
+APP_NAME_VALIDATION_REGEX = fr'^{APP_NAME_REGEX}$'
 APP_VERSION_REGEX_PART = r'(?:[a-zA-Z0-9_-]*)'
 APP_VERSION_REGEX = \
     fr'^(?P<name>{APP_NAME_REGEX})' +\

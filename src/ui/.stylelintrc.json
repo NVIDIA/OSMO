@@ -1,0 +1,65 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "rules": {
+    "at-rule-no-unknown": [
+      true,
+      {
+        "ignoreAtRules": [
+          "theme",
+          "custom-variant",
+          "utility",
+          "plugin",
+          "reference",
+          "source",
+          "variant",
+          "apply",
+          "layer",
+          "tailwind"
+        ]
+      }
+    ],
+    "function-no-unknown": [
+      true,
+      {
+        "ignoreFunctions": ["theme"]
+      }
+    ],
+    "declaration-property-value-no-unknown": [
+      true,
+      {
+        "ignoreProperties": {
+          "/.*/": "/theme\\(/"
+        }
+      }
+    ],
+    "import-notation": null,
+    "no-descending-specificity": null,
+    "no-duplicate-selectors": null,
+    "property-no-vendor-prefix": null,
+    "selector-pseudo-element-no-unknown": [
+      true,
+      {
+        "ignorePseudoElements": ["view-transition-old", "view-transition-new"]
+      }
+    ],
+    "custom-property-pattern": null,
+    "selector-class-pattern": null,
+    "keyframes-name-pattern": null,
+    "value-keyword-case": [
+      "lower",
+      {
+        "ignoreKeywords": [
+          "currentColor",
+          "optimizeLegibility",
+          "geometricPrecision"
+        ],
+        "camelCaseSvgKeywords": true
+      }
+    ],
+    "comment-empty-line-before": null,
+    "rule-empty-line-before": null,
+    "declaration-empty-line-before": null,
+    "custom-property-empty-line-before": null,
+    "at-rule-empty-line-before": null
+  }
+}
