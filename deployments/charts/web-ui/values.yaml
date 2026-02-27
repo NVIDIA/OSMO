@@ -378,11 +378,6 @@ sidecars:
   ## Envoy proxy sidecar configuration
   ##
   envoy:
-    ## Use Kubernetes secrets for Envoy credentials
-    ## Set to false when managing secrets with custom secrets management solution
-    ##
-    useKubernetesSecrets: false
-
     ## Secret file paths (legacy, kept for backward compatibility)
     ##
     secretPaths:

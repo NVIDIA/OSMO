@@ -293,10 +293,6 @@ sidecars:
     ##
     enabled: true
 
-    ## Use Kubernetes secrets to store credentials
-    ##
-    useKubernetesSecrets: false
-
     ## Paths that should skip authentication
     ##
     skipAuthPaths:
