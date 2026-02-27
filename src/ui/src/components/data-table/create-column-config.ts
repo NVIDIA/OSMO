@@ -130,7 +130,10 @@ export function createColumnConfig<TColumnId extends string>(
     DEFAULT_COLUMN_ORDER: Object.freeze([...config.defaultOrder]),
     COLUMN_SIZE_CONFIG: Object.freeze([...config.sizeConfig]),
     OPTIONAL_COLUMNS: Object.freeze(optionalColumns),
-    DEFAULT_SORT: config.defaultSort === null ? null : (config.defaultSort ?? { column: config.columns[0], direction: "asc" as const }),
+    DEFAULT_SORT:
+      config.defaultSort === null
+        ? null
+        : (config.defaultSort ?? { column: config.columns[0], direction: "asc" as const }),
     DEFAULT_PANEL_WIDTH: config.defaultPanelWidth ?? 40,
   };
 }
