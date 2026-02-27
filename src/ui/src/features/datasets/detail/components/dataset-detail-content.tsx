@@ -86,7 +86,27 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewPanelWidth, setPreviewPanelWidth] = useState(35);
-  const previewPanelOpen = !!selectedFile;
+
+  // Tracks which file path the user explicitly closed the preview for.
+  // Preview is considered open whenever selectedFile differs from this value.
+  // Selecting a new file (different path) automatically re-opens the preview.
+  // Escape two-step:
+  //   1st press: set closedForFile = selectedFile (hide preview, keep row highlighted)
+  //   2nd press: clearSelection() (deselect row entirely)
+  const [closedForFile, setClosedForFile] = useState<string | null>(null);
+  const previewPanelOpen = !!selectedFile && closedForFile !== selectedFile;
+
+  const handleClearSelection = useCallback(() => {
+    if (previewPanelOpen && selectedFile) {
+      setClosedForFile(selectedFile);
+    } else {
+      clearSelection();
+      // Blur the focused row so the focus ring disappears after full deselection
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+    }
+  }, [previewPanelOpen, selectedFile, clearSelection]);
 
   const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
     width: previewPanelWidth,
@@ -116,6 +136,11 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       openPanel(bucket, name);
     }
   }, [isPanelOpen, openPanel, closePanel, bucket, name]);
+
+  const handleNavigateUp = useCallback(() => {
+    if (!path) return;
+    navigateTo(path.split("/").slice(0, -1).join("/"));
+  }, [path, navigateTo]);
 
   const handleRefetchFiles = useCallback(() => {
     void refetchFiles();
@@ -208,6 +233,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       selectedFile={selectedFile}
       onNavigate={navigateTo}
       onSelectFile={selectFile}
+      onNavigateUp={handleNavigateUp}
+      onClearSelection={handleClearSelection}
+      previewOpen={previewPanelOpen}
       isLoading={isFilesLoading}
     />
   );

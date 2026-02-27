@@ -23,7 +23,7 @@
 
 "use client";
 
-import { useMemo, useCallback, memo } from "react";
+import { useMemo, useCallback, memo, useRef, useEffect } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Folder, File, FileText, FileImage, FileVideo, Copy } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -52,6 +52,12 @@ interface FileBrowserTableProps {
   onNavigate: (path: string) => void;
   /** Called when a file row is clicked */
   onSelectFile: (filePath: string) => void;
+  /** Called when user presses h/ArrowLeft/Backspace to navigate up a directory */
+  onNavigateUp?: () => void;
+  /** Called when user presses Escape to clear file selection */
+  onClearSelection?: () => void;
+  /** Whether the file preview panel is currently visible (controls j/k live-update) */
+  previewOpen?: boolean;
   isLoading?: boolean;
 }
 
@@ -209,6 +215,9 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   selectedFile,
   onNavigate,
   onSelectFile,
+  onNavigateUp,
+  onClearSelection,
+  previewOpen = false,
   isLoading = false,
 }: FileBrowserTableProps) {
   const compactMode = useCompactMode();
@@ -241,6 +250,66 @@ export const FileBrowserTable = memo(function FileBrowserTable({
     [path, onNavigate, onSelectFile],
   );
 
+  const tableAreaRef = useRef<HTMLDivElement>(null);
+
+  // Auto-focus first row when data first loads or when the directory changes,
+  // but only if nothing else on the page currently has focus.
+  useEffect(() => {
+    if (sortedFiles.length === 0) return;
+
+    const activeEl = document.activeElement;
+    const isBodyFocused = !activeEl || activeEl === document.body;
+    const isFocusInTable = tableAreaRef.current?.contains(activeEl) ?? false;
+    if (!isBodyFocused && !isFocusInTable) return;
+
+    const raf = requestAnimationFrame(() => {
+      // aria-rowindex is 1-based: header=1, first data row=2.
+    // Select by aria-rowindex rather than tabindex="0" so that stale focusedRowIndex
+    // state from the previous directory doesn't cause a non-first row to be focused.
+    const firstRow = tableAreaRef.current?.querySelector<HTMLElement>('[aria-rowindex="2"]');
+      firstRow?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [sortedFiles]); // Re-runs when directory changes or data loads
+
+  // Live preview on keyboard focus: update preview when it's already open, no-op for folders
+  // or when preview is closed (avoids opening it unexpectedly during j/k navigation)
+  const handleFocusedRowChange = useCallback(
+    (file: DatasetFile | null) => {
+      if (!file || file.type !== "file") return;
+      if (!previewOpen) return;
+      const filePath = path ? `${path}/${file.name}` : file.name;
+      onSelectFile(filePath);
+    },
+    [path, onSelectFile, previewOpen],
+  );
+
+  // Handle directory navigation and selection shortcuts at the table wrapper level
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== "TR") return;
+
+      switch (e.key) {
+        case "h":
+        case "ArrowLeft":
+        case "Backspace":
+          if (onNavigateUp) {
+            e.preventDefault();
+            onNavigateUp();
+          }
+          break;
+        case "Escape":
+          if (onClearSelection) {
+            e.preventDefault();
+            onClearSelection();
+          }
+          break;
+      }
+    },
+    [onNavigateUp, onClearSelection],
+  );
+
   const columns = useMemo(() => createColumns(), []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="This directory is empty or does not exist" />, []);
@@ -250,17 +319,24 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   }
 
   return (
-    <DataTable<DatasetFile>
-      data={sortedFiles}
-      columns={columns}
-      getRowId={getRowId}
-      onRowClick={handleRowClick}
-      selectedRowId={selectedFile ?? undefined}
-      rowHeight={rowHeight}
-      compact={compactMode}
-      emptyContent={emptyContent}
-      className="text-sm"
-      scrollClassName="flex-1"
-    />
+    <div
+      ref={tableAreaRef}
+      className="contents"
+      onKeyDown={handleKeyDown}
+    >
+      <DataTable<DatasetFile>
+        data={sortedFiles}
+        columns={columns}
+        getRowId={getRowId}
+        onRowClick={handleRowClick}
+        onFocusedRowChange={handleFocusedRowChange}
+        selectedRowId={selectedFile ?? undefined}
+        rowHeight={rowHeight}
+        compact={compactMode}
+        emptyContent={emptyContent}
+        className="text-sm"
+        scrollClassName="flex-1"
+      />
+    </div>
   );
 });

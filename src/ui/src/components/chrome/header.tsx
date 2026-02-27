@@ -88,7 +88,6 @@ export function Header() {
             <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{pageConfig.title}</span>
           </>
         )}
-
       </nav>
 
       {/* Right: Custom page actions, Theme, User */}
