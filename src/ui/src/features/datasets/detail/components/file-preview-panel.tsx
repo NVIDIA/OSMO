@@ -245,8 +245,11 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
         <video
+          key={proxyUrl}
           src={proxyUrl}
           controls
+          autoPlay
+          loop
           className="max-h-full max-w-full rounded"
         />
       </div>
