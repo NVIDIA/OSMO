@@ -53,7 +53,12 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
   workflow,
   onClose,
 }: ResubmitPanelContentProps) {
-  const { content: spec, isLoading: isSpecLoading } = useSpecData(workflow, "yaml");
+  const {
+    content: spec,
+    isLoading: isSpecLoading,
+    error: specError,
+    refetch: refetchSpec,
+  } = useSpecData(workflow, "yaml");
 
   const form = useResubmitForm({
     workflow,
@@ -81,6 +86,8 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
           isLoading={isSpecLoading}
           isModified={form.spec !== undefined && form.spec !== spec}
           onSpecChange={form.setSpec}
+          error={specError}
+          onRetry={refetchSpec}
         />
         <PoolSection
           pool={form.pool}
