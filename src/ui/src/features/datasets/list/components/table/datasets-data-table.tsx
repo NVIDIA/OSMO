@@ -141,14 +141,11 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   // Create TanStack columns (includes leading _open column)
   const columns = useMemo(() => createDatasetColumns({ onOpenPanel: handleOpenPanel }), [handleOpenPanel]);
 
-  // _open column always first, not draggable
-  const fixedColumns = useMemo(() => ["_open", ...Array.from(MANDATORY_COLUMN_IDS)], []);
-  const tableColumnOrder = useMemo(() => ["_open", ...columnOrder], [columnOrder]);
+  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 
-  // Handle column order change (store doesn't include _open)
   const handleColumnOrderChange = useCallback(
     (newOrder: string[]) => {
-      setColumnOrder(newOrder.filter((id) => id !== "_open"));
+      setColumnOrder(newOrder);
     },
     [setColumnOrder],
   );
@@ -216,7 +213,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
         columns={columns}
         getRowId={getRowId}
         // Column management
-        columnOrder={tableColumnOrder}
+        columnOrder={columnOrder}
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}

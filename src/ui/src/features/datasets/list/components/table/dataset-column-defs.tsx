@@ -15,9 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { PanelRightOpen } from "lucide-react";
+import { Info } from "lucide-react";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
-import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
 import { formatBytes } from "@/lib/utils";
 import { MidTruncate } from "@/components/mid-truncate";
@@ -41,37 +41,34 @@ export interface CreateDatasetColumnsOptions {
 export function createDatasetColumns({ onOpenPanel }: CreateDatasetColumnsOptions): ColumnDef<Dataset, unknown>[] {
   return [
     {
-      id: "_open",
-      header: "",
-      enableResizing: false,
-      enableSorting: false,
-      size: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
-      meta: { cellClassName: "p-0" },
-      cell: ({ row }) => (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onOpenPanel(row.original);
-          }}
-          className="flex h-full w-full items-center justify-center text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-          aria-label={`Open details for ${row.original.name}`}
-        >
-          <PanelRightOpen className="size-4" />
-        </button>
-      ),
-    },
-    {
       id: "name",
       accessorKey: "name",
       header: COLUMN_LABELS.name,
       minSize: getMinSize("name"),
       enableSorting: true,
       cell: ({ row }) => (
-        <MidTruncate
-          text={row.original.name}
-          className="font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100"
-        />
+        <span className="flex w-full min-w-0 items-center justify-between gap-2">
+          <MidTruncate
+            text={row.original.name}
+            className="min-w-0 font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100"
+          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenPanel(row.original);
+                }}
+                className="shrink-0 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                aria-label={`Open details for ${row.original.name}`}
+              >
+                <Info className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Open details</TooltipContent>
+          </Tooltip>
+        </span>
       ),
     },
     {
