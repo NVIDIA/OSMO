@@ -85,9 +85,6 @@ RUN for attempt in 1 2 3; do \
       fi; \
     done
 
-# Create public directory for postinstall script
-RUN mkdir -p public
-
 # Install dependencies with BuildKit cache mount (persists pnpm store between builds)
 # TARGETPLATFORM isolates AMD64/ARM64 caches (prevents native binary cross-contamination)
 # sharing=locked prevents concurrent-build cache corruption
@@ -131,9 +128,6 @@ COPY scripts ./scripts
 # Copy public files from source (committed files like favicon.ico)
 # Note: mockServiceWorker.js is excluded via .dockerignore (dev-only, aliased out in prod)
 COPY public ./public
-
-# Overlay public/ from deps stage to capture any postinstall-generated files
-COPY --from=deps /app/public/ ./public/
 
 # =============================================================================
 # Build Arguments - Can be overridden at build time
