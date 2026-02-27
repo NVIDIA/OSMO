@@ -189,10 +189,27 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
-        # Pass through other arguments (handled by provider scripts)
-        --subscription-id|--resource-group|--postgres-password|--cluster-name|--region|--environment|--k8s-version|--aws-region|--aws-profile)
-            shift 2
-            ;;
+        # Provider-specific arguments - set TF_ variables used by provider scripts
+        --subscription-id)
+            TF_SUBSCRIPTION_ID="$2"; shift 2 ;;
+        --resource-group)
+            TF_RESOURCE_GROUP="$2"; shift 2 ;;
+        --postgres-password)
+            TF_POSTGRES_PASSWORD="$2"; shift 2 ;;
+        --redis-password)
+            TF_REDIS_PASSWORD="$2"; shift 2 ;;
+        --cluster-name)
+            TF_CLUSTER_NAME="$2"; shift 2 ;;
+        --region)
+            TF_REGION="$2"; shift 2 ;;
+        --aws-region)
+            TF_AWS_REGION="$2"; shift 2 ;;
+        --aws-profile)
+            TF_AWS_PROFILE="$2"; shift 2 ;;
+        --environment)
+            TF_ENVIRONMENT="$2"; shift 2 ;;
+        --k8s-version)
+            TF_K8S_VERSION="$2"; shift 2 ;;
         *)
             shift
             ;;
@@ -501,6 +518,12 @@ main() {
     if [[ "$SKIP_TERRAFORM" == false ]]; then
         run_terraform_init
         run_terraform_apply
+    fi
+
+    # Dry-run ends after the plan - no state exists to query
+    if [[ "$DRY_RUN" == true ]]; then
+        log_success "Dry-run complete. No resources were created."
+        exit 0
     fi
 
     # Get Terraform outputs
