@@ -271,6 +271,36 @@ before asking the user for guidance.
 
 ---
 
+## Subagents
+
+### agents/logs-reader.md — Log fetching and summarization
+
+When you need to fetch and digest workflow logs without bloating your own
+context with raw output, delegate to the `logs-reader` subagent. Spawn it via
+the Task tool, passing:
+
+- The **workflow ID**
+- Which **tasks** to read: a list of task names, `"all"` for overall logs, or
+  `"auto"` to let the subagent determine the task list from the workflow query
+
+The subagent fetches logs with a 5-second timeout per call, optionally reads
+the workflow spec for additional context, and returns a compact per-task
+progress summary (~300 words) that you can relay directly to the user or use
+to inform your next action.
+
+**When to use it:**
+- Monitoring a running workflow and need a progress snapshot
+- The user asks "what are the logs for X?" or "how far along is task Y?"
+- You're inside the end-to-end orchestration loop and need a status digest
+  without duplicating raw log output in context
+
+**Example invocation prompt:**
+> Workflow ID: my-workflow-abc123
+> Tasks to read: ["train", "eval"]
+> Fetch logs and return a progress summary.
+
+---
+
 ## Use Case: Explain What a Workflow Does
 
 **When to use:** The user asks what a workflow does, what it's configured to run, or
