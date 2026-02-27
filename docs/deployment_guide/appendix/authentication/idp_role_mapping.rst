@@ -21,14 +21,16 @@
 IdP Role Mapping and Sync Modes
 ================================================
 
-When you use an identity provider (IdP) with OSMO, your IdP sends group or role claims in the JWT at login (e.g. a ``groups`` claim from Microsoft Entra ID, or a custom claim from Okta). OSMO uses these claims to determine which OSMO roles a user should receive. This page explains how that mapping works and how **sync modes** control whether IdP claims can add, remove, or leave roles unchanged.
-
+When an IdP is configured, OSMO reads group or role claims from the JWT at login and maps them to
+OSMO roles. Sync modes control whether those IdP claims can add, remove, or have no effect on a
+user's roles. This page covers the mapping configuration and sync behavior for supported IdP providers.
 For creating users and assigning roles directly via the CLI (with or without an IdP), see :doc:`managing_users`.
 
 How IdP roles connect to OSMO roles
 =====================================
 
-OSMO does not use IdP group names directly as role names. Instead, it maintains a mapping layer (``role_external_mappings``) that translates **external** names (what your IdP sends) into **OSMO role** names.
+OSMO does not use IdP group names directly as role names. Instead, it maintains a mapping layer
+that translates **external** names (what your IdP sends) into **OSMO role** names.
 
 **Flow:** IdP group claim (e.g. ``LDAP_ML_TEAM``) → external mapping → OSMO role (e.g. ``ml-team``) → policies → allow/deny
 

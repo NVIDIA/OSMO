@@ -282,7 +282,7 @@ Users that have this role will now be able to submit workflows to the newly crea
 Assign the role ``osmo-heterogeneous_pool`` to users so they can access the pool:
 
 - **Without an IdP:** Use the OSMO user and role APIs (e.g. create users with ``POST /api/auth/user``, then assign the role with ``POST /api/auth/user/{id}/roles``). See :doc:`../appendix/authentication/roles_policies` and the user management design (e.g. ``external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md``).
-- **With an IdP:** You can assign the role via the same APIs, and/or map an IdP group to this role using ``role_external_mappings`` so that users in that group get the role when they log in. See :doc:`../appendix/authentication/identity_provider_setup`.
+- **With an IdP:** You can assign the role via the same APIs, and/or map an IdP group to this role using :ref:`idp_role_mapping` so that users in that group get the role when they log in.
 
 
 Additional Examples

@@ -686,7 +686,9 @@ If you haven't set up DNS yet, you can access OSMO using port forwarding as an a
 (Optional) Create Users and Assign Roles
 ----------------------------------------
 
-If you plan to have multiple users accessing OSMO, you can create user accounts and assign roles to them. In a minimal deployment (without authentication enabled), this step is not required, but it is useful if you plan to enable authentication later or want to test role-based access control.
+You can create multiple user accounts and assign roles via the CLI without needing authentication
+or an IdP configured. This is useful for testing role-based access control or pre-provisioning
+users before enabling authentication.
 
 .. code-block:: bash
 

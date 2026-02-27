@@ -39,7 +39,7 @@ How it works
 
 1. You register OSMO as an application (OAuth2 / OIDC client) in your IdP and get a client ID and client secret.
 2. When a user visits the OSMO UI or API without a session, Envoy redirects them to the IdP to log in. After login, the IdP returns a JWT. Envoy validates the JWT and forwards the request to the OSMO service with ``x-osmo-user`` and ``x-osmo-roles`` set.
-3. OSMO roles can be assigned from two sources: directly via the OSMO user/role APIs, or from an IdP. When using an IdP, external claims (e.g., LDAP groups, OIDC roles) are mapped to OSMO roles through the ``role_external_mappings`` table
+3. OSMO roles can be assigned from two sources: directly via the OSMO user/role APIs, or from an IdP. When using an IdP, external claims (e.g., LDAP groups, OIDC roles) are mapped to OSMO roles through the :ref:`idp_role_mapping`.
 
 Identity Provider Configuration Reference
 ==============================================
@@ -179,7 +179,7 @@ Managing users and roles with an IdP
 =====================================
 
 - **Users** can be created in OSMO automatically when they first log in (just-in-time provisioning), or via the CLI (e.g. ``osmo user create``).
-- **Roles** can be assigned in OSMO via the CLI (e.g. ``osmo user roles add <user_id> <role_name>``). They can also be derived from IdP claims: configure ``role_external_mappings`` so that IdP group or role names map to OSMO role names. The OSMO service then merges IdP-derived roles with roles stored in the database.
+- **Roles** can be assigned in OSMO via the CLI (e.g. ``osmo user roles add <user_id> <role_name>``). They can also be derived from IdP claims: configure :ref:`idp_role_mapping` so that IdP group or role names map to OSMO role names. The OSMO service then merges IdP-derived roles with roles stored in the database.
 
 For more details, see :doc:`idp_role_mapping`.
 

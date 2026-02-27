@@ -104,7 +104,7 @@ When a request carries an IdP-issued JWT:
 1. Envoy validates the JWT and extracts a user identifier (e.g. ``preferred_username`` or ``email``) and, if present, group/role claims.
 2. The OSMO service (or middleware) may **sync** the user and roles:
    - Ensure the user exists in OSMO (just-in-time provisioning).
-   - Map IdP group/role claims to OSMO role names (via ``role_external_mappings``).
+   - Map IdP group/role claims to OSMO role names (via :ref:`idp_role_mapping`).
    - Merge roles from the IdP with roles stored in OSMO's ``user_roles`` table and apply role ``sync_mode`` (e.g. ``import`` vs ``force``).
 3. The final list of roles for the request is used to load policies and allow or deny the action.
 
