@@ -25,6 +25,7 @@ import { faker } from "@faker-js/faker";
 import { hashString } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
+import type { RawFileItem } from "@/lib/api/adapter/datasets";
 
 // ============================================================================
 // Types
@@ -436,6 +437,55 @@ export class DatasetGenerator {
     }
 
     return files;
+  }
+
+  /**
+   * Generate a flat file manifest for a dataset version.
+   * Returns RawFileItem[] with relative_path entries representing the full dataset tree.
+   * Used by the location-files MSW handler to serve mock file listings.
+   */
+  generateFlatManifest(datasetName: string, bucket?: string): RawFileItem[] {
+    faker.seed(this.config.baseSeed + hashString(datasetName));
+
+    const effectiveBucket = bucket ?? "osmo-datasets";
+    const items: RawFileItem[] = [];
+
+    const buildUrl = (filePath: string) =>
+      `/api/bucket/${effectiveBucket}/dataset/${datasetName}/preview?path=${encodeURIComponent(filePath)}`;
+
+    // Root files
+    items.push(
+      {
+        relative_path: "metadata.json",
+        size: faker.number.int({ min: 1024, max: 10240 }),
+        url: buildUrl("metadata.json"),
+      },
+      { relative_path: "README.md", size: faker.number.int({ min: 512, max: 5120 }), url: buildUrl("README.md") },
+    );
+
+    // Three splits: train, validation, test
+    const splits = ["train", "validation", "test"];
+    const numClasses = faker.number.int({ min: 3, max: 6 });
+    const format = faker.helpers.arrayElement(["jpg", "parquet"]);
+    const ext = format === "parquet" ? ".parquet" : ".jpg";
+
+    for (const split of splits) {
+      for (let c = 0; c < numClasses; c++) {
+        const className = `n${String(c).padStart(8, "0")}`;
+        const numFiles = faker.number.int({ min: 3, max: 8 });
+        for (let f = 0; f < numFiles; f++) {
+          const fileName = `${String(f).padStart(6, "0")}${ext}`;
+          const filePath = `${split}/${className}/${fileName}`;
+          items.push({
+            relative_path: filePath,
+            size: faker.number.int({ min: 10240, max: 524288 }),
+            url: buildUrl(filePath),
+          });
+        }
+      }
+    }
+
+    return items;
   }
 }
 

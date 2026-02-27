@@ -1267,6 +1267,26 @@ export const handlers = [
     return HttpResponse.json(response);
   }),
 
+  // Dataset location files — returns a flat file manifest for a dataset version's location URL.
+  // The location URL encodes the dataset name (e.g. s3://bucket/datasets/name/v1/).
+  // MSW intercepts this browser-side request so the Next.js proxy route is bypassed in mock mode.
+  http.get("*/api/datasets/location-files", async ({ request }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+    const locationUrl = url.searchParams.get("url") ?? "";
+
+    // Extract dataset name from location URL: s3://{bucket}/datasets/{name}/v{version}/
+    const nameMatch = locationUrl.match(/\/datasets\/([^/]+)\/v\d+/);
+    const datasetName = nameMatch?.[1] ?? "";
+
+    const bucketMatch = locationUrl.match(/s3:\/\/([^/]+)/);
+    const bucket = bucketMatch?.[1] ?? "osmo-datasets";
+
+    const items = datasetGenerator.generateFlatManifest(datasetName, bucket);
+    return HttpResponse.json(items);
+  }),
+
   // HEAD and GET preview handler for dataset files
   // Used by FilePreviewPanel to check content-type before rendering
   // Returns 200 with Content-Type based on file extension for mock public buckets
