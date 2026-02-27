@@ -291,10 +291,6 @@ services:
     ## OpenTelemetry metrics configuration
     ##
     metrics:
-      ## Enable OpenTelemetry metrics collection
-      ##
-      enabled: true
-
       ## Service component name for metrics
       ##
       component: "osmo-backend-listener"
