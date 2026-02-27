@@ -46,6 +46,7 @@ import type { Dataset } from "@/lib/api/adapter/datasets";
 import type { SearchChip, SortDirection } from "@/stores/types";
 import { parseDateRangeValue } from "@/lib/date-range-utils";
 import { naturalCompare } from "@/lib/utils";
+import { DatasetType } from "@/lib/api/generated";
 
 // =============================================================================
 // Main Export
@@ -71,6 +72,16 @@ export function applyDatasetsFiltersSync(
   sort: { column: string; direction: SortDirection } | null,
 ): { datasets: Dataset[]; total: number; filteredTotal: number } {
   let result = allDatasets;
+
+  // SHIM: Filter by type (DATASET or COLLECTION)
+  const typeChips = searchChips.filter((c) => c.field === "type");
+  for (const chip of typeChips) {
+    if (chip.value === DatasetType.COLLECTION) {
+      result = result.filter((d) => d.type === DatasetType.COLLECTION);
+    } else if (chip.value === DatasetType.DATASET) {
+      result = result.filter((d) => d.type === DatasetType.DATASET);
+    }
+  }
 
   // SHIM: Filter by created_at date range (server doesn't support this yet)
   const createdAtChips = searchChips.filter((c) => c.field === "created_at");
@@ -113,6 +124,8 @@ export function applyDatasetsFiltersSync(
           return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
         case "updated_at":
           return (new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()) * dir;
+        case "type":
+          return naturalCompare(a.type, b.type) * dir;
         default:
           return 0;
       }

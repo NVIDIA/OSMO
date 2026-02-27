@@ -38,6 +38,8 @@ export interface Dataset {
   id: string;
   name: string;
   bucket: string;
+  /** DATASET or COLLECTION */
+  type: (typeof DatasetType)[keyof typeof DatasetType];
   path?: string;
   version?: number;
   created_at: string;
@@ -72,10 +74,15 @@ export interface DatasetVersion {
 
 /**
  * Dataset file entry for file browser (used for directory listings).
+ * - "file": regular file
+ * - "folder": directory
+ * - "dataset-member": top-level collection member (shown as navigable dataset entry)
  */
 export interface DatasetFile {
   name: string;
-  type: "file" | "folder";
+  type: "file" | "folder" | "dataset-member";
+  /** Display label (used for dataset-member entries, e.g. "imagenet-1k v2") */
+  label?: string;
   size?: number;
   modified?: string;
   checksum?: string;
@@ -100,19 +107,53 @@ export interface RawFileItem {
 }
 
 /**
- * Response from dataset detail endpoint (includes versions).
+ * Collection member entry (maps to DataInfoCollectionEntry from backend).
+ */
+export interface CollectionMember {
+  /** "{name}:{version}" — used as switcher key */
+  id: string;
+  name: string;
+  version: string;
+  location: string;
+  uri: string;
+  size: number;
+}
+
+/**
+ * Response from dataset detail endpoint (type discriminant = DATASET).
  */
 export interface DatasetDetailResponse {
+  type: (typeof DatasetType)["DATASET"];
   dataset: Dataset;
   versions: DatasetVersion[];
 }
+
+/**
+ * Response from dataset detail endpoint (type discriminant = COLLECTION).
+ */
+export interface CollectionDetailResponse {
+  type: (typeof DatasetType)["COLLECTION"];
+  dataset: Dataset;
+  members: CollectionMember[];
+}
+
+/**
+ * Union of dataset and collection detail responses (discriminated by `type`).
+ */
+export type DetailResponse = DatasetDetailResponse | CollectionDetailResponse;
 
 // =============================================================================
 // Raw API Types (backend response shapes)
 // =============================================================================
 
 // Import actual types from generated client
-import type { DataListEntry, DataListResponse, DataInfoResponse, DataInfoDatasetEntry } from "@/lib/api/generated";
+import type {
+  DataListEntry,
+  DataListResponse,
+  DataInfoResponse,
+  DataInfoDatasetEntry,
+  DataInfoCollectionEntry,
+} from "@/lib/api/generated";
 import { DatasetType } from "@/lib/api/generated";
 
 // =============================================================================
@@ -161,6 +202,7 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
     id: raw.id,
     name: raw.name,
     bucket: raw.bucket,
+    type: raw.type,
     path: "", // Not available in list view
     version,
     created_at: raw.create_time,
@@ -194,7 +236,14 @@ function isDatasetEntry(version: unknown): version is DataInfoDatasetEntry {
   );
 }
 
-export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResponse {
+/**
+ * Type guard to check if a version is a DataInfoCollectionEntry (not a dataset).
+ */
+function isCollectionEntry(version: unknown): version is DataInfoCollectionEntry {
+  return typeof version === "object" && version !== null && !("status" in version);
+}
+
+export function transformDatasetDetail(raw: DataInfoResponse): DetailResponse {
   // Convert labels to Record<string, string>
   const labels: Record<string, string> = {};
   if (raw.labels) {
@@ -203,7 +252,34 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
     }
   }
 
-  // Filter versions to only include dataset entries (not collections)
+  if (raw.type === DatasetType.COLLECTION) {
+    const collectionEntries = (raw.versions || []).filter(isCollectionEntry);
+    return {
+      type: DatasetType.COLLECTION,
+      dataset: {
+        id: raw.id,
+        name: raw.name,
+        bucket: raw.bucket,
+        type: DatasetType.COLLECTION,
+        path: raw.hash_location || "",
+        created_at: raw.created_date || "",
+        created_by: raw.created_by,
+        updated_at: raw.created_date || "",
+        size_bytes: ensureNumber(raw.hash_location_size),
+        labels,
+      },
+      members: collectionEntries.map((e) => ({
+        id: `${e.name}:${e.version}`,
+        name: e.name,
+        version: e.version,
+        location: e.location,
+        uri: e.uri,
+        size: e.size,
+      })),
+    };
+  }
+
+  // DATASET case (default)
   const datasetVersions = (raw.versions || []).filter(isDatasetEntry);
 
   // Find highest version number (current version)
@@ -214,10 +290,12 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
   const latestVersion = datasetVersions.find((v) => parseInt(v.version, 10) === currentVersionNumber) || null;
 
   return {
+    type: DatasetType.DATASET,
     dataset: {
       id: raw.id,
       name: raw.name,
       bucket: raw.bucket,
+      type: DatasetType.DATASET,
       path: raw.hash_location || "",
       version: currentVersionNumber,
       created_at: raw.created_date || "",
@@ -226,7 +304,6 @@ export function transformDatasetDetail(raw: DataInfoResponse): DatasetDetailResp
       size_bytes: ensureNumber(raw.hash_location_size),
       labels,
     },
-    // Return filtered versions array (only dataset entries)
     versions: datasetVersions as DatasetVersion[],
   };
 }
@@ -258,7 +335,6 @@ function buildApiParams(
   name?: string;
   user?: string[];
   buckets?: string[];
-  dataset_type?: DatasetType;
   all_users?: boolean;
   count: number;
 } {
@@ -270,7 +346,6 @@ function buildApiParams(
     count: limit,
     name: searchTerm,
     buckets: bucketChips.length > 0 ? bucketChips : undefined,
-    dataset_type: DatasetType.DATASET,
     user: userChips.length > 0 ? userChips : undefined,
     // all_users overrides user filter on the backend — force false when user chips are active
     all_users: userChips.length > 0 ? false : showAllUsers,
@@ -350,7 +425,7 @@ export async function fetchPaginatedDatasets(
  * @param bucket - Bucket name
  * @param name - Dataset name
  */
-export async function fetchDatasetDetail(bucket: string, name: string): Promise<DatasetDetailResponse> {
+export async function fetchDatasetDetail(bucket: string, name: string): Promise<DetailResponse> {
   // Import generated client
   const { getInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
 
