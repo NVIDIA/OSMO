@@ -201,11 +201,11 @@ services:
     ## PostgreSQL password secret configuration
     ## Name of the Kubernetes secret containing the PostgreSQL password
     ##
-    passwordSecretName: postgres-secret
+    passwordSecretName: db-secret
 
     ## Key name in the secret that contains the PostgreSQL password
     ##
-    passwordSecretKey: password
+    passwordSecretKey: db-password
 
   ## Default admin user configuration
   ## When configured, the service will create an admin user on startup with the osmo-admin role
