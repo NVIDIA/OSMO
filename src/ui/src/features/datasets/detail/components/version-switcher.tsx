@@ -15,10 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * VersionNav — Compact prev/next version navigation for the file browser header.
+ * VersionSwitcher — Compact prev/next navigation for the file browser header.
  *
- * Shows: [<] v{current} [>]
- * Use the Details panel (DatasetPanel) to browse and select specific versions.
+ * Shows: [<] {label} [>]
+ * Works for both dataset versions and collection members.
  */
 
 "use client";
@@ -26,43 +26,46 @@
 import { memo, useMemo, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
+
+export interface SwitcherItem {
+  /** Unique ID used as the URL param value */
+  id: string;
+  /** Display label */
+  label: string;
+  /** If true, shows "(latest)" suffix */
+  isLatest?: boolean;
+}
 
 interface VersionSwitcherProps {
-  versions: DatasetVersion[];
-  /** Currently selected version string (e.g. "5"), null = latest */
-  selectedVersion: string | null;
-  /** Called with version string when user picks a different version */
-  onVersionChange: (version: string) => void;
+  items: SwitcherItem[];
+  /** Currently selected item ID, null = use last item */
+  selectedId: string | null;
+  /** Called with item ID when user picks a different item */
+  onSelectionChange: (id: string) => void;
 }
 
 export const VersionSwitcher = memo(function VersionSwitcher({
-  versions,
-  selectedVersion,
-  onVersionChange,
+  items,
+  selectedId,
+  onSelectionChange,
 }: VersionSwitcherProps) {
-  // Sorted ascending so index 0 = oldest, last = newest
-  const sortedVersions = useMemo(
-    () => [...versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10)),
-    [versions],
-  );
-
-  const latestVersion = sortedVersions[sortedVersions.length - 1];
-  const effectiveVersion = selectedVersion ?? latestVersion?.version ?? "";
-  const currentIndex = sortedVersions.findIndex((v) => v.version === effectiveVersion);
+  const lastItem = items[items.length - 1];
+  const effectiveId = selectedId ?? lastItem?.id ?? "";
+  const currentIndex = useMemo(() => items.findIndex((item) => item.id === effectiveId), [items, effectiveId]);
+  const currentItem = items[currentIndex] ?? null;
 
   const canGoPrev = currentIndex > 0;
-  const canGoNext = currentIndex < sortedVersions.length - 1;
+  const canGoNext = currentIndex < items.length - 1;
 
   const handlePrev = useCallback(() => {
-    if (canGoPrev) onVersionChange(sortedVersions[currentIndex - 1].version);
-  }, [canGoPrev, currentIndex, onVersionChange, sortedVersions]);
+    if (canGoPrev) onSelectionChange(items[currentIndex - 1].id);
+  }, [canGoPrev, currentIndex, onSelectionChange, items]);
 
   const handleGoNext = useCallback(() => {
-    if (canGoNext) onVersionChange(sortedVersions[currentIndex + 1].version);
-  }, [canGoNext, currentIndex, onVersionChange, sortedVersions]);
+    if (canGoNext) onSelectionChange(items[currentIndex + 1].id);
+  }, [canGoNext, currentIndex, onSelectionChange, items]);
 
-  if (versions.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className="flex items-center gap-0.5">
@@ -72,7 +75,7 @@ export const VersionSwitcher = memo(function VersionSwitcher({
         className="h-7 w-7 p-0"
         onClick={handlePrev}
         disabled={!canGoPrev}
-        aria-label="Previous version"
+        aria-label="Previous"
       >
         <ChevronLeft
           className="size-3.5"
@@ -81,10 +84,8 @@ export const VersionSwitcher = memo(function VersionSwitcher({
       </Button>
 
       <span className="px-1.5 font-mono text-xs text-zinc-600 dark:text-zinc-400">
-        v{effectiveVersion}
-        {effectiveVersion === latestVersion?.version && (
-          <span className="ml-1 text-zinc-400 dark:text-zinc-500">(latest)</span>
-        )}
+        {currentItem?.label ?? ""}
+        {currentItem?.isLatest && <span className="ml-1 text-zinc-400 dark:text-zinc-500">(latest)</span>}
       </span>
 
       <Button
@@ -93,7 +94,7 @@ export const VersionSwitcher = memo(function VersionSwitcher({
         className="h-7 w-7 p-0"
         onClick={handleGoNext}
         disabled={!canGoNext}
-        aria-label="Next version"
+        aria-label="Next"
       >
         <ChevronRight
           className="size-3.5"

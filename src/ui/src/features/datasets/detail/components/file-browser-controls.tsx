@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * FileBrowserControls — Version switcher + Details toggle for the dataset file browser.
+ * FileBrowserControls — Version/member switcher + Details toggle for the dataset file browser.
  *
  * Rendered via usePage({ headerActions }) so it appears in the chrome header on the right
  * side of the breadcrumb nav, adjacent to the theme toggle and user menu.
@@ -26,16 +26,15 @@
 import { memo } from "react";
 import { Info } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import { VersionSwitcher } from "@/features/datasets/detail/components/version-switcher";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
+import { VersionSwitcher, type SwitcherItem } from "@/features/datasets/detail/components/version-switcher";
 
 interface FileBrowserControlsProps {
-  /** All available versions */
-  versions: DatasetVersion[];
-  /** Currently selected version (null = latest) */
-  selectedVersion: string | null;
-  /** Called when the version is changed */
-  onVersionChange: (version: string) => void;
+  /** Switcher items (versions or collection members) */
+  items: SwitcherItem[];
+  /** Currently selected item ID (null = latest/last) */
+  selectedId: string | null;
+  /** Called when the selection changes */
+  onSelectionChange: (id: string) => void;
   /** Whether the details panel is open */
   detailsOpen: boolean;
   /** Called to toggle the details panel */
@@ -43,19 +42,19 @@ interface FileBrowserControlsProps {
 }
 
 export const FileBrowserControls = memo(function FileBrowserControls({
-  versions,
-  selectedVersion,
-  onVersionChange,
+  items,
+  selectedId,
+  onSelectionChange,
   detailsOpen,
   onToggleDetails,
 }: FileBrowserControlsProps) {
   return (
     <div className="flex items-center gap-2">
-      {versions.length > 0 && (
+      {items.length > 0 && (
         <VersionSwitcher
-          versions={versions}
-          selectedVersion={selectedVersion}
-          onVersionChange={onVersionChange}
+          items={items}
+          selectedId={selectedId}
+          onSelectionChange={onSelectionChange}
         />
       )}
       <Button
