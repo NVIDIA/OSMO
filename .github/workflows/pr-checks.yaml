@@ -293,12 +293,6 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy preview
-        uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
-        with:
-          source-dir: ./docs/public/
-          preview-branch: gh-pages/documentation
-
       - name: Run spelling check
         id: spelling
         if: github.event.action != 'closed'
