@@ -189,7 +189,6 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
             method: "GET",
             headers: { Accept: "text/plain" },
             signal: controller.signal,
-            credentials: "include",
             redirect: "manual",
           });
 

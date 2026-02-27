@@ -84,7 +84,7 @@
      ========================================================================== */
   .table-container {
     background: var(--table-surface);
-    border-radius: theme(borderRadius.md);
+    border-radius: var(--radius-md);
     overflow: hidden;
     /* Bevel borders */
     border-top: 1px solid var(--table-border-top);
@@ -96,10 +96,10 @@
   .table-header {
     background: var(--table-header);
     /* Sharp shadow - z-index handled by sticky class when needed */
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 15%);
 
     :is(.dark &) {
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 50%);
     }
   }
 
@@ -109,7 +109,7 @@
      ========================================================================== */
   .scrollbar-styled {
     scrollbar-width: thin;
-    scrollbar-color: theme(colors.zinc.400 / 50%) theme(colors.zinc.100 / 60%);
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 
     &::-webkit-scrollbar {
       width: 10px;
@@ -117,46 +117,25 @@
     }
 
     &::-webkit-scrollbar-track {
-      background: theme(colors.zinc.100 / 60%);
+      background: var(--scrollbar-track);
       border-radius: 5px;
       margin: 2px;
     }
 
     &::-webkit-scrollbar-thumb {
-      background: theme(colors.zinc.400 / 50%);
+      background: var(--scrollbar-thumb);
       border-radius: 5px;
-      border: 2px solid theme(colors.zinc.100 / 60%);
+      border: 2px solid var(--scrollbar-track);
       transition: background var(--duration-normal) var(--ease-out);
     }
 
     &::-webkit-scrollbar-thumb:hover {
-      background: theme(colors.zinc.500 / 70%);
+      background: var(--scrollbar-thumb-hover);
     }
 
     &::-webkit-scrollbar-corner {
-      background: theme(colors.zinc.100 / 60%);
+      background: var(--scrollbar-track);
       border-radius: 5px;
-    }
-
-    :is(.dark &) {
-      scrollbar-color: theme(colors.zinc.500 / 40%) theme(colors.zinc.800 / 50%);
-
-      &::-webkit-scrollbar-track {
-        background: theme(colors.zinc.800 / 60%);
-      }
-
-      &::-webkit-scrollbar-thumb {
-        background: theme(colors.zinc.500 / 50%);
-        border-color: theme(colors.zinc.800 / 60%);
-      }
-
-      &::-webkit-scrollbar-thumb:hover {
-        background: theme(colors.zinc.400 / 60%);
-      }
-
-      &::-webkit-scrollbar-corner {
-        background: theme(colors.zinc.800 / 60%);
-      }
     }
   }
 
@@ -302,5 +281,47 @@
 
   [data-slot="card"][data-variant="sectioned"] > [data-slot="card-footer"] {
     padding-block: var(--card-section-padding);
+  }
+
+  /* ==========================================================================
+     Navigation Progress Bar
+     Top-of-viewport loading indicator for client-side route navigations.
+     Driven by data-status attribute: idle | loading | complete
+     ========================================================================== */
+
+  .nav-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transform: scaleX(0);
+    transform-origin: left;
+    background: var(--nvidia-green);
+  }
+
+  .nav-progress[data-status="loading"] {
+    opacity: 1;
+    animation: nav-progress-load 10s cubic-bezier(0.4, 0, 0, 1) forwards;
+  }
+
+  .nav-progress[data-status="complete"] {
+    opacity: 0;
+    transform: scaleX(1);
+    transition:
+      transform 200ms ease,
+      opacity 300ms ease 200ms;
+  }
+}
+
+@keyframes nav-progress-load {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.8);
   }
 }

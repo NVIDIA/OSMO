@@ -180,7 +180,6 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
             method: "GET",
             headers: { Accept: "text/plain" },
             signal: controller.signal,
-            credentials: "include",
             redirect: "manual",
           });
 
