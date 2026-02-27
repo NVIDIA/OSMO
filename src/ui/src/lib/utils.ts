@@ -120,18 +120,20 @@ function gibToUnit(gib: number, unit: ByteUnit): number {
   }
 }
 
-// Format used/total with consistent units, using the more granular unit
-export function formatBytesPair(
+// Format used/total/free with consistent units, using the more granular unit
+export function formatBytesTriple(
   usedGib: number,
   totalGib: number,
+  freeGib: number,
 ): { used: string; total: string; unit: ByteUnit; freeDisplay: string } {
   if (usedGib === 0) {
     const totalFormatted = formatBytes(totalGib);
+    const freeFormatted = formatBytes(freeGib);
     return {
       used: "0",
       total: totalFormatted.value,
       unit: totalFormatted.unit,
-      freeDisplay: totalFormatted.display,
+      freeDisplay: freeFormatted.display,
     };
   }
 
@@ -154,7 +156,7 @@ export function formatBytesPair(
 
   const usedInUnit = gibToUnit(usedGib, unit);
   const totalInUnit = gibToUnit(totalGib, unit);
-  const freeInUnit = totalInUnit - usedInUnit;
+  const freeInUnit = gibToUnit(freeGib, unit);
 
   return {
     used: formatDecimal(usedInUnit),
@@ -165,23 +167,24 @@ export function formatBytesPair(
 }
 
 // Format react-hotkeys-hook syntax for display: "mod+]" → "⌘]" (Mac) or "Ctrl+]" (Windows)
-export function formatHotkey(hotkey: string): string {
+// Optional `mac` parameter overrides platform detection (used by useFormattedHotkey for SSR safety).
+export function formatHotkey(hotkey: string, mac?: boolean): string {
+  const useMacSymbols = mac ?? isMac;
   const parts = hotkey.toLowerCase().split("+");
 
   const symbols = parts.map((part) => {
     switch (part) {
       case "mod":
-        return isMac ? "⌘" : "Ctrl+";
+        return useMacSymbols ? "⌘" : "Ctrl+";
       case "shift":
-        return isMac ? "⇧" : "Shift+";
+        return useMacSymbols ? "⇧" : "Shift+";
       case "alt":
-        return isMac ? "⌥" : "Alt+";
+        return useMacSymbols ? "⌥" : "Alt+";
       case "ctrl":
-        return isMac ? "⌃" : "Ctrl+";
+        return useMacSymbols ? "⌃" : "Ctrl+";
       case "escape":
         return "Esc";
       default:
-        // Uppercase single letters, keep symbols as-is
         return part.length === 1 ? part.toUpperCase() : part;
     }
   });

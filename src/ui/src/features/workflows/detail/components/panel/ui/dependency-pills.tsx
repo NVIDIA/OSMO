@@ -66,6 +66,11 @@ const STATUS_PILL_STYLES = {
     icon: Pause,
     iconClass: "",
   },
+  unknown: {
+    pillClass: "dependency-pill-waiting",
+    icon: Clock,
+    iconClass: "",
+  },
 } as const;
 
 export interface DependencyPillProps {

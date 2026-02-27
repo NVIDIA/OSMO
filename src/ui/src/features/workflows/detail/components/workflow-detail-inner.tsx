@@ -52,7 +52,13 @@ import { WorkflowDetailLayout } from "@/features/workflows/detail/components/wor
 import { WorkflowDAGContent } from "@/features/workflows/detail/components/dag/dag-content";
 import { DetailsPanel } from "@/features/workflows/detail/components/panel/ui/details-panel";
 import type { DetailsPanelView } from "@/features/workflows/detail/components/panel/core/lib/panel-types";
-import { CancelWorkflowDialog } from "@/features/workflows/detail/components/panel/ui/workflow/cancel-workflow-dialog";
+const CancelWorkflowDialog = dynamic(
+  () =>
+    import("@/features/workflows/detail/components/panel/ui/workflow/cancel-workflow-dialog").then((m) => ({
+      default: m.CancelWorkflowDialog,
+    })),
+  { ssr: false },
+);
 
 const ResubmitPanel = dynamic(
   () =>

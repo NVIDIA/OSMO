@@ -122,9 +122,9 @@ export const GpuProgressCell = memo(function GpuProgressCell({
   isShared = false,
   onFilterBySharedPools,
 }: GpuProgressCellProps) {
-  // Extract values based on type
   const used = type === "quota" ? quota.used : quota.totalUsage;
   const total = type === "quota" ? quota.limit : quota.totalCapacity;
+  const free = type === "quota" ? quota.free : quota.totalFree;
   const freeLabel = type === "quota" ? "free" : "idle";
 
   const handleShareClick = useCallback(
@@ -139,6 +139,7 @@ export const GpuProgressCell = memo(function GpuProgressCell({
     <InlineProgress
       used={used}
       total={total}
+      free={free}
       displayMode={displayMode}
       compact={compact}
       freeLabel={freeLabel}

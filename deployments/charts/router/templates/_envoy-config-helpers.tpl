@@ -200,9 +200,6 @@ listeners:
                     allowed_client_headers_on_success:
                       patterns:
                       - exact: set-cookie
-                      - exact: x-auth-request-user
-                      - exact: x-auth-request-email
-                      - exact: x-auth-request-preferred-username
                 failure_mode_allow: false
         - name: envoy.filters.http.lua.copy-auth-header
           typed_config:
@@ -329,7 +326,7 @@ listeners:
             grpc_service:
               envoy_grpc:
                 cluster_name: authz-sidecar
-              timeout: 0.5s
+              timeout: 1s
             metadata_context_namespaces:
               - envoy.filters.http.jwt_authn
         {{- end }}

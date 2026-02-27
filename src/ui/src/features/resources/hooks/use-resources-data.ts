@@ -32,7 +32,7 @@
 
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { fetchResources } from "@/lib/api/adapter/hooks";
 import type {
@@ -40,7 +40,12 @@ import type {
   ResourceFilterParams,
   ResourcesCacheSeed,
 } from "@/lib/api/adapter/resources-shim";
-import { buildResourcesQueryKey, seedResourcesCache, RESOURCES_SHIM_SEED_KEY } from "@/lib/api/adapter/resources-shim";
+import {
+  buildResourcesQueryKey,
+  invalidateResourcesCache,
+  seedResourcesCache,
+  RESOURCES_SHIM_SEED_KEY,
+} from "@/lib/api/adapter/resources-shim";
 import type { Resource } from "@/lib/api/adapter/types";
 import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
 import type { SearchChip } from "@/stores/types";
@@ -176,6 +181,13 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     return filterByChips(paginatedResources, clientOnlyChips, RESOURCE_SEARCH_FIELDS);
   }, [paginatedResources, clientOnlyChips]);
 
+  // Invalidate the shim's in-memory cache before refetching so TanStack Query
+  // actually hits the API instead of getting stale cached data from the shim.
+  const manualRefetch = useCallback(() => {
+    invalidateResourcesCache();
+    refetch();
+  }, [refetch]);
+
   return {
     resources: filteredResources,
     paginatedResources,
@@ -184,7 +196,7 @@ export function useResourcesData({ searchChips }: UseResourcesDataParams): UseRe
     totalCount,
     isLoading,
     error,
-    refetch,
+    refetch: manualRefetch,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,

@@ -27,7 +27,8 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { cn, formatHotkey } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { useFormattedHotkey } from "@/hooks/use-hotkey-label";
 import { formatDateShort } from "@/lib/format-date";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
@@ -101,7 +102,7 @@ const DateSeparator = memo(function DateSeparator({ date, className }: DateSepar
 
   return (
     <div
-      className={cn("flex items-center gap-2 px-3 py-1", className)}
+      className={cn("flex items-center gap-2 px-3 py-0.5", className)}
       role="separator"
       aria-label={`Logs from ${formattedDate}`}
     >
@@ -172,6 +173,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
   const { clipboard } = useServices();
+  const copyShortcut = useFormattedHotkey("mod+c");
 
   // Track programmatic scrolls to avoid unpinning during auto-scroll
   const isAutoScrollingRef = useRef(false);
@@ -181,6 +183,21 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
   const showTaskStore = useLogViewerStore((s) => s.showTask);
   // Force-hide task tags when scoped to a single task (hideTask overrides store)
   const showTask = hideTask ? false : showTaskStore;
+
+  // Per-row expanded state — preserved across autowrap toggles
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const handleToggleExpand = useCallback((entryId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(entryId)) {
+        next.delete(entryId);
+      } else {
+        next.add(entryId);
+      }
+      return next;
+    });
+  }, []);
 
   // Flatten entries with date separators using incremental algorithm
   // O(k) for streaming appends where k = new entries, O(n) for full replacement
@@ -546,6 +563,8 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
                     wrapLines={wrapLines}
                     showTask={showTask}
                     isSelected={isSelected}
+                    isExpanded={expandedIds.has(item.entry.id)}
+                    onToggleExpand={handleToggleExpand}
                   />
                 </div>
               );
@@ -560,7 +579,7 @@ const LogListInner = forwardRef<LogListHandle, LogListProps>(function LogListInn
           disabled={!effectiveSelection}
         >
           Copy
-          <ContextMenuShortcut>{formatHotkey("mod+c")}</ContextMenuShortcut>
+          <ContextMenuShortcut>{copyShortcut}</ContextMenuShortcut>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

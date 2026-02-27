@@ -151,6 +151,12 @@ export function parseLogLine(line: string): LogEntry | null {
     pos += 6; // Skip "[osmo]"
   }
 
+  // Ensure one space after "[task_name]" or "[task_name retry-N]" or after "[osmo]"
+  // before log message starts.
+  if (line.charAt(pos) === " ") {
+    pos += 1;
+  }
+
   // Extract message, strip ANSI codes only - preserve leading space and all content as-is
   const message = line.slice(pos).replace(ANSI_RE, "");
 
@@ -195,25 +201,6 @@ export function parseLogBatch(text: string): LogEntry[] {
     const entry = parseLogLine(line);
     if (entry) {
       entries.push(entry);
-    }
-  }
-
-  // DEBUG: Check if backend returned sorted logs
-  if (process.env.NODE_ENV === "development" && entries.length > 1) {
-    let outOfOrder = 0;
-    for (let i = 1; i < Math.min(entries.length, 10); i++) {
-      if (entries[i].timestamp < entries[i - 1].timestamp) {
-        outOfOrder++;
-      }
-    }
-    if (outOfOrder > 0) {
-      console.warn(
-        `[parseLogBatch] Backend returned ${outOfOrder} out-of-order entries in first 10. ` +
-          `First 3 dates: ${entries
-            .slice(0, 3)
-            .map((e) => e.timestamp.toISOString().split("T")[0])
-            .join(", ")}`,
-      );
     }
   }
 

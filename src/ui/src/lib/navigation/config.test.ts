@@ -67,20 +67,15 @@ describe("buildNavigation", () => {
       const nav = buildNavigation(true);
       const adminItems = nav.sections[1].items;
 
-      expect(adminItems).toHaveLength(4);
-      expect(adminItems.map((i) => i.href)).toEqual([
-        "/log-viewer",
-        "/admin/settings",
-        "/admin/roles",
-        "/admin/tokens",
-      ]);
+      expect(adminItems).toHaveLength(1);
+      expect(adminItems.map((i) => i.href)).toEqual(["/log-viewer"]);
     });
 
     it("admin section has correct route names", () => {
       const nav = buildNavigation(true);
       const adminItems = nav.sections[1].items;
 
-      expect(adminItems.map((i) => i.name)).toEqual(["Log Viewer", "Settings", "Roles", "API Tokens"]);
+      expect(adminItems.map((i) => i.name)).toEqual(["Log Viewer"]);
     });
 
     it("still includes user routes", () => {

@@ -75,6 +75,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `services.service.scaling.minReplicas` | Minimum number of replicas | `3` |
 | `services.service.scaling.maxReplicas` | Maximum number of replicas | `5` |
 | `services.service.scaling.memoryTarget` | Target memory utilization percentage for HPA | `80` |
+| `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
 
 #### Ingress Configuration
 
@@ -122,6 +123,7 @@ helm upgrade my-router ./router -f my-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `targetSchema` | pgroll schema version for search_path (e.g., `public_v6_2_0`). Leave empty to use the default `public` schema. | `""` |
 | `services.postgres.serviceName` | PostgreSQL service name | `postgres` |
 | `services.postgres.port` | PostgreSQL service port | `5432` |
 | `services.postgres.db` | PostgreSQL database name | `osmo` |

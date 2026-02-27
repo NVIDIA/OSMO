@@ -54,11 +54,31 @@ function ResourceTypeCell({ value }: { value: string }) {
   );
 }
 
-/** Pools membership cell using expandable chips */
-const PoolsCell = memo(function PoolsCell({ resource }: { resource: Resource }) {
-  // Memoize the pools array to maintain stable reference for useExpandableChips
-  const pools = useMemo(() => resource.poolMemberships.map((m) => m.pool), [resource.poolMemberships]);
-  return <ExpandableChips items={pools} />;
+/** Render pool/platform label with dimmed pool prefix */
+function renderPoolPlatformLabel(item: string) {
+  const slashIndex = item.lastIndexOf("/");
+  const poolPart = item.slice(0, slashIndex + 1);
+  const platformPart = item.slice(slashIndex + 1);
+  return (
+    <>
+      <span className="text-muted-foreground">{poolPart}</span>
+      {platformPart}
+    </>
+  );
+}
+
+/** Pool/Platform membership cell with dimmed pool prefix */
+const PoolPlatformCell = memo(function PoolPlatformCell({ resource }: { resource: Resource }) {
+  const items = useMemo(
+    () => resource.poolMemberships.map((m) => `${m.pool}/${m.platform}`),
+    [resource.poolMemberships],
+  );
+  return (
+    <ExpandableChips
+      items={items}
+      renderLabel={renderPoolPlatformLabel}
+    />
+  );
 });
 
 /** Text cell (platform, backend) */
@@ -115,19 +135,11 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       meta: { align: "left" as const },
     },
     {
-      id: "pools",
-      accessorFn: (row) => row.poolMemberships[0]?.pool ?? "",
-      header: COLUMN_LABELS.pools,
-      minSize: getMinSize("pools"),
-      cell: ({ row }) => <PoolsCell resource={row.original} />,
-      meta: { align: "left" as const },
-    },
-    {
-      id: "platform",
-      accessorKey: "platform",
-      header: COLUMN_LABELS.platform,
-      minSize: getMinSize("platform"),
-      cell: ({ getValue }) => <TextCell value={getValue() as string} />,
+      id: "pool-platform",
+      accessorFn: (row) => row.poolMemberships.map((m) => `${m.pool}/${m.platform}`).join(", "),
+      header: COLUMN_LABELS["pool-platform"],
+      minSize: getMinSize("pool-platform"),
+      cell: ({ row }) => <PoolPlatformCell resource={row.original} />,
       meta: { align: "left" as const },
     },
     {
@@ -140,7 +152,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "gpu",
-      accessorFn: (row) => (displayMode === "free" ? row.gpu.total - row.gpu.used : row.gpu.used),
+      accessorFn: (row) => (displayMode === "free" ? row.gpu.free : row.gpu.used),
       header: COLUMN_LABELS.gpu,
       minSize: getMinSize("gpu"),
       cell: ({ row }) => (
@@ -148,6 +160,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.gpu.used}
             total={row.original.gpu.total}
+            free={row.original.gpu.free}
             mode={displayMode}
           />
         </div>
@@ -156,7 +169,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "cpu",
-      accessorFn: (row) => (displayMode === "free" ? row.cpu.total - row.cpu.used : row.cpu.used),
+      accessorFn: (row) => (displayMode === "free" ? row.cpu.free : row.cpu.used),
       header: COLUMN_LABELS.cpu,
       minSize: getMinSize("cpu"),
       cell: ({ row }) => (
@@ -164,6 +177,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.cpu.used}
             total={row.original.cpu.total}
+            free={row.original.cpu.free}
             mode={displayMode}
           />
         </div>
@@ -172,7 +186,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "memory",
-      accessorFn: (row) => (displayMode === "free" ? row.memory.total - row.memory.used : row.memory.used),
+      accessorFn: (row) => (displayMode === "free" ? row.memory.free : row.memory.used),
       header: COLUMN_LABELS.memory,
       minSize: getMinSize("memory"),
       cell: ({ row }) => (
@@ -180,6 +194,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.memory.used}
             total={row.original.memory.total}
+            free={row.original.memory.free}
             isBytes
             mode={displayMode}
           />
@@ -189,7 +204,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
     },
     {
       id: "storage",
-      accessorFn: (row) => (displayMode === "free" ? row.storage.total - row.storage.used : row.storage.used),
+      accessorFn: (row) => (displayMode === "free" ? row.storage.free : row.storage.used),
       header: COLUMN_LABELS.storage,
       minSize: getMinSize("storage"),
       cell: ({ row }) => (
@@ -197,6 +212,7 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
           <CapacityCell
             used={row.original.storage.used}
             total={row.original.storage.total}
+            free={row.original.storage.free}
             isBytes
             mode={displayMode}
           />

@@ -23,6 +23,7 @@ go_library(
         "pool_access.go",
         "role_cache.go",
         "roles.go",
+        "user_role_sync.go",
     ],
     importpath = "go.corp.nvidia.com/osmo/utils/roles",
     visibility = ["//visibility:public"],

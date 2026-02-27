@@ -55,8 +55,8 @@ const BASE_RESOURCE_SEARCH_FIELDS: SearchField<Resource>[] = [
     hint: "platform name",
     prefix: "platform:",
     freeFormHint: "Type any platform, press Enter",
-    getValues: (resources) => [...new Set(resources.map((r) => r.platform))].sort(),
-    match: (resource, value) => resource.platform.toLowerCase() === value.toLowerCase(),
+    getValues: (resources) => [...new Set(resources.flatMap((r) => r.poolMemberships.map((m) => m.platform)))].sort(),
+    match: (resource, value) => resource.poolMemberships.some((m) => m.platform.toLowerCase() === value.toLowerCase()),
   },
   {
     id: "pool",
@@ -99,7 +99,7 @@ const [gpuFree, gpuUsed] = createNumericSearchFieldPair<Resource>({
   label: "GPU",
   hintFree: "available GPUs",
   hintUsed: "GPU utilization",
-  getFree: (r) => r.gpu.total - r.gpu.used,
+  getFree: (r) => r.gpu.free,
   getUsed: (r) => r.gpu.used,
   getMax: (r) => r.gpu.total,
 });
@@ -110,7 +110,7 @@ const [cpuFree, cpuUsed] = createNumericSearchFieldPair<Resource>({
   label: "CPU",
   hintFree: "available CPUs",
   hintUsed: "CPU utilization",
-  getFree: (r) => r.cpu.total - r.cpu.used,
+  getFree: (r) => r.cpu.free,
   getUsed: (r) => r.cpu.used,
   getMax: (r) => r.cpu.total,
 });
@@ -121,7 +121,7 @@ const [memoryFree, memoryUsed] = createNumericSearchFieldPair<Resource>({
   label: "Memory",
   hintFree: "available memory",
   hintUsed: "memory utilization",
-  getFree: (r) => r.memory.total - r.memory.used,
+  getFree: (r) => r.memory.free,
   getUsed: (r) => r.memory.used,
   getMax: (r) => r.memory.total,
   validateOptions: { allowDiscrete: false },

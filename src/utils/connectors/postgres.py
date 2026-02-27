@@ -1645,95 +1645,6 @@ def upsert_user(database: PostgresConnector, user_name: str):
     database.execute_commit_command(upsert_cmd, (user_name, user_name))
 
 
-def sync_user_roles(database: PostgresConnector, user_name: str, external_roles: List[str]):
-    """
-    Synchronize user roles based on external IDP roles and each role's sync_mode.
-
-    External roles from the header are mapped to OSMO roles via the role_external_mappings
-    table, then synced based on each role's sync_mode.
-
-    Sync modes:
-    - ignore: Don't add or remove the role (managed manually)
-    - import: Add the role if user doesn't have it (but don't remove)
-    - force: Add if user doesn't have it, remove if user has it but it's not in header
-
-    Args:
-        database: PostgresConnector instance
-        user_name: The username to sync roles for
-        external_roles: List of external role names from the IDP header
-    """
-    # Single query to get all roles with sync_mode and whether they're mapped from external roles
-    # This combines role lookup, external mapping, and sync_mode in one query
-    fetch_roles_cmd = '''
-        SELECT
-            r.name,
-            r.sync_mode,
-            EXISTS (
-                SELECT 1 FROM role_external_mappings rem
-                WHERE rem.role_name = r.name AND rem.external_role = ANY(%s)
-            ) AS in_header
-        FROM roles r
-        WHERE r.sync_mode != %s;
-    '''
-    all_roles = database.execute_fetch_command(
-        fetch_roles_cmd,
-        (external_roles if external_roles else [], role.SyncMode.IGNORE.value),
-        True
-    )
-    if not all_roles:
-        return
-
-    # Get user's current roles (only for roles we care about)
-    role_names = [r['name'] for r in all_roles]
-    fetch_user_roles_cmd = '''
-        SELECT role_name FROM user_roles
-        WHERE user_id = %s AND role_name = ANY(%s);
-    '''
-    user_role_rows = database.execute_fetch_command(
-        fetch_user_roles_cmd, (user_name, role_names), True
-    )
-    current_user_roles = {row['role_name'] for row in user_role_rows} if user_role_rows else set()
-
-    # Collect roles to add and remove for batch operations
-    roles_to_add = []
-    roles_to_remove = []
-
-    for role_row in all_roles:
-        role_name = role_row['name']
-        sync_mode = role_row['sync_mode']
-        role_in_header = role_row['in_header']
-        user_has_role = role_name in current_user_roles
-
-        if sync_mode == role.SyncMode.IMPORT.value:
-            # Add the role if it's in the header and user doesn't have it
-            if role_in_header and not user_has_role:
-                roles_to_add.append(role_name)
-
-        elif sync_mode == role.SyncMode.FORCE.value:
-            # Add if in header and user doesn't have it
-            if role_in_header and not user_has_role:
-                roles_to_add.append(role_name)
-            # Remove if user has it but it's not in header
-            elif user_has_role and not role_in_header:
-                roles_to_remove.append(role_name)
-
-    # Batch insert roles to add
-    if roles_to_add:
-        insert_cmd = '''
-            INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-            SELECT %s, unnest(%s::text[]), %s, NOW()
-            ON CONFLICT (user_id, role_name) DO NOTHING;
-        '''
-        database.execute_commit_command(insert_cmd, (user_name, roles_to_add, 'idp-sync'))
-
-    # Batch delete roles to remove
-    if roles_to_remove:
-        delete_cmd = '''
-            DELETE FROM user_roles
-            WHERE user_id = %s AND role_name = ANY(%s);
-        '''
-        database.execute_commit_command(delete_cmd, (user_name, roles_to_remove))
-
 
 class UserProfile(pydantic.BaseModel):
     """ Provides all User Profile Information """
@@ -2888,7 +2799,8 @@ class ServiceConfig(DynamicConfig):
     """ Stores any configs OSMO Admins control """
     service_base_url: str = ''
 
-    service_auth: auth.AuthenticationConfig = auth.AuthenticationConfig.generate_default()
+    service_auth: auth.AuthenticationConfig = pydantic.Field(
+        default_factory=auth.AuthenticationConfig.generate_default)
 
     cli_config: CliConfig = CliConfig()
 

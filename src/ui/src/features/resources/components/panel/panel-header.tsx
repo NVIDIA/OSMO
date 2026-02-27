@@ -26,7 +26,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Server, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Resource } from "@/lib/api/adapter/types";
@@ -42,6 +42,10 @@ export interface ResourcePanelHeaderProps {
 
 export const ResourcePanelHeader = memo(function ResourcePanelHeader({ resource, onClose }: ResourcePanelHeaderProps) {
   const resourceTypeDisplay = getResourceAllocationTypeDisplay(resource.resourceType);
+  const uniquePlatforms = useMemo(
+    () => [...new Set(resource.poolMemberships.map((m) => m.platform))],
+    [resource.poolMemberships],
+  );
 
   // Build title content with name and resource type badge
   const titleContent = (
@@ -56,10 +60,12 @@ export const ResourcePanelHeader = memo(function ResourcePanelHeader({ resource,
   // Build subtitle content with platform, backend, and pool count
   const subtitleContent = (
     <SeparatedParts>
-      <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
-        <Cpu className="size-3" />
-        {resource.platform}
-      </span>
+      {uniquePlatforms.length > 0 && (
+        <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+          <Cpu className="size-3" />
+          {uniquePlatforms.length === 1 ? uniquePlatforms[0] : `${uniquePlatforms.length} platforms`}
+        </span>
+      )}
       <span className="flex items-center gap-1 text-zinc-500 dark:text-zinc-400">
         <Server className="size-3" />
         {resource.backend}

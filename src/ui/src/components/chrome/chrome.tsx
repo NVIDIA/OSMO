@@ -20,6 +20,7 @@ import { memo, Suspense } from "react";
 import { AppSidebar } from "@/components/chrome/app-sidebar";
 import { Header } from "@/components/chrome/header";
 import { SIDEBAR_CSS_VARS } from "@/components/chrome/constants";
+import { NavigationProgress } from "@/components/navigation-progress";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { TableSkeleton } from "@/components/data-table/table-skeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
@@ -36,43 +37,46 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
   const setSidebarOpen = useSharedPreferences((s) => s.setSidebarOpen);
 
   return (
-    <Suspense fallback={<ChromeSkeleton>{children}</ChromeSkeleton>}>
-      <SidebarProvider
-        open={sidebarOpen}
-        onOpenChange={setSidebarOpen}
-        className="h-screen overflow-y-hidden"
-        style={SIDEBAR_CSS_VARS as React.CSSProperties}
-      >
-        {/* Skip to main content link - WCAG 2.1 bypass block */}
-        <a
-          href="#main-content"
-          className="focus:bg-nvidia sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:px-4 focus:py-2 focus:text-black focus:outline-none"
+    <>
+      <NavigationProgress />
+      <Suspense fallback={<ChromeSkeleton>{children}</ChromeSkeleton>}>
+        <SidebarProvider
+          open={sidebarOpen}
+          onOpenChange={setSidebarOpen}
+          className="h-screen overflow-y-hidden"
+          style={SIDEBAR_CSS_VARS as React.CSSProperties}
         >
-          Skip to main content
-        </a>
-
-        {/* Sidebar */}
-        <AppSidebar />
-
-        {/* Main area - flex to fill remaining space */}
-        <SidebarInset className="flex flex-col overflow-y-hidden">
-          {/* Header */}
-          <Header />
-
-          {/* Content - with optimized scrolling */}
-          {/* Note: Pages are responsible for their own padding. This allows pages */}
-          {/* with edge-to-edge layouts (like resizable panels) to use full space. */}
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="contain-layout-style flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
-            aria-label="Main content"
+          {/* Skip to main content link - WCAG 2.1 bypass block */}
+          <a
+            href="#main-content"
+            className="focus:bg-nvidia sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:m-2 focus:rounded-md focus:px-4 focus:py-2 focus:text-black focus:outline-none"
           >
-            <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-    </Suspense>
+            Skip to main content
+          </a>
+
+          {/* Sidebar */}
+          <AppSidebar />
+
+          {/* Main area - flex to fill remaining space */}
+          <SidebarInset className="flex flex-col overflow-y-hidden">
+            {/* Header */}
+            <Header />
+
+            {/* Content - with optimized scrolling */}
+            {/* Note: Pages are responsible for their own padding. This allows pages */}
+            {/* with edge-to-edge layouts (like resizable panels) to use full space. */}
+            <main
+              id="main-content"
+              tabIndex={-1}
+              className="contain-layout-style flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
+              aria-label="Main content"
+            >
+              <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </Suspense>
+    </>
   );
 });
 

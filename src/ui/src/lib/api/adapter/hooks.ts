@@ -33,6 +33,12 @@ import {
   useDeleteUsersCredentialApiCredentialsCredNameDelete,
   type CredentialOptions,
   type UserProfile as BackendUserProfile,
+  type getPoolQuotasApiPoolQuotaGetResponse,
+  type getResourcesApiResourcesGetResponse,
+  type getVersionApiVersionGetResponse,
+  type getNotificationSettingsApiProfileSettingsGetResponse,
+  type getBucketInfoApiBucketGetResponse,
+  type getUserCredentialApiCredentialsGetResponse,
 } from "@/lib/api/generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -77,9 +83,9 @@ export function usePools(enabled = true) {
     {
       query: {
         enabled,
-        select: useCallback((rawData: unknown) => {
-          if (!rawData) return { pools: [], sharingGroups: [] };
-          return transformPoolsResponse(rawData);
+        select: useCallback((rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
+          if (!rawData.data) return { pools: [], sharingGroups: [] };
+          return transformPoolsResponse(rawData.data);
         }, []),
       },
     },
@@ -103,7 +109,7 @@ export function useFilteredPools(params: PoolFilterParams = {}, refetchInterval 
     queryKey: POOLS_QUERY_KEY,
     queryFn: async () => {
       const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
-      return transformPoolsResponse(rawResponse);
+      return transformPoolsResponse(rawResponse.data);
     },
     staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
     // Auto-refresh support
@@ -139,7 +145,7 @@ export function useFilteredPools(params: PoolFilterParams = {}, refetchInterval 
  */
 export async function fetchPools() {
   const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
-  return transformPoolsResponse(rawResponse);
+  return transformPoolsResponse(rawResponse.data);
 }
 
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
@@ -154,9 +160,9 @@ export function usePool(poolName: string, enabled = true) {
       query: {
         enabled,
         select: useCallback(
-          (rawData: unknown) => {
-            if (!rawData) return null;
-            return transformPoolDetail(rawData, poolName);
+          (rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
+            if (!rawData.data) return null;
+            return transformPoolDetail(rawData.data, poolName);
           },
           [poolName],
         ),
@@ -181,9 +187,9 @@ export function usePoolResources(poolName: string) {
     {
       query: {
         select: useCallback(
-          (rawData: unknown): PoolResourcesResponse => {
-            if (!rawData) return { resources: [], platforms: [] };
-            return transformResourcesResponse(rawData, poolName);
+          (rawData: getResourcesApiResourcesGetResponse): PoolResourcesResponse => {
+            if (!rawData.data) return { resources: [], platforms: [] };
+            return transformResourcesResponse(rawData.data, poolName);
           },
           [poolName],
         ),
@@ -205,9 +211,9 @@ export function useAllResources() {
     { all_pools: true },
     {
       query: {
-        select: useCallback((rawData: unknown): AllResourcesResponse => {
-          if (!rawData) return { resources: [], pools: [], platforms: [] };
-          return transformAllResourcesResponse(rawData);
+        select: useCallback((rawData: getResourcesApiResourcesGetResponse): AllResourcesResponse => {
+          if (!rawData.data) return { resources: [], pools: [], platforms: [] };
+          return transformAllResourcesResponse(rawData.data);
         }, []),
       },
     },
@@ -231,9 +237,9 @@ export function useVersion() {
       // Version never changes during a session — cache forever
       staleTime: Infinity,
       gcTime: Infinity,
-      select: useCallback((rawData: unknown) => {
-        if (!rawData) return null;
-        return transformVersionResponse(rawData);
+      select: useCallback((rawData: getVersionApiVersionGetResponse) => {
+        if (!rawData.data) return null;
+        return transformVersionResponse(rawData.data);
       }, []),
     },
   });
@@ -255,7 +261,7 @@ export async function fetchResources(
 ): Promise<PaginatedResourcesResult> {
   // Pass all filter params to the adapter shim - it handles client-side filtering
   return fetchPaginatedResources({ ...params, all_pools: true }, () =>
-    getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown),
+    getResourcesApiResourcesGet({ all_pools: true }).then((res) => res.data),
   );
 }
 
@@ -324,14 +330,14 @@ export function useResourceDetail(
       return {
         pools: [] as string[],
         initialPool: null as string | null,
-        taskConfigByPool: {} as Record<string, TaskConfig>,
+        taskConfigByPool: {} as Record<string, Record<string, TaskConfig>>,
       };
     }
 
     // Get pool memberships - prefer fetched data over resource's initial data
     let memberships = resource.poolMemberships;
     if (resourcesQuery.data) {
-      const fetched = extractPoolMemberships(resourcesQuery.data, resource.name);
+      const fetched = extractPoolMemberships(resourcesQuery.data.data, resource.name);
       if (fetched.length > 0) {
         memberships = fetched;
       }
@@ -343,25 +349,35 @@ export function useResourceDetail(
     // Initial pool: if context pool exists and is valid, use it; otherwise first alphabetically
     const initialPool = contextPool && pools.includes(contextPool) ? contextPool : (pools[0] ?? null);
 
-    // Build task config for each pool
-    const taskConfigByPool: Record<string, TaskConfig> = {};
+    // Build task config for each pool, keyed by platform within that pool
+    const taskConfigByPool: Record<string, Record<string, TaskConfig>> = {};
 
     if (poolsQuery.data) {
-      const allPools = transformPoolsResponse(poolsQuery.data).pools;
+      const allPools = transformPoolsResponse(poolsQuery.data.data).pools;
       const poolsMap = new Map(allPools.map((p: Pool) => [p.name, p]));
 
       for (const poolName of pools) {
         const pool = poolsMap.get(poolName);
-        if (pool) {
-          const platformConfig = pool.platformConfigs[resource.platform];
+        if (!pool) continue;
+
+        // Get platforms for THIS resource in THIS pool
+        const platformsInPool = [...new Set(memberships.filter((m) => m.pool === poolName).map((m) => m.platform))];
+
+        const configsForPool: Record<string, TaskConfig> = {};
+        for (const platformName of platformsInPool) {
+          const platformConfig = pool.platformConfigs[platformName];
           if (platformConfig) {
-            taskConfigByPool[poolName] = {
+            configsForPool[platformName] = {
               hostNetworkAllowed: platformConfig.hostNetworkAllowed,
               privilegedAllowed: platformConfig.privilegedAllowed,
               allowedMounts: platformConfig.allowedMounts,
               defaultMounts: platformConfig.defaultMounts,
             };
           }
+        }
+
+        if (Object.keys(configsForPool).length > 0) {
+          taskConfigByPool[poolName] = configsForPool;
         }
       }
     }
@@ -387,11 +403,14 @@ export function useResourceDetail(
 import {
   useGetWorkflowApiWorkflowNameGet,
   type WorkflowQueryResponse,
+  type getWorkflowApiWorkflowNameGetResponse,
   useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost,
   usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost,
   usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost,
   useGetUsersApiUsersGet,
 } from "@/lib/api/generated";
+
+type WorkflowQueryData = getWorkflowApiWorkflowNameGetResponse;
 
 interface UseWorkflowParams {
   name: string;
@@ -401,7 +420,9 @@ interface UseWorkflowParams {
    * - number: fixed interval in ms (0 = disabled)
    * - function: dynamic interval based on current query state (receives TanStack Query object)
    */
-  refetchInterval?: number | ((query: Query<string, Error, string, readonly unknown[]>) => number);
+  refetchInterval?:
+    | number
+    | ((query: Query<WorkflowQueryData, Error, WorkflowQueryData, readonly unknown[]>) => number);
 }
 
 interface UseWorkflowReturn {
@@ -428,11 +449,11 @@ export function useWorkflow({ name, verbose = true, refetchInterval = 0 }: UseWo
     {
       query: {
         // Transform at query level - structural sharing prevents re-renders on identical data
-        select: useCallback((rawData: string) => {
+        select: useCallback((rawData: WorkflowQueryData) => {
           if (!rawData) return null;
           try {
-            const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-            // Normalize timestamps at the API boundary so UI gets clean data
+            const payload = rawData.data;
+            const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
             return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
           } catch {
             console.error("Failed to parse workflow response:", rawData);
@@ -474,8 +495,9 @@ export async function fetchWorkflowByName(name: string, verbose = true) {
   const { getWorkflowApiWorkflowNameGet } = await import("../generated");
 
   try {
-    const rawData = await getWorkflowApiWorkflowNameGet(name, { verbose });
-    const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+    const response = await getWorkflowApiWorkflowNameGet(name, { verbose });
+    const payload = response.data;
+    const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
     return normalizeWorkflowTimestamps(parsed);
   } catch (_error) {
     // 404 or other errors - return null
@@ -512,9 +534,9 @@ export function usePoolNames(enabled: boolean = true) {
       query: {
         enabled,
         staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
-        select: useCallback((rawData: unknown) => {
-          if (!rawData) return { pools: [], sharingGroups: [] };
-          return transformPoolsResponse(rawData);
+        select: useCallback((rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
+          if (!rawData.data) return { pools: [], sharingGroups: [] };
+          return transformPoolsResponse(rawData.data);
         }, []),
       },
     },
@@ -547,7 +569,8 @@ export function useUsers(enabled: boolean = true) {
   const users = useMemo(() => {
     if (!data) return [];
     // WORKAROUND: API returns string[] but OpenAPI types as string (BACKEND_TODOS.md #1)
-    const parsed = typeof data === "string" ? JSON.parse(data) : data;
+    const payload = data.data;
+    const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
     const userList = parsed as unknown as string[];
 
     return userList.sort(naturalCompare);
@@ -744,10 +767,10 @@ export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
       queryKey: profileKeys.detail(),
       staleTime: QUERY_STALE_TIME.STANDARD,
       enabled,
-      select: useCallback((rawData: unknown) => {
-        if (!rawData) return null;
+      select: useCallback((rawData: getNotificationSettingsApiProfileSettingsGetResponse) => {
+        if (!rawData.data) return null;
         // Backend returns ProfileResponse { profile: UserProfile, pools: string[] }
-        const response = rawData as { profile?: unknown; pools?: string[] };
+        const response = rawData.data as { profile?: unknown; pools?: string[] };
         const profile = transformUserProfile(response.profile);
         // Merge accessible pools from the response
         if (response.pools && Array.isArray(response.pools)) {
@@ -793,11 +816,12 @@ export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
         queryKey: [...profileKeys.all, "buckets"] as const,
         staleTime: QUERY_STALE_TIME.STANDARD,
         enabled,
-        select: useCallback((rawData: unknown) => {
-          if (!rawData || typeof rawData !== "object") {
+        select: useCallback((rawData: getBucketInfoApiBucketGetResponse) => {
+          const data = rawData.data;
+          if (!data || typeof data !== "object") {
             return { buckets: [], defaultBucket: "" };
           }
-          const response = rawData as {
+          const response = data as {
             default?: string;
             buckets?: Record<string, { path: string; description: string; mode: string; default_cred: boolean }>;
           };
@@ -862,10 +886,11 @@ export function useCredentials({ enabled = true }: { enabled?: boolean } = {}) {
       queryKey: profileKeys.credentials(),
       staleTime: QUERY_STALE_TIME.STANDARD,
       enabled,
-      select: useCallback((rawData: unknown) => {
-        if (!rawData) return [];
+      select: useCallback((rawData: getUserCredentialApiCredentialsGetResponse) => {
+        const data = rawData.data;
+        if (!data) return [];
         // Backend returns string that needs parsing
-        const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+        const parsed = typeof data === "string" ? JSON.parse(data) : data;
         return transformCredentialList(parsed);
       }, []),
     },
@@ -926,7 +951,7 @@ export function useUpdateProfile() {
       }
 
       const result = await mutation.mutateAsync({ data: backendPayload });
-      return transformUserProfile(result);
+      return transformUserProfile(result.data);
     },
     [mutation],
   );
@@ -977,7 +1002,7 @@ export function useUpsertCredential() {
         credName: cred_name,
         data: backendPayload as CredentialOptions,
       });
-      return transformCredential(result);
+      return transformCredential(result.data);
     },
     [mutation],
   );

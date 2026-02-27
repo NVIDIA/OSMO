@@ -51,6 +51,12 @@ global:
     ##
     k8sLogLevel: WARNING
 
+## pgroll schema version for search_path.
+## Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
+## will use default schema if not set
+##
+targetSchema: ""
+
 ## Service account configuration for router service
 ##
 serviceAccount:
@@ -99,6 +105,10 @@ services:
       ## Target memory utilization percentage for HPA scaling
       ##
       memoryTarget: 80
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
 
     ## Docker image name for the router service (without registry or tag)
     ##

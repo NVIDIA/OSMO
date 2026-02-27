@@ -114,6 +114,8 @@ spec:
         {{- end }}
         {{- end }}
         env:
+        - name: OSMO_SCHEMA_VERSION
+          value: {{ .Values.targetSchema | default "public" }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
           value: {{ .Values.services.postgres.password }}
@@ -337,3 +339,10 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.service.scaling.memoryTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: {{ .Values.services.service.serviceName }}
+      target:
+        type: Utilization
+        averageUtilization: {{ .Values.services.service.scaling.hpaCpuTarget }}
