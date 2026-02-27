@@ -24,6 +24,7 @@ IdP Role Mapping and Sync Modes
 When an IdP is configured, OSMO reads group or role claims from the JWT at login and maps them to
 OSMO roles. Sync modes control whether those IdP claims can add, remove, or have no effect on a
 user's roles. This page covers the mapping configuration and sync behavior for supported IdP providers.
+
 For creating users and assigning roles directly via the CLI (with or without an IdP), see :doc:`managing_users`.
 
 How IdP roles connect to OSMO roles
