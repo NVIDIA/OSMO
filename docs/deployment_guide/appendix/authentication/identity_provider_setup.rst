@@ -28,7 +28,7 @@ When to use an IdP
 
 Use an IdP when:
 
-- You want users to sign in via a browser with corporate SSO (e.g., Microsoft, Google, Okta).
+- You want users to sign in via a browser with corporate SSO (e.g., Microsoft, Google, etc.).
 - You want to map IdP groups or roles to OSMO roles so that access is controlled partly by your directory.
 - You are deploying in production and already have an IdP.
 
