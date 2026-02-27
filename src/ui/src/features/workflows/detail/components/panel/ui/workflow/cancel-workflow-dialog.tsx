@@ -204,7 +204,9 @@ export const CancelWorkflowDialog = memo(function CancelWorkflowDialog({
   const { execute, isPending, error, resetError } = useServerMutation(cancelWorkflow, {
     onSuccess: () => {
       // Phase 1: Mutation confirmed — immediate, no doubt implied
-      toast.success("Cancellation request accepted");
+      toast.success("Cancellation request accepted", {
+        action: onRefetch ? { label: "Refresh", onClick: () => void onRefetch() } : undefined,
+      });
 
       // Only close — no state resets here. CancelWorkflowContent remounts fresh on next open
       // via the openCount key, preventing re-renders during the exit animation (which caused flashing).
