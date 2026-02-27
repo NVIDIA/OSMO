@@ -23,9 +23,9 @@
  *
  * - image/* → <img> via proxy
  * - video/* → <video controls> via proxy
- * - other  → "preview unavailable" with copy-path hint
- * - 401/403 → lock icon + "bucket must be public" error + copy-path button
- * - 404    → "file not found" error + copy-path button
+ * - other  → "preview unavailable" message
+ * - 401/403 → lock icon + "bucket must be public" error
+ * - 404    → "file not found" error
  * - No URL → metadata-only view
  */
 
@@ -93,15 +93,11 @@ function PreviewError({
   message,
   icon = "alert",
   onRetry,
-  copyPath,
 }: {
   message: string;
   icon?: "alert" | "lock";
   onRetry?: () => void;
-  copyPath?: string;
 }) {
-  const { copied, copy } = useCopy();
-
   return (
     <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
       {icon === "lock" ? (
@@ -116,26 +112,6 @@ function PreviewError({
         />
       )}
       <p className="max-w-xs text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
-      {copyPath && (
-        <Tooltip open={copied}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => void copy(copyPath)}
-              className="gap-1.5"
-              aria-label={`Copy path: ${copyPath}`}
-            >
-              <Copy
-                className="size-3.5"
-                aria-hidden="true"
-              />
-              Copy path
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Copied!</TooltipContent>
-        </Tooltip>
-      )}
       {onRetry && (
         <Button
           variant="outline"
@@ -366,15 +342,11 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <PreviewError
             icon="lock"
             message="The bucket must be public to preview files. Contact your administrator to enable public access."
-            copyPath={copyTarget}
           />
         )}
 
         {showPreview && notFound && (
-          <PreviewError
-            message="File not found at this path."
-            copyPath={copyTarget}
-          />
+          <PreviewError message="File not found at this path." />
         )}
 
         {showPreview && previewReady && (
