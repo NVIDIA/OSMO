@@ -29,13 +29,18 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
+import { ResizablePanel } from "@/components/panel/resizable-panel";
+import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle";
+import { PANEL } from "@/components/panel/lib/panel-constants";
 import { FileBrowserHeader } from "@/features/datasets/detail/components/file-browser-header";
 import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
 import { FilePreviewPanel } from "@/features/datasets/detail/components/file-preview-panel";
+import { DatasetPanel } from "@/features/datasets/list/components/panel/dataset-panel";
 import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-detail";
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
+import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface Props {
   bucket: string;
@@ -79,31 +84,56 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const files = useMemo(() => buildDirectoryListing(rawFiles ?? [], path), [rawFiles, path]);
 
   // ==========================================================================
-  // Panel state — side-by-side split with drag-to-resize
+  // File preview panel — side-by-side split with drag-to-resize
   // ==========================================================================
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [panelWidth, setPanelWidth] = useState(35);
-  const panelOpen = !!selectedFile;
+  const [previewPanelWidth, setPreviewPanelWidth] = useState(35);
+  const previewPanelOpen = !!selectedFile;
 
   const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
-    width: panelWidth,
-    onWidthChange: setPanelWidth,
+    width: previewPanelWidth,
+    onWidthChange: setPreviewPanelWidth,
     minWidth: 20,
     maxWidth: 70,
     containerRef,
   });
 
   // Resolve the DatasetFile object for the selected file path.
-  // The selected file's name is the last path segment; it must exist in the
-  // current files array (same directory) to render preview content.
   const selectedFileData = useMemo(() => {
     if (!selectedFile) return null;
     const fileName = selectedFile.split("/").pop() ?? "";
     return files.find((f) => f.name === fileName && f.type === "file") ?? null;
   }, [selectedFile, files]);
 
-  // Stable callback wrappers to avoid stale closures in memo deps
+  // ==========================================================================
+  // Details panel — dataset metadata/versions slideout
+  // ==========================================================================
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsPanelWidth, setDetailsPanelWidth] = useState<number>(PANEL.OVERLAY_MAX_WIDTH_PCT);
+
+  const {
+    isPanelOpen: isDetailsPanelOpen,
+    handleClose: handleCloseDetails,
+    handleClosed: handleDetailsClosed,
+  } = usePanelLifecycle({
+    hasSelection: detailsOpen,
+    onClosed: () => setDetailsOpen(false),
+  });
+
+  const handleToggleDetails = useCallback(() => {
+    setDetailsOpen((prev) => !prev);
+  }, []);
+
+  // Version click in the details panel: switch version in the file browser
+  const handleVersionClick = useCallback(
+    (v: DatasetVersion) => {
+      setVersion(v.version);
+    },
+    [setVersion],
+  );
+
   const handleRefetchFiles = useCallback(() => {
     void refetchFiles();
   }, [refetchFiles]);
@@ -176,9 +206,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // Render
   // ==========================================================================
 
-  return (
+  const mainContent = (
     <div className="flex h-full flex-col overflow-hidden">
-      {/* Sticky header: breadcrumb + version switcher */}
+      {/* Sticky header: breadcrumb + version nav + details toggle */}
       <InlineErrorBoundary
         title="File browser header error"
         compact
@@ -190,10 +220,12 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           selectedVersion={version}
           onNavigate={navigateTo}
           onVersionChange={setVersion}
+          detailsOpen={isDetailsPanelOpen}
+          onToggleDetails={handleToggleDetails}
         />
       </InlineErrorBoundary>
 
-      {/* File browser + preview panel side-by-side */}
+      {/* File browser + file preview panel side-by-side */}
       <InlineErrorBoundary
         title="Unable to display file browser"
         resetKeys={[files.length]}
@@ -207,9 +239,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
 
           {/* Drag handle + preview panel — only mounted when a file is selected */}
-          {panelOpen && (
+          {previewPanelOpen && (
             <>
-              {/* Thin drag separator — 1px visual, full-height hit area */}
+              {/* Thin drag separator */}
               <div
                 {...bindResizeHandle()}
                 className={cn(
@@ -219,11 +251,11 @@ export function DatasetDetailContent({ bucket, name }: Props) {
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="Resize panel"
-                aria-valuenow={panelWidth}
+                aria-valuenow={previewPanelWidth}
               />
               <aside
                 className="flex shrink-0 flex-col overflow-hidden"
-                style={{ width: `${panelWidth}%`, ...dragStyles }}
+                style={{ width: `${previewPanelWidth}%`, ...dragStyles }}
                 aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
               >
                 {selectedFileData && (
@@ -239,5 +271,32 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         </div>
       </InlineErrorBoundary>
     </div>
+  );
+
+  return (
+    <ResizablePanel
+      open={isDetailsPanelOpen}
+      onClose={handleCloseDetails}
+      onClosed={handleDetailsClosed}
+      width={detailsPanelWidth}
+      onWidthChange={setDetailsPanelWidth}
+      minWidth={PANEL.MIN_WIDTH_PCT}
+      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
+      mainContent={mainContent}
+      backdrop={false}
+      aria-label={`Dataset details: ${name}`}
+    >
+      <InlineErrorBoundary
+        title="Unable to load dataset details"
+        resetKeys={[bucket, name]}
+      >
+        <DatasetPanel
+          bucket={bucket}
+          name={name}
+          onClose={handleCloseDetails}
+          onVersionClick={handleVersionClick}
+        />
+      </InlineErrorBoundary>
+    </ResizablePanel>
   );
 }
