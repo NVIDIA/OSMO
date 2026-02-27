@@ -16,7 +16,7 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/shadcn/badge";
 import { useExpandableChips } from "@/components/filter-bar/hooks/use-expandable-chips";
@@ -38,6 +38,8 @@ export interface ExpandableChipsProps {
   emptyText?: string;
   /** Label for collapse button */
   collapseLabel?: string;
+  /** Custom label renderer for each chip. Receives the item string, returns ReactNode. */
+  renderLabel?: (item: string) => ReactNode;
 }
 
 // =============================================================================
@@ -62,9 +64,12 @@ export const ExpandableChips = memo(function ExpandableChips({
   chipClassName,
   emptyText = "—",
   collapseLabel = "show less",
+  renderLabel,
 }: ExpandableChipsProps) {
   const { containerRef, measureRef, expanded, setExpanded, sortedItems, displayedItems, overflowCount, visibleCount } =
     useExpandableChips({ items });
+
+  const label = (item: string) => (renderLabel ? renderLabel(item) : item);
 
   if (sortedItems.length === 0) {
     return <span className="text-muted-foreground text-xs">{emptyText}</span>;
@@ -123,10 +128,10 @@ export const ExpandableChips = memo(function ExpandableChips({
                   onItemClick(item);
                 }}
               >
-                <span className={expanded ? "truncate" : undefined}>{item}</span>
+                <span className={expanded ? "truncate" : undefined}>{label(item)}</span>
               </button>
             ) : (
-              <span className={expanded ? "truncate" : undefined}>{item}</span>
+              <span className={expanded ? "truncate" : undefined}>{label(item)}</span>
             )}
           </Badge>
         ))}

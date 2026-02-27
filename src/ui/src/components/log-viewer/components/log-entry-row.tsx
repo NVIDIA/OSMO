@@ -16,7 +16,8 @@
 
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback, useRef, useState, useLayoutEffect } from "react";
+import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { formatTime24UTC } from "@/lib/format-date";
@@ -34,23 +35,72 @@ export interface LogEntryRowProps {
   showTask: boolean;
   /** Whether this row is part of the active selection */
   isSelected?: boolean;
+  /** Whether this row is individually expanded (only relevant when wrapLines is off) */
+  isExpanded?: boolean;
+  /** Callback to toggle expansion for this row */
+  onToggleExpand?: (entryId: string) => void;
   /** Style for virtual list positioning */
   style?: React.CSSProperties;
 }
+
+const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
 // =============================================================================
 // Component
 // =============================================================================
 
-function LogEntryRowInner({ entry, wrapLines, showTask, isSelected = false, style }: LogEntryRowProps) {
+function LogEntryRowInner({
+  entry,
+  wrapLines,
+  showTask,
+  isSelected = false,
+  isExpanded = false,
+  onToggleExpand,
+  style,
+}: LogEntryRowProps) {
   const timestamp = formatTime24UTC(entry.timestamp);
+  const effectiveWrap = wrapLines || isExpanded;
+
+  const codeRef = useRef<HTMLElement>(null);
+  const [wouldOverflow, setWouldOverflow] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = codeRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      // Always measure in collapsed (pre) mode to determine if text
+      // *would* truncate, regardless of current expand state
+      const prevWS = el.style.whiteSpace;
+      el.style.whiteSpace = "pre";
+      const overflows = el.scrollWidth > el.clientWidth;
+      el.style.whiteSpace = prevWS;
+      setWouldOverflow(overflows);
+    };
+
+    measure();
+
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [entry.message]);
+
+  const showExpandToggle = !wrapLines && onToggleExpand && wouldOverflow;
+
+  const handleToggle = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleExpand?.(entry.id);
+    },
+    [onToggleExpand, entry.id],
+  );
 
   return (
     <div
       role="row"
       data-entry-id={entry.id}
       className={cn(
-        "group relative px-3 py-1",
+        "group relative px-3 py-0.5",
         isSelected ? "bg-primary/10 hover:bg-primary/20" : "hover:bg-muted/50",
         "transition-colors duration-75",
         "select-none",
@@ -58,39 +108,55 @@ function LogEntryRowInner({ entry, wrapLines, showTask, isSelected = false, styl
       )}
       style={style}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         {/* Timestamp */}
-        <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{timestamp}</span>
+        <span className="text-muted-foreground/70 shrink-0 font-mono text-[11px] tabular-nums">{timestamp}</span>
 
         {/* Log message - flexible, truncates to make room for task */}
         <code
+          ref={codeRef}
           className={cn(
             "min-w-0 flex-1 font-mono text-sm",
-            wrapLines ? "break-words" : "overflow-hidden text-ellipsis",
+            effectiveWrap ? "break-words" : "overflow-hidden text-ellipsis",
           )}
-          style={{ whiteSpace: wrapLines ? "pre-wrap" : "pre" }}
+          style={{ whiteSpace: effectiveWrap ? "pre-wrap" : "pre" }}
         >
           {entry.message}
         </code>
 
-        {/* Task suffix - right-aligned, hides on narrow containers */}
-        {showTask && entry.labels.task && (
-          <span
-            className={cn(
-              // Base styles
-              "text-muted-foreground/70 shrink-0 truncate text-xs",
-              // Fluid width: 0 → 15% of container → 140px max
-              "w-[clamp(0px,15cqw,140px)]",
-              // Hide when container is too narrow - prioritize message space
-              "hidden @[550px]:inline",
-              // Right-align text within the allocated space
-              "text-right",
-            )}
-            title={entry.labels.task}
-          >
-            [{entry.labels.task}]
-          </span>
-        )}
+        {/* Right-aligned group: expand/collapse toggle + task tag */}
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {/* Per-row expand/collapse toggle — visible on hover when autowrap is off */}
+          {showExpandToggle && (
+            <button
+              type="button"
+              onPointerDown={stopPropagation}
+              onClick={handleToggle}
+              aria-label={isExpanded ? "Collapse log line" : "Expand log line"}
+              className={cn(
+                "text-muted-foreground/60 hover:text-muted-foreground p-0.5",
+                "transition-opacity duration-75",
+                isExpanded ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+              )}
+            >
+              {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+            </button>
+          )}
+
+          {/* Task suffix - hides on narrow containers */}
+          {showTask && entry.labels.task && (
+            <span
+              className={cn(
+                "text-muted-foreground/70 truncate text-xs",
+                "max-w-[clamp(0px,15cqw,140px)]",
+                "hidden @[550px]:inline",
+              )}
+              title={entry.labels.task}
+            >
+              [{entry.labels.task}]
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );
