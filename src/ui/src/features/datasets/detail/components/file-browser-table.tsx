@@ -117,7 +117,7 @@ function CopyPathButton({ s3Path }: { s3Path: string }) {
   );
 
   return (
-    <Tooltip>
+    <Tooltip open={copied || undefined}>
       <TooltipTrigger asChild>
         <button
           type="button"

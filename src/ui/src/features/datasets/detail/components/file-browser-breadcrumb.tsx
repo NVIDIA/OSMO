@@ -66,7 +66,7 @@ function SiblingPopover({ segment, parentPath, rawFiles, isCurrent, onNavigate }
   if (siblings.length === 0) {
     return isCurrent ? (
       <span
-        className="truncate px-2 py-1 font-medium text-zinc-900 dark:text-zinc-100"
+        className="min-w-0 truncate px-2 py-1 font-medium text-zinc-900 dark:text-zinc-100"
         aria-current="page"
       >
         {segment}
@@ -78,15 +78,15 @@ function SiblingPopover({ segment, parentPath, rawFiles, isCurrent, onNavigate }
     <Popover>
       <PopoverTrigger asChild>
         {isCurrent ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 max-w-[12rem] min-w-0 shrink-0 truncate px-2 font-medium text-zinc-900 aria-current-page:text-zinc-900 dark:text-zinc-100"
+          // Plain <button> so flex-shrink works — shadcn Button hardcodes shrink-0
+          <button
+            type="button"
+            className="hover:bg-accent dark:hover:bg-accent/50 h-7 max-w-[12rem] min-w-0 truncate rounded-md px-2 text-sm font-medium text-zinc-900 dark:text-zinc-100"
             aria-current="page"
             aria-haspopup="listbox"
           >
             {segment}
-          </Button>
+          </button>
         ) : (
           <Button
             variant="ghost"
@@ -251,7 +251,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
               className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
               aria-hidden="true"
             />
-            {rawFiles ? (
+            {rawFiles && isLast ? (
               <SiblingPopover
                 segment={segment}
                 parentPath={parentPath}
