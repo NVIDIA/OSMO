@@ -1050,10 +1050,6 @@ sidecars:
     ##
     enabled: true
 
-    ## Use Kubernetes secret for credentials
-    ##
-    useKubernetesSecrets: false
-
     livenessProbe:
       httpGet:
         path: /ready
