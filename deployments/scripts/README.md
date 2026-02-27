@@ -74,6 +74,7 @@ The main entry point for deploying OSMO. This script orchestrates:
 | `--destroy` | Destroy all resources |
 | `--dry-run` | Show what would be done without making changes |
 | `--non-interactive` | Fail if required parameters are missing (for CI/CD) |
+| `--ngc-api-key` | NGC API key for pulling images and Helm charts from `nvcr.io` (optional) |
 | `-h, --help` | Show help message |
 
 #### Azure-specific Options
@@ -221,10 +222,38 @@ The script will prompt for:
   --aws-region "us-west-2" \
   --cluster-name "osmo-aws" \
   --postgres-password "SecurePass123!" \
+  --redis-password "SecureRedisToken123!" \
   --non-interactive
 ```
 
 > **Note:** Keep cluster names short (≤12 characters) to avoid AWS IAM role name length limits.
+
+### Deployment with NGC Registry Credentials
+
+Required when pulling OSMO images and Helm charts from `nvcr.io` (NGC private registry).
+
+```bash
+# Via flag
+./deploy-osmo-minimal.sh --provider aws \
+  --aws-region "us-west-2" \
+  --cluster-name "osmo-aws" \
+  --postgres-password "SecurePass123!" \
+  --redis-password "SecureRedisToken123!" \
+  --ngc-api-key "$NGC_API_KEY"
+
+# Via environment variable
+export NGC_API_KEY="your-ngc-api-key"
+./deploy-osmo-minimal.sh --provider aws \
+  --aws-region "us-west-2" \
+  --cluster-name "osmo-aws" \
+  --postgres-password "SecurePass123!" \
+  --redis-password "SecureRedisToken123!"
+```
+
+When an NGC API key is provided, the script:
+1. Authenticates `helm repo add` with `--username='$oauthtoken' --password=<NGC_API_KEY>`
+2. Creates a `nvcr-secret` docker-registry secret in all three namespaces
+3. Configures all Helm charts to use `nvcr-secret` as the image pull secret
 
 ## Environment Variables
 
@@ -233,6 +262,7 @@ The script will prompt for:
 | `OSMO_IMAGE_REGISTRY` | OSMO Docker image registry | `nvcr.io/nvidia/osmo` |
 | `OSMO_IMAGE_TAG` | OSMO Docker image tag | `latest` |
 | `BACKEND_TOKEN_EXPIRY` | Backend operator token expiry | `2027-01-01` |
+| `NGC_API_KEY` | NGC API key for `nvcr.io` image and Helm chart pulls | - |
 | `TF_SUBSCRIPTION_ID` | Azure subscription ID | - |
 | `TF_RESOURCE_GROUP` | Azure resource group | - |
 | `TF_POSTGRES_PASSWORD` | PostgreSQL password | - |
