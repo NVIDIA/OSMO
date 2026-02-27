@@ -463,22 +463,22 @@ export class DatasetGenerator {
       { relative_path: "README.md", size: faker.number.int({ min: 512, max: 5120 }), url: buildUrl("README.md") },
     );
 
-    // Three splits: train, validation, test
+    // Three splits: train, validation, test — use text/json files that can be previewed
     const splits = ["train", "validation", "test"];
     const numClasses = faker.number.int({ min: 3, max: 6 });
-    const format = faker.helpers.arrayElement(["jpg", "parquet"]);
-    const ext = format === "parquet" ? ".parquet" : ".jpg";
 
     for (const split of splits) {
       for (let c = 0; c < numClasses; c++) {
         const className = `n${String(c).padStart(8, "0")}`;
         const numFiles = faker.number.int({ min: 3, max: 8 });
         for (let f = 0; f < numFiles; f++) {
+          // Alternate between .json and .txt so the preview panel can render them
+          const ext = f % 2 === 0 ? ".json" : ".txt";
           const fileName = `${String(f).padStart(6, "0")}${ext}`;
           const filePath = `${split}/${className}/${fileName}`;
           items.push({
             relative_path: filePath,
-            size: faker.number.int({ min: 10240, max: 524288 }),
+            size: faker.number.int({ min: 512, max: 16384 }),
             url: buildUrl(filePath),
           });
         }
