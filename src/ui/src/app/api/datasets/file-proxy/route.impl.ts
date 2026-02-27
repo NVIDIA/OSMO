@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dataset Location Files Route — Development Build
+ * Dataset File Proxy Route — Development Build
  *
  * In mock mode, routes requests through Node.js http.request to localhost:9999
  * so MSW can intercept them (MSW intercepts http.request, not Next.js's undici fetch).
@@ -23,7 +23,7 @@
  * Production builds alias this to route.impl.production.ts (zero mock code).
  */
 
-import { GET as prodGET } from "@/app/api/datasets/location-files/route.impl.production";
+import { GET as prodGET, HEAD as prodHEAD } from "@/app/api/datasets/file-proxy/route.impl.production";
 import type { NextRequest } from "next/server";
 import { handleMockModeRequest } from "@/app/api/server-mock-utils";
 
@@ -33,4 +33,12 @@ export const GET = async (request: NextRequest): Promise<Response> => {
     return handleMockModeRequest(request, "GET", pathname, searchParams);
   }
   return prodGET(request);
+};
+
+export const HEAD = async (request: NextRequest): Promise<Response> => {
+  if (process.env.NEXT_PUBLIC_MOCK_API === "true") {
+    const { pathname, searchParams } = request.nextUrl;
+    return handleMockModeRequest(request, "HEAD", pathname, searchParams);
+  }
+  return prodHEAD(request);
 };

@@ -201,6 +201,10 @@ const nextConfig: NextConfig = {
             // Dataset location-files proxy - alias to production version (zero mock code)
             "@/app/api/datasets/location-files/route.impl":
               "@/app/api/datasets/location-files/route.impl.production",
+
+            // Dataset file-proxy route - alias to production version (zero mock code)
+            "@/app/api/datasets/file-proxy/route.impl":
+              "@/app/api/datasets/file-proxy/route.impl.production",
           }
         : {},
   },

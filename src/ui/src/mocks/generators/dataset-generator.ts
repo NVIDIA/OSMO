@@ -324,6 +324,14 @@ export class DatasetGenerator {
   }
 
   /**
+   * Returns true if the dataset's files are in a private (non-public) bucket.
+   * Deterministic: based on dataset name hash. Approximately 1 in 3 datasets are private.
+   */
+  isPrivateDataset(datasetName: string): boolean {
+    return Math.abs(hashString(datasetName)) % 3 === 0;
+  }
+
+  /**
    * Get dataset by name.
    */
   getByName(name: string): GeneratedDataset | null {
