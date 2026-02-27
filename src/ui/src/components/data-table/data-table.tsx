@@ -74,6 +74,8 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   isLoading?: boolean;
   emptyContent?: React.ReactNode;
   onRowClick?: (row: TData) => void;
+  /** Callback when keyboard focus moves to a different row (for live preview) */
+  onFocusedRowChange?: (row: TData | null) => void;
   /** Double-click handler (e.g. navigate to detail page) */
   onRowDoubleClick?: (row: TData) => void;
   /** For middle-click: returns URL for new tab, or undefined to call onRowClick */
@@ -131,6 +133,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   isLoading,
   emptyContent,
   onRowClick,
+  onFocusedRowChange,
   onRowDoubleClick,
   getRowHref,
   selectedRowId,
@@ -149,6 +152,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
 
   const onSortingChangeRef = useSyncedRef(onSortingChange);
   const onRowClickRef = useSyncedRef(onRowClick);
+  const onFocusedRowChangeRef = useSyncedRef(onFocusedRowChange);
   const onLoadMoreRef = useSyncedRef(onLoadMore);
 
   const allItems = useMemo(() => {
@@ -368,6 +372,19 @@ function DataTableInner<TData, TSectionMeta = unknown>({
         }
       },
       [getItem, onRowClickRef],
+    ),
+    onFocusedIndexChange: useCallback(
+      (virtualIndex: number | null) => {
+        if (virtualIndex === null) {
+          onFocusedRowChangeRef.current?.(null);
+          return;
+        }
+        const item = getItem(virtualIndex);
+        if (item?.type === VirtualItemTypes.ROW) {
+          onFocusedRowChangeRef.current?.(item.item);
+        }
+      },
+      [getItem, onFocusedRowChangeRef],
     ),
     onScrollToRow: useCallback(
       (virtualIndex: number, align: "start" | "end" | "center") => {
