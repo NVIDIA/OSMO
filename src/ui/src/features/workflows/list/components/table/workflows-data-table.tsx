@@ -29,7 +29,8 @@
 "use client";
 
 import { useMemo, useCallback, memo } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
@@ -96,7 +97,7 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   onLoadMore,
   isFetchingNextPage = false,
 }: WorkflowsDataTableProps) {
-  const router = useRouter();
+  const router = useNavigationRouter();
   const pathname = usePathname();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();

@@ -48,9 +48,9 @@ global:
 
 ## pgroll schema version for search_path.
 ## Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
-## Set to "public" to use the default schema without pgroll versioning.
+## will use default schema if not set
 ##
-schemaVersion: public_v6_2_0
+targetSchema: ""
 
 ## Service account configuration for router service
 ##

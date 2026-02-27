@@ -122,7 +122,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          bazel test --test_output=errors -- //... -//ui/...
+          bazel test --test_output=errors -- //...
 
   ci-internal:
     timeout-minutes: 30
@@ -209,8 +209,7 @@ jobs:
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             -- \
-            //... \
-            -//ui/...
+            //...
 
       - name: Docker cleanup
         if: always()
@@ -293,12 +292,6 @@ jobs:
             find docs/build_error_logs -name '*.log' -size +0c -exec echo "Error in {}: " \; -exec cat {} \;
             exit 1
           fi
-
-      - name: Deploy preview
-        uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1.8.1
-        with:
-          source-dir: ./docs/public/
-          preview-branch: gh-pages/documentation
 
       - name: Run spelling check
         id: spelling

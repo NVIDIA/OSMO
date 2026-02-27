@@ -24,7 +24,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { toast } from "sonner";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
@@ -86,7 +86,7 @@ function deriveInitialPriority(workflow: WorkflowQueryResponse): WorkflowPriorit
 }
 
 export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions): UseResubmitFormReturn {
-  const router = useRouter();
+  const router = useNavigationRouter();
 
   const [pool, setPool] = useState(() => workflow.pool ?? "");
   const [priority, setPriority] = useState<WorkflowPriority>(() => deriveInitialPriority(workflow));

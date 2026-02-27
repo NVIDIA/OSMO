@@ -16,8 +16,8 @@
 
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useMemo } from "react";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { ArrowUpRight } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { Badge } from "@/components/shadcn/badge";
@@ -28,6 +28,7 @@ import { ApiError } from "@/components/error/api-error";
 import { CopyableValue, CopyableBlock } from "@/components/copyable-value";
 import { ItemSelector } from "@/components/item-selector";
 import { BooleanIndicator } from "@/components/boolean-indicator";
+import { naturalCompare } from "@/lib/utils";
 import { useResourceDetail } from "@/lib/api/adapter/hooks";
 import type { Resource, TaskConfig } from "@/lib/api/adapter/types";
 import { useViewTransition } from "@/hooks/use-view-transition";
@@ -45,7 +46,7 @@ export function ResourcePanelContent({
   selectedPool: initialSelectedPool,
   onPoolSelect,
 }: ResourcePanelContentProps) {
-  const router = useRouter();
+  const router = useNavigationRouter();
   const { startTransition } = useViewTransition();
 
   const { pools, initialPool, taskConfigByPool, isLoadingPools, error, refetch } = useResourceDetail(
@@ -70,8 +71,12 @@ export function ResourcePanelContent({
     });
   }, [selectedPool, router, startTransition]);
 
-  // Get task config for selected pool
-  const taskConfig = selectedPool ? (taskConfigByPool[selectedPool] ?? null) : null;
+  // Get platform configs for selected pool
+  const platformConfigs = selectedPool ? (taskConfigByPool[selectedPool] ?? null) : null;
+  const platformNames = useMemo(
+    () => (platformConfigs ? Object.keys(platformConfigs).sort(naturalCompare) : []),
+    [platformConfigs],
+  );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -138,7 +143,7 @@ export function ResourcePanelContent({
       <div className="p-6">
         <section>
           <h3 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
-            Pool Configuration
+            Platform Configuration
           </h3>
 
           {error ? (
@@ -162,6 +167,7 @@ export function ResourcePanelContent({
                   items={pools}
                   selectedItem={selectedPool}
                   onSelect={handlePoolSelect}
+                  label="Pool"
                   aria-label="Select pool"
                 />
                 {selectedPool && (
@@ -177,12 +183,26 @@ export function ResourcePanelContent({
                 )}
               </div>
 
-              {/* Task Config Content */}
+              {/* Platform Config Content */}
               <CardContent className="p-3">
-                {taskConfig ? (
-                  <TaskConfigContent config={taskConfig} />
+                {platformConfigs && platformNames.length > 0 ? (
+                  platformNames.length === 1 ? (
+                    <TaskConfigContent config={platformConfigs[platformNames[0]]} />
+                  ) : (
+                    <div className="space-y-4">
+                      {platformNames.map((platformName, index) => (
+                        <div key={platformName}>
+                          {index > 0 && <div className="border-border -mx-3 mb-4 border-t" />}
+                          <h4 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+                            {platformName}
+                          </h4>
+                          <TaskConfigContent config={platformConfigs[platformName]} />
+                        </div>
+                      ))}
+                    </div>
+                  )
                 ) : (
-                  <p className="text-muted-foreground text-sm">No configuration available for this platform.</p>
+                  <p className="text-muted-foreground text-sm">No configuration available for this resource.</p>
                 )}
               </CardContent>
             </Card>

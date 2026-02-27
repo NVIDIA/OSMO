@@ -38,7 +38,7 @@ import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { ptySimulator, type PTYScenario } from "@/mocks/generators/pty-simulator";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString } from "@/mocks/utils";
 import { getMockWorkflow, getWorkflowLogConfig } from "@/mocks/mock-workflows";
-import { MOCK_CONFIG } from "@/mocks/seed/types";
+import { MOCK_CONFIG, SHARED_POOL_ALPHA, SHARED_POOL_BETA } from "@/mocks/seed/types";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -1052,10 +1052,16 @@ export const handlers = [
 
     if (poolsParam) {
       // Filter to specific pools
-      const requestedPools = poolsParam.split(",");
+      const requestedPools = poolsParam.split(",").map((p) => p.trim());
+
+      // Shared pools produce identical resources — skip the second to avoid duplicates
+      const sharedPools = [SHARED_POOL_ALPHA, SHARED_POOL_BETA];
+      const hasMultipleShared = sharedPools.filter((sp) => requestedPools.includes(sp)).length > 1;
+      const poolsToQuery = hasMultipleShared ? requestedPools.filter((p) => p !== SHARED_POOL_BETA) : requestedPools;
+
       const allResources: import("@/lib/api/generated").ResourcesEntry[] = [];
-      for (const pool of requestedPools) {
-        const { resources } = resourceGenerator.generatePage(pool.trim(), 0, 100);
+      for (const pool of poolsToQuery) {
+        const { resources } = resourceGenerator.generatePage(pool, 0, 100);
         allResources.push(...resources);
       }
       return HttpResponse.json({ resources: allResources });

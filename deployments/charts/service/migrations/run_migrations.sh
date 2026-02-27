@@ -15,19 +15,17 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Usage: ./run_migrations.sh <target_schema>
+# pgroll database migration runner.
 #
-# target_schema: The versioned schema name the app will use.
+# Usage: ./run_migrations.sh [target_schema]
+#
+# target_schema: Optional versioned schema name for the app's search_path.
 #                Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
-#
-# The script uses a contract-then-expand pattern:
-#   1. Contracts (finalizes) any in-progress migration from the previous release
-#   2. Applies all migrations, completing each except the last
-#   3. Leaves the last migration in expand state for rollback safety
+#                Defaults to "public" (no versioned schema, migrations apply to public directly).
 #
 # The script is idempotent: safe to run multiple times against any database state.
+# If the target versioned schema already exists, the script exits immediately (no-op).
 # Migrations that have already been applied or aren't applicable are skipped.
-# The target versioned schema is guaranteed to exist when the script completes.
 
 set -uo pipefail
 
@@ -64,65 +62,59 @@ ENCODED_USER=$(urlencode "$DB_USER")
 ENCODED_PASSWORD=$(urlencode "$DB_PASSWORD")
 export PGROLL_URL="postgres://${ENCODED_USER}:${ENCODED_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
 
+TARGET_SCHEMA="${1:-public}"
+
 run_psql() {
     PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -tAc "$1" 2>&1
 }
-
-TARGET_SCHEMA="${1:?Usage: $0 <target_schema> (e.g., public_v6_2_0)}"
 
 echo "pgroll migration runner"
 echo "Target DB: ${DB_HOST}:${DB_PORT}/${DB_NAME}"
 echo "Target schema: ${TARGET_SCHEMA}"
 
-# --- Step 1: Initialize pgroll ---
+# --- Step 1: Early exit if versioned schema already exists ---
+# If the target is a versioned schema (not "public") and it already exists,
+# all migrations have been applied and views are in place. Nothing to do.
+if [ "$TARGET_SCHEMA" != "public" ]; then
+    SCHEMA_EXISTS=$(run_psql "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = '${TARGET_SCHEMA}');" 2>/dev/null)
+    if [ "$SCHEMA_EXISTS" = "t" ]; then
+        echo ""
+        echo "Schema ${TARGET_SCHEMA} already exists. Nothing to do."
+        exit 0
+    fi
+fi
+
+# --- Step 2: Initialize pgroll ---
 echo ""
-echo "Step 1: Initializing pgroll..."
+echo "Step 2: Initializing pgroll..."
 pgroll init --postgres-url "$PGROLL_URL" 2>&1 || true
 
-# --- Step 2: Create baseline if needed ---
-# pgroll baseline has an interactive /dev/tty prompt that can't be automated.
-# Instead, insert directly into pgroll's migration tracking table.
+# --- Step 3: Create baseline if needed ---
 echo ""
-echo "Step 2: Checking migration history..."
+echo "Step 3: Checking migration history..."
 STATUS=$(pgroll status --postgres-url "$PGROLL_URL" 2>&1)
 if echo "$STATUS" | grep -q '"status": "No migrations"'; then
     echo "  Creating baseline..."
     run_psql "INSERT INTO pgroll.migrations (schema, name, migration, resulting_schema, done, parent) VALUES ('public', '000_baseline', '{}', '\"public_000_baseline\"', true, NULL) ON CONFLICT DO NOTHING;"
 fi
 
-# --- Step 3: Contract previous migration ---
-# Finalize the PREVIOUS release's migration. Safe because all pods are on
-# the current version before a new upgrade begins. No-op if nothing is in progress.
+# --- Step 4: Complete any in-progress migration ---
 echo ""
-echo "Step 3: Contracting previous migration..."
+echo "Step 4: Completing any in-progress migration..."
 OUTPUT=$(pgroll complete --postgres-url "$PGROLL_URL" 2>&1)
 if [ $? -eq 0 ]; then
-    echo "  Completed previous migration"
+    echo "  Completed"
 else
-    echo "  No migration to complete"
+    echo "  Nothing to complete"
 fi
 
-# --- Step 4: Apply migrations ---
-# pgroll only allows one in-progress migration at a time.
-# All migrations except the last use --complete (fully applied).
-# The last migration stays in expand state for rollback safety between deploys.
+# --- Step 5: Apply all migrations ---
 echo ""
-echo "Step 4: Applying migrations..."
-MIGRATION_FILES=("$SCRIPT_DIR"/0*.json)
-LAST_INDEX=$(( ${#MIGRATION_FILES[@]} - 1 ))
-
-for i in "${!MIGRATION_FILES[@]}"; do
-    migration_file="${MIGRATION_FILES[$i]}"
+echo "Step 5: Applying migrations..."
+for migration_file in "$SCRIPT_DIR"/0*.json; do
     name="$(basename "$migration_file")"
-
-    if [ "$i" -eq "$LAST_INDEX" ]; then
-        echo "  [$name] (expand only — last migration)"
-        OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" 2>&1)
-    else
-        echo "  [$name] (start + complete)"
-        OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" --complete 2>&1)
-    fi
-
+    echo "  [$name]"
+    OUTPUT=$(pgroll start "$migration_file" --postgres-url "$PGROLL_URL" --complete 2>&1)
     if [ $? -eq 0 ]; then
         echo "    Applied"
     else
@@ -130,19 +122,11 @@ for i in "${!MIGRATION_FILES[@]}"; do
     fi
 done
 
-# --- Step 5: Ensure target versioned schema exists ---
-# If pgroll created it via a structured migration, it already exists.
-# If migrations were skipped (DB already at target state), we create the
-# schema manually with views pointing to the physical tables in public.
-echo ""
-echo "Step 5: Ensuring versioned schema exists..."
-SCHEMA_EXISTS=$(run_psql "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = '${TARGET_SCHEMA}');" 2>/dev/null)
-
-if [ "$SCHEMA_EXISTS" = "t" ]; then
-    echo "  Schema ${TARGET_SCHEMA} already exists"
-else
-    echo "  Creating ${TARGET_SCHEMA} with views..."
-    run_psql "CREATE SCHEMA ${TARGET_SCHEMA};"
+# --- Step 6: Create versioned schema with views ---
+if [ "$TARGET_SCHEMA" != "public" ]; then
+    echo ""
+    echo "Step 6: Creating versioned schema ${TARGET_SCHEMA}..."
+    run_psql "CREATE SCHEMA IF NOT EXISTS ${TARGET_SCHEMA};"
     run_psql "DO \$\$ DECLARE tbl RECORD; BEGIN FOR tbl IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP EXECUTE format('CREATE OR REPLACE VIEW ${TARGET_SCHEMA}.%I AS SELECT * FROM public.%I', tbl.tablename, tbl.tablename); END LOOP; END \$\$;"
     echo "  Created"
 fi
@@ -151,4 +135,4 @@ echo ""
 echo "Final status:"
 pgroll status --postgres-url "$PGROLL_URL"
 echo ""
-echo "Set OSMO_SCHEMA_VERSION=${TARGET_SCHEMA} in your deployment"
+echo "Done."

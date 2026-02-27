@@ -54,11 +54,31 @@ function ResourceTypeCell({ value }: { value: string }) {
   );
 }
 
-/** Pools membership cell using expandable chips */
-const PoolsCell = memo(function PoolsCell({ resource }: { resource: Resource }) {
-  // Memoize the pools array to maintain stable reference for useExpandableChips
-  const pools = useMemo(() => resource.poolMemberships.map((m) => m.pool), [resource.poolMemberships]);
-  return <ExpandableChips items={pools} />;
+/** Render pool/platform label with dimmed pool prefix */
+function renderPoolPlatformLabel(item: string) {
+  const slashIndex = item.lastIndexOf("/");
+  const poolPart = item.slice(0, slashIndex + 1);
+  const platformPart = item.slice(slashIndex + 1);
+  return (
+    <>
+      <span className="text-muted-foreground">{poolPart}</span>
+      {platformPart}
+    </>
+  );
+}
+
+/** Pool/Platform membership cell with dimmed pool prefix */
+const PoolPlatformCell = memo(function PoolPlatformCell({ resource }: { resource: Resource }) {
+  const items = useMemo(
+    () => resource.poolMemberships.map((m) => `${m.pool}/${m.platform}`),
+    [resource.poolMemberships],
+  );
+  return (
+    <ExpandableChips
+      items={items}
+      renderLabel={renderPoolPlatformLabel}
+    />
+  );
 });
 
 /** Text cell (platform, backend) */
@@ -115,19 +135,11 @@ export function createResourceColumns({ displayMode }: CreateColumnsOptions): Co
       meta: { align: "left" as const },
     },
     {
-      id: "pools",
-      accessorFn: (row) => row.poolMemberships[0]?.pool ?? "",
-      header: COLUMN_LABELS.pools,
-      minSize: getMinSize("pools"),
-      cell: ({ row }) => <PoolsCell resource={row.original} />,
-      meta: { align: "left" as const },
-    },
-    {
-      id: "platform",
-      accessorKey: "platform",
-      header: COLUMN_LABELS.platform,
-      minSize: getMinSize("platform"),
-      cell: ({ getValue }) => <TextCell value={getValue() as string} />,
+      id: "pool-platform",
+      accessorFn: (row) => row.poolMemberships.map((m) => `${m.pool}/${m.platform}`).join(", "),
+      header: COLUMN_LABELS["pool-platform"],
+      minSize: getMinSize("pool-platform"),
+      cell: ({ row }) => <PoolPlatformCell resource={row.original} />,
       meta: { align: "left" as const },
     },
     {

@@ -86,7 +86,7 @@ services:
 
     ## Target pgroll schema version. Named after the app version: public_v{MAJOR}_{MINOR}_{PATCH}
     ##
-    targetSchema: public_v6_2_0
+    targetSchema: public
 
     ## Public image with bash, psql, and curl
     ##
