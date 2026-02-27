@@ -21,7 +21,7 @@
 Authentication Flow
 ================================================
 
-This guide describes how authentication and authorization work in OSMO: how users and scripts prove who they are and how OSMO decides what they can do.
+This guide describes how authentication and authorization work in OSMO: how users and service accounts prove their identity and how OSMO determines what they are allowed to do.
 
 Architecture components
 ========================
