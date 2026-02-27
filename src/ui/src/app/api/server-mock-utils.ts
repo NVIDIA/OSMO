@@ -96,10 +96,10 @@ export function handleMockModeRequest(
       if ((error as NodeJS.ErrnoException).code === "ECONNRESET") return;
       console.error("[Mock Mode] MSW interception failed:", error.message);
       resolve(
-        new Response(
-          JSON.stringify({ error: "MSW interception failed", message: error.message, path: pathname }),
-          { status: 503, headers: { "Content-Type": "application/json" } },
-        ),
+        new Response(JSON.stringify({ error: "MSW interception failed", message: error.message, path: pathname }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        }),
       );
     });
 
@@ -112,10 +112,13 @@ export function handleMockModeRequest(
     }
 
     if (method !== "GET" && method !== "HEAD") {
-      request.text().then((body) => {
-        if (body) req.write(body);
-        req.end();
-      }).catch(() => req.end());
+      request
+        .text()
+        .then((body) => {
+          if (body) req.write(body);
+          req.end();
+        })
+        .catch(() => req.end());
     } else {
       req.end();
     }
