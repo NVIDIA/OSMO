@@ -29,18 +29,14 @@ import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { cn } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
-import { ResizablePanel } from "@/components/panel/resizable-panel";
-import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle";
-import { PANEL } from "@/components/panel/lib/panel-constants";
 import { FileBrowserHeader } from "@/features/datasets/detail/components/file-browser-header";
 import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
 import { FilePreviewPanel } from "@/features/datasets/detail/components/file-preview-panel";
-import { DatasetPanel } from "@/features/datasets/list/components/panel/dataset-panel";
+import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
 import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-detail";
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface Props {
   bucket: string;
@@ -107,32 +103,18 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   }, [selectedFile, files]);
 
   // ==========================================================================
-  // Details panel — dataset metadata/versions slideout
+  // Details panel — controlled by the layout-level DatasetsPanelLayout
   // ==========================================================================
 
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [detailsPanelWidth, setDetailsPanelWidth] = useState<number>(PANEL.OVERLAY_MAX_WIDTH_PCT);
-
-  const {
-    isPanelOpen: isDetailsPanelOpen,
-    handleClose: handleCloseDetails,
-    handleClosed: handleDetailsClosed,
-  } = usePanelLifecycle({
-    hasSelection: detailsOpen,
-    onClosed: () => setDetailsOpen(false),
-  });
+  const { isPanelOpen, openPanel, closePanel } = useDatasetsPanelContext();
 
   const handleToggleDetails = useCallback(() => {
-    setDetailsOpen((prev) => !prev);
-  }, []);
-
-  // Version click in the details panel: switch version in the file browser
-  const handleVersionClick = useCallback(
-    (v: DatasetVersion) => {
-      setVersion(v.version);
-    },
-    [setVersion],
-  );
+    if (isPanelOpen) {
+      closePanel();
+    } else {
+      openPanel(bucket, name);
+    }
+  }, [isPanelOpen, openPanel, closePanel, bucket, name]);
 
   const handleRefetchFiles = useCallback(() => {
     void refetchFiles();
@@ -206,7 +188,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // Render
   // ==========================================================================
 
-  const mainContent = (
+  return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky header: breadcrumb + version nav + details toggle */}
       <InlineErrorBoundary
@@ -220,7 +202,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
           selectedVersion={version}
           onNavigate={navigateTo}
           onVersionChange={setVersion}
-          detailsOpen={isDetailsPanelOpen}
+          detailsOpen={isPanelOpen}
           onToggleDetails={handleToggleDetails}
           rawFiles={rawFiles ?? undefined}
         />
@@ -272,32 +254,5 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         </div>
       </InlineErrorBoundary>
     </div>
-  );
-
-  return (
-    <ResizablePanel
-      open={isDetailsPanelOpen}
-      onClose={handleCloseDetails}
-      onClosed={handleDetailsClosed}
-      width={detailsPanelWidth}
-      onWidthChange={setDetailsPanelWidth}
-      minWidth={PANEL.MIN_WIDTH_PCT}
-      maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
-      mainContent={mainContent}
-      backdrop={false}
-      aria-label={`Dataset details: ${name}`}
-    >
-      <InlineErrorBoundary
-        title="Unable to load dataset details"
-        resetKeys={[bucket, name]}
-      >
-        <DatasetPanel
-          bucket={bucket}
-          name={name}
-          onClose={handleCloseDetails}
-          onVersionClick={handleVersionClick}
-        />
-      </InlineErrorBoundary>
-    </ResizablePanel>
   );
 }
