@@ -15,7 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ColumnDef } from "@tanstack/react-table";
+import { PanelRightOpen } from "lucide-react";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
+import { COLUMN_MIN_WIDTHS_REM } from "@/components/data-table/utils/column-constants";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
 import { formatBytes } from "@/lib/utils";
 import type { Dataset } from "@/lib/api/adapter/datasets";
@@ -30,8 +32,34 @@ function getMinSize(id: DatasetColumnId): number {
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-export function createDatasetColumns(): ColumnDef<Dataset, unknown>[] {
+export interface CreateDatasetColumnsOptions {
+  /** Called when the open-details button is clicked */
+  onOpenPanel: (dataset: Dataset) => void;
+}
+
+export function createDatasetColumns({ onOpenPanel }: CreateDatasetColumnsOptions): ColumnDef<Dataset, unknown>[] {
   return [
+    {
+      id: "_open",
+      header: "",
+      enableResizing: false,
+      enableSorting: false,
+      size: remToPx(COLUMN_MIN_WIDTHS_REM.ACTIONS_SMALL),
+      meta: { cellClassName: "p-0" },
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenPanel(row.original);
+          }}
+          className="flex h-full w-full items-center justify-center text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+          aria-label={`Open details for ${row.original.name}`}
+        >
+          <PanelRightOpen className="size-4" />
+        </button>
+      ),
+    },
     {
       id: "name",
       accessorKey: "name",
