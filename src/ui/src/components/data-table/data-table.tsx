@@ -527,7 +527,10 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                                 minWidth: cssWidth,
                                 flexShrink: 0,
                               }}
-                              className={cn("relative flex items-center", headerClassName ?? tableHeaderClassName ?? "px-4 py-3")}
+                              className={cn(
+                                "relative flex items-center",
+                                headerClassName ?? tableHeaderClassName ?? "px-4 py-3",
+                              )}
                             >
                               {cellContent}
                             </th>
@@ -541,7 +544,10 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                             as="th"
                             width={cssWidth}
                             colIndex={colIndex}
-                            className={cn("relative flex items-center", headerClassName ?? tableHeaderClassName ?? "px-4 py-3")}
+                            className={cn(
+                              "relative flex items-center",
+                              headerClassName ?? tableHeaderClassName ?? "px-4 py-3",
+                            )}
                           >
                             {cellContent}
                           </SortableCell>

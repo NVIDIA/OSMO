@@ -345,9 +345,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           />
         )}
 
-        {showPreview && notFound && (
-          <PreviewError message="File not found at this path." />
-        )}
+        {showPreview && notFound && <PreviewError message="File not found at this path." />}
 
         {showPreview && previewReady && (
           <PreviewContent
