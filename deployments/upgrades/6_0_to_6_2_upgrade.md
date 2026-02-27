@@ -1,3 +1,21 @@
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+-->
+
 # Upgrading OSMO from 6.0 to 6.2
 
 ## What's new in 6.2
@@ -12,9 +30,9 @@ Depending on your deployment, follow the relevant sections:
 
 | Deployment type | Sections to follow |
 |----------------|-------------------|
-| With OIDC auth (any IdP) | [Database migrations](#database-migrations) + [Authentication](#authentication-changes) |
+| With OIDC auth (any IdP) | [Database migrations](#database-migrations) + [Authentication](#authentication-changes) + [Backend operator tokens](#backend-operator-tokens) |
 | Without auth | [Database migrations](#database-migrations) + [No-auth deployments](#no-auth-deployments) |
-| Switching IdPs (e.g., Keycloak to Entra ID) | [Database migrations](#database-migrations) + [Authentication](#authentication-changes) (use new IdP values) |
+| Switching IdPs (e.g., Keycloak to Entra ID) | [Database migrations](#database-migrations) + [Authentication](#authentication-changes) + [Backend operator tokens](#backend-operator-tokens) (use new IdP values) |
 | Keycloak as IdP | All of the above + [Keycloak-specific notes](#keycloak-specific-notes) |
 
 ## Database migrations
@@ -44,7 +62,7 @@ services:
       argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 ```
 
-The database password is read from `OSMO_POSTGRES_PASSWORD` env var, or from the `postgres_password:` field in the file at `OSMO_CONFIG_FILE` (for Vault-rendered configs).
+The database password is read from `OSMO_POSTGRES_PASSWORD` env var, or from the `postgres_password:` field in the file at `OSMO_CONFIG_FILE`.
 
 ### Choosing your upgrade path
 
@@ -88,7 +106,7 @@ Remove these from `sidecars.envoy` in your values files (all 3 charts):
 | `secretPaths.hmacSecret` | No replacement needed |
 | `secretPaths.clientSecret` | `sidecars.oauth2Proxy.secretPaths.clientSecret` |
 
-Also remove the `oidc_hmac.hcl` Vault template and its rendered output (`oidc_hmac.txt`) if applicable.
+Also remove the `oidc_hmac.txt` secret file if applicable.
 
 ### Step 2: Configure the IdP cluster and JWT providers
 
@@ -211,7 +229,7 @@ kubectl create secret generic oauth2-proxy-secrets \
   --from-literal=cookie_secret=$(openssl rand 32 | head -c 32)
 ```
 
-**File-based secrets (Vault agent):**
+**File-based secrets:**
 
 ```yaml
 sidecars:
@@ -228,24 +246,25 @@ client_secret = "<value>"
 cookie_secret = "<value>"
 ```
 
-`cookie_secret` must be exactly 16, 24, or 32 raw bytes. When using Vault agent, include this template in **both** `config.hcl` and `config-init.hcl` to avoid a race condition.
+`cookie_secret` must be exactly 16, 24, or 32 raw bytes.
 
-### Step 4: Add authz sidecar (service and router charts only)
+### Step 4: Configure authz sidecar (service and router charts only)
 
-```yaml
-sidecars:
-  authz:
-    enabled: true
-```
+The authz sidecar enforces role-based access control (RBAC) for all OSMO API requests via Envoy's External Authorization API. It validates user roles against policies stored in PostgreSQL and syncs external IdP roles to OSMO roles through role mappings. It is enabled by default and requires no additional configuration for most deployments.
 
-If using Vault for the database password:
+**Optional** tuning parameters:
 
 ```yaml
 sidecars:
   authz:
-    extraEnv:
-      - name: OSMO_CONFIG_FILE
-        value: /path/to/osmo_config.yaml
+    postgres:
+      sslMode: prefer       # disable, prefer, require, verify-full
+      maxConns: 10
+      minConns: 2
+      maxConnLifetimeMin: 5
+    cache:
+      ttl: 300               # role cache TTL in seconds
+      maxSize: 1000           # max cached role combinations
 ```
 
 ### Step 5: Update CLI auth endpoints (service chart only)
@@ -300,6 +319,37 @@ services:
 Register `https://<your-hostname>/oauth2/callback` as a valid redirect URI in your IdP's client configuration. This replaces the old `oauth2Filter` redirect path.
 
 If switching IdPs, also update the `client_secret` in your oauth2-proxy secret to the new IdP's client secret. The `cookie_secret` can remain the same.
+
+## Backend operator tokens
+
+The 6.2 RBAC migration deletes old `SERVICE` type access tokens and changes the `access_token` primary key to a composite `(user_name, token_name)`. After upgrading, you must recreate service account tokens used by backend operators.
+
+Follow [Step 1: Create Service Account for Backend Operator](https://nvidia.github.io/OSMO/main/deployment_guide/install_backend/deploy_backend.html#step-1-create-service-account-for-backend-operator) from the deployment guide:
+
+1. Authenticate to OSMO:
+
+   ```bash
+   osmo login https://<your-osmo-hostname>
+   ```
+
+2. Create a service account user for backend operations:
+
+   ```bash
+   osmo user create backend-operator --roles osmo-backend
+   ```
+
+3. Generate an access token:
+
+   ```bash
+   export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
+       --user backend-operator \
+       --expires-at <YYYY-MM-DD> \
+       --description "Backend Operator Token" \
+       --roles osmo-backend \
+       -t json | jq -r '.token')
+   ```
+
+Save the token securely — it will not be shown again. Update any systems that reference the old backend operator token (e.g., Kubernetes secrets, CI/CD pipelines) with the new value.
 
 ## No-auth deployments
 
