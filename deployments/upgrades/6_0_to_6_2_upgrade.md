@@ -23,6 +23,7 @@ SPDX-License-Identifier: Apache-2.0
 - **New authentication architecture** — oauth2Proxy sidecar + authz sidecar replace the old Envoy-native oauth2Filter
 - **RBAC system** — new database tables for users, roles, and role mappings managed by the authz sidecar
 - **pgroll database migrations** — zero-downtime schema changes via versioned schemas
+- **Backend operator tokens must be recreated** — the RBAC migration deletes old `SERVICE` type access tokens; new tokens must be created before upgrading backend deployment charts
 
 ## Before you start
 
@@ -30,10 +31,10 @@ Depending on your deployment, follow the relevant sections:
 
 | Deployment type | Sections to follow |
 |----------------|-------------------|
-| With OIDC auth (any IdP) | [Database migrations](#database-migrations) + [Authentication](#authentication-changes) + [Backend operator tokens](#backend-operator-tokens) |
-| Without auth | [Database migrations](#database-migrations) + [No-auth deployments](#no-auth-deployments) |
-| Switching IdPs (e.g., Keycloak to Entra ID) | [Database migrations](#database-migrations) + [Authentication](#authentication-changes) + [Backend operator tokens](#backend-operator-tokens) (use new IdP values) |
-| Keycloak as IdP | All of the above + [Keycloak-specific notes](#keycloak-specific-notes) |
+| With OIDC auth (any IdP) | [Database migrations](#database-migrations) → [Authentication](#authentication-changes) → [Backend operator tokens](#backend-operator-tokens) |
+| Without auth | [Database migrations](#database-migrations) → [No-auth deployments](#no-auth-deployments) → [Backend operator tokens](#backend-operator-tokens) |
+| Switching IdPs (e.g., Keycloak to Entra ID) | [Database migrations](#database-migrations) → [Authentication](#authentication-changes) (use new IdP values) → [Backend operator tokens](#backend-operator-tokens) |
+| Keycloak as IdP | [Database migrations](#database-migrations) → [Authentication](#authentication-changes) → [Keycloak-specific notes](#keycloak-specific-notes) → [Backend operator tokens](#backend-operator-tokens) |
 
 ## Database migrations
 
@@ -320,37 +321,6 @@ Register `https://<your-hostname>/oauth2/callback` as a valid redirect URI in yo
 
 If switching IdPs, also update the `client_secret` in your oauth2-proxy secret to the new IdP's client secret. The `cookie_secret` can remain the same.
 
-## Backend operator tokens
-
-The 6.2 RBAC migration deletes old `SERVICE` type access tokens and changes the `access_token` primary key to a composite `(user_name, token_name)`. After upgrading, you must recreate service account tokens used by backend operators.
-
-Follow [Step 1: Create Service Account for Backend Operator](https://nvidia.github.io/OSMO/main/deployment_guide/install_backend/deploy_backend.html#step-1-create-service-account-for-backend-operator) from the deployment guide:
-
-1. Authenticate to OSMO:
-
-   ```bash
-   osmo login https://<your-osmo-hostname>
-   ```
-
-2. Create a service account user for backend operations:
-
-   ```bash
-   osmo user create backend-operator --roles osmo-backend
-   ```
-
-3. Generate an access token:
-
-   ```bash
-   export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
-       --user backend-operator \
-       --expires-at <YYYY-MM-DD> \
-       --description "Backend Operator Token" \
-       --roles osmo-backend \
-       -t json | jq -r '.token')
-   ```
-
-Save the token securely — it will not be shown again. Update any systems that reference the old backend operator token (e.g., Kubernetes secrets, CI/CD pipelines) with the new value.
-
 ## No-auth deployments
 
 The 6.2 upgrade adds two new sidecars that default to `enabled: true`. Disable them and remove deprecated fields:
@@ -405,3 +375,34 @@ sidecars:
 ### Redirect URI
 
 Add `https://<your-hostname>/oauth2/callback` to Valid Redirect URIs in Clients → your client → Settings. Remove the old redirect path (e.g., `*/api/auth/getAToken`) once migration is complete.
+
+## Backend operator tokens
+
+The 6.2 RBAC migration deletes old `SERVICE` type access tokens and changes the `access_token` primary key to a composite `(user_name, token_name)`. After upgrading the main OSMO deployment, you must recreate service account tokens used by backend operators before upgrading the backend deployment charts.
+
+Follow [Step 1: Create Service Account for Backend Operator](https://nvidia.github.io/OSMO/main/deployment_guide/install_backend/deploy_backend.html#step-1-create-service-account-for-backend-operator) from the deployment guide:
+
+1. Authenticate to OSMO:
+
+   ```bash
+   osmo login https://<your-osmo-hostname>
+   ```
+
+2. Create a service account user for backend operations:
+
+   ```bash
+   osmo user create backend-operator --roles osmo-backend
+   ```
+
+3. Generate an access token:
+
+   ```bash
+   export OSMO_SERVICE_TOKEN=$(osmo token set backend-token \
+       --user backend-operator \
+       --expires-at <YYYY-MM-DD> \
+       --description "Backend Operator Token" \
+       --roles osmo-backend \
+       -t json | jq -r '.token')
+   ```
+
+Save the token securely — it will not be shown again. Update any systems that reference the old backend operator token (e.g., Kubernetes secrets, CI/CD pipelines) with the new value.
