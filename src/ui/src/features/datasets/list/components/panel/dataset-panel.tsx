@@ -15,10 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * DatasetPanel — Slideout detail panel for a single dataset.
+ * DatasetPanel — Slideout detail panel for a single dataset or collection.
  *
- * Fetches dataset detail (metadata + versions) and renders as a single
- * scrollable view: details card at top, versions card below.
+ * Fetches detail (metadata + versions or members) and renders as a single
+ * scrollable view: details card at top, versions/members card below.
  */
 
 "use client";
@@ -34,6 +34,8 @@ import { useViewTransition } from "@/hooks/use-view-transition";
 import { useDataset } from "@/lib/api/adapter/datasets-hooks";
 import { DatasetPanelDetails } from "@/features/datasets/list/components/panel/dataset-panel-details";
 import { DatasetPanelVersions } from "@/features/datasets/list/components/panel/dataset-panel-versions";
+import { CollectionPanelMembers } from "@/features/datasets/list/components/panel/collection-panel-members";
+import { DatasetType } from "@/lib/api/generated";
 import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
@@ -57,7 +59,8 @@ export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetP
   const { data, isLoading, error } = useDataset(bucket, name, { enabled: !!bucket && !!name });
 
   const dataset = data?.dataset;
-  const versions = data?.versions ?? [];
+  const isCollection = data?.type === DatasetType.COLLECTION;
+  const badge = isCollection ? "Collection" : "Dataset";
 
   const handleBrowseFiles = useCallback(() => {
     startTransition(() => {
@@ -86,7 +89,7 @@ export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetP
               Browse files
             </Button>
             <PanelHeaderActions
-              badge="Dataset"
+              badge={badge}
               onClose={onClose}
             />
           </div>
@@ -114,11 +117,15 @@ export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetP
         {dataset && !isLoading && (
           <div className="space-y-6">
             <DatasetPanelDetails dataset={dataset} />
-            <DatasetPanelVersions
-              versions={versions}
-              currentVersion={dataset.version}
-              onVersionClick={onVersionClick}
-            />
+            {data.type === DatasetType.COLLECTION ? (
+              <CollectionPanelMembers members={data.members} />
+            ) : (
+              <DatasetPanelVersions
+                versions={data.versions}
+                currentVersion={dataset.version}
+                onVersionClick={onVersionClick}
+              />
+            )}
           </div>
         )}
       </div>
