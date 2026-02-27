@@ -185,19 +185,7 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    osmo workflow query <workflow name> --format-type json
    ```
 
-2. **Get recent logs** — this command streams live, so run it with a 5-second timeout
-   and use whatever output was captured. Check how many tasks are in the query response:
-   - **1 task:** run the standard command:
-     ```
-     osmo workflow logs <workflow name> -n 10000
-     ```
-   - **2–5 tasks:** fetch logs per task in parallel for clearer separation:
-     ```
-     osmo workflow logs <workflow name> --task <task_name> -n 10000
-     ```
-   - **More than 5 tasks:** fall back to the standard command without `--task`.
-
-3. **Report to the user:**
+2. **Report to the user:**
    - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED, PENDING)
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
@@ -221,6 +209,10 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    ```
    osmo resource list -p <pool>
    ```
+
+3. **Get recent logs** — Refer to the logs-reader subagent. Based on the number of tasks
+   that are present in the response JSON from workflow query, *spawn* a log-reader agent
+   for every 5 tasks that are present.
 
 ---
 
