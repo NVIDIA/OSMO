@@ -1283,13 +1283,15 @@ export const handlers = [
     const bucketMatch = locationUrl.match(/s3:\/\/([^/]+)/);
     const bucket = bucketMatch?.[1] ?? "osmo-datasets";
 
-    const items = datasetGenerator.generateFlatManifest(datasetName, bucket);
+    const items = datasetGenerator.generateFlatManifest(datasetName, bucket, locationUrl);
     return HttpResponse.json(items);
   }),
 
-  // HEAD /api/datasets/file-proxy — preflight check for file preview panel.
-  // Returns 401 for datasets that simulate a private bucket, 200 otherwise.
-  http.head("*/api/datasets/file-proxy", async ({ request }) => {
+  // HEAD + GET /api/datasets/file-proxy — preflight + content for file preview panel.
+  // Uses http.all because http.head() does not reliably intercept http.request with method HEAD
+  // when routed through the mock port-9999 tunnel.
+  // Returns 401 for datasets that simulate a private bucket, 200/content otherwise.
+  http.all("*/api/datasets/file-proxy", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
@@ -1318,29 +1320,14 @@ export const handlers = [
       webm: "video/webm",
     };
 
-    return new HttpResponse(null, {
-      status: 200,
-      headers: { "Content-Type": contentTypeMap[ext] ?? "application/octet-stream" },
-    });
-  }),
+    const contentType = contentTypeMap[ext] ?? "application/octet-stream";
 
-  // GET /api/datasets/file-proxy — streams file content for preview panel.
-  // Returns 401 for private datasets, mock text content otherwise.
-  http.get("*/api/datasets/file-proxy", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const fileUrl = url.searchParams.get("url") ?? "";
-
-    const nameMatch = fileUrl.match(/\/dataset\/([^/?]+)\/preview/);
-    const datasetName = nameMatch?.[1] ?? "";
-
-    if (datasetGenerator.isPrivateDataset(datasetName)) {
-      return new HttpResponse(null, { status: 401 });
+    if (request.method === "HEAD") {
+      return new HttpResponse(null, {
+        status: 200,
+        headers: { "Content-Type": contentType },
+      });
     }
-
-    const filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
-    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
     if (ext === "json") {
       return HttpResponse.json({ mock: true, path: filePath, dataset: datasetName });

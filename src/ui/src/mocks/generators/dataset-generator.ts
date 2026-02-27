@@ -452,7 +452,7 @@ export class DatasetGenerator {
    * Returns RawFileItem[] with relative_path entries representing the full dataset tree.
    * Used by the location-files MSW handler to serve mock file listings.
    */
-  generateFlatManifest(datasetName: string, bucket?: string): RawFileItem[] {
+  generateFlatManifest(datasetName: string, bucket?: string, locationBase?: string): RawFileItem[] {
     faker.seed(this.config.baseSeed + hashString(datasetName));
 
     const effectiveBucket = bucket ?? "osmo-datasets";
@@ -461,14 +461,25 @@ export class DatasetGenerator {
     const buildUrl = (filePath: string) =>
       `/api/bucket/${effectiveBucket}/dataset/${datasetName}/preview?path=${encodeURIComponent(filePath)}`;
 
+    // s3:// URI for the Copy button — set when the caller provides the location base
+    const buildStoragePath = locationBase
+      ? (filePath: string) => `${locationBase.replace(/\/$/, "")}/${filePath}`
+      : () => undefined;
+
     // Root files
     items.push(
       {
         relative_path: "metadata.json",
         size: faker.number.int({ min: 1024, max: 10240 }),
         url: buildUrl("metadata.json"),
+        storage_path: buildStoragePath("metadata.json"),
       },
-      { relative_path: "README.md", size: faker.number.int({ min: 512, max: 5120 }), url: buildUrl("README.md") },
+      {
+        relative_path: "README.md",
+        size: faker.number.int({ min: 512, max: 5120 }),
+        url: buildUrl("README.md"),
+        storage_path: buildStoragePath("README.md"),
+      },
     );
 
     // Three splits: train, validation, test — use text/json files that can be previewed
@@ -488,6 +499,7 @@ export class DatasetGenerator {
             relative_path: filePath,
             size: faker.number.int({ min: 512, max: 16384 }),
             url: buildUrl(filePath),
+            storage_path: buildStoragePath(filePath),
           });
         }
       }

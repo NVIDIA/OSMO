@@ -93,17 +93,15 @@ function PreviewError({
   message,
   icon = "alert",
   onRetry,
-  onCopyPath,
   copyPath,
-  copied = false,
 }: {
   message: string;
   icon?: "alert" | "lock";
   onRetry?: () => void;
-  onCopyPath?: () => void;
   copyPath?: string;
-  copied?: boolean;
 }) {
+  const { copied, copy } = useCopy();
+
   return (
     <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
       {icon === "lock" ? (
@@ -118,13 +116,13 @@ function PreviewError({
         />
       )}
       <p className="max-w-xs text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
-      {onCopyPath && copyPath && (
+      {copyPath && (
         <Tooltip open={copied}>
           <TooltipTrigger asChild>
             <Button
               variant="default"
               size="sm"
-              onClick={onCopyPath}
+              onClick={() => void copy(copyPath)}
               className="gap-1.5"
               aria-label={`Copy path: ${copyPath}`}
             >
@@ -368,18 +366,14 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <PreviewError
             icon="lock"
             message="The bucket must be public to preview files. Contact your administrator to enable public access."
-            onCopyPath={handleCopyPath}
             copyPath={copyTarget}
-            copied={copied}
           />
         )}
 
         {showPreview && notFound && (
           <PreviewError
             message="File not found at this path."
-            onCopyPath={handleCopyPath}
             copyPath={copyTarget}
-            copied={copied}
           />
         )}
 
