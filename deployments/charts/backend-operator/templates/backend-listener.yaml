@@ -114,7 +114,7 @@ spec:
         - --labelUpdateChanSize
         - '{{ .Values.services.backendListener.labelUpdateChanSize }}'
         - --metricsOtelEnable
-        - '{{ .Values.services.backendListener.metrics.enabled }}'
+        - '{{ .Values.sidecars.OTEL.enabled }}'
         - --serviceVersion
         - '{{ .Values.services.backendListener.metrics.version | default .Values.global.osmoImageTag }}'
         - --metricsOtelCollectorHost
