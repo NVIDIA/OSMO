@@ -81,6 +81,10 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   /** For middle-click: returns URL for new tab, or undefined to call onRowClick */
   getRowHref?: (row: TData) => string | undefined;
   selectedRowId?: string;
+  /** Override default header cell padding/styling for all columns (default: "px-4 py-3") */
+  headerClassName?: string;
+  /** Extra classes applied to the <thead> element (e.g. "file-browser-thead" for a shadow-based bottom divider) */
+  theadClassName?: string;
   rowClassName?: string | ((item: TData) => string);
   sectionClassName?: string | ((section: Section<TData, TSectionMeta>) => string);
   columnSizeConfigs?: readonly ColumnSizeConfig[];
@@ -137,6 +141,8 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   onRowDoubleClick,
   getRowHref,
   selectedRowId,
+  headerClassName: tableHeaderClassName,
+  theadClassName,
   rowClassName,
   sectionClassName,
   columnSizeConfigs,
@@ -455,6 +461,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                 className={cn(
                   "table-header text-left text-xs font-medium text-zinc-500 uppercase dark:text-zinc-400",
                   stickyHeaders && "sticky top-0 z-20",
+                  theadClassName,
                 )}
               >
                 <tr
@@ -520,7 +527,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                                 minWidth: cssWidth,
                                 flexShrink: 0,
                               }}
-                              className={cn("relative flex items-center", headerClassName ?? "px-4 py-3")}
+                              className={cn("relative flex items-center", headerClassName ?? tableHeaderClassName ?? "px-4 py-3")}
                             >
                               {cellContent}
                             </th>
@@ -534,7 +541,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                             as="th"
                             width={cssWidth}
                             colIndex={colIndex}
-                            className={cn("relative flex items-center", headerClassName ?? "px-4 py-3")}
+                            className={cn("relative flex items-center", headerClassName ?? tableHeaderClassName ?? "px-4 py-3")}
                           >
                             {cellContent}
                           </SortableCell>

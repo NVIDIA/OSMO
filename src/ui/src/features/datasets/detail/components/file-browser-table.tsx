@@ -349,6 +349,8 @@ export const FileBrowserTable = memo(function FileBrowserTable({
         rowHeight={rowHeight}
         compact={compactMode}
         emptyContent={emptyContent}
+        headerClassName="px-4 py-[18.5px]"
+        theadClassName="file-browser-thead"
         className="text-sm"
         scrollClassName="flex-1"
       />
