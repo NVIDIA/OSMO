@@ -49,7 +49,31 @@ export interface SpecSectionProps {
    * - Pass undefined if content matches original (signals to use workflow_id)
    */
   onSpecChange?: (spec: string | undefined) => void;
+  /** Spec fetch error — if set, shows non-blocking warning (user can still submit) */
+  error?: Error | null;
+  /** Retry the spec fetch */
+  onRetry?: () => void;
 }
+
+const SpecFetchError = memo(function SpecFetchError({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
+      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+        Couldn&apos;t load the specification. You can still submit — the original spec will be used.
+      </p>
+      {onRetry && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-fit"
+          onClick={onRetry}
+        >
+          Retry
+        </Button>
+      )}
+    </div>
+  );
+});
 
 const SpecEmpty = memo(function SpecEmpty() {
   return (
@@ -66,6 +90,8 @@ export const SpecSection = memo(function SpecSection({
   isLoading,
   isModified = false,
   onSpecChange,
+  error,
+  onRetry,
 }: SpecSectionProps) {
   const [open, setOpen] = useState(false);
   // Tracks user edits. When undefined, falls through to the spec prop (original or parent-managed).
@@ -109,6 +135,8 @@ export const SpecSection = memo(function SpecSection({
   let content: React.ReactNode;
   if (isLoading) {
     content = <CodeViewerSkeleton />;
+  } else if (error) {
+    content = <SpecFetchError onRetry={onRetry} />;
   } else if (!spec) {
     content = <SpecEmpty />;
   } else {
