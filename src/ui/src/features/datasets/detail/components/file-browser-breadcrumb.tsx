@@ -15,11 +15,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * FileBrowserBreadcrumb — Path navigation breadcrumb for the dataset file browser.
+ * FileBrowserBreadcrumb — Full-path navigation breadcrumb for the dataset file browser.
  *
- * Renders: datasetName / segment / segment / ...
+ * Renders: Home > Datasets > datasetName > segment > segment > ...
  *
- * - Dataset name links to root (path="")
+ * - Home and Datasets are page-level links (router.push)
+ * - Dataset name links to file browser root (path="")
  * - Each intermediate segment is clickable (navigate to that path level)
  * - Last segment is plain text (current location)
  */
@@ -29,13 +30,14 @@
 import { memo } from "react";
 import { Button } from "@/components/shadcn/button";
 import { ChevronRight } from "lucide-react";
+import { useNavigationRouter } from "@/hooks/use-navigation-router";
 
 interface FileBrowserBreadcrumbProps {
-  /** Dataset name — first segment, navigates to root */
+  /** Dataset name — links to file browser root (path="") */
   datasetName: string;
   /** Current path (e.g., "train/n00000001"), empty string = root */
   path: string;
-  /** Called when a breadcrumb segment is clicked with the target path */
+  /** Called when a path segment is clicked with the target path */
   onNavigate: (path: string) => void;
 }
 
@@ -44,6 +46,7 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
   path,
   onNavigate,
 }: FileBrowserBreadcrumbProps) {
+  const router = useNavigationRouter();
   const segments = path ? path.split("/").filter(Boolean) : [];
 
   return (
@@ -51,7 +54,37 @@ export const FileBrowserBreadcrumb = memo(function FileBrowserBreadcrumb({
       aria-label="File browser path"
       className="flex min-w-0 items-center gap-0.5 overflow-hidden text-sm"
     >
-      {/* Dataset name — always links to root */}
+      {/* Home */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 px-2 text-zinc-500 dark:text-zinc-400"
+        onClick={() => router.push("/")}
+      >
+        Home
+      </Button>
+
+      <ChevronRight
+        className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
+        aria-hidden="true"
+      />
+
+      {/* Datasets page */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 px-2 text-zinc-500 dark:text-zinc-400"
+        onClick={() => router.push("/datasets")}
+      >
+        Datasets
+      </Button>
+
+      <ChevronRight
+        className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-600"
+        aria-hidden="true"
+      />
+
+      {/* Dataset name — links to file browser root */}
       <Button
         variant="ghost"
         size="sm"
