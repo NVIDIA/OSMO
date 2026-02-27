@@ -38,12 +38,11 @@ How it works
 ====================
 
 1. You register OSMO as an application (OAuth2 / OIDC client) in your IdP and get a client ID and client secret.
-2. You configure the **Envoy** sidecar (in front of the OSMO service) with the IdP’s token and authorization endpoints, JWKS URI, and issuer. You also create a Kubernetes secret with the client secret and an HMAC secret for session cookies.
-3. When a user hits the OSMO UI or API without a session, Envoy redirects them to the IdP to log in. After login, the IdP returns a JWT. Envoy validates the JWT and forwards the request to the OSMO service with ``x-osmo-user`` and ``x-osmo-roles`` set.
-4. Roles can come from OSMO’s database (user/role APIs) and/or from IdP claims (e.g., groups) mapped to OSMO roles via ``role_external_mappings``.
+2. When a user visits the OSMO UI or API without a session, Envoy redirects them to the IdP to log in. After login, the IdP returns a JWT. Envoy validates the JWT and forwards the request to the OSMO service with ``x-osmo-user`` and ``x-osmo-roles`` set.
+3. OSMO roles can be assigned from two sources: directly via the OSMO user/role APIs, or from an IdP. When using an IdP, external claims (e.g., LDAP groups, OIDC roles) are mapped to OSMO roles through the ``role_external_mappings`` table
 
-Placeholders used below
-=======================
+Identity Provider Configuration Reference
+==============================================
 
 .. list-table::
    :header-rows: 1
@@ -72,7 +71,7 @@ Placeholders used below
      - ``us-east-1``
 
 Microsoft Entra ID (Azure AD)
-=============================
+--------------------------------
 
 1. **Register an application** in Azure Portal → Microsoft Entra ID → App registrations → New registration. Set redirect URI (Web) to ``https://<your-domain>/api/auth/getAToken``.
 2. **Create a client secret** under Certificates & secrets and copy the value.
@@ -126,7 +125,7 @@ Microsoft Entra ID (Azure AD)
        cookieSecretKey: cookie_secret
 
 Google OAuth2
-=============
+--------------------------------
 
 1. In Google Cloud Console, create OAuth 2.0 credentials (Web application). Set authorized redirect URI to ``https://<your-domain>/api/auth/getAToken``.
 2. Configure the OAuth consent screen and add scopes such as ``openid``, ``email``, ``profile``.
@@ -151,7 +150,7 @@ Google OAuth2
 Use ``email`` as the user claim for Google. Audience is typically the full client ID (e.g. ``<client-id>.apps.googleusercontent.com``).
 
 AWS IAM Identity Center (AWS SSO)
-=================================
+-----------------------------------
 
 1. Enable AWS IAM Identity Center and note the instance ID and region.
 2. Create a “Customer managed” OAuth 2.0 application with redirect URI ``https://<your-domain>/api/auth/getAToken`` and scopes ``openid``, ``email``, ``profile``. Record client ID and client secret.

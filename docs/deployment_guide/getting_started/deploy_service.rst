@@ -216,7 +216,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 19-31, 38-46, 57, 148, 156-160, 192-202
+    :emphasize-lines: 4, 19-31, 38-46, 57, 148, 156-160, 171-181
 
     # Global configuration shared across all OSMO services
     global:
@@ -386,6 +386,20 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
             cluster: service
 
 
+      # OAuth2 Proxy sidecar configuration
+      # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
+      oauth2Proxy:
+        enabled: true
+        provider: oidc
+        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0  # (2)
+        clientId: <client-id>  # (3)
+        cookieDomain: .<your-domain>
+        scope: "openid email profile"
+        useKubernetesSecrets: true
+        secretName: oauth2-proxy-secrets
+        clientSecretKey: client_secret
+        cookieSecretKey: cookie_secret
+
       # Log agent configuration (optional)
       logAgent:
         enabled: false
@@ -406,20 +420,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
         # redis:
         #   serviceName: <your-redis-host>
         #   port: 6379
-
-      # OAuth2 Proxy sidecar configuration
-      # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
-      oauth2Proxy:
-        enabled: true
-        provider: oidc
-        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0  # (2)
-        clientId: <client-id>  # (3)
-        cookieDomain: .<your-domain>
-        scope: "openid email profile"
-        useKubernetesSecrets: true
-        secretName: oauth2-proxy-secrets
-        clientSecretKey: client_secret
-        cookieSecretKey: cookie_secret
 
   .. code-annotations::
 
