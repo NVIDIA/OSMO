@@ -121,9 +121,7 @@ function SiblingPopover({ segment, parentPath, rawFiles, isCurrent, onNavigate }
                 className={cn(
                   "flex w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-left text-sm",
                   "hover:bg-zinc-100 dark:hover:bg-zinc-800",
-                  isActive
-                    ? "font-medium text-zinc-900 dark:text-zinc-100"
-                    : "text-zinc-600 dark:text-zinc-400",
+                  isActive ? "font-medium text-zinc-900 dark:text-zinc-100" : "text-zinc-600 dark:text-zinc-400",
                 )}
               >
                 <Folder
