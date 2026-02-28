@@ -19,7 +19,7 @@ name: PR Checks
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
     branches: [ main, 'feature/**', 'release/**' ]
 
 concurrency:
@@ -71,8 +71,7 @@ jobs:
     needs: [check-paths]
     if: |
       (needs.check-paths.outputs.ci == 'true') &&
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true) &&
-      (github.event.action != 'closed')
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true)
     runs-on: ubuntu-latest
     steps:
       - name: Free disk space
@@ -132,8 +131,7 @@ jobs:
       (
         needs.check-paths.outputs.ci == 'true' &&
         github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.fork == false &&
-        github.event.action != 'closed'
+        github.event.pull_request.head.repo.fork == false
       )
     runs-on: self-hosted
     environment:
@@ -262,7 +260,7 @@ jobs:
   #######################
   docs-build:
     needs: [check-paths]
-    if: needs.check-paths.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' || github.event.action == 'closed'
+    if: needs.check-paths.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -271,19 +269,16 @@ jobs:
           lfs: true
 
       - name: Setup Python
-        if: github.event.action != 'closed'
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.10.18'
 
       - name: Install dependencies
-        if: github.event.action != 'closed'
         run: |
           pip install -U -r docs/locked_requirements.txt
           pip install -U -r src/locked_requirements.txt
 
       - name: Build Sphinx documentation
-        if: github.event.action != 'closed'
         run: |
           make -C docs build ERR_DIR=build_error_logs OUT_DIR=public
           rm -rf docs/public/.doctrees
@@ -295,7 +290,6 @@ jobs:
 
       - name: Run spelling check
         id: spelling
-        if: github.event.action != 'closed'
         continue-on-error: true
         run: |
           make -C docs spelling ERR_DIR=spelling_error_logs OUT_DIR=public
@@ -306,7 +300,6 @@ jobs:
           fi
 
       - name: Restore lychee cache
-        if: github.event.action != 'closed'
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: .lycheecache
@@ -315,7 +308,6 @@ jobs:
 
       - name: Link Checker
         id: link-checker
-        if: github.event.action != 'closed'
         uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2.7.0
         with:
           args: --config docs/lychee.toml --no-progress '**/*.html' docs/public
@@ -323,13 +315,12 @@ jobs:
 
       - name: Save lychee cache
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        if: github.event.action != 'closed' && steps.link-checker.outcome == 'success'
+        if: steps.link-checker.outcome == 'success'
         with:
           path: .lycheecache
           key: cache-lychee-pr-${{ github.event.pull_request.number }}
 
       - name: Check spelling and link results
-        if: github.event.action != 'closed'
         run: |
           if [ "${{ steps.spelling.outcome }}" == "failure" ] || [ "${{ steps.link-checker.outcome }}" == "failure" ]; then
             echo "::error::One or more checks failed:"
@@ -340,8 +331,8 @@ jobs:
           echo "All checks passed"
 
       - name: Upload build artifacts
-        if: always() && github.event.action != 'closed'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: documentation-build
           path: |
@@ -351,13 +342,70 @@ jobs:
             docs/link_check_error_logs/
           retention-days: 3
 
+
+  docs-deploy:
+    needs: [docs-build]
+    if: needs.check-paths.outputs.docs == 'true' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    environment:
+      name: pr-preview
+      url: ${{ vars.PR_PREVIEW_BASEURL }}${{ github.event.pull_request.number }}/index.html
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: documentation-build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
+        with:
+          aws-access-key-id: ${{ secrets.PR_PREVIEW_AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.PR_PREVIEW_AWS_SECRET_KEY }}
+          aws-region: us-west-2
+
+      - name: Deploy docs to S3
+        run: |
+          aws s3 sync public/ s3://osmo-pr-preview/${{ github.event.pull_request.number }}/ --delete
+
+      - name: Comment preview URL on PR
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const previewUrl = `${{ vars.PR_PREVIEW_BASEURL }}${{ github.event.pull_request.number }}/index.html`;
+            const marker = '<!-- docs-preview-comment -->';
+            const body = `${marker}\n📖 **Docs preview:** ${previewUrl}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+
   #######################
   #      UI Build       #
   #######################
   ui-build:
     needs: [check-paths]
     if: |
-      (needs.check-paths.outputs.ui == 'true' && github.event.action != 'closed') ||
+      (needs.check-paths.outputs.ui == 'true') ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
