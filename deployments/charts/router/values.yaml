@@ -293,10 +293,6 @@ sidecars:
     ##
     enabled: true
 
-    ## Use Kubernetes secrets to store credentials
-    ##
-    useKubernetesSecrets: false
-
     ## Paths that should skip authentication
     ##
     skipAuthPaths:
@@ -372,11 +368,6 @@ sidecars:
       ##
       host: ""
 
-    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
-    ##
-    oauth2Filter:
-      enabled: false
-
     ## JWT (JSON Web Token) authentication configuration
     ##
     jwt:
@@ -410,11 +401,6 @@ sidecars:
       ## Address for Osmo authentication service
       ##
       address: osmo-service
-
-    ## Secret paths (legacy, kept for backward compatibility)
-    ##
-    secretPaths:
-      clientSecret: /etc/envoy/secrets/client_secret
 
     ## Additional volume mounts for the Envoy container
     ##

@@ -22,7 +22,7 @@ Service Accounts
 ================
 
 Service accounts provide programmatic access to OSMO for automation, CI/CD pipelines, and
-backend operators. In OSMO, service accounts are regular users with Personal Access Tokens (PATs)
+backend operators. In OSMO, service accounts are regular users with access tokens
 for API authentication.
 
 Overview
@@ -31,7 +31,7 @@ Overview
 A service account consists of two components:
 
 1. **A user** — Represents the service account identity and holds role assignments
-2. **A Personal Access Token (PAT)** — Provides authentication credentials for API access
+2. **An access token** — Provides authentication credentials for API access
 
 This approach provides several benefits:
 
@@ -72,10 +72,10 @@ Create a user with an identifier that clearly indicates it's a service account:
    Use a naming convention that distinguishes service accounts from regular users,
    such as ``svc-<purpose>`` (e.g., ``svc-backend-operator``, ``svc-monitoring``).
 
-Step 2: Create a Personal Access Token
+Step 2: Create an access token
 --------------------------------------
 
-Create a PAT for the service account. By default, the token inherits all roles from the user.
+Create an access token for the service account. By default, the token inherits all roles from the user.
 You can limit the token to specific roles using the ``--roles`` (or ``-r``) option.
 
 .. code-block:: bash
@@ -166,7 +166,7 @@ Add or remove roles from a service account:
 .. note::
 
    When a role is removed from a user, it is automatically removed from all of that
-   user's PATs.
+   user's access tokens.
 
 Rotate a Service Account Token
 ------------------------------
@@ -200,11 +200,10 @@ Delete the service account user (this also deletes all associated tokens):
 
 .. seealso::
 
-   - :ref:`cli_reference_token` for token CLI reference
-   - :ref:`cli_reference_user` for user CLI reference
+   - :doc:`../../references/user_cli/index` for user and token CLI reference
 
 Common Service Account Patterns
-===============================
+================================
 
 Backend Operator
 ----------------
@@ -262,7 +261,7 @@ For monitoring systems or automation scripts:
 
 .. seealso::
 
-   - :ref:`access_tokens` for personal access token documentation
+   - :ref:`authentication_authorization` for authentication and access token overview
    - :ref:`deploy_backend` for backend operator deployment
 
 Best Practices

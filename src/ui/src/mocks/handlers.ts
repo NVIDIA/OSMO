@@ -1138,53 +1138,94 @@ export const handlers = [
     const url = new URL(request.url);
     // Cap count at total to prevent generating 10,000 entries for the "fetch all" path
     const requestedCount = parseInt(url.searchParams.get("count") || "50", 10);
-    const count = Math.min(requestedCount, datasetGenerator.totalDatasets);
     const allUsers = url.searchParams.get("all_users") !== "false";
-    // dataset_type filter: mock always returns DATASET entries, so this is a no-op pass-through
-    // (included for parity with backend behavior)
-    // dataset_type filter: all mock entries are "DATASET", so DATASET filter is a no-op.
-    // If COLLECTION is requested, return empty (mock has no collections).
     const datasetType = url.searchParams.get("dataset_type");
-    if (datasetType === "COLLECTION") {
-      return HttpResponse.json({ datasets: [] });
+    const mockCurrentUser = MOCK_CONFIG.workflows.users[0];
+
+    const allEntries: Array<{
+      name: string;
+      id: string;
+      bucket: string;
+      create_time: string;
+      last_created: string;
+      hash_location: string;
+      hash_location_size: number;
+      version_id: string;
+      type: string;
+    }> = [];
+
+    // Include datasets unless filtered to COLLECTION only
+    if (datasetType !== "COLLECTION") {
+      const count = Math.min(requestedCount, datasetGenerator.totalDatasets);
+      const { entries } = datasetGenerator.generatePage(0, count);
+      const filtered = allUsers ? entries : entries.filter((d) => d.user === mockCurrentUser);
+      for (const d of filtered) {
+        allEntries.push({
+          name: d.name,
+          id: d.name,
+          bucket: d.bucket,
+          create_time: d.created_at,
+          last_created: d.updated_at,
+          hash_location: d.path,
+          hash_location_size: d.size_bytes,
+          version_id: `v${d.version}`,
+          type: "DATASET",
+        });
+      }
     }
 
-    // Generate requested number of datasets
-    const { entries } = datasetGenerator.generatePage(0, count);
-
-    // Filter by user if all_users=false
-    let filtered = entries;
-    if (!allUsers) {
-      // For mock: use first user from config as the "current user"
-      const mockCurrentUser = MOCK_CONFIG.workflows.users[0];
-      filtered = filtered.filter((d) => d.user === mockCurrentUser);
+    // Include collections unless filtered to DATASET only
+    if (datasetType !== "DATASET") {
+      const collectionCount = Math.min(requestedCount, datasetGenerator.totalCollections);
+      for (let i = 0; i < collectionCount; i++) {
+        const c = datasetGenerator.generateCollection(i);
+        if (!allUsers && c.user !== mockCurrentUser) continue;
+        allEntries.push({
+          name: c.name,
+          id: c.name,
+          bucket: c.bucket,
+          create_time: c.created_at,
+          last_created: c.updated_at,
+          hash_location: c.path,
+          hash_location_size: c.size_bytes,
+          version_id: "",
+          type: "COLLECTION",
+        });
+      }
     }
-
-    // Transform to backend API shape (DataListEntry)
-    const datasets = filtered.map((d) => ({
-      name: d.name,
-      id: d.name, // Use name as id for mock
-      bucket: d.bucket,
-      create_time: d.created_at,
-      last_created: d.updated_at,
-      hash_location: d.path,
-      hash_location_size: d.size_bytes,
-      version_id: `v${d.version}`, // Format version as "v1", "v2", etc.
-      type: "DATASET", // Backend type is either DATASET or COLLECTION
-    }));
 
     // DataListResponse expects 'datasets' array
     return HttpResponse.json({
-      datasets,
+      datasets: allEntries,
     });
   }),
 
-  // Get dataset info
+  // Get dataset or collection info
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
   http.get("*/api/bucket/:bucket/dataset/:name/info", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
+
+    // Check if this is a collection name first
+    const collection = datasetGenerator.getCollectionByName(name);
+    if (collection) {
+      const members = datasetGenerator.generateCollectionMembers(name);
+      const response = {
+        id: collection.name,
+        name: collection.name,
+        bucket: collection.bucket,
+        created_by: collection.user,
+        created_date: collection.created_at,
+        hash_location: collection.path,
+        hash_location_size: collection.size_bytes,
+        labels: collection.labels || {},
+        type: "COLLECTION",
+        versions: members,
+      };
+      return HttpResponse.json(response);
+    }
+
     const dataset = datasetGenerator.getByName(name);
 
     if (!dataset) {
@@ -1224,6 +1265,77 @@ export const handlers = [
 
     // Default response without files
     return HttpResponse.json(response);
+  }),
+
+  // Dataset location files — returns a flat file manifest for a dataset version's location URL.
+  // The location URL encodes the dataset name (e.g. s3://bucket/datasets/name/v1/).
+  // MSW intercepts this browser-side request so the Next.js proxy route is bypassed in mock mode.
+  http.get("*/api/datasets/location-files", async ({ request }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+    const locationUrl = url.searchParams.get("url") ?? "";
+
+    // Extract dataset name from location URL: s3://{bucket}/datasets/{name}/v{version}/
+    const nameMatch = locationUrl.match(/\/datasets\/([^/]+)\/v\d+/);
+    const datasetName = nameMatch?.[1] ?? "";
+
+    const bucketMatch = locationUrl.match(/s3:\/\/([^/]+)/);
+    const bucket = bucketMatch?.[1] ?? "osmo-datasets";
+
+    const items = datasetGenerator.generateFlatManifest(datasetName, bucket, locationUrl);
+    return HttpResponse.json(items);
+  }),
+
+  // HEAD + GET /api/datasets/file-proxy — preflight + content for file preview panel.
+  // Uses http.all because http.head() does not reliably intercept http.request with method HEAD
+  // when routed through the mock port-9999 tunnel.
+  // Returns 401 for datasets that simulate a private bucket, 200/content otherwise.
+  http.all("*/api/datasets/file-proxy", async ({ request }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+    const fileUrl = url.searchParams.get("url") ?? "";
+
+    // Extract dataset name from url param: /api/bucket/{bucket}/dataset/{name}/preview
+    const nameMatch = fileUrl.match(/\/dataset\/([^/?]+)\/preview/);
+    const datasetName = nameMatch?.[1] ?? "";
+
+    if (datasetGenerator.isPrivateDataset(datasetName)) {
+      return new HttpResponse(null, { status: 401 });
+    }
+
+    const filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+    const contentTypeMap: Record<string, string> = {
+      json: "application/json",
+      txt: "text/plain",
+      md: "text/markdown",
+      csv: "text/csv",
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      mp4: "video/mp4",
+      webm: "video/webm",
+    };
+
+    const contentType = contentTypeMap[ext] ?? "application/octet-stream";
+
+    if (request.method === "HEAD") {
+      return new HttpResponse(null, {
+        status: 200,
+        headers: { "Content-Type": contentType },
+      });
+    }
+
+    if (ext === "json") {
+      return HttpResponse.json({ mock: true, path: filePath, dataset: datasetName });
+    }
+
+    return HttpResponse.text(`Mock file: ${filePath}\nDataset: ${datasetName}\n`, {
+      headers: { "Content-Type": "text/plain" },
+    });
   }),
 
   // HEAD and GET preview handler for dataset files

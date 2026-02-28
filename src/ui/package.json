@@ -4,7 +4,6 @@
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "scripts": {
-    "postinstall": "next telemetry disable",
     "clean": "rm -rf .next .turbo",
     "dev": "next dev --turbopack",
     "dev:local": "NEXT_PUBLIC_OSMO_API_HOSTNAME=localhost:8000 NEXT_PUBLIC_OSMO_SSL_ENABLED=false next dev --turbopack",
@@ -146,8 +145,7 @@
       "sharp"
     ],
     "onlyBuiltDependencies": [
-      "esbuild",
-      "msw"
+      "esbuild"
     ]
   }
 }

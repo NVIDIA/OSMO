@@ -32,7 +32,7 @@ import pydantic
 from src.lib.utils import osmo_errors, version
 
 
-DEFAULT_INTERVAL_IN_MILLISECONDS = 6000
+DEFAULT_INTERVAL_IN_MILLISECONDS = 15000
 
 class InstrumentType(enum.Enum):
     """Describes the execution status of a job"""

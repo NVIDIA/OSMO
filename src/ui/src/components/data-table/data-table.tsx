@@ -74,11 +74,17 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   isLoading?: boolean;
   emptyContent?: React.ReactNode;
   onRowClick?: (row: TData) => void;
+  /** Callback when keyboard focus moves to a different row (for live preview) */
+  onFocusedRowChange?: (row: TData | null) => void;
   /** Double-click handler (e.g. navigate to detail page) */
   onRowDoubleClick?: (row: TData) => void;
   /** For middle-click: returns URL for new tab, or undefined to call onRowClick */
   getRowHref?: (row: TData) => string | undefined;
   selectedRowId?: string;
+  /** Override default header cell padding/styling for all columns (default: "px-4 py-3") */
+  headerClassName?: string;
+  /** Extra classes applied to the <thead> element (e.g. "file-browser-thead" for a shadow-based bottom divider) */
+  theadClassName?: string;
   rowClassName?: string | ((item: TData) => string);
   sectionClassName?: string | ((section: Section<TData, TSectionMeta>) => string);
   columnSizeConfigs?: readonly ColumnSizeConfig[];
@@ -131,9 +137,12 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   isLoading,
   emptyContent,
   onRowClick,
+  onFocusedRowChange,
   onRowDoubleClick,
   getRowHref,
   selectedRowId,
+  headerClassName: tableHeaderClassName,
+  theadClassName,
   rowClassName,
   sectionClassName,
   columnSizeConfigs,
@@ -149,6 +158,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
 
   const onSortingChangeRef = useSyncedRef(onSortingChange);
   const onRowClickRef = useSyncedRef(onRowClick);
+  const onFocusedRowChangeRef = useSyncedRef(onFocusedRowChange);
   const onLoadMoreRef = useSyncedRef(onLoadMore);
 
   const allItems = useMemo(() => {
@@ -369,6 +379,19 @@ function DataTableInner<TData, TSectionMeta = unknown>({
       },
       [getItem, onRowClickRef],
     ),
+    onFocusedIndexChange: useCallback(
+      (virtualIndex: number | null) => {
+        if (virtualIndex === null) {
+          onFocusedRowChangeRef.current?.(null);
+          return;
+        }
+        const item = getItem(virtualIndex);
+        if (item?.type === VirtualItemTypes.ROW) {
+          onFocusedRowChangeRef.current?.(item.item);
+        }
+      },
+      [getItem, onFocusedRowChangeRef],
+    ),
     onScrollToRow: useCallback(
       (virtualIndex: number, align: "start" | "end" | "center") => {
         scrollToIndex(virtualIndex, { align });
@@ -438,6 +461,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                 className={cn(
                   "table-header text-left text-xs font-medium text-zinc-500 uppercase dark:text-zinc-400",
                   stickyHeaders && "sticky top-0 z-20",
+                  theadClassName,
                 )}
               >
                 <tr
@@ -503,7 +527,10 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                                 minWidth: cssWidth,
                                 flexShrink: 0,
                               }}
-                              className={cn("relative flex items-center", headerClassName ?? "px-4 py-3")}
+                              className={cn(
+                                "relative flex items-center",
+                                headerClassName ?? tableHeaderClassName ?? "px-4 py-3",
+                              )}
                             >
                               {cellContent}
                             </th>
@@ -517,7 +544,10 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                             as="th"
                             width={cssWidth}
                             colIndex={colIndex}
-                            className={cn("relative flex items-center", headerClassName ?? "px-4 py-3")}
+                            className={cn(
+                              "relative flex items-center",
+                              headerClassName ?? tableHeaderClassName ?? "px-4 py-3",
+                            )}
                           >
                             {cellContent}
                           </SortableCell>

@@ -102,9 +102,10 @@ export const fetchWorkflows = cache(async (params: WorkflowsQueryParams = {}): P
     submitted_after: params.submitted_after,
   };
 
-  const rawData = await listWorkflowApiWorkflowGet(apiParams);
+  const response = await listWorkflowApiWorkflowGet(apiParams);
 
   // Parse string response if needed (backend quirk)
+  const rawData = response.data;
   const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
 
   return parsed as WorkflowsListResponse;

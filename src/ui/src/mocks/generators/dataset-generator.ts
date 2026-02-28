@@ -25,6 +25,7 @@ import { faker } from "@faker-js/faker";
 import { hashString } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
+import type { RawFileItem } from "@/lib/api/adapter/datasets";
 
 // ============================================================================
 // Types
@@ -61,6 +62,14 @@ export interface GeneratedDatasetVersion {
   collections: string[];
 }
 
+export interface GeneratedCollectionMember {
+  name: string;
+  version: string;
+  location: string;
+  uri: string;
+  size: number;
+}
+
 export interface DatasetFile {
   name: string;
   type: "file" | "folder";
@@ -92,6 +101,19 @@ const DATASET_PATTERNS = {
   buckets: ["osmo-datasets", "ml-data", "training-data"],
   modalities: ["text", "image", "audio", "video", "multimodal"],
   retentionPolicies: ["30d", "90d", "1y", "forever"],
+};
+
+const COLLECTION_PATTERNS = {
+  names: [
+    "training-bundle",
+    "eval-suite",
+    "multimodal-mix",
+    "research-corpus",
+    "benchmark-pack",
+    "production-set",
+    "experiment-v2",
+    "curated-collection",
+  ],
 };
 
 // ============================================================================
@@ -224,6 +246,92 @@ export class DatasetGenerator {
   }
 
   /**
+   * Total number of collections (20% of total datasets, at least 5).
+   */
+  get totalCollections(): number {
+    return Math.max(5, Math.floor(this.totalDatasets * 0.2));
+  }
+
+  /**
+   * Generate a collection at a specific index.
+   * DETERMINISTIC: Same index always produces the same collection.
+   */
+  generateCollection(index: number): GeneratedDataset {
+    faker.seed(this.config.baseSeed + 99999 + index);
+
+    const baseName = COLLECTION_PATTERNS.names[index % COLLECTION_PATTERNS.names.length];
+    const uniqueSuffix =
+      index >= COLLECTION_PATTERNS.names.length ? `-${Math.floor(index / COLLECTION_PATTERNS.names.length)}` : "";
+    const name = `${baseName}${uniqueSuffix}`;
+
+    const bucket = faker.helpers.arrayElement(DATASET_PATTERNS.buckets);
+    const user = faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
+
+    return {
+      name,
+      bucket,
+      path: `s3://${bucket}/collections/${name}/`,
+      version: 0,
+      created_at: faker.date.past({ years: 2 }).toISOString(),
+      updated_at: faker.date.past({ years: 1 }).toISOString(),
+      size_bytes: faker.number.int({ min: 1e10, max: 5e12 }),
+      labels: {
+        type: "collection",
+        team: faker.helpers.arrayElement(["ml-platform", "cv-team", "nlp-team"]),
+      },
+      description: `${name} — curated collection of datasets`,
+      user,
+    };
+  }
+
+  /**
+   * Generate collection members (matches backend DataInfoCollectionEntry).
+   */
+  generateCollectionMembers(collectionName: string): GeneratedCollectionMember[] {
+    faker.seed(this.config.baseSeed + hashString(collectionName) + 77777);
+
+    const count = faker.number.int({ min: 3, max: 5 });
+    const members: GeneratedCollectionMember[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const datasetIndex = Math.abs(hashString(collectionName + i)) % this.totalDatasets;
+      const dataset = this.generate(datasetIndex);
+      const version = String(faker.number.int({ min: 1, max: 5 }));
+
+      members.push({
+        name: dataset.name,
+        version,
+        location: `s3://osmo-datasets/datasets/${dataset.name}/v${version}/`,
+        uri: `s3://osmo-datasets/datasets/${dataset.name}/v${version}/`,
+        size: faker.number.int({ min: 1e9, max: 5e11 }),
+      });
+    }
+
+    return members;
+  }
+
+  /**
+   * Get collection by name. Returns null if not found.
+   */
+  getCollectionByName(name: string): GeneratedDataset | null {
+    for (let i = 0; i < this.totalCollections; i++) {
+      const collection = this.generateCollection(i);
+      if (collection.name === name) {
+        return collection;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Returns true if the dataset's files are in a private (non-public) bucket.
+   * Deterministic: based on dataset name hash. Approximately 1 in 3 datasets are private.
+   */
+  isPrivateDataset(datasetName: string): boolean {
+    return Math.abs(hashString(datasetName)) % 3 === 0;
+  }
+
+  /**
    * Get dataset by name.
    */
   getByName(name: string): GeneratedDataset | null {
@@ -337,6 +445,67 @@ export class DatasetGenerator {
     }
 
     return files;
+  }
+
+  /**
+   * Generate a flat file manifest for a dataset version.
+   * Returns RawFileItem[] with relative_path entries representing the full dataset tree.
+   * Used by the location-files MSW handler to serve mock file listings.
+   */
+  generateFlatManifest(datasetName: string, bucket?: string, locationBase?: string): RawFileItem[] {
+    faker.seed(this.config.baseSeed + hashString(datasetName));
+
+    const effectiveBucket = bucket ?? "osmo-datasets";
+    const items: RawFileItem[] = [];
+
+    const buildUrl = (filePath: string) =>
+      `/api/bucket/${effectiveBucket}/dataset/${datasetName}/preview?path=${encodeURIComponent(filePath)}`;
+
+    // s3:// URI for the Copy button — set when the caller provides the location base
+    const buildStoragePath = locationBase
+      ? (filePath: string) => `${locationBase.replace(/\/$/, "")}/${filePath}`
+      : () => undefined;
+
+    // Root files
+    items.push(
+      {
+        relative_path: "metadata.json",
+        size: faker.number.int({ min: 1024, max: 10240 }),
+        url: buildUrl("metadata.json"),
+        storage_path: buildStoragePath("metadata.json"),
+      },
+      {
+        relative_path: "README.md",
+        size: faker.number.int({ min: 512, max: 5120 }),
+        url: buildUrl("README.md"),
+        storage_path: buildStoragePath("README.md"),
+      },
+    );
+
+    // Three splits: train, validation, test — use text/json files that can be previewed
+    const splits = ["train", "validation", "test"];
+    const numClasses = faker.number.int({ min: 3, max: 6 });
+
+    for (const split of splits) {
+      for (let c = 0; c < numClasses; c++) {
+        const className = `n${String(c).padStart(8, "0")}`;
+        const numFiles = faker.number.int({ min: 3, max: 8 });
+        for (let f = 0; f < numFiles; f++) {
+          // Alternate between .json and .txt so the preview panel can render them
+          const ext = f % 2 === 0 ? ".json" : ".txt";
+          const fileName = `${String(f).padStart(6, "0")}${ext}`;
+          const filePath = `${split}/${className}/${fileName}`;
+          items.push({
+            relative_path: filePath,
+            size: faker.number.int({ min: 512, max: 16384 }),
+            url: buildUrl(filePath),
+            storage_path: buildStoragePath(filePath),
+          });
+        }
+      }
+    }
+
+    return items;
   }
 }
 
