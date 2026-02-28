@@ -26,6 +26,7 @@ import { TableSkeleton } from "@/components/data-table/table-skeleton";
 import { SidebarInset, SidebarProvider } from "@/components/shadcn/sidebar";
 import { useSharedPreferences } from "@/stores/shared-preferences-store";
 import { useSidebarOpen } from "@/hooks/shared-preferences-hooks";
+import { SubmitWorkflowOverlay } from "@/components/chrome/submit-workflow-overlay";
 
 interface ChromeProps {
   children: React.ReactNode;
@@ -65,14 +66,17 @@ export const Chrome = memo(function Chrome({ children }: ChromeProps) {
             {/* Content - with optimized scrolling */}
             {/* Note: Pages are responsible for their own padding. This allows pages */}
             {/* with edge-to-edge layouts (like resizable panels) to use full space. */}
-            <main
-              id="main-content"
-              tabIndex={-1}
-              className="contain-layout-style flex-1 overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
-              aria-label="Main content"
-            >
-              <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
-            </main>
+            <div className="relative flex-1 overflow-hidden">
+              <main
+                id="main-content"
+                tabIndex={-1}
+                className="contain-layout-style h-full overflow-auto overscroll-contain bg-zinc-50 dark:bg-zinc-900"
+                aria-label="Main content"
+              >
+                <Suspense fallback={<MainContentSkeleton />}>{children}</Suspense>
+              </main>
+              <SubmitWorkflowOverlay />
+            </div>
           </SidebarInset>
         </SidebarProvider>
       </Suspense>
