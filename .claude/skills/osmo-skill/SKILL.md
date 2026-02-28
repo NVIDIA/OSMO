@@ -14,7 +14,21 @@ description: >
 # OSMO CLI Use Cases
 
 OSMO is a cloud platform for robotics compute and data storage. This skill covers
-common OSMO CLI workflows.
+common OSMO CLI use cases.
+
+## Reference Files
+
+The `agents/` directory contains instructions for specialized subagents. Read them when you need to spawn the relevant subagent.
+
+- `agents/workflow-expert.md` — expert for workflow generation, resource check, submission, failure diagnosis
+
+The `references/` directory has additional documentation:
+
+- `references/cookbook.md` — Real-world workflow examples to use as starting points
+- `references/workflow-patterns.md` — Multi-task, parallel execution, data dependencies, Jinja templating
+- `references/advanced-patterns.md` — Checkpointing, retry/exit behavior, node exclusion
+
+---
 
 ## Use Case: Check Available Resources
 
@@ -68,6 +82,8 @@ When summarizing results for the user, highlight:
 
 **When to use:** The user wants to submit a job to run on OSMO (e.g. "submit a workflow
 to run SDG", "run RL training for me", "submit this yaml to OSMO").
+
+Evaluate the complexity of the user's request: if user also wants monitoring, debugging workflows, reporting results, or the workflow complexity is too high, refer to `Orchestrate a Workflow End-to-End` use case to delegate this to a sub-agent instead.
 
 ### Steps
 
@@ -226,26 +242,23 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
 
 ## Use Case: Orchestrate a Workflow End-to-End
 
-**When to use:** The user wants to create, submit AND monitor a workflow to completion,
+**When to use:** The user wants to create workflow, submit and monitor it to completion,
 or requests an autonomous workflow cycle (e.g. "train GR00T on my data", "create a SDG workflow and run it",
 "submit and monitor my workflow", "run end-to-end training", "submit this and
 tell me when it's done").
 
 ### Phase-Split Pattern
 
-The lifecycle is split between the **workflow-expert agent** (resource
-check, YAML generation, submission, failure diagnosis) and **you** (live
+The lifecycle is split between the **`/agents/workflow-expert.md`** subagent (workflow generation creation, resource check, submission, failure diagnosis) and **you** (live
 monitoring so the user sees real-time updates). Follow these steps exactly:
 
-#### Step 1: Spawn the workflow-expert for setup and submission
+#### Step 1: Spawn a workflow-expert subagent for setup and submission
 
-Use the Task tool to spawn the `workflow-expert` agent. Ask it to
-**check resources and submit the workflow only**. Do NOT ask it to monitor,
-poll status, or report results — that is your job.
+Use the Agent tool to spawn the `/agents/workflow-expert.md` subagent. Ask it to
+**write workflow YAML if needed, check resources and submit the workflow only**. Do NOT ask it to monitor, poll status, or report results — that is your job.
 
 Example prompt:
-> Submit the workflow at workflow.yaml to an available GPU pool. Check
-> resources first, then submit. Return the workflow ID when done.
+> Create a workflow based on user's request, if any. Check resources first, then submit the workflow to an available resource pool. Return the workflow ID when done.
 
 The agent returns: workflow ID, pool name, and OSMO Web link.
 
@@ -264,7 +277,7 @@ Report each state transition to the user:
 **If COMPLETED:** Report results — workflow ID, OSMO Web link, output datasets.
 Offer to download. Follow the COMPLETED handling in "Check Workflow Status".
 
-**If FAILED:** Resume the workflow expert (use the `resume` parameter with the
+**If FAILED:** Resume the workflow expert subagent (use the `resume` parameter with the
 agent ID from Step 1) and tell it: "Workflow <id> FAILED. Diagnose and fix."
 It returns a new workflow ID. Resume monitoring from Step 2. Max 3 retries
 before asking the user for guidance.
