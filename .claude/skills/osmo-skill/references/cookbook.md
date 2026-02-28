@@ -12,10 +12,10 @@ from scratch.
 
 | Category | Workflow | Raw YAML URL |
 |---|---|---|
-| **Synthetic Data Generation** | Isaac Sim SDG (60 images) | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/isaac_sim/isaac_sim_sdg.yaml |
+| **Synthetic Data Generation** | Isaac Sim SDG (60 images, 1 GPU ONLY) | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/isaac_sim/isaac_sim_sdg.yaml |
 | **Synthetic Data Generation** | Gazebo SDG | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/gazebo_sdg.yaml |
 | **Reinforcement Learning** | Single GPU | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/single_gpu/train_policy.yaml |
-| **Reinforcement Learning** | Multi-GPU | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/multi_gpu/train_policy.yaml |
+| **Reinforcement Learning** | Multi-GPU (GPU count configurable)| https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/multi_gpu/train_policy.yaml |
 | **Reinforcement Learning** | Multi-Node | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/multi_node/train_policy.yaml |
 | **GR00T** | Fine-tuning | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_finetune/groot_finetune.yaml |
 | **GR00T** | Imitation learning (MimicGen) | https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/groot/groot_mimic/groot_mimic.yaml |

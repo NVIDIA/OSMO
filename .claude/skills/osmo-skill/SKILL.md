@@ -81,13 +81,16 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
      YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
      Fetch the README as well, substituting the YAML file name with README. Summarize the
      README, and add it as a comment in the generated workflow spec.
-   - **Use cookbook throughput metadata for capacity planning.** The cookbook table often
-     annotates entries with output counts or rates (e.g. "60 images", "1000 steps/min").
-     When the user specifies a target output quantity and a time budget, use the
-     cookbook's documented per-run throughput to calculate how many parallel workflow
-     submissions are needed: `num_submissions = ceil(target / (throughput_per_run *
-     time_budget))`. Submit the same YAML file that many times rather than modifying the
-     workflow config to hit the target in a single run.
+   - **Use cookbook metadata to decide submission count.** The cookbook table in
+     `references/cookbook.md` annotates entries with throughput and constraint metadata
+     (e.g. "60 images, 1 GPU ONLY"). Before deciding whether to submit one or multiple
+     workflows, read those annotations:
+     - If a throughput figure is present and the user has a target quantity + time
+       budget, calculate: `num_submissions = ceil(target / (throughput_per_run * time_budget))`
+       and submit the same YAML that many times.
+     - If a constraint is present (e.g. "1 GPU ONLY"), respect it — do not scale by
+       requesting more GPUs per workflow; scale by submitting more workflows instead.
+     - If no metadata is present, submit a single workflow unless the user says otherwise.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
      the correct spec patterns before writing anything.
