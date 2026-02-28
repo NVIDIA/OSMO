@@ -17,17 +17,19 @@
 /**
  * SubmitWorkflowConfigPanel - Right column of the scroll-split layout.
  *
- * Contains a 2px scroll progress bar at the top and three scrollable
- * sections: Template Variables (01), Pool (02), Priority (03).
+ * Contains three scrollable sections (Template Variables, Pool, Priority)
+ * and a fixed action bar at the bottom with Cancel and Submit buttons.
  */
 
 "use client";
 
-import { memo, useRef, useState, useCallback } from "react";
+import { memo } from "react";
+import { Loader2 } from "lucide-react";
 import { WorkflowPriority } from "@/lib/api/generated";
+import { cn } from "@/lib/utils";
 import { SubmitWorkflowTemplateVars } from "@/components/submit-workflow/submit-workflow-template-vars";
-import { SubmitWorkflowPools } from "@/components/submit-workflow/submit-workflow-pools";
-import { SubmitWorkflowPriority } from "@/components/submit-workflow/submit-workflow-priority";
+import { PoolPicker } from "@/components/workflow/pool-picker";
+import { PriorityPicker } from "@/components/workflow/priority-picker";
 
 // ---------------------------------------------------------------------------
 // Section header
@@ -67,6 +69,11 @@ export interface SubmitWorkflowConfigPanelProps {
   onPoolChange: (pool: string) => void;
   priority: WorkflowPriority;
   onPriorityChange: (priority: WorkflowPriority) => void;
+  error: string | null;
+  isPending: boolean;
+  canSubmit: boolean;
+  onClose: () => void;
+  onSubmit: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,37 +88,20 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
   onPoolChange,
   priority,
   onPriorityChange,
+  error,
+  isPending,
+  canSubmit,
+  onClose,
+  onSubmit,
 }: SubmitWorkflowConfigPanelProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollPct, setScrollPct] = useState(0);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const max = el.scrollHeight - el.clientHeight;
-    setScrollPct(max > 0 ? (el.scrollTop / max) * 100 : 0);
-  }, []);
-
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-white dark:bg-zinc-900">
-      {/* Scroll progress bar */}
-      <div className="h-0.5 shrink-0 bg-zinc-200 dark:bg-zinc-700/60">
-        <div
-          className="bg-nvidia h-full transition-[width] duration-100"
-          style={{ width: `${scrollPct}%` }}
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(scrollPct)}
-          aria-label="Scroll position"
-        />
-      </div>
-
+    <div
+      className="flex flex-1 flex-col bg-white dark:bg-zinc-900"
+      style={{ minWidth: "var(--submit-overlay-config-min-width)" }}
+    >
       {/* Scrollable sections */}
       <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
         style={{ scrollbarWidth: "thin" }}
       >
         {/* Section 01: Template Variables */}
@@ -137,9 +127,9 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             title="Pool"
             subtitle="Target compute pool. GPU availability shown in real-time."
           />
-          <SubmitWorkflowPools
-            selected={pool}
-            onSelect={onPoolChange}
+          <PoolPicker
+            pool={pool}
+            onChange={onPoolChange}
           />
         </section>
 
@@ -152,11 +142,57 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             title="Priority"
             subtitle="LOW workflows may be preempted to free resources for higher priority jobs."
           />
-          <SubmitWorkflowPriority
+          <PriorityPicker
             priority={priority}
             onChange={onPriorityChange}
           />
         </section>
+      </div>
+
+      {/* Action bar */}
+      <div className="flex shrink-0 flex-col gap-2 border-t border-zinc-200 px-7 py-4 dark:border-zinc-700/60">
+        {error && (
+          <div
+            className="rounded bg-red-50 px-3 py-1.5 font-mono text-[11px] text-red-700 dark:bg-red-900/30 dark:text-red-300"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            className="flex h-9 flex-1 items-center justify-center rounded-md border border-zinc-200 bg-transparent font-sans text-sm font-semibold text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            aria-label="Submit workflow"
+            className={cn(
+              "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border font-sans text-sm font-bold transition-all",
+              "border-nvidia bg-nvidia text-black",
+              "hover:bg-nvidia-dark hover:shadow-[0_0_18px_rgba(118,185,0,0.3)]",
+              "disabled:cursor-not-allowed disabled:opacity-40",
+            )}
+          >
+            {isPending ? (
+              <>
+                <Loader2
+                  className="size-4 animate-spin"
+                  aria-hidden="true"
+                />
+                Submitting...
+              </>
+            ) : (
+              "Submit"
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

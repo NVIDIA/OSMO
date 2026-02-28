@@ -44,18 +44,7 @@ export const SubmitWorkflowEditorPanel = memo(function SubmitWorkflowEditorPanel
 }: SubmitWorkflowEditorPanelProps) {
   return (
     <div className="flex min-w-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-700/60 dark:bg-[#0b0b0d]">
-      {/* Tab bar */}
-      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-zinc-200 px-4 dark:border-zinc-700/60">
-        <div className="flex items-center gap-1.5 rounded bg-white px-2 py-1 dark:bg-zinc-800/60">
-          <div
-            className="bg-nvidia size-1.5 rounded-full"
-            aria-hidden="true"
-          />
-          <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">workflow.yaml</span>
-        </div>
-      </div>
-
-      {/* Editor — fills remaining height */}
+      {/* Editor — fills full height */}
       <div className="relative min-h-0 flex-1">
         <CodeMirror
           value={value}
