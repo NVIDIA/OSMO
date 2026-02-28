@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * PoolSelect - Lazy-loading pool selection for resubmit drawer.
+ * PoolSelect - Lazy-loading pool combobox (Popover + Command).
  *
  * Uses Popover + Command (cmdk) instead of Radix Select to avoid the
  * aria-hidden conflict with ResizablePanel. Radix Select sets aria-hidden
@@ -44,10 +44,10 @@ import {
 import { Button } from "@/components/shadcn/button";
 import type { Pool } from "@/lib/api/adapter/types";
 import { cn } from "@/lib/utils";
-import { PoolStatusBadge } from "@/features/workflows/detail/components/resubmit/pool-status-badge";
+import { PoolStatusBadge } from "@/components/workflow/pool-status-badge";
 
 export interface PoolSelectProps {
-  /** Currently selected pool name (from workflow's original pool) */
+  /** Currently selected pool name */
   value: string;
   /** Callback when pool selection changes */
   onValueChange: (poolName: string) => void;
@@ -59,19 +59,6 @@ export interface PoolSelectProps {
   onDropdownOpenChange?: (isOpen: boolean) => void;
 }
 
-/**
- * PoolSelect component using Popover + Command (cmdk) combobox pattern.
- *
- * This avoids the Radix Select aria-hidden conflict with ResizablePanel.
- * Radix Select sets aria-hidden on ancestor elements (including the panel),
- * which causes browser errors and immediately closes the dropdown. Popover
- * is inherently non-modal and does not modify ancestor aria attributes.
- *
- * Loading strategy:
- * 1. Initial render: Show preselected pool (passed via selectedPool prop)
- * 2. Popover open: Notify parent to trigger all-pools fetch
- * 3. Use pools from parent (avoids redundant queries)
- */
 export const PoolSelect = memo(function PoolSelect({
   value,
   onValueChange,
@@ -90,7 +77,6 @@ export const PoolSelect = memo(function PoolSelect({
     [onDropdownOpenChange],
   );
 
-  // Use pools from parent if available
   const pools = useMemo(() => allPools ?? [], [allPools]);
   const isLoading = !allPools && isOpen;
 

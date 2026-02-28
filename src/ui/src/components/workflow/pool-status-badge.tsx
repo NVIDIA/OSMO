@@ -17,7 +17,7 @@
 /**
  * PoolStatusBadge - Renders a colored status badge with icon and label.
  *
- * Shared between PoolSection and PoolSelect to eliminate duplication of
+ * Shared between PoolPicker and PoolSelect to eliminate duplication of
  * the status display logic (icon lookup, style mapping, JSX structure).
  */
 
