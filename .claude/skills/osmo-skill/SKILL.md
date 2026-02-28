@@ -310,6 +310,53 @@ to inform your next action.
 
 ---
 
+## Use Case: Orchestrate a Workflow End-to-End
+
+**When to use:** The user wants to create, submit AND monitor a workflow to completion,
+or requests an autonomous workflow cycle (e.g. "train GR00T on my data", "create a SDG workflow and run it",
+"submit and monitor my workflow", "run end-to-end training", "submit this and
+tell me when it's done").
+
+### Phase-Split Pattern
+
+The lifecycle is split between the **workflow-expert agent** (resource
+check, YAML generation, submission, failure diagnosis) and **you** (live
+monitoring so the user sees real-time updates). Follow these steps exactly:
+
+#### Step 1: Spawn the workflow-expert for setup and submission
+
+Use the Task tool to spawn the `workflow-expert` agent. Ask it to
+**check resources and submit the workflow only**. Do NOT ask it to monitor,
+poll status, or report results — that is your job.
+
+Example prompt:
+> Submit the workflow at workflow.yaml to an available GPU pool. Check
+> resources first, then submit. Return the workflow ID when done.
+
+The agent returns: workflow ID, pool name, and OSMO Web link.
+
+#### Step 2: Monitor the workflow inline (you do this — user sees live updates)
+
+After getting the workflow ID, use the "Check Workflow Status" use case to
+poll and report. Repeat until a terminal state is reached.
+
+Report each state transition to the user:
+- `Status: SCHEDULING (queued 15s)`
+- `Workflow transitioned: SCHEDULING → RUNNING`
+- `Status: RUNNING (task "train" active, 2m elapsed)`
+
+#### Step 3: Handle the outcome
+
+**If COMPLETED:** Report results — workflow ID, OSMO Web link, output datasets.
+Offer to download. Follow the COMPLETED handling in "Check Workflow Status".
+
+**If FAILED:** Resume the workflow expert (use the `resume` parameter with the
+agent ID from Step 1) and tell it: "Workflow <id> FAILED. Diagnose and fix."
+It returns a new workflow ID. Resume monitoring from Step 2. Max 3 retries
+before asking the user for guidance.
+
+---
+
 ## Use Case: Explain What a Workflow Does
 
 **When to use:** The user asks what a workflow does, what it's configured to run, or

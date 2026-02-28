@@ -15,9 +15,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Hook for fetching dataset detail data.
+ * Hook for fetching dataset or collection detail data.
  *
- * Wraps the adapter hook with proper error handling and loading states.
+ * Returns `detail` as a discriminated union — callers narrow via `detail.type`.
  */
 
 "use client";
@@ -28,8 +28,7 @@ export function useDatasetDetail(bucket: string, name: string) {
   const { data, isLoading, error, refetch } = useDataset(bucket, name);
 
   return {
-    dataset: data?.dataset,
-    versions: data?.versions ?? [],
+    detail: data,
     isLoading,
     error,
     refetch,

@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1.12
 
 # =============================================================================
 # BUILD COMMANDS
@@ -60,27 +60,60 @@ ARG NODE_DISTROLESS_IMAGE=nvcr.io/nvidia/distroless/node:24-v4.0.2
 
 FROM ${NODE_BUILD_IMAGE} AS deps
 
+# Pin corepack home so we can copy the cached pnpm binary to later stages
+ENV COREPACK_HOME=/opt/corepack
+# Disable Next.js telemetry so postinstall does not phone home during pnpm install
+ENV NEXT_TELEMETRY_DISABLED=1
+
 # Enable corepack for pnpm (reads version from package.json packageManager field)
 RUN corepack enable
 
 WORKDIR /app
 
 # Copy ONLY dependency files first (maximizes cache hits)
-COPY package.json pnpm-lock.yaml ./
+# .npmrc is included so pnpm inherits fetch-retries=5 (critical on ARM64 CI)
+COPY package.json pnpm-lock.yaml .npmrc ./
 
-# Create public directory for postinstall script
-RUN mkdir -p public
+# Download pnpm via corepack with retries (corepack has no built-in retry;
+# ARM64 CI nodes experience intermittent registry.npmjs.org timeouts)
+RUN for attempt in 1 2 3; do \
+      corepack install && break || \
+      if [ "$attempt" = "3" ]; then \
+        echo "corepack install failed after 3 attempts" >&2; exit 1; \
+      else \
+        echo "corepack install attempt $attempt/3 failed, retrying in 15s..."; sleep 15; \
+      fi; \
+    done
 
 # Install dependencies with BuildKit cache mount (persists pnpm store between builds)
-RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile
+# TARGETPLATFORM isolates AMD64/ARM64 caches (prevents native binary cross-contamination)
+# sharing=locked prevents concurrent-build cache corruption
+ARG TARGETPLATFORM
+RUN --mount=type=cache,id=pnpm-${TARGETPLATFORM},target=/root/.local/share/pnpm/store,sharing=locked \
+    for attempt in 1 2 3; do \
+      pnpm install --frozen-lockfile && break || \
+      if [ "$attempt" = "3" ]; then \
+        echo "pnpm install failed after 3 attempts" >&2; exit 1; \
+      else \
+        echo "pnpm install attempt $attempt/3 failed, retrying in 20s..."; sleep 20; \
+      fi; \
+    done
 
 # =============================================================================
 # Stage 2: Build (rebuilds when source changes, but deps are cached)
 # =============================================================================
 FROM ${NODE_BUILD_IMAGE} AS builder
 
+ENV COREPACK_HOME=/opt/corepack
+ENV COREPACK_ENABLE_NETWORK=0
+
 RUN corepack enable
+
+# Reuse the pnpm binary already downloaded in the deps stage (avoids a
+# network round-trip to registry.npmjs.org that intermittently times out
+# on ARM64 CI nodes).  COREPACK_ENABLE_NETWORK=0 ensures a fast, clear
+# failure if the cache is missing instead of a 10s connect timeout.
+COPY --from=deps /opt/corepack /opt/corepack
 
 WORKDIR /app
 
@@ -95,9 +128,6 @@ COPY scripts ./scripts
 # Copy public files from source (committed files like favicon.ico)
 # Note: mockServiceWorker.js is excluded via .dockerignore (dev-only, aliased out in prod)
 COPY public ./public
-
-# Overlay public/ from deps stage to capture any postinstall-generated files
-COPY --from=deps /app/public/ ./public/
 
 # =============================================================================
 # Build Arguments - Can be overridden at build time
@@ -132,7 +162,9 @@ ENV NODE_ENV=production
 # Build Next.js application
 # =============================================================================
 # BuildKit cache mount persists .next/cache between builds for faster rebuilds
-RUN --mount=type=cache,target=/app/.next/cache-turbo \
+# TARGETPLATFORM isolates caches per arch; sharing=locked prevents concurrent writes
+ARG TARGETPLATFORM
+RUN --mount=type=cache,id=nextjs-${TARGETPLATFORM},target=/app/.next/cache,sharing=locked \
     pnpm build
 
 # =============================================================================
@@ -143,7 +175,6 @@ FROM ${NODE_BUILD_IMAGE} AS cache-prep
 # Create cache directory with correct ownership
 # Using UID 1000 to match Kubernetes deployment's runAsUser setting
 RUN mkdir -p /cache && \
-    touch /cache/.gitkeep && \
     chown -R 1000:1000 /cache
 
 # =============================================================================

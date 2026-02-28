@@ -197,6 +197,14 @@ const nextConfig: NextConfig = {
             // The route.ts file is a thin wrapper that re-exports from route.impl.ts
             // This allows Turbopack aliasing to work (aliases work for imports, not file discovery)
             "@/app/api/[...path]/route.impl": "@/app/api/[...path]/route.impl.production",
+
+            // Dataset location-files proxy - alias to production version (zero mock code)
+            "@/app/api/datasets/location-files/route.impl":
+              "@/app/api/datasets/location-files/route.impl.production",
+
+            // Dataset file-proxy route - alias to production version (zero mock code)
+            "@/app/api/datasets/file-proxy/route.impl":
+              "@/app/api/datasets/file-proxy/route.impl.production",
           }
         : {},
   },
