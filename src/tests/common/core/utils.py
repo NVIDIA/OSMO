@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText:
+Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,7 +45,7 @@ config.testcontainers_config.sleep_time = 1
 config.testcontainers_config.ryuk_image = f'{DOCKER_HUB_REGISTRY}/{config.RYUK_IMAGE}'
 
 # Save the original boto3.Session function to allow restoration
-_ORIGINAL_BOTO3_SESSION = boto3.Session
+_ORIGINAL_BOTO3_SESSION = boto3.Session  # pylint: disable=invalid-name
 
 # Save the original requests.Session.__init__ to allow restoration
 _ORIGINAL_SESSION_INIT = requests.Session.__init__

@@ -76,7 +76,8 @@ def main():
     with tempfile.TemporaryDirectory() as config_dir:
         env = os.environ.copy()
 
-        # Enables sandboxing of pyinstaller for concurrent builds
+        if 'PYTHONPATH' not in env:
+            env['PYTHONPATH'] = os.pathsep.join(p for p in sys.path if p)
         env['PYINSTALLER_CONFIG_DIR'] = config_dir
 
         top_level_dir = f'{args.output_dir}/osmo'
