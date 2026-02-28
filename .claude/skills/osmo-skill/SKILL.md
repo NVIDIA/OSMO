@@ -7,8 +7,8 @@ description: >
   when they ask what they can run, whether they have quota, want to check their profile
   or pool access, want to submit a workflow (SDG, RL training, or custom), want to
   check the status or logs of a running/completed workflow, list or browse recent
-  workflow submissions, or want to understand what a specific workflow does or is
-  configured to do.
+  workflow submissions, want to understand what a specific workflow does or is
+  configured to do, or want to create an OSMO app from a workflow.
 ---
 
 # OSMO CLI Use Cases
@@ -198,6 +198,12 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
      ```
      Use `~/` as the output path if the user doesn't specify one.
 
+   - **If the workflow is COMPLETED**, also ask if the user would like to create an
+     OSMO app for it. Suggest a name derived from the workflow name (e.g. workflow
+     `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description
+     based on what the workflow does. If the user agrees (or provides their own name),
+     follow the "Create an App" use case below.
+
    **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
    ```
    osmo workflow events <workflow name>
@@ -319,3 +325,40 @@ workflow", "what is workflow xyz running?").
 
    Keep the summary short — a few sentences or a brief bullet list. The user asked
    what it does, not for a line-by-line YAML walkthrough.
+
+---
+
+## Use Case: Create an App
+
+**When to use:** The user wants to publish a workflow as an OSMO app (e.g. "create an
+app for this workflow", "make an app from my workflow", "publish this as an app"), or
+you are proactively offering app creation after a workflow completes.
+
+### Steps
+
+1. **Determine the workflow file path.** If the user already has a workflow YAML (e.g.
+   `workflow.yaml` in the current directory), use that path. If they're coming from a
+   completed workflow, use the spec file that was submitted.
+
+2. **Decide on a name and description.**
+
+   - **If the user explicitly asked to create an app**, ask them what they'd like to
+     name it. Suggest a name based on the workflow name (e.g. `sdg-run` → `sdg-run-app`)
+     so they have a sensible default to accept or override. Also generate a one-sentence
+     description summarizing what the workflow does, and confirm it with the user before
+     proceeding.
+
+   - **If you are proactively offering** (post-completion), present your suggested name
+     and description upfront — don't ask two separate questions. Something like:
+     > "Would you like to create an app for this workflow? I'd suggest naming it
+     > `sdg-isaac-app` with the description: 'Runs Isaac Lab SDG to generate
+     > synthetic training data.' Does that work, or would you like to change anything?"
+
+3. **Create the app** — once the user confirms name and description, run:
+   ```
+   osmo app create <app-name> --description "<description>" --file <path-to-workflow.yaml>
+   ```
+   Execute this yourself — do not ask the user to run it.
+
+4. **Report the result** — confirm the app was created and share any URL or identifier
+   returned by the CLI.
