@@ -32,11 +32,12 @@
 "use client";
 
 import { memo, useRef, useState, useCallback, useEffect } from "react";
-import { X } from "lucide-react";
+import { GripVertical, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSubmitWorkflowForm } from "@/components/submit-workflow/use-submit-workflow-form";
 import { SubmitWorkflowEditorPanel } from "@/components/submit-workflow/submit-workflow-editor-panel";
 import { SubmitWorkflowConfigPanel } from "@/components/submit-workflow/submit-workflow-config-panel";
+import { SourcePicker } from "@/components/submit-workflow/source-picker";
 
 // ---------------------------------------------------------------------------
 // Constants — must match --submit-overlay-*-min-width in globals.css
@@ -55,24 +56,27 @@ const SUBMIT_PANEL = {
 
 function useColumnResizer(initialPct = 55) {
   const [editorWidthPct, setEditorWidthPct] = useState(initialPct);
+  const [isDragging, setIsDragging] = useState(false);
   const splitRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
+  const isDraggingRef = useRef(false);
 
   const startDrag = useCallback(() => {
-    isDragging.current = true;
+    isDraggingRef.current = true;
+    setIsDragging(true);
     document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
   }, []);
 
   const stopDrag = useCallback(() => {
-    if (!isDragging.current) return;
-    isDragging.current = false;
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging.current || !splitRef.current) return;
+    if (!isDraggingRef.current || !splitRef.current) return;
     const rect = splitRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const maxEditorPx = rect.width - SUBMIT_PANEL.CONFIG_MIN_WIDTH_PX;
@@ -91,7 +95,7 @@ function useColumnResizer(initialPct = 55) {
     };
   }, [handleMouseMove, stopDrag]);
 
-  return { editorWidthPct, splitRef, startDrag };
+  return { editorWidthPct, isDragging, splitRef, startDrag };
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +104,10 @@ function useColumnResizer(initialPct = 55) {
 
 export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
   const form = useSubmitWorkflowForm();
-  const { editorWidthPct, splitRef, startDrag } = useColumnResizer();
+  const { editorWidthPct, isDragging, splitRef, startDrag } = useColumnResizer();
+
+  // Derived: show source picker when no spec has been chosen yet
+  const showSourcePicker = form.spec.trim().length === 0;
 
   return (
     <div className="flex h-full flex-col bg-white dark:bg-zinc-900">
@@ -111,7 +118,7 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
         <div className="flex-1" />
 
         {/* Spec status badge */}
-        {form.spec.trim().length > 0 && (
+        {!showSourcePicker && (
           <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
             <div
               className="bg-nvidia size-1.5 rounded-full"
@@ -142,50 +149,78 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
         </button>
       </div>
 
-      {/* ── Split body ──────────────────────────────────────────── */}
-      <div
-        ref={splitRef}
-        className="flex min-h-0 flex-1"
-      >
-        {/* Left: YAML editor */}
+      {/* ── Body ────────────────────────────────────────────────── */}
+      {showSourcePicker ? (
+        /* Source picker spans the full width before a spec is chosen */
+        <SourcePicker onSelect={form.setSpec} />
+      ) : (
+        /* Split view: editor + resizer + config */
         <div
-          className="flex flex-col"
-          style={{ flexBasis: `${editorWidthPct}%`, flexShrink: 1, minWidth: SUBMIT_PANEL.EDITOR_MIN_WIDTH_PX }}
+          ref={splitRef}
+          className="flex min-h-0 flex-1"
         >
-          <SubmitWorkflowEditorPanel
-            value={form.spec}
-            onChange={form.setSpec}
+          {/* Left: YAML editor */}
+          <div
+            className="flex flex-col"
+            style={{ flexBasis: `${editorWidthPct}%`, flexShrink: 1, minWidth: SUBMIT_PANEL.EDITOR_MIN_WIDTH_PX }}
+          >
+            <SubmitWorkflowEditorPanel
+              value={form.spec}
+              onChange={form.setSpec}
+            />
+          </div>
+
+          {/* Resizer */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Drag to resize panels"
+            className="group relative z-10 w-4 shrink-0 cursor-col-resize"
+            onMouseDown={startDrag}
+          >
+            {/* Vertical line */}
+            <div
+              className={cn(
+                "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors",
+                isDragging
+                  ? "bg-blue-500"
+                  : "bg-zinc-200 dark:bg-zinc-700 group-hover:bg-zinc-300 dark:group-hover:bg-zinc-600",
+              )}
+            />
+            {/* Grip handle */}
+            <div
+              className={cn(
+                "absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2",
+                "rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150",
+                "dark:bg-zinc-800",
+                isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+              )}
+              aria-hidden="true"
+            >
+              <GripVertical
+                className="size-3 text-zinc-400 dark:text-zinc-500"
+                strokeWidth={1.5}
+              />
+            </div>
+          </div>
+
+          {/* Right: Config panel */}
+          <SubmitWorkflowConfigPanel
+            templateVarNames={form.templateVarNames}
+            templateVarValues={form.templateVarValues}
+            onTemplateVarChange={form.setTemplateVarValue}
+            pool={form.pool}
+            onPoolChange={form.setPool}
+            priority={form.priority}
+            onPriorityChange={form.setPriority}
+            error={form.error}
+            isPending={form.isPending}
+            canSubmit={form.canSubmit}
+            onClose={form.handleClose}
+            onSubmit={form.handleSubmit}
           />
         </div>
-
-        {/* Resizer */}
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Drag to resize panels"
-          className={cn(
-            "group relative z-10 w-1 shrink-0 cursor-col-resize",
-            "hover:bg-nvidia/50 dark:hover:bg-nvidia/40 bg-zinc-200 transition-colors dark:bg-zinc-700/60",
-          )}
-          onMouseDown={startDrag}
-        />
-
-        {/* Right: Config panel */}
-        <SubmitWorkflowConfigPanel
-          templateVarNames={form.templateVarNames}
-          templateVarValues={form.templateVarValues}
-          onTemplateVarChange={form.setTemplateVarValue}
-          pool={form.pool}
-          onPoolChange={form.setPool}
-          priority={form.priority}
-          onPriorityChange={form.setPriority}
-          error={form.error}
-          isPending={form.isPending}
-          canSubmit={form.canSubmit}
-          onClose={form.handleClose}
-          onSubmit={form.handleSubmit}
-        />
-      </div>
+      )}
     </div>
   );
 });

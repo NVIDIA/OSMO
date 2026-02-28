@@ -170,7 +170,14 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
   }, [canSubmit, mutate, pool, spec, priority, templateVarValues]);
 
   const handleClose = useCallback(() => {
-    if (!isPending) close();
+    if (!isPending) {
+      setSpec("");
+      setPool("");
+      setPriority(WorkflowPriority.NORMAL);
+      setTemplateVarValues({});
+      setError(null);
+      close();
+    }
   }, [isPending, close]);
 
   return useMemo(
