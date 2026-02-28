@@ -81,6 +81,13 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
      YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
      Fetch the README as well, substituting the YAML file name with README. Summarize the
      README, and add it as a comment in the generated workflow spec.
+   - **Use cookbook throughput metadata for capacity planning.** The cookbook table often
+     annotates entries with output counts or rates (e.g. "60 images", "1000 steps/min").
+     When the user specifies a target output quantity and a time budget, use the
+     cookbook's documented per-run throughput to calculate how many parallel workflow
+     submissions are needed: `num_submissions = ceil(target / (throughput_per_run *
+     time_budget))`. Submit the same YAML file that many times rather than modifying the
+     workflow config to hit the target in a single run.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
      the correct spec patterns before writing anything.
@@ -203,6 +210,10 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
      `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description
      based on what the workflow does. If the user agrees (or provides their own name),
      follow the "Create an App" use case below.
+   - **When monitoring multiple workflows** that all complete from the same spec, offer
+     app creation once (not per workflow) after all workflows reach a terminal state.
+     Since they share the same YAML, a single app covers all runs. Do not skip this
+     offer just because you were in a batch monitoring loop.
 
    **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
    ```
