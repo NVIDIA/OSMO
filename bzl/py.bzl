@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@ def _py_lint_test(name, srcs, tags):
 
     native.py_test(
         name = name,
-        main = "@osmo_workspace//bzl/linting:pylint.py",
-        srcs = ["@osmo_workspace//bzl/linting:pylint.py"],
+        main = "@osmo_workspace//bzl/linting:run_pylint.py",
+        srcs = ["@osmo_workspace//bzl/linting:run_pylint.py"],
         deps = [
             requirement("pylint"),
             requirement("pyyaml"),
