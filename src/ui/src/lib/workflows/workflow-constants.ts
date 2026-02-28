@@ -15,13 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { WorkflowStatus, WorkflowPriority, type WorkflowStatus as WorkflowStatusType } from "@/lib/api/generated";
-import {
-  WORKFLOW_STATUS_METADATA,
-  type StatusCategory as GeneratedStatusCategory,
-} from "@/lib/api/status-metadata.generated";
+import { WORKFLOW_STATUS_METADATA, type StatusCategory } from "@/lib/api/status-metadata.generated";
 import { WORKFLOW_STATUS_LABELS, WORKFLOW_STATUS_UI_STYLES } from "@/lib/workflows/workflow-status-primitives";
 
-export type StatusCategory = GeneratedStatusCategory | "unknown";
+export type { StatusCategory };
 
 export const STATUS_CATEGORY_MAP: Record<WorkflowStatusType, StatusCategory> = Object.fromEntries(
   Object.entries(WORKFLOW_STATUS_METADATA).map(([status, meta]) => [status, meta.category]),

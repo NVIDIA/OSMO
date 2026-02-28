@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -15,18 +15,16 @@
 
   SPDX-License-Identifier: Apache-2.0
 
-:tocdepth: 3
+.. _cli_reference_user_create:
 
-.. _cli_reference_token:
-
-================================================
-osmo token
-================================================
+================
+osmo user create
+================
 
 .. argparse-with-postprocess::
    :module: src.cli.main_parser
    :func: create_cli_parser
    :prog: osmo
-   :path: token
-   :ref-prefix: cli_reference_token
+   :path: user create
+   :ref-prefix: cli_reference_user_create
    :argument-anchor:

@@ -64,7 +64,8 @@ export function useFileBrowserState(): FileBrowserState {
   const navigateTo = useCallback(
     (newPath: string) => {
       // Clear file selection when navigating to a new directory
-      void setParams({ path: newPath, file: null });
+      // Use push history so the back button works during directory traversal
+      void setParams({ path: newPath, file: null }, { history: "push" });
     },
     [setParams],
   );

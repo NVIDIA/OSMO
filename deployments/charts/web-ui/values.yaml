@@ -336,14 +336,6 @@ sidecars:
   ## Envoy proxy sidecar configuration
   ##
   envoy:
-    ## Use Kubernetes secrets for Envoy credentials
-    ## Set to false when managing secrets with custom secrets management solution
-    ##
-    useKubernetesSecrets: false
-    ## Secret file paths (legacy, kept for backward compatibility)
-    ##
-    secretPaths:
-      clientSecret: /etc/envoy/secrets/client_secret
     ## Enable Envoy proxy sidecar container
     ##
     enabled: true
@@ -443,10 +435,6 @@ sidecars:
       ## Service address for upstream cluster
       ##
       address: 127.0.0.1
-    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
-    ##
-    oauth2Filter:
-      enabled: false
     ## SSL configuration
     ##
     ssl:

@@ -125,7 +125,6 @@ An OSMO deployment consists of two main components:
 
   getting_started/infrastructure_setup
   getting_started/deploy_service
-  getting_started/service_accounts
   getting_started/create_storage/index
   getting_started/configure_data
 
@@ -159,6 +158,7 @@ An OSMO deployment consists of two main components:
 
   references/configs_definitions/index
   references/config_cli/index
+  references/user_cli/index
 
 .. toctree::
   :hidden:
@@ -167,6 +167,7 @@ An OSMO deployment consists of two main components:
   appendix/deploy_local
   appendix/deploy_minimal
   appendix/workflow_execution
+  appendix/keycloak_setup
   appendix/authentication/index
 
 ..

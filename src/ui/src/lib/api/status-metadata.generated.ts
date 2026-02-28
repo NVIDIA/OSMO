@@ -26,7 +26,11 @@
 
 import { TaskGroupStatus, WorkflowStatus } from "@/lib/api/generated";
 
-export type StatusCategory = "waiting" | "pending" | "running" | "completed" | "failed";
+// =============================================================================
+// Types
+// =============================================================================
+
+export type StatusCategory = "waiting" | "pending" | "running" | "completed" | "failed" | "unknown";
 
 export interface TaskStatusMetadata {
   category: StatusCategory;
@@ -43,9 +47,13 @@ export interface WorkflowStatusMetadata {
   isFailed: boolean;
 }
 
+// =============================================================================
+// Generated Metadata
+// =============================================================================
+
 export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> = {
   SUBMITTING: {
-    category: "waiting",
+    category: "pending",
     isTerminal: false,
     isOngoing: false,
     isFailed: false,
@@ -73,7 +81,7 @@ export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> =
     isInQueue: true,
   },
   INITIALIZING: {
-    category: "pending",
+    category: "running",
     isTerminal: false,
     isOngoing: true,
     isFailed: false,
@@ -188,7 +196,7 @@ export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> =
 
 export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMetadata> = {
   PENDING: {
-    category: "waiting",
+    category: "pending",
     isTerminal: false,
     isOngoing: false,
     isFailed: false,
@@ -285,38 +293,51 @@ export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMeta
   },
 } as const;
 
+// =============================================================================
+// Helper Functions (O(1) lookups)
+// =============================================================================
+
+/** Get the category for a task/group status */
 export function getTaskStatusCategory(status: TaskGroupStatus): StatusCategory {
   return TASK_STATUS_METADATA[status]?.category ?? "failed";
 }
 
+/** Get the category for a workflow status */
 export function getWorkflowStatusCategory(status: WorkflowStatus): StatusCategory {
   return WORKFLOW_STATUS_METADATA[status]?.category ?? "failed";
 }
 
+/** Check if a task/group status is terminal (finished) */
 export function isTaskTerminal(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isTerminal ?? true;
 }
 
+/** Check if a task/group status means duration is ongoing (start_time → now) */
 export function isTaskOngoing(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isOngoing ?? false;
 }
 
+/** Check if a task/group status is a failure */
 export function isTaskFailed(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isFailed ?? false;
 }
 
+/** Check if a task/group status is in queue (not yet running) */
 export function isTaskInQueue(status: TaskGroupStatus): boolean {
   return TASK_STATUS_METADATA[status]?.isInQueue ?? false;
 }
 
+/** Check if a workflow status is terminal (finished) */
 export function isWorkflowTerminal(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isTerminal ?? true;
 }
 
+/** Check if a workflow status means duration is ongoing */
 export function isWorkflowOngoing(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isOngoing ?? false;
 }
 
+/** Check if a workflow status is a failure */
 export function isWorkflowFailed(status: WorkflowStatus): boolean {
   return WORKFLOW_STATUS_METADATA[status]?.isFailed ?? false;
 }

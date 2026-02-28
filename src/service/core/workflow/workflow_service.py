@@ -109,95 +109,59 @@ def get_pools(all_pools: bool = True,
             all_pools=all_pools)
 
 
-@router_pool.get('/api/pool_quota', response_class=common.PrettyJSONResponse)
-def get_pool_quotas(all_pools: bool = True,
-                    pools: List[str] | None = fastapi.Query(default = None)) -> \
-                        objects.PoolResponse:
-    postgres = connectors.PostgresConnector.get_instance()
-    pool_configs = \
-        connectors.fetch_minimal_pool_config(
-            postgres,
-            pools=pools,
-            all_pools=all_pools).pools
+def calculate_pool_quotas(
+    pool_configs: Dict[str, connectors.PoolMinimal],
+    task_summaries: List[objects.ListTaskSummaryEntry],
+    resources: List[workflow.ResourcesEntry],
+    all_pools: bool = True,
+) -> objects.PoolResponse:
+    """Calculate pool quota and capacity information from pre-fetched data.
 
-    # Get the label used for GPU resources.
+    This is the core calculation logic extracted from get_pool_quotas so it can
+    be tested independently of database and API dependencies.
+    """
     gpu_label = [label for label in common.ALLOCATABLE_RESOURCES_LABELS
                  if label.name == 'gpu'][0].name
 
     # Initialize the pool resources, resource usage, and capacity:
-    resource_usage_map : Dict[str, BaseResourceUsage] = {}
+    resource_usage_map: Dict[str, BaseResourceUsage] = {}
     for pool_name, pool_config in pool_configs.items():
-        # Initialize the resource limits if not present
         if not pool_config.resources:
             pool_config.resources = connectors.PoolResources()
         if not pool_config.resources.gpu:
             pool_config.resources.gpu = connectors.PoolResourceCountable()
 
-        # Initialize the resource usage
         resource_usage_map[pool_name] = BaseResourceUsage(
             quota_used=0,
             quota_limit=pool_config.resources.gpu.guarantee,
             total_usage=0,
         )
 
-    offset = 0
-    while True:
-        # Get all of the RUNNING tasks for each pool
-        task_rows = helpers.get_tasks(
-            statuses=[task.TaskGroupStatus.RUNNING],
-            pools=[] if all_pools else pools,
-            summary=True,
-            limit=FETCH_TASK_LIMIT,
-            offset=offset,
-            return_raw=True,
-        )
-        tasks = objects.ListTaskSummaryResponse.from_db_rows(task_rows)
-
-        # Sum up the resource used by running tasks in each pool
-        for summary in tasks.summaries:
-            task_pool = summary.pool
-            if not task_pool or task_pool not in pool_configs:
-                continue
-            resource_usage_map[task_pool].total_usage += summary.gpu
-            priority = wf_priority.WorkflowPriority(summary.priority)
-            if not priority.preemptible:
-                resource_usage_map[task_pool].quota_used += summary.gpu
-
-        if len(tasks.summaries) < FETCH_TASK_LIMIT:
-            break
-
-        offset += FETCH_TASK_LIMIT
-
-    # Get all resources for the pools
-    resources_response = objects.get_resources(
-        pools=[] if all_pools else pools,
-        platforms=None,
-    )
+    # Sum up the resource used by running tasks in each pool
+    for summary in task_summaries:
+        task_pool = summary.pool
+        if not task_pool or task_pool not in pool_configs:
+            continue
+        resource_usage_map[task_pool].total_usage += summary.gpu
+        priority = wf_priority.WorkflowPriority(summary.priority)
+        if not priority.preemptible:
+            resource_usage_map[task_pool].quota_used += summary.gpu
 
     # Keep a map of which nodes are in each pool
     node_sets = \
         {pool: NodeSet(config.backend, frozenset()) \
             for pool, config in pool_configs.items()}
     # Keep a map of how much GPUs allocatable/requests are in each node
-    node_gpu_usage = {}
+    node_gpu_usage: Dict[str, NodeGpuUsage] = {}
 
-
-    # Sum up the capacity for each node
-    sum_node_capacity = 0
-    sum_node_free = 0
-    for resource in resources_response.resources:
+    for resource in resources:
         # Fill up the node_gpu_usage map
-        resource_key = (resource.backend, resource.hostname)
+        resource_key = f'{resource.backend}/{resource.hostname}'
         node_gpu_usage[resource_key] = NodeGpuUsage(
             allocatable=int(resource.allocatable_fields.get(gpu_label, 0)),
             usage=int(resource.usage_fields.get(gpu_label, 0)) + \
                   int(resource.non_workflow_usage_fields.get('nvidia.com/gpu', 0))
         )
-
-        # Sum up total capacity for each node
-        sum_node_capacity += node_gpu_usage[resource_key].allocatable
-        sum_node_free += node_gpu_usage[resource_key].allocatable - \
-                         node_gpu_usage[resource_key].usage
 
         # Keep track of which nodes are in each pool
         for pool_platform in resource.exposed_fields['pool/platform']:
@@ -249,10 +213,15 @@ def get_pool_quotas(all_pools: bool = True,
         pools_by_nodeset[NodeSet(start_nodeset.backend, merged_nodes)] = component_pools
 
     gpu_usage_by_nodeset = {
-        nodeset: sum((node_gpu_usage.get(node, NodeGpuUsage()) for node in nodeset),
+        nodeset: sum((node_gpu_usage.get(node, NodeGpuUsage()) for node in nodeset.nodes),
                      start=NodeGpuUsage())
         for nodeset in pools_by_nodeset
     }
+
+    # Derive total capacity/free from gpu_usage_by_nodeset so the sums are consistent
+    # with the per-nodeset values.
+    sum_node_capacity = sum(usage.allocatable for usage in gpu_usage_by_nodeset.values())
+    sum_node_free = sum(usage.allocatable - usage.usage for usage in gpu_usage_by_nodeset.values())
 
     # Initialize per-pool calculated sums
     sum_quota_free = 0
@@ -260,7 +229,7 @@ def get_pool_quotas(all_pools: bool = True,
     sum_quota_used = 0
     sum_total_usage = 0
 
-    node_set_resource_usage_list : List[objects.PoolNodeSetResourceUsage] = []
+    node_set_resource_usage_list: List[objects.PoolNodeSetResourceUsage] = []
     for nodeset in gpu_usage_by_nodeset.keys():
         node_set_response = objects.PoolNodeSetResourceUsage(pools=[])
         gpu_usage = gpu_usage_by_nodeset[nodeset]
@@ -300,7 +269,7 @@ def get_pool_quotas(all_pools: bool = True,
 
         node_set_resource_usage_list.append(node_set_response)
 
-    response = objects.PoolResponse(
+    return objects.PoolResponse(
         node_sets=node_set_resource_usage_list,
         resource_sum=objects.ResourceUsage(
             quota_used=str(sum_quota_used),
@@ -312,7 +281,47 @@ def get_pool_quotas(all_pools: bool = True,
         )
     )
 
-    return response
+
+@router_pool.get('/api/pool_quota', response_class=common.PrettyJSONResponse)
+def get_pool_quotas(all_pools: bool = True,
+                    pools: List[str] | None = fastapi.Query(default = None)) -> \
+                        objects.PoolResponse:
+    postgres = connectors.PostgresConnector.get_instance()
+    pool_configs = \
+        connectors.fetch_minimal_pool_config(
+            postgres,
+            pools=pools,
+            all_pools=all_pools).pools
+
+    task_summaries: List[objects.ListTaskSummaryEntry] = []
+    offset = 0
+    while True:
+        task_rows = helpers.get_tasks(
+            statuses=[task.TaskGroupStatus.RUNNING],
+            pools=[] if all_pools else pools,
+            summary=True,
+            limit=FETCH_TASK_LIMIT,
+            offset=offset,
+            return_raw=True,
+        )
+        tasks = objects.ListTaskSummaryResponse.from_db_rows(task_rows)
+        task_summaries.extend(tasks.summaries)
+
+        if len(tasks.summaries) < FETCH_TASK_LIMIT:
+            break
+        offset += FETCH_TASK_LIMIT
+
+    resources_response = objects.get_resources(
+        pools=[] if all_pools else pools,
+        platforms=None,
+    )
+
+    return calculate_pool_quotas(
+        pool_configs=pool_configs,
+        task_summaries=task_summaries,
+        resources=resources_response.resources,
+        all_pools=all_pools,
+    )
 
 
 @router_pool.post('/api/pool/{pool_name}/workflow')

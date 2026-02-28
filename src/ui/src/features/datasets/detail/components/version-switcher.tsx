@@ -15,63 +15,57 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * VersionSwitcher — Dropdown to switch between dataset versions.
+ * VersionSwitcher — Compact prev/next navigation for the file browser header.
  *
- * Shows version number + created_by + created_at per option.
- * Left/right chevron buttons to step one version at a time.
- * Calls setVersion() from useFileBrowserState on change (preserves ?path=).
- *
- * Uses SelectPrimitive.ItemText to scope only the version number to the
- * trigger display (via SelectValue), while the subtitle rows are rendered
- * outside ItemText so they appear only in the open dropdown.
+ * Shows: [<] {label} [>]
+ * Works for both dataset versions and collection members.
  */
 
 "use client";
 
 import { memo, useMemo, useCallback } from "react";
-import { ChevronLeft, ChevronRight, CheckIcon } from "lucide-react";
-import * as SelectPrimitive from "@radix-ui/react-select";
-import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/shadcn/select";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import { formatDateTimeSuccinct } from "@/lib/format-date";
-import { cn } from "@/lib/utils";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
+
+export interface SwitcherItem {
+  /** Unique ID used as the URL param value */
+  id: string;
+  /** Display label */
+  label: string;
+  /** If true, shows "(latest)" suffix */
+  isLatest?: boolean;
+}
 
 interface VersionSwitcherProps {
-  versions: DatasetVersion[];
-  /** Currently selected version string (e.g. "5"), null = latest */
-  selectedVersion: string | null;
-  /** Called with version string when user picks a different version */
-  onVersionChange: (version: string) => void;
+  items: SwitcherItem[];
+  /** Currently selected item ID, null = use last item */
+  selectedId: string | null;
+  /** Called with item ID when user picks a different item */
+  onSelectionChange: (id: string) => void;
 }
 
 export const VersionSwitcher = memo(function VersionSwitcher({
-  versions,
-  selectedVersion,
-  onVersionChange,
+  items,
+  selectedId,
+  onSelectionChange,
 }: VersionSwitcherProps) {
-  // Sorted ascending so index 0 = oldest, last = newest
-  const sortedVersions = useMemo(
-    () => [...versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10)),
-    [versions],
-  );
-
-  const latestVersion = sortedVersions[sortedVersions.length - 1];
-  const effectiveVersion = selectedVersion ?? latestVersion?.version ?? "";
-  const currentIndex = sortedVersions.findIndex((v) => v.version === effectiveVersion);
+  const lastItem = items[items.length - 1];
+  const effectiveId = selectedId ?? lastItem?.id ?? "";
+  const currentIndex = useMemo(() => items.findIndex((item) => item.id === effectiveId), [items, effectiveId]);
+  const currentItem = items[currentIndex] ?? null;
 
   const canGoPrev = currentIndex > 0;
-  const canGoNext = currentIndex < sortedVersions.length - 1;
+  const canGoNext = currentIndex < items.length - 1;
 
   const handlePrev = useCallback(() => {
-    if (canGoPrev) onVersionChange(sortedVersions[currentIndex - 1].version);
-  }, [canGoPrev, currentIndex, onVersionChange, sortedVersions]);
+    if (canGoPrev) onSelectionChange(items[currentIndex - 1].id);
+  }, [canGoPrev, currentIndex, onSelectionChange, items]);
 
   const handleGoNext = useCallback(() => {
-    if (canGoNext) onVersionChange(sortedVersions[currentIndex + 1].version);
-  }, [canGoNext, currentIndex, onVersionChange, sortedVersions]);
+    if (canGoNext) onSelectionChange(items[currentIndex + 1].id);
+  }, [canGoNext, currentIndex, onSelectionChange, items]);
 
-  if (versions.length === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className="flex items-center gap-0.5">
@@ -81,7 +75,7 @@ export const VersionSwitcher = memo(function VersionSwitcher({
         className="h-7 w-7 p-0"
         onClick={handlePrev}
         disabled={!canGoPrev}
-        aria-label="Previous version"
+        aria-label="Previous"
       >
         <ChevronLeft
           className="size-3.5"
@@ -89,59 +83,10 @@ export const VersionSwitcher = memo(function VersionSwitcher({
         />
       </Button>
 
-      <Select
-        value={effectiveVersion}
-        onValueChange={onVersionChange}
-      >
-        {/* SelectValue is required by Radix for trigger to open the popover.
-            It reflects the content of the selected item's SelectPrimitive.ItemText,
-            which we scope to just the version number (below). */}
-        <SelectTrigger
-          className="h-7 w-auto gap-1.5 border-zinc-200 bg-white px-2.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-          aria-label="Select dataset version"
-        >
-          <span className="text-zinc-500 dark:text-zinc-400">v</span>
-          <SelectValue />
-        </SelectTrigger>
-
-        <SelectContent
-          position="popper"
-          align="end"
-          sideOffset={4}
-        >
-          {[...sortedVersions].reverse().map((v) => {
-            const isLatest = v.version === latestVersion.version;
-            return (
-              // Use Radix primitive directly so we can put only the version number
-              // inside ItemText. The subtitle spans are siblings of ItemText and
-              // therefore do NOT appear in the SelectValue trigger display.
-              <SelectPrimitive.Item
-                key={v.version}
-                value={v.version}
-                className={cn(
-                  "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default flex-col gap-0.5 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-                )}
-              >
-                <span className="absolute top-2 right-2 flex size-3.5 items-center justify-center">
-                  <SelectPrimitive.ItemIndicator>
-                    <CheckIcon className="size-3.5" />
-                  </SelectPrimitive.ItemIndicator>
-                </span>
-                <span className="flex items-center gap-1 text-xs font-medium">
-                  <span className="text-zinc-500 dark:text-zinc-400">v</span>
-                  {/* Only the version number is scoped to ItemText —
-                      this is the only part that appears in SelectValue */}
-                  <SelectPrimitive.ItemText>{v.version}</SelectPrimitive.ItemText>
-                  {isLatest && <span className="font-normal text-zinc-400 dark:text-zinc-500">(latest)</span>}
-                </span>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {v.created_by} · {formatDateTimeSuccinct(v.created_date)}
-                </span>
-              </SelectPrimitive.Item>
-            );
-          })}
-        </SelectContent>
-      </Select>
+      <span className="px-1.5 font-mono text-xs text-zinc-600 dark:text-zinc-400">
+        {currentItem?.label ?? ""}
+        {currentItem?.isLatest && <span className="ml-1 text-zinc-400 dark:text-zinc-500">(latest)</span>}
+      </span>
 
       <Button
         variant="ghost"
@@ -149,7 +94,7 @@ export const VersionSwitcher = memo(function VersionSwitcher({
         className="h-7 w-7 p-0"
         onClick={handleGoNext}
         disabled={!canGoNext}
-        aria-label="Next version"
+        aria-label="Next"
       >
         <ChevronRight
           className="size-3.5"

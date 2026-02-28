@@ -38,11 +38,20 @@ if [[ -z "$REPO" || ${#TAGS[@]} -eq 0 ]]; then
     exit 1
 fi
 
+# Validate that BUILD_WORKSPACE_DIRECTORY is set (only set when running via Bazel)
+if [[ -z "${BUILD_WORKSPACE_DIRECTORY:-}" ]]; then
+    echo "ERROR: BUILD_WORKSPACE_DIRECTORY is not set. Run via Bazel." >&2
+    exit 1
+fi
+
 # Locate the UI source directory (works from both root repo and external workspace)
 if [ -d "${BUILD_WORKSPACE_DIRECTORY}/external/src/ui" ]; then
     UI_DIR="${BUILD_WORKSPACE_DIRECTORY}/external/src/ui"
-else
+elif [ -d "${BUILD_WORKSPACE_DIRECTORY}/src/ui" ]; then
     UI_DIR="${BUILD_WORKSPACE_DIRECTORY}/src/ui"
+else
+    echo "ERROR: Cannot find UI source directory in ${BUILD_WORKSPACE_DIRECTORY}" >&2
+    exit 1
 fi
 
 TAG_ARGS=""
@@ -53,5 +62,19 @@ done
 echo "Building and pushing web-ui for $PLATFORM..."
 echo "  UI source: $UI_DIR"
 echo "  Tags: ${TAGS[*]}"
-# shellcheck disable=SC2086
-docker buildx build --platform "$PLATFORM" $TAG_ARGS --push "$UI_DIR"
+
+MAX_ATTEMPTS=3
+for attempt in $(seq 1 $MAX_ATTEMPTS); do
+    echo "Build attempt $attempt/$MAX_ATTEMPTS..."
+    # shellcheck disable=SC2086
+    if docker buildx build --platform "$PLATFORM" $TAG_ARGS --push "$UI_DIR"; then
+        echo "Build and push succeeded on attempt $attempt"
+        exit 0
+    fi
+    if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+        echo "Build failed after $MAX_ATTEMPTS attempts" >&2
+        exit 1
+    fi
+    echo "Build failed on attempt $attempt, retrying in 30s..."
+    sleep 30
+done

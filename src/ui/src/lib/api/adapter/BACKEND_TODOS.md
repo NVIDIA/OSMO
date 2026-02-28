@@ -134,18 +134,6 @@ function parseNumber(value: string | number | undefined | null): number {
 
 ---
 
-### 3. Auth Configuration Embedded in OpenAPI Schema
-
-**Priority:** Low
-**Status:** No workaround needed (schema hygiene issue)
-
-The `service_auth` field in `ServiceConfigs` has a default value that embeds RSA keys into the OpenAPI schema.
-
-**Fix options:**
-1. Use `Field(exclude=True)` to hide from schema
-2. Don't set default at model level
-3. Use `schema_extra` to exclude sensitive defaults
-
 ---
 
 ### 4. Version Endpoint Returns Unknown Type
@@ -249,26 +237,31 @@ When `concise=true` is passed to `/api/resources`, response structure changes:
 
 ---
 
-### 9. No Single-Resource Endpoint with Full Details
+### 9. Single-Resource Endpoint Lacks Full Details
 
 **Priority:** Medium
-**Status:** Active workaround in `hooks.ts` (`useResourceInfo`)
+**Status:** Partially fixed — endpoint exists but incomplete. Active workaround in `hooks.ts` (`useResourceInfo`)
 
-To display full resource details (including all pool memberships and task configs), the UI currently needs:
-1. Query `/api/resources?pools=X` for resource capacity (filtered to one pool)
-2. Query `/api/resources?all_pools=true` to get ALL pool memberships (expensive)
-3. Query `/api/pool_quota?pools=X` to get platform task configurations
+The endpoint `GET /api/resources/{name}` now exists (`workflow_service.py:912-918`) but returns the same `ResourcesResponse` as the list endpoint. It does **not** include:
+- All pool memberships (still filtered by query — see Issue #7)
+- Task configs (host network, privileged, mounts)
+- Conditions
 
-**Ideal behavior:** A single endpoint `GET /api/resources/{name}` that returns:
+The UI still needs multiple queries to assemble full resource details:
+1. `GET /api/resources/{name}` for resource capacity
+2. `GET /api/resources?all_pools=true` to get ALL pool memberships (expensive)
+3. `GET /api/pool_quota?pools=X` to get platform task configurations
+
+**Ideal response from `GET /api/resources/{name}`:**
 ```typescript
 interface ResourceDetail {
   hostname: string;
-  name: string;  // Resource name
+  name: string;
   resourceType: "SHARED" | "RESERVED" | "UNUSED";
   poolMemberships: Array<{ pool: string; platform: string }>;
   capacity: { gpu, cpu, memory, storage };
   usage: { gpu, cpu, memory, storage };
-  taskConfig: {  // from current pool's platform config
+  taskConfig: {
     hostNetworkAllowed: boolean;
     privilegedAllowed: boolean;
     allowedMounts: string[];
@@ -283,7 +276,7 @@ interface ResourceDetail {
 - Only fetched for SHARED resources (RESERVED belong to single pool)
 - Result cached for 5 minutes to reduce API calls
 
-**Fix:** Add `GET /api/resources/{name}` endpoint returning complete resource info.
+**Fix:** Enrich the existing `GET /api/resources/{name}` endpoint to return complete resource info (all pool memberships, task configs, conditions).
 
 ---
 
@@ -582,58 +575,6 @@ GET /api/pools?status=online,maintenance&platform=dgx&search=ml-team
 
 ---
 
-### 14. Workflow List API `more_entries` Always Returns False
-
-**Priority:** High
-**Status:** Active workaround in `workflows-shim.ts`
-
-The `/api/workflow` list endpoint has a bug where `more_entries` is always `false`, preventing infinite scroll pagination from working.
-
-**Root cause:** In `workflow_service.py` lines 569-577:
-
-```python
-# Fetch limit+1 to check if there are more
-rows = helpers.get_workflows(..., limit+1, ...)
-
-# Slice to limit rows
-if order == connectors.ListOrder.DESC:
-    rows = rows[:limit]
-elif len(rows) > limit:
-    rows = rows[1:]
-
-# BUG: Check AFTER slicing - always returns False!
-return objects.ListResponse.from_db_rows(rows, service_url,
-                                         more_entries=len(rows) > limit)
-```
-
-After slicing, `len(rows)` is at most `limit`, so `len(rows) > limit` is always `False`.
-
-**Fix required:**
-```python
-has_more = len(rows) > limit  # Check BEFORE slicing
-if order == connectors.ListOrder.DESC:
-    rows = rows[:limit]
-elif has_more:
-    rows = rows[1:]
-return objects.ListResponse.from_db_rows(rows, service_url, more_entries=has_more)
-```
-
-**Current UI workaround:**
-```typescript
-// workflows-shim.ts - Infer hasMore from item count
-const hasMore = workflows.length === limit;
-```
-
-If we received exactly `limit` items, assume there are more. Only set `hasMore: false` when we receive fewer than `limit` items.
-
-**Impact:** Without workaround, UI only makes one API request and never fetches additional pages.
-
-**When fixed:**
-1. Remove workaround in `workflows-shim.ts`
-2. Use `more_entries` from API response directly
-
----
-
 ### 15. Workflow List Response Missing Tags Field
 
 **Priority:** Low
@@ -785,92 +726,6 @@ timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
 1. Remove `parseTimestamp()` workaround from `utils.ts`
 2. Use `new Date(timeStr)` directly throughout codebase
 3. All duration/timeline calculations work correctly regardless of user timezone
-
----
-
-### 17. Workflow List `order` Parameter Ignored for Pagination
-
-**Priority:** High
-**Status:** UI shows wrong sort order (ASC shows newest first)
-
-The `/api/workflow` list endpoint ignores the `order` parameter for pagination purposes. The inner SQL query hardcodes `ORDER BY submit_time DESC`, making the `order` parameter only re-sort the already-paginated results.
-
-**Root cause:** In `helpers.py` lines 105-113:
-
-```python
-# Line 105: Inner query ALWAYS uses DESC for pagination
-fetch_cmd += ' ORDER BY submit_time DESC LIMIT %s OFFSET %s'
-fetch_input.extend([limit, offset])
-
-# Lines 108-113: Outer query re-sorts the paginated slice
-fetch_cmd = f'SELECT * FROM ({fetch_cmd}) as wf'
-if order == connectors.ListOrder.ASC:
-    fetch_cmd += ' ORDER BY submit_time ASC'
-else:
-    fetch_cmd += ' ORDER BY submit_time DESC'
-```
-
-**What happens:**
-
-```sql
--- User requests: order=ASC, limit=50, offset=0
--- Expected: oldest 50 workflows
-
--- Actual SQL generated:
-SELECT * FROM (
-    SELECT ... FROM workflows
-    ORDER BY submit_time DESC  -- ❌ Always fetches NEWEST first
-    LIMIT 51 OFFSET 0
-) as wf
-ORDER BY submit_time ASC;      -- ✓ Re-sorts, but wrong data fetched
-```
-
-**Impact:**
-
-| Request | Expected | Actual (Bug) |
-|---------|----------|--------------|
-| `order=ASC, limit=50` | Oldest 50 workflows | Newest 50, re-sorted oldest-first |
-| `order=DESC, limit=50` | Newest 50 workflows | Newest 50 ✓ (works by accident) |
-
-Users clicking to sort "oldest first" see newest workflows re-sorted, not actual oldest workflows.
-
-**Fix required:**
-
-```python
-# In helpers.py, line 105 should respect the order parameter:
-
-# BEFORE (broken):
-fetch_cmd += ' ORDER BY submit_time DESC LIMIT %s OFFSET %s'
-
-# AFTER (fixed):
-order_direction = 'ASC' if order == connectors.ListOrder.ASC else 'DESC'
-fetch_cmd += f' ORDER BY submit_time {order_direction} LIMIT %s OFFSET %s'
-
-# The outer re-sort (lines 108-113) can then be removed as redundant
-```
-
-**Also fix pagination slicing in `workflow_service.py` lines 572-575:**
-
-```python
-# BEFORE (broken - asymmetric slicing):
-if order == connectors.ListOrder.DESC:
-    rows = rows[:limit]
-elif len(rows) > limit:
-    rows = rows[1:]  # ❌ Why skip first row for ASC?
-
-# AFTER (fixed - consistent slicing):
-if len(rows) > limit:
-    rows = rows[:limit]  # Always take first `limit` rows
-```
-
-**Current UI impact:**
-- No workaround possible in frontend
-- UI correctly sends `order=ASC` but backend returns wrong data
-- Sort indicator shows ↑ (ASC) but data appears DESC
-
-**When fixed:**
-1. No UI changes needed (already sends correct parameter)
-2. Sorting will work correctly for both directions
 
 ---
 
@@ -1334,43 +1189,46 @@ For OSMO's dataset counts this is appropriate. See issue #25 for the full backen
 
 ---
 
-### 25. Dataset List API Missing Date Filtering and Sorting Parameters
+### 25. Dataset List API Missing Sort-By Field, Distinct Date Filters, and Response Totals
 
 **Priority:** High
-**Status:** Active workaround in `datasets-shim.ts` (client-side filtering) and `datasets.ts` (fetch-all)
+**Status:** Partially present — Active workaround in `datasets-shim.ts` (client-side filtering) and `datasets.ts` (fetch-all)
 
-The dataset list API does not support date range filtering or server-side sorting. The UI works around this by fetching all datasets at once and filtering/sorting client-side via `datasets-shim.ts`.
+The dataset list API (`data_service.py:991-1003`) already supports:
+- `latest_before` / `latest_after` — date range filtering (covers a combined "most recent" date)
+- `order` — sort direction (`ASC` / `DESC`)
 
-**Desired API behavior:**
+What's still **missing**:
+- **`sort_by`** — field to sort on (currently hardcoded to `combined_date` in SQL)
+- **`created_after` / `created_before`** — filtering specifically by creation date (distinct from `latest_*`)
+- **`updated_after` / `updated_before`** — filtering specifically by update date
+- **`offset`** — pagination offset (see also Issue #23)
+- **Response totals** — `total` and `filtered_total` counts
 
-```
-GET /api/bucket/list_dataset
-  ?name=foo
-  &buckets=ml-data
-  &user=alice
-  &all_users=false
-  &dataset_type=DATASET
-  &created_after=2024-01-01T00:00:00Z
-  &created_before=2024-12-31T23:59:59Z
-  &updated_after=2024-01-01T00:00:00Z
-  &updated_before=2024-12-31T23:59:59Z
-  &sort_by=name
-  &sort_dir=asc
-  &count=50
-  &offset=0
-```
+**Existing parameters (already working):**
 
-**New parameters needed:**
+| Parameter | Status | Notes |
+|-----------|--------|-------|
+| `name` | ✅ Exists | Search filter |
+| `buckets` | ✅ Exists | Bucket filter |
+| `user` | ✅ Exists | User filter |
+| `all_users` | ✅ Exists | Show all users |
+| `dataset_type` | ✅ Exists | Type filter |
+| `count` | ✅ Exists | Limit |
+| `order` | ✅ Exists | Sort direction (ASC/DESC) |
+| `latest_before` | ✅ Exists | Date ceiling (combined date) |
+| `latest_after` | ✅ Exists | Date floor (combined date) |
+
+**Still needed:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `created_after` | ISO 8601 datetime | Include only datasets created on or after this time |
-| `created_before` | ISO 8601 datetime | Include only datasets created on or before this time |
-| `updated_after` | ISO 8601 datetime | Include only datasets last updated on or after this time |
-| `updated_before` | ISO 8601 datetime | Include only datasets last updated on or before this time |
 | `sort_by` | string | Field to sort by: `name`, `bucket`, `created_at`, `updated_at`, `size_bytes`, `version` |
-| `sort_dir` | `asc` \| `desc` | Sort direction (default: `desc` for dates, `asc` for name) |
-| `offset` | number | Offset for pagination (enables proper paging with filters active) |
+| `created_after` | ISO 8601 datetime | Filter by creation date (distinct from `latest_after`) |
+| `created_before` | ISO 8601 datetime | Filter by creation date |
+| `updated_after` | ISO 8601 datetime | Filter by update date |
+| `updated_before` | ISO 8601 datetime | Filter by update date |
+| `offset` | number | Offset for pagination (see Issue #23) |
 
 **New response fields needed:**
 
@@ -1386,9 +1244,8 @@ GET /api/bucket/list_dataset
 
 | Filter | Workaround location | Remove when fixed |
 |--------|---------------------|-------------------|
-| `created_at` date range | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `created_after`/`created_before` to API |
-| `updated_at` date range | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `updated_after`/`updated_before` to API |
-| Sorting | `datasets-shim.ts` `applyDatasetsFiltersSync` (Phase 4) | Pass `sort_by`/`sort_dir` to API |
+| Distinct date range filters | `datasets-shim.ts` `applyDatasetsFiltersSync` | Use `created_*`/`updated_*` params, or map to `latest_*` |
+| Sort-by field | `datasets-shim.ts` `applyDatasetsFiltersSync` | Pass `sort_by` to API |
 | Fetch all instead of paginating | `datasets.ts` `fetchAllDatasets` (count: 10_000) | Use proper offset pagination |
 
 **Migration path (when backend adds these params):**
@@ -1501,21 +1358,21 @@ Option B: Include pod phase in plain text header
 |-------|----------|---------------------|------------|
 | #1 Incorrect response types | High | transforms.ts, hooks.ts | Remove casts |
 | #2 String numbers | Medium | transforms.ts | Remove parseNumber |
-| #3 Auth in schema | Low | N/A | N/A |
+| #3 Auth in schema | Low | N/A | ✅ FIXED — `default_factory` prevents schema embedding |
 | #4 Version unknown | Low | transforms.ts | Use generated type |
 | #5 Untyped dictionaries | Medium | transforms.ts | Access fields directly |
 | #6 Unit conversion | Medium | transforms.ts | Remove conversion |
 | #7 Filtered pool_platform_labels | Medium | hooks.ts | Remove all_pools query |
 | #8 Concise changes structure | Low | N/A | N/A |
-| #9 No single-resource endpoint | Medium | hooks.ts | Use new endpoint directly |
+| #9 Single-resource endpoint incomplete | Medium | hooks.ts | Enrich existing endpoint |
 | #10 Pool detail requires 2 calls | Low | use-pool-detail.ts | Use new endpoint directly |
 | #11 Pagination + server filtering | **High** | pagination.ts, use-resources.ts | Remove shims, pass params |
 | #12 Server-side summary aggregates | **High** | resource-summary-card.tsx | Use server summary |
 | #13 Pools server-side filtering | Medium | pools-shim.ts | Delete shim, pass filters to API |
-| #14 Workflow more_entries bug | **High** | workflows-shim.ts | Use more_entries directly |
+| #14 Workflow more_entries bug | **High** | ~~workflows-shim.ts~~ | ✅ FIXED — using `more_entries` directly |
 | #15 Workflow list missing tags | Low | workflow-search-fields.ts | Add tags column |
 | #16 Timestamps missing timezone | Medium | hooks.ts (useWorkflow), utils.ts | Remove normalizeWorkflowTimestamps |
-| #17 Workflow order param ignored | **High** | N/A (no workaround) | Sorting will work correctly |
+| #17 Workflow order param ignored | **High** | N/A | ✅ FIXED — backend respects order param |
 | #18 Status labels not generated | Low | status-utils.ts, workflow-constants.ts | Use generated labels |
 | #19 Status sort order not generated | Low | status-utils.ts | Use generated sortOrder |
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
@@ -1523,7 +1380,7 @@ Option B: Include pod phase in plain text header
 | #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
 | #23 Dataset pagination missing offset | **High** | datasets.ts (fetch-all workaround) | Add offset param to API |
 | #24 Events API lacks pod status data | Medium | events-parser.ts, events-utils.ts, events-grouping.ts | Use actual pod status from API |
-| #25 Dataset API missing date/sort params | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |
+| #25 Dataset API missing sort_by, distinct dates | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |
 
 ### Priority Guide
 
@@ -1544,3 +1401,19 @@ When a backend fix is applied:
 4. Update this document
 
 **Ultimate goal:** When all issues are fixed, the adapter layer can be removed and UI imports directly from `generated.ts`.
+
+---
+
+## Appendix: Resolved Issues
+
+### 14. Workflow List API `more_entries` Always Returns False — ✅ FIXED
+
+Backend now checks `has_more_entries = len(rows) > limit` before slicing. UI workaround removed; `workflows-shim.ts` uses `more_entries` directly.
+
+### 17. Workflow List `order` Parameter Ignored for Pagination — ✅ FIXED
+
+Backend inner query now respects the `order` parameter for both inner and outer SQL queries. No UI changes needed.
+
+### 3. Auth Configuration Embedded in OpenAPI Schema — ✅ FIXED
+
+Changed `service_auth` default from inline `generate_default()` call to `pydantic.Field(default_factory=...)` in `postgres.py`. Pydantic v1 does not serialize `default_factory` values into the JSON schema, so RSA keys no longer appear in the OpenAPI spec.

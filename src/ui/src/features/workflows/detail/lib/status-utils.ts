@@ -132,7 +132,6 @@ function buildStateCategories(): Record<StateCategory, Set<string>> {
         break;
       case "waiting":
       case "pending":
-        // Both "waiting" and "pending" StatusCategory map to "pending" StateCategory
         categories.pending.add(status);
         break;
     }
@@ -226,6 +225,20 @@ export const STATUS_STYLES = {
     dark: {
       color: "#ef4444", // red-500
       strokeColor: "#b91c1c", // red-700
+    },
+  },
+  unknown: {
+    bg: "bg-gray-100 dark:bg-zinc-800/60",
+    border: "border-gray-300 dark:border-zinc-600",
+    text: "text-gray-500 dark:text-zinc-400",
+    dot: "bg-gray-400 dark:bg-zinc-500",
+    light: {
+      color: "#a1a1aa", // zinc-400
+      strokeColor: "#71717a", // zinc-500
+    },
+    dark: {
+      color: "#71717a", // zinc-500
+      strokeColor: "#52525b", // zinc-600
     },
   },
 } as const;

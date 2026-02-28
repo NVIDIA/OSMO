@@ -35,7 +35,5 @@ CLI Reference
   cli_profile
   cli_resource
   cli_task
-  cli_token
-  cli_user
   cli_version
   cli_workflow
