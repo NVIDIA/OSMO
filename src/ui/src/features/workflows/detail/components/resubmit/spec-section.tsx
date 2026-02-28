@@ -27,7 +27,7 @@ import { FileCode } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { YAML_LANGUAGE } from "@/components/code-viewer/lib/languages";
 import { CodeViewerSkeleton } from "@/components/code-viewer/code-viewer-skeleton";
-import { CollapsibleSection } from "@/features/workflows/detail/components/resubmit/collapsible-section";
+import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 
 const CodeMirror = dynamic(
   () => import("@/components/code-viewer/code-mirror").then((m) => ({ default: m.CodeMirror })),

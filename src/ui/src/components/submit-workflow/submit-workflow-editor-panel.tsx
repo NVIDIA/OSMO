@@ -43,7 +43,7 @@ export const SubmitWorkflowEditorPanel = memo(function SubmitWorkflowEditorPanel
   onChange,
 }: SubmitWorkflowEditorPanelProps) {
   return (
-    <div className="flex min-w-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-700/60 dark:bg-[#0b0b0d]">
+    <div className="flex min-w-0 flex-1 flex-col bg-zinc-50 dark:bg-[#0b0b0d]">
       {/* Editor — fills full height */}
       <div className="relative min-h-0 flex-1">
         <CodeMirror

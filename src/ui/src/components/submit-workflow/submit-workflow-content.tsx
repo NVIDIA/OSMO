@@ -117,23 +117,6 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
 
         <div className="flex-1" />
 
-        {/* Spec status badge */}
-        {!showSourcePicker && (
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-            <div
-              className="bg-nvidia size-1.5 rounded-full"
-              aria-hidden="true"
-            />
-            spec ready
-            {form.templateVarNames.length > 0 && (
-              <>
-                {" "}
-                · <span className="text-zinc-600 dark:text-zinc-300">{form.templateVarNames.length} vars</span>
-              </>
-            )}
-          </div>
-        )}
-
         {/* Close button */}
         <button
           type="button"
@@ -181,7 +164,7 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
             {/* Vertical line */}
             <div
               className={cn(
-                "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors",
+                "absolute inset-y-0 left-0 w-0.5 transition-colors",
                 isDragging
                   ? "bg-blue-500"
                   : "bg-zinc-200 dark:bg-zinc-700 group-hover:bg-zinc-300 dark:group-hover:bg-zinc-600",
@@ -190,7 +173,7 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
             {/* Grip handle */}
             <div
               className={cn(
-                "absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2",
+                "absolute top-1/2 left-px z-10 -translate-x-1/2 -translate-y-1/2",
                 "rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150",
                 "dark:bg-zinc-800",
                 isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",

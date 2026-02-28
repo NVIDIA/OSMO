@@ -24,7 +24,7 @@ import { memo, useState } from "react";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { usePanelFocus } from "@/components/panel/hooks/use-panel-focus";
 import { PriorityPicker, PRIORITY_LABELS } from "@/components/workflow/priority-picker";
-import { CollapsibleSection } from "@/features/workflows/detail/components/resubmit/collapsible-section";
+import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 
 export interface PrioritySectionProps {
   /** Currently selected priority */

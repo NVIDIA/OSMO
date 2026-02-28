@@ -15,13 +15,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * CollapsibleSection - Shared layout for drawer collapsible sections
+ * CollapsibleSection - Shared layout for collapsible form sections.
  *
  * Provides:
- * - Numbered step indicator
+ * - Numbered step indicator (nvidia green)
  * - Expand/collapse with smooth height animation
  * - Optional action slot (e.g., "Edit" button)
  * - Optional badge slot (e.g., availability badge)
+ * - Selected value shown as a code chip when collapsed
  * - Accessible keyboard navigation
  *
  * Animation approach:

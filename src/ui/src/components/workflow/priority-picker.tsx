@@ -34,6 +34,12 @@ export const PRIORITY_LABELS: Record<WorkflowPriority, string> = {
   [WorkflowPriority.LOW]: "Low",
 };
 
+const PRIORITY_HINTS: Record<WorkflowPriority, string> = {
+  [WorkflowPriority.LOW]: "Preemptible tasks that do not count towards pool quota.",
+  [WorkflowPriority.NORMAL]: "Counts towards quota but is not preemptible.",
+  [WorkflowPriority.HIGH]: "Counts towards quota, not preemptible, and is prioritized over normal workflows.",
+};
+
 export interface PriorityPickerProps {
   /** Currently selected priority */
   priority: WorkflowPriority;
@@ -104,6 +110,7 @@ export const PriorityPicker = memo(function PriorityPicker({ priority, onChange 
           );
         })}
       </div>
+      <p className="text-muted-foreground text-xs leading-relaxed">{PRIORITY_HINTS[priority]}</p>
     </div>
   );
 });

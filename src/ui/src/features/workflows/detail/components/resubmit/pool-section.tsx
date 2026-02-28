@@ -22,7 +22,7 @@
 
 import { memo, useState } from "react";
 import { PoolPicker } from "@/components/workflow/pool-picker";
-import { CollapsibleSection } from "@/features/workflows/detail/components/resubmit/collapsible-section";
+import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 
 export interface PoolSectionProps {
   /** Currently selected pool name */

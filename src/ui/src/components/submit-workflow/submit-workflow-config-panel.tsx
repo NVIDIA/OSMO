@@ -17,45 +17,20 @@
 /**
  * SubmitWorkflowConfigPanel - Right column of the scroll-split layout.
  *
- * Contains three scrollable sections (Template Variables, Pool, Priority)
+ * Contains three collapsible sections (Template Variables, Pool, Priority)
  * and a fixed action bar at the bottom with Cancel and Submit buttons.
  */
 
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 import { SubmitWorkflowTemplateVars } from "@/components/submit-workflow/submit-workflow-template-vars";
+import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 import { PoolPicker } from "@/components/workflow/pool-picker";
-import { PriorityPicker } from "@/components/workflow/priority-picker";
-
-// ---------------------------------------------------------------------------
-// Section header
-// ---------------------------------------------------------------------------
-
-interface SectionHeaderProps {
-  step: number;
-  title: string;
-  subtitle?: string;
-}
-
-function SectionHeader({ step, title, subtitle }: SectionHeaderProps) {
-  return (
-    <div className="mb-4">
-      <div className="mb-1 flex items-center gap-2">
-        <div className="flex size-5 items-center justify-center rounded-full border border-zinc-300 bg-zinc-100 font-mono text-[10px] font-semibold text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-          {step}
-        </div>
-        <span className="font-mono text-[11px] font-semibold tracking-widest text-zinc-500 uppercase dark:text-zinc-400">
-          {title}
-        </span>
-      </div>
-      {subtitle && <p className="font-mono text-[11px] leading-relaxed text-zinc-400 dark:text-zinc-500">{subtitle}</p>}
-    </div>
-  );
-}
+import { PriorityPicker, PRIORITY_LABELS } from "@/components/workflow/priority-picker";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -94,6 +69,15 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
   onClose,
   onSubmit,
 }: SubmitWorkflowConfigPanelProps) {
+  const [varsOpen, setVarsOpen] = useState(true);
+  const [poolOpen, setPoolOpen] = useState(true);
+  const [priorityOpen, setPriorityOpen] = useState(true);
+
+  const varsSelectedValue =
+    templateVarNames.length > 0
+      ? `${templateVarNames.length} ${templateVarNames.length === 1 ? "var" : "vars"}`
+      : undefined;
+
   return (
     <div
       className="flex flex-1 flex-col bg-white dark:bg-zinc-900"
@@ -104,49 +88,45 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
         className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
         style={{ scrollbarWidth: "thin" }}
       >
-        {/* Section 01: Template Variables */}
-        <section className="px-7 pt-7">
-          <SectionHeader
-            step={1}
-            title="Template Variables"
-            subtitle="Variables detected in spec — set override values below."
-          />
+        <CollapsibleSection
+          step={1}
+          title="Template Variables"
+          open={varsOpen}
+          onOpenChange={setVarsOpen}
+          selectedValue={varsSelectedValue}
+        >
           <SubmitWorkflowTemplateVars
             varNames={templateVarNames}
             varValues={templateVarValues}
             onValueChange={onTemplateVarChange}
           />
-        </section>
+        </CollapsibleSection>
 
-        <div className="mx-7 mt-7 h-px bg-zinc-200 dark:bg-zinc-700/60" />
-
-        {/* Section 02: Pool */}
-        <section className="px-7 pt-7">
-          <SectionHeader
-            step={2}
-            title="Pool"
-            subtitle="Target compute pool. GPU availability shown in real-time."
-          />
+        <CollapsibleSection
+          step={2}
+          title="Target Pool"
+          open={poolOpen}
+          onOpenChange={setPoolOpen}
+          selectedValue={pool || undefined}
+        >
           <PoolPicker
             pool={pool}
             onChange={onPoolChange}
           />
-        </section>
+        </CollapsibleSection>
 
-        <div className="mx-7 mt-7 h-px bg-zinc-200 dark:bg-zinc-700/60" />
-
-        {/* Section 03: Priority */}
-        <section className="px-7 pt-7 pb-7">
-          <SectionHeader
-            step={3}
-            title="Priority"
-            subtitle="LOW workflows may be preempted to free resources for higher priority jobs."
-          />
+        <CollapsibleSection
+          step={3}
+          title="Priority Level"
+          open={priorityOpen}
+          onOpenChange={setPriorityOpen}
+          selectedValue={PRIORITY_LABELS[priority]}
+        >
           <PriorityPicker
             priority={priority}
             onChange={onPriorityChange}
           />
-        </section>
+        </CollapsibleSection>
       </div>
 
       {/* Action bar */}
