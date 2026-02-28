@@ -1,5 +1,6 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText:
+Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,10 +19,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import argparse
 import os
-import subprocess
-import sys
 import tempfile
 
+import PyInstaller.__main__
 import shtab
 
 from src.cli import main_parser
@@ -74,32 +74,26 @@ def main():
     ]
 
     with tempfile.TemporaryDirectory() as config_dir:
-        env = os.environ.copy()
-
-        if 'PYTHONPATH' not in env:
-            env['PYTHONPATH'] = os.pathsep.join(p for p in sys.path if p)
-        env['PYINSTALLER_CONFIG_DIR'] = config_dir
+        os.environ['PYINSTALLER_CONFIG_DIR'] = config_dir
 
         top_level_dir = f'{args.output_dir}/osmo'
         os.makedirs(top_level_dir, exist_ok=True)
 
-        subprocess.run([
-            sys.executable,
-            '-m', 'PyInstaller',
+        PyInstaller.__main__.run([
             '-n', 'osmo-cli',
-            '--python-option', 'u',  # Unbuffered output
+            '--python-option', 'u',
             *add_data_args,
             *additional_hooks_dir_args,
             '--distpath', top_level_dir,
             f'--target-arch={args.target_arch}',
-            '--codesign-identity=-',  # Ad-hoc signing
+            '--codesign-identity=-',
             '--osx-bundle-identifier=com.nvidia.osmo',
             '--noupx',
             '--clean',
             '-y',
             '--log-level', 'WARN',
-            f'{main_path}',
-        ], env=env, check=True)
+            main_path,
+        ])
 
         # Create the autocomplete script for the osmo CLI
         parser = main_parser.create_cli_parser()
