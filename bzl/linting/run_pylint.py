@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,16 +16,13 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import os
-import subprocess
 import sys
+
+from pylint.lint import Run
 
 
 def main():
-    # Run pylint in a subprocess
-    result = subprocess.run([sys.executable, "-m", "pylint"] + sys.argv[1:],
-                            env={"PYTHONPATH": os.environ["PYTHONPATH"]})
-    sys.exit(result.returncode)
+    Run(sys.argv[1:])
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -58,6 +58,6 @@ mypy_cli(
         type_requirement("types-urllib3"),
         type_requirement("types-aiofiles"),
     ],
-    python_version = "3.10.18",
+    python_version = "3.10.19",
     tags = ["no-mypy"],
 )
