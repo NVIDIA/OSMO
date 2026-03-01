@@ -14,16 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * PoolPicker - Self-contained pool selection with lazy-loading and metadata card.
- *
- * Lazy-loading strategy:
- * 1. On mount: Fetch only selected pool's metadata
- * 2. On dropdown open: Fetch ALL pools once, cache for subsequent selections
- * 3. After all pools loaded: Use cached data for selected pool (no new API calls)
- * 4. Dropdown only shows pools the user has access to (from profile settings)
- */
-
 "use client";
 
 import { memo, useState, useMemo, useCallback } from "react";
@@ -33,13 +23,7 @@ import { cn } from "@/lib/utils";
 import { PlatformPills } from "@/components/platform-pills";
 import { PoolSelect } from "@/components/workflow/pool-select";
 
-// ---------------------------------------------------------------------------
-// Metadata card
-// ---------------------------------------------------------------------------
-
-/** Grid row layout: fixed label column + flexible value column */
 const META_ROW = "grid grid-cols-[5.625rem_1fr] items-baseline gap-6";
-/** Subtle uppercase label for metadata rows */
 const META_LABEL = "text-muted-foreground text-xs font-medium uppercase";
 
 const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
@@ -53,7 +37,6 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
       aria-label={`Metadata for pool ${pool.name}`}
     >
       <div className="space-y-3">
-        {/* GPU Quota */}
         <div className={cn(META_ROW, "border-border/50 border-b pb-2")}>
           <div className={META_LABEL}>GPU Quota</div>
           <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
@@ -68,7 +51,6 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
           </div>
         </div>
 
-        {/* GPU Capacity */}
         <div className={cn(META_ROW, "border-border/50 border-b pb-2")}>
           <div className={META_LABEL}>GPU Capacity</div>
           <div className="flex flex-wrap items-baseline gap-y-1 tabular-nums">
@@ -83,7 +65,6 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
           </div>
         </div>
 
-        {/* Platforms */}
         <div className={cn(META_ROW, "border-border/50 border-b pb-2")}>
           <div className={META_LABEL}>Platforms</div>
           <div className="min-w-0">
@@ -94,7 +75,6 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
           </div>
         </div>
 
-        {/* Backend */}
         <div className={META_ROW}>
           <div className={META_LABEL}>Backend</div>
           <div>
@@ -106,29 +86,18 @@ const PoolMetaCard = memo(function PoolMetaCard({ pool }: { pool: Pool }) {
   );
 });
 
-// ---------------------------------------------------------------------------
-// PoolPicker
-// ---------------------------------------------------------------------------
-
 export interface PoolPickerProps {
-  /** Currently selected pool name */
   pool: string;
-  /** Callback when pool selection changes */
   onChange: (pool: string) => void;
 }
 
 export const PoolPicker = memo(function PoolPicker({ pool, onChange }: PoolPickerProps) {
-  // Track if dropdown has ever been opened (triggers all-pools fetch)
   const [hasEverOpenedDropdown, setHasEverOpenedDropdown] = useState(false);
 
-  // Fetch individual pool metadata (ONLY before dropdown opens)
-  // Disabled after all-pools query to prevent redundant API calls
+  // Fetch individual pool metadata only until the dropdown opens (then all-pools takes over)
   const { pool: individualPoolData } = usePool(pool, !hasEverOpenedDropdown && !!pool);
-
-  // Lazy-load ALL pools (only after dropdown opens at least once)
   const { pools: allPools } = usePools(hasEverOpenedDropdown);
 
-  // Accessible pool names from profile settings
   const { profile } = useProfile();
   const accessiblePoolNames = profile?.pool.accessible;
   const accessibleSet = useMemo(
@@ -136,15 +105,11 @@ export const PoolPicker = memo(function PoolPicker({ pool, onChange }: PoolPicke
     [accessiblePoolNames],
   );
 
-  // Use all-pools data if available (preferred), fallback to individual pool query
   const selectedPool = useMemo(() => {
-    if (allPools) {
-      return allPools.find((p) => p.name === pool);
-    }
+    if (allPools) return allPools.find((p) => p.name === pool);
     return individualPoolData ?? null;
   }, [allPools, individualPoolData, pool]);
 
-  // Filter dropdown to only accessible pools
   const accessiblePools = useMemo(() => {
     if (!allPools) return undefined;
     if (!accessibleSet) return allPools;

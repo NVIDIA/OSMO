@@ -14,21 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SubmitWorkflowContent - Full content for the Submit Workflow overlay.
- *
- *   ┌─────────────────────────────────────────┐
- *   │ bar: "Submit Workflow"           close  │
- *   ├────────────────────────┬────────────────┤
- *   │  YAML editor (55%)     │  Config form   │
- *   │  [draggable resizer]   │  01 Vars       │
- *   │                        │  02 Pool       │
- *   │                        │  03 Priority   │
- *   │                        │  ─────────────  │
- *   │                        │  Cancel Submit │
- *   └────────────────────────┴────────────────┘
- */
-
 "use client";
 
 import { memo, useRef, useState, useCallback, useEffect } from "react";
@@ -40,20 +25,9 @@ import { SubmitWorkflowEditorPanel } from "@/components/submit-workflow/submit-w
 import { SubmitWorkflowConfigPanel } from "@/components/submit-workflow/submit-workflow-config-panel";
 import { SourcePicker } from "@/components/submit-workflow/source-picker";
 
-// ---------------------------------------------------------------------------
-// Constants — must match --submit-overlay-*-min-width in globals.css
-// ---------------------------------------------------------------------------
-
-const SUBMIT_PANEL = {
-  /** Minimum YAML editor width in pixels (YAML readable at this width) */
-  EDITOR_MIN_WIDTH_PX: 360,
-  /** Minimum config panel width in pixels (pool + priority pickers fit at this width) */
-  CONFIG_MIN_WIDTH_PX: 280,
-} as const;
-
-// ---------------------------------------------------------------------------
-// Resizer hook
-// ---------------------------------------------------------------------------
+// Must match --submit-overlay-*-min-width in globals.css
+const EDITOR_MIN_WIDTH_PX = 360;
+const CONFIG_MIN_WIDTH_PX = 280;
 
 function useColumnResizer(initialPct = 55) {
   const [editorWidthPct, setEditorWidthPct] = useState(initialPct);
@@ -80,8 +54,8 @@ function useColumnResizer(initialPct = 55) {
     if (!isDraggingRef.current || !splitRef.current) return;
     const rect = splitRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const maxEditorPx = rect.width - SUBMIT_PANEL.CONFIG_MIN_WIDTH_PX;
-    const clampedPx = Math.max(SUBMIT_PANEL.EDITOR_MIN_WIDTH_PX, Math.min(maxEditorPx, x));
+    const maxEditorPx = rect.width - CONFIG_MIN_WIDTH_PX;
+    const clampedPx = Math.max(EDITOR_MIN_WIDTH_PX, Math.min(maxEditorPx, x));
     setEditorWidthPct((clampedPx / rect.width) * 100);
   }, []);
 
@@ -98,10 +72,6 @@ function useColumnResizer(initialPct = 55) {
 
   return { editorWidthPct, isDragging, splitRef, startDrag };
 }
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 
 export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
   const form = useSubmitWorkflowForm();
@@ -162,7 +132,7 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
           {/* Left: YAML editor */}
           <div
             className="flex flex-col"
-            style={{ flexBasis: `${editorWidthPct}%`, flexShrink: 1, minWidth: SUBMIT_PANEL.EDITOR_MIN_WIDTH_PX }}
+            style={{ flexBasis: `${editorWidthPct}%`, flexShrink: 1, minWidth: EDITOR_MIN_WIDTH_PX }}
           >
             <SubmitWorkflowEditorPanel
               value={form.spec}

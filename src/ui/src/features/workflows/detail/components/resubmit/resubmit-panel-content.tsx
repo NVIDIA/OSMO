@@ -17,37 +17,29 @@
 /**
  * ResubmitPanelContent - Content for resubmit workflow panel.
  *
- * Contains:
- * - YAML spec preview (collapsible)
- * - Pool selection
- * - Priority selection
- * - Submit/Cancel buttons
+ * Contains collapsible sections for spec preview, pool selection,
+ * priority selection, and submit/cancel buttons.
  */
 
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useState, useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
+import { WorkflowPriority } from "@/lib/api/generated";
 import { Button } from "@/components/shadcn/button";
+import { usePanelFocus } from "@/components/panel/hooks/use-panel-focus";
+import { CollapsibleSection } from "@/components/workflow/collapsible-section";
+import { PoolPicker } from "@/components/workflow/pool-picker";
+import { PriorityPicker, PRIORITY_LABELS } from "@/components/workflow/priority-picker";
 import { useSpecData } from "@/features/workflows/detail/hooks/use-spec-data";
 import { SpecSection } from "@/features/workflows/detail/components/resubmit/spec-section";
-import { PoolSection } from "@/features/workflows/detail/components/resubmit/pool-section";
-import { PrioritySection } from "@/features/workflows/detail/components/resubmit/priority-section";
 import { useResubmitForm } from "@/features/workflows/detail/components/resubmit/use-resubmit-form";
-
-// =============================================================================
-// Types
-// =============================================================================
 
 export interface ResubmitPanelContentProps {
   workflow: WorkflowQueryResponse;
   onClose?: () => void;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const ResubmitPanelContent = memo(function ResubmitPanelContent({
   workflow,
@@ -66,6 +58,19 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
       onClose?.();
     },
   });
+
+  const focusPanel = usePanelFocus();
+  const [poolOpen, setPoolOpen] = useState(true);
+  const [priorityOpen, setPriorityOpen] = useState(true);
+
+  // Return focus to panel after priority selection so ESC works
+  const handlePriorityChange = useCallback(
+    (newPriority: WorkflowPriority) => {
+      form.setPriority(newPriority);
+      focusPanel();
+    },
+    [form, focusPanel],
+  );
 
   const handleCancel = useCallback(() => {
     if (form.isPending) return;
@@ -89,14 +94,32 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
           error={specError}
           onRetry={refetchSpec}
         />
-        <PoolSection
-          pool={form.pool}
-          onChange={form.setPool}
-        />
-        <PrioritySection
-          priority={form.priority}
-          onChange={form.setPriority}
-        />
+
+        <CollapsibleSection
+          step={2}
+          title="Target Pool"
+          open={poolOpen}
+          onOpenChange={setPoolOpen}
+          selectedValue={form.pool || undefined}
+        >
+          <PoolPicker
+            pool={form.pool}
+            onChange={form.setPool}
+          />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          step={3}
+          title="Priority Level"
+          open={priorityOpen}
+          onOpenChange={setPriorityOpen}
+          selectedValue={PRIORITY_LABELS[form.priority]}
+        >
+          <PriorityPicker
+            priority={form.priority}
+            onChange={handlePriorityChange}
+          />
+        </CollapsibleSection>
       </div>
 
       {/* Error message */}
@@ -134,7 +157,7 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
               Submitting...
             </>
           ) : (
-            "Submit Workflow"
+            "Submit"
           )}
         </Button>
       </div>

@@ -28,56 +28,32 @@ import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { toast } from "sonner";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
-import { usePool } from "@/lib/api/adapter/hooks";
-import {
-  useResubmitMutation,
-  type UseResubmitMutationReturn,
-} from "@/features/workflows/detail/components/resubmit/use-resubmit-mutation";
+import { usePoolSelection } from "@/components/workflow/use-pool-selection";
+import { useResubmitMutation } from "@/features/workflows/detail/components/resubmit/use-resubmit-mutation";
 
 export interface UseResubmitFormOptions {
-  /** Workflow being resubmitted */
   workflow: WorkflowQueryResponse;
-  /** Called after successful submission (e.g., to close drawer) */
   onSuccess?: () => void;
 }
 
 export interface UseResubmitFormReturn {
-  /** Selected pool name */
   pool: string;
-  /** Update selected pool */
   setPool: (pool: string) => void;
-  /** Selected priority */
   priority: WorkflowPriority;
-  /** Update selected priority */
   setPriority: (priority: WorkflowPriority) => void;
   /**
-   * Custom spec (if edited AND changed, otherwise undefined = use original via workflow_id)
-   * - undefined: User hasn't edited OR edited but content is identical → backend uses workflow_id
-   * - string: User edited and changed the content → backend uses template_spec
+   * Custom spec (if edited AND changed, otherwise undefined = use original via workflow_id).
+   * - undefined: User hasn't edited OR content is identical to original
+   * - string: User edited and changed the content
    */
   spec: string | undefined;
-  /** Update custom spec */
   setSpec: (spec: string | undefined) => void;
-  /** Whether the form is valid for submission */
-  isValid: boolean;
-  /** Whether submission is possible (valid + not pending) */
   canSubmit: boolean;
-  /** Submit the form */
   handleSubmit: () => void;
-  /** Whether the mutation is in flight */
   isPending: boolean;
-  /** Last error message from mutation */
   error: string | null;
-  /** Reset form to initial workflow values */
-  reset: () => void;
-  /** Reset just the error state */
-  resetError: UseResubmitMutationReturn["resetError"];
 }
 
-/**
- * Derive a WorkflowPriority from the workflow's priority string.
- * Falls back to NORMAL if the value is not recognized.
- */
 function deriveInitialPriority(workflow: WorkflowQueryResponse): WorkflowPriority {
   const validPriorities = new Set<string>(Object.values(WorkflowPriority));
   if (validPriorities.has(workflow.priority)) {
@@ -89,29 +65,11 @@ function deriveInitialPriority(workflow: WorkflowQueryResponse): WorkflowPriorit
 export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions): UseResubmitFormReturn {
   const router = useNavigationRouter();
 
-  // Validate the workflow's original pool exists before using it as the default.
-  // usePool returns null if the pool no longer exists or is inaccessible.
-  // TanStack Query deduplicates this fetch with PoolPicker's own usePool call.
-  const workflowPool = workflow.pool ?? "";
-  const { pool: validatedPool, isLoading: isValidatingPool } = usePool(workflowPool, !!workflowPool);
-
-  // null = use default (workflow's original pool, validated); string = user override
-  const [poolOverride, setPoolOverride] = useState<string | null>(null);
-
-  const pool = useMemo(() => {
-    if (poolOverride !== null) return poolOverride;
-    if (!workflowPool || isValidatingPool) return "";
-    return validatedPool?.name ?? "";
-  }, [poolOverride, workflowPool, validatedPool, isValidatingPool]);
-
-  const setPool = useCallback((value: string) => setPoolOverride(value), []);
-
+  const { pool, setPool } = usePoolSelection(workflow.pool ?? "");
   const [priority, setPriority] = useState<WorkflowPriority>(() => deriveInitialPriority(workflow));
   const [spec, setSpec] = useState<string | undefined>(undefined);
 
-  const isValid = pool.length > 0;
-
-  const { execute, isPending, error, resetError } = useResubmitMutation({
+  const { execute, isPending, error } = useResubmitMutation({
     onSuccess: (newWorkflowName) => {
       const message = newWorkflowName
         ? `Workflow resubmitted as ${newWorkflowName}`
@@ -130,7 +88,7 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
     },
   });
 
-  const canSubmit = isValid && !isPending;
+  const canSubmit = pool.length > 0 && !isPending;
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
@@ -143,13 +101,6 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
     });
   }, [canSubmit, execute, workflow.name, pool, priority, spec]);
 
-  const reset = useCallback(() => {
-    setPoolOverride(null);
-    setPriority(deriveInitialPriority(workflow));
-    setSpec(undefined);
-    resetError();
-  }, [workflow, resetError]);
-
   return useMemo(
     () => ({
       pool,
@@ -158,14 +109,11 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       setPriority,
       spec,
       setSpec,
-      isValid,
       canSubmit,
       handleSubmit,
       isPending,
       error,
-      reset,
-      resetError,
     }),
-    [pool, setPool, priority, spec, isValid, canSubmit, handleSubmit, isPending, error, reset, resetError],
+    [pool, setPool, priority, spec, canSubmit, handleSubmit, isPending, error],
   );
 }

@@ -14,13 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SubmitWorkflowEditorPanel - Left column of the scroll-split layout.
- *
- * Contains a file tab header and a full-height CodeMirror YAML editor.
- * The editor is lazy-loaded (dynamic import, ssr: false) for code splitting.
- */
-
 "use client";
 
 import { memo } from "react";

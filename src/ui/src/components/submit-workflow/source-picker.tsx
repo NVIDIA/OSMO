@@ -14,23 +14,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SourcePicker - Pre-flow step shown before the YAML editor.
- *
- * Presents two options:
- *   1. Upload a YAML file — drag & drop or click, no persistent border
- *   2. Start with a blank editor — contained card below an "or" divider
- */
-
 "use client";
 
 import { useState, useRef } from "react";
 import { Upload, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// ---------------------------------------------------------------------------
-// Default YAML skeleton
-// ---------------------------------------------------------------------------
 
 const DEFAULT_YAML = `name: my-workflow
 tasks:
@@ -44,10 +32,6 @@ tasks:
       cpu: 1
       memory: 4Gi
 `;
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 interface SourcePickerProps {
   onSelect: (spec: string) => void;

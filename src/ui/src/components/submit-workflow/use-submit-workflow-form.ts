@@ -30,11 +30,8 @@ import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useServices } from "@/contexts/service-context";
 import { WorkflowPriority, useSubmitWorkflowApiPoolPoolNameWorkflowPost } from "@/lib/api/generated";
 import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
-import { useProfile, usePool } from "@/lib/api/adapter/hooks";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+import { useProfile } from "@/lib/api/adapter/hooks";
+import { usePoolSelection } from "@/components/workflow/use-pool-selection";
 
 /** Extract unique {{ variable_name }} identifiers from a YAML spec string. */
 function extractTemplateVarNames(spec: string): string[] {
@@ -45,12 +42,6 @@ function extractTemplateVarNames(spec: string): string[] {
     vars.add(match[1]);
   }
   return Array.from(vars);
-}
-
-/** Parse the `name:` field from the top level of a YAML spec. */
-function extractWorkflowName(spec: string): string {
-  const match = spec.match(/^name:\s*(\S+)/m);
-  return match?.[1] ?? "";
 }
 
 /** Extract a human-readable error message from various error shapes. */
@@ -74,40 +65,22 @@ function extractErrorMessage(err: unknown): string {
   return String(err);
 }
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
 export interface UseSubmitWorkflowFormReturn {
-  /** Current YAML spec content */
   spec: string;
   setSpec: (spec: string) => void;
-  /** Workflow name derived from spec's `name:` field */
-  workflowName: string;
-  /** Selected pool name */
   pool: string;
   setPool: (pool: string) => void;
-  /** Selected priority */
   priority: WorkflowPriority;
   setPriority: (priority: WorkflowPriority) => void;
-  /** Template variable names detected in spec */
   templateVarNames: string[];
-  /** User-provided values for template variables */
   templateVarValues: Record<string, string>;
   setTemplateVarValue: (name: string, value: string) => void;
-  /** Whether the form can be submitted */
   canSubmit: boolean;
-  /** Whether submission is in flight */
   isPending: boolean;
-  /** Error message from last submission attempt */
   error: string | null;
   handleSubmit: () => void;
   handleClose: () => void;
 }
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
 
 export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
   const router = useNavigationRouter();
@@ -115,29 +88,14 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
   const { announcer } = useServices();
 
   const { profile } = useProfile();
-
-  // Validate the profile's default pool exists before using it as the default.
-  // usePool returns null if the pool no longer exists or is inaccessible.
-  // TanStack Query deduplicates this fetch with PoolPicker's own usePool call.
   const defaultPool = profile?.pool.default ?? "";
-  const { pool: validatedPool, isLoading: isValidatingPool } = usePool(defaultPool, !!defaultPool);
+  const { pool, setPool, resetPool } = usePoolSelection(defaultPool);
 
   const [spec, setSpec] = useState("");
-  // null = use default (profile's default pool, validated); string = user override
-  const [poolOverride, setPoolOverride] = useState<string | null>(null);
   const [priority, setPriority] = useState<WorkflowPriority>(WorkflowPriority.NORMAL);
-
-  const pool = useMemo(() => {
-    if (poolOverride !== null) return poolOverride;
-    if (!defaultPool || isValidatingPool) return "";
-    return validatedPool?.name ?? "";
-  }, [poolOverride, defaultPool, validatedPool, isValidatingPool]);
-
-  const setPool = useCallback((value: string) => setPoolOverride(value), []);
   const [templateVarValues, setTemplateVarValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const workflowName = useMemo(() => extractWorkflowName(spec), [spec]);
   const templateVarNames = useMemo(() => extractTemplateVarNames(spec), [spec]);
 
   const setTemplateVarValue = useCallback((name: string, value: string) => {
@@ -190,19 +148,18 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
   const handleClose = useCallback(() => {
     if (!isPending) {
       setSpec("");
-      setPoolOverride(null);
+      resetPool();
       setPriority(WorkflowPriority.NORMAL);
       setTemplateVarValues({});
       setError(null);
       close();
     }
-  }, [isPending, close]);
+  }, [isPending, close, resetPool]);
 
   return useMemo(
     () => ({
       spec,
       setSpec,
-      workflowName,
       pool,
       setPool,
       priority,
@@ -218,7 +175,6 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
     }),
     [
       spec,
-      workflowName,
       pool,
       setPool,
       priority,

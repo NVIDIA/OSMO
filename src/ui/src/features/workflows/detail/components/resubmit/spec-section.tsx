@@ -14,11 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SpecSection - Collapsible YAML spec editor.
- * Always editable when expanded. Shows "Modified" + "Revert" when changed.
- */
-
 "use client";
 
 import { memo, useState, useCallback } from "react";

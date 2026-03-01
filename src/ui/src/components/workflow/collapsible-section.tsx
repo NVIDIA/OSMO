@@ -14,26 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * CollapsibleSection - Shared layout for collapsible form sections.
- *
- * Provides:
- * - Numbered step indicator (nvidia green)
- * - Expand/collapse with smooth height animation
- * - Optional action slot (e.g., "Edit" button)
- * - Optional badge slot (e.g., availability badge)
- * - Selected value shown as a code chip when collapsed
- * - Accessible keyboard navigation
- *
- * Animation approach:
- * Uses tw-animate-css `collapsible-down` / `collapsible-up` keyframes which
- * animate `height` via `--radix-collapsible-content-height` (set automatically
- * by Radix CollapsibleContent). Radix's built-in Presence component detects
- * the exit animation and keeps the element in the DOM until `animationend`
- * fires, then unmounts it. No `forceMount` is needed -- Presence handles
- * the enter/exit lifecycle automatically when CSS animations are present.
- */
-
 "use client";
 
 import { memo, type ReactNode } from "react";
@@ -52,8 +32,6 @@ export interface CollapsibleSectionProps {
   onOpenChange: (open: boolean) => void;
   /** Optional action element (e.g., "Edit" button) */
   action?: ReactNode;
-  /** Optional badge element (e.g., availability count) */
-  badge?: ReactNode;
   /** Optional selected value to show when collapsed (e.g., pool name, priority level) */
   selectedValue?: string;
   /** Section content */
@@ -66,7 +44,6 @@ export const CollapsibleSection = memo(function CollapsibleSection({
   open,
   onOpenChange,
   action,
-  badge,
   selectedValue,
   children,
 }: CollapsibleSectionProps) {
@@ -99,15 +76,10 @@ export const CollapsibleSection = memo(function CollapsibleSection({
             <span className="text-sm font-medium">{title}</span>
           </div>
 
-          {!open && (selectedValue || badge) && (
-            <div className="flex items-center gap-2">
-              {selectedValue && (
-                <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
-                  {selectedValue}
-                </code>
-              )}
-              {badge}
-            </div>
+          {!open && selectedValue && (
+            <code className="text-muted-foreground rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium dark:bg-zinc-800">
+              {selectedValue}
+            </code>
           )}
         </CollapsibleTrigger>
 
@@ -132,16 +104,6 @@ export const CollapsibleSection = memo(function CollapsibleSection({
         </CollapsibleTrigger>
       </div>
 
-      {/*
-       * Radix Presence detects the CSS animation name change when `open`
-       * toggles and enters an `unmountSuspended` state, keeping the DOM
-       * node alive until the `animationend` event fires.  This gives the
-       * collapsible-up exit animation time to play before the node is
-       * removed.  No `forceMount` is needed.
-       *
-       * tw-animate-css provides collapsible-down/up keyframes that animate
-       * height from 0 <-> var(--radix-collapsible-content-height).
-       */}
       <CollapsibleContent
         className={cn(
           "overflow-hidden",

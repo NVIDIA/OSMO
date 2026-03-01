@@ -14,13 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SubmitWorkflowTemplateVars - Section 1 of the config panel.
- *
- * Renders a key/value grid for each {{ variable_name }} detected in the spec.
- * Shows an empty state when no template variables are found.
- */
-
 "use client";
 
 import { memo } from "react";

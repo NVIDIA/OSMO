@@ -14,19 +14,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * PoolStatusBadge - Renders a colored status badge with icon and label.
- *
- * Shared between PoolPicker and PoolSelect to eliminate duplication of
- * the status display logic (icon lookup, style mapping, JSX structure).
- */
-
 import { memo } from "react";
 import { CheckCircle2, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
-/** Status icons mapping (matches pools table) */
 const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: string }>> = {
   online: CheckCircle2,
   maintenance: Wrench,
@@ -34,9 +26,7 @@ const STATUS_ICONS: Record<StatusCategory, React.ComponentType<{ className?: str
 };
 
 export interface PoolStatusBadgeProps {
-  /** Pool status string (e.g., from PoolStatus enum) */
   status: string;
-  /** Additional class name for the outer span */
   className?: string;
 }
 

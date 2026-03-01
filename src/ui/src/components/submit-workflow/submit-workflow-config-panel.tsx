@@ -14,13 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * SubmitWorkflowConfigPanel - Right column of the scroll-split layout.
- *
- * Contains three collapsible sections (Template Variables, Pool, Priority)
- * and a fixed action bar at the bottom with Cancel and Submit buttons.
- */
-
 "use client";
 
 import { memo, useState } from "react";
@@ -31,10 +24,6 @@ import { SubmitWorkflowTemplateVars } from "@/components/submit-workflow/submit-
 import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 import { PoolPicker } from "@/components/workflow/pool-picker";
 import { PriorityPicker, PRIORITY_LABELS } from "@/components/workflow/priority-picker";
-
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
 
 export interface SubmitWorkflowConfigPanelProps {
   templateVarNames: string[];
@@ -50,10 +39,6 @@ export interface SubmitWorkflowConfigPanelProps {
   onClose: () => void;
   onSubmit: () => void;
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 
 export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel({
   templateVarNames,

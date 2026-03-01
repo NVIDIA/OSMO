@@ -14,18 +14,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * PriorityPicker - Segmented radio group for HIGH/NORMAL/LOW priority
- * selection using WorkflowPriority enum.
- */
-
 "use client";
 
 import { memo, useId } from "react";
 import { WorkflowPriority } from "@/lib/api/generated";
 import { cn } from "@/lib/utils";
 
-// Display order: Low → Normal → High (left to right)
 const PRIORITY_OPTIONS: WorkflowPriority[] = [WorkflowPriority.LOW, WorkflowPriority.NORMAL, WorkflowPriority.HIGH];
 
 export const PRIORITY_LABELS: Record<WorkflowPriority, string> = {
@@ -41,23 +35,14 @@ const PRIORITY_HINTS: Record<WorkflowPriority, string> = {
 };
 
 export interface PriorityPickerProps {
-  /** Currently selected priority */
   priority: WorkflowPriority;
-  /** Callback when priority changes */
   onChange: (priority: WorkflowPriority) => void;
 }
 
 export const PriorityPicker = memo(function PriorityPicker({ priority, onChange }: PriorityPickerProps) {
   const groupId = useId();
 
-  // Calculate the position of the sliding indicator.
-  // Layout: container has p-1.5 (0.375rem) padding and gap-2 (0.5rem) between flex-1 items.
-  // The indicator width = one button width = (container content width - total gaps) / numOptions.
-  // In CSS: width = calc((100% - 2 * padding - totalGaps) / numOptions)
-  //   where 100% is the container's full width including padding.
-  // translateX uses percentages relative to the element's OWN width, so
-  //   translateX(100%) = exactly one button width. For index N we need
-  //   N * 100% (button widths) + N * gapSize (accumulated gaps) + padding offset.
+  // Sliding indicator position: translateX percentages are relative to own width
   const selectedIndex = PRIORITY_OPTIONS.indexOf(priority);
   const numOptions = PRIORITY_OPTIONS.length;
   const GAP_REM = 0.5; // gap-2 = 0.5rem
@@ -71,7 +56,6 @@ export const PriorityPicker = memo(function PriorityPicker({ priority, onChange 
         role="radiogroup"
         aria-label="Priority level"
       >
-        {/* Sliding background indicator */}
         <div
           className="bg-foreground/15 pointer-events-none absolute inset-y-1.5 rounded-sm transition-transform duration-200 ease-out"
           style={{

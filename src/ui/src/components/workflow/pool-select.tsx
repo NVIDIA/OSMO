@@ -14,20 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * PoolSelect - Lazy-loading pool combobox (Popover + Command).
- *
- * Uses Popover + Command (cmdk) instead of Radix Select to avoid the
- * aria-hidden conflict with ResizablePanel. Radix Select sets aria-hidden
- * on ancestor elements when opened, which conflicts with the panel's
- * focus management. Popover does not exhibit this behavior.
- *
- * Lazy-loading strategy:
- * 1. On mount: Show preselected pool (workflow's original pool)
- * 2. On popover open: Fetch ALL pools, show loading indicator
- * 3. Pools load: Enable search via cmdk, populate list
- */
-
 "use client";
 
 import { useState, useMemo, memo, useCallback, useId } from "react";
@@ -47,15 +33,13 @@ import { cn } from "@/lib/utils";
 import { PoolStatusBadge } from "@/components/workflow/pool-status-badge";
 
 export interface PoolSelectProps {
-  /** Currently selected pool name */
   value: string;
-  /** Callback when pool selection changes */
   onValueChange: (poolName: string) => void;
-  /** Selected pool metadata (for displaying badge in trigger) */
+  /** Pool metadata for displaying status badge in the trigger button */
   selectedPool?: Pool;
-  /** All pools data (if already fetched by parent) */
+  /** When provided, populates the dropdown list; undefined shows a loading state */
   allPools?: Pool[];
-  /** Callback when dropdown open state changes (for parent to trigger all-pools fetch) */
+  /** Notifies parent when dropdown opens (to trigger lazy pool fetch) */
   onDropdownOpenChange?: (isOpen: boolean) => void;
 }
 

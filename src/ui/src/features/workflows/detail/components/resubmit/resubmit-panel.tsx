@@ -14,16 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * ResubmitPanel - Workflow resubmission panel using ResizablePanel.
- *
- * Follows the same pattern as pool-panel.tsx and resource-panel.tsx:
- * - ResizablePanel for drag-to-resize
- * - Backdrop overlay with click-to-close
- * - Width persisted to localStorage
- * - Consistent with existing panel UX
- */
-
 "use client";
 
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
@@ -33,64 +23,16 @@ import { useWorkflowsPreferencesStore } from "@/features/workflows/list/stores/w
 import { ResubmitPanelHeader } from "@/features/workflows/detail/components/resubmit/resubmit-panel-header";
 import { ResubmitPanelContent } from "@/features/workflows/detail/components/resubmit/resubmit-panel-content";
 
-// =============================================================================
-// Constants
-// =============================================================================
-
-/**
- * Resubmit panel-specific constraints.
- *
- * Uses pixel-based minimum for content-aware bounds:
- * - YAML editor optimal: 480-720px content + 96px padding = 576-816px panel
- * - Pool selector optimal: 400-600px content + 96px padding = 496-696px panel
- * - Priority selector optimal: 240-400px content + 96px padding = 336-496px panel
- *
- * Minimum chosen to ensure YAML remains readable and metadata fits comfortably.
- * Maximum uses standard 80% percentage to allow flexibility on large screens.
- */
-const RESUBMIT_PANEL = {
-  /** Minimum panel width in pixels (YAML readable, metadata fits) */
-  MIN_WIDTH_PX: 520,
-} as const;
-
-// =============================================================================
-// Types
-// =============================================================================
+/** Minimum panel width to keep YAML readable and metadata fitting comfortably. */
+const MIN_WIDTH_PX = 520;
 
 export interface ResubmitPanelProps {
-  /** Workflow to resubmit */
   workflow: WorkflowQueryResponse;
-  /** Whether the panel is open */
   open: boolean;
-  /** Callback when panel should close */
   onClose: () => void;
-  /** Main content to render behind the panel (the workflow detail page) */
   children: React.ReactNode;
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
-/**
- * ResubmitPanel - Workflow resubmission panel wrapper.
- *
- * Composes from ResizablePanel and adds resubmit-specific:
- * - Header with workflow name and close button
- * - Content with spec preview, pool selection, priority selection
- * - Form state management via useResubmitForm
- *
- * @example
- * ```tsx
- * <ResubmitPanel
- *   workflow={workflow}
- *   open={isOpen}
- *   onClose={handleClose}
- * >
- *   <WorkflowDetailPage workflow={workflow} />
- * </ResubmitPanel>
- * ```
- */
 export function ResubmitPanel({ workflow, open, onClose, children }: ResubmitPanelProps) {
   const storedPanelWidth = useWorkflowsPreferencesStore((s) => s.resubmitPanelWidth);
   const setPanelWidth = useWorkflowsPreferencesStore((s) => s.setResubmitPanelWidth);
@@ -103,7 +45,7 @@ export function ResubmitPanel({ workflow, open, onClose, children }: ResubmitPan
       onWidthChange={setPanelWidth}
       minWidth={PANEL.MIN_WIDTH_PCT}
       maxWidth={PANEL.OVERLAY_MAX_WIDTH_PCT}
-      minWidthPx={RESUBMIT_PANEL.MIN_WIDTH_PX}
+      minWidthPx={MIN_WIDTH_PX}
       mainContent={children}
       backdrop
       aria-label={`Resubmit workflow: ${workflow.name}`}
