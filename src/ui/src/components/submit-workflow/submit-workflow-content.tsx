@@ -35,6 +35,7 @@ import { memo, useRef, useState, useCallback, useEffect } from "react";
 import { GripVertical, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSubmitWorkflowForm } from "@/components/submit-workflow/use-submit-workflow-form";
+import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 import { SubmitWorkflowEditorPanel } from "@/components/submit-workflow/submit-workflow-editor-panel";
 import { SubmitWorkflowConfigPanel } from "@/components/submit-workflow/submit-workflow-config-panel";
 import { SourcePicker } from "@/components/submit-workflow/source-picker";
@@ -105,9 +106,25 @@ function useColumnResizer(initialPct = 55) {
 export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
   const form = useSubmitWorkflowForm();
   const { editorWidthPct, isDragging, splitRef, startDrag } = useColumnResizer();
+  const isOpen = useSubmitWorkflowStore((s) => s.isOpen);
 
-  // Derived: show source picker when no spec has been chosen yet
-  const showSourcePicker = form.spec.trim().length === 0;
+  // Show source picker until the user picks a source, then keep it dismissed
+  // for the rest of the session (even if spec is cleared on close). Resets when
+  // the overlay reopens so the next session starts fresh at the source picker.
+  const [showSourcePicker, setShowSourcePicker] = useState(true);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) setShowSourcePicker(true);
+  }
+
+  const handleSourceSelect = useCallback(
+    (spec: string) => {
+      form.setSpec(spec);
+      setShowSourcePicker(false);
+    },
+    [form],
+  );
 
   return (
     <div className="flex h-full flex-col bg-white dark:bg-zinc-900">
@@ -135,7 +152,7 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
       {/* ── Body ────────────────────────────────────────────────── */}
       {showSourcePicker ? (
         /* Source picker spans the full width before a spec is chosen */
-        <SourcePicker onSelect={form.setSpec} />
+        <SourcePicker onSelect={handleSourceSelect} />
       ) : (
         /* Split view: editor + resizer + config */
         <div
@@ -167,7 +184,7 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
                 "absolute inset-y-0 left-0 w-0.5 transition-colors",
                 isDragging
                   ? "bg-blue-500"
-                  : "bg-zinc-200 dark:bg-zinc-700 group-hover:bg-zinc-300 dark:group-hover:bg-zinc-600",
+                  : "bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-700 dark:group-hover:bg-zinc-600",
               )}
             />
             {/* Grip handle */}

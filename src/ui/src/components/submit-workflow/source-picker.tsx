@@ -58,9 +58,12 @@ export function SourcePicker({ onSelect }: SourcePickerProps) {
   const [isDragOver, setIsDragOver] = useState(false);
 
   function readFile(file: File) {
-    file.text().then(onSelect).catch(() => {
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    });
+    file
+      .text()
+      .then(onSelect)
+      .catch(() => {
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      });
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
