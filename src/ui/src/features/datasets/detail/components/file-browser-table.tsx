@@ -337,6 +337,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
     <div
       ref={tableAreaRef}
       className="contents"
+      role="presentation"
       onKeyDown={handleKeyDown}
     >
       <DataTable<DatasetFile>
