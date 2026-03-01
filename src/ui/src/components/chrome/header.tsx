@@ -17,7 +17,7 @@
 "use client";
 
 import { Link } from "@/components/link";
-import { Home, ChevronRight, Menu, CirclePlus } from "lucide-react";
+import { Home, ChevronRight, Menu, SquarePlus } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -106,7 +106,7 @@ export function Header() {
               aria-label="Submit workflow"
               onClick={openSubmitWorkflow}
             >
-              <CirclePlus className="h-5 w-5" />
+              <SquarePlus className="h-5 w-5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent>Submit Workflow</TooltipContent>
