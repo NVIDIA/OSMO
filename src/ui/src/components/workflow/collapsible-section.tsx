@@ -34,6 +34,8 @@ export interface CollapsibleSectionProps {
   action?: ReactNode;
   /** Optional selected value to show when collapsed (e.g., pool name, priority level) */
   selectedValue?: string;
+  /** Suppress the bottom border — use on the last section in a list */
+  isLast?: boolean;
   /** Section content */
   children: ReactNode;
 }
@@ -45,13 +47,14 @@ export const CollapsibleSection = memo(function CollapsibleSection({
   onOpenChange,
   action,
   selectedValue,
+  isLast,
   children,
 }: CollapsibleSectionProps) {
   return (
     <Collapsible
       open={open}
       onOpenChange={onOpenChange}
-      className="border-border border-b"
+      className={cn("border-border", !isLast && "border-b")}
     >
       <div className="flex items-center">
         <CollapsibleTrigger

@@ -137,6 +137,8 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
             <SubmitWorkflowEditorPanel
               value={form.spec}
               onChange={form.setSpec}
+              previewSpec={form.dryRunSpec}
+              onClearPreview={form.clearDryRun}
             />
           </div>
 
@@ -176,18 +178,25 @@ export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
 
           {/* Right: Config panel */}
           <SubmitWorkflowConfigPanel
-            templateVarNames={form.templateVarNames}
-            templateVarValues={form.templateVarValues}
-            onTemplateVarChange={form.setTemplateVarValue}
             pool={form.pool}
             onPoolChange={form.setPool}
             priority={form.priority}
             onPriorityChange={form.setPriority}
+            localpathWarnings={form.localpathWarnings}
             error={form.error}
             isPending={form.isPending}
             canSubmit={form.canSubmit}
             onClose={form.handleClose}
             onSubmit={form.handleSubmit}
+            isDryRunPending={form.isDryRunPending}
+            dryRunError={form.dryRunError}
+            canDryRun={form.canDryRun}
+            onDryRun={form.handleDryRun}
+            isValidatePending={form.isValidatePending}
+            validationOk={form.validationOk}
+            validationError={form.validationError}
+            canValidate={form.canValidate}
+            onValidate={form.handleValidate}
           />
         </div>
       )}

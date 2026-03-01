@@ -114,6 +114,7 @@ export const ResubmitPanelContent = memo(function ResubmitPanelContent({
           open={priorityOpen}
           onOpenChange={setPriorityOpen}
           selectedValue={PRIORITY_LABELS[form.priority]}
+          isLast
         >
           <PriorityPicker
             priority={form.priority}

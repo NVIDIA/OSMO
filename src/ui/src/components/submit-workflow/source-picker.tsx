@@ -16,21 +16,23 @@
 
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { Upload, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const DEFAULT_YAML = `name: my-workflow
-tasks:
-  - name: main
-    image: nvcr.io/nvidia/pytorch:24.08-py3
-    command:
-      - /bin/bash
-      - -c
-      - "echo hello world"
-    resources:
+const DEFAULT_YAML = `workflow:
+  name: hello-osmo
+  resources:
+    default:
       cpu: 1
-      memory: 4Gi
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: hello
+    image: ubuntu:24.04
+    command: ["echo"]
+    args: ["Hello from OSMO!"]
 `;
 
 interface SourcePickerProps {
@@ -40,6 +42,10 @@ interface SourcePickerProps {
 export function SourcePicker({ onSelect }: SourcePickerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  function isYaml(file: File) {
+    return /\.(yaml|yml)$/i.test(file.name);
+  }
 
   function readFile(file: File) {
     file
@@ -71,11 +77,32 @@ export function SourcePicker({ onSelect }: SourcePickerProps) {
     e.preventDefault();
     setIsDragOver(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) readFile(file);
+    if (!file) return;
+    if (!isYaml(file)) {
+      toast.error("Only .yaml and .yml files are accepted");
+      return;
+    }
+    readFile(file);
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-white dark:bg-zinc-900">
+    <div
+      className={cn(
+        "relative flex flex-1 flex-col items-center justify-center bg-white transition-colors dark:bg-zinc-900",
+        isDragOver && "bg-zinc-50 dark:bg-zinc-800/30",
+      )}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {/* Full-area drop border */}
+      {isDragOver && (
+        <div
+          className="pointer-events-none absolute inset-4 rounded-xl border-2 border-dashed border-zinc-300 dark:border-zinc-600"
+          aria-hidden="true"
+        />
+      )}
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -87,19 +114,11 @@ export function SourcePicker({ onSelect }: SourcePickerProps) {
         tabIndex={-1}
       />
 
-      {/* Upload zone — no persistent border, embedded feel */}
+      {/* Upload zone */}
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={cn(
-          "flex w-80 flex-col items-center gap-2 rounded-lg px-8 py-12 transition-colors",
-          isDragOver
-            ? "border-2 border-dashed border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/60"
-            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40",
-        )}
+        className="flex w-80 flex-col items-center gap-2 rounded-lg px-8 py-12 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
       >
         <Upload
           className="mb-1 size-6 text-zinc-400 dark:text-zinc-500"
@@ -116,7 +135,7 @@ export function SourcePicker({ onSelect }: SourcePickerProps) {
         <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
       </div>
 
-      {/* Blank editor — explicit contained card */}
+      {/* Blank editor */}
       <button
         type="button"
         onClick={() => onSelect(DEFAULT_YAML)}

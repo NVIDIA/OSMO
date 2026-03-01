@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 import "@/components/submit-workflow/submit-workflow.css";
 
@@ -52,6 +53,12 @@ type Phase = "closed" | "opening" | "open" | "closing";
 export function SubmitWorkflowOverlay() {
   const { isOpen, close } = useSubmitWorkflowStore();
   const [phase, setPhase] = useState<Phase>("closed");
+
+  // Close on navigation.
+  const pathname = usePathname();
+  useEffect(() => {
+    close();
+  }, [pathname, close]);
 
   // React's "adjusting state when a prop changes" pattern — during render, not
   // inside an effect, so the phase update is batched with the isOpen change and

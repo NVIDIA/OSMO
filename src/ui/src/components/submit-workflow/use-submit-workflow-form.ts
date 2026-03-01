@@ -17,9 +17,9 @@
 /**
  * useSubmitWorkflowForm - Form state for the Submit Workflow overlay.
  *
- * Manages: spec (YAML text), pool selection, priority, template variable
- * overrides. Extracts template variable names from spec on each change.
- * Calls the submit workflow API on handleSubmit.
+ * Manages: spec (YAML text), pool selection, priority. Template variables are
+ * read-only — names are extracted from the spec and defaults are read from the
+ * `default-values:` block. All edits go through the YAML editor.
  */
 
 "use client";
@@ -33,15 +33,96 @@ import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 import { useProfile } from "@/lib/api/adapter/hooks";
 import { usePoolSelection } from "@/components/workflow/use-pool-selection";
 
-/** Extract unique {{ variable_name }} identifiers from a YAML spec string. */
+/**
+ * OSMO system tokens substituted by the backend — not user-defined variables.
+ * Source: https://nvidia.github.io/OSMO/main/user_guide/workflows/specification/templates_and_tokens.html
+ *
+ * The colon-form tokens (input:N, host:task-name) are already excluded by the
+ * simple identifier regex below; only these two need explicit filtering.
+ */
+const OSMO_SYSTEM_TOKENS = new Set(["workflow_id", "output"]);
+
+/** Extract unique user-defined {{ variable_name }} identifiers from a YAML spec string. */
 function extractTemplateVarNames(spec: string): string[] {
   const vars = new Set<string>();
   const regex = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
   let match;
   while ((match = regex.exec(spec)) !== null) {
-    vars.add(match[1]);
+    if (!OSMO_SYSTEM_TOKENS.has(match[1])) {
+      vars.add(match[1]);
+    }
   }
   return Array.from(vars);
+}
+
+/**
+ * Parse the `default-values:` top-level YAML block and return a flat
+ * Record<string, string> of variable defaults.
+ *
+ * Handles simple scalar values only (strings, numbers, booleans).
+ * Strips surrounding YAML quotes (' or ") from string values.
+ */
+function extractDefaultValues(spec: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  const lines = spec.split("\n");
+  let inSection = false;
+  let baseIndent = -1;
+
+  for (const line of lines) {
+    if (/^default-values:\s*$/.test(line)) {
+      inSection = true;
+      baseIndent = -1;
+      continue;
+    }
+
+    if (!inSection) continue;
+
+    if (line.trim() === "" || line.trim().startsWith("#")) continue;
+
+    const indentMatch = line.match(/^(\s+)/);
+    if (!indentMatch) break;
+
+    const indent = indentMatch[1].length;
+    if (baseIndent === -1) baseIndent = indent;
+    if (indent !== baseIndent) continue;
+
+    const kvMatch = line.match(/^\s+([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)\s*$/);
+    if (kvMatch) {
+      const key = kvMatch[1];
+      let value = kvMatch[2].trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Detect `localpath:` usage in the YAML spec.
+ *
+ * - hasFileLocalpath: `files[].localpath` — browser cannot read local files.
+ * - hasDatasetLocalpath: `dataset.localpath` — browser cannot rsync.
+ */
+function detectLocalpathUsage(spec: string): {
+  hasFileLocalpath: boolean;
+  hasDatasetLocalpath: boolean;
+} {
+  // files[].localpath — per docs, localpath: appears as a key inside a files: list item.
+  // Handles both the first-key form (  - localpath:) and subsequent-key form (    localpath:).
+  // The (?:[ \t]+[^\n]*\n)*? intermediary only matches indented lines, so it cannot
+  // skip past a new top-level key and produce a false positive.
+  const hasFileLocalpath =
+    /^\s+files:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+(?:-[ \t]+)?localpath:/m.test(spec);
+
+  // inputs[].dataset.localpath — per docs, localpath: appears as a child key of dataset:,
+  // optionally preceded by sibling keys such as name:.
+  const hasDatasetLocalpath =
+    /(?:^|[ \t])-?[ \t]*dataset:\s*\n(?:[ \t]+[^\n]+\n)*?[ \t]+localpath:/m.test(spec);
+
+  return { hasFileLocalpath, hasDatasetLocalpath };
 }
 
 /** Extract a human-readable error message from various error shapes. */
@@ -52,6 +133,7 @@ function extractErrorMessage(err: unknown): string {
     const obj = err as Record<string, unknown>;
     if ("data" in obj && typeof obj.data === "object" && obj.data !== null) {
       const data = obj.data as Record<string, unknown>;
+      if ("message" in data && typeof data.message === "string") return data.message;
       if ("detail" in data) {
         if (typeof data.detail === "string") return data.detail;
         if (Array.isArray(data.detail)) {
@@ -65,6 +147,18 @@ function extractErrorMessage(err: unknown): string {
   return String(err);
 }
 
+export interface LocalpathWarnings {
+  hasFileLocalpath: boolean;
+  hasDatasetLocalpath: boolean;
+}
+
+/** Validation result tied to the spec that was validated for freshness detection. */
+interface ValidationState {
+  spec: string;
+  ok: boolean;
+  error: string | null;
+}
+
 export interface UseSubmitWorkflowFormReturn {
   spec: string;
   setSpec: (spec: string) => void;
@@ -72,13 +166,30 @@ export interface UseSubmitWorkflowFormReturn {
   setPool: (pool: string) => void;
   priority: WorkflowPriority;
   setPriority: (priority: WorkflowPriority) => void;
+  /** User-defined variable names detected in the spec (system tokens excluded). Read-only. */
   templateVarNames: string[];
-  templateVarValues: Record<string, string>;
-  setTemplateVarValue: (name: string, value: string) => void;
+  /** Default values from the spec's `default-values:` block. Read-only. */
+  templateVarDefaults: Record<string, string>;
+  localpathWarnings: LocalpathWarnings;
+  // Submit
   canSubmit: boolean;
   isPending: boolean;
   error: string | null;
   handleSubmit: () => void;
+  // Dry run / preview
+  isDryRunPending: boolean;
+  dryRunSpec: string | null;
+  dryRunError: string | null;
+  canDryRun: boolean;
+  handleDryRun: () => void;
+  clearDryRun: () => void;
+  // Validation (results are stale when spec changes)
+  isValidatePending: boolean;
+  validationOk: boolean | null;
+  validationError: string | null;
+  canValidate: boolean;
+  handleValidate: () => void;
+  // Lifecycle
   handleClose: () => void;
 }
 
@@ -93,16 +204,24 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
 
   const [spec, setSpec] = useState("");
   const [priority, setPriority] = useState<WorkflowPriority>(WorkflowPriority.NORMAL);
-  const [templateVarValues, setTemplateVarValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [dryRunSpec, setDryRunSpec] = useState<string | null>(null);
+  const [dryRunError, setDryRunError] = useState<string | null>(null);
+  const [validationState, setValidationState] = useState<ValidationState | null>(null);
+
+  // ── Derived values ────────────────────────────────────────────────────────
 
   const templateVarNames = useMemo(() => extractTemplateVarNames(spec), [spec]);
+  const templateVarDefaults = useMemo(() => extractDefaultValues(spec), [spec]);
+  const localpathWarnings = useMemo(() => detectLocalpathUsage(spec), [spec]);
 
-  const setTemplateVarValue = useCallback((name: string, value: string) => {
-    setTemplateVarValues((prev) => ({ ...prev, [name]: value }));
-  }, []);
+  const isValidationFresh = validationState !== null && validationState.spec === spec;
+  const validationOk = isValidationFresh ? (validationState.ok ? true : null) : null;
+  const validationError = isValidationFresh ? validationState.error : null;
 
-  const { mutate, isPending } = useSubmitWorkflowApiPoolPoolNameWorkflowPost({
+  // ── Mutation hooks ────────────────────────────────────────────────────────
+
+  const { mutate: submitMutate, isPending } = useSubmitWorkflowApiPoolPoolNameWorkflowPost({
     mutation: {
       onSuccess: (response) => {
         if (response.status === 200) {
@@ -125,33 +244,94 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
     },
   });
 
-  const canSubmit = pool.length > 0 && spec.trim().length > 0 && !isPending;
+  const { mutate: dryRunMutate, isPending: isDryRunPending } = useSubmitWorkflowApiPoolPoolNameWorkflowPost();
+
+  const { mutate: validateMutate, isPending: isValidatePending } = useSubmitWorkflowApiPoolPoolNameWorkflowPost();
+
+  // ── Derived flags ─────────────────────────────────────────────────────────
+
+  const hasLocalpathBlock = localpathWarnings.hasFileLocalpath || localpathWarnings.hasDatasetLocalpath;
+
+  const canSubmit = pool.length > 0 && spec.trim().length > 0 && !isPending && !hasLocalpathBlock;
+  const canDryRun =
+    pool.length > 0 && spec.trim().length > 0 && !isDryRunPending && !isValidatePending && !hasLocalpathBlock;
+  const canValidate = pool.length > 0 && spec.trim().length > 0 && !isDryRunPending && !isValidatePending;
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit) return;
     setError(null);
-
-    const setStringVariables = Object.entries(templateVarValues)
-      .filter(([, value]) => value.trim().length > 0)
-      .map(([name, value]) => `${name}=${value}`);
-
-    mutate({
+    submitMutate({
       poolName: pool,
-      data: {
-        file: spec,
-        set_string_variables: setStringVariables.length > 0 ? setStringVariables : undefined,
-      },
+      data: { file: spec },
       params: { priority },
     });
-  }, [canSubmit, mutate, pool, spec, priority, templateVarValues]);
+  }, [canSubmit, submitMutate, pool, spec, priority]);
+
+  const handleDryRun = useCallback(() => {
+    if (!canDryRun) return;
+    setDryRunSpec(null);
+    setDryRunError(null);
+    dryRunMutate(
+      {
+        poolName: pool,
+        data: { file: spec },
+        params: { priority, dry_run: true },
+      },
+      {
+        onSuccess: (response) => {
+          if (response.status === 200) {
+            setDryRunSpec(response.data.spec ?? null);
+          }
+        },
+        onError: (err) => {
+          const msg = extractErrorMessage(err);
+          setDryRunError(msg);
+          announcer.announce(`Preview failed: ${msg}`, "assertive");
+        },
+      },
+    );
+  }, [canDryRun, dryRunMutate, pool, spec, priority, announcer]);
+
+  const clearDryRun = useCallback(() => {
+    setDryRunSpec(null);
+    setDryRunError(null);
+  }, []);
+
+  const handleValidate = useCallback(() => {
+    if (!canValidate) return;
+    const specAtCall = spec;
+    setValidationState(null);
+    validateMutate(
+      {
+        poolName: pool,
+        data: { file: spec },
+        params: { priority, validation_only: true },
+      },
+      {
+        onSuccess: () => {
+          setValidationState({ spec: specAtCall, ok: true, error: null });
+          announcer.announce("Workflow spec is valid", "polite");
+        },
+        onError: (err) => {
+          const msg = extractErrorMessage(err);
+          setValidationState({ spec: specAtCall, ok: false, error: msg });
+          announcer.announce(`Validation failed: ${msg}`, "assertive");
+        },
+      },
+    );
+  }, [canValidate, validateMutate, pool, spec, priority, announcer]);
 
   const handleClose = useCallback(() => {
     if (!isPending) {
       setSpec("");
       resetPool();
       setPriority(WorkflowPriority.NORMAL);
-      setTemplateVarValues({});
       setError(null);
+      setDryRunSpec(null);
+      setDryRunError(null);
+      setValidationState(null);
       close();
     }
   }, [isPending, close, resetPool]);
@@ -165,12 +345,23 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
       priority,
       setPriority,
       templateVarNames,
-      templateVarValues,
-      setTemplateVarValue,
+      templateVarDefaults,
+      localpathWarnings,
       canSubmit,
       isPending,
       error,
       handleSubmit,
+      isDryRunPending,
+      dryRunSpec,
+      dryRunError,
+      canDryRun,
+      handleDryRun,
+      clearDryRun,
+      isValidatePending,
+      validationOk,
+      validationError,
+      canValidate,
+      handleValidate,
       handleClose,
     }),
     [
@@ -179,12 +370,23 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
       setPool,
       priority,
       templateVarNames,
-      templateVarValues,
-      setTemplateVarValue,
+      templateVarDefaults,
+      localpathWarnings,
       canSubmit,
       isPending,
       error,
       handleSubmit,
+      isDryRunPending,
+      dryRunSpec,
+      dryRunError,
+      canDryRun,
+      handleDryRun,
+      clearDryRun,
+      isValidatePending,
+      validationOk,
+      validationError,
+      canValidate,
+      handleValidate,
       handleClose,
     ],
   );

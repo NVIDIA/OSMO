@@ -21,14 +21,12 @@ import { FileCode } from "lucide-react";
 
 export interface SubmitWorkflowTemplateVarsProps {
   varNames: string[];
-  varValues: Record<string, string>;
-  onValueChange: (name: string, value: string) => void;
+  varDefaults: Record<string, string>;
 }
 
 export const SubmitWorkflowTemplateVars = memo(function SubmitWorkflowTemplateVars({
   varNames,
-  varValues,
-  onValueChange,
+  varDefaults,
 }: SubmitWorkflowTemplateVarsProps) {
   if (varNames.length === 0) {
     return (
@@ -43,34 +41,37 @@ export const SubmitWorkflowTemplateVars = memo(function SubmitWorkflowTemplateVa
     <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700/60">
       <div className="grid grid-cols-2 gap-0 border-b border-zinc-200 bg-zinc-50 px-4 py-2 dark:border-zinc-700/60 dark:bg-zinc-800/40">
         <span className="font-mono text-[10px] font-semibold tracking-widest text-zinc-400 uppercase dark:text-zinc-500">
-          Key
+          Variable
         </span>
         <span className="font-mono text-[10px] font-semibold tracking-widest text-zinc-400 uppercase dark:text-zinc-500">
-          Value
+          Default
         </span>
       </div>
       <div className="divide-y divide-zinc-200 dark:divide-zinc-700/60">
-        {varNames.map((name) => (
-          <div
-            key={name}
-            className="grid grid-cols-2 items-center gap-0"
-          >
-            {/* Key — styled like a syntax token */}
-            <div className="flex h-10 items-center border-r border-zinc-200 px-4 dark:border-zinc-700/60">
-              <span className="truncate font-mono text-[11.5px] text-sky-600 dark:text-sky-400">{`{{ ${name} }}`}</span>
+        {varNames.map((name) => {
+          const value = varDefaults[name];
+          return (
+            <div
+              key={name}
+              className="grid grid-cols-2 items-center gap-0"
+            >
+              <div className="flex h-9 items-center border-r border-zinc-200 px-4 dark:border-zinc-700/60">
+                <span className="truncate font-mono text-[11.5px] text-sky-600 dark:text-sky-400">{`{{ ${name} }}`}</span>
+              </div>
+              <div className="flex h-9 items-center px-4">
+                {value !== undefined && value !== "" ? (
+                  <span className="truncate font-mono text-[11.5px] text-zinc-700 dark:text-zinc-300">{value}</span>
+                ) : (
+                  <span className="font-mono text-[11.5px] text-zinc-400 dark:text-zinc-600">—</span>
+                )}
+              </div>
             </div>
-            {/* Value input */}
-            <input
-              type="text"
-              value={varValues[name] ?? ""}
-              onChange={(e) => onValueChange(name, e.target.value)}
-              placeholder="—"
-              aria-label={`Value for template variable ${name}`}
-              className="h-10 w-full bg-transparent px-4 font-mono text-xs text-zinc-900 transition-colors outline-none placeholder:text-zinc-400 focus:bg-zinc-50 dark:text-zinc-100 dark:placeholder:text-zinc-600 dark:focus:bg-zinc-800/30"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <p className="border-t border-zinc-200 px-4 py-2 text-[10px] text-zinc-400 dark:border-zinc-700/60 dark:text-zinc-600">
+        Edit values in the spec directly
+      </p>
     </div>
   );
 });
