@@ -40,7 +40,6 @@
 "use server";
 
 import { revalidatePath, updateTag, refresh } from "next/cache";
-import { ServerApiError } from "@/lib/api/server/config";
 import { customFetch } from "@/lib/api/fetcher";
 import type { ActionResult } from "@/lib/server-actions";
 
@@ -54,9 +53,6 @@ async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = 
 
     return { success: true };
   } catch (error) {
-    if (error instanceof ServerApiError) {
-      return { success: false, error: error.message };
-    }
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -269,9 +265,6 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
 
     return { success: true, newWorkflowName: newName };
   } catch (error) {
-    if (error instanceof ServerApiError) {
-      return { success: false, error: error.message };
-    }
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to resubmit workflow",
