@@ -17,9 +17,8 @@
 /**
  * useSubmitWorkflowForm - Form state for the Submit Workflow overlay.
  *
- * Manages: spec (YAML text), pool selection, priority. Template variables are
- * read-only — names are extracted from the spec and defaults are read from the
- * `default-values:` block. All edits go through the YAML editor.
+ * Manages: spec (YAML text), pool selection, priority.
+ * All edits go through the YAML editor.
  */
 
 "use client";
@@ -32,73 +31,6 @@ import { WorkflowPriority, useSubmitWorkflowApiPoolPoolNameWorkflowPost } from "
 import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 import { useProfile } from "@/lib/api/adapter/hooks";
 import { usePoolSelection } from "@/components/workflow/use-pool-selection";
-
-/**
- * OSMO system tokens substituted by the backend — not user-defined variables.
- * Source: https://nvidia.github.io/OSMO/main/user_guide/workflows/specification/templates_and_tokens.html
- *
- * The colon-form tokens (input:N, host:task-name) are already excluded by the
- * simple identifier regex below; only these two need explicit filtering.
- */
-const OSMO_SYSTEM_TOKENS = new Set(["workflow_id", "output"]);
-
-/** Extract unique user-defined {{ variable_name }} identifiers from a YAML spec string. */
-function extractTemplateVarNames(spec: string): string[] {
-  const vars = new Set<string>();
-  const regex = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
-  let match;
-  while ((match = regex.exec(spec)) !== null) {
-    if (!OSMO_SYSTEM_TOKENS.has(match[1])) {
-      vars.add(match[1]);
-    }
-  }
-  return Array.from(vars);
-}
-
-/**
- * Parse the `default-values:` top-level YAML block and return a flat
- * Record<string, string> of variable defaults.
- *
- * Handles simple scalar values only (strings, numbers, booleans).
- * Strips surrounding YAML quotes (' or ") from string values.
- */
-function extractDefaultValues(spec: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  const lines = spec.split("\n");
-  let inSection = false;
-  let baseIndent = -1;
-
-  for (const line of lines) {
-    if (/^default-values:\s*$/.test(line)) {
-      inSection = true;
-      baseIndent = -1;
-      continue;
-    }
-
-    if (!inSection) continue;
-
-    if (line.trim() === "" || line.trim().startsWith("#")) continue;
-
-    const indentMatch = line.match(/^(\s+)/);
-    if (!indentMatch) break;
-
-    const indent = indentMatch[1].length;
-    if (baseIndent === -1) baseIndent = indent;
-    if (indent !== baseIndent) continue;
-
-    const kvMatch = line.match(/^\s+([a-zA-Z_][a-zA-Z0-9_-]*):\s*(.*)\s*$/);
-    if (kvMatch) {
-      const key = kvMatch[1];
-      let value = kvMatch[2].trim();
-      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-        value = value.slice(1, -1);
-      }
-      result[key] = value;
-    }
-  }
-
-  return result;
-}
 
 /**
  * Detect `localpath:` usage in the YAML spec.
@@ -114,13 +46,11 @@ function detectLocalpathUsage(spec: string): {
   // Handles both the first-key form (  - localpath:) and subsequent-key form (    localpath:).
   // The (?:[ \t]+[^\n]*\n)*? intermediary only matches indented lines, so it cannot
   // skip past a new top-level key and produce a false positive.
-  const hasFileLocalpath =
-    /^\s+files:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+(?:-[ \t]+)?localpath:/m.test(spec);
+  const hasFileLocalpath = /^\s+files:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+(?:-[ \t]+)?localpath:/m.test(spec);
 
   // inputs[].dataset.localpath — per docs, localpath: appears as a child key of dataset:,
   // optionally preceded by sibling keys such as name:.
-  const hasDatasetLocalpath =
-    /(?:^|[ \t])-?[ \t]*dataset:\s*\n(?:[ \t]+[^\n]+\n)*?[ \t]+localpath:/m.test(spec);
+  const hasDatasetLocalpath = /(?:^|[ \t])-?[ \t]*dataset:\s*\n(?:[ \t]+[^\n]+\n)*?[ \t]+localpath:/m.test(spec);
 
   return { hasFileLocalpath, hasDatasetLocalpath };
 }
@@ -166,10 +96,6 @@ export interface UseSubmitWorkflowFormReturn {
   setPool: (pool: string) => void;
   priority: WorkflowPriority;
   setPriority: (priority: WorkflowPriority) => void;
-  /** User-defined variable names detected in the spec (system tokens excluded). Read-only. */
-  templateVarNames: string[];
-  /** Default values from the spec's `default-values:` block. Read-only. */
-  templateVarDefaults: Record<string, string>;
   localpathWarnings: LocalpathWarnings;
   // Submit
   canSubmit: boolean;
@@ -211,8 +137,6 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
 
   // ── Derived values ────────────────────────────────────────────────────────
 
-  const templateVarNames = useMemo(() => extractTemplateVarNames(spec), [spec]);
-  const templateVarDefaults = useMemo(() => extractDefaultValues(spec), [spec]);
   const localpathWarnings = useMemo(() => detectLocalpathUsage(spec), [spec]);
 
   const isValidationFresh = validationState !== null && validationState.spec === spec;
@@ -344,8 +268,6 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
       setPool,
       priority,
       setPriority,
-      templateVarNames,
-      templateVarDefaults,
       localpathWarnings,
       canSubmit,
       isPending,
@@ -369,8 +291,6 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
       pool,
       setPool,
       priority,
-      templateVarNames,
-      templateVarDefaults,
       localpathWarnings,
       canSubmit,
       isPending,

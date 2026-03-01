@@ -35,9 +35,34 @@ import type { LocalpathWarnings } from "@/components/submit-workflow/use-submit-
 
 /** Inline code token styled to stand out against the red error banner background. */
 function Token({ children }: { children: ReactNode }) {
-  return (
-    <code className="rounded bg-red-100 px-0.5 font-mono dark:bg-red-950/60">{children}</code>
-  );
+  return <code className="rounded bg-red-100 px-0.5 font-mono dark:bg-red-950/60">{children}</code>;
+}
+
+/** Renders the submit button label with a spinner when an operation is in progress. */
+function SubmitButtonContent({ isPending, isValidatePending }: { isPending: boolean; isValidatePending: boolean }) {
+  if (isPending) {
+    return (
+      <>
+        <Loader2
+          className="size-4 animate-spin"
+          aria-hidden="true"
+        />
+        Submitting...
+      </>
+    );
+  }
+  if (isValidatePending) {
+    return (
+      <>
+        <Loader2
+          className="size-4 animate-spin"
+          aria-hidden="true"
+        />
+        Validating...
+      </>
+    );
+  }
+  return <>Submit</>;
 }
 
 export interface SubmitWorkflowConfigPanelProps {
@@ -124,7 +149,6 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             onChange={onPriorityChange}
           />
         </CollapsibleSection>
-
       </div>
 
       {/* Action bar */}
@@ -144,8 +168,8 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               Local file injection not supported
             </div>
             <p className="text-[11px] text-red-700 dark:text-red-400">
-              <Token>files[].localpath</Token> requires filesystem access. Replace with{" "}
-              <Token>contents:</Token> to inline the file, or submit via <Token>osmo workflow submit</Token>.
+              <Token>files[].localpath</Token> requires filesystem access. Replace with <Token>contents:</Token> to
+              inline the file, or submit via <Token>osmo workflow submit</Token>.
             </p>
           </div>
         )}
@@ -176,7 +200,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               className="mt-px size-3.5 shrink-0"
               aria-hidden="true"
             />
-            <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{dryRunError}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">{dryRunError}</span>
           </div>
         )}
 
@@ -196,7 +220,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               className="mt-px size-3.5 shrink-0"
               aria-hidden="true"
             />
-            <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{validationError}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere] whitespace-pre-wrap">{validationError}</span>
           </div>
         )}
 
@@ -206,7 +230,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             className="rounded bg-red-50 px-3 py-1.5 font-mono text-[11px] text-red-700 dark:bg-red-900/30 dark:text-red-300"
             role="alert"
           >
-            <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{error}</span>
+            <span className="[overflow-wrap:anywhere] whitespace-pre-wrap">{error}</span>
           </div>
         )}
 
@@ -262,25 +286,10 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               aria-label="Submit workflow"
               className="btn-nvidia flex-1 rounded-r-none font-bold"
             >
-              {isPending ? (
-                <>
-                  <Loader2
-                    className="size-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                  Submitting...
-                </>
-              ) : isValidatePending ? (
-                <>
-                  <Loader2
-                    className="size-4 animate-spin"
-                    aria-hidden="true"
-                  />
-                  Validating...
-                </>
-              ) : (
-                "Submit"
-              )}
+              <SubmitButtonContent
+                isPending={isPending}
+                isValidatePending={isValidatePending}
+              />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
