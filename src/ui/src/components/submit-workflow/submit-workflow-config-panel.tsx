@@ -176,7 +176,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               className="mt-px size-3.5 shrink-0"
               aria-hidden="true"
             />
-            {dryRunError}
+            <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{dryRunError}</span>
           </div>
         )}
 
@@ -196,7 +196,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               className="mt-px size-3.5 shrink-0"
               aria-hidden="true"
             />
-            {validationError}
+            <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{validationError}</span>
           </div>
         )}
 
@@ -206,7 +206,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             className="rounded bg-red-50 px-3 py-1.5 font-mono text-[11px] text-red-700 dark:bg-red-900/30 dark:text-red-300"
             role="alert"
           >
-            {error}
+            <span className="whitespace-pre-wrap [overflow-wrap:anywhere]">{error}</span>
           </div>
         )}
 
@@ -258,7 +258,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
             <Button
               type="button"
               onClick={onSubmit}
-              disabled={!canSubmit}
+              disabled={!canSubmit || isValidatePending}
               aria-label="Submit workflow"
               className="btn-nvidia flex-1 rounded-r-none font-bold"
             >
@@ -270,6 +270,14 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
                   />
                   Submitting...
                 </>
+              ) : isValidatePending ? (
+                <>
+                  <Loader2
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Validating...
+                </>
               ) : (
                 "Submit"
               )}
@@ -278,7 +286,7 @@ export const SubmitWorkflowConfigPanel = memo(function SubmitWorkflowConfigPanel
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || isValidatePending}
                   aria-label="More workflow options"
                   className="btn-nvidia rounded-l-none border-l border-l-black/15 px-2 font-bold"
                 >
