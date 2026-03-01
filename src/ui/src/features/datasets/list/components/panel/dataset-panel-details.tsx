@@ -78,12 +78,12 @@ export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
               {dataset.path && (
                 <>
                   <span className="text-muted-foreground">Path</span>
-                  <div className="flex items-start gap-1">
-                    <span className="min-w-0 break-all font-mono text-xs">{dataset.path}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="min-w-0 font-mono text-xs break-all">{dataset.path}</span>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="mt-0.5 size-5 shrink-0 text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground size-5 shrink-0"
                       onClick={() => void copy(dataset.path!)}
                       aria-label="Copy path"
                     >

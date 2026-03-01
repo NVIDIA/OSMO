@@ -28,8 +28,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, Suspense } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useCallback, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle";
 import { usePanelWidth } from "@/components/panel/hooks/use-panel-width";
@@ -42,27 +42,6 @@ import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useViewTransition } from "@/hooks/use-view-transition";
 import { PANEL } from "@/components/panel/lib/panel-constants";
 import type { DatasetVersion } from "@/lib/api/adapter/datasets";
-
-/**
- * Watches for any URL change (pathname or search params) and calls onUrlChange.
- * Must be wrapped in Suspense by the caller since useSearchParams requires it.
- * Skips the initial render so opening the panel (no URL change) never triggers a close.
- */
-function UrlWatcher({ onUrlChange }: { onUrlChange: () => void }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const isFirstRender = useRef(true);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    onUrlChange();
-  }, [pathname, searchParams, onUrlChange]);
-
-  return null;
-}
 
 export function DatasetsPanelLayout({ children }: { children: React.ReactNode }) {
   const bucket = useDatasetsPanel((s) => s.bucket);
@@ -79,6 +58,12 @@ export function DatasetsPanelLayout({ children }: { children: React.ReactNode })
   const router = useNavigationRouter();
   const { startTransition } = useViewTransition();
   const pathname = usePathname();
+
+  // Close panel on page navigation (pathname change only — search param changes
+  // like ?version= updates stay open so version clicks don't close the panel).
+  useEffect(() => {
+    storeClose();
+  }, [pathname, storeClose]);
 
   const { isPanelOpen, handleClose, handleClosed } = usePanelLifecycle({
     hasSelection: isOpen,
@@ -113,9 +98,6 @@ export function DatasetsPanelLayout({ children }: { children: React.ReactNode })
 
   return (
     <DatasetsPanelContext.Provider value={{ isPanelOpen, openPanel, closePanel: handleClose }}>
-      <Suspense fallback={null}>
-        <UrlWatcher onUrlChange={storeClose} />
-      </Suspense>
       <ResizablePanel
         open={isPanelOpen}
         onClose={handleClose}

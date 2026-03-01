@@ -445,26 +445,18 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
  * Fetch all files for a dataset version from the version's location URL.
  *
  * The `location` field on a DatasetVersion points to a manifest URL that returns
- * a flat list of all files (with relative_path) for that version. We proxy this
- * through our API route to avoid CORS issues with the storage URL.
+ * a flat list of all files (with relative_path) for that version. Uses a Server
+ * Action to fetch the manifest directly, avoiding the /api/* ingress routing
+ * that sends those paths to the Python backend in production.
  *
- * Returns null if no location URL is provided (dataset has no versions).
+ * Returns an empty array if no location URL is provided (dataset has no versions).
  *
  * @param location - The version's location URL (DatasetVersion.location)
  */
 export async function fetchDatasetFiles(location: string | null): Promise<RawFileItem[]> {
   if (!location) return [];
-
-  const { customFetch } = await import("@/lib/api/fetcher");
-
-  const params = new URLSearchParams({ url: location });
-  const response = await customFetch<{ data: RawFileItem[]; status: number }>(
-    `/api/datasets/location-files?${params.toString()}`,
-    {
-      method: "GET",
-    },
-  );
-  return response.data;
+  const { fetchManifest } = await import("@/lib/api/server/dataset-actions");
+  return (await fetchManifest(location)) as RawFileItem[];
 }
 
 /**

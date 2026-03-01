@@ -30,9 +30,10 @@
  *   __mockConfig.help()
  */
 
-import { useEffect, useReducer, useRef, type ReactNode } from "react";
-import { setMockVolumes, getMockVolumes } from "@/actions/mock-config";
-import type { MockVolumes } from "@/actions/mock-config.types";
+import { useEffect, useRef, type ReactNode } from "react";
+import { setMockVolumes, getMockVolumes } from "@/mocks/actions/mock-config";
+import type { MockVolumes } from "@/mocks/actions/mock-config.types";
+
 interface MockProviderProps {
   children: ReactNode;
 }
@@ -55,23 +56,8 @@ declare global {
   }
 }
 
-// =============================================================================
-// MockProvider State Reducer
-// =============================================================================
-
-type MockProviderState = { isReady: boolean };
-type MockProviderAction = { type: "SET_READY" };
-
-function mockProviderReducer(_state: MockProviderState, action: MockProviderAction): MockProviderState {
-  switch (action.type) {
-    case "SET_READY":
-      return { isReady: true };
-  }
-}
-
 export function MockProvider({ children }: MockProviderProps) {
   const initStartedRef = useRef(false);
-  const [{ isReady }, dispatch] = useReducer(mockProviderReducer, { isReady: false });
 
   useEffect(() => {
     if (initStartedRef.current) return;
@@ -80,15 +66,7 @@ export function MockProvider({ children }: MockProviderProps) {
     const isMockMode =
       process.env.NEXT_PUBLIC_MOCK_API === "true" || localStorage.getItem(MOCK_ENABLED_STORAGE_KEY) === "true";
 
-    if (!isMockMode || typeof window === "undefined") {
-      // Not in mock mode - auth transfer helper is handled by DevAuthInit component
-      dispatch({ type: "SET_READY" });
-      return;
-    }
-
-    // Auth is handled by /api/me which returns dev user info in development mode.
-    // No cookie injection needed -- OAuth2 Proxy handles auth in production.
-    dispatch({ type: "SET_READY" });
+    if (!isMockMode) return;
 
     // Set up console API for mock volume control
     const createSetter = (key: keyof MockVolumes) => async (n: number) => {
@@ -139,10 +117,6 @@ Changes take effect on the next API request.`);
 
     console.log("[MockProvider] Mock mode active. Type __mockConfig.help() for options.");
   }, []);
-
-  if (!isReady) {
-    return null;
-  }
 
   return <>{children}</>;
 }
