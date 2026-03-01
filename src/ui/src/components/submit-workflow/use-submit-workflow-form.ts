@@ -30,6 +30,7 @@ import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useServices } from "@/contexts/service-context";
 import { WorkflowPriority, useSubmitWorkflowApiPoolPoolNameWorkflowPost } from "@/lib/api/generated";
 import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
+import { useProfile, usePool } from "@/lib/api/adapter/hooks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -113,9 +114,26 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
   const close = useSubmitWorkflowStore((s) => s.close);
   const { announcer } = useServices();
 
+  const { profile } = useProfile();
+
+  // Validate the profile's default pool exists before using it as the default.
+  // usePool returns null if the pool no longer exists or is inaccessible.
+  // TanStack Query deduplicates this fetch with PoolPicker's own usePool call.
+  const defaultPool = profile?.pool.default ?? "";
+  const { pool: validatedPool, isLoading: isValidatingPool } = usePool(defaultPool, !!defaultPool);
+
   const [spec, setSpec] = useState("");
-  const [pool, setPool] = useState("");
+  // null = use default (profile's default pool, validated); string = user override
+  const [poolOverride, setPoolOverride] = useState<string | null>(null);
   const [priority, setPriority] = useState<WorkflowPriority>(WorkflowPriority.NORMAL);
+
+  const pool = useMemo(() => {
+    if (poolOverride !== null) return poolOverride;
+    if (!defaultPool || isValidatingPool) return "";
+    return validatedPool?.name ?? "";
+  }, [poolOverride, defaultPool, validatedPool, isValidatingPool]);
+
+  const setPool = useCallback((value: string) => setPoolOverride(value), []);
   const [templateVarValues, setTemplateVarValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -172,7 +190,7 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
   const handleClose = useCallback(() => {
     if (!isPending) {
       setSpec("");
-      setPool("");
+      setPoolOverride(null);
       setPriority(WorkflowPriority.NORMAL);
       setTemplateVarValues({});
       setError(null);
@@ -202,6 +220,7 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
       spec,
       workflowName,
       pool,
+      setPool,
       priority,
       templateVarNames,
       templateVarValues,

@@ -123,7 +123,7 @@ export const PoolPicker = memo(function PoolPicker({ pool, onChange }: PoolPicke
 
   // Fetch individual pool metadata (ONLY before dropdown opens)
   // Disabled after all-pools query to prevent redundant API calls
-  const { pool: individualPoolData } = usePool(pool, !hasEverOpenedDropdown);
+  const { pool: individualPoolData } = usePool(pool, !hasEverOpenedDropdown && !!pool);
 
   // Lazy-load ALL pools (only after dropdown opens at least once)
   const { pools: allPools } = usePools(hasEverOpenedDropdown);

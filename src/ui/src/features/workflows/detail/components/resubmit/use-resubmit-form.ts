@@ -28,6 +28,7 @@ import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { toast } from "sonner";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 import { WorkflowPriority } from "@/lib/api/generated";
+import { usePool } from "@/lib/api/adapter/hooks";
 import {
   useResubmitMutation,
   type UseResubmitMutationReturn,
@@ -88,7 +89,23 @@ function deriveInitialPriority(workflow: WorkflowQueryResponse): WorkflowPriorit
 export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions): UseResubmitFormReturn {
   const router = useNavigationRouter();
 
-  const [pool, setPool] = useState(() => workflow.pool ?? "");
+  // Validate the workflow's original pool exists before using it as the default.
+  // usePool returns null if the pool no longer exists or is inaccessible.
+  // TanStack Query deduplicates this fetch with PoolPicker's own usePool call.
+  const workflowPool = workflow.pool ?? "";
+  const { pool: validatedPool, isLoading: isValidatingPool } = usePool(workflowPool, !!workflowPool);
+
+  // null = use default (workflow's original pool, validated); string = user override
+  const [poolOverride, setPoolOverride] = useState<string | null>(null);
+
+  const pool = useMemo(() => {
+    if (poolOverride !== null) return poolOverride;
+    if (!workflowPool || isValidatingPool) return "";
+    return validatedPool?.name ?? "";
+  }, [poolOverride, workflowPool, validatedPool, isValidatingPool]);
+
+  const setPool = useCallback((value: string) => setPoolOverride(value), []);
+
   const [priority, setPriority] = useState<WorkflowPriority>(() => deriveInitialPriority(workflow));
   const [spec, setSpec] = useState<string | undefined>(undefined);
 
@@ -127,7 +144,7 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
   }, [canSubmit, execute, workflow.name, pool, priority, spec]);
 
   const reset = useCallback(() => {
-    setPool(workflow.pool ?? "");
+    setPoolOverride(null);
     setPriority(deriveInitialPriority(workflow));
     setSpec(undefined);
     resetError();
@@ -149,6 +166,6 @@ export function useResubmitForm({ workflow, onSuccess }: UseResubmitFormOptions)
       reset,
       resetError,
     }),
-    [pool, priority, spec, isValid, canSubmit, handleSubmit, isPending, error, reset, resetError],
+    [pool, setPool, priority, spec, isValid, canSubmit, handleSubmit, isPending, error, reset, resetError],
   );
 }
