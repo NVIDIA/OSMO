@@ -614,6 +614,15 @@ sidecars:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
 
+    ## OIDC end session endpoint URL for federated logout.
+    ## When set, Envoy injects ?rd=<oidcEndSessionUrl> on /oauth2/sign_out requests
+    ## so the browser is redirected to the IdP logout page after the session cookie
+    ## is cleared. Requires --whitelist-domain=<idp-domain> in extraArgs.
+    ## Example (Azure AD): https://login.microsoftonline.com/<tenant>/oauth2/v2.0/logout
+    ## Example (Keycloak): https://<host>/realms/<realm>/protocol/openid-connect/logout
+    ##
+    oidcEndSessionUrl: ""
+
     ## Additional arguments passed to oauth2-proxy
     ##
     extraArgs: []

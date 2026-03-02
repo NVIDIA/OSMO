@@ -225,6 +225,22 @@ Generate simplified Lua filters for UI chart
             request_handle:headers():add("x-forwarded-host", authority)
           end
         end
+{{- if and $.Values.sidecars.oauth2Proxy.enabled $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl }}
+- name: inject-signout-redirect
+  typed_config:
+    "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+    default_source_code:
+      inline_string: |
+        function envoy_on_request(request_handle)
+          local path = request_handle:headers():get(":path") or ""
+          if path:sub(1, 16) == "/oauth2/sign_out" and not path:find("rd=", 1, true) then
+            request_handle:headers():replace(
+              ":path",
+              "/oauth2/sign_out?rd={{ $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl | urlquery }}"
+            )
+          end
+        end
+{{- end }}
 {{- end }}
 
 {{/*
