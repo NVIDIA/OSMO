@@ -442,6 +442,26 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
 }
 
 /**
+ * Fetch dataset detail with tag=latest for lightweight initial load.
+ *
+ * For datasets: returns only the version tagged "latest" (1 version instead of all).
+ * For collections: tag is ignored server-side; returns all members (same as full call).
+ *
+ * @param bucket - Bucket name
+ * @param name - Dataset name
+ */
+export async function fetchDatasetDetailLatest(bucket: string, name: string): Promise<DetailResponse> {
+  const { getInfoApiBucketBucketDatasetNameInfoGet } = await import("@/lib/api/generated");
+
+  const response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name, { tag: "latest" });
+
+  const rawData = response.data;
+  const parsed: DataInfoResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
+
+  return transformDatasetDetail(parsed);
+}
+
+/**
  * Fetch all files for a dataset version from the version's location URL.
  *
  * The `location` field on a DatasetVersion points to a manifest URL that returns
@@ -561,6 +581,15 @@ export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: b
  */
 export function buildDatasetDetailQueryKey(bucket: string, name: string): readonly unknown[] {
   return ["datasets", "detail", bucket, name] as const;
+}
+
+/**
+ * Build query key for dataset detail (latest version only).
+ * Separate cache entry from the full detail query so the lightweight call
+ * doesn't interfere with the all-versions fetch.
+ */
+export function buildDatasetLatestQueryKey(bucket: string, name: string): readonly unknown[] {
+  return ["datasets", "detail", bucket, name, "latest"] as const;
 }
 
 /**

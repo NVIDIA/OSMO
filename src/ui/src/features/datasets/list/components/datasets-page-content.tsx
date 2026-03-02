@@ -24,7 +24,6 @@
  * - Smart search with filter chips (name, bucket, user, created_at, updated_at)
  * - "My Datasets" amber pill preset (like "My Workflows")
  * - Column visibility and reordering
- * - Opens the layout-level dataset details panel on ⓘ button click
  */
 
 "use client";
@@ -39,24 +38,13 @@ import { DatasetsDataTable } from "@/features/datasets/list/components/table/dat
 import { DatasetsToolbar } from "@/features/datasets/list/components/toolbar/datasets-toolbar";
 import { useDatasetsData } from "@/features/datasets/list/hooks/use-datasets-data";
 import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
-import { useDatasetsPanel } from "@/features/datasets/layout/datasets-panel-store";
-import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
 import { useUser } from "@/lib/auth/user-context";
 import type { SearchChip } from "@/stores/types";
 import type { SortState } from "@/components/data-table/types";
-import type { Dataset } from "@/lib/api/adapter/datasets";
-
-// =============================================================================
-// Types
-// =============================================================================
 
 interface DatasetsPageContentProps {
   initialUsername?: string | null;
 }
-
-// =============================================================================
-// Client Component
-// =============================================================================
 
 export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProps) {
   usePage({ title: "Datasets" });
@@ -87,28 +75,6 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
       }
     },
     [setSort, clearSort],
-  );
-
-  // ==========================================================================
-  // Panel — driven by layout-level DatasetsPanelLayout via store + context
-  // ==========================================================================
-
-  const { isPanelOpen, openPanel } = useDatasetsPanelContext();
-  const selectedBucket = useDatasetsPanel((s) => s.bucket);
-  const selectedName = useDatasetsPanel((s) => s.name);
-
-  const selectedDatasetId = useMemo(() => {
-    if (!isPanelOpen || !selectedBucket || !selectedName) return undefined;
-    return `${selectedBucket}-${selectedName}`;
-  }, [isPanelOpen, selectedBucket, selectedName]);
-
-  const handleOpenPanel = useCallback(
-    (dataset: Dataset) => {
-      startViewTransition(() => {
-        openPanel(dataset.bucket, dataset.name);
-      });
-    },
-    [openPanel, startViewTransition],
   );
 
   // ==========================================================================
@@ -180,8 +146,6 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
             onRetry={refetch}
             sorting={sortState}
             onSortingChange={handleSortingChange}
-            onOpenPanel={handleOpenPanel}
-            selectedDatasetId={selectedDatasetId}
           />
         </InlineErrorBoundary>
       </div>

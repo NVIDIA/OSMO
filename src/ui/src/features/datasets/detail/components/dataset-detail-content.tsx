@@ -1,28 +1,27 @@
-// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// SPDX-License-Identifier: Apache-2.0
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
 
 /**
  * Dataset Detail Content (Client Component)
  *
- * Google Drive-style file browser for a dataset version or collection.
+ * Side-by-side layout: file browser (left, flex-1) + always-visible right panel.
  *
- * For datasets: ?version= selects which version's files to browse.
- * For collections: the file browser root lists member datasets; navigating into
- * one sets ?path= to the member ID (e.g., "imagenet-1k:2"), and deeper paths
- * are within that member's file manifest.
+ * Right panel modes:
+ * - Details mode (default): DatasetDetailsPanel with Overview + Versions/Members tabs
+ * - File preview mode: FilePreviewPanel shown when a file is selected in the browser
  *
  * URL state: ?path= (current directory), ?version= (dataset version), ?file= (selected file)
  */
@@ -38,8 +37,7 @@ import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
 import { FileBrowserBreadcrumb } from "@/features/datasets/detail/components/file-browser-breadcrumb";
 import { FileBrowserControls } from "@/features/datasets/detail/components/file-browser-controls";
 import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
-import { FilePreviewPanel } from "@/features/datasets/detail/components/file-preview-panel";
-import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
+import { DatasetRightPanel } from "@/features/datasets/detail/components/dataset-right-panel";
 import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-detail";
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
@@ -65,6 +63,30 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // ==========================================================================
 
   const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
+
+  // ==========================================================================
+  // Right panel mode — details (default) or file preview
+  // No useEffect: transitions happen only in response to explicit user actions.
+  // ==========================================================================
+
+  const [showDetails, setShowDetails] = useState(true);
+
+  const handleSelectFile = useCallback(
+    (filePath: string) => {
+      selectFile(filePath);
+      setShowDetails(false);
+    },
+    [selectFile],
+  );
+
+  const handleShowDetails = useCallback(() => {
+    setShowDetails(true);
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    clearSelection();
+    setShowDetails(true);
+  }, [clearSelection]);
 
   // ==========================================================================
   // Resolve location + files based on type
@@ -160,33 +182,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   );
 
   // ==========================================================================
-  // File preview panel — side-by-side split with drag-to-resize
+  // Resolve selected file data for the right panel
   // ==========================================================================
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [previewPanelWidth, setPreviewPanelWidth] = useState(35);
-
-  const [closedForFile, setClosedForFile] = useState<string | null>(null);
-  const previewPanelOpen = !!selectedFile && closedForFile !== selectedFile;
-
-  const handleClearSelection = useCallback(() => {
-    if (previewPanelOpen && selectedFile) {
-      setClosedForFile(selectedFile);
-    } else {
-      clearSelection();
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-    }
-  }, [previewPanelOpen, selectedFile, clearSelection]);
-
-  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
-    width: previewPanelWidth,
-    onWidthChange: setPreviewPanelWidth,
-    minWidth: 20,
-    maxWidth: 70,
-    containerRef,
-  });
 
   const selectedFileData = useMemo(() => {
     if (!selectedFile) return null;
@@ -195,30 +192,22 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   }, [selectedFile, files]);
 
   // ==========================================================================
-  // Details panel — controlled by the layout-level DatasetsPanelLayout
+  // Resizable split between file browser and right panel
   // ==========================================================================
 
-  const { isPanelOpen, openPanel, closePanel } = useDatasetsPanelContext();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [rightPanelWidth, setRightPanelWidth] = useState(35);
 
-  const handleToggleDetails = useCallback(() => {
-    if (isPanelOpen) {
-      closePanel();
-    } else {
-      openPanel(bucket, name);
-    }
-  }, [isPanelOpen, openPanel, closePanel, bucket, name]);
-
-  const handleNavigateUp = useCallback(() => {
-    if (!path) return;
-    navigateTo(path.split("/").slice(0, -1).join("/"));
-  }, [path, navigateTo]);
-
-  const handleRefetchFiles = useCallback(() => {
-    void refetchFiles();
-  }, [refetchFiles]);
+  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
+    width: rightPanelWidth,
+    onWidthChange: setRightPanelWidth,
+    minWidth: 20,
+    maxWidth: 70,
+    containerRef,
+  });
 
   // ==========================================================================
-  // Chrome: breadcrumbs + inline path + controls
+  // Chrome: breadcrumbs + version switcher controls
   // ==========================================================================
 
   // For collections, don't pass rawFiles to breadcrumb (disables sibling popovers
@@ -244,11 +233,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         items={switcherItems}
         selectedId={version}
         onSelectionChange={setVersion}
-        detailsOpen={isPanelOpen}
-        onToggleDetails={handleToggleDetails}
       />
     ),
-    [switcherItems, version, setVersion, isPanelOpen, handleToggleDetails],
+    [switcherItems, version, setVersion],
   );
 
   usePage({
@@ -290,13 +277,18 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // File listing content — handles query error inline
   // ==========================================================================
 
+  const handleNavigateUp = () => {
+    if (!path) return;
+    navigateTo(path.split("/").slice(0, -1).join("/"));
+  };
+
   const fileTableContent = filesError ? (
     <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
       <p className="text-sm text-zinc-600 dark:text-zinc-400">Failed to load files.</p>
       <Button
         variant="outline"
         size="sm"
-        onClick={handleRefetchFiles}
+        onClick={() => void refetchFiles()}
       >
         Retry
       </Button>
@@ -307,16 +299,16 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       path={path}
       selectedFile={selectedFile}
       onNavigate={navigateTo}
-      onSelectFile={selectFile}
+      onSelectFile={handleSelectFile}
       onNavigateUp={handleNavigateUp}
-      onClearSelection={handleClearSelection}
-      previewOpen={previewPanelOpen}
+      onClearSelection={handleClosePreview}
+      previewOpen={!showDetails}
       isLoading={isFilesLoading && !virtualFiles}
     />
   );
 
   // ==========================================================================
-  // Render
+  // Render — side-by-side: file browser + always-visible right panel
   // ==========================================================================
 
   return (
@@ -324,42 +316,47 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       <InlineErrorBoundary
         title="Unable to display file browser"
         resetKeys={[files.length]}
-        onReset={handleRefetchFiles}
+        onReset={() => void refetchFiles()}
       >
         <div
           ref={containerRef}
           className="flex min-h-0 flex-1 overflow-hidden"
         >
+          {/* File browser — fills remaining width */}
           <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
 
-          {previewPanelOpen && (
-            <>
-              <div
-                {...bindResizeHandle()}
-                className={cn(
-                  "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
-                  isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
-                )}
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize panel"
-                aria-valuenow={previewPanelWidth}
-              />
-              <aside
-                className="flex shrink-0 flex-col overflow-hidden"
-                style={{ width: `${previewPanelWidth}%`, ...dragStyles }}
-                aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
-              >
-                {selectedFileData && (
-                  <FilePreviewPanel
-                    file={selectedFileData}
-                    path={path}
-                    onClose={clearSelection}
-                  />
-                )}
-              </aside>
-            </>
-          )}
+          {/* Resize handle */}
+          <div
+            {...bindResizeHandle()}
+            className={cn(
+              "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
+              isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
+            )}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panel"
+            aria-valuenow={rightPanelWidth}
+          />
+
+          {/* Always-visible right panel */}
+          <aside
+            className="flex shrink-0 flex-col overflow-hidden"
+            style={{ width: `${rightPanelWidth}%`, ...dragStyles }}
+            aria-label={
+              showDetails ? `Dataset details: ${name}` : selectedFile ? `File preview: ${selectedFile}` : undefined
+            }
+          >
+            <DatasetRightPanel
+              bucket={bucket}
+              name={name}
+              datasetType={detail.type}
+              showDetails={showDetails}
+              selectedFile={selectedFileData}
+              path={path}
+              onShowDetails={handleShowDetails}
+              onClosePreview={handleClosePreview}
+            />
+          </aside>
         </div>
       </InlineErrorBoundary>
     </div>

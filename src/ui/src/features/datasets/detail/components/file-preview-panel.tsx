@@ -34,7 +34,7 @@
 import { useCallback, memo } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, AlertCircle, RefreshCw, Lock } from "lucide-react";
+import { Copy, AlertCircle, RefreshCw, Lock, ArrowLeft } from "lucide-react";
 import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
 import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
 import { Button } from "@/components/shadcn/button";
@@ -55,6 +55,8 @@ interface FilePreviewPanelProps {
   /** Current directory path (empty = root) */
   path: string;
   onClose: () => void;
+  /** If provided, adds a "← Dataset Details" button to the header */
+  onShowDetails?: () => void;
 }
 
 interface HeadResult {
@@ -244,7 +246,12 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
 // Main component
 // =============================================================================
 
-export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
+export const FilePreviewPanel = memo(function FilePreviewPanel({
+  file,
+  path,
+  onClose,
+  onShowDetails,
+}: FilePreviewPanelProps) {
   const { copied, copy } = useCopy();
   const fullPath = path ? `${path}/${file.name}` : file.name;
   // Copy S3 URI when available; fall back to relative path
@@ -281,6 +288,21 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
         title={<PanelTitle>{file.name}</PanelTitle>}
         actions={
           <div className="flex items-center gap-1">
+            {onShowDetails && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={onShowDetails}
+                aria-label="Back to dataset details"
+              >
+                <ArrowLeft
+                  className="size-3.5"
+                  aria-hidden="true"
+                />
+                Dataset Details
+              </Button>
+            )}
             <Tooltip open={copied}>
               <TooltipTrigger asChild>
                 <Button

@@ -28,9 +28,11 @@ import type { SearchChip } from "@/stores/types";
 import {
   buildAllDatasetsQueryKey,
   buildDatasetDetailQueryKey,
+  buildDatasetLatestQueryKey,
   buildDatasetFilesQueryKey,
   fetchAllDatasets,
   fetchDatasetDetail,
+  fetchDatasetDetailLatest,
   fetchDatasetFiles,
 } from "@/lib/api/adapter/datasets";
 import { QUERY_STALE_TIME } from "@/lib/config";
@@ -68,6 +70,25 @@ export function useDataset(bucket: string, name: string, options?: { enabled?: b
     queryFn: () => fetchDatasetDetail(bucket, name),
     enabled: options?.enabled ?? true,
     staleTime: 60_000, // 1 minute
+  });
+}
+
+/**
+ * Hook to fetch dataset detail with tag=latest for lightweight initial load.
+ *
+ * For datasets: returns only the version tagged "latest".
+ * For collections: returns all members (tag ignored server-side).
+ *
+ * @param bucket - Bucket name
+ * @param name - Dataset name
+ * @param options - Query options
+ */
+export function useDatasetLatest(bucket: string, name: string, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: buildDatasetLatestQueryKey(bucket, name),
+    queryFn: () => fetchDatasetDetailLatest(bucket, name),
+    enabled: (options?.enabled ?? true) && !!bucket && !!name,
+    staleTime: QUERY_STALE_TIME.STANDARD,
   });
 }
 
