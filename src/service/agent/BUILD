@@ -64,6 +64,7 @@ filegroup(
     name = "agent_service_image_layers",
     srcs = [
         ":agent_service_layer_default",
+        ":agent_service_layer_interpreter",
         ":agent_service_layer_packages",
         ":agent_service_wrapper",
     ],
