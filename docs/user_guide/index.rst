@@ -262,7 +262,7 @@ Connect any S3-compatible object storage or Azure Blob Storage. Store datasets a
 .. toctree::
   :hidden:
 
-  More Examples <https://github.com/NVIDIA/OSMO/tree/main/workflows>
+  More Examples <https://github.com/NVIDIA/OSMO/tree/main/cookbook>
 
 .. toctree::
   :hidden:
