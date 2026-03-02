@@ -567,76 +567,6 @@ deploy_osmo_router() {
     log_success "OSMO Router deployed"
 }
 
-create_backend_token() {
-    log_info "Creating backend operator token..."
-
-    if [[ "$DRY_RUN" == true ]]; then
-        log_info "[DRY-RUN] Would create backend operator token"
-        return
-    fi
-
-    if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
-        log_error "Private cluster - backend token creation requires manual steps"
-        exit 1
-    fi
-
-    # Start port-forward and ensure it is killed when this function returns
-    log_info "Starting port-forward to OSMO service..."
-    kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
-    local port_forward_pid=$!
-    trap "kill $port_forward_pid 2>/dev/null || true" RETURN
-
-    # Wait for port-forward to be ready (TCP check only)
-    local max_wait=30
-    local waited=0
-    until nc -z localhost 9000 2>/dev/null; do
-        if [[ $waited -ge $max_wait ]]; then
-            log_error "Timed out waiting for OSMO service to be reachable on port 9000"
-            exit 1
-        fi
-        sleep 2
-        waited=$((waited + 2))
-    done
-    log_info "OSMO service reachable"
-
-    # Create backend-operator user (idempotent - ignore conflict if already exists)
-    log_info "Creating backend-operator user..."
-    local create_user_status
-    create_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
-        -X POST http://localhost:9000/api/auth/user \
-        -H 'Content-Type: application/json' \
-        -d '{"id": "backend-operator", "roles": ["osmo-backend"]}')
-    if [[ "$create_user_status" != "200" && "$create_user_status" != "201" && "$create_user_status" != "409" ]]; then
-        log_error "Failed to create backend-operator user (HTTP $create_user_status)"
-        exit 1
-    fi
-
-    # Create token for backend-operator user
-    log_info "Generating backend-operator token..."
-    local raw_token
-    raw_token=$(curl -sf -X POST \
-        "http://localhost:9000/api/auth/user/backend-operator/access_token/backend-operator-token?expires_at=${BACKEND_TOKEN_EXPIRY}&roles=osmo-backend" \
-        -H 'accept: application/json' \
-        -d '')
-
-    # Response is a quoted string e.g. "asdf" — strip the surrounding quotes
-    local backend_token
-    backend_token=$(echo "$raw_token" | tr -d '"')
-
-    if [[ -z "$backend_token" ]]; then
-        log_error "Failed to retrieve backend operator token"
-        exit 1
-    fi
-
-    # Store token in Kubernetes secret
-    kubectl create secret generic osmo-operator-token \
-        --from-literal=token="$backend_token" \
-        --namespace "$OSMO_OPERATOR_NAMESPACE" \
-        --dry-run=client -o yaml | kubectl apply -f -
-
-    log_success "Backend operator token created and stored in secret"
-}
-
 setup_backend_operator() {
     log_info "Setting up Backend Operator..."
 
@@ -645,7 +575,65 @@ setup_backend_operator() {
         return
     fi
 
-    create_backend_token
+    if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
+        log_warning "Private cluster - backend token creation requires manual steps"
+    else
+        # Port forward to OSMO service
+        log_info "Starting port-forward to OSMO service..."
+        kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
+        local port_forward_pid=$!
+        trap "kill $port_forward_pid 2>/dev/null || true" RETURN
+
+        # Wait for port-forward to be ready (TCP check only)
+        local max_wait=30
+        local waited=0
+        until nc -z localhost 9000 2>/dev/null; do
+            if [[ $waited -ge $max_wait ]]; then
+                log_error "Timed out waiting for OSMO service to be reachable on port 9000"
+                exit 1
+            fi
+            sleep 2
+            waited=$((waited + 2))
+        done
+        log_info "OSMO service reachable"
+
+        # Create backend-operator user (idempotent - ignore conflict if already exists)
+        log_info "Creating backend-operator user..."
+        local create_user_status
+        create_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST http://localhost:9000/api/auth/user \
+            -H 'Content-Type: application/json' \
+            -d '{"id": "backend-operator", "roles": ["osmo-backend"]}')
+        if [[ "$create_user_status" != "200" && "$create_user_status" != "201" && "$create_user_status" != "409" ]]; then
+            log_error "Failed to create backend-operator user (HTTP $create_user_status)"
+            exit 1
+        fi
+
+        # Create token for backend-operator user
+        log_info "Generating backend-operator token..."
+        local raw_token
+        raw_token=$(curl -sf -X POST \
+            "http://localhost:9000/api/auth/user/backend-operator/access_token/backend-operator-token?expires_at=${BACKEND_TOKEN_EXPIRY}&roles=osmo-backend" \
+            -H 'accept: application/json' \
+            -d '')
+
+        # Response is a quoted string e.g. "asdf" — strip the surrounding quotes
+        local backend_token
+        backend_token=$(echo "$raw_token" | tr -d '"')
+
+        if [[ -z "$backend_token" ]]; then
+            log_error "Failed to retrieve backend operator token"
+            exit 1
+        fi
+
+        # Store token in Kubernetes secret
+        kubectl create secret generic osmo-operator-token \
+            --from-literal=token="$backend_token" \
+            --namespace "$OSMO_OPERATOR_NAMESPACE" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+        log_success "Backend operator token created and stored in secret"
+    fi
 
     # Deploy backend operator
     log_info "Deploying Backend Operator..."
