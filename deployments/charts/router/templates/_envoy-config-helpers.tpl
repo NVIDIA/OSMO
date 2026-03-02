@@ -304,6 +304,15 @@ listeners:
                         -- Create the roles list
                         local roles_list = table.concat(meta.verified_jwt.roles, ',')
 
+                        -- Collapse any duplicate x-osmo-user entries from claim_to_headers
+                        local user = request_handle:headers():get('x-osmo-user')
+                        if (user ~= nil) then
+                          local first = user:match("^([^,]+)")
+                          if (first ~= nil) then
+                            request_handle:headers():replace('x-osmo-user', first)
+                          end
+                        end
+
                         -- Add the headers
                         request_handle:headers():replace('x-osmo-roles', roles_list)
                         if (meta.verified_jwt.osmo_token_name ~= nil) then
