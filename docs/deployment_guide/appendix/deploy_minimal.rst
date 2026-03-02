@@ -84,15 +84,6 @@ Create secret for database and redis passwords:
    $ kubectl create secret generic db-secret --from-literal=db-password=<your-db-password> --namespace osmo-minimal
    $ kubectl create secret generic redis-secret --from-literal=redis-password=<your-redis-password> --namespace osmo-minimal
 
-
-Create a secret with the default admin password. The OSMO service creates a single admin user at startup; you log in with that user's password (used as an access token) and then create more users and access tokens via the API or CLI. See :ref:`default_admin_setup` in the authentication appendix for full details.
-
-.. code-block:: bash
-
-   $ kubectl create secret generic default-admin-secret \
-     --from-literal=password='<your-secure-admin-password>' \
-     --namespace osmo-minimal
-
 Create the master encryption key (MEK) for database encryption:
 
 1. **Generate a new master encryption key**:
@@ -681,24 +672,6 @@ If you haven't set up DNS yet, you can access OSMO using port forwarding as an a
 
    - If you are accessing OSMO with port forwarding, the router service will not be accessible
    - Consequently, ``osmo workflow port-forward`` or ``osmo workflow exec`` commands are not expected to work
-
-
-(Optional) Create Users and Assign Roles
-----------------------------------------
-
-You can create multiple user accounts and assign roles via the CLI without needing authentication
-or an IdP configured. This is useful for testing role-based access control or pre-provisioning
-users before enabling authentication.
-
-.. code-block:: bash
-
-   # Create a user with the osmo-user role
-   $ osmo user create developer@example.com --roles osmo-user
-
-   # Assign additional roles to an existing user
-   $ osmo user update developer@example.com --add-roles osmo-ml-team
-
-For detailed instructions on user management and role assignment, see :ref:`managing_users`.
 
 Step 10: Basic Configuration
 ============================
