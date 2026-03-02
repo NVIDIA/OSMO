@@ -370,8 +370,6 @@ sidecars:
     enabled: false
   oauth2Proxy:
     enabled: false
-  authz:
-    enabled: false
 EOF
 
     # UI values
@@ -432,8 +430,6 @@ sidecars:
   logAgent:
     enabled: false
   oauth2Proxy:
-    enabled: false
-  authz:
     enabled: false
 EOF
 
