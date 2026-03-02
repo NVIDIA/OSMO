@@ -155,6 +155,14 @@ virtual_hosts:
   routes:
   {{- if $.Values.sidecars.oauth2Proxy.enabled }}
   - match:
+      path: /oauth2/idp_sign_out
+    redirect:
+      {{- if $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl }}
+      path_redirect: "/oauth2/sign_out?rd={{ $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl | urlquery }}"
+      {{- else }}
+      path_redirect: "/oauth2/sign_out"
+      {{- end }}
+  - match:
       prefix: /oauth2/
     route:
       cluster: oauth2-proxy
@@ -225,22 +233,6 @@ Generate simplified Lua filters for UI chart
             request_handle:headers():add("x-forwarded-host", authority)
           end
         end
-{{- if and $.Values.sidecars.oauth2Proxy.enabled $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl }}
-- name: inject-signout-redirect
-  typed_config:
-    "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
-    default_source_code:
-      inline_string: |
-        function envoy_on_request(request_handle)
-          local path = request_handle:headers():get(":path") or ""
-          if path:sub(1, 16) == "/oauth2/sign_out" and not path:find("rd=", 1, true) then
-            request_handle:headers():replace(
-              ":path",
-              "/oauth2/sign_out?rd={{ $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl | urlquery }}"
-            )
-          end
-        end
-{{- end }}
 {{- end }}
 
 {{/*
