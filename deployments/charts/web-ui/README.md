@@ -127,7 +127,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.oauth2Proxy.cookieExpire` | Cookie expiration duration | `168h` |
 | `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
 | `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
-| `sidecars.oauth2Proxy.oidcEndSessionUrl` | IdP end-session endpoint for federated logout. When set, Envoy exposes `/oauth2/idp_sign_out` which redirects to `/oauth2/sign_out?rd=<url>`, clearing both the local session cookie and the IdP's SSO session. Requires `--whitelist-domain=<idp-domain>` in `extraArgs`. | `""` (disabled) |
+| `sidecars.oauth2Proxy.oidcEndSessionUrl` | IdP end-session endpoint for federated logout. When set, Envoy exposes `/signout` which redirects to `/oauth2/sign_out?rd=<url>`, clearing both the local session cookie and the IdP's SSO session. Requires `--whitelist-domain=<idp-domain>` in `extraArgs`. | `""` (disabled) |
 | `sidecars.oauth2Proxy.extraArgs` | Additional arguments passed to oauth2-proxy | `[]` |
 | `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
 | `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |

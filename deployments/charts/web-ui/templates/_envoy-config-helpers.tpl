@@ -155,7 +155,7 @@ virtual_hosts:
   routes:
   {{- if $.Values.sidecars.oauth2Proxy.enabled }}
   - match:
-      path: /oauth2/idp_sign_out
+      path: /signout
     redirect:
       {{- if $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl }}
       path_redirect: "/oauth2/sign_out?rd={{ $.Values.sidecars.oauth2Proxy.oidcEndSessionUrl | urlquery }}"
