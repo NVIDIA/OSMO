@@ -469,6 +469,7 @@ deploy_osmo() {
     add_helm_repos
     create_database
     create_secrets
+    create_image_pull_secrets
     create_helm_values
 
     deploy_osmo_service

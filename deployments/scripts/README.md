@@ -261,7 +261,7 @@ When an NGC API key is provided, the script:
 |----------|-------------|---------|
 | `OSMO_IMAGE_REGISTRY` | OSMO Docker image registry | `nvcr.io/nvidia/osmo` |
 | `OSMO_IMAGE_TAG` | OSMO Docker image tag | `latest` |
-| `BACKEND_TOKEN_EXPIRY` | Backend operator token expiry | `2027-01-01` |
+| `BACKEND_TOKEN_EXPIRY` | Backend operator token expiry date | 1 year from deployment date |
 | `NGC_API_KEY` | NGC API key for `nvcr.io` image and Helm chart pulls | - |
 | `TF_SUBSCRIPTION_ID` | Azure subscription ID | - |
 | `TF_RESOURCE_GROUP` | Azure resource group | - |

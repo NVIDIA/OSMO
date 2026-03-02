@@ -52,7 +52,7 @@ OSMO_WORKFLOWS_NAMESPACE="${OSMO_WORKFLOWS_NAMESPACE:-osmo-workflows}"
 
 OSMO_IMAGE_REGISTRY="${OSMO_IMAGE_REGISTRY:-nvcr.io/nvidia/osmo}"
 OSMO_IMAGE_TAG="${OSMO_IMAGE_TAG:-latest}"
-BACKEND_TOKEN_EXPIRY="${BACKEND_TOKEN_EXPIRY:-2027-01-01}"
+BACKEND_TOKEN_EXPIRY="${BACKEND_TOKEN_EXPIRY:-$(date -d '+1 year' +%Y-%m-%d)}"
 NGC_API_KEY="${NGC_API_KEY:-}"
 NGC_SECRET_NAME="nvcr-secret"
 
@@ -306,13 +306,16 @@ create_image_pull_secrets() {
     fi
 
     for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE" "$OSMO_WORKFLOWS_NAMESPACE"; do
-        kubectl create secret docker-registry "$NGC_SECRET_NAME" \
+        if kubectl create secret docker-registry "$NGC_SECRET_NAME" \
             --docker-server=nvcr.io \
             --docker-username='$oauthtoken' \
             --docker-password="$NGC_API_KEY" \
             --namespace "$namespace" \
-            --dry-run=client -o yaml | kubectl apply -f -
-        log_info "  Applied $NGC_SECRET_NAME in namespace $namespace"
+            --dry-run=client -o yaml | kubectl apply -f - 2>&1; then
+            log_info "  Applied $NGC_SECRET_NAME in namespace $namespace"
+        else
+            log_warning "  Failed to apply $NGC_SECRET_NAME in namespace $namespace — pods may fail to pull images"
+        fi
     done
 
     log_success "NGC image pull secrets created"
@@ -564,6 +567,76 @@ deploy_osmo_router() {
     log_success "OSMO Router deployed"
 }
 
+create_backend_token() {
+    log_info "Creating backend operator token..."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would create backend operator token"
+        return
+    fi
+
+    if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
+        log_error "Private cluster - backend token creation requires manual steps"
+        exit 1
+    fi
+
+    # Start port-forward and ensure it is killed when this function returns
+    log_info "Starting port-forward to OSMO service..."
+    kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
+    local port_forward_pid=$!
+    trap "kill $port_forward_pid 2>/dev/null || true" RETURN
+
+    # Wait for port-forward to be ready (TCP check only)
+    local max_wait=30
+    local waited=0
+    until nc -z localhost 9000 2>/dev/null; do
+        if [[ $waited -ge $max_wait ]]; then
+            log_error "Timed out waiting for OSMO service to be reachable on port 9000"
+            exit 1
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    log_info "OSMO service reachable"
+
+    # Create backend-operator user (idempotent - ignore conflict if already exists)
+    log_info "Creating backend-operator user..."
+    local create_user_status
+    create_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X POST http://localhost:9000/api/auth/user \
+        -H 'Content-Type: application/json' \
+        -d '{"id": "backend-operator", "roles": ["osmo-backend"]}')
+    if [[ "$create_user_status" != "200" && "$create_user_status" != "201" && "$create_user_status" != "409" ]]; then
+        log_error "Failed to create backend-operator user (HTTP $create_user_status)"
+        exit 1
+    fi
+
+    # Create token for backend-operator user
+    log_info "Generating backend-operator token..."
+    local raw_token
+    raw_token=$(curl -sf -X POST \
+        "http://localhost:9000/api/auth/user/backend-operator/access_token/backend-operator-token?expires_at=${BACKEND_TOKEN_EXPIRY}&roles=osmo-backend" \
+        -H 'accept: application/json' \
+        -d '')
+
+    # Response is a quoted string e.g. "asdf" — strip the surrounding quotes
+    local backend_token
+    backend_token=$(echo "$raw_token" | tr -d '"')
+
+    if [[ -z "$backend_token" ]]; then
+        log_error "Failed to retrieve backend operator token"
+        exit 1
+    fi
+
+    # Store token in Kubernetes secret
+    kubectl create secret generic osmo-operator-token \
+        --from-literal=token="$backend_token" \
+        --namespace "$OSMO_OPERATOR_NAMESPACE" \
+        --dry-run=client -o yaml | kubectl apply -f -
+
+    log_success "Backend operator token created and stored in secret"
+}
+
 setup_backend_operator() {
     log_info "Setting up Backend Operator..."
 
@@ -572,49 +645,7 @@ setup_backend_operator() {
         return
     fi
 
-    local token_created=false
-
-    if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
-        log_warning "Private cluster - token generation requires manual steps"
-    else
-        # Port forward to OSMO service
-        log_info "Starting port-forward to OSMO service..."
-        kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
-        local port_forward_pid=$!
-        sleep 5
-
-        if command -v osmo &> /dev/null; then
-            log_info "Logging into OSMO..."
-            osmo login http://localhost:9000 --method=dev --username=testuser || true
-
-            log_info "Generating backend operator token..."
-            local backend_token=$(osmo token set backend-token \
-                --expires-at "$BACKEND_TOKEN_EXPIRY" \
-                --description "Backend Operator Token" \
-                --service \
-                --roles osmo-backend \
-                -t json 2>/dev/null | jq -r '.token' || echo "")
-
-            if [[ -n "$backend_token" && "$backend_token" != "null" ]]; then
-                kubectl create secret generic osmo-operator-token \
-                    --from-literal=token="$backend_token" \
-                    --namespace "$OSMO_OPERATOR_NAMESPACE" \
-                    --dry-run=client -o yaml | kubectl apply -f -
-
-                log_success "Backend token created"
-                token_created=true
-            fi
-        fi
-
-        kill $port_forward_pid 2>/dev/null || true
-    fi
-
-    if [[ "$token_created" == false ]]; then
-        log_warning "Backend token not created automatically."
-        log_info "Creating placeholder token secret..."
-        $RUN_KUBECTL "delete secret osmo-operator-token --namespace $OSMO_OPERATOR_NAMESPACE --ignore-not-found=true"
-        $RUN_KUBECTL "create secret generic osmo-operator-token --from-literal=token=placeholder --namespace $OSMO_OPERATOR_NAMESPACE"
-    fi
+    create_backend_token
 
     # Deploy backend operator
     log_info "Deploying Backend Operator..."
