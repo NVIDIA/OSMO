@@ -597,16 +597,25 @@ setup_backend_operator() {
         done
         log_info "OSMO service reachable"
 
-        # Create backend-operator user (idempotent - ignore conflict if already exists)
-        log_info "Creating backend-operator user..."
-        local create_user_status
-        create_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X POST http://localhost:9000/api/auth/user \
-            -H 'Content-Type: application/json' \
-            -d '{"id": "backend-operator", "roles": ["osmo-backend"]}')
-        if [[ "$create_user_status" != "200" && "$create_user_status" != "201" && "$create_user_status" != "409" ]]; then
-            log_error "Failed to create backend-operator user (HTTP $create_user_status)"
-            exit 1
+        # Create backend-operator user if it doesn't already exist
+        log_info "Checking if backend-operator user exists..."
+        local check_user_status
+        check_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET http://localhost:9000/api/auth/user/backend-operator \
+            -H 'accept: application/json')
+        if [[ "$check_user_status" == "200" ]]; then
+            log_info "backend-operator user already exists, skipping creation"
+        else
+            log_info "Creating backend-operator user..."
+            local create_user_status
+            create_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
+                -X POST http://localhost:9000/api/auth/user \
+                -H 'Content-Type: application/json' \
+                -d '{"id": "backend-operator", "roles": ["osmo-backend"]}')
+            if [[ "$create_user_status" != "200" && "$create_user_status" != "201" ]]; then
+                log_error "Failed to create backend-operator user (HTTP $create_user_status)"
+                exit 1
+            fi
         fi
 
         # Create token for backend-operator user
