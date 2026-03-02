@@ -10,7 +10,6 @@ OSMO is a workflow orchestration platform for Physical AI, managing heterogeneou
 
 - Follow existing code patterns and conventions in the codebase
 - Use Bazel for builds and testing
-- Python code uses ruff for linting (configured in .ruff.toml)
 - Go code follows standard Go conventions
 - Write self-describing code; avoid redundant comments that simply restate what the code does
 - Copyright headers must keep "All rights reserved." on the same line as "NVIDIA CORPORATION & AFFILIATES"
