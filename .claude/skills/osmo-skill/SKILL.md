@@ -7,8 +7,8 @@ description: >
   when they ask what they can run, whether they have quota, want to check their profile
   or pool access, want to submit a workflow (SDG, RL training, or custom), want to
   check the status or logs of a running/completed workflow, list or browse recent
-  workflow submissions, or want to understand what a specific workflow does or is
-  configured to do.
+  workflow submissions, want to understand what a specific workflow does or is
+  configured to do, or want to create an OSMO app from a workflow.
 ---
 
 # OSMO CLI Use Cases
@@ -62,6 +62,37 @@ When summarizing results for the user, highlight:
   with `--priority LOW`, which bypasses quota limits and runs on available capacity.
   Mention this as an option whenever you see this condition.
 
+### Output format (required for resource availability responses)
+
+Use a grouped, table-first format similar to:
+"You have access to <N> pools, <M> ONLINE. Here are the highlights by GPU type:"
+
+Formatting requirements:
+- Group results by GPU type with section headers like `GB200 Pools`, `H100 Pools`,
+  `L40S Pools`, `L40 Pools` (and `Other Pools` when needed). Do not enforce a fixed
+  ordering; use whatever order is most readable for the current result set.
+- Render one fixed-width table per GPU type (box-drawing style preferred; markdown
+  table is acceptable fallback).
+- Include these columns in each table:
+  - `Pool`
+  - `Quota Free`
+  - `Physically Free` (from `Total Free`; keep markers like `(shared)` when present)
+  - `Effective` (computed as `min(Quota Free, Total Free)`)
+- Sort rows within each GPU-type section by `Effective` descending.
+- Add useful inline annotations in cells when relevant:
+  - Append `(default)` to the user's default pool name.
+  - Optionally mark the top pool in a section as `✅ Most available`.
+- After the grouped tables, add a short callout for:
+  - Pools at capacity (`Effective = 0`)
+  - LOW-priority opportunities (`Quota Free = 0` and `Total Free > 0`)
+
+Derive GPU type from pool names when possible:
+- contains `gb200` -> `GB200`
+- contains `h100` -> `H100`
+- contains `l40s` -> `L40S`
+- contains `l40` -> `L40`
+- otherwise -> `Other`
+
 ---
 
 ## Use Case: Generate and Submit a Workflow
@@ -81,6 +112,16 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
      YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
      Fetch the README as well, substituting the YAML file name with README. Summarize the
      README, and add it as a comment in the generated workflow spec.
+   - **Use cookbook metadata to decide submission count.** The cookbook table in
+     `references/cookbook.md` annotates entries with throughput and constraint metadata
+     (e.g. "60 images, 1 GPU ONLY"). Before deciding whether to submit one or multiple
+     workflows, read those annotations:
+     - If a throughput figure is present and the user has a target quantity + time
+       budget, calculate: `num_submissions = ceil(target / (throughput_per_run * time_budget))`
+       and submit the same YAML that many times.
+     - If a constraint is present (e.g. "1 GPU ONLY"), respect it — do not scale by
+       requesting more GPUs per workflow; scale by submitting more workflows instead.
+     - If no metadata is present, submit a single workflow unless the user says otherwise.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
      the correct spec patterns before writing anything.
@@ -121,8 +162,9 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    availability using the steps in the "Check Available Resources" use case to confirm
    the right pool to use.
 
-3. **Ask the user if they want to submit**, then execute the command yourself — do not
-   tell the user to run it. Once confirmed, run:
+3. **Ask the user for confirmation with this exact wording:**
+   `Would you like me to submit this workflow to this pool?`
+   Then execute the command yourself — do not tell the user to run it. Once confirmed, run:
    ```
    osmo workflow submit workflow.yaml --pool <pool_name>
    ```
@@ -185,30 +227,31 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    osmo workflow query <workflow name> --format-type json
    ```
 
-2. **Get recent logs** — this command streams live, so run it with a 5-second timeout
-   and use whatever output was captured. Check how many tasks are in the query response:
-   - **1 task:** run the standard command:
-     ```
-     osmo workflow logs <workflow name> -n 10000
-     ```
-   - **2–5 tasks:** fetch logs per task in parallel for clearer separation:
-     ```
-     osmo workflow logs <workflow name> --task <task_name> -n 10000
-     ```
-   - **More than 5 tasks:** fall back to the standard command without `--task`.
-
-3. **Report to the user:**
+2. **Report to the user:**
    - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED, PENDING)
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
-   - **If the workflow is COMPLETED and has output datasets**, ask the user if they
-     would like to download the dataset and whether they want to specify an output
-     folder. Then run the download yourself:
+   - **If the workflow is COMPLETED and has output datasets, you MUST ask this
+     explicit question before ending your response:**  
+     `Would you like me to download the output dataset now?`  
+     Also ask whether they want a specific output folder (default to `~/` if not).
+     Then run the download yourself:
      ```
      osmo dataset download <dataset_name> <path>
      ```
      Use `~/` as the output path if the user doesn't specify one.
+
+   - **After the dataset download question above**, if the workflow is COMPLETED,
+     also ask if the user would like to create an
+     OSMO app for it. Suggest a name derived from the workflow name (e.g. workflow
+     `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description
+     based on what the workflow does. If the user agrees (or provides their own name),
+     follow the "Create an App" use case below.
+   - **When monitoring multiple workflows** that all complete from the same spec, offer
+     app creation once (not per workflow) after all workflows reach a terminal state.
+     Since they share the same YAML, a single app covers all runs. Do not skip this
+     offer just because you were in a batch monitoring loop.
 
    **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
    ```
@@ -221,6 +264,10 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    ```
    osmo resource list -p <pool>
    ```
+
+3. **Get recent logs** — Refer to the logs-reader subagent. Based on the number of tasks
+   that are present in the response JSON from workflow query, *spawn* a log-reader agent
+   for every 5 tasks that are present. Use the Task tool to spawn the `logs-reader` agent.
 
 ---
 
@@ -262,7 +309,8 @@ Report each state transition to the user:
 #### Step 3: Handle the outcome
 
 **If COMPLETED:** Report results — workflow ID, OSMO Web link, output datasets.
-Offer to download. Follow the COMPLETED handling in "Check Workflow Status".
+In the same completion message, ask: `Would you like me to download the output dataset now?`
+Then follow the COMPLETED handling in "Check Workflow Status".
 
 **If FAILED:** Resume the workflow expert (use the `resume` parameter with the
 agent ID from Step 1) and tell it: "Workflow <id> FAILED. Diagnose and fix."
@@ -297,3 +345,40 @@ workflow", "what is workflow xyz running?").
 
    Keep the summary short — a few sentences or a brief bullet list. The user asked
    what it does, not for a line-by-line YAML walkthrough.
+
+---
+
+## Use Case: Create an App
+
+**When to use:** The user wants to publish a workflow as an OSMO app (e.g. "create an
+app for this workflow", "make an app from my workflow", "publish this as an app"), or
+you are proactively offering app creation after a workflow completes.
+
+### Steps
+
+1. **Determine the workflow file path.** If the user already has a workflow YAML (e.g.
+   `workflow.yaml` in the current directory), use that path. If they're coming from a
+   completed workflow, use the spec file that was submitted.
+
+2. **Decide on a name and description.**
+
+   - **If the user explicitly asked to create an app**, ask them what they'd like to
+     name it. Suggest a name based on the workflow name (e.g. `sdg-run` → `sdg-run-app`)
+     so they have a sensible default to accept or override. Also generate a one-sentence
+     description summarizing what the workflow does, and confirm it with the user before
+     proceeding.
+
+   - **If you are proactively offering** (post-completion), present your suggested name
+     and description upfront — don't ask two separate questions. Something like:
+     > "Would you like to create an app for this workflow? I'd suggest naming it
+     > `sdg-isaac-app` with the description: 'Runs Isaac Lab SDG to generate
+     > synthetic training data.' Does that work, or would you like to change anything?"
+
+3. **Create the app** — once the user confirms name and description, run:
+   ```
+   osmo app create <app-name> --description "<description>" --file <path-to-workflow.yaml>
+   ```
+   Execute this yourself — do not ask the user to run it.
+
+4. **Report the result** — confirm the app was created and share any URL or identifier
+   returned by the CLI.
