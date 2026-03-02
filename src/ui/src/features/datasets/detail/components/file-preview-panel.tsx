@@ -34,9 +34,9 @@
 import { useCallback, memo } from "react";
 import Image from "next/image";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, AlertCircle, RefreshCw, Lock, ArrowLeft } from "lucide-react";
-import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
-import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
+import { Copy, AlertCircle, RefreshCw, Lock, X } from "lucide-react";
+import { PanelTitle } from "@/components/panel/panel-header";
+import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
@@ -55,8 +55,6 @@ interface FilePreviewPanelProps {
   /** Current directory path (empty = root) */
   path: string;
   onClose: () => void;
-  /** If provided, adds a "← Dataset Details" button to the header */
-  onShowDetails?: () => void;
 }
 
 interface HeadResult {
@@ -246,12 +244,7 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
 // Main component
 // =============================================================================
 
-export const FilePreviewPanel = memo(function FilePreviewPanel({
-  file,
-  path,
-  onClose,
-  onShowDetails,
-}: FilePreviewPanelProps) {
+export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
   const { copied, copy } = useCopy();
   const fullPath = path ? `${path}/${file.name}` : file.name;
   // Copy S3 URI when available; fall back to relative path
@@ -284,50 +277,27 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky header */}
-      <PanelHeader
-        title={<PanelTitle>{file.name}</PanelTitle>}
-        actions={
-          <div className="flex items-center gap-1">
-            {onShowDetails && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 gap-1.5 px-2 text-xs"
-                onClick={onShowDetails}
-                aria-label="Back to dataset details"
-              >
-                <ArrowLeft
-                  className="size-3.5"
-                  aria-hidden="true"
-                />
-                Dataset Details
-              </Button>
-            )}
-            <Tooltip open={copied}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  onClick={handleCopyPath}
-                  aria-label={`Copy path: ${copyTarget}`}
-                >
-                  <Copy
-                    className="size-3.5"
-                    aria-hidden="true"
-                  />
-                  Copy path
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Copied!</TooltipContent>
-            </Tooltip>
-            <PanelHeaderActions
-              badge="File"
-              onClose={onClose}
-            />
+      <PanelHeaderContainer>
+        <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <PanelTitle className="text-sm font-medium">{file.name}</PanelTitle>
           </div>
-        }
-      />
+          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide text-zinc-500 uppercase ring-1 ring-zinc-300 ring-inset dark:text-zinc-400 dark:ring-zinc-600">
+            File
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            aria-label="Close panel"
+          >
+            <X
+              className="size-3 shrink-0"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+      </PanelHeaderContainer>
 
       {/* Preview area */}
       <div className="flex min-h-0 flex-1 flex-col">
@@ -368,29 +338,48 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({
         )}
       </div>
 
-      {/* Metadata footer */}
-      {(file.size !== undefined || file.modified || file.checksum) && (
-        <div className="shrink-0 space-y-1.5 border-t border-zinc-200 p-4 dark:border-zinc-800">
-          {file.size !== undefined && (
-            <MetadataRow
-              label="Size"
-              value={formatBytes(file.size / 1024 ** 3).display}
-            />
-          )}
-          {file.modified && (
-            <MetadataRow
-              label="Modified"
-              value={formatDateTimeFull(file.modified)}
-            />
-          )}
-          {file.checksum && (
-            <MetadataRow
-              label="Checksum"
-              value={file.checksum}
-            />
-          )}
+      {/* Footer: metadata + copy path */}
+      <div className="shrink-0 border-t border-zinc-200 p-4 dark:border-zinc-800">
+        <div className="flex items-end justify-between gap-2">
+          <div className="space-y-1.5">
+            {file.size !== undefined && (
+              <MetadataRow
+                label="Size"
+                value={formatBytes(file.size / 1024 ** 3).display}
+              />
+            )}
+            {file.modified && (
+              <MetadataRow
+                label="Modified"
+                value={formatDateTimeFull(file.modified)}
+              />
+            )}
+            {file.checksum && (
+              <MetadataRow
+                label="Checksum"
+                value={file.checksum}
+              />
+            )}
+          </div>
+          <Tooltip open={copied}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleCopyPath}
+                className="flex shrink-0 items-center gap-1 rounded py-0.5 px-2 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                aria-label={`Copy path: ${copyTarget}`}
+              >
+                <Copy
+                  className="size-3 shrink-0"
+                  aria-hidden="true"
+                />
+                Copy path
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Copied!</TooltipContent>
+          </Tooltip>
         </div>
-      )}
+      </div>
     </div>
   );
 });

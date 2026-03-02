@@ -17,25 +17,37 @@
 /**
  * Dataset Detail Content (Client Component)
  *
- * Side-by-side layout: file browser (left, flex-1) + always-visible right panel.
+ * Side-by-side layout: file browser (left, flex-1) + toggleable right panel.
  *
- * Right panel modes:
- * - Details mode (default): DatasetDetailsPanel with Overview + Versions/Members tabs
- * - File preview mode: FilePreviewPanel shown when a file is selected in the browser
+ * Panel state machine (no useEffect — transitions only from explicit user actions):
  *
- * URL state: ?path= (current directory), ?version= (dataset version), ?file= (selected file)
+ *   closed ──[click file]──────────────► file
+ *   closed ──[click Details]───────────► details
+ *   file ────[click file]──────────────► file (update preview)
+ *   file ────[click Details]───────────► details-over-file (back button available)
+ *   file ────[X / Esc]─────────────────► closed
+ *   details ─[click file]──────────────► file
+ *   details ─[click Details / X / Esc]─► closed
+ *   details-over-file ─[click file]────► file
+ *   details-over-file ─[back "<"]──────► file (same file as before)
+ *   details-over-file ─[Details/X/Esc]─► closed
+ *
+ * URL state: ?path= (current dir), ?version= (dataset version), ?file= (selected file)
  */
 
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from "react";
+import { usePrevious } from "@react-hookz/web";
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
+import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
+import { usePanelAnimation } from "@/components/panel/hooks/use-panel-animation";
 import { FileBrowserBreadcrumb } from "@/features/datasets/detail/components/file-browser-breadcrumb";
-import { FileBrowserControls } from "@/features/datasets/detail/components/file-browser-controls";
+import { FileBrowserControlStrip } from "@/features/datasets/detail/components/file-browser-control-strip";
 import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
 import { DatasetRightPanel } from "@/features/datasets/detail/components/dataset-right-panel";
 import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-detail";
@@ -45,6 +57,17 @@ import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
 import { DatasetType } from "@/lib/api/generated";
 import type { SwitcherItem } from "@/features/datasets/detail/components/version-switcher";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
+import "@/components/panel/resizable-panel.css";
+
+// =============================================================================
+// Panel mode — single source of truth for right panel state
+// =============================================================================
+
+type PanelMode =
+  | "closed" // panel hidden
+  | "file" // file preview visible
+  | "details" // dataset details visible (no file context)
+  | "details-over-file"; // details visible, back button returns to file preview
 
 interface Props {
   bucket: string;
@@ -65,28 +88,56 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
 
   // ==========================================================================
-  // Right panel mode — details (default) or file preview
-  // No useEffect: transitions happen only in response to explicit user actions.
+  // Panel mode — all transitions happen in explicit user-action handlers.
   // ==========================================================================
 
-  const [showDetails, setShowDetails] = useState(true);
+  const [panelMode, setPanelMode] = useState<PanelMode>("closed");
 
+  // Click a file row → open file preview (or replace current preview)
   const handleSelectFile = useCallback(
     (filePath: string) => {
       selectFile(filePath);
-      setShowDetails(false);
+      setPanelMode("file");
     },
     [selectFile],
   );
 
-  const handleShowDetails = useCallback(() => {
-    setShowDetails(true);
+  // Details button in control strip — toggles details layer
+  const handleDetailsToggle = useCallback(() => {
+    if (panelMode === "closed") {
+      setPanelMode("details");
+    } else if (panelMode === "file") {
+      setPanelMode("details-over-file");
+    } else if (panelMode === "details-over-file") {
+      // Can go back to file preview — do that instead of closing
+      setPanelMode("file");
+    } else {
+      // "details" with no file underneath → close (clearSelection deferred via animation onClosed)
+      setPanelMode("closed");
+    }
+  }, [panelMode]);
+
+  // Back button ("<") in the details header — returns to the file that was open
+  const handleBack = useCallback(() => {
+    setPanelMode("file");
   }, []);
 
-  const handleClosePreview = useCallback(() => {
-    clearSelection();
-    setShowDetails(true);
-  }, [clearSelection]);
+  // Close panel (X button, Esc, or table Esc on row)
+  // clearSelection() is deferred to the animation onClosed callback so the file
+  // preview stays visible inside the panel while it slides out.
+  const handleClosePanel = useCallback(() => {
+    setPanelMode("closed");
+  }, []);
+
+  // Global Esc — closes panel from any focus position
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || panelMode === "closed") return;
+      handleClosePanel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [panelMode, handleClosePanel]);
 
   // ==========================================================================
   // Resolve location + files based on type
@@ -165,7 +216,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   }, [detail, version, path]);
 
   // ==========================================================================
-  // File listing — fetch manifest for selected version/member, filter client-side
+  // File listing — fetch manifest for selected version/member
   // ==========================================================================
 
   const {
@@ -183,13 +234,77 @@ export function DatasetDetailContent({ bucket, name }: Props) {
 
   // ==========================================================================
   // Resolve selected file data for the right panel
+  //
+  // First checks the current directory listing (fastest, has full metadata).
+  // Falls back to a direct rawFiles manifest lookup so the panel stays visible
+  // when the user navigates to a different folder while a file is selected.
   // ==========================================================================
 
-  const selectedFileData = useMemo(() => {
+  const panelFileData = useMemo((): DatasetFile | null => {
     if (!selectedFile) return null;
     const fileName = selectedFile.split("/").pop() ?? "";
-    return files.find((f) => f.name === fileName && f.type === "file") ?? null;
-  }, [selectedFile, files]);
+
+    // Prefer current directory entry (has all derived fields)
+    const fromDir = files.find((f) => f.name === fileName && f.type === "file");
+    if (fromDir) return fromDir;
+
+    // Fall back to full manifest so preview survives directory navigation
+    const raw = rawFiles?.find((f) => f.relative_path === selectedFile);
+    if (!raw) return null;
+    return { name: fileName, type: "file", size: raw.size, checksum: raw.etag, url: raw.url, s3Path: raw.storage_path };
+  }, [selectedFile, files, rawFiles]);
+
+  // Derive the file's own directory from the URL param so the copy path
+  // is always correct regardless of which directory is currently browsed.
+  const fileDirPath = selectedFile ? selectedFile.split("/").slice(0, -1).join("/") : "";
+
+  // ==========================================================================
+  // Panel slide animation — drives mount lifecycle + translateX transitions.
+  // clearSelection() is deferred to onClosed so the preview stays visible
+  // inside the panel while it slides out.
+  // ==========================================================================
+
+  const panelOpen = panelMode !== "closed";
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const {
+    phase,
+    shellMounted,
+    panelSlideIn,
+    contentMounted,
+    contentState,
+    contentRef,
+    handleContentAnimationEnd,
+    handlePanelTransitionEnd,
+  } = usePanelAnimation(panelOpen, clearSelection);
+
+  const prevPhase = usePrevious(phase);
+
+  // Both open and close use the same reflow trick so the CSS transition always
+  // starts from the correct position (before browser paint, unlike useEffect).
+  //
+  // Open:  panel is flex child (table shrinks), set 100% → reflow → 0
+  // Close: panel is absolute (table expands), reset 100% → 0 → reflow → 100%
+  useLayoutEffect(() => {
+    if (!panelRef.current) return;
+    const panel = panelRef.current;
+
+    if (phase === "opening" && prevPhase === "closed") {
+      panel.style.transform = "translateX(100%)";
+      void panel.offsetHeight;
+      panel.style.transform = "translateX(0)";
+    }
+
+    if (phase === "closing" && prevPhase === "open") {
+      // Aside is already position:absolute in this render (frees flex space so the
+      // table has already expanded). Now wire up the CSS transition: reset React's
+      // translateX(100%) back to 0, force a reflow to register that as the start
+      // position, then set 100% so the CSS transition fires 0 → 100%.
+      panel.style.transform = "translateX(0)";
+      void panel.offsetHeight;
+      panel.style.transform = "translateX(100%)";
+    }
+  }, [phase, prevPhase]);
 
   // ==========================================================================
   // Resizable split between file browser and right panel
@@ -198,7 +313,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [rightPanelWidth, setRightPanelWidth] = useState(35);
 
-  const { isDragging, bindResizeHandle, dragStyles } = useResizeDrag({
+  const { isDragging, bindResizeHandle } = useResizeDrag({
     width: rightPanelWidth,
     onWidthChange: setRightPanelWidth,
     minWidth: 20,
@@ -207,8 +322,18 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   });
 
   // ==========================================================================
-  // Chrome: breadcrumbs + version switcher controls
+  // Chrome: static breadcrumbs (Datasets > bucket > name)
+  // Path segments live in the control strip breadcrumb below.
   // ==========================================================================
+
+  usePage({
+    title: "",
+    breadcrumbs: [
+      { label: "Datasets", href: "/datasets" },
+      { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
+      { label: name, href: null },
+    ],
+  });
 
   // For collections, don't pass rawFiles to breadcrumb (disables sibling popovers
   // which don't make sense for member-level segments)
@@ -226,27 +351,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     ),
     [name, path, navigateTo, breadcrumbRawFiles, segmentLabels],
   );
-
-  const headerControls = useMemo(
-    () => (
-      <FileBrowserControls
-        items={switcherItems}
-        selectedId={version}
-        onSelectionChange={setVersion}
-      />
-    ),
-    [switcherItems, version, setVersion],
-  );
-
-  usePage({
-    title: "",
-    breadcrumbs: [
-      { label: "Datasets", href: "/datasets" },
-      { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
-    ],
-    trailingBreadcrumbs: breadcrumbTrail,
-    headerActions: headerControls,
-  });
 
   // ==========================================================================
   // Error state — dataset/collection failed to load
@@ -301,18 +405,31 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       onNavigate={navigateTo}
       onSelectFile={handleSelectFile}
       onNavigateUp={handleNavigateUp}
-      onClearSelection={handleClosePreview}
-      previewOpen={!showDetails}
+      onClearSelection={handleClosePanel}
+      previewOpen={panelMode === "file"}
       isLoading={isFilesLoading && !virtualFiles}
     />
   );
 
+  const showDetails = panelMode === "details" || panelMode === "details-over-file";
+
   // ==========================================================================
-  // Render — side-by-side: file browser + always-visible right panel
+  // Render
   // ==========================================================================
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full flex-col gap-4 overflow-hidden p-6">
+      {/* Control strip */}
+      <FileBrowserControlStrip
+        items={switcherItems}
+        selectedId={version}
+        onSelectionChange={setVersion}
+        breadcrumb={breadcrumbTrail}
+        panelVisible={showDetails}
+        onTogglePanel={handleDetailsToggle}
+      />
+
+      {/* File browser + optional right panel */}
       <InlineErrorBoundary
         title="Unable to display file browser"
         resetKeys={[files.length]}
@@ -320,43 +437,80 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       >
         <div
           ref={containerRef}
-          className="flex min-h-0 flex-1 overflow-hidden"
+          className="relative flex min-h-0 flex-1 overflow-hidden"
         >
           {/* File browser — fills remaining width */}
           <div className="min-w-0 flex-1 overflow-hidden">{fileTableContent}</div>
 
-          {/* Resize handle */}
-          <div
-            {...bindResizeHandle()}
-            className={cn(
-              "group relative h-full w-px shrink-0 cursor-ew-resize touch-none transition-colors",
-              isDragging ? "bg-blue-500" : "bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600",
-            )}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize panel"
-            aria-valuenow={rightPanelWidth}
-          />
+          {shellMounted && (
+            <>
+              {/* Resize gutter — hidden instantly on close (frees flex space for the table) */}
+              <div
+                {...bindResizeHandle()}
+                className="group flex w-2 shrink-0 cursor-ew-resize touch-none items-center justify-center"
+                style={{ display: panelSlideIn ? undefined : "none" }}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize panel"
+                aria-valuenow={rightPanelWidth}
+              >
+                <GripVertical
+                  className={cn(
+                    "size-4 transition-colors",
+                    isDragging
+                      ? "text-zinc-500 dark:text-zinc-400"
+                      : "text-zinc-300 group-hover:text-zinc-500 dark:text-zinc-700 dark:group-hover:text-zinc-400",
+                  )}
+                  aria-hidden="true"
+                />
+              </div>
 
-          {/* Always-visible right panel */}
-          <aside
-            className="flex shrink-0 flex-col overflow-hidden"
-            style={{ width: `${rightPanelWidth}%`, ...dragStyles }}
-            aria-label={
-              showDetails ? `Dataset details: ${name}` : selectedFile ? `File preview: ${selectedFile}` : undefined
-            }
-          >
-            <DatasetRightPanel
-              bucket={bucket}
-              name={name}
-              datasetType={detail.type}
-              showDetails={showDetails}
-              selectedFile={selectedFileData}
-              path={path}
-              onShowDetails={handleShowDetails}
-              onClosePreview={handleClosePreview}
-            />
-          </aside>
+              {/* Right panel — slides in/out via translateX */}
+              <aside
+                ref={panelRef}
+                className={cn(
+                  "flex shrink-0 flex-col overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800",
+                  isDragging
+                    ? "transition-none"
+                    : "transition-transform duration-200 ease-out motion-reduce:transition-none",
+                )}
+                style={{
+                  width: `${rightPanelWidth}%`,
+                  transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
+                  willChange: shellMounted ? "transform" : "auto",
+                  // On close, switch to absolute so the aside leaves flex flow and
+                  // the table expands immediately — same frame the slide starts.
+                  // The outer container has position:relative as the anchor.
+                  ...(!panelSlideIn && { position: "absolute", right: 0, top: 0, bottom: 0 }),
+                }}
+                aria-label={
+                  showDetails ? `Dataset details: ${name}` : selectedFile ? `File preview: ${selectedFile}` : undefined
+                }
+                onTransitionEnd={handlePanelTransitionEnd}
+              >
+                {contentMounted && (
+                  <div
+                    ref={contentRef}
+                    className="resizable-panel-content flex h-full w-full flex-col overflow-hidden"
+                    data-content-state={contentState}
+                    onAnimationEnd={handleContentAnimationEnd}
+                  >
+                    <DatasetRightPanel
+                      bucket={bucket}
+                      name={name}
+                      datasetType={detail.type}
+                      showDetails={showDetails}
+                      showBack={panelMode === "details-over-file"}
+                      selectedFile={panelFileData}
+                      path={fileDirPath}
+                      onBack={handleBack}
+                      onClose={handleClosePanel}
+                    />
+                  </div>
+                )}
+              </aside>
+            </>
+          )}
         </div>
       </InlineErrorBoundary>
     </div>
