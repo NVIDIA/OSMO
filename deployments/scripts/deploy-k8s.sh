@@ -576,7 +576,7 @@ setup_backend_operator() {
     fi
 
     if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
-        log_warning "Private cluster - backend token creation requires manual steps"
+        log_warning "Private cluster - token generation requires manual steps"
     else
         # Port forward to OSMO service
         log_info "Starting port-forward to OSMO service..."
@@ -584,10 +584,10 @@ setup_backend_operator() {
         local port_forward_pid=$!
         trap "kill $port_forward_pid 2>/dev/null || true" RETURN
 
-        # Wait for port-forward to be ready (TCP check only)
+        # Wait for port-forward to be ready
         local max_wait=30
         local waited=0
-        until nc -z localhost 9000 2>/dev/null; do
+        until curl -sf http://localhost:9000/api/version -o /dev/null 2>/dev/null; do
             if [[ $waited -ge $max_wait ]]; then
                 log_error "Timed out waiting for OSMO service to be reachable on port 9000"
                 exit 1
