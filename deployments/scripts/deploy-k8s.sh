@@ -578,6 +578,8 @@ setup_backend_operator() {
     if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
         log_warning "Private cluster - token generation requires manual steps"
     else
+        check_command "osmo"
+
         # Port forward to OSMO service
         log_info "Starting port-forward to OSMO service..."
         kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
@@ -597,41 +599,30 @@ setup_backend_operator() {
         done
         log_info "OSMO service reachable"
 
+        # Log in to OSMO (dev mode for minimal deployment)
+        osmo login http://localhost:9000 --method=dev --username=admin
+
         # Create backend-operator user if it doesn't already exist
         log_info "Checking if backend-operator user exists..."
-        local check_user_status
-        check_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
-            -X GET http://localhost:9000/api/auth/user/backend-operator \
-            -H 'accept: application/json')
-        if [[ "$check_user_status" == "200" ]]; then
+        if osmo user get backend-operator > /dev/null 2>&1; then
             log_info "backend-operator user already exists, skipping creation"
         else
             log_info "Creating backend-operator user..."
-            local create_user_status
-            create_user_status=$(curl -s -o /dev/null -w "%{http_code}" \
-                -X POST http://localhost:9000/api/auth/user \
-                -H 'Content-Type: application/json' \
-                -d '{"id": "backend-operator", "roles": ["osmo-backend"]}')
-            if [[ "$create_user_status" != "200" && "$create_user_status" != "201" ]]; then
-                log_error "Failed to create backend-operator user (HTTP $create_user_status)"
-                exit 1
-            fi
+            osmo user create --roles osmo-backend backend-operator
         fi
 
-        # Create token for backend-operator user
-        log_info "Generating backend-operator token..."
-        local raw_token
-        raw_token=$(curl -sf -X POST \
-            "http://localhost:9000/api/auth/user/backend-operator/access_token/backend-operator-token?expires_at=${BACKEND_TOKEN_EXPIRY}&roles=osmo-backend" \
-            -H 'accept: application/json' \
-            -d '')
-
-        # Response is a quoted string e.g. "asdf" — strip the surrounding quotes
+        # Create a uniquely-named token to avoid conflicts with previous runs
+        local token_name="backend-operator-$(date -u +%Y%m%d%H%M%S)"
+        log_info "Generating backend-operator token (${token_name})..."
         local backend_token
-        backend_token=$(echo "$raw_token" | tr -d '"')
+        backend_token=$(osmo token set "${token_name}" \
+            --user backend-operator \
+            --roles osmo-backend \
+            --expires-at "${BACKEND_TOKEN_EXPIRY}" | \
+            sed -n 's/^Access token: //p')
 
         if [[ -z "$backend_token" ]]; then
-            log_error "Failed to retrieve backend operator token"
+            log_error "Failed to generate backend-operator token"
             exit 1
         fi
 
