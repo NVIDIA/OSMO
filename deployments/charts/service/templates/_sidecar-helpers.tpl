@@ -484,6 +484,10 @@ Authorization sidecar container
     - "--log-name=authz_sidecar"
     {{- end }}
   env:
+    {{- if .Values.services.migration.enabled }}
+    - name: OSMO_SCHEMA_VERSION
+      value: {{ .Values.services.migration.targetSchema }}
+    {{- end }}
     {{- include "osmo.extra-env" .Values.sidecars.authz | nindent 4 }}
     {{- if .Values.services.postgres.password }}
     - name: OSMO_POSTGRES_PASSWORD
