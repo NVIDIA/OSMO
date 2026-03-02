@@ -325,17 +325,7 @@ If switching IdPs, also update the `client_secret` in your oauth2-proxy secret t
 
 The 6.2 upgrade adds two new sidecars that default to `enabled: true`. Disable them and remove deprecated fields:
 
-**Service and router charts:**
-
-```yaml
-sidecars:
-  oauth2Proxy:
-    enabled: false
-  authz:
-    enabled: false
-```
-
-**Web-UI chart:**
+**Service, Router, and Web-UI charts:**
 
 ```yaml
 sidecars:
