@@ -62,6 +62,37 @@ When summarizing results for the user, highlight:
   with `--priority LOW`, which bypasses quota limits and runs on available capacity.
   Mention this as an option whenever you see this condition.
 
+### Output format (required for resource availability responses)
+
+Use a grouped, table-first format similar to:
+"You have access to <N> pools, <M> ONLINE. Here are the highlights by GPU type:"
+
+Formatting requirements:
+- Group results by GPU type with section headers like `GB200 Pools`, `H100 Pools`,
+  `L40S Pools`, `L40 Pools` (and `Other Pools` when needed). Do not enforce a fixed
+  ordering; use whatever order is most readable for the current result set.
+- Render one fixed-width table per GPU type (box-drawing style preferred; markdown
+  table is acceptable fallback).
+- Include these columns in each table:
+  - `Pool`
+  - `Quota Free`
+  - `Physically Free` (from `Total Free`; keep markers like `(shared)` when present)
+  - `Effective` (computed as `min(Quota Free, Total Free)`)
+- Sort rows within each GPU-type section by `Effective` descending.
+- Add useful inline annotations in cells when relevant:
+  - Append `(default)` to the user's default pool name.
+  - Optionally mark the top pool in a section as `✅ Most available`.
+- After the grouped tables, add a short callout for:
+  - Pools at capacity (`Effective = 0`)
+  - LOW-priority opportunities (`Quota Free = 0` and `Total Free > 0`)
+
+Derive GPU type from pool names when possible:
+- contains `gb200` -> `GB200`
+- contains `h100` -> `H100`
+- contains `l40s` -> `L40S`
+- contains `l40` -> `L40`
+- otherwise -> `Other`
+
 ---
 
 ## Use Case: Generate and Submit a Workflow
@@ -131,8 +162,9 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
    availability using the steps in the "Check Available Resources" use case to confirm
    the right pool to use.
 
-3. **Ask the user if they want to submit**, then execute the command yourself — do not
-   tell the user to run it. Once confirmed, run:
+3. **Ask the user for confirmation with this exact wording:**
+   `Would you like me to submit this workflow to this pool?`
+   Then execute the command yourself — do not tell the user to run it. Once confirmed, run:
    ```
    osmo workflow submit workflow.yaml --pool <pool_name>
    ```
