@@ -600,7 +600,7 @@ setup_backend_operator() {
         log_info "OSMO service reachable"
 
         # Log in to OSMO (dev mode for minimal deployment)
-        osmo login http://localhost:9000 --method=dev --username=admin
+        osmo login http://localhost:9000 --method=dev --username=testuser
 
         # Create backend-operator user if it doesn't already exist
         log_info "Checking if backend-operator user exists..."
