@@ -232,15 +232,18 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
-   - **If the workflow is COMPLETED and has output datasets**, ask the user if they
-     would like to download the dataset and whether they want to specify an output
-     folder. Then run the download yourself:
+   - **If the workflow is COMPLETED and has output datasets, you MUST ask this
+     explicit question before ending your response:**  
+     `Would you like me to download the output dataset now?`  
+     Also ask whether they want a specific output folder (default to `~/` if not).
+     Then run the download yourself:
      ```
      osmo dataset download <dataset_name> <path>
      ```
      Use `~/` as the output path if the user doesn't specify one.
 
-   - **If the workflow is COMPLETED**, also ask if the user would like to create an
+   - **After the dataset download question above**, if the workflow is COMPLETED,
+     also ask if the user would like to create an
      OSMO app for it. Suggest a name derived from the workflow name (e.g. workflow
      `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description
      based on what the workflow does. If the user agrees (or provides their own name),
@@ -306,7 +309,8 @@ Report each state transition to the user:
 #### Step 3: Handle the outcome
 
 **If COMPLETED:** Report results — workflow ID, OSMO Web link, output datasets.
-Offer to download. Follow the COMPLETED handling in "Check Workflow Status".
+In the same completion message, ask: `Would you like me to download the output dataset now?`
+Then follow the COMPLETED handling in "Check Workflow Status".
 
 **If FAILED:** Resume the workflow expert (use the `resume` parameter with the
 agent ID from Step 1) and tell it: "Workflow <id> FAILED. Diagnose and fix."
