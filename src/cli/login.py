@@ -100,11 +100,11 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
 
     # Construct device endpoint
     device_endpoint = args.device_endpoint
-    client_id: str | None = None
+    client_id: str = service_client.login_manager.login_config.client_id
     if not device_endpoint:
         login_info = login.fetch_login_info(url)
         device_endpoint = login_info['device_endpoint']
-        client_id = login_info['device_client_id']
+        client_id = login_info['device_client_id'] or client_id
 
     # Login through device code flow
     if args.method == 'code':

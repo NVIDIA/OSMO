@@ -155,11 +155,11 @@ class LoginManager():
     def login_config(self) -> login.LoginConfig:
         return self._login_config
 
-    def device_code_login(self, url: str, device_endpoint: str, client_id: str | None):
+    def device_code_login(self, url: str, device_endpoint: str, client_id: str):
         """ Log in using OAUTH2 device flow """
         # Generate a user code
         response = requests.post(device_endpoint, data={
-            'client_id': client_id or self._login_config.client_id,
+            'client_id': client_id,
             'scope': 'openid offline_access profile'
         }, timeout=login.TIMEOUT, headers={'User-Agent': self.user_agent})
 
@@ -191,7 +191,7 @@ class LoginManager():
             result = requests.post(token_endpoint, data={
                 'grant_type': 'urn:ietf:params:oauth:grant-type:device_code',
                 'device_code': device_code,
-                'client_id': client_id or self._login_config.client_id
+                'client_id': client_id
             }, timeout=login.TIMEOUT, headers={'User-Agent': self.user_agent})
             result = result.json()
             error = result.get('error')
@@ -210,7 +210,8 @@ class LoginManager():
             token_login=login.TokenLoginStorage(
                 id_token=result['id_token'],
                 refresh_token=result['refresh_token'],
-                refresh_url=token_endpoint
+                refresh_url=token_endpoint,
+                client_id=client_id
             )
         )
         self._save_login_info(self._login_storage, welcome=True)
