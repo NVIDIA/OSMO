@@ -15,11 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Dataset Location Files Proxy (Thin Wrapper)
- *
+ * Dataset File Proxy (Thin Wrapper)
  * Re-exports from route.impl.ts (aliased to route.impl.production.ts in prod builds).
- *
- * GET /api/datasets/location-files?url={encodedLocationUrl}
  */
-
-export * from "@/app/api/datasets/location-files/route.impl";
+export * from "@/app/proxy/dataset/file/route.impl";

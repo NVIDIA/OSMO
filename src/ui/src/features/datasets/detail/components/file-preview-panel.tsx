@@ -18,7 +18,7 @@
  * FilePreviewPanel — Preview panel for a dataset file.
  *
  * Performs a HEAD preflight (via server proxy) to check content-type and access
- * before rendering. All file requests are routed through /api/datasets/file-proxy
+ * before rendering. All file requests are routed through /proxy/dataset/file
  * to avoid CSP restrictions.
  *
  * - image/* → <img> via proxy
@@ -67,7 +67,7 @@ interface HeadResult {
 // =============================================================================
 
 function toProxyUrl(url: string): string {
-  return getBasePathUrl(`/api/datasets/file-proxy?url=${encodeURIComponent(url)}`);
+  return getBasePathUrl(`/proxy/dataset/file?url=${encodeURIComponent(url)}`);
 }
 
 async function fetchHeadResult(url: string): Promise<HeadResult> {
@@ -159,29 +159,13 @@ function TextPreview({ url, contentType }: { url: string; contentType: string })
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-        <AlertCircle
-          className="size-8 text-zinc-400"
-          aria-hidden="true"
-        />
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Failed to load file content.</p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void refetch()}
-          className="gap-1.5"
-        >
-          <RefreshCw
-            className="size-3.5"
-            aria-hidden="true"
-          />
-          Retry
-        </Button>
-      </div>
+      <PreviewError
+        message="Failed to load file content."
+        onRetry={() => void refetch()}
+      />
     );
   }
 
-  // Detect CSV for tabular rendering hint; otherwise plain text
   const isCsv = contentType.includes("csv") || url.toLowerCase().includes(".csv");
 
   return (

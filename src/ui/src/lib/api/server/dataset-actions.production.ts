@@ -14,8 +14,18 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Dataset File Proxy (Thin Wrapper)
- * Re-exports from route.impl.ts (aliased to route.impl.production.ts in prod builds).
- */
-export * from "@/app/api/datasets/file-proxy/route.impl";
+"use server";
+
+export async function fetchManifest(url: string): Promise<unknown[]> {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    throw new Error("Invalid URL: must start with http:// or https://");
+  }
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch manifest: ${response.status}`);
+  }
+
+  return (await response.json()) as unknown[];
+}

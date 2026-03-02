@@ -1287,11 +1287,11 @@ export const handlers = [
     return HttpResponse.json(items);
   }),
 
-  // HEAD + GET /api/datasets/file-proxy — preflight + content for file preview panel.
+  // HEAD + GET /proxy/dataset/file — preflight + content for file preview panel.
   // Uses http.all because http.head() does not reliably intercept http.request with method HEAD
   // when routed through the mock port-9999 tunnel.
   // Returns 401 for datasets that simulate a private bucket, 200/content otherwise.
-  http.all("*/api/datasets/file-proxy", async ({ request }) => {
+  http.all("*/proxy/dataset/file", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);

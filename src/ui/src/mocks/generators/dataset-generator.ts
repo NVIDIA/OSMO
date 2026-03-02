@@ -96,6 +96,7 @@ const DATASET_PATTERNS = {
     "common-crawl",
     "redpajama",
     "c4",
+    "private-bucket", // simulates inaccessible bucket → file preview returns 401
   ],
   variants: ["train", "val", "test", "full", "mini", "sample"],
   buckets: ["osmo-datasets", "ml-data", "training-data"],
@@ -325,10 +326,12 @@ export class DatasetGenerator {
 
   /**
    * Returns true if the dataset's files are in a private (non-public) bucket.
-   * Deterministic: based on dataset name hash. Approximately 1 in 3 datasets are private.
+   * Datasets with "private" or "forbidden" in the name simulate inaccessible buckets.
+   * Consistent with other mock special-case naming (e.g. "forbidden" for exec auth).
    */
   isPrivateDataset(datasetName: string): boolean {
-    return Math.abs(hashString(datasetName)) % 3 === 0;
+    const lower = datasetName.toLowerCase();
+    return lower.includes("private") || lower.includes("forbidden");
   }
 
   /**

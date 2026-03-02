@@ -20,8 +20,8 @@
  * Server-side proxy for fetching dataset files from storage URLs.
  * Routes requests through the server to avoid CSP restrictions.
  *
- * GET /api/datasets/file-proxy?url={encodedFileUrl}  → streams file content
- * HEAD /api/datasets/file-proxy?url={encodedFileUrl} → returns headers only
+ * GET /proxy/dataset/file?url={encodedFileUrl}  → streams file content
+ * HEAD /proxy/dataset/file?url={encodedFileUrl} → returns headers only
  */
 
 const FORWARDED_HEADERS = ["content-type", "content-length", "last-modified", "etag", "cache-control"] as const;

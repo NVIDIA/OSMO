@@ -28,7 +28,7 @@
 
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { ResizablePanel } from "@/components/panel/resizable-panel";
 import { usePanelLifecycle } from "@/components/panel/hooks/use-panel-lifecycle";
@@ -58,6 +58,12 @@ export function DatasetsPanelLayout({ children }: { children: React.ReactNode })
   const router = useNavigationRouter();
   const { startTransition } = useViewTransition();
   const pathname = usePathname();
+
+  // Close panel on page navigation (pathname change only — search param changes
+  // like ?version= updates stay open so version clicks don't close the panel).
+  useEffect(() => {
+    storeClose();
+  }, [pathname, storeClose]);
 
   const { isPanelOpen, handleClose, handleClosed } = usePanelLifecycle({
     hasSelection: isOpen,

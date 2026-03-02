@@ -23,10 +23,12 @@
 "use client";
 
 import { Fragment } from "react";
-import { Tag } from "lucide-react";
+import { Tag, Copy, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
+import { Button } from "@/components/shadcn/button";
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeSuccinct } from "@/lib/format-date";
+import { useCopy } from "@/hooks/use-copy";
 import type { Dataset } from "@/lib/api/adapter/datasets";
 
 interface DatasetPanelDetailsProps {
@@ -36,6 +38,7 @@ interface DatasetPanelDetailsProps {
 export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
   const sizeGib = dataset.size_bytes / 1024 ** 3;
   const hasLabels = dataset.labels && Object.keys(dataset.labels).length > 0;
+  const { copied, copy } = useCopy();
 
   return (
     <section>
@@ -45,37 +48,48 @@ export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
         <CardContent className="divide-border divide-y p-0">
           {/* Core metadata grid */}
           <div className="p-3">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+            <div className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-2.5 text-sm">
               <span className="text-muted-foreground">Bucket</span>
-              <span className="truncate text-right">{dataset.bucket}</span>
+              <span>{dataset.bucket}</span>
 
               {dataset.version !== undefined && dataset.version > 0 && (
                 <>
                   <span className="text-muted-foreground">Version</span>
-                  <span className="text-right">v{dataset.version}</span>
+                  <span>v{dataset.version}</span>
                 </>
               )}
 
               <span className="text-muted-foreground">Size</span>
-              <span className="text-right">{formatBytes(sizeGib).display}</span>
+              <span>{formatBytes(sizeGib).display}</span>
 
               <span className="text-muted-foreground">Created</span>
-              <span className="text-right">{formatDateTimeSuccinct(dataset.created_at)}</span>
+              <span>{formatDateTimeSuccinct(dataset.created_at)}</span>
 
               <span className="text-muted-foreground">Updated</span>
-              <span className="text-right">{formatDateTimeSuccinct(dataset.updated_at)}</span>
+              <span>{formatDateTimeSuccinct(dataset.updated_at)}</span>
 
               {dataset.created_by && (
                 <>
                   <span className="text-muted-foreground">Created by</span>
-                  <span className="truncate text-right">{dataset.created_by}</span>
+                  <span>{dataset.created_by}</span>
                 </>
               )}
 
               {dataset.path && (
                 <>
                   <span className="text-muted-foreground">Path</span>
-                  <span className="truncate text-right font-mono text-xs">{dataset.path}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="min-w-0 font-mono text-xs break-all">{dataset.path}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-foreground size-5 shrink-0"
+                      onClick={() => void copy(dataset.path!)}
+                      aria-label="Copy path"
+                    >
+                      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
@@ -88,11 +102,11 @@ export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
               Labels
             </div>
             {hasLabels ? (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+              <div className="grid grid-cols-[7rem_1fr] gap-x-4 gap-y-2.5 text-sm">
                 {Object.entries(dataset.labels!).map(([key, value]) => (
                   <Fragment key={key}>
-                    <span className="text-muted-foreground truncate">{key}</span>
-                    <span className="truncate text-right">{value}</span>
+                    <span className="text-muted-foreground">{key}</span>
+                    <span>{value}</span>
                   </Fragment>
                 ))}
               </div>
