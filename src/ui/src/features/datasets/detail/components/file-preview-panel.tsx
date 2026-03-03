@@ -336,7 +336,10 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
             className="rounded-md p-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
             aria-label="Close panel"
           >
-            <X className="size-4" aria-hidden="true" />
+            <X
+              className="size-4"
+              aria-hidden="true"
+            />
           </button>
         </div>
       </PanelHeaderContainer>
