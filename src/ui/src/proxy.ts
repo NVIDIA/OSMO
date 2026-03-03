@@ -36,37 +36,34 @@ const PERMISSIONS_POLICY = [
   "usb=()",
 ].join(", ");
 
-function buildProductionCsp(): string {
-  const apiHostname = process.env.NEXT_PUBLIC_OSMO_API_HOSTNAME || "localhost:8080";
-  const sslEnabled = process.env.NEXT_PUBLIC_OSMO_SSL_ENABLED !== "false";
-  const apiUrl = `${sslEnabled ? "https" : "http"}://${apiHostname}`;
-
-  return [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self'",
-    `connect-src 'self' ${apiUrl} ws: wss:`,
-    "worker-src 'self' blob:",
-    "frame-src 'none'",
-    "frame-ancestors 'self'",
-    "form-action 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "upgrade-insecure-requests",
-  ].join("; ");
-}
+/**
+ * Protocol-agnostic CSP. TLS enforcement belongs at the edge (Ingress), not
+ * here. Next.js always sits behind Envoy over plain HTTP — even when the
+ * client's actual connection is HTTPS — so we cannot reliably detect the
+ * client protocol. `'self'` resolves to whichever origin the browser sees,
+ * so all same-origin resources (JS, CSS, images, API calls) work regardless
+ * of whether the page was loaded over HTTP or HTTPS.
+ */
+const PRODUCTION_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self' ws: wss:",
+  "worker-src 'self' blob:",
+  "frame-src 'none'",
+  "frame-ancestors 'self'",
+  "form-action 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+].join("; ");
 
 export function proxy(_request: NextRequest): NextResponse {
   const response = NextResponse.next();
 
-  // CSP is only set in production where Envoy proxies everything through the
-  // same origin. In local dev the backend runs on a different port/IP and
-  // NEXT_PUBLIC_* env vars are not reliably available in the edge runtime,
-  // so enforcing CSP would block legitimate direct browser → backend requests.
   if (process.env.NODE_ENV === "production") {
-    response.headers.set("Content-Security-Policy", buildProductionCsp());
+    response.headers.set("Content-Security-Policy", PRODUCTION_CSP);
   }
 
   response.headers.set("X-Content-Type-Options", "nosniff");
