@@ -31,20 +31,20 @@
 
 "use client";
 
-import { useCallback, useMemo, memo } from "react";
+import { memo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, AlertCircle, RefreshCw, Lock, X } from "lucide-react";
+import { AlertCircle, RefreshCw, Lock, X } from "lucide-react";
 import { PanelTitle } from "@/components/panel/panel-header";
 import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeFull } from "@/lib/format-date";
-import { useCopy } from "@/hooks/use-copy";
 import { getBasePathUrl } from "@/lib/config";
+import { CopyButton } from "@/components/copyable-value";
+import { MidTruncate } from "@/components/mid-truncate";
 import { CodeViewerSkeleton } from "@/components/code-viewer/code-viewer-skeleton";
 import { getLanguageForContentType } from "@/components/code-viewer/lib/languages";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
@@ -90,8 +90,8 @@ async function fetchHeadResult(url: string): Promise<HeadResult> {
 
 function MetadataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-1 text-xs">
-      <span className="w-14 shrink-0 text-zinc-500 dark:text-zinc-400">{label}</span>
+    <div className="flex gap-3 text-xs">
+      <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">{label}</span>
       <span className="min-w-0 font-mono break-all text-zinc-700 dark:text-zinc-300">{value}</span>
     </div>
   );
@@ -165,10 +165,7 @@ function TextPreview({
     retry: false,
   });
 
-  const language = useMemo(
-    () => getLanguageForContentType(contentType, fileName),
-    [contentType, fileName],
-  );
+  const language = getLanguageForContentType(contentType, fileName);
 
   if (isLoading) {
     return (
@@ -304,14 +301,7 @@ function resolvePreviewState(
 // =============================================================================
 
 export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
-  const { copied, copy } = useCopy();
-  const fullPath = path ? `${path}/${file.name}` : file.name;
-  // Copy S3 URI when available; fall back to relative path
-  const copyTarget = file.s3Path ?? fullPath;
-
-  const handleCopyPath = useCallback(() => {
-    void copy(copyTarget);
-  }, [copy, copyTarget]);
+  const relativePath = file.relativePath ?? (path ? `${path}/${file.name}` : file.name);
 
   // HEAD preflight — only when we have a URL to check
   const {
@@ -386,47 +376,52 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
         )}
       </div>
 
-      {/* Footer: metadata + copy path */}
-      <div className="shrink-0 border-t border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
-        <div className="flex items-end justify-between gap-2">
-          <div className="space-y-1.5">
-            {file.size !== undefined && (
-              <MetadataRow
-                label="Size"
-                value={formatBytes(file.size / 1024 ** 3).display}
-              />
-            )}
-            {file.modified && (
-              <MetadataRow
-                label="Modified"
-                value={formatDateTimeFull(file.modified)}
-              />
-            )}
-            {file.checksum && (
-              <MetadataRow
-                label="Checksum"
-                value={file.checksum}
-              />
-            )}
-          </div>
-          <Tooltip open={copied}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleCopyPath}
-                className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-                aria-label={`Copy path: ${copyTarget}`}
-              >
-                <Copy
-                  className="size-3 shrink-0"
-                  aria-hidden="true"
-                />
-                Copy path
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Copied!</TooltipContent>
-          </Tooltip>
+      {/* Footer: metadata */}
+      <div className="shrink-0 space-y-1.5 border-t border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
+        <div className="flex gap-3 text-xs">
+          <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">Dataset Path</span>
+          <MidTruncate
+            text={relativePath}
+            className="flex-1 font-mono text-zinc-700 dark:text-zinc-300"
+          />
+          <CopyButton
+            value={relativePath}
+            label="dataset path"
+            className="ml-0 self-start"
+          />
         </div>
+        {file.storagePath && (
+          <div className="flex gap-3 text-xs">
+            <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">Storage Path</span>
+            <MidTruncate
+              text={file.storagePath}
+              className="flex-1 font-mono text-zinc-700 dark:text-zinc-300"
+            />
+            <CopyButton
+              value={file.storagePath}
+              label="storage path"
+              className="ml-0 self-start"
+            />
+          </div>
+        )}
+        {file.size !== undefined && (
+          <MetadataRow
+            label="Size"
+            value={formatBytes(file.size / 1024 ** 3).display}
+          />
+        )}
+        {file.modified && (
+          <MetadataRow
+            label="Modified"
+            value={formatDateTimeFull(file.modified)}
+          />
+        )}
+        {file.checksum && (
+          <MetadataRow
+            label="Checksum"
+            value={file.checksum}
+          />
+        )}
       </div>
     </div>
   );

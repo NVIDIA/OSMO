@@ -57,13 +57,15 @@ interface FileBrowserTableProps {
   onNavigateUp?: () => void;
   /** Called when user presses Escape to clear file selection */
   onClearSelection?: () => void;
-  /** Whether the file preview panel is currently visible (controls j/k live-update) */
-  previewOpen?: boolean;
   isLoading?: boolean;
   /** Error from the file listing query — renders an error state inside the table shell */
   error?: Error | null;
   /** Called when user clicks retry on an error state */
   onRetry?: () => void;
+  /** When true, column ResizeObserver changes are ignored (pass isDragging from gutter drag) */
+  suspendResize?: boolean;
+  /** Register a callback invoked when the layout stabilizes (e.g. after gutter drag ends) */
+  registerLayoutStableCallback?: (callback: () => void) => () => void;
 }
 
 // =============================================================================
@@ -134,15 +136,15 @@ function FileIcon({ name, type }: { name: string; type: DatasetFile["type"] }) {
 // Copy path button (inline in name cell, copies S3 URI)
 // =============================================================================
 
-function CopyPathButton({ s3Path }: { s3Path: string }) {
+function CopyPathButton({ storagePath }: { storagePath: string }) {
   const { copied, copy } = useCopy();
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      void copy(s3Path);
+      void copy(storagePath);
     },
-    [copy, s3Path],
+    [copy, storagePath],
   );
 
   return (
@@ -152,7 +154,7 @@ function CopyPathButton({ s3Path }: { s3Path: string }) {
           type="button"
           onClick={handleCopy}
           className="shrink-0 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
-          aria-label={`Copy S3 path: ${s3Path}`}
+          aria-label={`Copy S3 path: ${storagePath}`}
         >
           <Copy
             className="size-3.5"
@@ -179,7 +181,7 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       size: 400,
       minSize: 160,
       cell: ({ row }) => {
-        const { name, type, label, s3Path } = row.original;
+        const { name, type, label, storagePath } = row.original;
         const displayName = label ?? name;
         return (
           <span className="flex w-full min-w-0 items-center justify-between gap-2">
@@ -197,7 +199,7 @@ function createColumns(): ColumnDef<DatasetFile>[] {
                 <span className="truncate text-sm text-zinc-900 dark:text-zinc-100">{displayName}</span>
               )}
             </span>
-            {type === "file" && s3Path && <CopyPathButton s3Path={s3Path} />}
+            {type === "file" && storagePath && <CopyPathButton storagePath={storagePath} />}
           </span>
         );
       },
@@ -224,8 +226,8 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       accessorKey: "name",
       header: "Type",
       enableSorting: false,
-      size: 70,
-      minSize: 50,
+      size: 90,
+      minSize: 70,
       cell: ({ row }) => {
         const { name, type } = row.original;
         if (type === "dataset-member") {
@@ -253,10 +255,11 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   onSelectFile,
   onNavigateUp,
   onClearSelection,
-  previewOpen = false,
   isLoading = false,
   error,
   onRetry,
+  suspendResize,
+  registerLayoutStableCallback,
 }: FileBrowserTableProps) {
   const compactMode = useCompactMode();
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
@@ -338,17 +341,6 @@ export const FileBrowserTable = memo(function FileBrowserTable({
     return () => cancelAnimationFrame(raf);
   }, [sortedFiles]);
 
-  // Live preview on keyboard focus: update preview when it's already open
-  const handleFocusedRowChange = useCallback(
-    (file: DatasetFile | null) => {
-      if (!file || file.type !== "file") return;
-      if (!previewOpen) return;
-      const filePath = path ? `${path}/${file.name}` : file.name;
-      onSelectFile(filePath);
-    },
-    [path, onSelectFile, previewOpen],
-  );
-
   // Handle directory navigation and selection shortcuts
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -416,7 +408,6 @@ export const FileBrowserTable = memo(function FileBrowserTable({
           columns={columns}
           getRowId={getRowId}
           onRowClick={handleRowClick}
-          onFocusedRowChange={handleFocusedRowChange}
           selectedRowId={selectedFile ?? undefined}
           rowHeight={rowHeight}
           compact={compactMode}
@@ -428,6 +419,8 @@ export const FileBrowserTable = memo(function FileBrowserTable({
           sorting={sorting}
           onSortingChange={setSorting}
           rowClassName={rowClassName}
+          suspendResize={suspendResize}
+          registerLayoutStableCallback={registerLayoutStableCallback}
         />
       )}
     </div>

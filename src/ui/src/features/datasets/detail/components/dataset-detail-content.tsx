@@ -248,7 +248,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     // Fall back to full manifest so preview survives directory navigation
     const raw = rawFiles?.find((f) => f.relative_path === selectedFile);
     if (!raw) return null;
-    return { name: fileName, type: "file", size: raw.size, checksum: raw.etag, url: raw.url, s3Path: raw.storage_path };
+    return { name: fileName, type: "file", size: raw.size, checksum: raw.etag, url: raw.url, relativePath: raw.relative_path, storagePath: raw.storage_path };
   }, [selectedFile, files, rawFiles]);
 
   // Derive the file's own directory from the URL param so the copy path
@@ -305,12 +305,24 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [rightPanelWidth, setRightPanelWidth] = useState(35);
 
+  // Callbacks registered by the file browser table's column sizer.
+  // Called when gutter drag ends so the table recalculates column widths at final size.
+  const layoutStableCallbacksRef = useRef<Set<() => void>>(new Set());
+
+  const registerLayoutStableCallback = useCallback((callback: () => void) => {
+    layoutStableCallbacksRef.current.add(callback);
+    return () => layoutStableCallbacksRef.current.delete(callback);
+  }, []);
+
   const { isDragging, bindResizeHandle } = useResizeDrag({
     width: rightPanelWidth,
     onWidthChange: setRightPanelWidth,
     minWidth: 20,
     maxWidth: 70,
     containerRef,
+    onDragEnd: () => {
+      for (const cb of layoutStableCallbacksRef.current) cb();
+    },
   });
 
   // ==========================================================================
@@ -386,10 +398,11 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       onSelectFile={handleSelectFile}
       onNavigateUp={handleNavigateUp}
       onClearSelection={handleClosePanel}
-      previewOpen={previewPanelOpen}
       isLoading={isFilesLoading && !virtualFiles}
       error={filesError}
       onRetry={() => void refetchFiles()}
+      suspendResize={isDragging}
+      registerLayoutStableCallback={registerLayoutStableCallback}
     />
   );
 

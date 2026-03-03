@@ -88,8 +88,10 @@ export interface DatasetFile {
   checksum?: string;
   /** URL to access/preview the file (for public buckets) */
   url?: string;
-  /** S3 URI for this file (e.g., "s3://bucket/path/file.txt") */
-  s3Path?: string;
+  /** Path relative to the dataset root (e.g., "train/img1.jpg") */
+  relativePath?: string;
+  /** Storage path for this file (e.g., "s3://bucket/path/file.txt") */
+  storagePath?: string;
 }
 
 /**
@@ -511,7 +513,8 @@ export function buildDirectoryListing(items: RawFileItem[], path: string): Datas
         size: item.size,
         checksum: item.etag,
         url: item.url,
-        s3Path: item.storage_path,
+        relativePath: item.relative_path,
+        storagePath: item.storage_path,
       });
     } else {
       // Folder — show the next path segment once
