@@ -14,7 +14,22 @@ description: >
 # OSMO CLI Use Cases
 
 OSMO is a cloud platform for robotics compute and data storage. This skill covers
-common OSMO CLI workflows.
+common OSMO CLI use cases.
+
+## Reference Files
+
+The `agents/` directory contains instructions for specialized subagents. Read them when you need to spawn the relevant subagent.
+
+- `agents/workflow-expert.md` — expert for workflow generation, resource check, submission, failure diagnosis
+- `agents/logs-reader.md` - expert for fetching and reading logs, extracting important information for monitoring and failure diagnosis.
+
+The `references/` directory has additional documentation:
+
+- `references/cookbook.md` — Real-world workflow examples to use as starting points
+- `references/workflow-patterns.md` — Multi-task, parallel execution, data dependencies, Jinja templating
+- `references/advanced-patterns.md` — Checkpointing, retry/exit behavior, node exclusion
+
+---
 
 ## Use Case: Check Available Resources
 
@@ -99,6 +114,8 @@ Derive GPU type from pool names when possible:
 
 **When to use:** The user wants to submit a job to run on OSMO (e.g. "submit a workflow
 to run SDG", "run RL training for me", "submit this yaml to OSMO").
+
+Evaluate the complexity of the user's request: if user also wants monitoring, debugging workflows, reporting results, or the workflow complexity is too high, refer to `Orchestrate a Workflow End-to-End` use case to delegate this to a sub-agent instead.
 
 ### Steps
 
@@ -227,14 +244,21 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    osmo workflow query <workflow name> --format-type json
    ```
 
-2. **Report to the user:**
+2. **Get recent logs** — Choose the log-fetching method based on task count
+   (this rule applies everywhere logs are needed — monitoring, failure diagnosis, etc.):
+   - **1 task:** fetch logs inline with `osmo workflow logs <workflow_id> -n 10000`.
+   - **2+ tasks:** you MUST delegate to `/agents/logs-reader.md` subagents — do NOT
+     fetch logs inline yourself. Spawn one logs-reader subagent per 5 tasks
+     (e.g. 3 tasks → 1 subagent, 7 tasks → 2 subagents).
+
+3. **Report to the user:**
    - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED, PENDING)
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
    - **If the workflow is COMPLETED and has output datasets, you MUST ask this
-     explicit question before ending your response:**  
-     `Would you like me to download the output dataset now?`  
+     explicit question before ending your response:**
+     `Would you like me to download the output dataset now?`
      Also ask whether they want a specific output folder (default to `~/` if not).
      Then run the download yourself:
      ```
@@ -264,37 +288,27 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    ```
    osmo resource list -p <pool>
    ```
-
-3. **Get recent logs** — Refer to the logs-reader subagent. Based on the number of tasks
-   that are present in the response JSON from workflow query, *spawn* a log-reader agent
-   for every 5 tasks that are present. Use the Task tool to spawn the `logs-reader` agent.
-
 ---
 
 ## Use Case: Orchestrate a Workflow End-to-End
 
-**When to use:** The user wants to create, submit AND monitor a workflow to completion,
+**When to use:** The user wants to create workflow, submit and monitor it to completion,
 or requests an autonomous workflow cycle (e.g. "train GR00T on my data", "create a SDG workflow and run it",
 "submit and monitor my workflow", "run end-to-end training", "submit this and
 tell me when it's done").
 
 ### Phase-Split Pattern
 
-The lifecycle is split between the **workflow-expert agent** (resource
-check, YAML generation, submission, failure diagnosis) and **you** (live
-monitoring so the user sees real-time updates). Follow these steps exactly:
+The lifecycle is split between the `/agents/workflow-expert.md` subagent (workflow generation creation, resource check, submission, failure diagnosis) and **you** (live monitoring so the user sees real-time updates). Follow these steps exactly:
 
-#### Step 1: Spawn the workflow-expert for setup and submission
+#### Step 1: Spawn a `/agents/workflow-expert.md` subagent for setup and submission
 
-Use the Task tool to spawn the `workflow-expert` agent. Ask it to
-**check resources and submit the workflow only**. Do NOT ask it to monitor,
-poll status, or report results — that is your job.
+Spawn the `/agents/workflow-expert.md` subagent. Ask it to **write workflow YAML if needed, check resources and submit the workflow only**. Do NOT ask it to monitor, poll status, or report results — that is your job.
 
 Example prompt:
-> Submit the workflow at workflow.yaml to an available GPU pool. Check
-> resources first, then submit. Return the workflow ID when done.
+> Create a workflow based on user's request, if any. Check resources first, then submit the workflow to an available resource pool. Return the workflow ID when done.
 
-The agent returns: workflow ID, pool name, and OSMO Web link.
+The subagent returns: workflow ID, pool name, and OSMO Web link.
 
 #### Step 2: Monitor the workflow inline (you do this — user sees live updates)
 
@@ -312,10 +326,12 @@ Report each state transition to the user:
 In the same completion message, ask: `Would you like me to download the output dataset now?`
 Then follow the COMPLETED handling in "Check Workflow Status".
 
-**If FAILED:** Resume the workflow expert (use the `resume` parameter with the
-agent ID from Step 1) and tell it: "Workflow <id> FAILED. Diagnose and fix."
-It returns a new workflow ID. Resume monitoring from Step 2. Max 3 retries
-before asking the user for guidance.
+**If FAILED:** First, fetch logs using the log-fetching rule from "Check Workflow Status"
+Step 2 (1 task = inline, 2+ tasks = delegate to logs-reader subagents). Then resume the
+`workflow-expert` subagent (use the `resume` parameter with the agent ID from Step 1)
+and pass the logs summary: "Workflow <id> FAILED. Here is the logs summary: <summary>.
+Diagnose and fix." It returns a new workflow ID. Resume monitoring from Step 2. Max 3
+retries before asking the user for guidance.
 
 ---
 
