@@ -19,22 +19,19 @@ global:
   ## Base location for Osmo Docker images in the registry
   ##
   osmoImageLocation: nvcr.io/nvidia/osmo
-
   ## Docker image tag for Osmo router service
   ##
-  osmoImageTag: latest
-
+  osmoImageTag: "6.2"
   ## Name of the Kubernetes secret containing Docker registry credentials
   ##
   imagePullSecret: null
-
   ## Node selector constraints for pod scheduling
   ##
   nodeSelector: {}
-    # Add node selectors here as needed
-    # kubernetes.io/arch: amd64
-    # node-type: cpu
-    # zone: us-west-2a
+  # Add node selectors here as needed
+  # kubernetes.io/arch: amd64
+  # node-type: cpu
+  # zone: us-west-2a
 
   ## Logging configuration for all Osmo services
   ##
@@ -64,16 +61,13 @@ serviceAccount:
   ## an existing ServiceAccount that already has workload identity bindings.
   ##
   create: true
-
   ## ServiceAccount name override. When empty, uses 'router'.
   ##
   name: ""
-
   ## Extra ServiceAccount annotations such as
   ## `azure.workload.identity/client-id` for AKS workload identity.
   ##
   annotations: {}
-
 ## Configuration for individual Osmo services
 ##
 services:
@@ -83,11 +77,9 @@ services:
     ## Enable external configuration file loading
     ##
     enabled: false
-
     ## Path to the configuration file (used when enabled is true)
     ##
     path: /opt/osmo/config.yaml
-
   ## Router service configuration
   ##
   service:
@@ -97,45 +89,35 @@ services:
       ## Minimum number of replicas when scaling is enabled
       ##
       minReplicas: 3
-
       ## Maximum number of replicas when scaling is enabled
       ##
       maxReplicas: 5
-
       ## Target memory utilization percentage for HPA scaling
       ##
       memoryTarget: 80
-
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
-
     ## Docker image name for the router service (without registry or tag)
     ##
     imageName: router
-
     ## Kubernetes image pull policy for the router service
     ## Options: Always, IfNotPresent, Never
     ##
     imagePullPolicy: Always
-
     ## Kubernetes service name for the router service
     ##
     serviceName: osmo-router
-
     ## Init containers for router service
     ##
     initContainers: []
-
     ## Hostname on which the ingress is served
     ## Leave empty to use the default cluster hostname
     ##
     hostname: ""
-
     ## Enable webserver functionality for wildcard subdomain support
     ##
     webserverEnabled: false
-
     ## Additional command line arguments to pass to the router service
     ##
     extraArgs: []
@@ -145,7 +127,6 @@ services:
     ## Kubernetes service account name for the router service
     ##
     serviceAccountName: router
-
     ## Host aliases for custom DNS resolution within the router pods
     ##
     hostAliases: []
@@ -153,47 +134,38 @@ services:
     #   hostnames:
     #   - "example.local"
 
-
     ## Ingress configuration for external access to the router service
     ##
     ingress:
       ## Enable ingress for external access
       ##
       enabled: true
-
       ## URL path prefix for all ingress rules
       ##
       prefix: /
-
       ## Ingress controller class to use for routing traffic
       ##
       ingressClass: nginx
-
       ## AWS Application Load Balancer (ALB) specific annotations
       ##
       albAnnotations:
         ## Enable ALB-specific annotations in the ingress
         ##
         enabled: false
-
         ## ARN of the SSL certificate for HTTPS traffic
         ##
         sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
       ## Enable SSL/TLS encryption for the ingress
       ##
       sslEnabled: true
-
       ## Name of the Kubernetes secret containing SSL/TLS certificates
       ##
       sslSecret: osmo-tls
-
       ## Additional custom annotations for the ingress resource
       ##
       annotations: {}
       # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
       # alb.ingress.kubernetes.io/target-type: ip
-
     ## Node selector constraints for router pod scheduling
     ## Leave empty to allow scheduling on any node
     ##
@@ -213,12 +185,11 @@ services:
     ## Topology spread constraints to distribute pods across nodes/zones
     ##
     topologySpreadConstraints:
-    ## Spread pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
+      ## Spread pods across different availability zones
+      ##
+      - topologyKey: topology.kubernetes.io/zone
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
     ## Resource limits and requests for the router container
     ##
     resources: {}
@@ -238,7 +209,6 @@ services:
       failureThreshold: 2
       periodSeconds: 5
       timeoutSeconds: 30
-
     startupProbe:
       httpGet:
         port: 8000
@@ -247,7 +217,6 @@ services:
       periodSeconds: 5
       timeoutSeconds: 3
       initialDelaySeconds: 30
-
     readinessProbe:
       httpGet:
         port: 8000
@@ -255,30 +224,24 @@ services:
       periodSeconds: 5
       failureThreshold: 2
       timeoutSeconds: 30
-
   ## PostgreSQL database configuration
   ##
   postgres:
     ## PostgreSQL service name for connection
     ##
     serviceName: postgres
-
     ## PostgreSQL service port
     ##
     port: 5432
-
     ## PostgreSQL database name to connect to
     ##
     db: osmo
-
     ## PostgreSQL username for authentication
     ##
     user: postgres
-
     ## PostgreSQL password for authentication (optional, can be provided via kubernetes secret)
     ##
     password: ""
-
 ## Configuration for sidecar containers
 ##
 sidecars:
@@ -326,7 +289,6 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
     ## Resource limits and requests for Envoy container
     ##
     resources:
@@ -415,7 +377,6 @@ sidecars:
       initialDelaySeconds: 10
       periodSeconds: 10
       timeoutSeconds: 3
-
     readinessProbe:
       httpGet:
         path: /ready
@@ -423,7 +384,6 @@ sidecars:
       initialDelaySeconds: 5
       periodSeconds: 5
       timeoutSeconds: 3
-
     startupProbe:
       httpGet:
         path: /ready
@@ -431,95 +391,73 @@ sidecars:
       initialDelaySeconds: 15
       periodSeconds: 5
       timeoutSeconds: 3
-
-
   ## OAuth2 Proxy sidecar configuration
   ##
   oauth2Proxy:
     ## Enable OAuth2 Proxy sidecar container
     ##
     enabled: true
-
     ## OAuth2 Proxy container image
     ##
     image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
-
     ## Image pull policy
     ##
     imagePullPolicy: IfNotPresent
-
     ## HTTP port for OAuth2 Proxy
     ##
     httpPort: 4180
-
     ## Metrics port for OAuth2 Proxy
     ##
     metricsPort: 44180
-
     ## OIDC provider type
     ##
     provider: oidc
-
     ## OIDC issuer URL
     ##
     oidcIssuerUrl: ""
-
     ## OAuth2 client ID
     ##
     clientId: ""
-
     ## Cookie name for session management
     ##
     cookieName: _osmo_session
-
     ## Whether to set the secure flag on cookies
     ##
     cookieSecure: true
-
     ## Cookie domain (leave empty for default)
     ##
     cookieDomain: ""
-
     ## Cookie expiration duration
     ##
     cookieExpire: 168h
-
     ## Cookie refresh interval
     ##
     cookieRefresh: 1h
-
     ## OAuth2 scopes to request
     ##
     scope: "openid email profile"
-
     ## Pass the access token to upstream (disabled to reduce cookie size)
     ##
     passAccessToken: false
-
     ## Use Kubernetes secrets for credentials
     ##
     useKubernetesSecrets: false
-
     ## Kubernetes secret configuration (when useKubernetesSecrets is true)
     ##
     secretName: oauth2-proxy-secrets
     clientSecretKey: client_secret
     cookieSecretKey: cookie_secret
-
     ## Secret file paths (when using vault or other secret managers)
     ##
     secretPaths:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
-
     ## Additional arguments passed to oauth2-proxy
     ##
     extraArgs: []
-
     ## Additional volume mounts
     ##
     extraVolumeMounts: []
-
     ## Security context for OAuth2 Proxy container
     ##
     securityContext:
@@ -528,7 +466,6 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
     ## Resource limits and requests
     ##
     resources:
@@ -537,66 +474,51 @@ sidecars:
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
   ## Log agent sidecar configuration for centralized logging on AWS CloudWatch
   ##
   logAgent:
     ## Enable log agent sidecar container
     ##
     enabled: true
-
     ## Log agent container image
     ##
     image: "fluent/fluent-bit:4.0.8-debug"
-
     ## Image pull policy for log agent container
     ##
     imagePullPolicy: IfNotPresent
-
     ## Port for Prometheus metrics
     ##
     prometheusPort: 2020
-
     ## Name of the ConfigMap containing log agent configuration
     ##
     configName: router-log-agent-config
-
     ## Log rotation configuration
     ##
     logrotate:
       ## Enable log rotation for managing log file sizes
       ##
       enabled: true
-
       ## How often to rotate the logs
       ##
       frequency: hourly
-
       ## Log files are rotated when they reach this size
       ##
       maxSize: 10M
-
       ## How many log files to rotate before deleting the oldest one
       ##
       rotateCount: 5
-
-
     ## AWS CloudWatch logging configuration
     ##
     cloudwatch:
-
       ## AWS region for CloudWatch
       ##
       region: us-west-2
-
       ## Cluster name for CloudWatch log grouping
       ##
       clusterName: ""
-
       ## IAM role ARN for CloudWatch access
       ##
       role: ""
-
     ## Resource limits and requests for log agent container
     ##
     resources:
@@ -605,11 +527,9 @@ sidecars:
         memory: "400Mi"
       limits:
         memory: "400Mi"
-
     ## Additional volume mounts for the log agent container
     ##
     extraVolumeMounts: []
-
   ## Authorization sidecar configuration (role-based access control)
   ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
   ##
@@ -617,23 +537,18 @@ sidecars:
     ## Enable authorization sidecar
     ##
     enabled: true
-
     ## Authorization sidecar Docker image
     ##
     imageName: "authz-sidecar"
-
     ## Image pull policy for authorization sidecar
     ##
     imagePullPolicy: Always
-
     ## gRPC port for authorization service
     ##
     grpcPort: 50052
-
     ## Extra environment variables for the authz sidecar container
     ##
     extraEnv: []
-
     ## PostgreSQL connection pool configuration
     ## Note: Host, port, database, user, and password are inherited from services.postgres
     ##
@@ -641,30 +556,24 @@ sidecars:
       ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
       ##
       sslMode: prefer
-
       ## Maximum number of connections in the pool
       ##
       maxConns: 10
-
       ## Minimum number of connections in the pool
       ##
       minConns: 2
-
       ## Maximum lifetime of a connection in minutes
       ##
       maxConnLifetimeMin: 5
-
     ## Role cache configuration
     ##
     cache:
       ## Cache time-to-live (how long to cache role policies in seconds)
       ##
       ttl: 300
-
       ## Maximum number of role combinations to cache
       ##
       maxSize: 1000
-
     ## Resource limits and requests for authorization sidecar
     ##
     resources:
@@ -674,7 +583,6 @@ sidecars:
       limits:
         cpu: 500m
         memory: 256Mi
-
     ## Liveness probe configuration
     ##
     livenessProbe:
@@ -684,7 +592,6 @@ sidecars:
       periodSeconds: 10
       timeoutSeconds: 3
       failureThreshold: 3
-
     ## Readiness probe configuration
     ##
     readinessProbe:
@@ -694,7 +601,6 @@ sidecars:
       periodSeconds: 5
       timeoutSeconds: 3
       failureThreshold: 2
-
     ## Security context for authorization sidecar
     ##
     securityContext:
@@ -703,7 +609,6 @@ sidecars:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 10001
-
 ## Additional configurations for extensibility
 ##
 extraContainers: []
@@ -744,4 +649,3 @@ extraConfigMaps: []
 #   data:
 #     config.yaml: |
 #       key: value
-
