@@ -33,7 +33,7 @@ Execute these steps using the osmo skill procedures:
 
 4. **Return** — After successful submission, return a structured response:
    - **Workflow ID** and **pool name**
-   - **OSMO Web link**: `https://us-west-2-aws.osmo.nvidia.com/v2/workflows/<workflow_name>`
+   - **OSMO Web link**: <workflow overview link>
    - **Output datasets** the workflow will produce (names from the YAML)
 
    Do NOT poll or monitor the workflow. Return immediately after submission.
