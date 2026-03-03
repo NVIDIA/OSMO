@@ -35,7 +35,7 @@
  * ```
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useCopyToClipboard, useUnmount } from "usehooks-ts";
 
 export interface UseCopyOptions {
@@ -53,10 +53,10 @@ export interface UseCopyReturn {
  */
 export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   const { resetDelay = 2000 } = options;
-  const [copiedText, copyToClipboard] = useCopyToClipboard();
+  const [, copyToClipboard] = useCopyToClipboard();
+  const [copied, setCopied] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup timeout on unmount
   useUnmount(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -65,7 +65,6 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
 
   const copy = useCallback(
     async (text: string): Promise<boolean> => {
-      // Clear any existing timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -73,10 +72,9 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
       const success = await copyToClipboard(text);
 
       if (success) {
-        // Auto-reset after delay
+        setCopied(true);
         timeoutRef.current = setTimeout(() => {
-          // Reset by copying empty string (usehooks-ts tracks last copied value)
-          copyToClipboard("");
+          setCopied(false);
         }, resetDelay);
       }
 
@@ -86,7 +84,7 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   );
 
   return {
-    copied: Boolean(copiedText),
+    copied,
     copy,
   };
 }
