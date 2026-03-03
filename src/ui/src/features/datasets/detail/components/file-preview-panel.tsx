@@ -35,9 +35,9 @@ import { memo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, RefreshCw, Lock } from "lucide-react";
+import { AlertCircle, RefreshCw, Lock, X } from "lucide-react";
 import { PanelTitle } from "@/components/panel/panel-header";
-import { PanelCloseButton, PanelHeaderContainer } from "@/components/panel/panel-header-controls";
+import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { formatBytes } from "@/lib/utils";
@@ -330,9 +330,14 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <PanelTitle className="text-sm font-medium">{file.name}</PanelTitle>
           </div>
-          <div className="-mr-1.5">
-            <PanelCloseButton onClose={onClose} />
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            aria-label="Close panel"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
         </div>
       </PanelHeaderContainer>
 
