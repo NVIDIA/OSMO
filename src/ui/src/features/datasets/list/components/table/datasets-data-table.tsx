@@ -48,6 +48,7 @@ import {
 import { createDatasetColumns } from "@/features/datasets/list/components/table/dataset-column-defs";
 import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
+import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
 
 // =============================================================================
 // Types
@@ -107,6 +108,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   const pathname = usePathname();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();
+  const { openPanel } = useDatasetsPanelContext();
 
   // Shared preferences (hydration-safe)
   const compactMode = useCompactMode();
@@ -122,7 +124,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
 
   const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
 
-  const columns = useMemo(() => createDatasetColumns(), []);
+  const columns = useMemo(() => createDatasetColumns(openPanel), [openPanel]);
 
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 

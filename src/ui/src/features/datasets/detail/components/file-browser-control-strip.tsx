@@ -17,9 +17,9 @@
 /**
  * FileBrowserControlStrip — Top control bar for the dataset detail page.
  *
- * Layout: [VersionSwitcher | breadcrumb] · spacer · [search] [Details toggle]
+ * Layout: [VersionPicker | separator | breadcrumb] · spacer · [search] [Details toggle]
  *
- * - VersionSwitcher + separator only rendered when items.length > 0
+ * - VersionPicker + separator only rendered for datasets (versions.length > 0)
  * - Search input is placeholder-only (disabled) — filter logic wired up later
  * - Details button toggles the right panel visibility
  */
@@ -27,48 +27,52 @@
 "use client";
 
 import { memo } from "react";
-import { Info, Search } from "lucide-react";
+import { Info, Search, ChevronRight } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { VersionSwitcher } from "@/features/datasets/detail/components/version-switcher";
-import type { SwitcherItem } from "@/features/datasets/detail/components/version-switcher";
+import { VersionPicker } from "@/features/datasets/detail/components/version-picker";
+import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface FileBrowserControlStripProps {
-  /** Switcher items (versions for datasets, empty for collections) */
-  items: SwitcherItem[];
-  /** Currently selected item ID (null = latest) */
+  /** Dataset versions (empty for collections) */
+  versions: DatasetVersion[];
+  /** Currently selected version ID or tag name (null = latest) */
   selectedId: string | null;
-  /** Called when version selection changes */
-  onSelectionChange: (id: string) => void;
+  /** Called when version/tag selection changes (null = latest) */
+  onSelectionChange: (id: string | null) => void;
   /** Breadcrumb trail rendered inline (FileBrowserBreadcrumb node) */
   breadcrumb: React.ReactNode;
   /** Whether the right panel is currently visible */
   panelVisible: boolean;
   /** Called to toggle the right panel */
   onTogglePanel: () => void;
+  /** Called when "View all versions" is clicked in the version picker */
+  onViewAllVersions?: () => void;
 }
 
 export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
-  items,
+  versions,
   selectedId,
   onSelectionChange,
   breadcrumb,
   panelVisible,
   onTogglePanel,
+  onViewAllVersions,
 }: FileBrowserControlStripProps) {
   return (
     <div className="flex shrink-0 items-center gap-3">
-      {/* Left group: optional version switcher + separator + breadcrumb */}
-      {items.length > 0 && (
+      {/* Left group: optional version picker + separator + breadcrumb */}
+      {versions.length > 0 && (
         <>
-          <VersionSwitcher
-            items={items}
+          <VersionPicker
+            versions={versions}
             selectedId={selectedId}
             onSelectionChange={onSelectionChange}
+            onViewAllVersions={onViewAllVersions}
           />
-          <span
-            className="h-4 w-px shrink-0 bg-zinc-300 dark:bg-zinc-600"
+          <ChevronRight
+            className="h-3.5 w-3.5 shrink-0 text-zinc-300 dark:text-zinc-600"
             aria-hidden="true"
           />
         </>

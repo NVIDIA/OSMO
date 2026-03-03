@@ -36,7 +36,6 @@ import { DatasetPanelDetails } from "@/features/datasets/list/components/panel/d
 import { DatasetPanelVersions } from "@/features/datasets/list/components/panel/dataset-panel-versions";
 import { CollectionPanelMembers } from "@/features/datasets/list/components/panel/collection-panel-members";
 import { DatasetType } from "@/lib/api/generated";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
 // Types
@@ -45,21 +44,36 @@ import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 interface DatasetPanelProps {
   bucket: string;
   name: string;
+  /** Version ID to pre-select in the details view (from URL state on detail page) */
+  activeVersionId?: string;
   onClose: () => void;
-  onVersionClick?: (version: DatasetVersion) => void;
+  onVersionSelect?: (id: string | null) => void;
+  /** When false, hides the "Browse files" button (e.g. already on the detail page) */
+  showBrowseFiles?: boolean;
 }
 
 // =============================================================================
 // Component
 // =============================================================================
 
-export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetPanelProps) {
+export function DatasetPanel({
+  bucket,
+  name,
+  activeVersionId,
+  onClose,
+  onVersionSelect,
+  showBrowseFiles = true,
+}: DatasetPanelProps) {
   const router = useNavigationRouter();
   const { startTransition } = useViewTransition();
   const { data, isLoading, error } = useDataset(bucket, name, { enabled: !!bucket && !!name });
 
   const dataset = data?.dataset;
   const isCollection = data?.type === DatasetType.COLLECTION;
+  const activeVersion =
+    activeVersionId && data?.type === DatasetType.DATASET
+      ? (data.versions.find((v) => v.version === activeVersionId) ?? null)
+      : null;
   const badge = isCollection ? "Collection" : "Dataset";
 
   const handleBrowseFiles = useCallback(() => {
@@ -75,19 +89,21 @@ export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetP
         title={<PanelTitle>{name}</PanelTitle>}
         actions={
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={handleBrowseFiles}
-              aria-label={`Browse files for ${name}`}
-            >
-              <FolderOpen
-                className="size-3.5"
-                aria-hidden="true"
-              />
-              Browse files
-            </Button>
+            {showBrowseFiles && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={handleBrowseFiles}
+                aria-label={`Browse files for ${name}`}
+              >
+                <FolderOpen
+                  className="size-3.5"
+                  aria-hidden="true"
+                />
+                Browse files
+              </Button>
+            )}
             <PanelHeaderActions
               badge={badge}
               onClose={onClose}
@@ -116,14 +132,17 @@ export function DatasetPanel({ bucket, name, onClose, onVersionClick }: DatasetP
 
         {dataset && !isLoading && (
           <div className="space-y-6">
-            <DatasetPanelDetails dataset={dataset} />
+            <DatasetPanelDetails
+              dataset={dataset}
+              activeVersion={activeVersion}
+            />
             {data.type === DatasetType.COLLECTION ? (
               <CollectionPanelMembers members={data.members} />
             ) : (
               <DatasetPanelVersions
                 versions={data.versions}
-                currentVersion={dataset.version}
-                onVersionClick={onVersionClick}
+                activeVersionId={activeVersionId}
+                onVersionSelect={onVersionSelect}
               />
             )}
           </div>

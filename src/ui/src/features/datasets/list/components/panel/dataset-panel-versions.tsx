@@ -19,7 +19,8 @@
  *
  * Pool-style card with a compact table: version (+ tags), created by, date, size.
  * Sorted latest-first (descending by version number).
- * When onVersionClick is provided, rows are clickable to navigate to that version.
+ * When onVersionSelect is provided, version numbers and individual tags are clickable
+ * and call onVersionSelect(id) — same API as VersionPicker.onSelectionChange.
  */
 
 "use client";
@@ -32,12 +33,14 @@ import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface DatasetPanelVersionsProps {
   versions: DatasetVersion[];
-  currentVersion?: number;
-  onVersionClick?: (version: DatasetVersion) => void;
+  /** Currently active version ID (from URL state on detail page), highlighted in the list */
+  activeVersionId?: string;
+  /** Called with version ID, tag name, or null (for "latest") — same as VersionPicker */
+  onVersionSelect?: (id: string | null) => void;
 }
 
-export function DatasetPanelVersions({ versions, currentVersion, onVersionClick }: DatasetPanelVersionsProps) {
-  const sorted = [...versions].sort((a, b) => parseInt(b.version) - parseInt(a.version));
+export function DatasetPanelVersions({ versions, activeVersionId, onVersionSelect }: DatasetPanelVersionsProps) {
+  const sorted = [...versions].sort((a, b) => parseInt(b.version, 10) - parseInt(a.version, 10));
 
   return (
     <section>
@@ -63,18 +66,19 @@ export function DatasetPanelVersions({ versions, currentVersion, onVersionClick 
                 </thead>
                 <tbody className="divide-border divide-y">
                   {sorted.map((version) => {
-                    const isCurrent = currentVersion !== undefined && parseInt(version.version) === currentVersion;
                     const sizeGib = version.size / 1024 ** 3;
+                    const isActive = activeVersionId === version.version;
                     return (
                       <tr
                         key={version.version}
-                        onClick={onVersionClick ? () => onVersionClick(version) : undefined}
-                        className={cn(onVersionClick && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/50")}
+                        onClick={onVersionSelect ? () => onVersionSelect(version.version) : undefined}
+                        className={cn(
+                          isActive && "bg-muted/70",
+                          !isActive && onVersionSelect && "hover:bg-muted/50 cursor-pointer",
+                        )}
                       >
                         <td className="px-3 py-2 align-top">
-                          <span className={isCurrent ? "text-nvidia font-mono font-semibold" : "font-mono"}>
-                            {version.version}
-                          </span>
+                          <span className="font-mono">{version.version}</span>
                         </td>
                         <td className="text-muted-foreground px-3 py-2 align-top">{version.created_by}</td>
                         <td className="text-muted-foreground px-3 py-2 align-top">

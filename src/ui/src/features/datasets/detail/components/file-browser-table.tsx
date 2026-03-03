@@ -28,7 +28,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Folder, File, FileText, FileImage, FileVideo, Copy, Database } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
-import { TableLoadingSkeleton } from "@/components/data-table/table-states";
+import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";
 import { useCopy } from "@/hooks/use-copy";
@@ -60,6 +60,10 @@ interface FileBrowserTableProps {
   /** Whether the file preview panel is currently visible (controls j/k live-update) */
   previewOpen?: boolean;
   isLoading?: boolean;
+  /** Error from the file listing query — renders an error state inside the table shell */
+  error?: Error | null;
+  /** Called when user clicks retry on an error state */
+  onRetry?: () => void;
 }
 
 // =============================================================================
@@ -207,10 +211,9 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       minSize: 60,
       cell: ({ row }) => {
         const { size, type } = row.original;
-        if (type === "folder" || (type !== "dataset-member" && size === undefined)) {
+        if (type === "folder" || size === undefined) {
           return <span className="text-sm text-zinc-400 dark:text-zinc-600">—</span>;
         }
-        if (size === undefined) return <span className="text-sm text-zinc-400 dark:text-zinc-600">—</span>;
         return (
           <span className="text-sm text-zinc-600 dark:text-zinc-400">{formatBytes(size / 1024 ** 3).display}</span>
         );
@@ -252,6 +255,8 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   onClearSelection,
   previewOpen = false,
   isLoading = false,
+  error,
+  onRetry,
 }: FileBrowserTableProps) {
   const compactMode = useCompactMode();
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
@@ -359,6 +364,17 @@ export const FileBrowserTable = memo(function FileBrowserTable({
             onNavigateUp();
           }
           break;
+        case "l":
+        case "ArrowRight":
+        case "Enter": {
+          const rowIndex = parseInt(target.getAttribute("aria-rowindex") ?? "0", 10);
+          const file = sortedFiles[rowIndex - 2]; // aria-rowindex starts at 2 (1 = header)
+          if (file) {
+            e.preventDefault();
+            handleRowClick(file);
+          }
+          break;
+        }
         case "Escape":
           if (onClearSelection) {
             e.preventDefault();
@@ -367,7 +383,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
           break;
       }
     },
-    [onNavigateUp, onClearSelection],
+    [onNavigateUp, onClearSelection, sortedFiles, handleRowClick],
   );
 
   const columns = useMemo(() => createColumns(), []);
@@ -381,8 +397,19 @@ export const FileBrowserTable = memo(function FileBrowserTable({
       role="presentation"
       onKeyDown={handleKeyDown}
     >
-      {isLoading ? (
-        <TableLoadingSkeleton rowHeight={rowHeight} />
+      {error ? (
+        <TableErrorState
+          error={error}
+          title="Unable to load files"
+          onRetry={onRetry}
+          headers={["Name", "Size", "Type"]}
+        />
+      ) : isLoading ? (
+        <TableLoadingSkeleton
+          rowHeight={rowHeight}
+          columnCount={3}
+          headers={["Name", "Size", "Type"]}
+        />
       ) : (
         <DataTable<DatasetFile>
           data={sortedFiles}

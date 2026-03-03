@@ -25,7 +25,7 @@ import { faker } from "@faker-js/faker";
 import { hashString } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
-import type { RawFileItem } from "@/lib/api/adapter/datasets";
+import type { DatasetFile, RawFileItem } from "@/lib/api/adapter/datasets";
 
 // ============================================================================
 // Types
@@ -68,16 +68,6 @@ export interface GeneratedCollectionMember {
   location: string;
   uri: string;
   size: number;
-}
-
-export interface DatasetFile {
-  name: string;
-  type: "file" | "folder";
-  size?: number;
-  modified?: string;
-  checksum?: string;
-  /** URL to access/preview the file (for public buckets) */
-  url?: string;
 }
 
 // ============================================================================
@@ -235,12 +225,24 @@ export class DatasetGenerator {
         location: `s3://osmo-datasets/datasets/${datasetName}/v${v}/`,
         uri: `s3://osmo-datasets/datasets/${datasetName}/v${v}/`,
         metadata: {},
-        tags: faker.helpers.arrayElements(["latest", "production", "test"], { min: 0, max: 2 }),
+        tags: [],
         collections: [],
       });
 
       // Advance date for next version
       date = new Date(date.getTime() + faker.number.int({ min: 1, max: 30 }) * 24 * 60 * 60 * 1000);
+    }
+
+    // Assign tags after generation so each tag appears on at most one version,
+    // matching the backend's unique constraint on (dataset_id, tag).
+    // "latest" always goes on the last version; other tags are randomly assigned.
+    const lastIndex = versions.length - 1;
+    versions[lastIndex].tags.push("latest");
+    for (const tag of ["production", "test"] as const) {
+      if (faker.datatype.boolean(0.5)) {
+        const targetIndex = faker.number.int({ min: 0, max: lastIndex });
+        versions[targetIndex].tags.push(tag);
+      }
     }
 
     return versions;

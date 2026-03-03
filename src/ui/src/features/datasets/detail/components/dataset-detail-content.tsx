@@ -17,20 +17,13 @@
 /**
  * Dataset Detail Content (Client Component)
  *
- * Side-by-side layout: file browser (left, flex-1) + toggleable right panel.
+ * Side-by-side layout: file browser (left, flex-1) + toggleable file preview panel (right).
+ * Dataset details open in the layout-level overlay panel (DatasetsPanelLayout).
  *
- * Panel state machine (no useEffect — transitions only from explicit user actions):
- *
- *   closed ──[click file]──────────────► file
- *   closed ──[click Details]───────────► details
- *   file ────[click file]──────────────► file (update preview)
- *   file ────[click Details]───────────► details-over-file (back button available)
- *   file ────[X / Esc]─────────────────► closed
- *   details ─[click file]──────────────► file
- *   details ─[click Details / X / Esc]─► closed
- *   details-over-file ─[click file]────► file
- *   details-over-file ─[back "<"]──────► file (same file as before)
- *   details-over-file ─[Details/X/Esc]─► closed
+ * File preview panel state:
+ *   closed ──[click file]──► open (file preview)
+ *   open ────[click file]──► open (update preview)
+ *   open ────[X / Esc]─────► closed
  *
  * URL state: ?path= (current dir), ?version= (dataset version), ?file= (selected file)
  */
@@ -49,25 +42,14 @@ import { usePanelAnimation } from "@/components/panel/hooks/use-panel-animation"
 import { FileBrowserBreadcrumb } from "@/features/datasets/detail/components/file-browser-breadcrumb";
 import { FileBrowserControlStrip } from "@/features/datasets/detail/components/file-browser-control-strip";
 import { FileBrowserTable } from "@/features/datasets/detail/components/file-browser-table";
-import { DatasetRightPanel } from "@/features/datasets/detail/components/dataset-right-panel";
-import { useDatasetDetail } from "@/features/datasets/detail/hooks/use-dataset-detail";
+import { FilePreviewPanel } from "@/features/datasets/detail/components/file-preview-panel";
+import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
-import { useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
+import { useDataset, useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
 import { DatasetType } from "@/lib/api/generated";
-import type { SwitcherItem } from "@/features/datasets/detail/components/version-switcher";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 import "@/components/panel/resizable-panel.css";
-
-// =============================================================================
-// Panel mode — single source of truth for right panel state
-// =============================================================================
-
-type PanelMode =
-  | "closed" // panel hidden
-  | "file" // file preview visible
-  | "details" // dataset details visible (no file context)
-  | "details-over-file"; // details visible, back button returns to file preview
 
 interface Props {
   bucket: string;
@@ -79,7 +61,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // Dataset/collection metadata
   // ==========================================================================
 
-  const { detail, error: datasetError, refetch: refetchDataset } = useDatasetDetail(bucket, name);
+  const { data: detail, error: datasetError, refetch: refetchDataset } = useDataset(bucket, name);
 
   // ==========================================================================
   // URL state: path, version (datasets only), selected file
@@ -88,63 +70,83 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
 
   // ==========================================================================
-  // Panel mode — all transitions happen in explicit user-action handlers.
+  // File preview panel state
   // ==========================================================================
 
-  const [panelMode, setPanelMode] = useState<PanelMode>("closed");
+  // Lazy init: if the URL already has file= on mount (e.g. shared link), open immediately.
+  const [previewPanelOpen, setPreviewPanelOpen] = useState(() => selectedFile !== null);
+
+  // Derived-state sync: keep previewPanelOpen in sync when file= URL param changes externally
+  // (browser back/forward, shared link, <Link> navigation).
+  const prevSelectedFile = usePrevious(selectedFile);
+  // file= cleared → close preview
+  if (prevSelectedFile != null && selectedFile === null && previewPanelOpen) {
+    setPreviewPanelOpen(false);
+  }
+  // file= added while preview closed → open
+  if (prevSelectedFile === null && selectedFile !== null && !previewPanelOpen) {
+    setPreviewPanelOpen(true);
+  }
 
   // Click a file row → open file preview (or replace current preview)
   const handleSelectFile = useCallback(
     (filePath: string) => {
       selectFile(filePath);
-      setPanelMode("file");
+      setPreviewPanelOpen(true);
     },
     [selectFile],
   );
 
-  // Details button in control strip — toggles details layer
-  const handleDetailsToggle = useCallback(() => {
-    if (panelMode === "closed") {
-      setPanelMode("details");
-    } else if (panelMode === "file") {
-      setPanelMode("details-over-file");
-    } else if (panelMode === "details-over-file") {
-      // Can go back to file preview — do that instead of closing
-      setPanelMode("file");
-    } else {
-      // "details" with no file underneath → close (clearSelection deferred via animation onClosed)
-      setPanelMode("closed");
-    }
-  }, [panelMode]);
-
-  // Back button ("<") in the details header — returns to the file that was open
-  const handleBack = useCallback(() => {
-    setPanelMode("file");
-  }, []);
-
-  // Close panel (X button, Esc, or table Esc on row)
+  // Close preview panel (X button, Esc)
   // clearSelection() is deferred to the animation onClosed callback so the file
   // preview stays visible inside the panel while it slides out.
   const handleClosePanel = useCallback(() => {
-    setPanelMode("closed");
+    setPreviewPanelOpen(false);
   }, []);
 
-  // Global Esc — closes panel from any focus position
+  // Global Esc — closes file preview from any focus position
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || panelMode === "closed") return;
+      if (e.key !== "Escape" || e.defaultPrevented || !previewPanelOpen) return;
       handleClosePanel();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [panelMode, handleClosePanel]);
+  }, [previewPanelOpen, handleClosePanel]);
+
+  // ==========================================================================
+  // Details overlay panel — controlled by the layout-level DatasetsPanelLayout
+  // ==========================================================================
+
+  const { isPanelOpen, openPanel, closePanel } = useDatasetsPanelContext();
+
+  const handleDetailsToggle = useCallback(() => {
+    if (isPanelOpen) {
+      closePanel();
+    } else {
+      openPanel(bucket, name, version ?? null);
+    }
+  }, [isPanelOpen, openPanel, closePanel, bucket, name, version]);
+
+  const handleViewAllVersions = useCallback(() => {
+    // Defer to a microtask so the Popover-close render (setOpen(false)) commits first.
+    // Without this, React batches both updates into one render; usePrevious(phase)
+    // then returns "closing" instead of "closed", which bypasses ResizablePanel's
+    // useLayoutEffect reflow trick and causes the panel to appear without its slide-in.
+    queueMicrotask(() => openPanel(bucket, name, version ?? null));
+  }, [openPanel, bucket, name, version]);
+
+  const handleNavigateUp = useCallback(() => {
+    if (!path) return;
+    navigateTo(path.split("/").slice(0, -1).join("/"));
+  }, [path, navigateTo]);
 
   // ==========================================================================
   // Resolve location + files based on type
   // ==========================================================================
 
   const {
-    switcherItems,
+    versions,
     location,
     files: virtualFiles,
     memberSubPath,
@@ -152,7 +154,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   } = useMemo(() => {
     if (!detail) {
       return {
-        switcherItems: [] as SwitcherItem[],
+        versions: [],
         location: null as string | null,
         files: null as DatasetFile[] | null,
         memberSubPath: "",
@@ -163,14 +165,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     if (detail.type === DatasetType.DATASET) {
       const sorted = [...detail.versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10));
       const latestVersion = sorted.at(-1) ?? null;
-      const items: SwitcherItem[] = sorted.map((v) => ({
-        id: v.version,
-        label: `v${v.version}`,
-        isLatest: v.version === latestVersion?.version,
-      }));
       const currentVersionData = (version ? sorted.find((v) => v.version === version) : null) ?? latestVersion;
       return {
-        switcherItems: items,
+        versions: detail.versions,
         location: currentVersionData?.location ?? null,
         files: null,
         memberSubPath: path,
@@ -194,7 +191,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         size: m.size,
       }));
       return {
-        switcherItems: [] as SwitcherItem[],
+        versions: [],
         location: null,
         files: memberEntries,
         memberSubPath: "",
@@ -207,7 +204,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     const member = detail.members.find((m) => m.id === memberId) ?? null;
     const subPath = path.split("/").slice(1).join("/");
     return {
-      switcherItems: [] as SwitcherItem[],
+      versions: [],
       location: member?.location ?? null,
       files: null,
       memberSubPath: subPath,
@@ -264,7 +261,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // inside the panel while it slides out.
   // ==========================================================================
 
-  const panelOpen = panelMode !== "closed";
   const panelRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -276,7 +272,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     contentRef,
     handleContentAnimationEnd,
     handlePanelTransitionEnd,
-  } = usePanelAnimation(panelOpen, clearSelection);
+  } = usePanelAnimation(previewPanelOpen, clearSelection);
 
   const prevPhase = usePrevious(phase);
 
@@ -296,10 +292,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     }
 
     if (phase === "closing" && prevPhase === "open") {
-      // Aside is already position:absolute in this render (frees flex space so the
-      // table has already expanded). Now wire up the CSS transition: reset React's
-      // translateX(100%) back to 0, force a reflow to register that as the start
-      // position, then set 100% so the CSS transition fires 0 → 100%.
       panel.style.transform = "translateX(0)";
       void panel.offsetHeight;
       panel.style.transform = "translateX(100%)";
@@ -327,17 +319,20 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // ==========================================================================
 
   usePage({
-    title: "",
+    title: name,
     breadcrumbs: [
       { label: "Datasets", href: "/datasets" },
       { label: bucket, href: `/datasets?f=bucket:${encodeURIComponent(bucket)}` },
-      { label: name, href: null },
     ],
   });
 
   // For collections, don't pass rawFiles to breadcrumb (disables sibling popovers
-  // which don't make sense for member-level segments)
-  const breadcrumbRawFiles = detail?.type === DatasetType.COLLECTION ? undefined : (rawFiles ?? undefined);
+  // which don't make sense for member-level segments).
+  // Collections also pin the first path segment (member dataset name) so it stays
+  // visible even when deeper folders collapse into the ellipsis.
+  const isCollection = detail?.type === DatasetType.COLLECTION;
+  const breadcrumbRawFiles = isCollection ? undefined : (rawFiles ?? undefined);
+  const breadcrumbPinnedPrefixCount = isCollection ? 1 : 0;
 
   const breadcrumbTrail = useMemo(
     () => (
@@ -347,9 +342,10 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         onNavigate={navigateTo}
         rawFiles={breadcrumbRawFiles}
         segmentLabels={Object.keys(segmentLabels).length > 0 ? segmentLabels : undefined}
+        pinnedPrefixCount={breadcrumbPinnedPrefixCount}
       />
     ),
-    [name, path, navigateTo, breadcrumbRawFiles, segmentLabels],
+    [name, path, navigateTo, breadcrumbRawFiles, segmentLabels, breadcrumbPinnedPrefixCount],
   );
 
   // ==========================================================================
@@ -381,23 +377,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // File listing content — handles query error inline
   // ==========================================================================
 
-  const handleNavigateUp = () => {
-    if (!path) return;
-    navigateTo(path.split("/").slice(0, -1).join("/"));
-  };
-
-  const fileTableContent = filesError ? (
-    <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">Failed to load files.</p>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => void refetchFiles()}
-      >
-        Retry
-      </Button>
-    </div>
-  ) : (
+  const fileTableContent = (
     <FileBrowserTable
       files={files}
       path={path}
@@ -406,12 +386,12 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       onSelectFile={handleSelectFile}
       onNavigateUp={handleNavigateUp}
       onClearSelection={handleClosePanel}
-      previewOpen={panelMode === "file"}
+      previewOpen={previewPanelOpen}
       isLoading={isFilesLoading && !virtualFiles}
+      error={filesError}
+      onRetry={() => void refetchFiles()}
     />
   );
-
-  const showDetails = panelMode === "details" || panelMode === "details-over-file";
 
   // ==========================================================================
   // Render
@@ -421,15 +401,16 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     <div className="flex h-full flex-col gap-4 overflow-hidden p-6">
       {/* Control strip */}
       <FileBrowserControlStrip
-        items={switcherItems}
+        versions={versions}
         selectedId={version}
         onSelectionChange={setVersion}
         breadcrumb={breadcrumbTrail}
-        panelVisible={showDetails}
+        panelVisible={isPanelOpen}
         onTogglePanel={handleDetailsToggle}
+        onViewAllVersions={handleViewAllVersions}
       />
 
-      {/* File browser + optional right panel */}
+      {/* File browser + optional file preview panel */}
       <InlineErrorBoundary
         title="Unable to display file browser"
         resetKeys={[files.length]}
@@ -465,7 +446,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
                 />
               </div>
 
-              {/* Right panel — slides in/out via translateX */}
+              {/* File preview panel — slides in/out via translateX */}
               <aside
                 ref={panelRef}
                 className={cn(
@@ -477,15 +458,12 @@ export function DatasetDetailContent({ bucket, name }: Props) {
                 style={{
                   width: `${rightPanelWidth}%`,
                   transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
-                  willChange: shellMounted ? "transform" : "auto",
+                  willChange: phase === "opening" || phase === "closing" ? "transform" : "auto",
                   // On close, switch to absolute so the aside leaves flex flow and
                   // the table expands immediately — same frame the slide starts.
-                  // The outer container has position:relative as the anchor.
                   ...(!panelSlideIn && { position: "absolute", right: 0, top: 0, bottom: 0 }),
                 }}
-                aria-label={
-                  showDetails ? `Dataset details: ${name}` : selectedFile ? `File preview: ${selectedFile}` : undefined
-                }
+                aria-label={selectedFile ? `File preview: ${selectedFile}` : undefined}
                 onTransitionEnd={handlePanelTransitionEnd}
               >
                 {contentMounted && (
@@ -495,17 +473,13 @@ export function DatasetDetailContent({ bucket, name }: Props) {
                     data-content-state={contentState}
                     onAnimationEnd={handleContentAnimationEnd}
                   >
-                    <DatasetRightPanel
-                      bucket={bucket}
-                      name={name}
-                      datasetType={detail.type}
-                      showDetails={showDetails}
-                      showBack={panelMode === "details-over-file"}
-                      selectedFile={panelFileData}
-                      path={fileDirPath}
-                      onBack={handleBack}
-                      onClose={handleClosePanel}
-                    />
+                    {panelFileData && (
+                      <FilePreviewPanel
+                        file={panelFileData}
+                        path={fileDirPath}
+                        onClose={handleClosePanel}
+                      />
+                    )}
                   </div>
                 )}
               </aside>

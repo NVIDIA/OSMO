@@ -241,6 +241,36 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
 }
 
 // =============================================================================
+// Preview state — discriminated union replaces parallel boolean guards
+// =============================================================================
+
+type PreviewState =
+  | { kind: "no-url" }
+  | { kind: "loading" }
+  | { kind: "error"; retry: () => void }
+  | { kind: "denied" }
+  | { kind: "not-found" }
+  | { kind: "ready"; url: string; contentType: string };
+
+function resolvePreviewState(
+  url: string | undefined,
+  isLoading: boolean,
+  error: unknown,
+  head: HeadResult | undefined,
+  retry: () => void,
+): PreviewState {
+  if (!url) return { kind: "no-url" };
+  if (isLoading) return { kind: "loading" };
+  if (error) return { kind: "error", retry };
+  if (!head) return { kind: "loading" };
+  if (head.status === 401 || head.status === 403) return { kind: "denied" };
+  if (head.status === 404) return { kind: "not-found" };
+  if (head.status === 200) return { kind: "ready", url, contentType: head.contentType };
+  // Unexpected status (e.g. 500) — treat as retriable error
+  return { kind: "error", retry };
+}
+
+// =============================================================================
 // Main component
 // =============================================================================
 
@@ -268,11 +298,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
     retry: false,
   });
 
-  // Derive preview state
-  const showPreview = !!file.url;
-  const accessDenied = head && (head.status === 401 || head.status === 403);
-  const notFound = head && head.status === 404;
-  const previewReady = head && head.status === 200;
+  const previewState = resolvePreviewState(file.url, headLoading, headError, head, () => void refetch());
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -301,40 +327,35 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
 
       {/* Preview area */}
       <div className="flex min-h-0 flex-1 flex-col">
-        {showPreview && headLoading && (
+        {previewState.kind === "no-url" && (
+          <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">No preview URL available for this file.</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-600">Copy the path to access it directly.</p>
+          </div>
+        )}
+        {previewState.kind === "loading" && (
           <div className="flex flex-1 items-center justify-center p-8">
             <Skeleton className="h-40 w-full" />
           </div>
         )}
-
-        {showPreview && headError && (
+        {previewState.kind === "error" && (
           <PreviewError
             message="Could not reach the file. Check your network connection."
-            onRetry={() => void refetch()}
+            onRetry={previewState.retry}
           />
         )}
-
-        {showPreview && accessDenied && (
+        {previewState.kind === "denied" && (
           <PreviewError
             icon="lock"
             message="The bucket must be public to preview files. Contact your administrator to enable public access."
           />
         )}
-
-        {showPreview && notFound && <PreviewError message="File not found at this path." />}
-
-        {showPreview && previewReady && (
+        {previewState.kind === "not-found" && <PreviewError message="File not found at this path." />}
+        {previewState.kind === "ready" && (
           <PreviewContent
-            url={file.url!}
-            contentType={head.contentType}
+            url={previewState.url}
+            contentType={previewState.contentType}
           />
-        )}
-
-        {!showPreview && (
-          <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">No preview URL available for this file.</p>
-            <p className="text-xs text-zinc-400 dark:text-zinc-600">Copy the path to access it directly.</p>
-          </div>
         )}
       </div>
 
@@ -366,7 +387,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
               <button
                 type="button"
                 onClick={handleCopyPath}
-                className="flex shrink-0 items-center gap-1 rounded py-0.5 px-2 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
                 aria-label={`Copy path: ${copyTarget}`}
               >
                 <Copy

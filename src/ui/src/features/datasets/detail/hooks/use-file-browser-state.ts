@@ -40,8 +40,8 @@ export interface FileBrowserState {
   selectedFile: string | null;
   /** Navigate to a directory path (preserves file selection) */
   navigateTo: (path: string) => void;
-  /** Switch version (preserves current path) */
-  setVersion: (version: string) => void;
+  /** Switch version (preserves current path), null = latest */
+  setVersion: (version: string | null) => void;
   /** Select a file to preview */
   selectFile: (filePath: string) => void;
   /** Clear file selection (close preview panel) */
@@ -70,7 +70,7 @@ export function useFileBrowserState(): FileBrowserState {
   );
 
   const setVersion = useCallback(
-    (newVersion: string) => {
+    (newVersion: string | null) => {
       void setParams({ version: newVersion });
     },
     [setParams],
