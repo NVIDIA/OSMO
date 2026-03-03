@@ -214,8 +214,7 @@ export function useLogPresentation(params: UseLogPresentationParams): UseLogPres
 
     // Build absolute URL from the relative backend log URL
     const hostname = getApiHostname();
-    const protocol = typeof window !== "undefined" ? window.location.protocol : "https:";
-    const baseUrl = hostname.startsWith("http") ? hostname : `${protocol}//${hostname}`;
+    const baseUrl = hostname.startsWith("http") ? hostname : `//${hostname}`;
     // logUrl is a relative path like "/api/workflow/foo/logs" or "api/workflow/foo/task/bar/logs"
     const normalizedPath = logUrl.startsWith("/") ? logUrl : `/${logUrl}`;
     return `${baseUrl}${normalizedPath}`;
