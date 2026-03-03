@@ -229,6 +229,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     [virtualFiles, rawFiles, memberSubPath],
   );
 
+  const handleRetryFiles = useCallback(() => void refetchFiles(), [refetchFiles]);
+
   // ==========================================================================
   // Resolve selected file data for the right panel
   //
@@ -400,7 +402,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       onClearSelection={handleClosePanel}
       isLoading={isFilesLoading && !virtualFiles}
       error={filesError}
-      onRetry={() => void refetchFiles()}
+      onRetry={handleRetryFiles}
       suspendResize={isDragging}
       registerLayoutStableCallback={registerLayoutStableCallback}
     />
@@ -427,7 +429,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       <InlineErrorBoundary
         title="Unable to display file browser"
         resetKeys={[files.length]}
-        onReset={() => void refetchFiles()}
+        onReset={handleRetryFiles}
       >
         <div
           ref={containerRef}
