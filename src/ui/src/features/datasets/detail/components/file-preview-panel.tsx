@@ -31,8 +31,9 @@
 
 "use client";
 
-import { useCallback, memo } from "react";
+import { useCallback, useMemo, memo } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, AlertCircle, RefreshCw, Lock, X } from "lucide-react";
 import { PanelTitle } from "@/components/panel/panel-header";
@@ -44,7 +45,14 @@ import { formatBytes } from "@/lib/utils";
 import { formatDateTimeFull } from "@/lib/format-date";
 import { useCopy } from "@/hooks/use-copy";
 import { getBasePathUrl } from "@/lib/config";
+import { CodeViewerSkeleton } from "@/components/code-viewer/code-viewer-skeleton";
+import { getLanguageForContentType } from "@/components/code-viewer/lib/languages";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
+
+const CodeMirror = dynamic(
+  () => import("@/components/code-viewer/code-mirror").then((m) => ({ default: m.CodeMirror })),
+  { ssr: false, loading: () => <CodeViewerSkeleton className="absolute inset-0" /> },
+);
 
 // =============================================================================
 // Types
@@ -82,8 +90,8 @@ async function fetchHeadResult(url: string): Promise<HeadResult> {
 
 function MetadataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-2 text-xs">
-      <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">{label}</span>
+    <div className="flex gap-1 text-xs">
+      <span className="w-14 shrink-0 text-zinc-500 dark:text-zinc-400">{label}</span>
       <span className="min-w-0 font-mono break-all text-zinc-700 dark:text-zinc-300">{value}</span>
     </div>
   );
@@ -136,7 +144,15 @@ async function fetchTextContent(url: string): Promise<string> {
   return response.text();
 }
 
-function TextPreview({ url, contentType }: { url: string; contentType: string }) {
+function TextPreview({
+  url,
+  contentType,
+  fileName,
+}: {
+  url: string;
+  contentType: string;
+  fileName: string;
+}) {
   const {
     data: text,
     isLoading,
@@ -148,6 +164,11 @@ function TextPreview({ url, contentType }: { url: string; contentType: string })
     staleTime: Infinity,
     retry: false,
   });
+
+  const language = useMemo(
+    () => getLanguageForContentType(contentType, fileName),
+    [contentType, fileName],
+  );
 
   if (isLoading) {
     return (
@@ -166,20 +187,27 @@ function TextPreview({ url, contentType }: { url: string; contentType: string })
     );
   }
 
-  const isCsv = contentType.includes("csv") || url.toLowerCase().includes(".csv");
-
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-4">
-      <pre
-        className={`font-mono text-xs break-all whitespace-pre-wrap text-zinc-700 dark:text-zinc-300 ${isCsv ? "leading-5" : ""}`}
-      >
-        {text}
-      </pre>
+    <div className="relative min-h-0 flex-1 overflow-hidden">
+      <CodeMirror
+        value={text ?? ""}
+        language={language}
+        readOnly
+        className="absolute inset-0"
+      />
     </div>
   );
 }
 
-function PreviewContent({ url, contentType }: { url: string; contentType: string }) {
+function PreviewContent({
+  url,
+  contentType,
+  fileName,
+}: {
+  url: string;
+  contentType: string;
+  fileName: string;
+}) {
   const proxyUrl = toProxyUrl(url);
 
   if (contentType.startsWith("image/")) {
@@ -227,6 +255,7 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
       <TextPreview
         url={proxyUrl}
         contentType={contentType}
+        fileName={fileName}
       />
     );
   }
@@ -303,22 +332,19 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky header */}
-      <PanelHeaderContainer>
+      <PanelHeaderContainer className="py-2.5">
         <div className="flex items-center gap-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <PanelTitle className="text-sm font-medium">{file.name}</PanelTitle>
           </div>
-          <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium tracking-wide text-zinc-500 uppercase ring-1 ring-zinc-300 ring-inset dark:text-zinc-400 dark:ring-zinc-600">
-            File
-          </span>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            className="-mr-1 size-5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
             aria-label="Close panel"
           >
             <X
-              className="size-3 shrink-0"
+              className="size-5 shrink-0"
               aria-hidden="true"
             />
           </button>
@@ -355,12 +381,13 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <PreviewContent
             url={previewState.url}
             contentType={previewState.contentType}
+            fileName={file.name}
           />
         )}
       </div>
 
       {/* Footer: metadata + copy path */}
-      <div className="shrink-0 border-t border-zinc-200 p-4 dark:border-zinc-800">
+      <div className="shrink-0 border-t border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
         <div className="flex items-end justify-between gap-2">
           <div className="space-y-1.5">
             {file.size !== undefined && (
