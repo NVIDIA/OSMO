@@ -57,6 +57,10 @@ def get_new_jwt_token(refresh_token: str, workflow_id: str,
     """
     API to fetch for a new access token using a refresh token.
     """
+    if len(refresh_token) != task_lib.REFRESH_TOKEN_STR_LENGTH:
+        raise osmo_errors.OSMOUserError(
+            f'Refresh token must be {task_lib.REFRESH_TOKEN_STR_LENGTH} characters')
+
     postgres = connectors.PostgresConnector.get_instance()
     service_config = postgres.get_service_configs()
 
@@ -114,6 +118,10 @@ def get_jwt_token_from_access_token(access_token: str):
     """
     API to create a new jwt token from an access token.
     """
+    if len(access_token) != task_lib.REFRESH_TOKEN_STR_LENGTH:
+        raise osmo_errors.OSMOUserError(
+            f'Access token must be {task_lib.REFRESH_TOKEN_STR_LENGTH} characters')
+
     postgres = connectors.PostgresConnector.get_instance()
     token = objects.AccessToken.validate_access_token(postgres, access_token)
     if not token:
