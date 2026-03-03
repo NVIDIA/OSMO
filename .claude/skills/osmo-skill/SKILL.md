@@ -20,14 +20,26 @@ common OSMO CLI use cases.
 
 The `agents/` directory contains instructions for specialized subagents. Read them when you need to spawn the relevant subagent.
 
-- `agents/workflow-expert.md` — expert for workflow generation, resource check, submission, failure diagnosis
-- `agents/logs-reader.md` - expert for fetching and reading logs, extracting important information for monitoring and failure diagnosis.
+- `agents/workflow-expert.md` — workflow generation, resource check, submission, failure diagnosis
+- `agents/logs-reader.md` — log fetching and summarization for monitoring and failure diagnosis
 
 The `references/` directory has additional documentation:
 
 - `references/cookbook.md` — Real-world workflow examples to use as starting points
 - `references/workflow-patterns.md` — Multi-task, parallel execution, data dependencies, Jinja templating
 - `references/advanced-patterns.md` — Checkpointing, retry/exit behavior, node exclusion
+
+---
+
+## Intent Routing
+
+- Asks about resources, pools, GPUs, or quota → Check Available Resources
+- Wants to submit a job (simple, no monitoring) → Generate and Submit a Workflow
+- Wants to submit + monitor + handle failures → Orchestrate a Workflow End-to-End
+- Asks about a workflow's status or logs → Check Workflow Status
+- Lists recent workflows → List Workflows
+- Asks what a workflow does → Explain What a Workflow Does
+- Wants to publish a workflow as an app → Create an App
 
 ---
 
@@ -115,7 +127,8 @@ Derive GPU type from pool names when possible:
 **When to use:** The user wants to submit a job to run on OSMO (e.g. "submit a workflow
 to run SDG", "run RL training for me", "submit this yaml to OSMO").
 
-Evaluate the complexity of the user's request: if user also wants monitoring, debugging workflows, reporting results, or the workflow complexity is too high, refer to `Orchestrate a Workflow End-to-End` use case to delegate this to a sub-agent instead.
+If the user also wants monitoring, debugging, or reporting results, use the
+"Orchestrate a Workflow End-to-End" use case instead.
 
 ### Steps
 
@@ -256,82 +269,82 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
-   - **If the workflow is COMPLETED and has output datasets, you MUST ask this
-     explicit question before ending your response:**
-     `Would you like me to download the output dataset now?`
-     Also ask whether they want a specific output folder (default to `~/` if not).
-     Then run the download yourself:
+   - **If PENDING** (or the user asks why it isn't scheduling), run:
      ```
-     osmo dataset download <dataset_name> <path>
+     osmo workflow events <workflow name>
      ```
-     Use `~/` as the output path if the user doesn't specify one.
+     Translate Kubernetes events into plain language (e.g. "there aren't enough free
+     GPUs in the pool" rather than "Insufficient nvidia.com/gpu"). Also check:
+     ```
+     osmo resource list -p <pool>
+     ```
+   - If COMPLETED, proceed to Step 4.
 
-   - **After the dataset download question above**, if the workflow is COMPLETED,
-     also ask if the user would like to create an
-     OSMO app for it. Suggest a name derived from the workflow name (e.g. workflow
-     `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description
-     based on what the workflow does. If the user agrees (or provides their own name),
-     follow the "Create an App" use case below.
-   - **When monitoring multiple workflows** that all complete from the same spec, offer
-     app creation once (not per workflow) after all workflows reach a terminal state.
-     Since they share the same YAML, a single app covers all runs. Do not skip this
-     offer just because you were in a batch monitoring loop.
+4. **Handle completed workflows:**
 
-   **If the workflow is PENDING** (or the user asks why it isn't scheduling), run:
+   Offer the output dataset for download:
+   `Would you like me to download the output dataset now?`
+   Ask whether they want a specific output folder (default to `~/`). Then run:
    ```
-   osmo workflow events <workflow name>
+   osmo dataset download <dataset_name> <path>
    ```
-   These are Kubernetes pod conditions and cluster events — translate them into plain
-   language without Kubernetes jargon (e.g. "there aren't enough free GPUs in the pool
-   to schedule your job" rather than "Insufficient nvidia.com/gpu"). Also direct the
-   user to check resource availability in the pool their workflow is waiting in:
-   ```
-   osmo resource list -p <pool>
-   ```
+
+   Also offer to create an OSMO app. Suggest a name derived from the workflow name
+   (e.g. `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description.
+   If the user agrees, follow the "Create an App" use case.
+
+   When monitoring multiple workflows from the same spec, offer app creation once
+   (not per workflow) after all reach a terminal state. Do not skip this offer
+   just because you were in a batch monitoring loop.
+
 ---
 
 ## Use Case: Orchestrate a Workflow End-to-End
 
-**When to use:** The user wants to create workflow, submit and monitor it to completion,
-or requests an autonomous workflow cycle (e.g. "train GR00T on my data", "create a SDG workflow and run it",
-"submit and monitor my workflow", "run end-to-end training", "submit this and
-tell me when it's done").
+**When to use:** The user wants to create a workflow, submit it, and monitor it to
+completion (e.g. "train GR00T on my data", "submit and monitor my workflow",
+"run end-to-end training", "submit this and tell me when it's done").
 
-### Phase-Split Pattern
+### Steps
 
-The lifecycle is split between the `/agents/workflow-expert.md` subagent (workflow generation creation, resource check, submission, failure diagnosis) and **you** (live monitoring so the user sees real-time updates). Follow these steps exactly:
+The lifecycle is split between the `workflow-expert` subagent (workflow generation,
+resource check, submission, failure diagnosis) and **you** (live monitoring so the
+user sees real-time updates).
 
-#### Step 1: Spawn a `/agents/workflow-expert.md` subagent for setup and submission
+1. **Spawn the workflow-expert subagent for setup and submission.**
 
-Spawn the `/agents/workflow-expert.md` subagent. Ask it to **write workflow YAML if needed, check resources and submit the workflow only**. Do NOT ask it to monitor, poll status, or report results — that is your job.
+   Ask it to **write workflow YAML if needed, check resources, and submit only**.
+   Do NOT ask it to monitor, poll status, or report results — that is your job.
 
-Example prompt:
-> Create a workflow based on user's request, if any. Check resources first, then submit the workflow to an available resource pool. Return the workflow ID when done.
+   Example prompt:
+   > Create a workflow based on user's request, if any. Check resources first,
+   > then submit the workflow to an available resource pool. Return the workflow
+   > ID when done.
 
-The subagent returns: workflow ID, pool name, and OSMO Web link.
+   The subagent returns: workflow ID, pool name, and OSMO Web link.
 
-#### Step 2: Monitor the workflow inline (you do this — user sees live updates)
+2. **Monitor the workflow inline (you do this — user sees live updates).**
 
-After getting the workflow ID, use the "Check Workflow Status" use case to
-poll and report. Repeat until a terminal state is reached.
+   Use the "Check Workflow Status" use case to poll and report. Repeat until a
+   terminal state is reached. Adjust the polling interval based on how long you
+   expect the workflow to take — poll more frequently for short jobs (every 10-15s)
+   and less frequently for long training runs (every 30-60s). Report each state
+   transition to the user:
+   - `Status: SCHEDULING (queued 15s)`
+   - `Workflow transitioned: SCHEDULING → RUNNING`
+   - `Status: RUNNING (task "train" active, 2m elapsed)`
 
-Report each state transition to the user:
-- `Status: SCHEDULING (queued 15s)`
-- `Workflow transitioned: SCHEDULING → RUNNING`
-- `Status: RUNNING (task "train" active, 2m elapsed)`
+3. **Handle the outcome.**
 
-#### Step 3: Handle the outcome
+   **If COMPLETED:** Report results — workflow ID, OSMO Web link, output datasets.
+   Then follow Step 4 of "Check Workflow Status" (download offer + app creation).
 
-**If COMPLETED:** Report results — workflow ID, OSMO Web link, output datasets.
-In the same completion message, ask: `Would you like me to download the output dataset now?`
-Then follow the COMPLETED handling in "Check Workflow Status".
-
-**If FAILED:** First, fetch logs using the log-fetching rule from "Check Workflow Status"
-Step 2 (1 task = inline, 2+ tasks = delegate to logs-reader subagents). Then resume the
-`workflow-expert` subagent (use the `resume` parameter with the agent ID from Step 1)
-and pass the logs summary: "Workflow <id> FAILED. Here is the logs summary: <summary>.
-Diagnose and fix." It returns a new workflow ID. Resume monitoring from Step 2. Max 3
-retries before asking the user for guidance.
+   **If FAILED:** First, fetch logs using the log-fetching rule from "Check Workflow
+   Status" Step 2 (1 task = inline, 2+ tasks = delegate to logs-reader subagents).
+   Then resume the `workflow-expert` subagent (use the `resume` parameter with the
+   agent ID from Step 1) and pass the logs summary: "Workflow <id> FAILED. Here is
+   the logs summary: <summary>. Diagnose and fix." It returns a new workflow ID.
+   Resume monitoring from Step 2. Max 3 retries before asking the user for guidance.
 
 ---
 
