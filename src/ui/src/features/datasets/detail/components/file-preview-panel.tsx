@@ -85,6 +85,25 @@ async function fetchHeadResult(url: string): Promise<HeadResult> {
 }
 
 // =============================================================================
+// File-type helpers — content-type first, extension fallback
+// =============================================================================
+
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif", "bmp", "ico", "tiff", "tif"]);
+const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "avi", "mkv", "ogg", "m4v", "3gp"]);
+
+function getExtension(fileName: string): string {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function isImageType(contentType: string, fileName: string): boolean {
+  return contentType.startsWith("image/") || IMAGE_EXTS.has(getExtension(fileName));
+}
+
+function isVideoType(contentType: string, fileName: string): boolean {
+  return contentType.startsWith("video/") || VIDEO_EXTS.has(getExtension(fileName));
+}
+
+// =============================================================================
 // Sub-components
 // =============================================================================
 
@@ -191,7 +210,7 @@ function TextPreview({ url, contentType, fileName }: { url: string; contentType:
 function PreviewContent({ url, contentType, fileName }: { url: string; contentType: string; fileName: string }) {
   const proxyUrl = toProxyUrl(url);
 
-  if (contentType.startsWith("image/")) {
+  if (isImageType(contentType, fileName)) {
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
         <Image
@@ -208,7 +227,7 @@ function PreviewContent({ url, contentType, fileName }: { url: string; contentTy
     );
   }
 
-  if (contentType.startsWith("video/")) {
+  if (isVideoType(contentType, fileName)) {
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
         <video
@@ -311,7 +330,9 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <PanelTitle className="text-sm font-medium">{file.name}</PanelTitle>
           </div>
-          <PanelCloseButton onClose={onClose} />
+          <div className="-mr-1.5">
+            <PanelCloseButton onClose={onClose} />
+          </div>
         </div>
       </PanelHeaderContainer>
 

@@ -37,7 +37,7 @@ import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
 import { GripVertical } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, naturalCompare } from "@/lib/utils";
 import { useResizeDrag } from "@/components/panel/hooks/use-resize-drag";
 import { usePanelAnimation } from "@/components/panel/hooks/use-panel-animation";
 import { FileBrowserBreadcrumb } from "@/features/datasets/detail/components/file-browser-breadcrumb";
@@ -47,7 +47,7 @@ import { FilePreviewPanel } from "@/features/datasets/detail/components/file-pre
 import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDataset, useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
-import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
+import { buildDirectoryListing, binarySearchByPath } from "@/lib/api/adapter/datasets";
 import { searchManifest, searchByExtension } from "@/lib/api/adapter/dataset-search";
 import { DatasetType } from "@/lib/api/generated";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
@@ -191,7 +191,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     }
 
     if (detail.type === DatasetType.DATASET) {
-      const sorted = [...detail.versions].sort((a, b) => parseInt(a.version, 10) - parseInt(b.version, 10));
+      const sorted = [...detail.versions].sort((a, b) => naturalCompare(a.version, b.version));
       const latestVersion = sorted.at(-1) ?? null;
       const currentVersionData = (version ? sorted.find((v) => v.version === version) : null) ?? latestVersion;
       return {
@@ -300,8 +300,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     const fromDir = filteredFiles.find((f) => f.name === fileName && f.type === "file");
     if (fromDir) return fromDir;
 
-    // Fall back to full manifest so preview survives directory navigation
-    const raw = manifest?.byPath.find((f) => f.relative_path === selectedFile);
+    // Fall back to full manifest so preview survives directory navigation (binary search, O(log n))
+    const idx = manifest ? binarySearchByPath(manifest.byPath, selectedFile) : -1;
+    const raw = manifest?.byPath[idx]?.relative_path === selectedFile ? manifest.byPath[idx] : undefined;
     if (!raw) return null;
     return {
       name: fileName,
@@ -342,10 +343,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // When the panel finishes opening or closing, fire layout-stable callbacks so
   // the table recalculates column widths for its new size.
   useEffect(() => {
-    if (
-      (phase === "open" && prevPhase === "opening") ||
-      (phase === "closed" && prevPhase === "closing")
-    ) {
+    if ((phase === "open" && prevPhase === "opening") || (phase === "closed" && prevPhase === "closing")) {
       for (const cb of layoutStableCallbacksRef.current) cb();
     }
   }, [phase, prevPhase]);
@@ -558,7 +556,9 @@ export function DatasetDetailContent({ bucket, name }: Props) {
                 style={{
                   width: `${rightPanelWidth}%`,
                   transform: panelSlideIn ? "translateX(0)" : "translateX(100%)",
-                  willChange: phase === "opening" || phase === "closing" ? "transform" : "auto",
+                  // Apply will-change only during the active animation; absent otherwise
+                  // so the browser never holds a permanent GPU layer for this element.
+                  ...(phase === "opening" || phase === "closing" ? { willChange: "transform" } : {}),
                   // On close, switch to absolute so the aside leaves flex flow and
                   // the table expands immediately — same frame the slide starts.
                   ...(!panelSlideIn && { position: "absolute", right: 0, top: 0, bottom: 0 }),

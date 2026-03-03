@@ -32,7 +32,7 @@ import { Button } from "@/components/shadcn/button";
 import { Input } from "@/components/shadcn/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { useMounted } from "@/hooks/use-mounted";
-import { cn } from "@/lib/utils";
+import { cn, naturalCompare } from "@/lib/utils";
 import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
 type Tab = "versions" | "tags";
@@ -62,10 +62,7 @@ export function VersionPicker({ versions, selectedId, onSelectionChange, onViewA
     return () => clearTimeout(id);
   }, [open]);
 
-  const versionItems = useMemo(
-    () => [...versions].sort((a, b) => parseInt(b.version, 10) - parseInt(a.version, 10)),
-    [versions],
-  );
+  const versionItems = useMemo(() => [...versions].sort((a, b) => naturalCompare(b.version, a.version)), [versions]);
 
   const tagItems = useMemo(() => {
     // Keep the highest version for each unique named tag (non-numeric tags only)
@@ -74,7 +71,7 @@ export function VersionPicker({ versions, selectedId, onSelectionChange, onViewA
       for (const tag of v.tags) {
         if (!isNaN(Number(tag))) continue;
         const current = bestVersion.get(tag);
-        if (!current || parseInt(v.version, 10) > parseInt(current, 10)) {
+        if (!current || naturalCompare(v.version, current) > 0) {
           bestVersion.set(tag, v.version);
         }
       }

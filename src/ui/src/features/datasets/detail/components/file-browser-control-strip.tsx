@@ -148,9 +148,10 @@ export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
           fields={fields}
           chips={filterChips}
           onChipsChange={onFilterChipsChange}
-          placeholder="Filter files..."
+          placeholder="Filter in current directory..."
           defaultField="file"
           className="w-[30%]"
+          resultsCount={filterResultsCount}
         />
       )}
 

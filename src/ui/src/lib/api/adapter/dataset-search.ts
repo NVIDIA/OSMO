@@ -25,6 +25,7 @@
  * Results are capped at RESULT_LIMIT to bound worst-case scan time.
  */
 
+import { binarySearchByPath } from "@/lib/api/adapter/datasets";
 import type { DatasetFile, ProcessedManifest, RawFileItem } from "@/lib/api/adapter/datasets";
 
 // =============================================================================
@@ -45,20 +46,6 @@ export interface ManifestSearchResult {
 // =============================================================================
 // Binary search helpers
 // =============================================================================
-
-function binarySearchByPath(sorted: readonly RawFileItem[], prefix: string): number {
-  let lo = 0,
-    hi = sorted.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if (sorted[mid].relative_path < prefix) {
-      lo = mid + 1;
-    } else {
-      hi = mid;
-    }
-  }
-  return lo;
-}
 
 function binarySearchByFilename(sorted: readonly { name: string; item: RawFileItem }[], prefix: string): number {
   let lo = 0,

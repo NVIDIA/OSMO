@@ -25,9 +25,8 @@
 
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn, naturalCompare, formatBytes } from "@/lib/utils";
 import { Card, CardContent } from "@/components/shadcn/card";
-import { formatBytes } from "@/lib/utils";
 import { formatDateTimeSuccinct } from "@/lib/format-date";
 import type { DatasetVersion } from "@/lib/api/adapter/datasets";
 
@@ -40,7 +39,7 @@ interface DatasetPanelVersionsProps {
 }
 
 export function DatasetPanelVersions({ versions, activeVersionId, onVersionSelect }: DatasetPanelVersionsProps) {
-  const sorted = [...versions].sort((a, b) => parseInt(b.version, 10) - parseInt(a.version, 10));
+  const sorted = [...versions].sort((a, b) => naturalCompare(b.version, a.version));
 
   return (
     <section>

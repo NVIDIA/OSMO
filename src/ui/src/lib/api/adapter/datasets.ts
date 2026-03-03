@@ -515,7 +515,7 @@ export async function fetchDatasetFiles(location: string | null): Promise<Proces
  * Binary search lower bound: first index where items[i].relative_path >= prefix.
  * Requires items sorted ascending by relative_path.
  */
-function binarySearchByPath(sorted: RawFileItem[], prefix: string): number {
+export function binarySearchByPath(sorted: readonly RawFileItem[], prefix: string): number {
   let lo = 0,
     hi = sorted.length;
   while (lo < hi) {
@@ -592,18 +592,23 @@ export function buildDirectoryListing(items: RawFileItem[], path: string): Datas
  * Client-side filters (created_at, updated_at) are intentionally excluded so
  * they don't trigger new API calls — the shim handles them from the cache.
  */
-export function buildAllDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
+function buildDatasetFilters(
+  searchChips: SearchChip[],
+  showAllUsers: boolean,
+): Record<string, string | string[] | boolean> {
   const buckets = getChipValues(searchChips, "bucket").sort();
   const users = getChipValues(searchChips, "user").sort();
   const search = getFirstChipValue(searchChips, "name");
-
   const filters: Record<string, string | string[] | boolean> = {};
   if (search) filters.search = search;
   if (buckets.length > 0) filters.buckets = buckets;
   if (users.length > 0) filters.users = users;
   filters.showAllUsers = showAllUsers;
+  return filters;
+}
 
-  return ["datasets", "all", filters] as const;
+export function buildAllDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
+  return ["datasets", "all", buildDatasetFilters(searchChips, showAllUsers)] as const;
 }
 
 /**
@@ -612,19 +617,7 @@ export function buildAllDatasetsQueryKey(searchChips: SearchChip[], showAllUsers
  * Follows workflows pattern.
  */
 export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
-  // Extract filter values by field
-  const buckets = getChipValues(searchChips, "bucket").sort();
-  const users = getChipValues(searchChips, "user").sort();
-  const search = getFirstChipValue(searchChips, "name");
-
-  // Build query key - only include filters that have values
-  const filters: Record<string, string | string[] | boolean> = {};
-  if (search) filters.search = search;
-  if (buckets.length > 0) filters.buckets = buckets;
-  if (users.length > 0) filters.users = users;
-  filters.showAllUsers = showAllUsers;
-
-  return ["datasets", "paginated", filters] as const;
+  return ["datasets", "paginated", buildDatasetFilters(searchChips, showAllUsers)] as const;
 }
 
 /**
