@@ -330,7 +330,6 @@ go_library(
         "@io_opentelemetry_go_otel//attribute:attribute",
         "@io_opentelemetry_go_otel_metric//:metric",
         "@org_golang_google_grpc//:grpc",
-        "@org_golang_google_grpc//metadata",
         "@org_golang_google_protobuf//encoding/protojson",
     ],
 )

@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 	"go.corp.nvidia.com/osmo/utils/progress_check"
@@ -252,6 +253,10 @@ func (bl *BaseListener) Run(
 	watch WatchFunc,
 	sendMessages SendMessagesFunc,
 ) error {
+	// Reset per-run close guards so cleanup works correctly on reconnects.
+	bl.closeOnce = sync.Once{}
+	bl.connCloseOnce = sync.Once{}
+
 	// Ensure cleanup on exit
 	defer bl.close()
 	// Initialize the base connection
@@ -259,12 +264,12 @@ func (bl *BaseListener) Run(
 		return err
 	}
 
-	// Create stream context FIRST (before stream creation)
-	streamCtx, streamCancel := context.WithCancelCause(ctx)
+	// Create stream context with backend-name and stream-name in outgoing metadata.
+	md := metadata.Pairs("backend-name", bl.args.Backend, "stream-name", string(bl.streamName))
+	streamCtx, streamCancel := context.WithCancelCause(metadata.NewOutgoingContext(ctx, md))
 	defer streamCancel(nil) // Ensure cleanup
 
 	// Establish the bidirectional stream using the derived context
-	var err error
 	stream, err := bl.client.ListenerStream(streamCtx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
@@ -286,8 +291,7 @@ func (bl *BaseListener) Run(
 	bl.wg.Add(3)
 	go func() {
 		defer bl.wg.Done()
-		err = bl.receiveAcks(streamCtx)
-		if err != nil {
+		if err := bl.receiveAcks(streamCtx); err != nil {
 			bl.Logf("Error in receiveAcks goroutine: %v", err)
 			streamCancel(err)
 		}
@@ -296,8 +300,7 @@ func (bl *BaseListener) Run(
 	go func() {
 		defer bl.wg.Done()
 		defer close(msgChan)
-		err = watch(streamCtx, msgChan)
-		if err != nil {
+		if err := watch(streamCtx, msgChan); err != nil {
 			bl.Logf("Error in watch goroutine: %v", err)
 			streamCancel(err)
 		}
@@ -305,8 +308,7 @@ func (bl *BaseListener) Run(
 
 	go func() {
 		defer bl.wg.Done()
-		err = sendMessages(streamCtx, msgChan)
-		if err != nil {
+		if err := sendMessages(streamCtx, msgChan); err != nil {
 			bl.Logf("Error in sendMessages goroutine: %v", err)
 			streamCancel(err)
 		}

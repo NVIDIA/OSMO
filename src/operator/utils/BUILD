@@ -84,6 +84,7 @@ go_library(
         "@org_golang_google_grpc//credentials",
         "@org_golang_google_grpc//credentials/insecure",
         "@org_golang_google_grpc//keepalive",
+        "@org_golang_google_grpc//metadata",
     ],
 )
 

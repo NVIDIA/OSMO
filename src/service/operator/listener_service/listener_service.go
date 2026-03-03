@@ -135,7 +135,7 @@ func (ls *ListenerService) handleListenerStream(
 ) error {
 	ctx := stream.Context()
 
-	// Extract backend name from gRPC metadata (required)
+	// Extract backend name and stream name from gRPC metadata.
 	backendName, err := utils.ExtractBackendName(ctx)
 	if err != nil {
 		ls.logger.ErrorContext(
@@ -145,10 +145,13 @@ func (ls *ListenerService) handleListenerStream(
 		)
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	streamName, _ := utils.ExtractMetadata(ctx, "stream-name")
 
 	ls.logger.InfoContext(ctx, "listener stream opened",
+		slog.String("stream_name", streamName),
 		slog.String("backend_name", backendName))
 	defer ls.logger.InfoContext(ctx, "listener stream closed",
+		slog.String("stream_name", streamName),
 		slog.String("backend_name", backendName))
 
 	lastProgressReport := time.Now()
@@ -216,10 +219,13 @@ func (ls *ListenerService) NodeConditionStream(
 			slog.String("error", err.Error()))
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
+	streamName, _ := utils.ExtractMetadata(ctx, "stream-name")
 
-	ls.logger.InfoContext(ctx, "opening node condition stream for backend",
+	ls.logger.InfoContext(ctx, "node condition stream opened",
+		slog.String("stream_name", streamName),
 		slog.String("backend_name", backendName))
-	defer ls.logger.InfoContext(ctx, "closing node condition stream for backend",
+	defer ls.logger.InfoContext(ctx, "node condition stream closed",
+		slog.String("stream_name", streamName),
 		slog.String("backend_name", backendName))
 
 	// Send initial node conditions from DB

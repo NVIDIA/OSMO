@@ -29,7 +29,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
 	libutils "go.corp.nvidia.com/osmo/lib/utils"
 	"go.corp.nvidia.com/osmo/operator/utils"
@@ -69,10 +68,6 @@ func main() {
 	} else {
 		inst = utils.NewNoopInstruments()
 	}
-
-	// Add backend-name to metadata
-	md := metadata.Pairs("backend-name", cmdArgs.Backend)
-	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	if err := initializeBackend(ctx, cmdArgs, inst); err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)

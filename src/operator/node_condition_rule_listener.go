@@ -115,7 +115,7 @@ func (ncrl *NodeConditionRuleListener) Run(ctx context.Context) error {
 
 	client := pb.NewListenerServiceClient(conn)
 
-	md := metadata.Pairs("backend-name", ncrl.args.Backend)
+	md := metadata.Pairs("backend-name", ncrl.args.Backend, "stream-name", string(utils.StreamNameNodeConditionRule))
 	streamCtx, streamCancel := context.WithCancelCause(
 		metadata.NewOutgoingContext(ctx, md))
 	defer streamCancel(nil)

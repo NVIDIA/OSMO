@@ -60,25 +60,26 @@ func ParseHost(hostStr string) (string, int, error) {
 		"invalid host format, expected URL format (e.g., http://0.0.0.0:8000): %s", hostStr)
 }
 
-// ExtractBackendName extracts and validates the backend-name from gRPC metadata.
-// Returns an error if the metadata is missing or empty.
-func ExtractBackendName(ctx context.Context) (string, error) {
+// ExtractMetadata extracts and validates a single value for the given key from gRPC incoming metadata.
+// Returns an error if the metadata block is missing or the key is absent or empty.
+func ExtractMetadata(ctx context.Context, key string) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return "", errors.New("missing gRPC metadata")
 	}
-
-	names := md.Get("backend-name")
-	if len(names) == 0 {
-		return "", errors.New("backend-name metadata is required but not provided")
+	values := md.Get(key)
+	if len(values) == 0 {
+		return "", fmt.Errorf("%s metadata is required but not provided", key)
 	}
-
-	backendName := names[0]
-	if backendName == "" {
-		return "", errors.New("backend-name metadata cannot be empty")
+	if values[0] == "" {
+		return "", fmt.Errorf("%s metadata cannot be empty", key)
 	}
+	return values[0], nil
+}
 
-	return backendName, nil
+// ExtractBackendName extracts and validates the backend-name from gRPC metadata.
+func ExtractBackendName(ctx context.Context) (string, error) {
+	return ExtractMetadata(ctx, "backend-name")
 }
 
 // IsExpectedClose checks if an error is an expected stream closure.
