@@ -81,11 +81,12 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
   // Compose static + async fields
   const searchFields = useMemo(
     (): readonly SearchField<Dataset>[] => [
-      DATASET_STATIC_FIELDS[0], // name
-      DATASET_STATIC_FIELDS[1], // bucket
+      DATASET_STATIC_FIELDS[0], // type
+      DATASET_STATIC_FIELDS[1], // name
+      DATASET_STATIC_FIELDS[2], // bucket
       userField, // async - complete user list
-      DATASET_STATIC_FIELDS[2], // created_at
-      DATASET_STATIC_FIELDS[3], // updated_at
+      DATASET_STATIC_FIELDS[3], // created_at
+      DATASET_STATIC_FIELDS[4], // updated_at
     ],
     [userField],
   );
@@ -141,7 +142,7 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       defaultField="name"
-      placeholder="Search datasets... (try 'name:', 'bucket:', 'user:', 'created_at:')"
+      placeholder="Search datasets... (try 'type:', 'name:', 'bucket:', 'user:', 'created_at:')"
       searchPresets={searchPresets}
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}

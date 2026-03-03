@@ -70,13 +70,8 @@ export function getLanguageForContentType(contentType: string, fileName: string)
   if (contentType.includes("json") || ext === "json") return JSON_LANGUAGE;
   if (contentType.includes("yaml") || ext === "yaml" || ext === "yml") return YAML_LANGUAGE;
   if (contentType.includes("xml") || ext === "xml") return XML_LANGUAGE;
-  if (contentType.startsWith("text/markdown") || ext === "md" || ext === "mdx")
-    return MARKDOWN_LANGUAGE;
-  if (
-    contentType.startsWith("application/x-python") ||
-    contentType.startsWith("text/x-python") ||
-    ext === "py"
-  )
+  if (contentType.startsWith("text/markdown") || ext === "md" || ext === "mdx") return MARKDOWN_LANGUAGE;
+  if (contentType.startsWith("application/x-python") || contentType.startsWith("text/x-python") || ext === "py")
     return PYTHON_LANGUAGE;
 
   return PLAIN_TEXT_LANGUAGE;

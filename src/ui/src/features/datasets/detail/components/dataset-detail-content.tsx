@@ -32,6 +32,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect, useLayoutEffect } from "react";
 import { usePrevious } from "@react-hookz/web";
+import type { SearchChip } from "@/components/filter-bar/lib/types";
 import { usePage } from "@/components/chrome/page-context";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { Button } from "@/components/shadcn/button";
@@ -47,6 +48,7 @@ import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-pan
 import { useFileBrowserState } from "@/features/datasets/detail/hooks/use-file-browser-state";
 import { useDataset, useDatasetFiles } from "@/lib/api/adapter/datasets-hooks";
 import { buildDirectoryListing } from "@/lib/api/adapter/datasets";
+import { searchManifest, searchByExtension } from "@/lib/api/adapter/dataset-search";
 import { DatasetType } from "@/lib/api/generated";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
 import "@/components/panel/resizable-panel.css";
@@ -68,6 +70,21 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // ==========================================================================
 
   const { path, version, selectedFile, navigateTo, setVersion, selectFile, clearSelection } = useFileBrowserState();
+
+  // ==========================================================================
+  // File filter state — chip-based (no debounce needed; chips commit on Enter)
+  // ==========================================================================
+
+  const [filterChips, setFilterChips] = useState<SearchChip[]>([]);
+
+  // Reset filter when the user navigates to a different directory or version.
+  // Uses the same usePrevious pattern as previewPanelOpen sync above (derived-state
+  // during render) to avoid calling setState inside a useEffect body.
+  const prevFilterPath = usePrevious(path);
+  const prevFilterVersion = usePrevious(version);
+  if (prevFilterPath !== undefined && (prevFilterPath !== path || prevFilterVersion !== version)) {
+    if (filterChips.length > 0) setFilterChips([]);
+  }
 
   // ==========================================================================
   // File preview panel state
@@ -228,25 +245,50 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // ==========================================================================
 
   const {
-    data: rawFiles,
+    data: manifest,
     isLoading: isFilesLoading,
     error: filesError,
     refetch: refetchFiles,
   } = useDatasetFiles(location);
 
-  // Build directory listing for the current path
-  const files = useMemo(
-    () => virtualFiles ?? buildDirectoryListing(rawFiles ?? [], memberSubPath),
-    [virtualFiles, rawFiles, memberSubPath],
+  // Normal (unfiltered) directory listing — used for FilterBar suggestions and as base view
+  const normalFiles = useMemo(
+    () => virtualFiles ?? buildDirectoryListing(manifest?.byPath ?? [], memberSubPath),
+    [virtualFiles, manifest, memberSubPath],
   );
+
+  // Apply filter chips to produce the displayed file list.
+  // "search:" chip → recursive prefix search; "type:" chip → recursive extension filter.
+  // When both are present, apply extension filter as an AND on the prefix search results.
+  const { filteredFiles } = useMemo(() => {
+    const searchChip = filterChips.find((c) => c.field === "file");
+    const typeChip = filterChips.find((c) => c.field === "type");
+
+    if (!searchChip && !typeChip) return { filteredFiles: normalFiles, capped: false };
+    if (!manifest) return { filteredFiles: [] as DatasetFile[], capped: false };
+
+    if (searchChip && typeChip) {
+      // AND: prefix-search first, then filter results by extension
+      const { files, capped: searchCapped } = searchManifest(manifest, memberSubPath, searchChip.value);
+      const suffix = `.${typeChip.value.toLowerCase()}`;
+      return { filteredFiles: files.filter((f) => f.name.toLowerCase().endsWith(suffix)), capped: searchCapped };
+    }
+    if (searchChip) {
+      const { files, capped: searchCapped } = searchManifest(manifest, memberSubPath, searchChip.value);
+      return { filteredFiles: files, capped: searchCapped };
+    }
+    // typeChip only
+    const { files, capped: extCapped } = searchByExtension(manifest, memberSubPath, typeChip!.value);
+    return { filteredFiles: files, capped: extCapped };
+  }, [filterChips, manifest, normalFiles, memberSubPath]);
 
   const handleRetryFiles = useCallback(() => void refetchFiles(), [refetchFiles]);
 
   // ==========================================================================
   // Resolve selected file data for the right panel
   //
-  // First checks the current directory listing (fastest, has full metadata).
-  // Falls back to a direct rawFiles manifest lookup so the panel stays visible
+  // First checks the current file list (fastest, has full metadata).
+  // Falls back to a direct manifest lookup so the panel stays visible
   // when the user navigates to a different folder while a file is selected.
   // ==========================================================================
 
@@ -254,15 +296,23 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     if (!selectedFile) return null;
     const fileName = selectedFile.split("/").pop() ?? "";
 
-    // Prefer current directory entry (has all derived fields)
-    const fromDir = files.find((f) => f.name === fileName && f.type === "file");
+    // Prefer current file list entry (has all derived fields)
+    const fromDir = filteredFiles.find((f) => f.name === fileName && f.type === "file");
     if (fromDir) return fromDir;
 
     // Fall back to full manifest so preview survives directory navigation
-    const raw = rawFiles?.find((f) => f.relative_path === selectedFile);
+    const raw = manifest?.byPath.find((f) => f.relative_path === selectedFile);
     if (!raw) return null;
-    return { name: fileName, type: "file", size: raw.size, checksum: raw.etag, url: raw.url, relativePath: raw.relative_path, storagePath: raw.storage_path };
-  }, [selectedFile, files, rawFiles]);
+    return {
+      name: fileName,
+      type: "file",
+      size: raw.size,
+      checksum: raw.etag,
+      url: raw.url,
+      relativePath: raw.relative_path,
+      storagePath: raw.storage_path,
+    };
+  }, [selectedFile, filteredFiles, manifest]);
 
   // Derive the file's own directory from the URL param so the copy path
   // is always correct regardless of which directory is currently browsed.
@@ -288,6 +338,17 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   } = usePanelAnimation(previewPanelOpen, clearSelection);
 
   const prevPhase = usePrevious(phase);
+
+  // When the panel finishes opening or closing, fire layout-stable callbacks so
+  // the table recalculates column widths for its new size.
+  useEffect(() => {
+    if (
+      (phase === "open" && prevPhase === "opening") ||
+      (phase === "closed" && prevPhase === "closing")
+    ) {
+      for (const cb of layoutStableCallbacksRef.current) cb();
+    }
+  }, [phase, prevPhase]);
 
   // Both open and close use the same reflow trick so the CSS transition always
   // starts from the correct position (before browser paint, unlike useEffect).
@@ -356,7 +417,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // Collections also pin the first path segment (member dataset name) so it stays
   // visible even when deeper folders collapse into the ellipsis.
   const isCollection = detail?.type === DatasetType.COLLECTION;
-  const breadcrumbRawFiles = isCollection ? undefined : (rawFiles ?? undefined);
+  const breadcrumbRawFiles = isCollection ? undefined : (manifest?.byPath ?? undefined);
   const breadcrumbPinnedPrefixCount = isCollection ? 1 : 0;
 
   const breadcrumbTrail = useMemo(
@@ -402,9 +463,17 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // File listing content — handles query error inline
   // ==========================================================================
 
+  // Filter input is shown for datasets and for collections when browsing inside a member.
+  // Hidden on the collection root view (which shows virtual dataset-member entries, not real files).
+  const showFilter = !isCollection || path !== "";
+
+  // Show result count in FilterBar when filter is active
+  const filterResultsCount = filterChips.length > 0 ? { total: filteredFiles.length } : undefined;
+
   const fileTableContent = (
     <FileBrowserTable
-      files={files}
+      files={filteredFiles}
+      showLocation={filterChips.length > 0}
       path={path}
       selectedFile={selectedFile}
       onNavigate={navigateTo}
@@ -434,12 +503,17 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         panelVisible={isPanelOpen}
         onTogglePanel={handleDetailsToggle}
         onViewAllVersions={handleViewAllVersions}
+        filterChips={filterChips}
+        onFilterChipsChange={setFilterChips}
+        fileTypes={manifest?.fileTypes ?? []}
+        showFilter={showFilter}
+        filterResultsCount={filterResultsCount}
       />
 
       {/* File browser + optional file preview panel */}
       <InlineErrorBoundary
         title="Unable to display file browser"
-        resetKeys={[files.length]}
+        resetKeys={[filteredFiles.length]}
         onReset={handleRetryFiles}
       >
         <div

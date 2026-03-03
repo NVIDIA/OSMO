@@ -75,7 +75,7 @@
 
 /* FilterBar input needs wider min-width to accommodate filter expressions */
 .fb-input {
-  min-width: 150px;
+  min-width: 70px;
 }
 
 .fb-clear-button {

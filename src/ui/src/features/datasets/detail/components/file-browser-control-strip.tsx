@@ -17,22 +17,30 @@
 /**
  * FileBrowserControlStrip — Top control bar for the dataset detail page.
  *
- * Layout: [VersionPicker | separator | breadcrumb] · spacer · [search] [Details toggle]
+ * Layout: [VersionPicker | separator | breadcrumb] · spacer · [FilterBar] [Details toggle]
  *
  * - VersionPicker + separator only rendered for datasets (versions.length > 0)
- * - Search input is placeholder-only (disabled) — filter logic wired up later
+ * - FilterBar hidden when showFilter=false (collection root view)
+ * - FilterBar offers:
+ *   - free-text "file:" prefix search (filename prefix or path/prefix)
+ *   - "type:" extension filter with exhaustive suggestions from the dataset manifest
  * - Details button toggles the right panel visibility
  */
 
 "use client";
 
-import { memo } from "react";
-import { Info, Search, ChevronRight } from "lucide-react";
+import { memo, useMemo } from "react";
+import { Info, ChevronRight } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
-import { Input } from "@/components/shadcn/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { FilterBar } from "@/components/filter-bar/filter-bar";
+import type { SearchChip, SearchField, ResultsCount } from "@/components/filter-bar/lib/types";
 import { VersionPicker } from "@/features/datasets/detail/components/version-picker";
-import type { DatasetVersion } from "@/lib/api/adapter/datasets";
+import type { DatasetFile, DatasetVersion } from "@/lib/api/adapter/datasets";
+
+// =============================================================================
+// Props
+// =============================================================================
 
 interface FileBrowserControlStripProps {
   /** Dataset versions (empty for collections) */
@@ -49,7 +57,28 @@ interface FileBrowserControlStripProps {
   onTogglePanel: () => void;
   /** Called when "View all versions" is clicked in the version picker */
   onViewAllVersions?: () => void;
+  /** Active filter chips */
+  filterChips: SearchChip[];
+  /** Called when filter chips change */
+  onFilterChipsChange: (chips: SearchChip[]) => void;
+  /**
+   * File extensions available in this dataset (for "type:" suggestions).
+   * From ProcessedManifest.fileTypes — lowercase, sorted, no dot prefix.
+   */
+  fileTypes: readonly string[];
+  /** Whether to show the filter input (hidden on collection root view) */
+  showFilter: boolean;
+  /** Result count for display when filter is active */
+  filterResultsCount?: ResultsCount;
 }
+
+// Stable empty data array — FilterBar data prop is only used by sync field getValues,
+// which we don't use here (type: field closes over fileTypes directly).
+const EMPTY_DATA: DatasetFile[] = [];
+
+// =============================================================================
+// Component
+// =============================================================================
 
 export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
   versions,
@@ -59,7 +88,36 @@ export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
   panelVisible,
   onTogglePanel,
   onViewAllVersions,
+  filterChips,
+  onFilterChipsChange,
+  fileTypes,
+  showFilter,
+  filterResultsCount,
 }: FileBrowserControlStripProps) {
+  // Field definitions — type: field's getValues closes over fileTypes
+  const fields = useMemo(
+    (): readonly SearchField<DatasetFile>[] => [
+      {
+        id: "file",
+        label: "File",
+        prefix: "file:",
+        singular: true,
+        exhaustive: false,
+        freeFormHint: "filename or path/with/slashes",
+        getValues: () => [],
+      },
+      {
+        id: "type",
+        label: "Type",
+        prefix: "type:",
+        singular: true,
+        exhaustive: true,
+        getValues: () => [...fileTypes],
+      },
+    ],
+    [fileTypes],
+  );
+
   return (
     <div className="flex shrink-0 items-center gap-3">
       {/* Left group: optional version picker + separator + breadcrumb */}
@@ -83,40 +141,38 @@ export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Right group: search + Details toggle */}
-      <div className="flex items-center gap-2">
-        <div className="relative">
-          <Search
-            className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-zinc-400"
-            aria-hidden="true"
-          />
-          <Input
-            disabled
-            placeholder="Filter files..."
-            className="h-7 w-48 pl-7 text-xs"
-            aria-label="Filter files (coming soon)"
-          />
-        </div>
+      {/* Filter bar — direct flex child so w-1/3 is relative to the strip width */}
+      {showFilter && (
+        <FilterBar
+          data={EMPTY_DATA}
+          fields={fields}
+          chips={filterChips}
+          onChipsChange={onFilterChipsChange}
+          placeholder="Filter files..."
+          defaultField="file"
+          className="w-[30%]"
+        />
+      )}
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={panelVisible ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={onTogglePanel}
-              aria-label={panelVisible ? "Hide details panel" : "Show details panel"}
-              aria-pressed={panelVisible}
-            >
-              <Info
-                className="size-3.5"
-                aria-hidden="true"
-              />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Show details</TooltipContent>
-        </Tooltip>
-      </div>
+      {/* Details toggle */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={panelVisible ? "secondary" : "ghost"}
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={onTogglePanel}
+            aria-label={panelVisible ? "Hide details panel" : "Show details panel"}
+            aria-pressed={panelVisible}
+          >
+            <Info
+              className="size-3.5"
+              aria-hidden="true"
+            />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Show details</TooltipContent>
+      </Tooltip>
     </div>
   );
 });

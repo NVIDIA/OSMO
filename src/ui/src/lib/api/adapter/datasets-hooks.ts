@@ -34,6 +34,7 @@ import {
   fetchDatasetDetail,
   fetchDatasetDetailLatest,
   fetchDatasetFiles,
+  type ProcessedManifest,
 } from "@/lib/api/adapter/datasets";
 import { QUERY_STALE_TIME } from "@/lib/config";
 
@@ -95,14 +96,19 @@ export function useDatasetLatest(bucket: string, name: string, options?: { enabl
 /**
  * Hook to fetch all files for a dataset version from its location manifest.
  *
- * Fetches the full flat file list once per version (keyed by location URL).
- * Use buildDirectoryListing() from datasets.ts to get a per-path directory view.
+ * Fetches the full flat manifest once per version (keyed by location URL) and
+ * returns a ProcessedManifest with pre-sorted arrays for O(log n) directory
+ * listing and file search. Use buildDirectoryListing() and searchManifest()
+ * from the adapter layer to query the manifest.
  *
  * @param location - The version's location URL (DatasetVersion.location), or null to disable
  * @param options - Query options
  */
-export function useDatasetFiles(location: string | null, options?: { enabled?: boolean }) {
-  return useQuery({
+export function useDatasetFiles(
+  location: string | null,
+  options?: { enabled?: boolean },
+): ReturnType<typeof useQuery<ProcessedManifest>> {
+  return useQuery<ProcessedManifest>({
     queryKey: buildDatasetFilesQueryKey(location),
     queryFn: () => fetchDatasetFiles(location),
     enabled: (options?.enabled ?? true) && !!location,

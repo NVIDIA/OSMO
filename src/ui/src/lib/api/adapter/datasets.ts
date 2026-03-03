@@ -109,6 +109,19 @@ export interface RawFileItem {
 }
 
 /**
+ * Processed manifest — built once per location fetch, cached by React Query.
+ *
+ * - byPath: files sorted ascending by relative_path (enables binary-search directory listing)
+ * - byFilename: sorted by lowercase last-segment filename (enables binary-search filename filter)
+ * - fileTypes: sorted unique lowercase extensions (for future type filter)
+ */
+export interface ProcessedManifest {
+  byPath: RawFileItem[];
+  byFilename: readonly { name: string; item: RawFileItem }[];
+  fileTypes: readonly string[];
+}
+
+/**
  * Collection member entry (maps to DataInfoCollectionEntry from backend).
  */
 export interface CollectionMember {
@@ -466,32 +479,66 @@ export async function fetchDatasetDetailLatest(bucket: string, name: string): Pr
 /**
  * Fetch all files for a dataset version from the version's location URL.
  *
- * The `location` field on a DatasetVersion points to a manifest URL that returns
- * a flat list of all files (with relative_path) for that version. Uses a Server
- * Action to fetch the manifest directly, avoiding the /api/* ingress routing
- * that sends those paths to the Python backend in production.
+ * Fetches the raw flat manifest, then builds a ProcessedManifest with three
+ * sorted/indexed structures for O(log n) directory listing and file search.
+ * The result is cached by React Query — the O(n log n) sort happens once.
  *
- * Returns an empty array if no location URL is provided (dataset has no versions).
+ * Returns an empty ProcessedManifest if no location URL is provided.
  *
  * @param location - The version's location URL (DatasetVersion.location)
  */
-export async function fetchDatasetFiles(location: string | null): Promise<RawFileItem[]> {
-  if (!location) return [];
+export async function fetchDatasetFiles(location: string | null): Promise<ProcessedManifest> {
+  if (!location) return { byPath: [], byFilename: [], fileTypes: [] };
   const { fetchManifest } = await import("@/lib/api/server/dataset-actions");
-  return (await fetchManifest(location)) as RawFileItem[];
+  const items = (await fetchManifest(location)) as RawFileItem[];
+
+  // Sort by full relative_path — enables binary-search directory listing
+  const byPath = [...items].sort((a, b) => a.relative_path.localeCompare(b.relative_path));
+
+  // Build filename index sorted by lowercase last-segment name — enables binary-search filename filter
+  const byFilename = byPath
+    .map((item) => ({ name: item.relative_path.split("/").pop()?.toLowerCase() ?? "", item }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Collect unique lowercase extensions for future type filter
+  const extSet = new Set<string>();
+  for (const item of byPath) {
+    const ext = item.relative_path.split(".").pop()?.toLowerCase();
+    if (ext) extSet.add(ext);
+  }
+  const fileTypes = [...extSet].sort();
+
+  return { byPath, byFilename, fileTypes };
 }
 
 /**
- * Build a directory listing for a specific path from the flat file list.
+ * Binary search lower bound: first index where items[i].relative_path >= prefix.
+ * Requires items sorted ascending by relative_path.
+ */
+function binarySearchByPath(sorted: RawFileItem[], prefix: string): number {
+  let lo = 0,
+    hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid].relative_path < prefix) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
+/**
+ * Build a directory listing for a specific path from the sorted flat file list.
  *
- * Given a flat array of files with relative_path (e.g. "train/n00000001/img.jpg"),
- * returns the entries visible at the given path depth:
- * - Folders: unique next-level path segments (de-duplicated)
- * - Files: entries where the path is fully consumed at this depth
+ * Accepts the `byPath` array from ProcessedManifest (sorted by relative_path).
+ * For non-root paths uses binary search to skip to the right prefix range — O(log n + k)
+ * where k = entries directly under that path. Root level is always O(n).
  *
- * Folders are sorted before files; both groups are sorted alphabetically.
+ * Returns folders before files; both groups sorted alphabetically.
  *
- * @param items - Flat file list from the location manifest
+ * @param items - Sorted flat file list (ProcessedManifest.byPath)
  * @param path - Current directory path (empty string = root)
  */
 export function buildDirectoryListing(items: RawFileItem[], path: string): DatasetFile[] {
@@ -499,25 +546,26 @@ export function buildDirectoryListing(items: RawFileItem[], path: string): Datas
   const seenFolders = new Set<string>();
   const result: DatasetFile[] = [];
 
-  for (const item of items) {
-    if (!item.relative_path.startsWith(prefix)) continue;
+  const start = prefix ? binarySearchByPath(items, prefix) : 0;
 
-    const rest = item.relative_path.slice(prefix.length);
+  for (let i = start; i < items.length; i++) {
+    const { relative_path, size, etag, url, storage_path } = items[i];
+    if (prefix && !relative_path.startsWith(prefix)) break;
+
+    const rest = relative_path.slice(prefix.length);
     const slashIndex = rest.indexOf("/");
 
     if (slashIndex === -1) {
-      // File at this level
       result.push({
         name: rest,
         type: "file",
-        size: item.size,
-        checksum: item.etag,
-        url: item.url,
-        relativePath: item.relative_path,
-        storagePath: item.storage_path,
+        size,
+        checksum: etag,
+        url,
+        relativePath: relative_path,
+        storagePath: storage_path,
       });
     } else {
-      // Folder — show the next path segment once
       const folderName = rest.slice(0, slashIndex);
       if (!seenFolders.has(folderName)) {
         seenFolders.add(folderName);

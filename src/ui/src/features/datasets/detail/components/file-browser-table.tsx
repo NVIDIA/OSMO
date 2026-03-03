@@ -66,6 +66,8 @@ interface FileBrowserTableProps {
   suspendResize?: boolean;
   /** Register a callback invoked when the layout stabilizes (e.g. after gutter drag ends) */
   registerLayoutStableCallback?: (callback: () => void) => () => void;
+  /** When true, shows the Location column (relative path). Active during file filter search. */
+  showLocation?: boolean;
 }
 
 // =============================================================================
@@ -171,7 +173,7 @@ function CopyPathButton({ storagePath }: { storagePath: string }) {
 // Column definitions
 // =============================================================================
 
-function createColumns(): ColumnDef<DatasetFile>[] {
+function createColumns(showLocation: boolean): ColumnDef<DatasetFile>[] {
   return [
     {
       id: "name",
@@ -240,6 +242,30 @@ function createColumns(): ColumnDef<DatasetFile>[] {
         return <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{ext}</span>;
       },
     },
+    ...(showLocation
+      ? [
+          {
+            id: "location",
+            accessorKey: "relativePath",
+            header: "Location",
+            enableSorting: false,
+            size: 280,
+            minSize: 120,
+            cell: ({ row }: { row: { original: DatasetFile } }) => {
+              const { relativePath, type } = row.original;
+              if (!relativePath || type !== "file") {
+                return <span className="text-sm text-zinc-400 dark:text-zinc-600">—</span>;
+              }
+              return (
+                <MidTruncate
+                  text={relativePath}
+                  className="font-mono text-xs text-zinc-500 dark:text-zinc-400"
+                />
+              );
+            },
+          } satisfies ColumnDef<DatasetFile>,
+        ]
+      : []),
   ];
 }
 
@@ -260,6 +286,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
   onRetry,
   suspendResize,
   registerLayoutStableCallback,
+  showLocation = false,
 }: FileBrowserTableProps) {
   const compactMode = useCompactMode();
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
@@ -378,7 +405,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
     [onNavigateUp, onClearSelection, sortedFiles, handleRowClick],
   );
 
-  const columns = useMemo(() => createColumns(), []);
+  const columns = useMemo(() => createColumns(showLocation), [showLocation]);
 
   const emptyContent = useMemo(() => <TableEmptyState message="This directory is empty or does not exist" />, []);
 
@@ -394,13 +421,13 @@ export const FileBrowserTable = memo(function FileBrowserTable({
           error={error}
           title="Unable to load files"
           onRetry={onRetry}
-          headers={["Name", "Size", "Type"]}
+          headers={showLocation ? ["Name", "Size", "Type", "Location"] : ["Name", "Size", "Type"]}
         />
       ) : isLoading ? (
         <TableLoadingSkeleton
           rowHeight={rowHeight}
-          columnCount={3}
-          headers={["Name", "Size", "Type"]}
+          columnCount={showLocation ? 4 : 3}
+          headers={showLocation ? ["Name", "Size", "Type", "Location"] : ["Name", "Size", "Type"]}
         />
       ) : (
         <DataTable<DatasetFile>

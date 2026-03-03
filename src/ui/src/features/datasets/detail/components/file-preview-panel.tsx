@@ -35,9 +35,9 @@ import { memo } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, RefreshCw, Lock, X } from "lucide-react";
+import { AlertCircle, RefreshCw, Lock } from "lucide-react";
 import { PanelTitle } from "@/components/panel/panel-header";
-import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
+import { PanelCloseButton, PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { formatBytes } from "@/lib/utils";
@@ -144,15 +144,7 @@ async function fetchTextContent(url: string): Promise<string> {
   return response.text();
 }
 
-function TextPreview({
-  url,
-  contentType,
-  fileName,
-}: {
-  url: string;
-  contentType: string;
-  fileName: string;
-}) {
+function TextPreview({ url, contentType, fileName }: { url: string; contentType: string; fileName: string }) {
   const {
     data: text,
     isLoading,
@@ -196,15 +188,7 @@ function TextPreview({
   );
 }
 
-function PreviewContent({
-  url,
-  contentType,
-  fileName,
-}: {
-  url: string;
-  contentType: string;
-  fileName: string;
-}) {
+function PreviewContent({ url, contentType, fileName }: { url: string; contentType: string; fileName: string }) {
   const proxyUrl = toProxyUrl(url);
 
   if (contentType.startsWith("image/")) {
@@ -327,17 +311,7 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <PanelTitle className="text-sm font-medium">{file.name}</PanelTitle>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="-mr-1 size-5 rounded text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Close panel"
-          >
-            <X
-              className="size-5 shrink-0"
-              aria-hidden="true"
-            />
-          </button>
+          <PanelCloseButton onClose={onClose} />
         </div>
       </PanelHeaderContainer>
 
