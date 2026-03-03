@@ -247,7 +247,8 @@ If the user also wants monitoring, debugging, or reporting results, use the
 ## Use Case: Check Workflow Status
 
 **When to use:** The user asks about the status or logs of a workflow (e.g. "what's the
-status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz").
+status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz",
+"show me the resource usage for my workflow", "give me the Kubernetes dashboard link").
 Also used as the polling step when monitoring a workflow during end-to-end orchestration.
 
 ### Steps
@@ -256,6 +257,9 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    ```
    osmo workflow query <workflow name> --format-type json
    ```
+   **Cache the JSON result for the rest of the conversation.** If you have already queried
+   this workflow with `osmo workflow query` earlier in the conversation, reuse that JSON
+   — do not query again just to extract a field.
 
 2. **Get recent logs** — Choose the log-fetching method based on task count
    (this rule applies everywhere logs are needed — monitoring, failure diagnosis, etc.):
@@ -269,6 +273,22 @@ Also used as the polling step when monitoring a workflow during end-to-end orche
    - Concisely summarize what the logs show — what stage the job is at, any errors,
      or what it completed successfully
    - If the workflow failed, highlight the error and suggest next steps if possible
+   - **Resource usage / Grafana link:** If the user asks about resource usage, GPU
+     utilization, or metrics for this workflow, extract `grafana_url` from the query
+     JSON. If present, render it as a clickable link:
+     `[View resource usage in Grafana](<grafana_url>)`
+     If the field is empty or null, tell the user: "The Grafana resource usage link is
+     not available for this workflow."
+   - **Kubernetes dashboard link:** If the user asks for the Kubernetes dashboard,
+     pod details, or a k8s link, extract `kubernetes_dashboard` from the query JSON.
+     If present, render it as a clickable link:
+     `[Open Kubernetes dashboard](<kubernetes_dashboard>)`
+     If the field is empty or null, tell the user: "The Kubernetes dashboard link is
+     not available for this workflow."
+   - Proactively include both links in any detailed status report (e.g. when the
+     workflow is RUNNING or has just COMPLETED) — users often want them without
+     explicitly asking. If a field is empty or null, note it as not available rather
+     than silently omitting it.
    - **If PENDING** (or the user asks why it isn't scheduling), run:
      ```
      osmo workflow events <workflow name>
