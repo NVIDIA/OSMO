@@ -209,8 +209,8 @@ function createColumns(): ColumnDef<DatasetFile>[] {
       accessorKey: "size",
       header: "Size",
       enableSorting: true,
-      size: 90,
-      minSize: 60,
+      size: 120,
+      minSize: 90,
       cell: ({ row }) => {
         const { size, type } = row.original;
         if (type === "folder" || size === undefined) {
