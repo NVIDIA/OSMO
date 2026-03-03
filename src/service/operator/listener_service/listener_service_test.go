@@ -125,6 +125,10 @@ func (m *mockNodeConditionStream) Send(msg *pb.NodeConditionsMessage) error {
 	return nil
 }
 
+func (m *mockNodeConditionStream) Recv() (*pb.HeartbeatMessage, error) {
+	return nil, io.EOF
+}
+
 // setupTestRedis creates a redis client for testing
 // It connects to localhost:6379 or uses REDIS_TEST_ADDR env var if set
 func setupTestRedis(t *testing.T) *redis.Client {
@@ -1014,7 +1018,7 @@ func TestNodeConditionStream_WithoutBackendNameMetadata(t *testing.T) {
 	ctx := context.Background() // no metadata
 	stream := newMockNodeConditionStream(ctx)
 
-	err := service.NodeConditionStream(&pb.NodeConditionStreamRequest{}, stream)
+	err := service.NodeConditionStream(stream)
 	if err == nil {
 		t.Fatal("expected error for missing backend-name metadata, got nil")
 	}
@@ -1036,7 +1040,7 @@ func TestNodeConditionStream_WithEmptyBackendName(t *testing.T) {
 		metadata.Pairs("backend-name", ""))
 	stream := newMockNodeConditionStream(ctx)
 
-	err := service.NodeConditionStream(&pb.NodeConditionStreamRequest{}, stream)
+	err := service.NodeConditionStream(stream)
 	if err == nil {
 		t.Fatal("expected error for empty backend-name metadata, got nil")
 	}

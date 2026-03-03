@@ -231,6 +231,22 @@ func BackendActionQueueName(backendName string) string {
 	return "backend-connections:" + backendName
 }
 
+// UpdateBackendLastHeartbeat updates the last_heartbeat timestamp for a backend.
+func UpdateBackendLastHeartbeat(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	backendName string,
+	lastHeartbeat time.Time) error {
+	_, err := pool.Exec(ctx,
+		`UPDATE backends SET last_heartbeat = $1 WHERE name = $2`,
+		lastHeartbeat, backendName,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update last_heartbeat for backend %s: %w", backendName, err)
+	}
+	return nil
+}
+
 // FetchBackendNodeConditions loads node_conditions.rules for a backend from the database.
 // Returns an error if the backend is not found or on parse failure.
 func FetchBackendNodeConditions(

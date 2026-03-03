@@ -43,7 +43,8 @@ type ListenerArgs struct {
 	LabelUpdateChanSize   int  // Buffer size for label update channel
 	ProgressDir           string
 	ProgressFrequencySec  int
-	UsageFlushIntervalSec int // Interval for flushing resource usage updates (NodeUsageListener)
+	UsageFlushIntervalSec int // Interval for flushing resource usage updates
+	HeartbeatIntervalSec  int // Interval for sending heartbeat messages
 
 	// OpenTelemetry metrics configuration
 	Metrics OTELConfig
@@ -102,6 +103,9 @@ func ListenerParse() ListenerArgs {
 	usageFlushIntervalSec := flag.Int("usageFlushIntervalSec",
 		sharedutils.GetEnvInt("USAGE_FLUSH_INTERVAL_SEC", 60),
 		"Interval for flushing resource usage updates (ResourceListener)")
+	heartbeatIntervalSec := flag.Int("heartbeatIntervalSec",
+		sharedutils.GetEnvInt("HEARTBEAT_INTERVAL_SEC", 20),
+		"Interval in seconds for sending heartbeat messages on NodeConditionStream")
 	tokenFile := flag.String("tokenFile",
 		"",
 		"Path to file containing access token (empty means no auth)")
@@ -112,8 +116,8 @@ func ListenerParse() ListenerArgs {
 	flag.Parse()
 
 	return ListenerArgs{
-		ServiceURL: *serviceURL,
-		TokenFile:  *tokenFile,
+		ServiceURL:            *serviceURL,
+		TokenFile:             *tokenFile,
 		Backend:               *backend,
 		Namespace:             *namespace,
 		PodUpdateChanSize:     *podUpdateChanSize,
@@ -130,6 +134,7 @@ func ListenerParse() ListenerArgs {
 		ProgressDir:           *progressDir,
 		ProgressFrequencySec:  *progressFrequencySec,
 		UsageFlushIntervalSec: *usageFlushIntervalSec,
+		HeartbeatIntervalSec:  *heartbeatIntervalSec,
 		Metrics:               buildMetricsConfig(),
 	}
 }
