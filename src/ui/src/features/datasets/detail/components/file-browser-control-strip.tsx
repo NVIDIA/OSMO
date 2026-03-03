@@ -21,9 +21,7 @@
  *
  * - VersionPicker + separator only rendered for datasets (versions.length > 0)
  * - FilterBar hidden when showFilter=false (collection root view)
- * - FilterBar offers:
- *   - free-text "file:" prefix search (filename prefix or path/prefix)
- *   - "type:" extension filter with exhaustive suggestions from the dataset manifest
+ * - FilterBar offers free-text "file:" prefix search and "type:" extension filter
  * - Details button toggles the right panel visibility
  */
 
@@ -34,7 +32,7 @@ import { Info, ChevronRight } from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
-import type { SearchChip, SearchField, ResultsCount } from "@/components/filter-bar/lib/types";
+import type { SearchChip, SearchField } from "@/components/filter-bar/lib/types";
 import { VersionPicker } from "@/features/datasets/detail/components/version-picker";
 import type { DatasetFile, DatasetVersion } from "@/lib/api/adapter/datasets";
 
@@ -68,8 +66,6 @@ interface FileBrowserControlStripProps {
   fileTypes: readonly string[];
   /** Whether to show the filter input (hidden on collection root view) */
   showFilter: boolean;
-  /** Result count for display when filter is active */
-  filterResultsCount?: ResultsCount;
 }
 
 // Stable empty data array — FilterBar data prop is only used by sync field getValues,
@@ -92,7 +88,6 @@ export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
   onFilterChipsChange,
   fileTypes,
   showFilter,
-  filterResultsCount,
 }: FileBrowserControlStripProps) {
   // Field definitions — type: field's getValues closes over fileTypes
   const fields = useMemo(
@@ -151,7 +146,6 @@ export const FileBrowserControlStrip = memo(function FileBrowserControlStrip({
           placeholder="Filter in current directory..."
           defaultField="file"
           className="w-[30%]"
-          resultsCount={filterResultsCount}
         />
       )}
 

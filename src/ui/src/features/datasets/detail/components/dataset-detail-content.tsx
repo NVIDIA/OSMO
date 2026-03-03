@@ -465,9 +465,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   // Hidden on the collection root view (which shows virtual dataset-member entries, not real files).
   const showFilter = !isCollection || path !== "";
 
-  // Show result count in FilterBar when filter is active
-  const filterResultsCount = filterChips.length > 0 ? { total: filteredFiles.length } : undefined;
-
   const fileTableContent = (
     <FileBrowserTable
       files={filteredFiles}
@@ -505,7 +502,6 @@ export function DatasetDetailContent({ bucket, name }: Props) {
         onFilterChipsChange={setFilterChips}
         fileTypes={manifest?.fileTypes ?? []}
         showFilter={showFilter}
-        filterResultsCount={filterResultsCount}
       />
 
       {/* File browser + optional file preview panel */}
