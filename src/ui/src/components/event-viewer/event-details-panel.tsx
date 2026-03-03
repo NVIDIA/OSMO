@@ -94,7 +94,7 @@ export const EventDetailsPanel = memo(function EventDetailsPanel({
             </div>
 
             {/* Message */}
-            <div className="text-muted-foreground text-xs leading-relaxed break-words">{event.message}</div>
+            <div className="text-muted-foreground min-w-0 text-xs leading-relaxed [overflow-wrap:anywhere]">{event.message}</div>
           </div>
         );
       })}

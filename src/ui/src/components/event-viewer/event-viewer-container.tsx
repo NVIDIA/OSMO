@@ -17,14 +17,17 @@
 "use client";
 
 import { useState, useMemo, useCallback, startTransition, useDeferredValue } from "react";
-import { ChevronsDownUp, ChevronsUpDown, Loader2, Radio } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, ExternalLink, Loader2, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEventStream } from "@/lib/api/adapter/events/use-event-stream";
 import { groupEventsByTask, calculateDuration } from "@/lib/api/adapter/events/events-grouping";
 import { EventViewerTable } from "@/components/event-viewer/event-viewer-table";
 import { EventViewerProvider } from "@/components/event-viewer/event-viewer-context";
 import type { TaskGroupStatus } from "@/lib/api/generated";
+import { Button } from "@/components/shadcn/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useTick } from "@/hooks/use-tick";
+import { getBasePathUrl } from "@/lib/config";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
 import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/components/event-viewer/lib/event-search-fields";
@@ -79,6 +82,7 @@ export function EventViewerContainer({
   taskTimings,
 }: EventViewerContainerProps) {
   const isTaskScope = scope === "task";
+  const openUrl = url.startsWith("http://") || url.startsWith("https://") ? url : getBasePathUrl(url);
 
   // URL-synced filter chips (only in workflow scope)
   const { searchChips, setSearchChips } = useUrlChips({ paramName: "ef" });
@@ -262,6 +266,52 @@ export function EventViewerContainer({
                 <span>Collapse All</span>
               </button>
             </div>
+
+            {/* Open raw event stream in new tab */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  asChild
+                  aria-label="Open event stream in new tab"
+                >
+                  <a
+                    href={openUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="size-4" />
+                  </a>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Open event stream in new tab</TooltipContent>
+            </Tooltip>
+          </div>
+        )}
+
+        {/* Task scope: minimal toolbar with open-in-new-tab button */}
+        {isTaskScope && (
+          <div className="flex justify-end px-2 py-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  asChild
+                  aria-label="Open event stream in new tab"
+                >
+                  <a
+                    href={openUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="size-4" />
+                  </a>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Open event stream in new tab</TooltipContent>
+            </Tooltip>
           </div>
         )}
 

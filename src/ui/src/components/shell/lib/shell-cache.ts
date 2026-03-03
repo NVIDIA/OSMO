@@ -63,8 +63,10 @@ function getSnapshot(): CachedSession[] {
   return cachedSnapshot;
 }
 
-function getServerSnapshot(): CachedSession[] {
-  return [];
+const SERVER_SNAPSHOT: readonly CachedSession[] = [];
+
+function getServerSnapshot(): readonly CachedSession[] {
+  return SERVER_SNAPSHOT;
 }
 
 export function useShellSessions(): readonly CachedSession[] {
