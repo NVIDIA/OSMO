@@ -18,7 +18,7 @@
 .. _keycloak_setup:
 
 ================================================
-Keycloak as an Identity Provider for OSMO
+Keycloak as a sample IdP
 ================================================
 
 This guide describes how to deploy `Keycloak <https://www.keycloak.org/>`_ and configure it as the identity provider (IdP) for OSMO. Keycloak acts as an authentication broker, allowing OSMO to authenticate users through various identity providers (LDAP, SAML, social logins) while providing centralized group and role management.
@@ -396,7 +396,7 @@ The typical workflow for setting up access control is:
 2. Create groups in Keycloak
 3. Assign roles to groups
 4. Add users to groups (manually or via identity provider mappings)
-5. Create matching pools in OSMO
+5. Create matching pools
 6. Verify access
 
 .. _keycloak_create_roles:
@@ -551,7 +551,7 @@ User Cannot Access Pool
 
 **Solutions**:
 
-1. **Verify Role Policy in OSMO**: Ensure the corresponding role has been created in OSMO. Follow the steps in :ref:`troubleshooting_roles_policies`.
+1. **Verify Role Policy**: Ensure the corresponding role has been created. Follow the steps in :ref:`troubleshooting_roles_policies`.
 
 2. **Verify Role Names**: Pool access roles must start with ``osmo-`` prefix (see :ref:`role_naming_for_pools`). Pool names must match the role suffix. Example: Role ``osmo-team1`` will make pools named ``team1*`` visible.
 
