@@ -31,8 +31,7 @@ from . import osmo_errors
 
 
 # The authorization header used by OSMO.
-# TODO: Use 'Authorization: Bearer ...'  header envoy is configuredto use this
-OSMO_AUTH_HEADER = 'x-osmo-auth'
+OSMO_AUTH_HEADER = 'Authorization'
 # If developer mode, the header to pass the osmo user in
 OSMO_USER_HEADER = 'x-osmo-user'
 OSMO_USER_ROLES = 'x-osmo-roles'

@@ -307,7 +307,8 @@ class ServiceClient():
         if not headers:
             headers = {}
         if self._login_manager.login_storage.token_login is not None:
-            headers[login.OSMO_AUTH_HEADER] = self._login_manager.login_storage.token_login.id_token
+            token = self._login_manager.login_storage.token_login.id_token
+            headers[login.OSMO_AUTH_HEADER] = f'Bearer {token}'
             dev_env_var = os.getenv('OSMO_LOGIN_DEV') in ['true', 'True']
             if dev_env_var and \
                 self._login_manager.login_storage.token_login.username:
@@ -410,7 +411,8 @@ class ServiceClient():
         if not headers:
             headers = {}
         if self._login_manager.login_storage.token_login is not None:
-            headers[login.OSMO_AUTH_HEADER] = self._login_manager.login_storage.token_login.id_token
+            token = self._login_manager.login_storage.token_login.id_token
+            headers[login.OSMO_AUTH_HEADER] = f'Bearer {token}'
         if self._login_manager.login_storage.dev_login is not None:
             headers[login.OSMO_USER_HEADER] = self._login_manager.login_storage.dev_login.username
         headers[version.VERSION_HEADER] = str(version.VERSION)

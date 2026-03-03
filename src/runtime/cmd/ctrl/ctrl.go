@@ -226,7 +226,7 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 	headerKey := cmdArgs.TokenHeader
 	headers := make(http.Header)
 	jwtTokenMux.RLock()
-	headers.Add(headerKey, jwtToken)
+	headers.Add(headerKey, "Bearer "+jwtToken)
 	jwtTokenMux.RUnlock()
 
 	newConn, resp, err = dialer.Dial(url, headers)
@@ -359,7 +359,7 @@ func createWebsocketConnection(
 	headerKey := cmdArgs.TokenHeader
 	headers := make(http.Header)
 	jwtTokenMux.RLock()
-	headers.Add(headerKey, jwtToken)
+	headers.Add(headerKey, "Bearer "+jwtToken)
 	jwtTokenMux.RUnlock()
 	headers.Add("Cookie", cookie)
 
