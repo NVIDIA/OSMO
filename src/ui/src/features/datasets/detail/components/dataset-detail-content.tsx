@@ -104,21 +104,32 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     setPreviewPanelOpen(false);
   }, []);
 
-  // Global Esc — closes file preview from any focus position
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || !previewPanelOpen) return;
-      handleClosePanel();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [previewPanelOpen, handleClosePanel]);
-
   // ==========================================================================
   // Details overlay panel — controlled by the layout-level DatasetsPanelLayout
   // ==========================================================================
 
   const { isPanelOpen, openPanel, closePanel } = useDatasetsPanelContext();
+
+  // Priority-ordered Esc: details panel closes first, file preview closes second.
+  // Used by both the global keydown listener and FileBrowserTable's Esc shortcut.
+  const handleEscapeKey = useCallback(() => {
+    if (isPanelOpen) {
+      closePanel();
+    } else if (previewPanelOpen) {
+      handleClosePanel();
+    }
+  }, [isPanelOpen, closePanel, previewPanelOpen, handleClosePanel]);
+
+  // Global Esc — fires from any focus position
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (!isPanelOpen && !previewPanelOpen) return;
+      handleEscapeKey();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isPanelOpen, previewPanelOpen, handleEscapeKey]);
 
   const handleDetailsToggle = useCallback(() => {
     if (isPanelOpen) {
@@ -399,7 +410,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       onNavigate={navigateTo}
       onSelectFile={handleSelectFile}
       onNavigateUp={handleNavigateUp}
-      onClearSelection={handleClosePanel}
+      onClearSelection={handleEscapeKey}
       isLoading={isFilesLoading && !virtualFiles}
       error={filesError}
       onRetry={handleRetryFiles}
