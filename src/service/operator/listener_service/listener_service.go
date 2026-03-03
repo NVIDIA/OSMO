@@ -203,12 +203,11 @@ func (ls *ListenerService) ListenerStream(
 	return ls.handleListenerStream(stream)
 }
 
-// NodeConditionStream sends initial node conditions from the DB, then streams updates
+// NodeConditionStream sends initial node conditions from the DB, then streams updates.
+// It drains incoming heartbeats from the client to keep the bidirectional stream alive.
 func (ls *ListenerService) NodeConditionStream(
-	req *pb.NodeConditionStreamRequest,
 	stream pb.ListenerService_NodeConditionStreamServer,
 ) error {
-	_ = req
 	ctx := stream.Context()
 
 	backendName, err := utils.ExtractBackendName(ctx)
@@ -237,6 +236,30 @@ func (ls *ListenerService) NodeConditionStream(
 	}
 	ls.logger.InfoContext(ctx, "sent initial node conditions to backend",
 		slog.String("backend_name", backendName))
+
+	// Drain incoming heartbeats and update last_heartbeat in the DB on each receipt.
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				return
+			}
+			heartbeatTime, err := time.Parse(time.RFC3339, msg.Time)
+			if err != nil {
+				ls.logger.WarnContext(ctx, "failed to parse heartbeat time, skipping DB update",
+					slog.String("backend_name", backendName),
+					slog.String("time", msg.Time),
+					slog.String("error", err.Error()))
+				continue
+			}
+			if err := utils.UpdateBackendLastHeartbeat(
+				ctx, ls.pgPool, backendName, heartbeatTime); err != nil {
+				ls.logger.WarnContext(ctx, "failed to update backend last heartbeat",
+					slog.String("backend_name", backendName),
+					slog.String("error", err.Error()))
+			}
+		}
+	}()
 
 	queueName := utils.BackendActionQueueName(backendName)
 	retryCount := 0

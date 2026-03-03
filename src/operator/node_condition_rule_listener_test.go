@@ -25,15 +25,16 @@ import (
 
 func TestNewNodeConditionRuleListener(t *testing.T) {
 	args := utils.ListenerArgs{
-		ServiceURL:          "http://localhost:8000",
-		Backend:             "test-backend",
-		Namespace:           "osmo",
-		NodeUpdateChanSize:  100,
-		StateCacheTTLMin:    15,
-		MaxUnackedMessages:  100,
-		NodeConditionPrefix: "osmo.nvidia.com/",
-		ProgressDir:         "/tmp/osmo/operator/",
+		ServiceURL:           "http://localhost:8000",
+		Backend:              "test-backend",
+		Namespace:            "osmo",
+		NodeUpdateChanSize:   100,
+		StateCacheTTLMin:     15,
+		MaxUnackedMessages:   100,
+		NodeConditionPrefix:  "osmo.nvidia.com/",
+		ProgressDir:          "/tmp/osmo/operator/",
 		ProgressFrequencySec: 15,
+		HeartbeatIntervalSec: 10,
 	}
 
 	nodeConditionRules := utils.NewNodeConditionRules()
