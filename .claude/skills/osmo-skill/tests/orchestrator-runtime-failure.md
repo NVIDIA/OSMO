@@ -99,7 +99,6 @@ Phase 3 confirmation pause:
 
 ## Expected Behavior (Phase-Split Architecture)
 
-This test validates the phase-split pattern defined in DESIGN_DOC_V2.md §9.
 The workflow expert handles setup/submit and failure diagnosis in its isolated
 context, while the main conversation monitors inline so the user sees live
 status updates.
