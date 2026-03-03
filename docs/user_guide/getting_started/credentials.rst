@@ -211,13 +211,14 @@ To access your data storage within workflows, you'll need to set the appropriate
             $ osmo credential set my-azure-cred \
                 --type DATA \
                 --payload \
-                endpoint=azure://<storage-account>/<container> \
+                endpoint=azure://<storage-account> \
                 region=<region> \
                 access_key_id=<access_key_id> \
                 access_key=<access_key>
 
         **Field Mappings:**
 
+            - ``endpoint`` → should **ONLY** include the storage account name
             - ``access_key`` → **Connection String** in Azure
             - ``access_key_id`` → can be **ANY** string value (e.g. ``<storage-account>`` or ``<username>``)
             - ``region`` → **OPTIONAL** (defaults to ``eastus``)
