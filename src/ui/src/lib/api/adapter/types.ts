@@ -55,6 +55,8 @@ export interface Quota {
   totalFree: number;
 }
 
+export const EMPTY_QUOTA: Quota = { used: 0, free: 0, limit: 0, totalUsage: 0, totalCapacity: 0, totalFree: 0 };
+
 /**
  * Platform configuration within a pool.
  * Contains task configuration settings.
@@ -127,6 +129,11 @@ export interface PoolsResponse {
    * Example: [["pool-a", "pool-b"], ["pool-c", "pool-d"]]
    */
   sharingGroups: string[][];
+  /**
+   * Aggregate GPU metrics across all pools (from backend's resource_sum).
+   * Quota fields sum per-pool; capacity fields are deduplicated per node_set.
+   */
+  gpuSummary: Quota;
 }
 
 // =============================================================================

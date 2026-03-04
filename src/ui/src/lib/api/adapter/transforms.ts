@@ -41,21 +41,22 @@ import {
   type ResourcesEntry,
 } from "@/lib/api/generated";
 
-import type {
-  Pool,
-  PoolsResponse,
-  Quota,
-  PlatformConfig,
-  GpuResources,
-  TimeoutConfig,
-  Resource,
-  PoolResourcesResponse,
-  AllResourcesResponse,
-  ResourceCapacity,
-  PoolMembership,
-  Version,
-  UserProfile,
-  Credential,
+import {
+  EMPTY_QUOTA,
+  type Pool,
+  type PoolsResponse,
+  type Quota,
+  type PlatformConfig,
+  type GpuResources,
+  type TimeoutConfig,
+  type Resource,
+  type PoolResourcesResponse,
+  type AllResourcesResponse,
+  type ResourceCapacity,
+  type PoolMembership,
+  type Version,
+  type UserProfile,
+  type Credential,
 } from "@/lib/api/adapter/types";
 import { naturalCompare } from "@/lib/utils";
 
@@ -222,7 +223,7 @@ export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
   const response = rawResponse as PoolResponse | undefined;
 
   if (!response?.node_sets) {
-    return { pools: [], sharingGroups: [] };
+    return { pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA };
   }
 
   const pools: Pool[] = [];
@@ -242,7 +243,7 @@ export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
     }
   }
 
-  return { pools, sharingGroups };
+  return { pools, sharingGroups, gpuSummary: transformQuota(response.resource_sum) };
 }
 
 /**

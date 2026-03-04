@@ -34,11 +34,12 @@
 
 import { useMemo } from "react";
 import { useFilteredPools, type PoolFilterParams, type PoolMetadata } from "@/lib/api/adapter/hooks";
-import type { Pool } from "@/lib/api/adapter/types";
+import type { Pool, Quota } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import { chipsToParams, filterChipsByFields, type ChipMappingConfig } from "@/lib/api/chip-filter-utils";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
+import { computePoolGpuSummary } from "@/features/pools/lib/pool-gpu-summary";
 
 // =============================================================================
 // Types
@@ -61,6 +62,8 @@ interface UsePoolsDataReturn {
   sharingGroups: string[][];
   /** Metadata for filter options (status counts, platforms, backends) */
   metadata: PoolMetadata | null;
+  /** GPU summary for currently visible pools (deduplicates shared capacity) */
+  gpuSummary: Quota;
   /** Whether any filters are active */
   hasActiveFilters: boolean;
   /** Total pools before filtering */
@@ -165,11 +168,14 @@ export function usePoolsData({
   // The my/all pools toggle changes scope silently (consistent with workflows/datasets).
   const hasActiveFilters = hasActiveChipFilters || clientOnlyChips.length > 0;
 
+  const gpuSummary = useMemo(() => computePoolGpuSummary(pools, sharingGroups), [pools, sharingGroups]);
+
   return {
     pools,
     allPools,
     sharingGroups,
     metadata,
+    gpuSummary,
     hasActiveFilters,
     total,
     filteredTotal,
