@@ -4389,48 +4389,43 @@ class Role(role.Role):
            - ['role1', ...]: Replace with specified mappings
            For new roles with external_roles=None, creates a default mapping to the role name.
         """
-        check_immutable = 'AND roles.immutable = false' if not force else ''
+        check_immutable = 'WHERE roles.immutable = false' if not force else ''
 
+        # Determine sync parameters:
+        # - external_roles_provided: True if self.external_roles is not None
+        # - external_roles_list: the list to use
+        #   (empty if None, to be replaced by default for new roles)
         external_roles_provided = self.external_roles is not None
         external_roles_list = self.external_roles if external_roles_provided else []
 
-        # Split the upsert into separate INSERT (if not exists) and UPDATE (if exists)
-        # CTEs to avoid INSERT ... ON CONFLICT and xmax, which don't work on
-        # pgroll views.
+        # Use CTEs to perform all operations atomically in a single transaction.
+        # The sync logic:
+        # - should_sync = external_roles_provided OR is_new_role
+        # - roles_to_map = external_roles_list if external_roles_provided else [role_name] (default)
         insert_cmd = f'''
-            WITH existing_role AS (
-                SELECT name FROM roles WHERE name = %s
-            ),
-            role_insert AS (
+            WITH role_upsert AS (
                 INSERT INTO roles
                 (name, description, policies, immutable, sync_mode)
-                SELECT %s, %s, %s::jsonb[], %s, %s
-                WHERE NOT EXISTS (SELECT 1 FROM existing_role)
-                RETURNING policies, immutable, true AS is_new_role
-            ),
-            role_update AS (
-                UPDATE roles SET
-                    description = %s,
-                    policies = %s::jsonb[],
-                    sync_mode = %s
-                WHERE name = %s
-                AND EXISTS (SELECT 1 FROM existing_role)
+                VALUES (%s, %s, %s::jsonb[], %s, %s)
+                ON CONFLICT (name)
+                DO UPDATE SET
+                    description = EXCLUDED.description,
+                    policies = EXCLUDED.policies,
+                    sync_mode = EXCLUDED.sync_mode
                 {check_immutable}
-                RETURNING policies, immutable, false AS is_new_role
-            ),
-            role_result AS (
-                SELECT * FROM role_insert
-                UNION ALL
-                SELECT * FROM role_update
+                RETURNING policies, immutable, (xmax = 0) AS is_new_role
             ),
             sync_config AS (
                 SELECT
-                    (%s OR (SELECT is_new_role FROM role_result)) AS should_sync,
+                    -- should_sync: True if external_roles explicitly provided OR if new role
+                    (%s OR (SELECT is_new_role FROM role_upsert)) AS should_sync,
+                    -- The roles to map: use provided list if external_roles was set,
+                    -- otherwise use default (role name) for new roles
                     CASE
                         WHEN %s THEN %s::text[]
                         ELSE ARRAY[%s]::text[]
                     END AS roles_to_map,
-                    (SELECT is_new_role FROM role_result) AS is_new_role
+                    (SELECT is_new_role FROM role_upsert) AS is_new_role
             ),
             delete_mappings AS (
                 DELETE FROM role_external_mappings
@@ -4440,39 +4435,33 @@ class Role(role.Role):
             ),
             insert_mappings AS (
                 INSERT INTO role_external_mappings (role_name, external_role)
-                SELECT DISTINCT %s, unnest((SELECT roles_to_map FROM sync_config))
+                SELECT %s, unnest((SELECT roles_to_map FROM sync_config))
                 WHERE (SELECT should_sync FROM sync_config)
                 AND array_length((SELECT roles_to_map FROM sync_config), 1) > 0
+                ON CONFLICT (role_name, external_role) DO NOTHING
                 RETURNING 1
             )
-            SELECT policies, immutable, is_new_role FROM role_result;
+            SELECT policies, immutable, is_new_role FROM role_upsert;
             '''
 
         result = database.execute_fetch_command(
             insert_cmd,
             (
-                # existing_role params
-                self.name,
-                # role_insert params
+                # role_upsert params
                 self.name,
                 self.description,
                 [json.dumps(policy.to_dict()) for policy in self.policies],
                 False,
                 self.sync_mode.value,
-                # role_update params
-                self.description,
-                [json.dumps(policy.to_dict()) for policy in self.policies],
-                self.sync_mode.value,
-                self.name,
                 # sync_config params
-                external_roles_provided,
-                external_roles_provided,
-                external_roles_list,
-                self.name,
+                external_roles_provided,  # first %s in sync_config (should_sync)
+                external_roles_provided,  # WHEN %s in CASE
+                external_roles_list,      # THEN %s::text[]
+                self.name,                # ELSE ARRAY[%s] (default mapping)
                 # delete_mappings params
-                self.name,
+                self.name,                # WHERE role_name = %s
                 # insert_mappings params
-                self.name,
+                self.name,                # SELECT %s, unnest(...)
             ),
             True
         )
