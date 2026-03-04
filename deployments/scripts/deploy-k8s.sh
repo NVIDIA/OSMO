@@ -366,8 +366,6 @@ sidecars:
     enabled: false
   envoy:
     enabled: false
-  logAgent:
-    enabled: false
   oauth2Proxy:
     enabled: false
 EOF
@@ -389,8 +387,6 @@ services:
 
 sidecars:
   envoy:
-    enabled: false
-  logAgent:
     enabled: false
   oauth2Proxy:
     enabled: false
@@ -426,8 +422,6 @@ sidecars:
   otel:
     enabled: false
   envoy:
-    enabled: false
-  logAgent:
     enabled: false
   oauth2Proxy:
     enabled: false
