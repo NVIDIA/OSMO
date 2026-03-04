@@ -24,7 +24,7 @@
  */
 
 import { createTableStore } from "@/stores/create-table-store";
-import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER } from "@/features/datasets/list/lib/dataset-columns";
+import { DEFAULT_VISIBLE_COLUMNS, DEFAULT_COLUMN_ORDER, DEFAULT_SORT } from "@/features/datasets/list/lib/dataset-columns";
 
 /**
  * Datasets table store for column preferences.
@@ -35,6 +35,7 @@ export const useDatasetsTableStore = createTableStore({
   storageKey: "datasets-table",
   defaultVisibleColumns: DEFAULT_VISIBLE_COLUMNS,
   defaultColumnOrder: DEFAULT_COLUMN_ORDER,
+  defaultSort: DEFAULT_SORT,
   defaultPanelWidth: 35,
 });
 

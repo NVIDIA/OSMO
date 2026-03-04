@@ -78,7 +78,7 @@ const datasetColumnConfig = createColumnConfig<DatasetColumnId>({
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TIMESTAMP,
     },
   ],
-  // No default sort for datasets (no server-side sorting yet)
+  defaultSort: { column: "updated_at" as const, direction: "desc" as const },
 });
 
 // =============================================================================
@@ -108,3 +108,6 @@ export const MANDATORY_COLUMN_IDS = datasetColumnConfig.MANDATORY_COLUMN_IDS;
 
 /** Column sizing configuration */
 export const DATASET_COLUMN_SIZE_CONFIG = datasetColumnConfig.COLUMN_SIZE_CONFIG;
+
+/** Default sort configuration */
+export const DEFAULT_SORT = datasetColumnConfig.DEFAULT_SORT;
