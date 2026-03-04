@@ -28,7 +28,7 @@ Envoy sidecar container
   args:
     - |
       echo "$(date -Iseconds) Starting Envoy..."
-      /usr/local/bin/envoy -c /var/config/config.yaml --log-level {{ .Values.sidecars.envoy.logLevel | default "info" }} 2>&1 | tee /logs/envoy.txt
+      exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level {{ .Values.sidecars.envoy.logLevel | default "info" }}
   ports:
     {{- if .Values.sidecars.envoy.ssl.enabled }}
     - containerPort: 443

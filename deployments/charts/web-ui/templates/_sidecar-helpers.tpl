@@ -33,7 +33,7 @@ Envoy sidecar container
   args:
     - -c
     - |
-      /usr/local/bin/envoy -c /var/config/config.yaml --log-level info 2>&1 | tee /logs/envoy.txt
+      exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level info
 
   command:
     - /bin/sh
