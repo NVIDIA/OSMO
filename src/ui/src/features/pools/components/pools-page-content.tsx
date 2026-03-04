@@ -49,7 +49,6 @@ import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
 import { usePoolsAutoRefresh } from "@/features/pools/hooks/use-pools-auto-refresh";
 import { useProfile } from "@/lib/api/adapter/hooks";
 import { PoolGpuSummary } from "@/features/pools/components/pool-gpu-summary";
-import { useDisplayMode } from "@/hooks/shared-preferences-hooks";
 
 // =============================================================================
 // Client Component
@@ -109,8 +108,6 @@ export function PoolsPageContent() {
     accessiblePoolNames,
     refetchInterval: autoRefresh.effectiveInterval,
   });
-
-  const displayMode = useDisplayMode();
 
   // ==========================================================================
   // Pool Panel State - URL state controls both selection and mounting
@@ -188,7 +185,6 @@ export function PoolsPageContent() {
         >
           <PoolGpuSummary
             summary={gpuSummary}
-            displayMode={displayMode}
             isLoading={isLoading}
           />
         </InlineErrorBoundary>
