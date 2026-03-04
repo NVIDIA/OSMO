@@ -168,8 +168,9 @@ import type {
   DataInfoResponse,
   DataInfoDatasetEntry,
   DataInfoCollectionEntry,
+  ListDatasetFromBucketApiBucketListDatasetGetParams,
 } from "@/lib/api/generated";
-import { DatasetType } from "@/lib/api/generated";
+import { DatasetType, ListOrder } from "@/lib/api/generated";
 
 // =============================================================================
 // Helpers
@@ -332,6 +333,8 @@ export interface DatasetFilterParams {
   searchChips: SearchChip[];
   /** Show all users' datasets (default: false = current user only) */
   showAllUsers?: boolean;
+  /** Sort direction for updated_at ordering */
+  sortDirection?: "ASC" | "DESC";
 }
 
 // =============================================================================
@@ -345,24 +348,23 @@ export interface DatasetFilterParams {
 function buildApiParams(
   chips: SearchChip[],
   showAllUsers: boolean,
+  offset: number,
   limit: number,
-): {
-  name?: string;
-  user?: string[];
-  buckets?: string[];
-  all_users?: boolean;
-  count: number;
-} {
+  sortDirection: ListOrder,
+): ListDatasetFromBucketApiBucketListDatasetGetParams {
   const bucketChips = getChipValues(chips, "bucket");
   const userChips = getChipValues(chips, "user");
   const searchTerm = getFirstChipValue(chips, "name");
+  const datasetType = getFirstChipValue(chips, "type") as DatasetType | undefined;
 
   return {
+    offset,
     count: limit,
+    order: sortDirection,
     name: searchTerm,
+    dataset_type: datasetType,
     buckets: bucketChips.length > 0 ? bucketChips : undefined,
     user: userChips.length > 0 ? userChips : undefined,
-    // all_users overrides user filter on the backend — force false when user chips are active
     all_users: userChips.length > 0 ? false : showAllUsers,
   };
 }
@@ -372,65 +374,34 @@ function buildApiParams(
 // =============================================================================
 
 /**
- * Fetch all datasets in a single request with server-side filtering.
- *
- * Uses count: 10_000 to retrieve all datasets at once, bypassing the broken
- * offset-based pagination. Client-side shim (datasets-shim.ts) handles
- * date range filtering and sorting after the fetch.
- *
- * @param showAllUsers - Whether to fetch all users' datasets or just the current user's
- * @param searchChips - Active filter chips (server-side params extracted: name, bucket, user)
- */
-export async function fetchAllDatasets(showAllUsers: boolean, searchChips: SearchChip[]): Promise<Dataset[]> {
-  const { listDatasetFromBucketApiBucketListDatasetGet } = await import("@/lib/api/generated");
-
-  const apiParams = buildApiParams(searchChips, showAllUsers, 10_000);
-  const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
-
-  const rawData = response.data;
-  const parsed: DataListResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-  return transformDatasetList(parsed);
-}
-
-/**
  * Fetch paginated datasets with server-side filtering.
  *
  * Follows workflows pattern: passes all filter parameters to the backend API.
- * Backend handles filtering and returns filtered results.
- *
- * NOTE: Backend API lacks offset parameter, so pagination only works within
- * the initial fetch. See BACKEND_TODOS.md Issue #23 for details.
+ * Backend handles filtering, sorting, and pagination via offset.
  *
  * @param params - Pagination and filter parameters
  */
 export async function fetchPaginatedDatasets(
   params: PaginationParams & DatasetFilterParams,
 ): Promise<PaginatedResponse<Dataset>> {
-  const { offset = 0, limit, searchChips, showAllUsers = false } = params;
+  const { offset = 0, limit, searchChips, showAllUsers = false, sortDirection = "DESC" } = params;
 
-  // Import generated client
   const { listDatasetFromBucketApiBucketListDatasetGet } = await import("@/lib/api/generated");
 
-  // Build API params from chips (server-side filtering)
-  const apiParams = buildApiParams(searchChips, showAllUsers, limit);
+  const apiParams = buildApiParams(searchChips, showAllUsers, offset, limit, sortDirection as ListOrder);
 
-  // Fetch from API - backend does the filtering
   const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
 
-  // Parse response (backend may return string or object)
   const rawData = response.data;
   const parsed: DataListResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
 
   const datasets = transformDatasetList(parsed);
-
-  // Calculate hasMore - since API doesn't support offset, assume no more if less than limit
-  const hasMore = datasets.length === limit;
+  const hasMore = parsed.more_entries ?? false;
 
   return {
     items: datasets,
     hasMore,
     nextOffset: hasMore ? offset + limit : undefined,
-    // Backend doesn't provide totals
     total: undefined,
     filteredTotal: undefined,
   };
@@ -586,38 +557,35 @@ export function buildDirectoryListing(items: RawFileItem[], path: string): Datas
 // =============================================================================
 
 /**
- * Build a stable query key for the all-datasets fetch.
- *
- * Only includes server-side filter params (name, bucket, user, showAllUsers).
- * Client-side filters (created_at, updated_at) are intentionally excluded so
- * they don't trigger new API calls — the shim handles them from the cache.
+ * Build a stable query key for datasets list.
+ * Changes to this key reset pagination.
+ * Follows workflows pattern — includes all params that affect results.
  */
-function buildDatasetFilters(
+export function buildDatasetsQueryKey(
   searchChips: SearchChip[],
-  showAllUsers: boolean,
-): Record<string, string | string[] | boolean> {
+  showAllUsers: boolean = false,
+  sortDirection: string = "DESC",
+): readonly unknown[] {
   const buckets = getChipValues(searchChips, "bucket").sort();
   const users = getChipValues(searchChips, "user").sort();
   const search = getFirstChipValue(searchChips, "name");
-  const filters: Record<string, string | string[] | boolean> = {};
+  const datasetType = getFirstChipValue(searchChips, "type");
+
+  const filters: Record<string, string | string[]> = {};
   if (search) filters.search = search;
   if (buckets.length > 0) filters.buckets = buckets;
   if (users.length > 0) filters.users = users;
-  filters.showAllUsers = showAllUsers;
-  return filters;
-}
+  if (datasetType) filters.datasetType = datasetType;
 
-export function buildAllDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
-  return ["datasets", "all", buildDatasetFilters(searchChips, showAllUsers)] as const;
-}
-
-/**
- * Build a stable query key for datasets list.
- * Changes to this key reset pagination.
- * Follows workflows pattern.
- */
-export function buildDatasetsQueryKey(searchChips: SearchChip[], showAllUsers: boolean = false): readonly unknown[] {
-  return ["datasets", "paginated", buildDatasetFilters(searchChips, showAllUsers)] as const;
+  return [
+    "datasets",
+    "paginated",
+    {
+      ...filters,
+      showAllUsers,
+      sortDirection,
+    },
+  ] as const;
 }
 
 /**
