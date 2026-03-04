@@ -48,7 +48,15 @@ listeners:
         "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
         stat_prefix: ingress_http
         access_log:
-        # Log all requests - no filter applied
+        # Log all requests to stdout
+        - name: envoy.access_loggers.file
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+            path: "/dev/stdout"
+            log_format: {
+              text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\" \"%REQ(X-OSMO-TOKEN-NAME)%\" \"%REQ(X-OSMO-WORKFLOW-ID)%\"\n"
+            }
+        # Log all requests to file
         - name: envoy.access_loggers.file
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
@@ -56,7 +64,7 @@ listeners:
             log_format: {
               text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-OSMO-USER)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\" \"%REQ(X-OSMO-TOKEN-NAME)%\" \"%REQ(X-OSMO-WORKFLOW-ID)%\"\n"
             }
-        # Dedicated API path logging - captures all /api/* requests
+        # Dedicated API path logging to file
         - name: envoy.access_loggers.file
           filter:
             header_filter:

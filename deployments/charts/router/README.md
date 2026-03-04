@@ -18,14 +18,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO - Router Service Helm Chart
 
-This Helm chart deploys the OSMO Router service with integrated Envoy proxy and log agent sidecars. The chart has been restructured to be self-contained, removing dependencies on external sidecar charts.
+This Helm chart deploys the OSMO Router service with integrated Envoy proxy sidecar. The chart has been restructured to be self-contained, removing dependencies on external sidecar charts.
 
 ## Architecture
 
 The router deployment includes:
 - **Main Router Container**: The core OSMO router service
 - **Envoy Proxy Sidecar**: Handles authentication, routing, and SSL termination
-- **Log Agent Sidecar**: Centralized logging with Fluent Bit
 
 ## Quick Start
 
@@ -178,34 +177,6 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.envoy.osmoauth.hostname` | OSMO auth hostname | `""` |
 | `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
 
-### Log Agent Sidecar
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.enabled` | Enable log agent sidecar | `true` |
-| `sidecars.logAgent.image` | Log agent container image | `fluent/fluent-bit:4.0.8-debug` |
-| `sidecars.logAgent.imagePullPolicy` | Image pull policy for log agent | `IfNotPresent` |
-| `sidecars.logAgent.prometheusPort` | Port for Prometheus metrics | `2020` |
-| `sidecars.logAgent.configName` | Name of log agent ConfigMap | `router-log-agent-config` |
-| `sidecars.logAgent.resources` | Resource limits and requests | See values.yaml |
-
-#### Log Rotation
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.logrotate.enabled` | Enable log rotation | `true` |
-| `sidecars.logAgent.logrotate.frequency` | Log rotation frequency | `hourly` |
-| `sidecars.logAgent.logrotate.maxSize` | Maximum log file size | `10M` |
-| `sidecars.logAgent.logrotate.rotateCount` | Number of log files to keep | `5` |
-
-#### CloudWatch Logging
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.cloudwatch.region` | AWS region for CloudWatch | `us-west-2` |
-| `sidecars.logAgent.cloudwatch.clusterName` | Cluster name for log grouping | `""` |
-| `sidecars.logAgent.cloudwatch.role` | IAM role ARN for CloudWatch access | `""` |
-
 ## Extensibility Configuration
 
 The chart provides several extension points for customization:
@@ -261,7 +232,6 @@ kubectl get pods -l app=osmo-router
 # View logs
 kubectl logs -l app=osmo-router -c router
 kubectl logs -l app=osmo-router -c envoy
-kubectl logs -l app=osmo-router -c log-agent
 
 # Check configuration
 helm template my-router ./router -f my-values.yaml

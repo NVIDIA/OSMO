@@ -134,32 +134,6 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
 | `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
 
-#### Log Agent Sidecar
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.enabled` | Enable log agent (FluentBit) sidecar | `false` |
-| `sidecars.logAgent.image.repository` | FluentBit image repository | `fluent/fluent-bit:4.0.8-debug` |
-| `sidecars.logAgent.image.pullPolicy` | FluentBit image pull policy | `IfNotPresent` |
-| `sidecars.logAgent.fluentBitPrometheusPort` | FluentBit Prometheus metrics port | `2020` |
-
-#### Log Agent AWS CloudWatch Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.aws.region` | AWS region for CloudWatch | `us-west-2` |
-| `sidecars.logAgent.aws.clusterName` | EKS cluster name for CloudWatch | `""` (empty, must be configured) |
-
-#### Log Agent Log Rotation Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.logrotate.enabled` | Enable log rotation | `false` |
-| `sidecars.logAgent.logrotate.frequency` | Log rotation frequency | `hourly` |
-| `sidecars.logAgent.logrotate.maxSize` | Maximum log file size | `10M` |
-| `sidecars.logAgent.logrotate.rotateCount` | Number of rotated files to keep | `5` |
-| `sidecars.logAgent.logrotate.sleepSeconds` | Sleep interval between rotations | `60` |
-
 #### OpenTelemetry Settings
 
 | Parameter | Description | Default |
@@ -182,5 +156,4 @@ This chart is self-contained and requires:
 
 **Optional Dependencies:**
 - OpenTelemetry collector (if OTEL sidecar injection is enabled)
-- AWS CloudWatch (if log agent with CloudWatch is enabled)
 - Kubernetes secrets (if using `useKubernetesSecrets: true` for OAuth2 credentials)

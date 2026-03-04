@@ -100,6 +100,15 @@ Generate access logs configuration
 */}}
 {{- define "envoy.access-logs" -}}
 access_log:
+# Log all requests to stdout
+- name: envoy.access_loggers.file
+  typed_config:
+    "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+    path: "/dev/stdout"
+    log_format: {
+      text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%\"\n"
+    }
+# Log all requests to file
 - name: envoy.access_loggers.file
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
@@ -107,6 +116,7 @@ access_log:
     log_format: {
       text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%\"\n"
     }
+# Dedicated API path logging to file
 - name: envoy.access_loggers.file
   filter:
     header_filter:
