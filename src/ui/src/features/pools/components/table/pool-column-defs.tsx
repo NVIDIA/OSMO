@@ -111,7 +111,7 @@ export function createPoolColumns({
                       />
                     </button>
                   ) : (
-                    <span className="shrink-0 inline-flex">
+                    <span className="inline-flex shrink-0">
                       <CirclePile
                         className={cn("text-violet-500 dark:text-violet-400", compact ? "h-3 w-3" : "h-3.5 w-3.5")}
                         aria-label="This pool shares capacity with other pools"
@@ -180,7 +180,7 @@ export function createPoolColumns({
       minSize: getMinSize("quotaFree"),
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-xs tabular-nums text-emerald-600 dark:text-emerald-400">
+        <span className="text-xs text-emerald-600 tabular-nums dark:text-emerald-400">
           {Math.max(0, row.original.quota.free)}
         </span>
       ),
@@ -206,7 +206,7 @@ export function createPoolColumns({
       minSize: getMinSize("capacityFree"),
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="text-xs tabular-nums text-emerald-600 dark:text-emerald-400">
+        <span className="text-xs text-emerald-600 tabular-nums dark:text-emerald-400">
           {Math.max(0, row.original.quota.totalFree)}
         </span>
       ),

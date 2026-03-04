@@ -19,6 +19,7 @@
 import { memo } from "react";
 import { type LucideIcon, Server, Zap } from "lucide-react";
 import { ProgressBar } from "@/components/progress-bar";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { formatCompact } from "@/lib/utils";
 import type { Quota } from "@/lib/api/adapter/types";
 
@@ -27,9 +28,9 @@ interface PoolGpuSummaryProps {
   isLoading?: boolean;
 }
 
-function barColorClass(pct: number): string {
-  if (pct < 60) return "bg-emerald-500";
-  if (pct < 80) return "bg-amber-500";
+function getUtilizationColor(percent: number): string {
+  if (percent < 65) return "bg-emerald-500";
+  if (percent < 85) return "bg-amber-500";
   return "bg-red-500";
 }
 
@@ -41,32 +42,33 @@ interface PoolGpuSummaryCardProps {
   total: number;
 }
 
-const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({ label, icon: Icon, used, free, total }: PoolGpuSummaryCardProps) {
-  const pct = total > 0 ? (used / total) * 100 : 0;
+const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
+  label,
+  icon: Icon,
+  used,
+  free,
+  total,
+}: PoolGpuSummaryCardProps) {
+  const percent = total > 0 ? (used / total) * 100 : 0;
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
-      {/* Title + percentage */}
       <div className="flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-        <span className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
-          {label}
-        </span>
-        <span className="ml-auto text-sm font-semibold tabular-nums text-zinc-600 dark:text-zinc-400">
-          {Math.round(pct)}%
+        <span className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">{label}</span>
+        <span className="ml-auto text-sm font-semibold text-zinc-600 tabular-nums dark:text-zinc-400">
+          {Math.round(percent)}%
         </span>
       </div>
 
-      {/* Progress bar */}
       <ProgressBar
         value={used}
         max={total}
         size="sm"
-        colorClass={barColorClass(pct)}
+        colorClass={getUtilizationColor(percent)}
         className="mt-3"
       />
 
-      {/* Below bar: used fraction left, free right */}
       <div className="mt-3 flex items-baseline justify-between tabular-nums">
         <div className="flex items-baseline gap-1">
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{formatCompact(used)}</span>
@@ -83,34 +85,32 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({ label, icon: Icon,
 });
 
 export const PoolGpuSummary = memo(function PoolGpuSummary({ summary, isLoading = false }: PoolGpuSummaryProps) {
-  if (isLoading) {
-    return (
-      <div className="contain-layout-style @container">
-        <div className="grid grid-cols-2 gap-2 @[500px]:gap-3">
-          <div className="h-28 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
-          <div className="h-28 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="contain-layout-style @container">
       <div className="grid grid-cols-2 gap-2 @[500px]:gap-3">
-        <PoolGpuSummaryCard
-          label="GPU Quota"
-          icon={Zap}
-          used={summary.used}
-          free={summary.free}
-          total={summary.limit}
-        />
-        <PoolGpuSummaryCard
-          label="GPU Capacity"
-          icon={Server}
-          used={summary.totalUsage}
-          free={summary.totalFree}
-          total={summary.totalCapacity}
-        />
+        {isLoading ? (
+          <>
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </>
+        ) : (
+          <>
+            <PoolGpuSummaryCard
+              label="GPU Quota"
+              icon={Zap}
+              used={summary.used}
+              free={summary.free}
+              total={summary.limit}
+            />
+            <PoolGpuSummaryCard
+              label="GPU Capacity"
+              icon={Server}
+              used={summary.totalUsage}
+              free={summary.totalFree}
+              total={summary.totalCapacity}
+            />
+          </>
+        )}
       </div>
     </div>
   );

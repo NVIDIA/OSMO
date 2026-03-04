@@ -60,15 +60,7 @@ const poolColumnConfig = createColumnConfig<PoolColumnId>({
     backend: "Backend",
   },
   mandatory: ["name"],
-  defaultVisible: [
-    "name",
-    "status",
-    "quota",
-    "quotaFree",
-    "capacity",
-    "capacityFree",
-    "platforms",
-  ],
+  defaultVisible: ["name", "status", "quota", "quotaFree", "capacity", "capacityFree", "platforms"],
   defaultOrder: [
     "name",
     "status",
