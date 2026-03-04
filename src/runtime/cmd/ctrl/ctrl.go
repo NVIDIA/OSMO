@@ -1,5 +1,5 @@
 /*
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -216,10 +216,7 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 	if isRefresh {
 		err := refreshJWTToken(cmdArgs)
 		if err != nil {
-			// Exponential backoff
-			exponent := common.Min(retryCount, 5)
-			delay := time.Duration(math.Pow(2, float64(exponent))) * time.Second
-			time.Sleep(delay)
+			time.Sleep(data.ExponentialBackoffWithJitter(retryCount))
 			return err
 		}
 	}
@@ -245,10 +242,7 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 			}
 		}
 		if !data.WebsocketConnection.ReachedTimeout() {
-			// Exponential backoff
-			exponent := common.Min(retryCount, 5)
-			delay := time.Duration(math.Pow(2, float64(exponent))) * time.Second
-			time.Sleep(delay)
+			time.Sleep(data.ExponentialBackoffWithJitter(retryCount))
 			return err
 		}
 
