@@ -6748,6 +6748,16 @@
           {
             "required": false,
             "schema": {
+              "type": "integer",
+              "title": "Offset",
+              "default": 0
+            },
+            "name": "offset",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
               "type": "string",
               "title": "X-Osmo-User"
             },
@@ -8262,6 +8272,11 @@
             },
             "type": "array",
             "title": "Datasets"
+          },
+          "more_entries": {
+            "type": "boolean",
+            "title": "More Entries",
+            "default": false
           }
         },
         "additionalProperties": false,

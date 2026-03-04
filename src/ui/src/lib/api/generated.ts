@@ -563,6 +563,7 @@ export interface DataListEntry {
  */
 export interface DataListResponse {
   datasets: DataListEntry[];
+  more_entries?: boolean;
 }
 
 /**
@@ -2227,6 +2228,7 @@ latest_after?: string;
 all_users?: boolean;
 order?: ListOrder;
 count?: number;
+offset?: number;
 };
 
 export type QueryDatasetApiBucketBucketQueryGetParams = {
