@@ -56,7 +56,25 @@ def get_new_jwt_token(refresh_token: str, workflow_id: str,
                       group_name: str, task_name: str, retry_id: int = 0):
     """
     API to fetch for a new access token using a refresh token.
+
+    Deprecated: Use POST /api/auth/jwt/refresh_token instead.
     """
+    return _create_jwt_from_refresh_token(refresh_token, workflow_id,
+                                          group_name, task_name, retry_id)
+
+
+@router.post('/api/auth/jwt/refresh_token')
+def post_new_jwt_token(request: objects.TokenRequest, workflow_id: str,
+                       group_name: str, task_name: str, retry_id: int = 0):
+    """
+    API to fetch for a new access token using a refresh token.
+    """
+    return _create_jwt_from_refresh_token(request.token, workflow_id,
+                                          group_name, task_name, retry_id)
+
+
+def _create_jwt_from_refresh_token(refresh_token: str, workflow_id: str,
+                                   group_name: str, task_name: str, retry_id: int = 0):
     if len(refresh_token) not in task_lib.VALID_TOKEN_LENGTHS:
         raise osmo_errors.OSMOUserError(
             f'Refresh token has invalid length {len(refresh_token)}')
@@ -117,7 +135,21 @@ def get_new_jwt_token(refresh_token: str, workflow_id: str,
 def get_jwt_token_from_access_token(access_token: str):
     """
     API to create a new jwt token from an access token.
+
+    Deprecated: Use POST /api/auth/jwt/access_token instead.
     """
+    return _create_jwt_from_access_token(access_token)
+
+
+@router.post('/api/auth/jwt/access_token')
+def post_jwt_token_from_access_token(request: objects.TokenRequest):
+    """
+    API to create a new jwt token from an access token.
+    """
+    return _create_jwt_from_access_token(request.token)
+
+
+def _create_jwt_from_access_token(access_token: str):
     if len(access_token) not in task_lib.VALID_TOKEN_LENGTHS:
         raise osmo_errors.OSMOUserError(
             f'Access token has invalid length {len(access_token)}')

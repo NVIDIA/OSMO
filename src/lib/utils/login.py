@@ -21,7 +21,6 @@ import json
 import os
 import time
 from typing import List, Literal
-from urllib.parse import urlencode, urlparse
 
 import pydantic
 import requests  # type: ignore
@@ -208,17 +207,19 @@ def owner_password_login(config: LoginConfig,
     )
 
 
-def construct_token_refresh_url(url: str, token: str) -> str:
-    return os.path.join(url, f'api/auth/jwt/access_token?{urlencode({"access_token": token})}')
+def construct_token_refresh_url(url: str) -> str:
+    return os.path.join(url, 'api/auth/jwt/access_token')
 
 
 def token_login(url: str,
                 refresh_url: str,
-                user_agent: str| None) -> LoginStorage:
+                refresh_token: str,
+                user_agent: str | None) -> LoginStorage:
     headers = {}
     if user_agent:
         headers['User-Agent'] = user_agent
-    result = requests.get(refresh_url, timeout=TIMEOUT, headers=headers)
+    result = requests.post(refresh_url, json={'token': refresh_token},
+                           timeout=TIMEOUT, headers=headers)
     if result.status_code >= 300:
         raise osmo_errors.OSMOServerError('Unable to refresh login token (status code ' \
             f'{result.status_code}): {result.text}\n' \
@@ -228,7 +229,8 @@ def token_login(url: str,
         url=url,
         token_login=TokenLoginStorage(
             id_token=result['token'],
-            refresh_url=refresh_url
+            refresh_url=refresh_url,
+            refresh_token=refresh_token
         ),
         osmo_token=True
     )
@@ -258,7 +260,9 @@ def refresh_id_token(config: LoginConfig, user_agent: str | None,
         headers['User-Agent'] = user_agent
 
     if osmo_token:
-        result = requests.get(token_login_storage.refresh_url, timeout=TIMEOUT, headers=headers)
+        result = requests.post(token_login_storage.refresh_url,
+                               json={'token': token_login_storage.refresh_token},
+                               timeout=TIMEOUT, headers=headers)
     else:
         result = requests.post(token_endpoint, data={
             'grant_type': 'refresh_token',
@@ -289,7 +293,3 @@ def parse_allowed_pools(allowed_pools_header: str | None) -> List[str]:
     return [pool.strip() for pool in allowed_pools_header.split(',') if pool.strip()]
 
 
-def fetch_token_from_refresh_url(refresh_url: str) -> str | None:
-    parsed = urlparse(refresh_url)
-    query_params = dict(param.split('=') for param in parsed.query.split('&'))
-    return query_params.get('access_token', None)

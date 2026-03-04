@@ -78,12 +78,14 @@ CODE_REGEX = r'^(\d+(-\d+)?)+(,\d+(-\d+)?)*$'
 def create_login_dict(user: str,
                       url: str,
                       token: str | None = None,
-                      refresh_endpoint: str | None = None) -> Dict:
+                      refresh_endpoint: str | None = None,
+                      refresh_token: str | None = None) -> Dict:
     if token:
         return {
             'token_login': {
                 'id_token': token,
-                'refresh_url': refresh_endpoint
+                'refresh_url': refresh_endpoint,
+                'refresh_token': refresh_token
             },
             'url': url,
             'osmo_token': True,
@@ -2424,10 +2426,10 @@ class TaskGroup(pydantic.BaseModel):
             query = urlencode({'workflow_id': self.workflow_id,
                                 'group_name': self.name,
                                 'task_name': task_spec.name,
-                                'retry_id': task_obj.retry_id,
-                                'refresh_token': refresh_token})
+                                'retry_id': task_obj.retry_id})
             refresh_url = f'{service_url}/api/auth/jwt/refresh_token?{query}'
-            login_yaml = create_login_dict(user, service_url, token, refresh_url)
+            login_yaml = create_login_dict(user, service_url, token, refresh_url,
+                                           refresh_token=refresh_token)
 
         user_config_yaml = create_config_dict(data_endpoints)
 
