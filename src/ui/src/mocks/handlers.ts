@@ -1136,8 +1136,8 @@ export const handlers = [
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    // Cap count at total to prevent generating 10,000 entries for the "fetch all" path
-    const requestedCount = parseInt(url.searchParams.get("count") || "50", 10);
+    const count = parseInt(url.searchParams.get("count") || "50", 10);
+    const offset = parseInt(url.searchParams.get("offset") || "0", 10);
     const allUsers = url.searchParams.get("all_users") !== "false";
     const datasetType = url.searchParams.get("dataset_type");
     const mockCurrentUser = MOCK_CONFIG.workflows.users[0];
@@ -1156,8 +1156,8 @@ export const handlers = [
 
     // Include datasets unless filtered to COLLECTION only
     if (datasetType !== "COLLECTION") {
-      const count = Math.min(requestedCount, datasetGenerator.totalDatasets);
-      const { entries } = datasetGenerator.generatePage(0, count);
+      const total = datasetGenerator.totalDatasets;
+      const { entries } = datasetGenerator.generatePage(0, total);
       const filtered = allUsers ? entries : entries.filter((d) => d.user === mockCurrentUser);
       for (const d of filtered) {
         allEntries.push({
@@ -1176,7 +1176,7 @@ export const handlers = [
 
     // Include collections unless filtered to DATASET only
     if (datasetType !== "DATASET") {
-      const collectionCount = Math.min(requestedCount, datasetGenerator.totalCollections);
+      const collectionCount = datasetGenerator.totalCollections;
       for (let i = 0; i < collectionCount; i++) {
         const c = datasetGenerator.generateCollection(i);
         if (!allUsers && c.user !== mockCurrentUser) continue;
@@ -1194,9 +1194,11 @@ export const handlers = [
       }
     }
 
-    // DataListResponse expects 'datasets' array
+    const page = allEntries.slice(offset, offset + count);
+
     return HttpResponse.json({
-      datasets: allEntries,
+      datasets: page,
+      more_entries: offset + count < allEntries.length,
     });
   }),
 
