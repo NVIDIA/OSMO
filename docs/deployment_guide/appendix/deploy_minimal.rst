@@ -304,12 +304,6 @@ Create the following values files for the minimal deployment:
       envoy:
         enabled: false
 
-      logAgent:
-        enabled: false
-
-        logrotate:
-          enabled: false
-
       otel:
         enabled: false
 
@@ -421,9 +415,6 @@ Create the following values files for the minimal deployment:
 
     sidecars:
       envoy:
-        enabled: false
-
-      logAgent:
         enabled: false
 
       otel:
