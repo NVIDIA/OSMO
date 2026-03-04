@@ -32,11 +32,9 @@ Envoy sidecar container
   imagePullPolicy: {{ .Values.sidecars.envoy.images.pullPolicy }}
   args:
     - -c
-    - |
-      exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level info
-
-  command:
-    - /bin/sh
+    - /var/config/config.yaml
+    - --log-level
+    - info
   ports:
     {{- if .Values.sidecars.envoy.ssl.enabled }}
     - containerPort: 443

@@ -24,11 +24,11 @@ Envoy sidecar container
     {{- toYaml .Values.sidecars.envoy.securityContext | nindent 4 }}
   image: "{{ .Values.sidecars.envoy.image }}"
   imagePullPolicy: {{ .Values.sidecars.envoy.imagePullPolicy }}
-  command: ["/bin/sh", "-c"]
   args:
-    - |
-      echo "$(date -Iseconds) Starting Envoy..."
-      exec /usr/local/bin/envoy -c /var/config/config.yaml --log-level {{ .Values.sidecars.envoy.logLevel | default "info" }}
+    - -c
+    - /var/config/config.yaml
+    - --log-level
+    - {{ .Values.sidecars.envoy.logLevel | default "info" }}
   ports:
     {{- if .Values.sidecars.envoy.ssl.enabled }}
     - containerPort: 443
@@ -54,10 +54,6 @@ Envoy sidecar container
     - name: ssl-key
       mountPath: /etc/ssl/private/private_key.key
       subPath: private_key.key
-    {{- end }}
-    {{- if .Values.global.logs.enabled }}
-    - name: logs
-      mountPath: /logs
     {{- end }}
     {{- with .Values.sidecars.envoy.extraVolumeMounts }}
       {{- toYaml . | nindent 4 }}
