@@ -76,6 +76,7 @@ filegroup(
     name = "progress_check_image_layers",
     srcs = [
         ":progress_check_layer_default",
+        ":progress_check_layer_interpreter",
         ":progress_check_layer_packages",
         ":progress_check_wrapper",
     ],

@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -18,273 +18,140 @@
 .. _authentication_authorization:
 
 ================================================
-AuthN/AuthZ
+Authentication and Authorization
 ================================================
 
-This section provides comprehensive information about authentication and authorization in OSMO, including how to configure identity providers, manage roles, and control access to resources.
+This section explains how OSMO identifies users (authentication) and controls what they can do (authorization), in plain terms, and how to set it up with or without an external identity provider (IdP).
 
 Overview
 ========
 
-OSMO provides a flexible authentication and authorization system that supports authentication through Keycloak (with an optional external IdP), and flexible authorization through role-based access control (RBAC).
+**Authentication** answers “who is this?” — OSMO needs to know the identity of the person or system making a request (e.g., a user name or service account).
 
-It can be configured a few different ways:
+**Authorization** answers “what can they do?” — OSMO uses **roles** and **policies** to decide whether that identity is allowed to perform an action (e.g., submit a workflow, create a pool, or manage users).
 
-**1. No Authentication (Development Only)**
-   Deploy OSMO without authentication for testing and development purposes. Not recommended for production.
+OSMO does not run its own user directory. Instead, it can operate in two main ways:
 
-**2. Keycloak**
-   Use Keycloak to manage users and allow login directly through Keycloak.
-   Use keycloak to control RBAC permissions by maintaining a mapping of users to groups and groups to roles.
+**1. Without an identity provider (IdP)**
 
-**3. Keycloak with External Identity Provider**
-   Use Keycloak as an identity broker that integrates with your organization's identity provider (Azure AD, Google Workspace, etc.).
-   Use keycloak to control RBAC permissions by maintaining a mapping of users to groups and groups to roles.
-   This is recommended for production deployments.
+   Best for: development, testing, or environments where you do not use a corporate login (e.g., Microsoft Entra ID, Google, Okta).
 
+   - You configure a **default admin** user and password at deploy time. The OSMO service creates this user on startup and assigns it the ``osmo-admin`` role.
+   - Users and scripts authenticate using **access tokens**. An admin creates users and assigns roles in OSMO, then creates access tokens for those users (or users create access tokens for themselves if they have permission).
+   - There is no browser “log in with SSO” flow; access is token-based (access tokens and, for internal use, service-issued JWTs).
+
+**2. With an identity provider (IdP)**
+
+   Best for: production when you want users to sign in with your organization’s identity system (e.g., Microsoft Entra ID, Google Workspace, AWS IAM Identity Center).
+
+   - Envoy (the API gateway in front of OSMO) talks **directly** to your IdP using OAuth 2.0 / OpenID Connect.
+   - Users open the OSMO UI or CLI and are redirected to your IdP to log in. After login, the IdP issues a JWT that Envoy validates and forwards to OSMO with user identity and (optionally) role information.
+   - Roles can come from:
+     - **OSMO’s database** — users and roles are managed via OSMO’s user and role APIs (and optionally created automatically when users first log in).
+     - **Your IdP** — group or role claims from the IdP can be mapped to OSMO roles (e.g., “LDAP_ML_TEAM” → ``osmo-ml-team``).
+   - access tokens are still supported for scripts and automation; they are tied to a user in OSMO and inherit that user’s roles.
+
+In both modes, **roles** in OSMO define what a user or token can do (see :doc:`roles_policies`). The only difference is how users and their roles are created and updated: manually in OSMO (no IdP) or via login + IdP/API (with IdP).
 
 Major concepts
 ==============
 
-There are a few concepts that are important to understand when configuring authentication and authorization in OSMO:
+- **User:** An identity known to OSMO (a human or service account). Stored in OSMO’s database. With an IdP, users can be created automatically the first time they log in (just-in-time provisioning).
 
-- **User:** A human user or service account that accesses OSMO by logging in through Keycloak. Users can be added manually through Keycloak, or automatically when they log in through an external identity provider.
-- **Action:** A specific action that a user might attempt to perform in OSMO (e.g., an HTTP method and path like ``GET /api/workflows``, submitting workflows to a specific pool, etc.).
-- **Policy:** A list of actions and whether they are allowed or denied.
-- **Role:** A collection of policies that grant access to specific API endpoints and resources. If a user has a specific role, they are granted access to the actions in the policies of the role.
-- **Group:** A group of users maintained in Keycloak. Groups can be assigned roles, and all users in the group inherit the roles of the group.
+- **Role:** A named set of permissions (policies) in OSMO. Examples: ``osmo-admin`` (full management), ``osmo-user`` (basic user), ``osmo-ml-team`` (access to specific pools).
 
-The below diagram illustrates how these concepts are all related when a user tries to perform an action in OSMO.
+- **Policy:** A rule that allows or denies specific actions (e.g., “allow ``workflow:Read``”). Roles contain one or more policies.
 
-.. raw:: html
+- **Access token:** A long-lived secret used by scripts or the CLI to authenticate as a user. Access tokens are tied to a user and get a subset of that user’s roles at creation time.
 
-    <style>
-        .authz-flow {
-            text-align: center;
-            margin: 0.5em 0;
-            padding: 0.8em;
-            background: #2d2d2d;
-            border: 2px solid #76B900;
-            border-radius: 8px;
-        }
+- **Default admin:** A single admin user created by the OSMO service on startup when no IdP is used. Configured via Helm (e.g. ``services.defaultAdmin.enabled``, ``username``, and a Kubernetes secret for the password). This user has the ``osmo-admin`` role and one access token set to that password, so you can log in and create more users, roles, and access tokens.
 
-        /* Light mode overrides - system preference */
-        @media (prefers-color-scheme: light) {
-            .authz-flow {
-                background: white;
-            }
-        }
+How authorization works
+=====================================
 
-        /* Light mode overrides - theme toggle */
-        [data-theme="light"] .authz-flow,
-        html[data-theme="light"] .authz-flow,
-        body[data-theme="light"] .authz-flow,
-        .theme-light .authz-flow {
-            background: white;
-        }
+When a request hits OSMO:
 
-        /* Dark mode overrides - theme toggle (explicit) */
-        [data-theme="dark"] .authz-flow,
-        html[data-theme="dark"] .authz-flow,
-        body[data-theme="dark"] .authz-flow,
-        .theme-dark .authz-flow {
-            background: #2d2d2d;
-        }
+1. **Identity** is determined from the request: either a JWT (from the IdP or from OSMO for access-token-based access) or, in development, possibly headers set by the gateway.
+2. **Roles** for that identity are resolved from:
+   - OSMO’s database (user → roles, and for access tokens, token → roles),
+   - and, when using an IdP, from IdP claims (e.g., groups) mapped to OSMO roles.
+3. OSMO loads the **policies** for those roles and checks whether any policy allows the requested action.
+4. The request is **allowed** or **denied** (e.g., 403 Forbidden).
 
-        .authz-step {
-            background: rgba(118, 185, 0, 0.1);
-            border: 2px solid #76B900;
-            padding: 0.4em 0.6em;
-            border-radius: 6px;
-            margin: 0.3em auto;
-            max-width: 450px;
-            box-shadow: 0 2px 4px rgba(118, 185, 0, 0.2);
-            opacity: 0;
-            animation: fadeInUp 0.6s ease-out forwards;
-        }
+So: one identity → many roles → many policies → allow/deny per action.
 
-        .authz-step.step1 { animation-delay: 0.1s; }
-        .authz-step.step2 { animation-delay: 0.3s; }
-        .authz-step.step3 { animation-delay: 0.5s; }
-        .authz-step.step4 { animation-delay: 0.7s; }
-        .authz-step.step5 { animation-delay: 0.9s; }
-        .authz-step.step6 { animation-delay: 1.1s; }
-
-        .authz-section {
-            border: 2px dashed rgba(118, 185, 0, 0.5);
-            border-radius: 6px;
-            padding: 0.5em 0.6em 0.3em 0.6em;
-            margin: 0.3em auto;
-            max-width: 500px;
-            position: relative;
-            opacity: 0;
-            animation: fadeIn 0.8s ease-out forwards;
-        }
-
-        .authz-section.keycloak { animation-delay: 0.2s; }
-        .authz-section.osmo { animation-delay: 0.6s; }
-
-        .authz-section-label {
-            position: absolute;
-            top: -0.6em;
-            left: 1em;
-            background: #2d2d2d;
-            padding: 0.1em 0.6em;
-            border-radius: 4px;
-            font-weight: bold;
-            color: #76B900;
-            font-size: 0.85em;
-        }
-
-        /* Light mode section labels */
-        @media (prefers-color-scheme: light) {
-            .authz-section-label {
-                background: white;
-            }
-        }
-
-        [data-theme="light"] .authz-section-label,
-        html[data-theme="light"] .authz-section-label,
-        body[data-theme="light"] .authz-section-label,
-        .theme-light .authz-section-label {
-            background: white;
-        }
-
-        [data-theme="dark"] .authz-section-label,
-        html[data-theme="dark"] .authz-section-label,
-        body[data-theme="dark"] .authz-section-label,
-        .theme-dark .authz-section-label {
-            background: #2d2d2d;
-        }
-
-        .step-number {
-            display: inline-block;
-            background: #76B900;
-            color: #1a1a1a;
-            width: 1.5em;
-            height: 1.5em;
-            line-height: 1.5em;
-            border-radius: 50%;
-            margin-right: 0.4em;
-            font-weight: bold;
-            font-size: 0.85em;
-        }
-
-        .step-text {
-            font-size: 0.9em;
-        }
-
-        .authz-arrow {
-            text-align: center;
-            color: #76B900;
-            font-size: 1.2em;
-            margin: 0;
-            opacity: 0;
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-
-        .authz-arrow.a1 { animation-delay: 0.2s; }
-        .authz-arrow.a2 { animation-delay: 0.4s; }
-        .authz-arrow.a3 { animation-delay: 0.6s; }
-        .authz-arrow.a4 { animation-delay: 0.8s; }
-        .authz-arrow.a5 { animation-delay: 1.0s; }
-
-        .arrow-with-label {
-            text-align: center;
-            margin: 0.2em 0;
-            opacity: 0;
-            animation: fadeIn 0.4s ease-out forwards;
-            animation-delay: 0.6s;
-        }
-
-        .arrow-label {
-            display: inline-block;
-            background: rgba(118, 185, 0, 0.2);
-            border: 1px solid #76B900;
-            color: #76B900;
-            padding: 0.2em 0.6em;
-            border-radius: 4px;
-            font-size: 0.75em;
-            font-weight: bold;
-            margin-bottom: 0.1em;
-        }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-    </style>
-
-    <div class="authz-flow">
-        <div class="authz-step step1">
-            <span class="step-number">1</span>
-            <span class="step-text">A <strong>USER</strong> attempts to perform an <strong>ACTION</strong> in OSMO</span>
-        </div>
-
-        <div class="authz-arrow a1">↓</div>
-
-        <div class="authz-section keycloak">
-            <div class="authz-section-label">KEYCLOAK</div>
-            <div class="authz-step step2">
-                <span class="step-number">2</span>
-                <span class="step-text">Get all <strong>GROUPS</strong> the <strong>USER</strong> is in</span>
-            </div>
-            <div class="authz-arrow a2">↓</div>
-            <div class="authz-step step3">
-                <span class="step-number">3</span>
-                <span class="step-text">Get all <strong>ROLES</strong> that those <strong>GROUPS</strong> have</span>
-            </div>
-        </div>
-
-        <div class="arrow-with-label">
-            <div class="arrow-label">ROLES in JWT</div>
-            <div style="color: #76B900; font-size: 1.2em;">↓</div>
-        </div>
-
-        <div class="authz-section osmo">
-            <div class="authz-section-label">OSMO</div>
-            <div class="authz-step step4">
-                <span class="step-number">4</span>
-                <span class="step-text">Get all <strong>POLICIES</strong> that those <strong>ROLES</strong> have</span>
-            </div>
-            <div class="authz-arrow a4">↓</div>
-            <div class="authz-step step5">
-                <span class="step-number">5</span>
-                <span class="step-text">Check if any <strong>POLICY</strong> allows the <strong>ACTION</strong></span>
-            </div>
-        </div>
-
-        <div class="authz-arrow a5">↓</div>
-
-        <div class="authz-step step6">
-            <span class="step-text"><strong>Allow</strong> or <strong>Deny ACTION</strong></span>
-        </div>
-    </div>
-
-Quick Navigation
+Quick navigation
 ================
 
-- **Setting up authentication?** → Start with :doc:`authentication_flow`
-- **Managing roles and permissions?** → See :doc:`roles_policies`
-- **Configuring Keycloak roles and groups?** → Follow :doc:`keycloak_setup`
+- **Understanding the full flow (with or without IdP)?** → :doc:`authentication_flow`
+- **Setting up roles and policies?** → :doc:`roles_policies`
+- **Creating users and assigning roles?** → :doc:`managing_users`
+- **IdP role mapping and sync modes?** → :doc:`idp_role_mapping`
+- **Service accounts (access tokens, backend operators)?** → :doc:`service_accounts`
+- **Using an IdP (e.g., Microsoft Entra ID, Google)?** → :doc:`identity_provider_setup`
+- **Using OSMO without an IdP (default admin)?** → :ref:`default_admin_setup` (below) and :doc:`../../getting_started/deploy_service`
+
+.. _default_admin_setup:
+
+Default admin (no IdP)
+======================
+
+When you do **not** use an identity provider, you need at least one user with admin rights to manage OSMO. The service can create this user for you at startup.
+
+How it works
+------------
+
+The OSMO API service reads Helm values under ``services.defaultAdmin``. When default admin is enabled:
+
+- On startup, the service ensures a **user** exists with the configured username.
+- It assigns that user the **osmo-admin** role.
+- It creates or updates a **access token** for that user whose secret is the **password** you provide (from a Kubernetes secret). So “logging in” as the default admin means using that password as the access token.
+
+You use this token with the CLI or API to create more users, assign roles, and create additional access tokens. After that, you can rely on normal user/role/token management; the default admin is just the bootstrap account.
+
+What to configure (Helm)
+-------------------------
+
+In the service Helm chart (see ``api-service.yaml`` and ``values.yaml``):
+
+- **Enable default admin:** Set ``services.defaultAdmin.enabled`` to ``true``.
+- **Username:** Set ``services.defaultAdmin.username`` (e.g. ``admin``). This is the user ID in OSMO.
+- **Password:** Store the default admin’s password in a Kubernetes secret. Set:
+  - ``services.defaultAdmin.passwordSecretName`` — name of the secret (e.g. ``default-admin-secret``).
+  - ``services.defaultAdmin.passwordSecretKey`` — key in the secret that holds the password (e.g. ``password``).
+
+The service receives these via:
+
+- **Args:** ``--default_admin_username <username>`` when ``defaultAdmin.enabled`` is true.
+- **Env:** ``OSMO_DEFAULT_ADMIN_PASSWORD`` from the secret ``passwordSecretName`` and ``passwordSecretKey``.
+
+Example: create the secret and enable default admin in your values:
+
+.. code-block:: bash
+
+   kubectl create secret generic default-admin-secret \
+     --namespace osmo \
+     --from-literal=password='<your-secure-admin-password>'
+
+Then in your Helm values:
+
+.. code-block:: yaml
+
+   services:
+     defaultAdmin:
+       enabled: true
+       username: "admin"
+       passwordSecretName: default-admin-secret
+       passwordSecretKey: password
+
+After deployment, use the default admin username and that password as the access token (e.g. with ``osmo login`` or ``Authorization: Bearer <password>``) to access the API and create more users and access tokens.
 
 .. seealso::
 
-   - :doc:`../../getting_started/deploy_service` for service deployment with authentication
-   - :doc:`../../install_backend/configure_pool` for pool configuration
-   - :ref:`roles_config` for role configuration reference
-
+   - :doc:`../../getting_started/deploy_service` for deploying the service with or without an IdP
+   - :doc:`authentication_flow` for request flow and token handling
+   - :doc:`roles_policies` for role and policy reference
+   - :doc:`identity_provider_setup` for direct IdP configuration
 
 .. toctree::
    :maxdepth: 2
@@ -292,4 +159,7 @@ Quick Navigation
 
    authentication_flow
    roles_policies
-   keycloak_setup
+   managing_users
+   identity_provider_setup
+   idp_role_mapping
+   service_accounts

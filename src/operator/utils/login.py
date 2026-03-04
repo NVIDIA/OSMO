@@ -101,7 +101,7 @@ def get_headers_and_login_info(
     if config.method == 'dev' and login_info.dev_login:
         headers[login.OSMO_USER_HEADER] = login_info.dev_login.username
     elif login_info.token_login:
-        headers[login.OSMO_AUTH_HEADER] = login_info.token_login.id_token
+        headers[login.OSMO_AUTH_HEADER] = f'Bearer {login_info.token_login.id_token}'
     return login_info, headers
 
 

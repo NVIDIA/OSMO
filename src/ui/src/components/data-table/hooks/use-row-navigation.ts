@@ -49,6 +49,8 @@ export interface UseRowNavigationOptions {
   disabled?: boolean;
   /** Container element to search for rows (for focusing) */
   containerRef?: React.RefObject<HTMLElement | null>;
+  /** Callback when focused row index changes (after navigation or focus) */
+  onFocusedIndexChange?: (index: number | null) => void;
 }
 
 export interface UseRowNavigationResult {
@@ -75,6 +77,7 @@ export function useRowNavigation({
   visibleRowCount = 10,
   onRowActivate,
   onScrollToRow,
+  onFocusedIndexChange,
   disabled = false,
   containerRef,
 }: UseRowNavigationOptions): UseRowNavigationResult {
@@ -87,6 +90,7 @@ export function useRowNavigation({
   // Stable refs for callbacks to prevent stale closures and unnecessary re-renders
   const onRowActivateRef = useSyncedRef(onRowActivate);
   const onScrollToRowRef = useSyncedRef(onScrollToRow);
+  const onFocusedIndexChangeRef = useSyncedRef(onFocusedIndexChange);
 
   // Cleanup RAF on unmount
   useUnmount(() => {
@@ -160,12 +164,14 @@ export function useRowNavigation({
         setFocusedRowIndexState(clamped);
         // Scroll the row into view (using stable ref to avoid stale closures)
         onScrollToRowRef.current?.(clamped, align);
+        onFocusedIndexChangeRef.current?.(clamped);
       } else {
         pendingFocusRef.current = null;
         setFocusedRowIndexState(null);
+        onFocusedIndexChangeRef.current?.(null);
       }
     },
-    [clampIndex, rowCount, onScrollToRowRef],
+    [clampIndex, rowCount, onScrollToRowRef, onFocusedIndexChangeRef],
   );
 
   // Public setter (defaults to center alignment for API callers)
@@ -181,9 +187,10 @@ export function useRowNavigation({
     (index: number) => {
       if (!disabled) {
         setFocusedRowIndexState(index);
+        onFocusedIndexChangeRef.current?.(index);
       }
     },
-    [disabled],
+    [disabled, onFocusedIndexChangeRef],
   );
 
   // Handle keyboard navigation on a row
@@ -220,6 +227,15 @@ export function useRowNavigation({
           navigateToRow(currentIndex + visibleRowCount, "center");
           break;
 
+        case "j":
+          navigateToRow(currentIndex + 1, "start");
+          break;
+
+        case "k":
+          navigateToRow(currentIndex - 1, "end");
+          break;
+
+        case "l":
         case "Enter":
         case " ":
           onRowActivateRef.current?.(currentIndex);

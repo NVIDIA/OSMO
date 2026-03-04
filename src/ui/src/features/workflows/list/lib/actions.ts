@@ -40,7 +40,6 @@
 "use server";
 
 import { revalidatePath, updateTag, refresh } from "next/cache";
-import { ServerApiError } from "@/lib/api/server/config";
 import { customFetch } from "@/lib/api/fetcher";
 import type { ActionResult } from "@/lib/server-actions";
 
@@ -50,17 +49,10 @@ import type { ActionResult } from "@/lib/server-actions";
 
 async function makeWorkflowAction(endpoint: string, method: "POST" | "DELETE" = "POST"): Promise<ActionResult> {
   try {
-    // Use customFetch which calls the clean fetch path (no MSW imports)
-    await customFetch({
-      url: endpoint,
-      method,
-    });
+    await customFetch(endpoint, { method });
 
     return { success: true };
   } catch (error) {
-    if (error instanceof ServerApiError) {
-      return { success: false, error: error.message };
-    }
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",
@@ -255,21 +247,16 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
   const endpoint = `/api/pool/${encodeURIComponent(poolName)}/workflow?${queryParams.toString()}`;
 
   try {
-    // Build request configuration based on whether custom spec is provided
-    const requestConfig: Parameters<typeof customFetch>[0] = {
-      url: endpoint,
-      method: "POST",
-    };
+    const init: RequestInit = { method: "POST" };
 
     if (spec) {
-      // Custom spec: send in body (no workflow_id in query params)
-      requestConfig.data = { file: spec, set_variables: [] };
+      init.headers = { "Content-Type": "application/json" };
+      init.body = JSON.stringify({ file: spec, set_variables: [] });
     }
-    // If no spec: backend fetches original from workflow_id query param (no body needed)
 
-    const response = await customFetch<{ name?: string }>(requestConfig);
+    const response = await customFetch<{ data: { name?: string }; status: number }>(endpoint, init);
 
-    const newName = response?.name;
+    const newName = response?.data?.name;
 
     // No cache revalidation needed - creating a new workflow doesn't affect:
     // - Current workflow page (unchanged)
@@ -278,9 +265,6 @@ export async function resubmitWorkflow(params: ResubmitParams): Promise<Resubmit
 
     return { success: true, newWorkflowName: newName };
   } catch (error) {
-    if (error instanceof ServerApiError) {
-      return { success: false, error: error.message };
-    }
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to resubmit workflow",

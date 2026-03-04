@@ -1,0 +1,99 @@
+/**
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/**
+ * Submit Workflow Overlay styles.
+ *
+ * Imported by submit-workflow-overlay.tsx (in src/components/chrome/).
+ * Defines the 4-phase animation state machine and split-pane layout constraints.
+ */
+@reference "../../app/globals.css";
+
+/* =============================================================================
+   Split-pane column constraints — must match SUBMIT_PANEL in submit-workflow-content.tsx
+   ============================================================================= */
+
+:root {
+  --submit-overlay-editor-min-width: 360px; /* YAML readable at this width */
+  --submit-overlay-config-min-width: 280px; /* Pool + priority pickers fit at this width */
+}
+
+/* =============================================================================
+   Overlay — 4-phase animation state machine
+   Phases: closed → opening → open → closing → closed
+   The container div is always in the DOM. Phases are driven by data-state.
+   Animations are triggered by attribute changes (not DOM insertion), which
+   the browser handles reliably on every load — first or subsequent.
+   ============================================================================= */
+
+/* closed — hidden, not interactive.
+   Explicit opacity + transform are the transition start values for "opening"
+   and the resting values that "closing" snaps to (under visibility:hidden). */
+.submit-overlay,
+.submit-overlay[data-state="closed"] {
+  pointer-events: none;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-12px);
+}
+
+/* opening — fade in fast, slide down slightly slower.
+   Guard in the component waits for "transform" transitionend (the slower
+   property) before advancing to "open", so both finish before phase changes. */
+.submit-overlay[data-state="opening"] {
+  pointer-events: auto;
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 120ms var(--ease-out),
+    transform 260ms var(--ease-out);
+}
+
+/* open — fully visible, fully interactive.
+   Must repeat transform: translateY(0) — without it the cascade falls back to
+   the base rule's translateY(-12px) the instant data-state switches from
+   "opening" to "open", producing a sudden upward jump. */
+.submit-overlay[data-state="open"] {
+  pointer-events: auto;
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* closing — slide up fast, fade out slower.
+   Guard in the component waits for "opacity" transitionend (the slower
+   property) before advancing to "closed". */
+.submit-overlay[data-state="closing"] {
+  pointer-events: none;
+  visibility: visible;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition:
+    transform 150ms var(--ease-in),
+    opacity 300ms var(--ease-in);
+}
+
+/* Reduced motion: transition-duration: 0ms still fires transitionend so the
+   phase machine advances correctly (opening → open, closing → closed). */
+@media (prefers-reduced-motion: reduce) {
+  .submit-overlay[data-state="opening"],
+  .submit-overlay[data-state="closing"] {
+    transition-duration: 0ms;
+  }
+}

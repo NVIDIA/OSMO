@@ -67,6 +67,7 @@ filegroup(
     name = "delayed_job_monitor_image_layers",
     srcs = [
         ":delayed_job_monitor_layer_default",
+        ":delayed_job_monitor_layer_interpreter",
         ":delayed_job_monitor_layer_packages",
         ":delayed_job_monitor_wrapper",
     ],

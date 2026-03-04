@@ -284,9 +284,6 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `sidecars.envoy.enabled` | Enable Envoy sidecar | `true` |
-| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets | `false` |
-| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth client secret | `/etc/envoy/secrets/client_secret` |
-| `sidecars.envoy.secretPaths.hmacSecret` | Path to HMAC secret | `/etc/envoy/secrets/hmac_secret` |
 | `sidecars.envoy.image` | Envoy proxy image | `envoyproxy/envoy:v1.29.0` |
 | `sidecars.envoy.imagePullPolicy` | Image pull policy | `IfNotPresent` |
 | `sidecars.envoy.listenerPort` | Envoy listener port | `80` |
@@ -301,18 +298,6 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | `sidecars.envoy.osmoauth.enabled` | Enable OSMO auth cluster (for JWKS) | `true` |
 | `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
 | `sidecars.envoy.osmoauth.port` | OSMO auth service port | `80` |
-| `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 filter | `true` |
-| `sidecars.envoy.oauth2Filter.tokenEndpoint` | Token endpoint URL | `""` |
-| `sidecars.envoy.oauth2Filter.authEndpoint` | Auth endpoint URL | `""` |
-| `sidecars.envoy.oauth2Filter.redirectPath` | OAuth redirect path | `api/auth/getAToken` |
-| `sidecars.envoy.oauth2Filter.clientId` | OAuth client ID | `""` |
-| `sidecars.envoy.oauth2Filter.authProvider` | Auth provider | `""` |
-| `sidecars.envoy.oauth2Filter.logoutPath` | OAuth logout path | `logout` |
-| `sidecars.envoy.oauth2Filter.forwardBearerToken` | Forward bearer token | `true` |
-| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name for OIDC secrets | `oidc-secrets` |
-| `sidecars.envoy.oauth2Filter.clientSecretKey` | Key name for client secret in Kubernetes secret | `client_secret` |
-| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Key name for HMAC secret in Kubernetes secret | `hmac_secret` |
-| `sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken` | Force re-auth when IdToken missing on refresh | `false` |
 
 
 #### Log Agent Settings

@@ -47,6 +47,8 @@ interface TableLoadingSkeletonProps {
   rows?: number;
   /** Height of each skeleton row */
   rowHeight?: number;
+  /** Column header labels — shows actual text instead of skeleton bars */
+  headers?: string[];
   /** Additional CSS class for the container */
   className?: string;
 }
@@ -58,6 +60,8 @@ interface TableErrorStateProps {
   title?: string;
   /** Callback when retry button is clicked */
   onRetry?: () => void;
+  /** Column header labels — renders a header row above the error content */
+  headers?: string[];
   /** Additional CSS class for the container */
   className?: string;
 }
@@ -76,6 +80,7 @@ export function TableLoadingSkeleton({
   rows = 10,
   rowHeight = 48,
   columnCount = 5,
+  headers,
   className,
 }: TableLoadingSkeletonProps) {
   return (
@@ -83,6 +88,7 @@ export function TableLoadingSkeleton({
       rowCount={rows}
       rowHeight={rowHeight}
       columnCount={columnCount}
+      headers={headers}
       className={className}
     />
   );
@@ -97,9 +103,22 @@ export function TableLoadingSkeleton({
  *
  * Displays an error message with optional retry button.
  */
-export function TableErrorState({ error, title = "Unable to load data", onRetry, className }: TableErrorStateProps) {
+export function TableErrorState({
+  error,
+  title = "Unable to load data",
+  onRetry,
+  headers,
+  className,
+}: TableErrorStateProps) {
   return (
-    <div className={cn("table-container h-full", className)}>
+    <div className={cn("table-container flex h-full flex-col", className)}>
+      {headers && (
+        <TableSkeleton
+          columnCount={headers.length}
+          rowCount={0}
+          headers={headers}
+        />
+      )}
       <div className="flex flex-1 flex-col items-center gap-3 p-8 pt-12 text-center">
         <div className="text-sm text-red-600 dark:text-red-400">{title}</div>
         <div className="text-xs text-zinc-500 dark:text-zinc-400">{error.message}</div>

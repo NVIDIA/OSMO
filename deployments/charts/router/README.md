@@ -161,23 +161,6 @@ helm upgrade my-router ./router -f my-values.yaml
 |-----------|-------------|---------|
 | `sidecars.envoy.routes` | Route configuration for Envoy | See values.yaml |
 
-#### OAuth2 Filter Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 authentication | `true` |
-| `sidecars.envoy.oauth2Filter.forwardBearerToken` | Forward bearer token to upstream | `true` |
-| `sidecars.envoy.oauth2Filter.tokenEndpoint` | OAuth2 token endpoint URL | `""` |
-| `sidecars.envoy.oauth2Filter.authEndpoint` | OAuth2 authorization endpoint URL | `""` |
-| `sidecars.envoy.oauth2Filter.redirectPath` | OAuth2 callback redirect path | `api/auth/getAToken` |
-| `sidecars.envoy.oauth2Filter.clientId` | OAuth2 client ID | `""` |
-| `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider | `""` |
-| `sidecars.envoy.oauth2Filter.logoutPath` | OAuth2 logout path | `logout` |
-| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name for OIDC secrets | `oidc-secrets` |
-| `sidecars.envoy.oauth2Filter.clientSecretKey` | Key name for client secret in Kubernetes secret | `client_secret` |
-| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Key name for HMAC secret in Kubernetes secret | `hmac_secret` |
-| `sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken` | Force re-auth when IdToken missing on refresh | `false` |
-
 #### JWT Authentication
 
 | Parameter | Description | Default |
@@ -194,13 +177,6 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.envoy.osmoauth.port` | OSMO auth service port | `80` |
 | `sidecars.envoy.osmoauth.hostname` | OSMO auth hostname | `""` |
 | `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
-
-#### Secret Paths
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret | `/etc/envoy/secrets/client_secret` |
-| `sidecars.envoy.secretPaths.hmacSecret` | Path to HMAC secret | `/etc/envoy/secrets/hmac_secret` |
 
 ### Log Agent Sidecar
 

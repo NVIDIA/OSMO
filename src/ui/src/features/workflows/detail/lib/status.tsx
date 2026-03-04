@@ -20,7 +20,17 @@
 
 import { memo, useMemo } from "react";
 import { useTheme } from "next-themes";
-import { Clock, Loader2, CheckCircle, XCircle, AlertCircle, Check, Circle, type LucideIcon } from "lucide-react";
+import {
+  Clock,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Check,
+  Circle,
+  CircleHelp,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export {
@@ -68,6 +78,7 @@ const ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string 
   running: { Icon: Loader2, className: "text-blue-400 animate-spin motion-reduce:animate-none" },
   completed: { Icon: CheckCircle, className: "text-emerald-400" },
   failed: { Icon: XCircle, className: "text-red-400" },
+  unknown: { Icon: CircleHelp, className: "text-gray-400 dark:text-zinc-400" },
 };
 
 const COMPACT_ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className: string }> = {
@@ -76,6 +87,7 @@ const COMPACT_ICON_CONFIG: Record<StatusCategory, { Icon: LucideIcon; className:
   running: { Icon: Loader2, className: "text-blue-500 animate-spin motion-reduce:animate-none" },
   completed: { Icon: Check, className: "text-emerald-500" },
   failed: { Icon: AlertCircle, className: "text-red-500" },
+  unknown: { Icon: CircleHelp, className: "text-gray-400 dark:text-zinc-400" },
 };
 
 // Pre-rendered icon cache for performance (avoids element allocation on every render)

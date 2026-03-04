@@ -77,6 +77,7 @@ filegroup(
     name = "backend_listener_image_layers",
     srcs = [
         ":backend_listener_layer_default",
+        ":backend_listener_layer_interpreter",
         ":backend_listener_layer_packages",
         ":backend_listener_wrapper",
     ],
@@ -210,6 +211,7 @@ filegroup(
     name = "backend_worker_image_layers",
     srcs = [
         ":backend_worker_layer_default",
+        ":backend_worker_layer_interpreter",
         ":backend_worker_layer_packages",
         ":backend_worker_wrapper",
     ],

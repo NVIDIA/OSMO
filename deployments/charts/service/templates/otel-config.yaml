@@ -37,7 +37,7 @@ data:
     processors:
       memory_limiter:
         check_interval: 5s
-        limit_mib: 30
+        limit_mib: 128
       batch:
         send_batch_size: 100
 

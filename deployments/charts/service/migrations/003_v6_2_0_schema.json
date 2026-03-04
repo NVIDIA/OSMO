@@ -2,6 +2,15 @@
   "operations": [
     {
       "create_table": {
+        "name": "group_templates",
+        "columns": [
+          { "name": "name", "type": "TEXT", "pk": true },
+          { "name": "group_template", "type": "JSONB", "nullable": false }
+        ]
+      }
+    },
+    {
+      "create_table": {
         "name": "users",
         "columns": [
           { "name": "id", "type": "TEXT", "pk": true },

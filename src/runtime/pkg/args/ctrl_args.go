@@ -43,7 +43,7 @@ func CtrlParse() CtrlArgs {
 	port := flag.String("port", "8000", "Workflow service port.")
 	refreshToken := flag.String("refreshToken", "/osmo/.refresh_token", "Location of the refresh token file for authentication.")
 	refreshScheme := flag.String("refreshScheme", "http", "Scheme to request for new access token.")
-	tokenHeader := flag.String("tokenHeader", "x-osmo-auth", "HTTP header to pass the token in.")
+	tokenHeader := flag.String("tokenHeader", "Authorization", "HTTP header to pass the token in.")
 	userConfig := flag.String("userConfig", "/osmo/user_config.yaml", "User Config File.")
 	serviceConfig := flag.String("serviceConfig", "/osmo/service_config.yaml",
 		"Service Config File.")

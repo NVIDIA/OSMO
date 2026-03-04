@@ -57,6 +57,11 @@ OSMO_CONFIG_MOUNT_DIR = '/osmo'
 PATH_REGEX = r'^([^\/\\,?\"<>|\r\n]+(\/|\\)?)+$'
 
 REFRESH_TOKEN_LENGTH = 32
+# secrets.token_urlsafe(REFRESH_TOKEN_LENGTH) produces a base64url string of this length
+REFRESH_TOKEN_STR_LENGTH = math.ceil(REFRESH_TOKEN_LENGTH * 4 / 3)
+# secrets.token_hex(REFRESH_TOKEN_LENGTH) produced a hex string of this length (legacy)
+REFRESH_TOKEN_HEX_STR_LENGTH = REFRESH_TOKEN_LENGTH * 2
+VALID_TOKEN_LENGTHS = {REFRESH_TOKEN_STR_LENGTH, REFRESH_TOKEN_HEX_STR_LENGTH}
 
 REFRESH_TOKEN_FILENAME = '.refresh_token'
 

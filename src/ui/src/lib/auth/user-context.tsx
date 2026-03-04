@@ -50,7 +50,7 @@ interface UserProviderProps {
  */
 export function UserProvider({ children, initialUser }: UserProviderProps) {
   const logout = () => {
-    window.location.href = getBasePathUrl("/oauth2/sign_out");
+    window.location.href = getBasePathUrl("/signout");
   };
 
   return (

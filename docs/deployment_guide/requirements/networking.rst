@@ -35,7 +35,7 @@ Requirements
 
 .. only:: html
 
-  .. grid:: 1 2 2 3
+  .. grid:: 2
       :gutter: 3
 
       .. grid-item-card:: :octicon:`server` Kubernetes Ingress Controller
@@ -61,11 +61,11 @@ Requirements
 
           **Required for**: Domain name resolution
 
-      .. grid-item-card:: :octicon:`key` Keycloak SSO
+      .. grid-item-card:: :octicon:`key` Identity provider (optional)
 
-          Dedicated FQDN and certificate for the Keycloak instance.
+          If using an external IdP for browser SSO (e.g. Microsoft Entra ID, Google), ensure the OSMO service hostname has a dedicated FQDN and certificate. The IdP redirect URI will point to this host.
 
-          **Example**: ``auth-osmo.example.com``
+          **Example**: ``https://<your-domain>/api/auth/getAToken``
 
       .. grid-item-card:: :octicon:`plug` Port Forwarding (Optional)
           :class-card: optional-card

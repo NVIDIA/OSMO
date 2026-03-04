@@ -22,7 +22,7 @@
  *   ?version= — selected version tag (e.g., "5")
  *   ?file=   — selected file path for preview panel
  *
- * navigateTo() clears ?file= when path changes (folder nav closes preview).
+ * navigateTo() preserves ?file= across directory navigation (preview stays open).
  * setVersion() preserves ?path= when switching versions.
  */
 
@@ -38,10 +38,10 @@ export interface FileBrowserState {
   version: string | null;
   /** Selected file path for preview panel, null = no file selected */
   selectedFile: string | null;
-  /** Navigate to a directory path (clears file selection) */
+  /** Navigate to a directory path (preserves file selection) */
   navigateTo: (path: string) => void;
-  /** Switch version (preserves current path) */
-  setVersion: (version: string) => void;
+  /** Switch version (preserves current path), null = latest */
+  setVersion: (version: string | null) => void;
   /** Select a file to preview */
   selectFile: (filePath: string) => void;
   /** Clear file selection (close preview panel) */
@@ -57,21 +57,20 @@ export function useFileBrowserState(): FileBrowserState {
     },
     {
       shallow: true,
-      history: "replace",
+      history: "push",
     },
   );
 
   const navigateTo = useCallback(
     (newPath: string) => {
-      // Clear file selection when navigating to a new directory
-      void setParams({ path: newPath, file: null });
+      // Preserve file selection across directory navigation — panel content stays visible.
+      void setParams({ path: newPath });
     },
     [setParams],
   );
 
   const setVersion = useCallback(
-    (newVersion: string) => {
-      // Preserve path when switching versions
+    (newVersion: string | null) => {
       void setParams({ version: newVersion });
     },
     [setParams],

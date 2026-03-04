@@ -1555,6 +1555,236 @@
         }
       }
     },
+    "/api/configs/group_template": {
+      "get": {
+        "tags": [
+          "Config API"
+        ],
+        "summary": "List Group Templates",
+        "description": "List all Group Template configurations",
+        "operationId": "list_group_templates_api_configs_group_template_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Config API"
+        ],
+        "summary": "Put Group Templates",
+        "description": "Set Dict of Group Templates configurations",
+        "operationId": "put_group_templates_api_configs_group_template_put",
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutGroupTemplatesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/configs/group_template/{name}": {
+      "get": {
+        "tags": [
+          "Config API"
+        ],
+        "summary": "Read Group Template",
+        "description": "Read Group Template configurations",
+        "operationId": "read_group_template_api_configs_group_template__name__get",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            },
+            "name": "name",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Config API"
+        ],
+        "summary": "Put Group Template",
+        "description": "Put Group Template configurations",
+        "operationId": "put_group_template_api_configs_group_template__name__put",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            },
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutGroupTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Config API"
+        ],
+        "summary": "Delete Group Template",
+        "description": "Delete Group Template configurations",
+        "operationId": "delete_group_template_api_configs_group_template__name__delete",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            },
+            "name": "name",
+            "in": "path"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/configs/resource_validation": {
       "get": {
         "tags": [
@@ -2793,84 +3023,6 @@
         }
       }
     },
-    "/api/auth/refresh_token": {
-      "get": {
-        "tags": [
-          "Auth API"
-        ],
-        "summary": "Get New Jwt Token",
-        "description": "API to fetch for a new access token using a refresh token.",
-        "operationId": "get_new_jwt_token_api_auth_refresh_token_get",
-        "parameters": [
-          {
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Refresh Token"
-            },
-            "name": "refresh_token",
-            "in": "query"
-          },
-          {
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Workflow Id"
-            },
-            "name": "workflow_id",
-            "in": "query"
-          },
-          {
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Group Name"
-            },
-            "name": "group_name",
-            "in": "query"
-          },
-          {
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Task Name"
-            },
-            "name": "task_name",
-            "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "title": "Retry Id",
-              "default": 0
-            },
-            "name": "retry_id",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/auth/jwt/access_token": {
       "get": {
         "tags": [
@@ -2912,57 +3064,14 @@
         }
       }
     },
-    "/api/auth/access_token": {
-      "get": {
-        "tags": [
-          "Auth API"
-        ],
-        "summary": "Get Access Token Info",
-        "description": "API to get the info for an access token.",
-        "operationId": "get_access_token_info_api_auth_access_token_get",
-        "parameters": [
-          {
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Access Token"
-            },
-            "name": "access_token",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AccessToken"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/auth/access_token/user/{token_name}": {
+    "/api/auth/access_token/{token_name}": {
       "post": {
         "tags": [
           "Auth API"
         ],
         "summary": "Create Access Token",
-        "description": "API to create a new access token.",
-        "operationId": "create_access_token_api_auth_access_token_user__token_name__post",
+        "description": "API to create a new access token.\n\nIf roles are specified, all specified roles must be assigned to the user.\nIf any role is not assigned to the user, the request fails and no token\nis created. If no roles are specified, the access token inherits all of the user's\ncurrent roles from the user_roles table.",
+        "operationId": "create_access_token_api_auth_access_token__token_name__post",
         "parameters": [
           {
             "required": true,
@@ -2990,6 +3099,18 @@
               "default": ""
             },
             "name": "description",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "title": "Roles"
+            },
+            "name": "roles",
             "in": "query"
           },
           {
@@ -3029,7 +3150,7 @@
         ],
         "summary": "Delete Access Token",
         "description": "API to delete an access token.",
-        "operationId": "delete_access_token_api_auth_access_token_user__token_name__delete",
+        "operationId": "delete_access_token_api_auth_access_token__token_name__delete",
         "parameters": [
           {
             "required": true,
@@ -3072,15 +3193,123 @@
         }
       }
     },
-    "/api/auth/access_token/service/{token_name}": {
+    "/api/auth/access_token/{token_name}/roles": {
+      "get": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "List Access Token Roles",
+        "description": "List all roles assigned to an access token.\n\nArgs:\n    token_name: The token name\n    user_name: Authenticated user (owner of the token)\n\nReturns:\n    AccessTokenRolesResponse with list of role assignments",
+        "operationId": "list_access_token_roles_api_auth_access_token__token_name__roles_get",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token Name"
+            },
+            "name": "token_name",
+            "in": "path"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessTokenRolesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/access_token": {
+      "get": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "List Access Tokens",
+        "description": "API to list all access tokens for a user, including their assigned roles.",
+        "operationId": "list_access_tokens_api_auth_access_token_get",
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AccessTokenWithRoles"
+                  },
+                  "type": "array",
+                  "title": "Response List Access Tokens Api Auth Access Token Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/user/{user_id}/access_token/{token_name}": {
       "post": {
         "tags": [
           "Auth API"
         ],
-        "summary": "Create Service Access Token",
-        "description": "API to create a new service access token.",
-        "operationId": "create_service_access_token_api_auth_access_token_service__token_name__post",
+        "summary": "Admin Create Access Token",
+        "description": "Admin API to create an access token for a specific user.\n\nThis endpoint allows administrators to create an access token\non behalf of any user in the system.\n\nIf roles are specified, all specified roles must be assigned to the target\nuser. If any role is not assigned to the user, the request fails and no\ntoken is created. If no roles are specified, the access token inherits all of the\ntarget user's current roles from the user_roles table.\n\nArgs:\n    user_id: The user ID to create the token for\n    token_name: Name for the access token\n    expires_at: Expiration date in YYYY-MM-DD format\n    description: Optional description for the token\n    roles: Optional list of roles to assign (must all be assigned to user)\n    admin_user: Authenticated admin user making the request\n\nReturns:\n    The generated access token string",
+        "operationId": "admin_create_access_token_api_auth_user__user_id__access_token__token_name__post",
         "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          },
           {
             "required": true,
             "schema": {
@@ -3102,12 +3331,21 @@
           {
             "required": false,
             "schema": {
+              "type": "string",
+              "title": "Description",
+              "default": ""
+            },
+            "name": "description",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
               "items": {
                 "type": "string"
               },
               "type": "array",
-              "title": "Roles",
-              "default": []
+              "title": "Roles"
             },
             "name": "roles",
             "in": "query"
@@ -3116,11 +3354,10 @@
             "required": false,
             "schema": {
               "type": "string",
-              "title": "Description",
-              "default": ""
+              "title": "X-Osmo-User"
             },
-            "name": "description",
-            "in": "query"
+            "name": "x-osmo-user",
+            "in": "header"
           }
         ],
         "responses": {
@@ -3148,10 +3385,19 @@
         "tags": [
           "Auth API"
         ],
-        "summary": "Delete Service Access Token",
-        "description": "API to delete a service access token.",
-        "operationId": "delete_service_access_token_api_auth_access_token_service__token_name__delete",
+        "summary": "Admin Delete Access Token",
+        "description": "Admin API to delete an access token for a specific user.\n\nArgs:\n    user_id: The user ID who owns the token\n    token_name: Name of the token to delete",
+        "operationId": "admin_delete_access_token_api_auth_user__user_id__access_token__token_name__delete",
         "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          },
           {
             "required": true,
             "schema": {
@@ -3184,23 +3430,23 @@
         }
       }
     },
-    "/api/auth/access_token/user": {
+    "/api/auth/user/{user_id}/access_token": {
       "get": {
         "tags": [
           "Auth API"
         ],
-        "summary": "List Access Tokens",
-        "description": "API to list all access tokens for a user.",
-        "operationId": "list_access_tokens_api_auth_access_token_user_get",
+        "summary": "Admin List Access Tokens",
+        "description": "Admin API to list all access tokens for a specific user, including their assigned roles.\n\nArgs:\n    user_id: The user ID to list tokens for\n\nReturns:\n    List of AccessTokenWithRoles objects",
+        "operationId": "admin_list_access_tokens_api_auth_user__user_id__access_token_get",
         "parameters": [
           {
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string",
-              "title": "X-Osmo-User"
+              "title": "User Id"
             },
-            "name": "x-osmo-user",
-            "in": "header"
+            "name": "user_id",
+            "in": "path"
           }
         ],
         "responses": {
@@ -3210,10 +3456,10 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/AccessToken"
+                    "$ref": "#/components/schemas/AccessTokenWithRoles"
                   },
                   "type": "array",
-                  "title": "Response List Access Tokens Api Auth Access Token User Get"
+                  "title": "Response Admin List Access Tokens Api Auth User  User Id  Access Token Get"
                 }
               }
             }
@@ -3231,25 +3477,463 @@
         }
       }
     },
-    "/api/auth/access_token/service": {
+    "/api/auth/user": {
       "get": {
         "tags": [
           "Auth API"
         ],
-        "summary": "List Service Access Tokens",
-        "description": "API to list all service access tokens.",
-        "operationId": "list_service_access_tokens_api_auth_access_token_service_get",
+        "summary": "List Users",
+        "description": "List all users with optional filtering.\n\nArgs:\n    start_index: Pagination start (1-based, default: 1)\n    count: Results per page (default: 100, max: 1000)\n    id_prefix: Filter users whose ID starts with this prefix\n    roles: List of role names. Returns users who have ANY of these roles.\n           Use multiple query params: ?roles=admin&roles=user\n\nReturns:\n    UserListResponse with paginated user list",
+        "operationId": "list_users_api_auth_user_get",
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Start Index",
+              "default": 1
+            },
+            "name": "start_index",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Count",
+              "default": 100
+            },
+            "name": "count",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Id Prefix"
+            },
+            "name": "id_prefix",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array",
+              "title": "Roles"
+            },
+            "name": "roles",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/AccessToken"
-                  },
-                  "type": "array",
-                  "title": "Response List Service Access Tokens Api Auth Access Token Service Get"
+                  "$ref": "#/components/schemas/UserListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Create User",
+        "description": "Create a new user.\n\nArgs:\n    request: CreateUserRequest with user details\n    created_by: Authenticated user making the request\n\nReturns:\n    Created User object",
+        "operationId": "create_user_api_auth_user_post",
+        "parameters": [
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/user/{user_id}": {
+      "get": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Get User",
+        "description": "Get a specific user's details including their roles.\n\nArgs:\n    user_id: The user ID to fetch\n\nReturns:\n    UserWithRoles object",
+        "operationId": "get_user_api_auth_user__user_id__get",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserWithRoles"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Delete User",
+        "description": "Delete a user and all associated role assignments and PATs.\n\nArgs:\n    user_id: The user ID to delete",
+        "operationId": "delete_user_api_auth_user__user_id__delete",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/user/{user_id}/roles": {
+      "get": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "List User Roles",
+        "description": "List all roles assigned to a user.\n\nArgs:\n    user_id: The user ID\n\nReturns:\n    UserRolesResponse with list of role assignments",
+        "operationId": "list_user_roles_api_auth_user__user_id__roles_get",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRolesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Assign Role To User",
+        "description": "Assign a role to a user.\n\nArgs:\n    user_id: The user ID\n    request: AssignRoleRequest with role_name\n    assigned_by: Authenticated user making the request\n\nReturns:\n    UserRoleAssignment with assignment details",
+        "operationId": "assign_role_to_user_api_auth_user__user_id__roles_post",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRoleAssignment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/user/{user_id}/roles/{role_name}": {
+      "delete": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Remove Role From User",
+        "description": "Remove a role from a user and all their PATs.\n\nWhen a role is removed from a user, it is automatically removed from all PATs\nowned by that user via the FK cascade from access_token_roles to user_roles.\n\nArgs:\n    user_id: The user ID\n    role_name: The role to remove",
+        "operationId": "remove_role_from_user_api_auth_user__user_id__roles__role_name__delete",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            },
+            "name": "user_id",
+            "in": "path"
+          },
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Role Name"
+            },
+            "name": "role_name",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/roles/{role_name}/users": {
+      "get": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "List Users With Role",
+        "description": "List all users who have a specific role.\n\nArgs:\n    role_name: The role name\n\nReturns:\n    RoleUsersResponse with list of users",
+        "operationId": "list_users_with_role_api_auth_roles__role_name__users_get",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Role Name"
+            },
+            "name": "role_name",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleUsersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Bulk Assign Role",
+        "description": "Bulk assign a role to multiple users.\n\nArgs:\n    role_name: The role to assign\n    request: BulkAssignRequest with list of user_ids\n    assigned_by: Authenticated user making the request\n\nReturns:\n    BulkAssignResponse with results",
+        "operationId": "bulk_assign_role_api_auth_roles__role_name__users_post",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Role Name"
+            },
+            "name": "role_name",
+            "in": "path"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-User"
+            },
+            "name": "x-osmo-user",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkAssignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkAssignResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3797,15 +4481,6 @@
               "title": "X-Osmo-User"
             },
             "name": "x-osmo-user",
-            "in": "header"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-Roles"
-            },
-            "name": "x-osmo-roles",
             "in": "header"
           }
         ],
@@ -4713,24 +5388,6 @@
             },
             "name": "entry_command",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-Roles"
-            },
-            "name": "x-osmo-roles",
-            "in": "header"
           }
         ],
         "responses": {
@@ -4796,24 +5453,6 @@
             },
             "name": "entry_command",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-Roles"
-            },
-            "name": "x-osmo-roles",
-            "in": "header"
           }
         ],
         "responses": {
@@ -4888,24 +5527,6 @@
             },
             "name": "use_udp",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-Roles"
-            },
-            "name": "x-osmo-roles",
-            "in": "header"
           }
         ],
         "responses": {
@@ -4978,24 +5599,6 @@
             },
             "name": "task_port",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-Roles"
-            },
-            "name": "x-osmo-roles",
-            "in": "header"
           }
         ],
         "responses": {
@@ -5048,24 +5651,6 @@
             },
             "name": "task_name",
             "in": "path"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-Roles"
-            },
-            "name": "x-osmo-roles",
-            "in": "header"
           }
         ],
         "responses": {
@@ -5302,9 +5887,9 @@
             "required": false,
             "schema": {
               "type": "string",
-              "title": "X-Osmo-Roles"
+              "title": "X-Osmo-Allowed-Pools"
             },
-            "name": "x-osmo-roles",
+            "name": "x-osmo-allowed-pools",
             "in": "header"
           }
         ],
@@ -5807,15 +6392,6 @@
             },
             "name": "finish",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
           }
         ],
         "responses": {
@@ -5936,15 +6512,6 @@
             },
             "name": "delete_metadata",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
           }
         ],
         "requestBody": {
@@ -6048,15 +6615,6 @@
             },
             "name": "order",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
           }
         ],
         "responses": {
@@ -6317,15 +6875,6 @@
             },
             "name": "command",
             "in": "query"
-          },
-          {
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "X-Osmo-User"
-            },
-            "name": "x-osmo-user",
-            "in": "header"
           }
         ],
         "responses": {
@@ -6333,7 +6882,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DataQueryResponse"
+                }
               }
             }
           },
@@ -6374,6 +6925,24 @@
               "title": "X-Osmo-Roles"
             },
             "name": "x-osmo-roles",
+            "in": "header"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-Token-Name"
+            },
+            "name": "x-osmo-token-name",
+            "in": "header"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Osmo-Allowed-Pools"
+            },
+            "name": "x-osmo-allowed-pools",
             "in": "header"
           }
         ],
@@ -6584,7 +7153,59 @@
   },
   "components": {
     "schemas": {
-      "AccessToken": {
+      "AccessTokenRole": {
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "assigned_by": {
+            "type": "string",
+            "title": "Assigned By"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role_name",
+          "assigned_by",
+          "assigned_at"
+        ],
+        "title": "AccessTokenRole",
+        "description": "Access token role assignment."
+      },
+      "AccessTokenRolesResponse": {
+        "properties": {
+          "user_name": {
+            "type": "string",
+            "title": "User Name"
+          },
+          "token_name": {
+            "type": "string",
+            "title": "Token Name"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/AccessTokenRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_name",
+          "token_name",
+          "roles"
+        ],
+        "title": "AccessTokenRolesResponse",
+        "description": "Response for listing access token roles."
+      },
+      "AccessTokenWithRoles": {
         "properties": {
           "user_name": {
             "type": "string",
@@ -6603,15 +7224,13 @@
             "type": "string",
             "title": "Description"
           },
-          "access_type": {
-            "$ref": "#/components/schemas/AccessTokenType"
-          },
           "roles": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Roles"
+            "title": "Roles",
+            "default": []
           }
         },
         "type": "object",
@@ -6619,59 +7238,24 @@
           "user_name",
           "token_name",
           "expires_at",
-          "description",
-          "access_type",
-          "roles"
+          "description"
         ],
-        "title": "AccessToken",
-        "description": "Single Pool Entry "
+        "title": "AccessTokenWithRoles",
+        "description": "Access Token with roles."
       },
-      "AccessTokenType": {
-        "enum": [
-          "USER",
-          "SERVICE"
-        ],
-        "title": "AccessTokenType",
-        "description": "Type of access token "
-      },
-      "ActionPermissions": {
+      "AssignRoleRequest": {
         "properties": {
-          "execute": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PermissionLevel"
-              }
-            ],
-            "default": "PRIVATE"
-          },
-          "portforward": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PermissionLevel"
-              }
-            ],
-            "default": "PRIVATE"
-          },
-          "cancel": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PermissionLevel"
-              }
-            ],
-            "default": "PRIVATE"
-          },
-          "rsync": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/PermissionLevel"
-              }
-            ],
-            "default": "PRIVATE"
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
           }
         },
         "type": "object",
-        "title": "ActionPermissions",
-        "description": "Defines permissions for certain actionsfor a pool "
+        "required": [
+          "role_name"
+        ],
+        "title": "AssignRoleRequest",
+        "description": "Request to assign a role to a user."
       },
       "AsymmetricKeyPair": {
         "properties": {
@@ -7041,11 +7625,6 @@
             "title": "Region",
             "default": "us-east-1"
           },
-          "check_key": {
-            "type": "boolean",
-            "title": "Check Key",
-            "default": false
-          },
           "description": {
             "type": "string",
             "title": "Description",
@@ -7119,6 +7698,61 @@
         "title": "BucketInfoResponse",
         "description": "Object storing Upload Response. "
       },
+      "BulkAssignRequest": {
+        "properties": {
+          "user_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "User Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_ids"
+        ],
+        "title": "BulkAssignRequest",
+        "description": "Request to bulk assign a role to users."
+      },
+      "BulkAssignResponse": {
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "assigned": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assigned"
+          },
+          "already_assigned": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Already Assigned"
+          },
+          "failed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role_name",
+          "assigned",
+          "already_assigned",
+          "failed"
+        ],
+        "title": "BulkAssignResponse",
+        "description": "Response for bulk role assignment."
+      },
       "CancelResponse": {
         "properties": {
           "name": {
@@ -7143,6 +7777,10 @@
           "min_supported_version": {
             "type": "string",
             "title": "Min Supported Version"
+          },
+          "client_install_url": {
+            "type": "string",
+            "title": "Client Install Url"
           }
         },
         "type": "object",
@@ -7228,6 +7866,27 @@
         "type": "object",
         "title": "ConfigsRequest",
         "description": "Request body for updating configurations with history tracking metadata."
+      },
+      "CreateUserRequest": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "CreateUserRequest",
+        "description": "Request to create a new user."
       },
       "CredentialConfig": {
         "properties": {
@@ -7422,11 +8081,6 @@
             "format": "date-time",
             "title": "Last Used"
           },
-          "retention_policy": {
-            "type": "number",
-            "format": "time-delta",
-            "title": "Retention Policy"
-          },
           "size": {
             "type": "integer",
             "title": "Size"
@@ -7471,7 +8125,6 @@
           "created_by",
           "created_date",
           "last_used",
-          "retention_policy",
           "size",
           "checksum",
           "location",
@@ -7634,6 +8287,35 @@
         "title": "DataMetadataResponse",
         "description": "Object storing Label/Metadata Response. "
       },
+      "DataQueryResponse": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/DatasetQueryType"
+          },
+          "datasets": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DataInfoResponse"
+                },
+                {
+                  "$ref": "#/components/schemas/DataInfoDatasetEntry"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Datasets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "datasets"
+        ],
+        "title": "DataQueryResponse",
+        "description": "Object storing Dataset and Dataset Version Info. "
+      },
       "DataTagResponse": {
         "properties": {
           "version_id": {
@@ -7676,6 +8358,14 @@
         "type": "object",
         "title": "DatasetConfig",
         "description": "Stores any dataset configs External Admins control "
+      },
+      "DatasetQueryType": {
+        "enum": [
+          "VERSION",
+          "DATASET"
+        ],
+        "title": "DatasetQueryType",
+        "description": "An enumeration."
       },
       "DatasetStatus": {
         "enum": [
@@ -8402,15 +9092,6 @@
         "title": "PatchPoolRequest",
         "description": "Request body for patching a pool with history tracking metadata."
       },
-      "PermissionLevel": {
-        "enum": [
-          "PUBLIC",
-          "POOL",
-          "PRIVATE"
-        ],
-        "title": "PermissionLevel",
-        "description": "Permission Level "
-      },
       "Platform": {
         "properties": {
           "description": {
@@ -8614,6 +9295,15 @@
         "title": "PluginsConfig",
         "description": "Stores any plugins configs "
       },
+      "PolicyEffect": {
+        "type": "string",
+        "enum": [
+          "Allow",
+          "Deny"
+        ],
+        "title": "PolicyEffect",
+        "description": "Effect of a policy statement: Allow or Deny. Deny takes precedence over Allow."
+      },
       "Pool": {
         "properties": {
           "name": {
@@ -8673,20 +9363,6 @@
             "title": "Default Exit Actions",
             "default": {}
           },
-          "action_permissions": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ActionPermissions"
-              }
-            ],
-            "title": "Action Permissions",
-            "default": {
-              "execute": "PRIVATE",
-              "portforward": "PRIVATE",
-              "cancel": "PRIVATE",
-              "rsync": "PRIVATE"
-            }
-          },
           "resources": {
             "allOf": [
               {
@@ -8695,6 +9371,14 @@
             ],
             "title": "Resources",
             "default": {}
+          },
+          "topology_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyKey"
+            },
+            "type": "array",
+            "title": "Topology Keys",
+            "default": []
           },
           "common_default_variables": {
             "type": "object",
@@ -8729,6 +9413,22 @@
             "type": "object",
             "title": "Parsed Pod Template",
             "default": {}
+          },
+          "common_group_templates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Common Group Templates",
+            "default": []
+          },
+          "parsed_group_templates": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Parsed Group Templates",
+            "default": []
           },
           "platforms": {
             "additionalProperties": {
@@ -8810,20 +9510,6 @@
             "title": "Default Exit Actions",
             "default": {}
           },
-          "action_permissions": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ActionPermissions"
-              }
-            ],
-            "title": "Action Permissions",
-            "default": {
-              "execute": "PRIVATE",
-              "portforward": "PRIVATE",
-              "cancel": "PRIVATE",
-              "rsync": "PRIVATE"
-            }
-          },
           "resources": {
             "allOf": [
               {
@@ -8832,6 +9518,14 @@
             ],
             "title": "Resources",
             "default": {}
+          },
+          "topology_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyKey"
+            },
+            "type": "array",
+            "title": "Topology Keys",
+            "default": []
           },
           "common_default_variables": {
             "type": "object",
@@ -8852,6 +9546,14 @@
             },
             "type": "array",
             "title": "Common Pod Template",
+            "default": []
+          },
+          "common_group_templates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Common Group Templates",
             "default": []
           },
           "platforms": {
@@ -8929,20 +9631,6 @@
             "title": "Default Exit Actions",
             "default": {}
           },
-          "action_permissions": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ActionPermissions"
-              }
-            ],
-            "title": "Action Permissions",
-            "default": {
-              "execute": "PRIVATE",
-              "portforward": "PRIVATE",
-              "cancel": "PRIVATE",
-              "rsync": "PRIVATE"
-            }
-          },
           "resources": {
             "allOf": [
               {
@@ -8951,6 +9639,14 @@
             ],
             "title": "Resources",
             "default": {}
+          },
+          "topology_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyKey"
+            },
+            "type": "array",
+            "title": "Topology Keys",
+            "default": []
           },
           "platforms": {
             "additionalProperties": {
@@ -9067,20 +9763,6 @@
             "title": "Default Exit Actions",
             "default": {}
           },
-          "action_permissions": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ActionPermissions"
-              }
-            ],
-            "title": "Action Permissions",
-            "default": {
-              "execute": "PRIVATE",
-              "portforward": "PRIVATE",
-              "cancel": "PRIVATE",
-              "rsync": "PRIVATE"
-            }
-          },
           "resources": {
             "allOf": [
               {
@@ -9089,6 +9771,14 @@
             ],
             "title": "Resources",
             "default": {}
+          },
+          "topology_keys": {
+            "items": {
+              "$ref": "#/components/schemas/TopologyKey"
+            },
+            "type": "array",
+            "title": "Topology Keys",
+            "default": []
           },
           "platforms": {
             "additionalProperties": {
@@ -9238,22 +9928,33 @@
           "profile": {
             "$ref": "#/components/schemas/UserProfile"
           },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles"
+          },
           "pools": {
             "items": {
               "type": "string"
             },
             "type": "array",
             "title": "Pools"
+          },
+          "token": {
+            "$ref": "#/components/schemas/TokenIdentity"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "profile",
+          "roles",
           "pools"
         ],
         "title": "ProfileResponse",
-        "description": "Object storing workflow name. "
+        "description": "Profile and identity info. When token header is set, roles/pools are the\ntoken's; otherwise they are the user's. JSON is self-explanatory for CLI."
       },
       "PutBackendTestRequest": {
         "properties": {
@@ -9330,6 +10031,59 @@
         ],
         "title": "PutDatasetRequest",
         "description": "Request body for updating dataset configurations with history tracking metadata."
+      },
+      "PutGroupTemplateRequest": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "configs": {
+            "type": "object",
+            "title": "Configs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configs"
+        ],
+        "title": "PutGroupTemplateRequest",
+        "description": "Request body for updating a group template with history tracking metadata."
+      },
+      "PutGroupTemplatesRequest": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "configs": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Configs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configs"
+        ],
+        "title": "PutGroupTemplatesRequest",
+        "description": "Request body for updating group templates with history tracking metadata."
       },
       "PutPodTemplateRequest": {
         "properties": {
@@ -9895,6 +10649,21 @@
             "type": "boolean",
             "title": "Immutable",
             "default": false
+          },
+          "sync_mode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SyncMode"
+              }
+            ],
+            "default": "import"
+          },
+          "external_roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "External Roles"
           }
         },
         "type": "object",
@@ -9904,43 +10673,31 @@
           "policies"
         ],
         "title": "Role",
-        "description": "Single Role Entry "
-      },
-      "RoleAction": {
-        "properties": {
-          "base": {
-            "type": "string",
-            "pattern": "^(?P<base>http)$",
-            "title": "Base"
-          },
-          "path": {
-            "type": "string",
-            "pattern": "^(?P<path>(\\*|(!?)/([^:]+)))$",
-            "title": "Path"
-          },
-          "method": {
-            "type": "string",
-            "pattern": "^(?P<method>(\\*|([a-zA-Z]+)))$",
-            "title": "Method"
-          }
-        },
-        "type": "object",
-        "required": [
-          "base",
-          "path",
-          "method"
-        ],
-        "title": "RoleAction",
-        "description": "Single Role Action Entry "
+        "description": "Single Role Entry.\n\nNote: Authorization checking is now handled by the authz_sidecar (Go service).\nThis Python class is only used for role CRUD operations."
       },
       "RolePolicy": {
         "properties": {
+          "effect": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PolicyEffect"
+              }
+            ],
+            "default": "Allow"
+          },
           "actions": {
             "items": {
-              "$ref": "#/components/schemas/RoleAction"
+              "type": "string"
             },
             "type": "array",
             "title": "Actions"
+          },
+          "resources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Resources"
           }
         },
         "type": "object",
@@ -9948,7 +10705,29 @@
           "actions"
         ],
         "title": "RolePolicy",
-        "description": "Single Role Policy Entry "
+        "description": "Single Role Policy Entry.\n\nContains a list of actions (semantic format \"resource:Action\") and optional\nresources the policy applies to. If effect is Deny and the policy matches,\naccess is denied even if another policy allows it.\n\nActions are validated via regex; API/DB still use [{\"action\": \"...\"}] for\ncompatibility with the Go authz_sidecar."
+      },
+      "RoleUsersResponse": {
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "users": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Users"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role_name",
+          "users"
+        ],
+        "title": "RoleUsersResponse",
+        "description": "Response for listing users with a role."
       },
       "RollbackConfigRequest": {
         "properties": {
@@ -10122,13 +10901,7 @@
             "default": ""
           },
           "service_auth": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AuthenticationConfig"
-              }
-            ],
-            "title": "Service Auth",
-            "default": {}
+            "$ref": "#/components/schemas/AuthenticationConfig"
           },
           "cli_config": {
             "allOf": [
@@ -10159,12 +10932,17 @@
           "endpoint": {
             "type": "string",
             "title": "Endpoint",
-            "description": "The endpoint URL for the data service"
+            "description": "The OSMO storage URI for the data service (e.g., s3://bucket)"
           },
           "region": {
             "type": "string",
             "title": "Region",
             "description": "The region for the data service"
+          },
+          "override_url": {
+            "type": "string",
+            "title": "Override Url",
+            "description": "HTTP endpoint URL override the storage URI (e.g., http://minio:9000)"
           },
           "access_key_id": {
             "type": "string",
@@ -10219,6 +10997,16 @@
         ],
         "title": "SubmitResponse",
         "description": "Object storing workflow name, logs, and spec after submission. "
+      },
+      "SyncMode": {
+        "type": "string",
+        "enum": [
+          "force",
+          "import",
+          "ignore"
+        ],
+        "title": "SyncMode",
+        "description": "Sync mode for role assignments.\n\n- FORCE: Always apply this role to all users (e.g., for system roles)\n- IMPORT: Role is imported from IDP claims or user_roles table (default)\n- IGNORE: Ignore this role in IDP sync (role is managed manually)"
       },
       "TaskEntry": {
         "properties": {
@@ -10451,6 +11239,26 @@
         "title": "TemplateSpec",
         "description": "Template Spec. "
       },
+      "TokenIdentity": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "TokenIdentity",
+        "description": "Identity when the request is authenticated with an access token. "
+      },
       "Toleration": {
         "properties": {
           "key": {
@@ -10478,6 +11286,25 @@
         "title": "Toleration",
         "description": "Single Toleration Entry "
       },
+      "TopologyKey": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "TopologyKey",
+        "description": "Defines a topology key for pool configuration"
+      },
       "UpdateConfigTagsRequest": {
         "properties": {
           "set_tags": {
@@ -10500,6 +11327,29 @@
         "type": "object",
         "title": "UpdateConfigTagsRequest",
         "description": "Request body for updating config tags endpoint."
+      },
+      "User": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "User",
+        "description": "User record."
       },
       "UserCredential": {
         "properties": {
@@ -10525,12 +11375,17 @@
           "endpoint": {
             "type": "string",
             "title": "Endpoint",
-            "description": "The endpoint URL for the data service"
+            "description": "The OSMO storage URI for the data service (e.g., s3://bucket)"
           },
           "region": {
             "type": "string",
             "title": "Region",
             "description": "The region for the data service"
+          },
+          "override_url": {
+            "type": "string",
+            "title": "Override Url",
+            "description": "HTTP endpoint URL override the storage URI (e.g., http://minio:9000)"
           },
           "access_key_id": {
             "type": "string",
@@ -10552,6 +11407,38 @@
         ],
         "title": "UserDataCredential",
         "description": "Authentication information for a data service. "
+      },
+      "UserListResponse": {
+        "properties": {
+          "total_results": {
+            "type": "integer",
+            "title": "Total Results"
+          },
+          "start_index": {
+            "type": "integer",
+            "title": "Start Index"
+          },
+          "items_per_page": {
+            "type": "integer",
+            "title": "Items Per Page"
+          },
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/User"
+            },
+            "type": "array",
+            "title": "Users"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_results",
+          "start_index",
+          "items_per_page",
+          "users"
+        ],
+        "title": "UserListResponse",
+        "description": "Response for listing users."
       },
       "UserProfile": {
         "properties": {
@@ -10607,6 +11494,114 @@
         ],
         "title": "UserRegistryCredential",
         "description": "Authentication information for a Docker registry. "
+      },
+      "UserRole": {
+        "properties": {
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "assigned_by": {
+            "type": "string",
+            "title": "Assigned By"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role_name",
+          "assigned_by",
+          "assigned_at"
+        ],
+        "title": "UserRole",
+        "description": "User role assignment."
+      },
+      "UserRoleAssignment": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "role_name": {
+            "type": "string",
+            "title": "Role Name"
+          },
+          "assigned_by": {
+            "type": "string",
+            "title": "Assigned By"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "role_name",
+          "assigned_by",
+          "assigned_at"
+        ],
+        "title": "UserRoleAssignment",
+        "description": "User role assignment response."
+      },
+      "UserRolesResponse": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/UserRole"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "roles"
+        ],
+        "title": "UserRolesResponse",
+        "description": "Response for listing user roles."
+      },
+      "UserWithRoles": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/UserRole"
+            },
+            "type": "array",
+            "title": "Roles",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "UserWithRoles",
+        "description": "User record with role assignments."
       },
       "UserWorkflowLimitConfig": {
         "properties": {
@@ -11127,6 +12122,7 @@
           "BACKEND",
           "POOL",
           "POD_TEMPLATE",
+          "GROUP_TEMPLATE",
           "RESOURCE_VALIDATION",
           "BACKEND_TEST",
           "ROLE"
@@ -11324,6 +12320,7 @@
           "BACKEND",
           "POOL",
           "POD_TEMPLATE",
+          "GROUP_TEMPLATE",
           "RESOURCE_VALIDATION",
           "BACKEND_TEST",
           "ROLE"

@@ -23,6 +23,10 @@
  */
 
 import { yaml } from "@codemirror/lang-yaml";
+import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
+import { python } from "@codemirror/lang-python";
+import { xml } from "@codemirror/lang-xml";
 import type { LanguageExtension } from "@/components/code-viewer/lib/types";
 
 /** YAML language extension preset for specs, configs, and templates */
@@ -30,3 +34,45 @@ export const YAML_LANGUAGE: LanguageExtension = {
   name: "YAML",
   extension: yaml(),
 };
+
+export const JSON_LANGUAGE: LanguageExtension = {
+  name: "JSON",
+  extension: json(),
+};
+
+export const MARKDOWN_LANGUAGE: LanguageExtension = {
+  name: "Markdown",
+  extension: markdown(),
+};
+
+export const PYTHON_LANGUAGE: LanguageExtension = {
+  name: "Python",
+  extension: python(),
+};
+
+export const XML_LANGUAGE: LanguageExtension = {
+  name: "XML",
+  extension: xml(),
+};
+
+export const PLAIN_TEXT_LANGUAGE: LanguageExtension = {
+  name: "Text",
+  extension: [],
+};
+
+/**
+ * Resolves a CodeMirror language preset from a MIME content type and file name.
+ * Falls back to plain text when no specific language matches.
+ */
+export function getLanguageForContentType(contentType: string, fileName: string): LanguageExtension {
+  const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
+
+  if (contentType.includes("json") || ext === "json") return JSON_LANGUAGE;
+  if (contentType.includes("yaml") || ext === "yaml" || ext === "yml") return YAML_LANGUAGE;
+  if (contentType.includes("xml") || ext === "xml") return XML_LANGUAGE;
+  if (contentType.startsWith("text/markdown") || ext === "md" || ext === "mdx") return MARKDOWN_LANGUAGE;
+  if (contentType.startsWith("application/x-python") || contentType.startsWith("text/x-python") || ext === "py")
+    return PYTHON_LANGUAGE;
+
+  return PLAIN_TEXT_LANGUAGE;
+}

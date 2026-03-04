@@ -21,16 +21,17 @@ import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM } from "@/components
 // Column IDs
 // =============================================================================
 
-export type DatasetColumnId = "name" | "bucket" | "version" | "size_bytes" | "created_at" | "updated_at";
+export type DatasetColumnId = "name" | "type" | "bucket" | "version" | "size_bytes" | "created_at" | "updated_at";
 
 // =============================================================================
 // Column Configuration (via factory)
 // =============================================================================
 
 const datasetColumnConfig = createColumnConfig<DatasetColumnId>({
-  columns: ["name", "bucket", "version", "size_bytes", "created_at", "updated_at"] as const,
+  columns: ["name", "type", "bucket", "version", "size_bytes", "created_at", "updated_at"] as const,
   labels: {
     name: "Name",
+    type: "Type",
     bucket: "Bucket",
     version: "Version",
     size_bytes: "Size",
@@ -38,13 +39,18 @@ const datasetColumnConfig = createColumnConfig<DatasetColumnId>({
     updated_at: "Updated",
   },
   mandatory: ["name"],
-  defaultVisible: ["name", "bucket", "version", "size_bytes", "created_at", "updated_at"],
-  defaultOrder: ["name", "bucket", "version", "size_bytes", "created_at", "updated_at"],
+  defaultVisible: ["name", "type", "bucket", "version", "size_bytes", "created_at", "updated_at"],
+  defaultOrder: ["name", "type", "bucket", "version", "size_bytes", "created_at", "updated_at"],
   sizeConfig: [
     {
       id: "name",
       minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_TRUNCATE,
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_TRUNCATE * 1.5,
+    },
+    {
+      id: "type",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.STATUS_BADGE,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.STATUS_BADGE,
     },
     {
       id: "bucket",

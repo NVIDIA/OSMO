@@ -27,7 +27,8 @@ metadata:
   name: pgroll-migration-files
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-5"
     {{- with .Values.services.migration.extraAnnotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -43,7 +44,7 @@ metadata:
   name: pgroll-migrate-{{ .Release.Revision }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
     {{- with .Values.services.migration.extraAnnotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

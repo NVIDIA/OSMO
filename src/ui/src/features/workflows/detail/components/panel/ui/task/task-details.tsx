@@ -52,6 +52,7 @@ import {
   getStatusCategory,
   getStatusStyle,
   getStatusLabel,
+  type StatusCategory,
 } from "@/features/workflows/detail/lib/status";
 import { DetailsPanelHeader } from "@/features/workflows/detail/components/panel/ui/details-panel-header";
 import { StatusHoverCard } from "@/features/workflows/detail/components/panel/ui/status-hover-card";
@@ -101,7 +102,7 @@ const getTaskLinks = (task: TaskDetailsProps["task"]) => {
 
 interface ShellStatusPromptProps {
   status: string;
-  category: "waiting" | "pending" | "running" | "completed" | "failed";
+  category: StatusCategory;
 }
 
 const ShellStatusPrompt = memo(function ShellStatusPrompt({ status, category }: ShellStatusPromptProps) {

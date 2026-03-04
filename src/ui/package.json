@@ -4,7 +4,6 @@
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "scripts": {
-    "postinstall": "next telemetry disable",
     "clean": "rm -rf .next .turbo",
     "dev": "next dev --turbopack",
     "dev:local": "NEXT_PUBLIC_OSMO_API_HOSTNAME=localhost:8000 NEXT_PUBLIC_OSMO_SSL_ENABLED=false next dev --turbopack",
@@ -33,6 +32,10 @@
     "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test && pnpm build"
   },
   "dependencies": {
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/lang-xml": "^6.1.0",
     "@codemirror/lang-yaml": "^6.1.2",
     "@codemirror/language": "^6.12.1",
     "@codemirror/search": "^6.6.0",
@@ -146,8 +149,7 @@
       "sharp"
     ],
     "onlyBuiltDependencies": [
-      "esbuild",
-      "msw"
+      "esbuild"
     ]
   }
 }

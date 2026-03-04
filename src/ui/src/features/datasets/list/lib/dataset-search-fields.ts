@@ -23,6 +23,7 @@
 
 import type { SearchField } from "@/components/filter-bar/lib/types";
 import type { Dataset } from "@/lib/api/adapter/datasets";
+import { DatasetType } from "@/lib/api/generated";
 import { getDateRangePresetSuggestions } from "@/features/datasets/list/lib/date-filter-utils";
 
 // Re-export Dataset type for convenience
@@ -33,6 +34,14 @@ export type { Dataset } from "@/lib/api/adapter/datasets";
 // =============================================================================
 
 export const DATASET_STATIC_FIELDS: readonly SearchField<Dataset>[] = [
+  {
+    id: "type",
+    label: "Type",
+    prefix: "type:",
+    singular: true,
+    exhaustive: true,
+    getValues: (_datasets: Dataset[]) => [DatasetType.DATASET, DatasetType.COLLECTION],
+  },
   {
     id: "name",
     label: "Name",

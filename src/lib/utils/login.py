@@ -31,8 +31,7 @@ from . import osmo_errors
 
 
 # The authorization header used by OSMO.
-# TODO: Use 'Authorization: Bearer ...'  header envoy is configuredto use this
-OSMO_AUTH_HEADER = 'x-osmo-auth'
+OSMO_AUTH_HEADER = 'Authorization'
 # If developer mode, the header to pass the osmo user in
 OSMO_USER_HEADER = 'x-osmo-user'
 OSMO_USER_ROLES = 'x-osmo-roles'
@@ -118,6 +117,7 @@ class TokenLoginStorage(pydantic.BaseModel):
     id_token: str
     refresh_url: str | None = None
     username: str | None = None
+    client_id: str | None = None
     _id_token_jwt: Jwt | None = pydantic.PrivateAttr(None)
 
     @property
@@ -263,7 +263,7 @@ def refresh_id_token(config: LoginConfig, user_agent: str | None,
         result = requests.post(token_endpoint, data={
             'grant_type': 'refresh_token',
             'refresh_token': token_login_storage.refresh_token,
-            'client_id': config.client_id,
+            'client_id': token_login_storage.client_id or config.client_id,
         }, timeout=TIMEOUT, headers=headers)
 
     if result.status_code >= 300:

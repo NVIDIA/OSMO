@@ -20,14 +20,15 @@
  * Dataset-specific wrapper around DataTable that handles:
  * - Flat table with full sorting flexibility
  * - Infinite scroll pagination
- * - Navigation to dataset detail page on click
+ * - Navigation to dataset detail page on row click
+ * - Leading open-details button per row
  *
  * Built on the canonical DataTable component.
  */
 
 "use client";
 
-import { useMemo, useCallback, useRef, memo } from "react";
+import { useMemo, useCallback, memo } from "react";
 import { usePathname } from "next/navigation";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
 import { useViewTransition } from "@/hooks/use-view-transition";
@@ -47,6 +48,7 @@ import {
 import { createDatasetColumns } from "@/features/datasets/list/components/table/dataset-column-defs";
 import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
+import { useDatasetsPanelContext } from "@/features/datasets/layout/datasets-panel-context";
 
 // =============================================================================
 // Types
@@ -70,18 +72,6 @@ export interface DatasetsDataTableProps {
   /** Callback when sort changes */
   onSortingChange?: (sorting: SortState<string>) => void;
 
-  // === Panel selection props ===
-  /**
-   * Single-click callback: selects the dataset to show in the slideout panel.
-   * When provided, single-click selects; double-click navigates to detail page.
-   * When omitted, single-click navigates.
-   */
-  onRowSelect?: (dataset: Dataset) => void;
-  /** ID of the currently selected dataset (for row highlight) */
-  selectedDatasetId?: string;
-  /** Double-click callback: navigate to the dataset detail page */
-  onRowDoubleClick?: (dataset: Dataset) => void;
-
   // === Infinite scroll props ===
   /** Whether more data is available to load */
   hasNextPage?: boolean;
@@ -98,16 +88,6 @@ export interface DatasetsDataTableProps {
 /** Stable row ID extractor */
 const getRowId = (dataset: Dataset) => `${dataset.bucket}-${dataset.name}`;
 
-/**
- * Debounce delay (ms) between a single-click selection and its effect.
- *
- * Must exceed the OS double-click threshold so that the second click of a
- * double-click sequence always fires before the timer resolves. The OS default
- * is typically 200–500ms (Windows/macOS both default to ~250–500ms). We use
- * 250ms as a safe minimum that is still imperceptible for deliberate clicks.
- */
-const CLICK_DEBOUNCE_MS = 250;
-
 // =============================================================================
 // Component
 // =============================================================================
@@ -120,9 +100,6 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   onRetry,
   sorting,
   onSortingChange,
-  onRowSelect,
-  selectedDatasetId,
-  onRowDoubleClick,
   hasNextPage = false,
   onLoadMore,
   isFetchingNextPage = false,
@@ -131,6 +108,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
   const pathname = usePathname();
   const { startTransition } = useViewTransition();
   const { setOrigin } = useBreadcrumbOrigin();
+  const { openPanel } = useDatasetsPanelContext();
 
   // Shared preferences (hydration-safe)
   const compactMode = useCompactMode();
@@ -146,13 +124,10 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
 
   const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
 
-  // Create TanStack columns
-  const columns = useMemo(() => createDatasetColumns(), []);
+  const columns = useMemo(() => createDatasetColumns(openPanel), [openPanel]);
 
-  // Fixed columns (not draggable)
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 
-  // Handle column order change
   const handleColumnOrderChange = useCallback(
     (newOrder: string[]) => {
       setColumnOrder(newOrder);
@@ -168,7 +143,8 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
     [setColumnSizingPreference],
   );
 
-  const navigateToDataset = useCallback(
+  // Row click navigates to dataset detail page
+  const handleRowClick = useCallback(
     (dataset: Dataset) => {
       const detailPath = `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
       const currentUrl = pathname + window.location.search;
@@ -178,63 +154,6 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
       });
     },
     [router, pathname, startTransition, setOrigin],
-  );
-
-  /**
-   * Debounce timer for single-click selection.
-   *
-   * When a panel is open, single-click selects a dataset (opens slideout) and
-   * double-click navigates to the detail page. Without debouncing, the first
-   * click of a double-click sequence fires onRowSelect -> startViewTransition ->
-   * setSelectedView (nuqs URL push) before the dblclick event fires. That URL
-   * change then races with router.push from the double-click handler, causing
-   * the navigation to inherit stale search params or be cancelled entirely.
-   *
-   * Fix: delay onRowSelect by CLICK_DEBOUNCE_MS. If dblclick fires within
-   * that window, clearTimeout cancels the pending select so no URL state
-   * change occurs before router.push runs.
-   *
-   * 250ms is chosen to be:
-   *   - Above the OS double-click threshold (typically 200–500ms, default ~250ms)
-   *   - Below the point where a deliberate single-click feels sluggish
-   *
-   * We use useRef (not useState) so the timer ID never triggers a re-render.
-   */
-  const singleClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Single-click: select for panel (if onRowSelect provided) or navigate directly
-  const handleRowClick = useCallback(
-    (dataset: Dataset) => {
-      if (onRowSelect) {
-        // Cancel any prior pending timer (rapid single-clicks on different rows).
-        if (singleClickTimerRef.current !== null) clearTimeout(singleClickTimerRef.current);
-        singleClickTimerRef.current = setTimeout(() => {
-          singleClickTimerRef.current = null;
-          onRowSelect(dataset);
-        }, CLICK_DEBOUNCE_MS);
-      } else {
-        navigateToDataset(dataset);
-      }
-    },
-    [onRowSelect, navigateToDataset],
-  );
-
-  // Double-click: cancel pending single-click selection and navigate instead
-  const handleRowDoubleClick = useCallback(
-    (dataset: Dataset) => {
-      // Cancel the single-click timer so setSelectedView never fires.
-      // This prevents the panel URL state from being pushed before router.push,
-      // which would cause the two URL changes to race.
-      if (singleClickTimerRef.current !== null) clearTimeout(singleClickTimerRef.current);
-      singleClickTimerRef.current = null;
-
-      if (onRowDoubleClick) {
-        onRowDoubleClick(dataset);
-      } else {
-        navigateToDataset(dataset);
-      }
-    },
-    [onRowDoubleClick, navigateToDataset],
   );
 
   // Get row href for middle-click support (opens in new tab)
@@ -305,9 +224,7 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
         emptyContent={emptyContent}
         // Interaction
         onRowClick={handleRowClick}
-        onRowDoubleClick={onRowSelect ? handleRowDoubleClick : undefined}
         getRowHref={getRowHref}
-        selectedRowId={selectedDatasetId}
         rowClassName={rowClassName}
       />
     </div>

@@ -17,7 +17,7 @@
 "use client";
 
 import { Link } from "@/components/link";
-import { Home, ChevronRight, Menu } from "lucide-react";
+import { Home, ChevronRight, Menu, SquarePlus } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/shadcn/button";
 import {
@@ -28,17 +28,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { useSidebar } from "@/components/shadcn/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useUser } from "@/lib/auth/user-context";
 import { useVersion } from "@/lib/api/adapter/hooks";
 import { usePageConfig, type BreadcrumbSegment } from "@/components/chrome/page-context";
 import { useBreadcrumbOrigin } from "@/components/chrome/breadcrumb-origin-context";
 import { usePathname } from "next/navigation";
 import { useNavigationRouter } from "@/hooks/use-navigation-router";
+import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 
 export function Header() {
   const { user, isLoading, logout } = useUser();
   const pageConfig = usePageConfig();
   const { toggleSidebar } = useSidebar();
+  const openSubmitWorkflow = useSubmitWorkflowStore((s) => s.open);
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -75,6 +78,9 @@ export function Header() {
           />
         ))}
 
+        {/* Inline breadcrumbs — flows in the nav without extra margin (e.g. file browser path) */}
+        {pageConfig?.trailingBreadcrumbs}
+
         {/* Current page title */}
         {pageConfig?.title && (
           <>
@@ -85,13 +91,27 @@ export function Header() {
             <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{pageConfig.title}</span>
           </>
         )}
-
-        {/* Custom header actions from page */}
-        {pageConfig?.headerActions && <div className="ml-4 flex items-center">{pageConfig.headerActions}</div>}
       </nav>
 
-      {/* Right: Theme, User */}
+      {/* Right: Custom page actions, Theme, User */}
       <div className="flex items-center gap-2">
+        {pageConfig?.headerActions}
+
+        {/* Submit Workflow button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Submit workflow"
+              onClick={openSubmitWorkflow}
+            >
+              <SquarePlus className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Submit Workflow</TooltipContent>
+        </Tooltip>
+
         <ThemeToggle />
 
         {/* User menu */}

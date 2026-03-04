@@ -107,6 +107,19 @@
   outline-offset: -2px;
 }
 
+/* Shadow-based bottom divider for thead — used instead of border-b to avoid
+   double-border artifacts when border-collapse interacts with the virtual
+   tbody's display:block rows. Applied via theadClassName on DataTable.
+   box-shadow renders a visual 1px line at the bottom without affecting height
+   or interacting with the table's border model. */
+.file-browser-thead {
+  box-shadow: inset 0 -1px 0 0 var(--color-zinc-200);
+}
+
+.dark .file-browser-thead {
+  box-shadow: inset 0 -1px 0 0 var(--color-zinc-700);
+}
+
 /* Header row - flex layout for column alignment */
 .data-table-header-row {
   display: flex;

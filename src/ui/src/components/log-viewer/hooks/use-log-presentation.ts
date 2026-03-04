@@ -38,7 +38,6 @@ import { useMemo, useState, useCallback } from "react";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import type { StreamPhase } from "@/lib/api/log-adapter/hooks/use-log-stream";
 import { computeHistogram, filterEntries } from "@/lib/api/log-adapter/adapters/compute";
-import { getApiHostname } from "@/lib/config";
 import { chipsToLogQuery } from "@/components/log-viewer/lib/chips-to-log-query";
 import type { UseLogViewerUrlStateReturn } from "@/components/log-viewer/lib/use-log-viewer-url-state";
 import type {
@@ -212,12 +211,8 @@ export function useLogPresentation(params: UseLogPresentationParams): UseLogPres
       return logUrl;
     }
 
-    // Build absolute URL from the relative backend log URL
-    const hostname = getApiHostname();
-    const baseUrl = hostname.startsWith("http") ? hostname : `https://${hostname}`;
-    // logUrl is a relative path like "/api/workflow/foo/logs" or "api/workflow/foo/task/bar/logs"
     const normalizedPath = logUrl.startsWith("/") ? logUrl : `/${logUrl}`;
-    return `${baseUrl}${normalizedPath}`;
+    return new URL(normalizedPath, window.location.origin).href;
   }, [logUrl]);
 
   // -------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -48,29 +48,56 @@ Role
      - ``False``
    * - ``policies``
      - List[`Policy`_]
-     - List of policies which define actions/apis the role can perform/reach.
+     - List of policies which define the actions, resources, and effect for the role.
      - ``[]``
 
 Policy
 ======
 
-A policy is dictionary that currently only supports the ``actions`` key.
-The corresponding value for the ``actions`` key is an array of actions.
+A policy defines which actions a role can or cannot perform, optionally scoped to specific resources.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 12 48 20
+
+   * - **Field**
+     - **Type**
+     - **Description**
+     - **Default Values**
+   * - ``effect``
+     - String
+     - Whether the policy allows or denies access. Must be ``"Allow"`` or ``"Deny"``. Deny takes precedence over Allow.
+     - ``"Allow"``
+   * - ``actions``
+     - List[String]
+     - List of semantic action strings (e.g., ``"workflow:Create"``, ``"pool:List"``). See :ref:`actions_resources_reference` for all available actions.
+     - Required field
+   * - ``resources``
+     - List[String]
+     - List of resource patterns this policy applies to (e.g., ``["*"]``, ``["pool/my-pool"]``, ``["bucket/my-data"]``). Supports wildcards. If omitted, the policy only matches globally-scoped actions. Set to ``["*"]`` to match all resources.
+     - ``[]``
 
 Action
 ======
 
-An Action is defined as such:
+An action is a string in the format ``<resource_type>:<action_name>``.
 
-..  list-table::
-  :header-rows: 1
-  :widths: auto
+.. list-table::
+   :header-rows: 1
+   :widths: auto
 
-  * - **Field**
-    - **Description**
-  * - Base
-    - Currently only ``http`` is supported.
-  * - Path
-    - API path defined in glob format
-  * - Method
-    - Method of the action. (i.e. ``*``, ``GET``, ``POST``, ``PUT``, ``PATCH``, ``DELETE``, ``WEBSOCKET``)
+   * - **Component**
+     - **Description**
+   * - ``resource_type``
+     - The type of resource (e.g., ``workflow``, ``pool``, ``dataset``, ``config``). See :ref:`actions_resources_reference`.
+   * - ``action_name``
+     - The operation to perform (e.g., ``Create``, ``Read``, ``List``, ``Update``, ``Delete``).
+
+Wildcards are supported:
+
+- ``*:*`` -- matches all actions on all resources
+- ``workflow:*`` -- matches all workflow actions
+- ``*:Read`` -- matches all Read actions across all resource types
+
+See :ref:`actions_resources_reference` for the full list of actions and resource scoping rules.
+

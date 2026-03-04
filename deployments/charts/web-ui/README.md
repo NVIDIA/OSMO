@@ -91,9 +91,6 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `sidecars.envoy.enabled` | Enable Envoy proxy sidecar | `true` |
-| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets for Envoy | `false` |
-| `sidecars.envoy.secretPaths.clientSecret` | Path to OAuth2 client secret file | `/etc/envoy/secrets/client_secret` |
-| `sidecars.envoy.secretPaths.hmacSecret` | Path to OAuth2 HMAC secret file | `/etc/envoy/secrets/hmac_secret` |
 | `sidecars.envoy.image.repository` | Envoy image repository | `envoyproxy/envoy:v1.29.0` |
 | `sidecars.envoy.image.pullPolicy` | Envoy image pull policy | `IfNotPresent` |
 | `sidecars.envoy.service.address` | Backend service address | `127.0.0.1` |
@@ -112,23 +109,30 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.envoy.jwt.providers[].audience` | JWT token audience | `""` (empty, must be configured) |
 | `sidecars.envoy.jwt.providers[].jwks_uri` | JWT JWKS URI | `""` (empty, must be configured) |
 | `sidecars.envoy.jwt.providers[].user_claim` | JWT user claim field | `preferred_username` |
-| `sidecars.envoy.jwt.providers[].cluster` | Target cluster name | `oauth` |
+| `sidecars.envoy.jwt.providers[].cluster` | Target cluster name | `idp` |
 
-#### OAuth2 Filter Settings
+#### OAuth2 Proxy Sidecar
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.envoy.oauth2Filter.enabled` | Enable OAuth2 filter | `true` |
-| `sidecars.envoy.oauth2Filter.tokenEndpoint` | OAuth2 token endpoint URL | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.authEndpoint` | OAuth2 authorization endpoint URL | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.redirectPath` | OAuth2 redirect path | `getAToken` |
-| `sidecars.envoy.oauth2Filter.clientId` | OAuth2 client ID | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.authProvider` | OAuth2 authentication provider | `""` (empty, must be configured) |
-| `sidecars.envoy.oauth2Filter.logoutPath` | OAuth2 logout path | `logout` |
-| `sidecars.envoy.oauth2Filter.secretName` | Kubernetes secret name (when useKubernetesSecrets is true) | `oidc-secrets` |
-| `sidecars.envoy.oauth2Filter.clientSecretKey` | Secret key for OAuth2 client secret | `client_secret` |
-| `sidecars.envoy.oauth2Filter.hmacSecretKey` | Secret key for OAuth2 HMAC secret | `hmac_secret` |
-| `sidecars.envoy.oauth2Filter.forceReauthOnMissingIdToken` | Force re-auth when IdToken missing on refresh | `false` |
+| `sidecars.oauth2Proxy.enabled` | Enable OAuth2 Proxy sidecar | `true` |
+| `sidecars.oauth2Proxy.image` | OAuth2 Proxy container image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
+| `sidecars.oauth2Proxy.httpPort` | HTTP port for OAuth2 Proxy | `4180` |
+| `sidecars.oauth2Proxy.provider` | OIDC provider type | `oidc` |
+| `sidecars.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` (empty, must be configured) |
+| `sidecars.oauth2Proxy.clientId` | OAuth2 client ID | `""` (empty, must be configured) |
+| `sidecars.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
+| `sidecars.oauth2Proxy.cookieSecure` | Set Secure flag on cookies | `true` |
+| `sidecars.oauth2Proxy.cookieDomain` | Cookie domain | `""` (empty, must be configured) |
+| `sidecars.oauth2Proxy.cookieExpire` | Cookie expiration duration | `168h` |
+| `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
+| `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
+| `sidecars.oauth2Proxy.oidcEndSessionUrl` | IdP end-session endpoint for federated logout. When set, Envoy exposes `/signout` which redirects to `/oauth2/sign_out?rd=<url>`, clearing both the local session cookie and the IdP's SSO session. Requires `--whitelist-domain=<idp-domain>` in `extraArgs`. | `""` (disabled) |
+| `sidecars.oauth2Proxy.extraArgs` | Additional arguments passed to oauth2-proxy | `[]` |
+| `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
+| `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |
+| `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
+| `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
 
 #### Log Agent Sidecar
 

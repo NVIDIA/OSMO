@@ -16,23 +16,23 @@
 
 import type { SearchChip } from "@/stores/types";
 import { WorkflowStatus } from "@/lib/api/generated";
-import { WORKFLOW_STATUS_METADATA } from "@/lib/api/status-metadata.generated";
+import { WORKFLOW_STATUS_METADATA, type StatusCategory } from "@/lib/api/status-metadata.generated";
 import { STATUS_LABELS } from "@/lib/workflows/workflow-constants";
 
-export type StatusPresetId = "running" | "waiting" | "completed" | "failed";
+export type StatusPresetId = Exclude<StatusCategory, "unknown">;
 
 function buildStatusPresets(): Record<StatusPresetId, WorkflowStatus[]> {
   const presets: Record<StatusPresetId, WorkflowStatus[]> = {
     running: [],
+    pending: [],
     waiting: [],
     completed: [],
     failed: [],
   };
 
   for (const [status, meta] of Object.entries(WORKFLOW_STATUS_METADATA)) {
-    const category = meta.category as StatusPresetId;
-    if (category in presets) {
-      presets[category].push(status as WorkflowStatus);
+    if (meta.category in presets) {
+      presets[meta.category as StatusPresetId].push(status as WorkflowStatus);
     }
   }
 

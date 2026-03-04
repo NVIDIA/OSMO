@@ -14,14 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * ResubmitPanelHeader - Header for resubmit workflow panel.
- *
- * Layout:
- * Row 1: Icon · Title                                      [Close]
- * Row 2: Workflow name code snippet
- */
-
 "use client";
 
 import { memo } from "react";

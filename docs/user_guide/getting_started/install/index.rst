@@ -65,26 +65,7 @@ To login to the client, can use the following command:
 
   $ osmo login https://<Your OSMO URL>/
 
-After running the command above, you will be prompted to authenticate with the browser based OIDC authentication. For example:
-
-.. code-block:: bash
-  :class: no-copybutton
-
-  Visit https://<Your OSMO URL>/device?user_code=ABCD-EFGH and complete authentication.
-
-Grant access for OSMO application to authenticate you.
-
-.. image:: login1.png
-  :align: center
-  :width: 100%
-  :alt: Login and grant access to OSMO application
-
 After successful authentication, you are logged in. Welcome to OSMO.
-
-.. image:: login2.png
-  :align: center
-  :width: 100%
-  :alt: Successfully logged in
 
 .. code-block:: bash
   :class: no-copybutton

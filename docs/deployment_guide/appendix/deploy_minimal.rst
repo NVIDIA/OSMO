@@ -36,7 +36,7 @@ The minimal OSMO deployment includes:
 * Router
 * External PostgreSQL database (configurable)
 * External Redis cache (configurable)
-* No authentication or authorization
+* Default admin authentication (no identity provider required)
 * Single namespace deployment
 * Single replica per service
 * Minimal resource requirements
@@ -218,7 +218,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,14,17,24
+    :emphasize-lines: 2,3,14,17,24,75-79
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -293,6 +293,12 @@ Create the following values files for the minimal deployment:
         scaling:
           minReplicas: 1
           maxReplicas: 1
+
+      defaultAdmin:
+        enabled: true
+        username: "admin"
+        passwordSecretName: default-admin-secret
+        passwordSecretKey: password
 
     sidecars:
       envoy:
@@ -667,7 +673,6 @@ If you haven't set up DNS yet, you can access OSMO using port forwarding as an a
    - If you are accessing OSMO with port forwarding, the router service will not be accessible
    - Consequently, ``osmo workflow port-forward`` or ``osmo workflow exec`` commands are not expected to work
 
-
 Step 10: Basic Configuration
 ============================
 
@@ -704,7 +709,7 @@ What's Next
 Once you have tested OSMO with the minimal deployment and are ready for production use, consider the following steps:
 
 1. Consider upgrading to production deployment (:ref:`deploy_service`)
-2. Setup SSO authentication and authorization (:ref:`authentication_flow_sso`)
+2. Configure authentication and authorization (:ref:`authentication_authorization`)
 3. Configure persistent storage (:ref:`configure_data`)
 4. Add observability and monitoring solutions (:ref:`adding_observability`)
 

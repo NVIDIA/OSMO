@@ -34,41 +34,91 @@ import argparse
 import json
 import sys
 from typing import Literal
+from typing_extensions import assert_never
 
 from src.utils.job.task import TaskGroupStatus
 from src.utils.job.workflow import WorkflowStatus
 
-
-def get_task_status_category(status: TaskGroupStatus) -> Literal[
+StatusCategory = Literal[
     'waiting',
+    'pending',
     'running',
     'completed',
     'failed',
-]:
-    """Derive category from Python enum methods."""
-    if status.failed():
-        return 'failed'
-    if status in (TaskGroupStatus.COMPLETED, TaskGroupStatus.RESCHEDULED):
-        return 'completed'
-    if status in (TaskGroupStatus.RUNNING, TaskGroupStatus.INITIALIZING):
-        return 'running'
-    return 'waiting'
+    'unknown',  # Sentinel value for unknown statuses
+]
 
 
-def get_workflow_status_category(status: WorkflowStatus) -> Literal[
-    'waiting',
-    'running',
-    'completed',
-    'failed',
-]:
-    """Derive category from Python enum methods."""
-    if status.failed():
-        return 'failed'
-    if status == WorkflowStatus.COMPLETED:
-        return 'completed'
-    if status == WorkflowStatus.RUNNING:
-        return 'running'
-    return 'waiting'
+def get_task_status_category(status: TaskGroupStatus) -> StatusCategory:
+    """Derive category from Python enum methods.
+
+    Exhaustive match — mypy will error if a new TaskGroupStatus member is added
+    without updating this function.
+    """
+    match status:
+        case (
+            TaskGroupStatus.FAILED
+            | TaskGroupStatus.FAILED_CANCELED
+            | TaskGroupStatus.FAILED_SERVER_ERROR
+            | TaskGroupStatus.FAILED_BACKEND_ERROR
+            | TaskGroupStatus.FAILED_EXEC_TIMEOUT
+            | TaskGroupStatus.FAILED_QUEUE_TIMEOUT
+            | TaskGroupStatus.FAILED_IMAGE_PULL
+            | TaskGroupStatus.FAILED_UPSTREAM
+            | TaskGroupStatus.FAILED_EVICTED
+            | TaskGroupStatus.FAILED_START_ERROR
+            | TaskGroupStatus.FAILED_START_TIMEOUT
+            | TaskGroupStatus.FAILED_PREEMPTED
+        ):
+            return 'failed'
+        case TaskGroupStatus.COMPLETED | TaskGroupStatus.RESCHEDULED:
+            return 'completed'
+        case TaskGroupStatus.RUNNING | TaskGroupStatus.INITIALIZING:
+            return 'running'
+        case (
+            TaskGroupStatus.SUBMITTING
+            | TaskGroupStatus.PROCESSING
+            | TaskGroupStatus.SCHEDULING
+        ):
+            return 'pending'
+        case TaskGroupStatus.WAITING:
+            return 'waiting'
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def get_workflow_status_category(status: WorkflowStatus) -> StatusCategory:
+    """Derive category from Python enum methods.
+
+    Exhaustive match — mypy will error if a new WorkflowStatus member is added
+    without updating this function.
+    """
+    match status:
+        case (
+            WorkflowStatus.FAILED
+            | WorkflowStatus.FAILED_SUBMISSION
+            | WorkflowStatus.FAILED_SERVER_ERROR
+            | WorkflowStatus.FAILED_EXEC_TIMEOUT
+            | WorkflowStatus.FAILED_QUEUE_TIMEOUT
+            | WorkflowStatus.FAILED_CANCELED
+            | WorkflowStatus.FAILED_BACKEND_ERROR
+            | WorkflowStatus.FAILED_IMAGE_PULL
+            | WorkflowStatus.FAILED_EVICTED
+            | WorkflowStatus.FAILED_START_ERROR
+            | WorkflowStatus.FAILED_START_TIMEOUT
+            | WorkflowStatus.FAILED_PREEMPTED
+        ):
+            return 'failed'
+        case WorkflowStatus.COMPLETED:
+            return 'completed'
+        case WorkflowStatus.RUNNING:
+            return 'running'
+        case WorkflowStatus.PENDING:
+            return 'pending'
+        case WorkflowStatus.WAITING:
+            return 'waiting'
+        case _ as unreachable:
+            assert_never(unreachable)
 
 
 def generate_typescript() -> str:
@@ -129,13 +179,13 @@ def generate_typescript() -> str:
  *         external/src/utils/job/workflow.py (WorkflowStatus)
  */
 
-import {{ TaskGroupStatus, WorkflowStatus }} from "./generated";
+import {{ TaskGroupStatus, WorkflowStatus }} from "@/lib/api/generated";
 
 // =============================================================================
 // Types
 // =============================================================================
 
-export type StatusCategory = "waiting" | "running" | "completed" | "failed";
+export type StatusCategory = "waiting" | "pending" | "running" | "completed" | "failed" | "unknown";
 
 export interface TaskStatusMetadata {{
   category: StatusCategory;

@@ -82,6 +82,7 @@ filegroup(
     name = "resource_validator_image_layers",
     srcs = [
         ":resource_validator_layer_default",
+        ":resource_validator_layer_interpreter",
         ":resource_validator_layer_packages",
         ":resource_validator_wrapper",
     ],
@@ -210,6 +211,7 @@ filegroup(
     name = "lfs_validator_image_layers",
     srcs = [
         ":lfs_validator_layer_default",
+        ":lfs_validator_layer_interpreter",
         ":lfs_validator_layer_packages",
         ":lfs_validator_wrapper",
     ],
@@ -342,6 +344,7 @@ filegroup(
     name = "connection_validator_image_layers",
     srcs = [
         ":connection_validator_layer_default",
+        ":connection_validator_layer_interpreter",
         ":connection_validator_layer_packages",
         ":connection_validator_wrapper",
     ],

@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{/*
+  6.0 → 6.2 upgrade validation.
+  Detects deprecated values that would silently break authentication and
+  fails with actionable migration instructions.
+*/}}
+
+{{- if and (hasKey .Values.sidecars.envoy "oauth2Filter") .Values.sidecars.envoy.oauth2Filter.enabled }}
+{{- fail `
+================================================================================
+BREAKING CHANGE: sidecars.envoy.oauth2Filter has been removed in OSMO 6.2.
+
+The Envoy-native OAuth2 filter has been replaced by the oauth2-proxy sidecar.
+Your deployment will have NO authentication until you migrate.
+
+Required actions:
+  1. Remove the entire sidecars.envoy.oauth2Filter block
+  2. Remove sidecars.envoy.secretPaths.hmacSecret (no longer needed)
+  3. Move sidecars.envoy.secretPaths.clientSecret → sidecars.oauth2Proxy.secretPaths.clientSecret
+  4. Configure sidecars.oauth2Proxy (oidcIssuerUrl, clientId, cookieDomain)
+  5. Update your IdP redirect URI to https://<hostname>/oauth2/callback
+
+See: deployments/upgrades/6_0_to_6_2_upgrade.md#authentication-changes
+================================================================================
+` }}
+{{- end }}
+
+{{- range .Values.sidecars.envoy.jwt.providers }}
+{{- if eq (toString .cluster) "oauth" }}
+{{- fail `
+================================================================================
+BREAKING CHANGE: JWT provider cluster "oauth" no longer exists in OSMO 6.2.
+
+The "oauth" cluster has been replaced by "idp". JWT validation will fail for
+any provider still referencing the old cluster name.
+
+Required actions:
+  1. Change cluster: oauth → cluster: idp in all JWT providers
+  2. Add sidecars.envoy.idp.host with your IdP hostname
+
+See: deployments/upgrades/6_0_to_6_2_upgrade.md#step-2-configure-the-idp-cluster-and-jwt-providers
+================================================================================
+` }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.sidecars.envoy.useKubernetesSecrets }}
+{{- fail `
+================================================================================
+BREAKING CHANGE: sidecars.envoy.useKubernetesSecrets has moved in OSMO 6.2.
+
+This field now lives under sidecars.oauth2Proxy.useKubernetesSecrets.
+
+Required actions:
+  1. Remove sidecars.envoy.useKubernetesSecrets
+  2. Set sidecars.oauth2Proxy.useKubernetesSecrets: true
+  3. Configure sidecars.oauth2Proxy.secretName with your secret name
+
+See: deployments/upgrades/6_0_to_6_2_upgrade.md#step-3-add-oauth2proxy-sidecar
+================================================================================
+` }}
+{{- end }}

@@ -23,19 +23,31 @@
 "use client";
 
 import { Fragment } from "react";
-import { Tag } from "lucide-react";
+import { Tag, Copy, Check } from "lucide-react";
 import { Card, CardContent } from "@/components/shadcn/card";
+import { Button } from "@/components/shadcn/button";
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeSuccinct } from "@/lib/format-date";
-import type { Dataset } from "@/lib/api/adapter/datasets";
+import { useCopy } from "@/hooks/use-copy";
+import type { Dataset, DatasetVersion } from "@/lib/api/adapter/datasets";
 
 interface DatasetPanelDetailsProps {
   dataset: Dataset;
+  /** When provided, version-specific fields (size, date, created_by, path) reflect this version */
+  activeVersion?: DatasetVersion | null;
 }
 
-export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
-  const sizeGib = dataset.size_bytes / 1024 ** 3;
-  const hasLabels = dataset.labels && Object.keys(dataset.labels).length > 0;
+const DETAIL_GRID_CLASS =
+  "grid grid-cols-[7rem_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm [&>*:nth-child(even)]:min-w-0 [&>*:nth-child(even)]:break-all";
+
+export function DatasetPanelDetails({ dataset, activeVersion }: DatasetPanelDetailsProps) {
+  const sizeBytes = activeVersion ? activeVersion.size : dataset.size_bytes;
+  const sizeGib = sizeBytes / 1024 ** 3;
+  const displayVersion = activeVersion ? parseInt(activeVersion.version, 10) : dataset.version;
+  const createdAt = activeVersion?.created_date ?? dataset.created_at;
+  const createdBy = activeVersion?.created_by ?? dataset.created_by;
+  const displayPath = activeVersion?.uri ?? dataset.path;
+  const { copied, copy } = useCopy();
 
   return (
     <section>
@@ -45,37 +57,53 @@ export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
         <CardContent className="divide-border divide-y p-0">
           {/* Core metadata grid */}
           <div className="p-3">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+            <div className={DETAIL_GRID_CLASS}>
               <span className="text-muted-foreground">Bucket</span>
-              <span className="truncate text-right">{dataset.bucket}</span>
+              <span>{dataset.bucket}</span>
 
-              {dataset.version !== undefined && dataset.version > 0 && (
+              {displayVersion !== undefined && displayVersion > 0 && (
                 <>
                   <span className="text-muted-foreground">Version</span>
-                  <span className="text-right">v{dataset.version}</span>
+                  <span>v{displayVersion}</span>
                 </>
               )}
 
               <span className="text-muted-foreground">Size</span>
-              <span className="text-right">{formatBytes(sizeGib).display}</span>
+              <span>{formatBytes(sizeGib).display}</span>
 
               <span className="text-muted-foreground">Created</span>
-              <span className="text-right">{formatDateTimeSuccinct(dataset.created_at)}</span>
+              <span>{formatDateTimeSuccinct(createdAt)}</span>
 
-              <span className="text-muted-foreground">Updated</span>
-              <span className="text-right">{formatDateTimeSuccinct(dataset.updated_at)}</span>
-
-              {dataset.created_by && (
+              {/* Updated is entity-level; hide when viewing a specific version (versions are immutable) */}
+              {!activeVersion && (
                 <>
-                  <span className="text-muted-foreground">Created by</span>
-                  <span className="truncate text-right">{dataset.created_by}</span>
+                  <span className="text-muted-foreground">Updated</span>
+                  <span>{formatDateTimeSuccinct(dataset.updated_at)}</span>
                 </>
               )}
 
-              {dataset.path && (
+              {createdBy && (
+                <>
+                  <span className="text-muted-foreground">Created by</span>
+                  <span>{createdBy}</span>
+                </>
+              )}
+
+              {displayPath && (
                 <>
                   <span className="text-muted-foreground">Path</span>
-                  <span className="truncate text-right font-mono text-xs">{dataset.path}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="min-w-0 font-mono text-xs break-all">{displayPath}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-foreground size-5 shrink-0"
+                      onClick={() => void copy(displayPath)}
+                      aria-label="Copy path"
+                    >
+                      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+                    </Button>
+                  </div>
                 </>
               )}
             </div>
@@ -87,12 +115,12 @@ export function DatasetPanelDetails({ dataset }: DatasetPanelDetailsProps) {
               <Tag className="size-3" />
               Labels
             </div>
-            {hasLabels ? (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-                {Object.entries(dataset.labels!).map(([key, value]) => (
+            {dataset.labels && Object.keys(dataset.labels).length > 0 ? (
+              <div className={DETAIL_GRID_CLASS}>
+                {Object.entries(dataset.labels).map(([key, value]) => (
                   <Fragment key={key}>
-                    <span className="text-muted-foreground truncate">{key}</span>
-                    <span className="truncate text-right">{value}</span>
+                    <span className="text-muted-foreground">{key}</span>
+                    <span>{value}</span>
                   </Fragment>
                 ))}
               </div>

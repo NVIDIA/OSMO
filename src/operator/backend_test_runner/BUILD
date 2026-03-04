@@ -64,6 +64,7 @@ filegroup(
     name = "backend_test_runner_image_layers",
     srcs = [
         ":backend_test_runner_layer_default",
+        ":backend_test_runner_layer_interpreter",
         ":backend_test_runner_layer_packages",
         ":backend_test_runner_wrapper",
     ],

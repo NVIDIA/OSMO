@@ -1,5 +1,5 @@
 
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -335,25 +335,18 @@ services:
     ##
     livenessProbe:
       httpGet:
-        path: /
+        path: /health
         port: 8000
       failureThreshold: 2
       periodSeconds: 5
       timeoutSeconds: 3
-    # tcpSocket:
-    #   port: 8000
-    # exec:
-    #   command:
-    #   - /bin/sh
-    #   - -c
-    #   - "curl -f http://localhost:8000/ || exit 1"
 
     ## Startup probe configuration
     ## Leave empty to use the default hardcoded probe
     ##
     startupProbe:
       httpGet:
-        path: /
+        path: /health
         port: 8000
       failureThreshold: 6
       periodSeconds: 5
@@ -365,7 +358,7 @@ services:
     ##
     readinessProbe:
       httpGet:
-        path: /
+        path: /health
         port: 8000
       failureThreshold: 2
       timeoutSeconds: 3
@@ -378,15 +371,6 @@ sidecars:
   ## Envoy proxy sidecar configuration
   ##
   envoy:
-    ## Use Kubernetes secrets for Envoy credentials
-    ## Set to false when managing secrets with custom secrets management solution
-    ##
-    useKubernetesSecrets: false
-
-    ## Secret file paths (legacy, kept for backward compatibility)
-    ##
-    secretPaths:
-      clientSecret: /etc/envoy/secrets/client_secret
     ## Enable Envoy proxy sidecar container
     ##
     enabled: true
@@ -506,11 +490,6 @@ sidecars:
       ## Service address for upstream cluster
       ##
       address: 127.0.0.1
-
-    ## OAuth2 authentication filter configuration (DEPRECATED - use sidecars.oauth2Proxy instead)
-    ##
-    oauth2Filter:
-      enabled: false
 
     ## SSL configuration
     ##
@@ -634,6 +613,15 @@ sidecars:
     secretPaths:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
+
+    ## OIDC end session endpoint URL for federated logout.
+    ## When set, Envoy exposes /signout which redirects the browser to
+    ## /oauth2/sign_out?rd=<oidcEndSessionUrl>, clearing both the local session cookie
+    ## and the IdP's SSO session. Requires --whitelist-domain=<idp-domain> in extraArgs.
+    ## Example (Azure AD): https://login.microsoftonline.com/<tenant>/oauth2/v2.0/logout
+    ## Example (Keycloak): https://<host>/realms/<realm>/protocol/openid-connect/logout
+    ##
+    oidcEndSessionUrl: ""
 
     ## Additional arguments passed to oauth2-proxy
     ##

@@ -189,7 +189,7 @@
      Animation Timing Tokens
      These are the source of truth for all animation durations.
      TypeScript constants should reference these values in comments.
-     
+
      Mapping to existing constants:
        --duration-fast (75ms)     → dag transitions
        --duration-quick (100ms)   → row-fade-in animation

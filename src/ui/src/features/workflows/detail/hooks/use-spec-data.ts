@@ -51,7 +51,7 @@ export interface UseSpecDataReturn {
   /** Whether spec is not available (404) */
   isNotFound: boolean;
   /** Refetch current view */
-  refetch: () => void;
+  refetch: () => Promise<{ status: "error" | "success" | "pending" }>;
 }
 
 // =============================================================================

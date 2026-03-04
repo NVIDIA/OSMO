@@ -179,6 +179,7 @@ describe("tag field", () => {
 describe("STATUS_PRESETS", () => {
   it("contains expected preset categories", () => {
     expect(STATUS_PRESETS).toHaveProperty("running");
+    expect(STATUS_PRESETS).toHaveProperty("pending");
     expect(STATUS_PRESETS).toHaveProperty("waiting");
     expect(STATUS_PRESETS).toHaveProperty("completed");
     expect(STATUS_PRESETS).toHaveProperty("failed");
@@ -188,8 +189,11 @@ describe("STATUS_PRESETS", () => {
     expect(STATUS_PRESETS.running).toContain("RUNNING");
   });
 
-  it("waiting preset contains PENDING and WAITING", () => {
-    expect(STATUS_PRESETS.waiting).toContain("PENDING");
+  it("pending preset contains PENDING", () => {
+    expect(STATUS_PRESETS.pending).toContain("PENDING");
+  });
+
+  it("waiting preset contains WAITING", () => {
     expect(STATUS_PRESETS.waiting).toContain("WAITING");
   });
 
@@ -214,12 +218,20 @@ describe("createPresetChips", () => {
     expect(chips[0].value).toBe("RUNNING");
   });
 
+  it("creates chips for pending preset", () => {
+    const chips = createPresetChips("pending");
+
+    expect(chips).toHaveLength(1);
+    expect(chips[0].field).toBe("status");
+    expect(chips[0].value).toBe("PENDING");
+  });
+
   it("creates chips for waiting preset", () => {
     const chips = createPresetChips("waiting");
 
-    expect(chips).toHaveLength(2);
-    expect(chips.map((c) => c.value)).toContain("PENDING");
-    expect(chips.map((c) => c.value)).toContain("WAITING");
+    expect(chips).toHaveLength(1);
+    expect(chips[0].field).toBe("status");
+    expect(chips[0].value).toBe("WAITING");
   });
 
   it("creates chips for failed preset with all failure statuses", () => {

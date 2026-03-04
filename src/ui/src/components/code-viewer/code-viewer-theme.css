@@ -55,6 +55,13 @@
   }
 }
 
+/* ── Focus outline ─────────────────────────────────────────────── */
+/* CodeMirror's base theme adds outline: 1px dotted #212121 on focus.
+   Remove it — we rely on the editor's own cursor/active-line feedback. */
+.cm-editor.cm-focused {
+  outline: none;
+}
+
 /* ── Selection ─────────────────────────────────────────────────── */
 .cm-editor.cm-focused .cm-selectionBackground,
 .cm-editor .cm-selectionBackground,

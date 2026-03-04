@@ -48,8 +48,8 @@ export const fetchResources = cache(async (): Promise<AllResourcesResponse> => {
   const { getResourcesApiResourcesGet } = await import("../generated");
   const { transformAllResourcesResponse } = await import("../adapter/transforms");
 
-  const rawData = await getResourcesApiResourcesGet({ all_pools: true });
-  return transformAllResourcesResponse(rawData);
+  const response = await getResourcesApiResourcesGet({ all_pools: true });
+  return transformAllResourcesResponse(response.data);
 });
 
 /**
@@ -65,11 +65,11 @@ export const fetchResourcesByPool = cache(async (poolName: string): Promise<Pool
   const { getResourcesApiResourcesGet } = await import("../generated");
   const { transformResourcesResponse } = await import("../adapter/transforms");
 
-  const rawData = await getResourcesApiResourcesGet({
+  const response = await getResourcesApiResourcesGet({
     pools: [poolName],
     all_pools: false,
   });
-  return transformResourcesResponse(rawData, poolName);
+  return transformResourcesResponse(response.data, poolName);
 });
 
 // =============================================================================

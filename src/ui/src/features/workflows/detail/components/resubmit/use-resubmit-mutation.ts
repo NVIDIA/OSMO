@@ -14,90 +14,56 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * useResubmitMutation - Wraps the resubmitWorkflow server action with
- * async state management, error/success state, and screen reader announcements.
- *
- * Unlike useServerMutation, passes result data (new workflow name) to onSuccess.
- */
-
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
 import { useServices } from "@/contexts/service-context";
-import { resubmitWorkflow, type ResubmitParams, type ResubmitResult } from "@/features/workflows/list/lib/actions";
+import { resubmitWorkflow, type ResubmitParams } from "@/features/workflows/list/lib/actions";
 
 export interface UseResubmitMutationOptions {
   /** Called on successful resubmission with the new workflow name */
   onSuccess?: (newWorkflowName: string | undefined) => void;
-  /** Called on mutation error */
-  onError?: (error: string) => void;
 }
 
 export interface UseResubmitMutationReturn {
-  /** Execute the resubmit server action */
   execute: (params: ResubmitParams) => Promise<void>;
-  /** Whether the mutation is in flight */
   isPending: boolean;
-  /** Last error message, if any */
   error: string | null;
-  /** Last successful result, if any */
-  result: ResubmitResult | null;
-  /** Reset error state */
-  resetError: () => void;
 }
 
 export function useResubmitMutation(options: UseResubmitMutationOptions = {}): UseResubmitMutationReturn {
-  const { onSuccess, onError } = options;
+  const { onSuccess } = options;
 
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<ResubmitResult | null>(null);
   const { announcer } = useServices();
 
   const execute = useCallback(
     async (params: ResubmitParams) => {
       setError(null);
-      setResult(null);
       setIsPending(true);
 
       try {
         const actionResult = await resubmitWorkflow(params);
 
         if (actionResult.success) {
-          setResult(actionResult);
           announcer.announce("Workflow submitted successfully", "polite");
           onSuccess?.(actionResult.newWorkflowName);
         } else {
           const errorMsg = actionResult.error ?? "Unknown error";
           setError(errorMsg);
-          onError?.(errorMsg);
           announcer.announce(`Failed to resubmit workflow: ${errorMsg}`, "assertive");
         }
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Unexpected error";
         setError(errorMsg);
-        onError?.(errorMsg);
         announcer.announce(`Failed to resubmit workflow: ${errorMsg}`, "assertive");
       } finally {
         setIsPending(false);
       }
     },
-    [onSuccess, onError, announcer],
+    [onSuccess, announcer],
   );
 
-  const resetError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  return useMemo(
-    () => ({
-      execute,
-      isPending,
-      error,
-      result,
-      resetError,
-    }),
-    [execute, isPending, error, result, resetError],
-  );
+  return useMemo(() => ({ execute, isPending, error }), [execute, isPending, error]);
 }

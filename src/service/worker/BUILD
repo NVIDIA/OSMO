@@ -70,6 +70,7 @@ filegroup(
     name = "worker_image_layers",
     srcs = [
         ":worker_layer_default",
+        ":worker_layer_interpreter",
         ":worker_layer_packages",
         ":worker_wrapper",
     ],

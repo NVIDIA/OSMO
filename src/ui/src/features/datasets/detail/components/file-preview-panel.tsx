@@ -18,32 +18,41 @@
  * FilePreviewPanel — Preview panel for a dataset file.
  *
  * Performs a HEAD preflight (via server proxy) to check content-type and access
- * before rendering. All file requests are routed through /api/datasets/file-proxy
+ * before rendering. All file requests are routed through /proxy/dataset/file
  * to avoid CSP restrictions.
  *
  * - image/* → <img> via proxy
  * - video/* → <video controls> via proxy
- * - other  → "preview unavailable" with copy-path hint
- * - 401/403 → lock icon + "bucket must be public" error + copy-path button
- * - 404    → "file not found" error + copy-path button
+ * - other  → "preview unavailable" message
+ * - 401/403 → lock icon + "bucket must be public" error
+ * - 404    → "file not found" error
  * - No URL → metadata-only view
  */
 
 "use client";
 
-import { useCallback, memo } from "react";
+import { memo } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, AlertCircle, RefreshCw, Lock } from "lucide-react";
-import { PanelHeader, PanelTitle } from "@/components/panel/panel-header";
-import { PanelHeaderActions } from "@/components/panel/panel-header-controls";
+import { AlertCircle, RefreshCw, Lock, X } from "lucide-react";
+import { PanelTitle } from "@/components/panel/panel-header";
+import { PanelHeaderContainer } from "@/components/panel/panel-header-controls";
 import { Button } from "@/components/shadcn/button";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatBytes } from "@/lib/utils";
 import { formatDateTimeFull } from "@/lib/format-date";
-import { useCopy } from "@/hooks/use-copy";
+import { getBasePathUrl } from "@/lib/config";
+import { CopyButton } from "@/components/copyable-value";
+import { MidTruncate } from "@/components/mid-truncate";
+import { CodeViewerSkeleton } from "@/components/code-viewer/code-viewer-skeleton";
+import { getLanguageForContentType } from "@/components/code-viewer/lib/languages";
 import type { DatasetFile } from "@/lib/api/adapter/datasets";
+
+const CodeMirror = dynamic(
+  () => import("@/components/code-viewer/code-mirror").then((m) => ({ default: m.CodeMirror })),
+  { ssr: false, loading: () => <CodeViewerSkeleton className="absolute inset-0" /> },
+);
 
 // =============================================================================
 // Types
@@ -66,7 +75,7 @@ interface HeadResult {
 // =============================================================================
 
 function toProxyUrl(url: string): string {
-  return `/api/datasets/file-proxy?url=${encodeURIComponent(url)}`;
+  return getBasePathUrl(`/proxy/dataset/file?url=${encodeURIComponent(url)}`);
 }
 
 async function fetchHeadResult(url: string): Promise<HeadResult> {
@@ -76,12 +85,31 @@ async function fetchHeadResult(url: string): Promise<HeadResult> {
 }
 
 // =============================================================================
+// File-type helpers — content-type first, extension fallback
+// =============================================================================
+
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "avif", "bmp", "ico", "tiff", "tif"]);
+const VIDEO_EXTS = new Set(["mp4", "webm", "mov", "avi", "mkv", "ogg", "m4v", "3gp"]);
+
+function getExtension(fileName: string): string {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function isImageType(contentType: string, fileName: string): boolean {
+  return contentType.startsWith("image/") || IMAGE_EXTS.has(getExtension(fileName));
+}
+
+function isVideoType(contentType: string, fileName: string): boolean {
+  return contentType.startsWith("video/") || VIDEO_EXTS.has(getExtension(fileName));
+}
+
+// =============================================================================
 // Sub-components
 // =============================================================================
 
 function MetadataRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-2 text-xs">
+    <div className="flex gap-3 text-xs">
       <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">{label}</span>
       <span className="min-w-0 font-mono break-all text-zinc-700 dark:text-zinc-300">{value}</span>
     </div>
@@ -92,16 +120,10 @@ function PreviewError({
   message,
   icon = "alert",
   onRetry,
-  onCopyPath,
-  copyPath,
-  copied = false,
 }: {
   message: string;
   icon?: "alert" | "lock";
   onRetry?: () => void;
-  onCopyPath?: () => void;
-  copyPath?: string;
-  copied?: boolean;
 }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
@@ -117,26 +139,6 @@ function PreviewError({
         />
       )}
       <p className="max-w-xs text-sm text-zinc-600 dark:text-zinc-400">{message}</p>
-      {onCopyPath && copyPath && (
-        <Tooltip open={copied}>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={onCopyPath}
-              className="gap-1.5"
-              aria-label={`Copy path: ${copyPath}`}
-            >
-              <Copy
-                className="size-3.5"
-                aria-hidden="true"
-              />
-              Copy path
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Copied!</TooltipContent>
-        </Tooltip>
-      )}
       {onRetry && (
         <Button
           variant="outline"
@@ -161,7 +163,7 @@ async function fetchTextContent(url: string): Promise<string> {
   return response.text();
 }
 
-function TextPreview({ url, contentType }: { url: string; contentType: string }) {
+function TextPreview({ url, contentType, fileName }: { url: string; contentType: string; fileName: string }) {
   const {
     data: text,
     isLoading,
@@ -174,6 +176,8 @@ function TextPreview({ url, contentType }: { url: string; contentType: string })
     retry: false,
   });
 
+  const language = getLanguageForContentType(contentType, fileName);
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -184,46 +188,29 @@ function TextPreview({ url, contentType }: { url: string; contentType: string })
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-        <AlertCircle
-          className="size-8 text-zinc-400"
-          aria-hidden="true"
-        />
-        <p className="text-sm text-zinc-600 dark:text-zinc-400">Failed to load file content.</p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void refetch()}
-          className="gap-1.5"
-        >
-          <RefreshCw
-            className="size-3.5"
-            aria-hidden="true"
-          />
-          Retry
-        </Button>
-      </div>
+      <PreviewError
+        message="Failed to load file content."
+        onRetry={() => void refetch()}
+      />
     );
   }
 
-  // Detect CSV for tabular rendering hint; otherwise plain text
-  const isCsv = contentType.includes("csv") || url.toLowerCase().includes(".csv");
-
   return (
-    <div className="min-h-0 flex-1 overflow-auto p-4">
-      <pre
-        className={`font-mono text-xs break-all whitespace-pre-wrap text-zinc-700 dark:text-zinc-300 ${isCsv ? "leading-5" : ""}`}
-      >
-        {text}
-      </pre>
+    <div className="relative min-h-0 flex-1 overflow-hidden">
+      <CodeMirror
+        value={text ?? ""}
+        language={language}
+        readOnly
+        className="absolute inset-0"
+      />
     </div>
   );
 }
 
-function PreviewContent({ url, contentType }: { url: string; contentType: string }) {
+function PreviewContent({ url, contentType, fileName }: { url: string; contentType: string; fileName: string }) {
   const proxyUrl = toProxyUrl(url);
 
-  if (contentType.startsWith("image/")) {
+  if (isImageType(contentType, fileName)) {
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
         <Image
@@ -240,23 +227,35 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
     );
   }
 
-  if (contentType.startsWith("video/")) {
+  if (isVideoType(contentType, fileName)) {
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
         <video
+          key={proxyUrl}
           src={proxyUrl}
           controls
+          autoPlay
+          loop
           className="max-h-full max-w-full rounded"
         />
       </div>
     );
   }
 
-  if (contentType.startsWith("text/")) {
+  if (
+    contentType.startsWith("text/") ||
+    contentType.includes("json") ||
+    contentType.includes("xml") ||
+    contentType.includes("yaml") ||
+    contentType.startsWith("application/javascript") ||
+    contentType.startsWith("application/x-sh") ||
+    contentType.startsWith("application/x-python")
+  ) {
     return (
       <TextPreview
         url={proxyUrl}
         contentType={contentType}
+        fileName={fileName}
       />
     );
   }
@@ -271,16 +270,41 @@ function PreviewContent({ url, contentType }: { url: string; contentType: string
 }
 
 // =============================================================================
+// Preview state — discriminated union replaces parallel boolean guards
+// =============================================================================
+
+type PreviewState =
+  | { kind: "no-url" }
+  | { kind: "loading" }
+  | { kind: "error"; retry: () => void }
+  | { kind: "denied" }
+  | { kind: "not-found" }
+  | { kind: "ready"; url: string; contentType: string };
+
+function resolvePreviewState(
+  url: string | undefined,
+  isLoading: boolean,
+  error: unknown,
+  head: HeadResult | undefined,
+  retry: () => void,
+): PreviewState {
+  if (!url) return { kind: "no-url" };
+  if (isLoading) return { kind: "loading" };
+  if (error) return { kind: "error", retry };
+  if (!head) return { kind: "loading" };
+  if (head.status === 401 || head.status === 403) return { kind: "denied" };
+  if (head.status === 404) return { kind: "not-found" };
+  if (head.status === 200) return { kind: "ready", url, contentType: head.contentType };
+  // Unexpected status (e.g. 500) — treat as retriable error
+  return { kind: "error", retry };
+}
+
+// =============================================================================
 // Main component
 // =============================================================================
 
 export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
-  const { copied, copy } = useCopy();
-  const fullPath = path ? `${path}/${file.name}` : file.name;
-
-  const handleCopyPath = useCallback(() => {
-    void copy(fullPath);
-  }, [copy, fullPath]);
+  const relativePath = file.relativePath ?? (path ? `${path}/${file.name}` : file.name);
 
   // HEAD preflight — only when we have a URL to check
   const {
@@ -296,117 +320,112 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
     retry: false,
   });
 
-  // Derive preview state
-  const showPreview = !!file.url;
-  const accessDenied = head && (head.status === 401 || head.status === 403);
-  const notFound = head && head.status === 404;
-  const previewReady = head && head.status === 200;
+  const previewState = resolvePreviewState(file.url, headLoading, headError, head, () => void refetch());
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Sticky header */}
-      <PanelHeader
-        title={<PanelTitle>{file.name}</PanelTitle>}
-        actions={
-          <div className="flex items-center gap-1">
-            <Tooltip open={copied}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  onClick={handleCopyPath}
-                  aria-label={`Copy path: ${fullPath}`}
-                >
-                  <Copy
-                    className="size-3.5"
-                    aria-hidden="true"
-                  />
-                  Copy path
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Copied!</TooltipContent>
-            </Tooltip>
-            <PanelHeaderActions
-              badge="File"
-              onClose={onClose}
-            />
+      <PanelHeaderContainer className="py-2.5">
+        <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <PanelTitle className="text-sm font-medium">{file.name}</PanelTitle>
           </div>
-        }
-      />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-0 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            aria-label="Close panel"
+          >
+            <X
+              className="size-4"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+      </PanelHeaderContainer>
 
       {/* Preview area */}
       <div className="flex min-h-0 flex-1 flex-col">
-        {showPreview && headLoading && (
-          <div className="flex flex-1 items-center justify-center p-8">
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
-
-        {showPreview && headError && (
-          <PreviewError
-            message="Could not reach the file. Check your network connection."
-            onRetry={() => void refetch()}
-          />
-        )}
-
-        {showPreview && accessDenied && (
-          <PreviewError
-            icon="lock"
-            message="The bucket must be public to preview files. Contact your administrator to enable public access."
-            onCopyPath={handleCopyPath}
-            copyPath={fullPath}
-            copied={copied}
-          />
-        )}
-
-        {showPreview && notFound && (
-          <PreviewError
-            message="File not found at this path."
-            onCopyPath={handleCopyPath}
-            copyPath={fullPath}
-            copied={copied}
-          />
-        )}
-
-        {showPreview && previewReady && (
-          <PreviewContent
-            url={file.url!}
-            contentType={head.contentType}
-          />
-        )}
-
-        {!showPreview && (
+        {previewState.kind === "no-url" && (
           <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">No preview URL available for this file.</p>
             <p className="text-xs text-zinc-400 dark:text-zinc-600">Copy the path to access it directly.</p>
           </div>
         )}
+        {previewState.kind === "loading" && (
+          <div className="flex flex-1 items-center justify-center p-8">
+            <Skeleton className="h-40 w-full" />
+          </div>
+        )}
+        {previewState.kind === "error" && (
+          <PreviewError
+            message="Could not reach the file. Check your network connection."
+            onRetry={previewState.retry}
+          />
+        )}
+        {previewState.kind === "denied" && (
+          <PreviewError
+            icon="lock"
+            message="The bucket must be public to preview files. Contact your administrator to enable public access."
+          />
+        )}
+        {previewState.kind === "not-found" && <PreviewError message="File not found at this path." />}
+        {previewState.kind === "ready" && (
+          <PreviewContent
+            url={previewState.url}
+            contentType={previewState.contentType}
+            fileName={file.name}
+          />
+        )}
       </div>
 
-      {/* Metadata footer */}
-      {(file.size !== undefined || file.modified || file.checksum) && (
-        <div className="shrink-0 space-y-1.5 border-t border-zinc-200 p-4 dark:border-zinc-800">
-          {file.size !== undefined && (
-            <MetadataRow
-              label="Size"
-              value={formatBytes(file.size / 1024 ** 3).display}
-            />
-          )}
-          {file.modified && (
-            <MetadataRow
-              label="Modified"
-              value={formatDateTimeFull(file.modified)}
-            />
-          )}
-          {file.checksum && (
-            <MetadataRow
-              label="Checksum"
-              value={file.checksum}
-            />
-          )}
+      {/* Footer: metadata */}
+      <div className="shrink-0 space-y-1.5 border-t border-zinc-200 px-4 py-2.5 dark:border-zinc-800">
+        <div className="flex gap-3 text-xs">
+          <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">Dataset Path</span>
+          <MidTruncate
+            text={relativePath}
+            className="flex-1 font-mono text-zinc-700 dark:text-zinc-300"
+          />
+          <CopyButton
+            value={relativePath}
+            label="dataset path"
+            className="ml-0 self-start"
+          />
         </div>
-      )}
+        {file.storagePath && (
+          <div className="flex gap-3 text-xs">
+            <span className="w-20 shrink-0 text-zinc-500 dark:text-zinc-400">Storage Path</span>
+            <MidTruncate
+              text={file.storagePath}
+              className="flex-1 font-mono text-zinc-700 dark:text-zinc-300"
+            />
+            <CopyButton
+              value={file.storagePath}
+              label="storage path"
+              className="ml-0 self-start"
+            />
+          </div>
+        )}
+        {file.size !== undefined && (
+          <MetadataRow
+            label="Size"
+            value={formatBytes(file.size / 1024 ** 3).display}
+          />
+        )}
+        {file.modified && (
+          <MetadataRow
+            label="Modified"
+            value={formatDateTimeFull(file.modified)}
+          />
+        )}
+        {file.checksum && (
+          <MetadataRow
+            label="Checksum"
+            value={file.checksum}
+          />
+        )}
+      </div>
     </div>
   );
 });

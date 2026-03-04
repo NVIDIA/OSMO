@@ -19,9 +19,6 @@
  *
  * Converts UI filter state (SearchChips) to backend API parameters.
  * The backend supports full server-side filtering and pagination.
- *
- * NOTE: Contains workaround for backend bug where `more_entries` is always false.
- * See BACKEND_TODOS.md Issue #14 for details.
  */
 
 import type { SearchChip } from "@/stores/types";
@@ -159,14 +156,11 @@ export async function fetchPaginatedWorkflows(
   );
 
   // Fetch from API
-  const rawData = await listWorkflowApiWorkflowGet(apiParams);
-  const parsed = parseWorkflowsResponse(rawData);
+  const response = await listWorkflowApiWorkflowGet(apiParams);
+  const parsed = parseWorkflowsResponse(response.data);
   const workflows = parsed?.workflows ?? [];
 
-  // WORKAROUND: Backend more_entries is always false due to bug (Issue #14)
-  // Infer hasMore from item count: if we got exactly limit items, likely more exist
-  // See BACKEND_TODOS.md Issue #14 for details
-  const hasMore = workflows.length === limit;
+  const hasMore = parsed?.more_entries ?? false;
 
   return {
     items: workflows,

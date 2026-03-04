@@ -233,6 +233,17 @@ variable "redis_capacity" {
   default     = 1
 }
 
+variable "redis_version" {
+  description = "Redis version (must be 7 or higher)"
+  type        = string
+  default     = "7"
+
+  validation {
+    condition     = tonumber(var.redis_version) >= 7
+    error_message = "Redis version must be 7 or higher."
+  }
+}
+
 # Log Analytics Variables
 variable "log_analytics_sku" {
   description = "The SKU of the Log Analytics Workspace"
