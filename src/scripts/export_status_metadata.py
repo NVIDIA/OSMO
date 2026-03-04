@@ -122,21 +122,22 @@ def get_workflow_status_category(status: WorkflowStatus) -> StatusCategory:
 def _ts_value(value: object) -> str:
     """Convert a Python value to its TypeScript literal representation."""
     if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, str):
+        return 'true' if value else 'false'
+    elif isinstance(value, str):
         return f'"{value}"'
-    return str(value)
+    else:
+        return str(value)
 
 
 def format_metadata_entries(metadata: dict[str, dict[str, object]]) -> str:
     """Format a metadata dict as TypeScript object entries with Prettier-style formatting."""
     lines: list[str] = []
     for status_name, fields in metadata.items():
-        lines.append(f"  {status_name}: {{")
+        lines.append(f'  {status_name}: {{')
         for key, value in fields.items():
-            lines.append(f"    {key}: {_ts_value(value)},")
-        lines.append("  },")
-    return "\n".join(lines)
+            lines.append(f'    {key}: {_ts_value(value)},')
+        lines.append('  },')
+    return '\n'.join(lines)
 
 
 def generate_typescript() -> str:
