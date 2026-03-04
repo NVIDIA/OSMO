@@ -151,16 +151,18 @@ func (f WebsocketConnectionInfo) ReachedTimeout() bool {
 	return time.Since(f.DisconnectStartTime) >= f.Timeout
 }
 
-// ExponentialBackoffWithJitter returns a randomized delay for exponential
-// backoff, uniformly distributed in [0, 2^min(retryCount,5)) seconds.
-// The jitter avoids synchronized retries across multiple clients (thundering herd).
+// ExponentialBackoffWithJitter returns a randomized delay using "equal jitter":
+// uniformly distributed in [backoff/2, backoff) where backoff = 2^min(retryCount,5) seconds.
+// The guaranteed minimum avoids near-zero sleeps while the jitter decorrelates
+// concurrent clients to prevent thundering herd.
 func ExponentialBackoffWithJitter(retryCount int) time.Duration {
 	exponent := common.Min(retryCount, 5)
 	maxDelay := time.Duration(math.Pow(2, float64(exponent))) * time.Second
 	if maxDelay <= 0 {
 		return 0
 	}
-	return time.Duration(rand.Int64N(int64(maxDelay)))
+	halfDelay := maxDelay / 2
+	return halfDelay + time.Duration(rand.Int64N(int64(halfDelay)))
 }
 
 func (f WebsocketConnectionInfo) TimeLeft() time.Duration {
