@@ -32,6 +32,7 @@ Usage (via pnpm from src/ui):
 
 import argparse
 import sys
+from collections.abc import Mapping
 from typing import Literal
 
 from typing_extensions import assert_never
@@ -129,7 +130,7 @@ def _ts_value(value: object) -> str:
         return str(value)
 
 
-def format_metadata_entries(metadata: dict[str, dict[str, object]]) -> str:
+def format_metadata_entries(metadata: Mapping[str, Mapping[str, object]]) -> str:
     """Format a metadata dict as TypeScript object entries with Prettier-style formatting."""
     lines: list[str] = []
     for status_name, fields in metadata.items():
