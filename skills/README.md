@@ -55,10 +55,10 @@ Once installed, the skill activates automatically when the agent detects relevan
 | Category | Example |
 |----------|---------|
 | Resource availability | "What GPUs are available?" |
-| Workflow submission | "Submit workflow.yaml to the fastest available pool" |
+| Workflow submission | "Submit workflow.yaml to available pool" |
 | Monitoring | "What's the status of my last workflow?" |
 | Failure diagnosis | "My workflow failed — figure out why and resubmit" |
-| End-to-end orchestration | "Train GR00T on my data, monitor it, and download results when done" |
+| End-to-end orchestration | "Create a SDG workflow with Issac Sim, submit and monitor it, and download results when done" |
 
 For complex workflows, the skill spawns specialized sub-agents to handle resource selection, YAML generation, submission, monitoring, logs fetching, failure diagnosis, and retries autonomously.
 
