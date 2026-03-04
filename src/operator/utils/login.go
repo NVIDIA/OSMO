@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	osmoAuthHeader = "x-osmo-auth"
+	osmoAuthHeader = "authorization"
 	expireWindow   = 4 * time.Second
 )
 
@@ -78,7 +78,7 @@ func (tc *TokenCredentials) GetRequestMetadata(ctx context.Context, uri ...strin
 			return nil, fmt.Errorf("token refresh failed: %w", err)
 		}
 	}
-	return map[string]string{osmoAuthHeader: tc.idToken}, nil
+	return map[string]string{osmoAuthHeader: "Bearer " + tc.idToken}, nil
 }
 
 // RequireTransportSecurity returns false to allow use with both HTTP and HTTPS.
