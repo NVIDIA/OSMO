@@ -85,8 +85,8 @@ func main() {
 	// Create gRPC server options
 	opts := []grpc.ServerOption{
 		grpc.KeepaliveParams(keepalive.ServerParameters{
-			Time:    60 * time.Second,
-			Timeout: 20 * time.Second,
+			Time:    30 * time.Second,
+			Timeout: 15 * time.Second,
 		}),
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             20 * time.Second,

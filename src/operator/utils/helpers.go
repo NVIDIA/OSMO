@@ -48,8 +48,8 @@ func GetDialOptions(args ListenerArgs) ([]grpc.DialOption, error) {
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(GetTransportCredentials(args.ServiceURL)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                40 * time.Second,
-			Timeout:             20 * time.Second,
+			Time:                30 * time.Second,
+			Timeout:             15 * time.Second,
 			PermitWithoutStream: true,
 		}),
 	}
