@@ -239,6 +239,13 @@ export const QUERY_STALE_TIME = {
 export const QUERY_STALE_TIME_EXPENSIVE_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Default page size for paginated list queries.
+ * Must be kept in sync between server prefetch (prefetchInfiniteQuery) and
+ * client hooks (usePaginatedData) to ensure SSR cache hits.
+ */
+export const DEFAULT_PAGE_SIZE = 50;
+
+/**
  * Auto-refresh interval presets for user-controlled polling.
  * These match the stale time tiers and provide consistent intervals across the UI.
  */

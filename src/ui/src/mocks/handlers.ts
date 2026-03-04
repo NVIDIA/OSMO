@@ -1130,8 +1130,7 @@ export const handlers = [
 
   // List datasets
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  // NOTE: Client-side filtering approach - mock just returns requested count
-  // The adapter handles all filtering and pagination client-side
+  // Implements server-side pagination (offset/count) and filtering (all_users, dataset_type)
   http.get("*/api/bucket/list_dataset", async ({ request }) => {
     await delay(MOCK_DELAY);
 

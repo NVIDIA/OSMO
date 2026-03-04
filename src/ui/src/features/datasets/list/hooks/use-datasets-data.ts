@@ -28,7 +28,6 @@
 
 import { useMemo } from "react";
 import type { SearchChip } from "@/stores/types";
-import type { PaginationParams, PaginatedResponse } from "@/lib/api/pagination/types";
 import { usePaginatedData } from "@/lib/api/pagination/use-paginated-data";
 import {
   fetchPaginatedDatasets,
@@ -37,7 +36,7 @@ import {
   type Dataset,
   type DatasetFilterParams,
 } from "@/lib/api/adapter/datasets";
-import { QUERY_STALE_TIME } from "@/lib/config";
+import { QUERY_STALE_TIME, DEFAULT_PAGE_SIZE } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -84,8 +83,7 @@ export function useDatasetsData({
   showAllUsers: showAllUsersProp = false,
   sortDirection = "DESC",
 }: UseDatasetsDataParams): UseDatasetsDataReturn {
-  const hasUserChips = useMemo(() => searchChips.some((chip) => chip.field === "user"), [searchChips]);
-  const showAllUsers = hasUserChips ? false : showAllUsersProp;
+  const showAllUsers = !searchChips.some((chip) => chip.field === "user") && showAllUsersProp;
 
   const queryKey = useMemo(
     () => buildDatasetsQueryKey(searchChips, showAllUsers, sortDirection),
@@ -104,12 +102,10 @@ export function useDatasetsData({
     refetch,
   } = usePaginatedData<Dataset, DatasetFilterParams>({
     queryKey,
-    queryFn: async (params: PaginationParams & DatasetFilterParams): Promise<PaginatedResponse<Dataset>> => {
-      return fetchPaginatedDatasets(params);
-    },
+    queryFn: fetchPaginatedDatasets,
     params: { searchChips, showAllUsers, sortDirection },
     config: {
-      pageSize: 50,
+      pageSize: DEFAULT_PAGE_SIZE,
       staleTime: QUERY_STALE_TIME.STANDARD,
     },
   });

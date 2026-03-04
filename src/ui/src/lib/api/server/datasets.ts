@@ -26,6 +26,7 @@ import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { SearchChip } from "@/stores/types";
 import { buildDatasetsQueryKey, buildDatasetDetailQueryKey } from "@/lib/api/adapter/datasets";
+import { DEFAULT_PAGE_SIZE } from "@/lib/config";
 
 // =============================================================================
 // Prefetch Functions
@@ -58,7 +59,7 @@ export const prefetchDatasetsList = cache(
       queryFn: async () => {
         return fetchPaginatedDatasets({
           offset: 0,
-          limit: 50,
+          limit: DEFAULT_PAGE_SIZE,
           searchChips: filterChips,
           showAllUsers,
           sortDirection,

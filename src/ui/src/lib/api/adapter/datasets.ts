@@ -48,8 +48,6 @@ export interface Dataset {
   /** Size in bytes (backend may return string, we ensure number) */
   size_bytes: number;
   labels?: Record<string, string>;
-  retention_policy?: string;
-  description?: string;
 }
 
 /**
@@ -206,7 +204,7 @@ function ensureNumber(value: number | string | undefined): number {
  * Transform raw dataset list entry to UI type.
  * The backend API returns DataListEntry which is simpler than our UI needs.
  */
-export function transformDatasetListEntry(raw: DataListEntry): Dataset {
+function transformDatasetListEntry(raw: DataListEntry): Dataset {
   // Parse version from version_id (e.g., "v1" -> 1, "version-2" -> 2)
   let version = 0;
   if (raw.version_id) {
@@ -232,13 +230,10 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
 /**
  * Transform raw dataset list response.
  */
-export function transformDatasetList(raw: DataListResponse): Dataset[] {
+function transformDatasetList(raw: DataListResponse): Dataset[] {
   return raw.datasets.map(transformDatasetListEntry);
 }
 
-/**
- * Transform raw dataset detail response (dataset + versions).
- */
 /**
  * Type guard to check if a version is a DataInfoDatasetEntry (not a collection).
  */
@@ -564,7 +559,7 @@ export function buildDirectoryListing(items: RawFileItem[], path: string): Datas
 export function buildDatasetsQueryKey(
   searchChips: SearchChip[],
   showAllUsers: boolean = false,
-  sortDirection: string = "DESC",
+  sortDirection: "ASC" | "DESC" = "DESC",
 ): readonly unknown[] {
   const buckets = getChipValues(searchChips, "bucket").sort();
   const users = getChipValues(searchChips, "user").sort();
