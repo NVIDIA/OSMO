@@ -146,6 +146,7 @@ export interface PoolsResponse {
 export interface ResourceCapacity {
   used: number;
   total: number;
+  free: number;
 }
 
 /**

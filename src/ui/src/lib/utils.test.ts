@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { cn, formatCompact, formatBytes, formatBytesPair, naturalCompare } from "@/lib/utils";
+import { cn, formatCompact, formatBytes, formatBytesTriple, naturalCompare } from "@/lib/utils";
 
 // =============================================================================
 // naturalCompare (alphanumeric sorting)
@@ -217,12 +217,12 @@ describe("formatBytes", () => {
 });
 
 // =============================================================================
-// formatBytesPair (consistent units for used/total display)
+// formatBytesTriple (consistent units for used/total/free display)
 // =============================================================================
 
-describe("formatBytesPair", () => {
+describe("formatBytesTriple", () => {
   it("uses same unit when both values are in same range", () => {
-    const result = formatBytesPair(64, 256);
+    const result = formatBytesTriple(64, 256, 192);
     expect(result.used).toBe("64");
     expect(result.total).toBe("256");
     expect(result.unit).toBe("Gi");
@@ -230,7 +230,7 @@ describe("formatBytesPair", () => {
 
   it("uses more granular unit when values span ranges", () => {
     // 5 Gi used, 2048 Gi (2 Ti) total → both should be in Gi
-    const result = formatBytesPair(5, 2048);
+    const result = formatBytesTriple(5, 2048, 2043);
     expect(result.used).toBe("5");
     expect(result.total).toBe("2,048"); // Comma for 4 digits
     expect(result.unit).toBe("Gi");
@@ -238,7 +238,7 @@ describe("formatBytesPair", () => {
 
   it("uses Ti when both are large", () => {
     // 1024 Gi (1 Ti) used, 4096 Gi (4 Ti) total
-    const result = formatBytesPair(1024, 4096);
+    const result = formatBytesTriple(1024, 4096, 3072);
     expect(result.used).toBe("1");
     expect(result.total).toBe("4");
     expect(result.unit).toBe("Ti");
@@ -246,21 +246,21 @@ describe("formatBytesPair", () => {
 
   it("uses Mi when used is small", () => {
     // 512 Mi (0.5 Gi) used, 64 Gi total → both in Mi
-    const result = formatBytesPair(0.5, 64);
+    const result = formatBytesTriple(0.5, 64, 63.5);
     expect(result.used).toBe("512");
     expect(result.total).toBe("65,536"); // 64 * 1024 with comma
     expect(result.unit).toBe("Mi");
   });
 
-  it("calculates free correctly in chosen unit", () => {
-    // 64 Gi used, 256 Gi total → 192 Gi free
-    const result = formatBytesPair(64, 256);
+  it("formats free value in chosen unit", () => {
+    // 64 Gi used, 256 Gi total, 192 Gi free
+    const result = formatBytesTriple(64, 256, 192);
     expect(result.freeDisplay).toBe("192 Gi");
   });
 
   it("handles zero used - adopts total's unit", () => {
     // 0 is unitless, so adopt total's unit (Ti)
-    const result = formatBytesPair(0, 1024);
+    const result = formatBytesTriple(0, 1024, 1024);
     expect(result.used).toBe("0");
     expect(result.total).toBe("1");
     expect(result.unit).toBe("Ti");
@@ -268,7 +268,7 @@ describe("formatBytesPair", () => {
   });
 
   it("handles equal used and total", () => {
-    const result = formatBytesPair(64, 64);
+    const result = formatBytesTriple(64, 64, 0);
     expect(result.used).toBe("64");
     expect(result.total).toBe("64");
     expect(result.freeDisplay).toBe("0 Gi");
@@ -276,7 +276,7 @@ describe("formatBytesPair", () => {
 
   it("adds commas for large values", () => {
     // Large values should have commas
-    const result = formatBytesPair(100, 13578);
+    const result = formatBytesTriple(100, 13578, 13478);
     expect(result.used).toBe("100");
     expect(result.total).toBe("13,578"); // Comma for 5 digits
     expect(result.unit).toBe("Gi");
