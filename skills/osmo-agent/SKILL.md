@@ -1,5 +1,5 @@
 ---
-name: osmo
+name: osmo-agent
 description: >
   How to use the OSMO CLI to manage cloud compute resources for robotics development.
   Use this skill whenever the user asks about available resources, nodes, pools, GPUs,
@@ -9,6 +9,12 @@ description: >
   check the status or logs of a running/completed workflow, list or browse recent
   workflow submissions, want to understand what a specific workflow does or is
   configured to do, or want to create an OSMO app from a workflow.
+license: Apache-2.0
+compatibility: >
+  Requires osmo CLI installed and authenticated (osmo login).
+metadata:
+  author: nvidia
+  version: "1.0.0"
 ---
 
 # OSMO CLI Use Cases

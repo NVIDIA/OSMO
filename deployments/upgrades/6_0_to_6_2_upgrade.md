@@ -22,7 +22,7 @@ SPDX-License-Identifier: Apache-2.0
 
 - **New authentication architecture** — oauth2Proxy sidecar + authz sidecar replace the old Envoy-native oauth2Filter
 - **RBAC system** — new database tables for users, roles, and role mappings managed by the authz sidecar
-- **pgroll database migrations** — zero-downtime schema changes via versioned schemas
+- **pgroll database migrations** — automated schema changes
 - **Backend operator tokens must be recreated** — the RBAC migration deletes old `SERVICE` type access tokens; new tokens must be created before upgrading backend deployment charts
 
 ## Before you start
@@ -40,7 +40,7 @@ Depending on your deployment, follow the relevant sections:
 
 ### How pgroll works
 
-OSMO 6.2 uses [pgroll](https://github.com/xataio/pgroll) for zero-downtime database schema migrations. pgroll applies migrations to the `public` schema and optionally creates a versioned schema (e.g., `public_v6_2_0`) containing views over all tables. Services set their PostgreSQL `search_path` to this versioned schema, allowing old and new versions to coexist during a rolling upgrade.
+OSMO 6.2 uses [pgroll](https://github.com/xataio/pgroll) for database schema migrations. pgroll applies migrations directly to the `public` schema.
 
 ### Running migrations
 
@@ -50,7 +50,6 @@ Enable the migration job in the service chart values:
 services:
   migration:
     enabled: true
-    targetSchema: public_v6_2_0
 ```
 
 The migration runs as a Helm pre-upgrade hook before pods are updated. For ArgoCD, add:
@@ -64,14 +63,6 @@ services:
 ```
 
 The database password is read from `OSMO_POSTGRES_PASSWORD` env var, or from the `postgres_password:` field in the file at `OSMO_CONFIG_FILE`.
-
-### Choosing your upgrade path
-
-**Direct upgrade (simpler, requires downtime):**
-Set `targetSchema: public`. Migrations apply directly to the `public` schema. All services must be on 6.2 after the upgrade.
-
-**Versioned schema (zero-downtime):**
-Set `targetSchema: public_v6_2_0`. Both 6.0 and 6.2 services can run simultaneously. The router chart also needs `targetSchema: public_v6_2_0` set at the top level.
 
 The migration script is idempotent — safe to run multiple times.
 

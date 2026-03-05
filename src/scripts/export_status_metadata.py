@@ -31,9 +31,10 @@ Usage (via pnpm from src/ui):
 """
 
 import argparse
-import json
 import sys
+from collections.abc import Mapping
 from typing import Literal
+
 from typing_extensions import assert_never
 
 from src.utils.job.task import TaskGroupStatus
@@ -113,12 +114,31 @@ def get_workflow_status_category(status: WorkflowStatus) -> StatusCategory:
             return 'completed'
         case WorkflowStatus.RUNNING:
             return 'running'
-        case WorkflowStatus.PENDING:
-            return 'pending'
-        case WorkflowStatus.WAITING:
+        case WorkflowStatus.PENDING | WorkflowStatus.WAITING:
             return 'waiting'
         case _ as unreachable:
             assert_never(unreachable)
+
+
+def _ts_value(value: object) -> str:
+    """Convert a Python value to its TypeScript literal representation."""
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    elif isinstance(value, str):
+        return f'"{value}"'
+    else:
+        return str(value)
+
+
+def format_metadata_entries(metadata: Mapping[str, Mapping[str, object]]) -> str:
+    """Format a metadata dict as TypeScript object entries with Prettier-style formatting."""
+    lines: list[str] = []
+    for status_name, fields in metadata.items():
+        lines.append(f'  {status_name}: {{')
+        for key, value in fields.items():
+            lines.append(f'    {key}: {_ts_value(value)},')
+        lines.append('  },')
+    return '\n'.join(lines)
 
 
 def generate_typescript() -> str:
@@ -148,9 +168,8 @@ def generate_typescript() -> str:
             'isFailed': workflow_status.failed(),
         }
 
-    # Format JSON with proper indentation for TypeScript
-    task_json = json.dumps(task_metadata, indent=2)
-    workflow_json = json.dumps(workflow_metadata, indent=2)
+    task_entries = format_metadata_entries(task_metadata)
+    workflow_entries = format_metadata_entries(workflow_metadata)
 
     # pylint: disable=line-too-long
     return f'''// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
@@ -206,9 +225,13 @@ export interface WorkflowStatusMetadata {{
 // Generated Metadata
 // =============================================================================
 
-export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> = {task_json} as const;
+export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> = {{
+{task_entries}
+}} as const;
 
-export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMetadata> = {workflow_json} as const;
+export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMetadata> = {{
+{workflow_entries}
+}} as const;
 
 // =============================================================================
 // Helper Functions (O(1) lookups)
@@ -257,8 +280,7 @@ export function isWorkflowOngoing(status: WorkflowStatus): boolean {{
 /** Check if a workflow status is a failure */
 export function isWorkflowFailed(status: WorkflowStatus): boolean {{
   return WORKFLOW_STATUS_METADATA[status]?.isFailed ?? false;
-}}
-'''
+}}'''
 
 
 def main():

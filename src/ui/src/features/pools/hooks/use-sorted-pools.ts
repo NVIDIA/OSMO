@@ -33,7 +33,7 @@ import { naturalCompare } from "@/lib/utils";
 // Sorting
 // =============================================================================
 
-function sortPools(pools: Pool[], sort: SortState<string> | null, displayMode: "used" | "free"): Pool[] {
+function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
   if (!sort?.column) return pools;
 
   return [...pools].sort((a, b) => {
@@ -49,14 +49,17 @@ function sortPools(pools: Pool[], sort: SortState<string> | null, displayMode: "
         cmp = naturalCompare(a.backend, b.backend);
         break;
       case "quota":
-        // Sort by available (free) or used based on displayMode
-        cmp = displayMode === "free" ? a.quota.free - b.quota.free : a.quota.used - b.quota.used;
+        cmp = a.quota.used - b.quota.used;
+        break;
+      case "quotaFree":
+        cmp = a.quota.free - b.quota.free;
         break;
       case "capacity":
-        // Sort by total available (totalFree) or totalUsage based on displayMode
-        cmp = displayMode === "free" ? a.quota.totalFree - b.quota.totalFree : a.quota.totalUsage - b.quota.totalUsage;
+        cmp = a.quota.totalUsage - b.quota.totalUsage;
         break;
-      // "platforms" and "description" are not sortable - no case needed
+      case "capacityFree":
+        cmp = a.quota.totalFree - b.quota.totalFree;
+        break;
     }
     return sort.direction === "asc" ? cmp : -cmp;
   });
@@ -73,8 +76,6 @@ interface UseSortedPoolsOptions {
   sort: SortState<string> | null;
   /** Sharing groups for building sharing map */
   sharingGroups: string[][];
-  /** Display mode for quota/capacity sorting */
-  displayMode: "used" | "free";
 }
 
 interface UseSortedPoolsResult {
@@ -84,14 +85,9 @@ interface UseSortedPoolsResult {
   sharingMap: Map<string, boolean>;
 }
 
-export function useSortedPools({
-  pools,
-  sort,
-  sharingGroups,
-  displayMode,
-}: UseSortedPoolsOptions): UseSortedPoolsResult {
+export function useSortedPools({ pools, sort, sharingGroups }: UseSortedPoolsOptions): UseSortedPoolsResult {
   // Sort pools
-  const sortedPools = useMemo(() => sortPools(pools, sort, displayMode), [pools, sort, displayMode]);
+  const sortedPools = useMemo(() => sortPools(pools, sort), [pools, sort]);
 
   // Build map of pools that are shared (for UI indicators)
   const sharingMap = useMemo(() => {

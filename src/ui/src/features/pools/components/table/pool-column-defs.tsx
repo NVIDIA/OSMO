@@ -23,11 +23,11 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Pool } from "@/lib/api/adapter/types";
-import type { DisplayMode } from "@/stores/shared-preferences-store";
-import { CheckCircle2, Wrench, XCircle } from "lucide-react";
+import { CheckCircle2, CirclePile, Wrench, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
-import { GpuProgressCell } from "@/features/pools/components/table/gpu-progress-cell";
+import { InlineProgress } from "@/components/inline-progress";
 import { PlatformPills } from "@/components/platform-pills";
 import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "@/features/pools/lib/pool-columns";
 import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
@@ -44,8 +44,6 @@ const STATUS_ICONS = {
 // =============================================================================
 
 export interface CreatePoolColumnsOptions {
-  /** Display mode for quota/capacity columns */
-  displayMode: DisplayMode;
   /** Whether to show compact cells */
   compact?: boolean;
   /** Map of pool names to whether they are shared */
@@ -71,19 +69,14 @@ function getMinSize(id: PoolColumnId): number {
 /**
  * Create TanStack Table column definitions for pools.
  *
- * Uses plain object notation (not helper.accessor) for correct type inference.
- *
- * @param options - Display options and callbacks
- * @returns Array of column definitions compatible with DataTable
+ * GPU columns are split into used (bar + fraction) and free (emerald number)
+ * pairs for clarity.
  */
 export function createPoolColumns({
-  displayMode,
   compact = false,
   sharingMap,
   filterBySharedPoolsMap,
 }: CreatePoolColumnsOptions): ColumnDef<Pool, unknown>[] {
-  // TanStack handles initial sizing (defaults to 150px per column)
-  // We only specify minSize to prevent columns from getting too small
   return [
     {
       id: "name",
@@ -91,9 +84,47 @@ export function createPoolColumns({
       header: COLUMN_LABELS.name,
       minSize: getMinSize("name"),
       enableSorting: true,
-      cell: ({ getValue }) => (
-        <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{getValue() as string}</span>
-      ),
+      cell: ({ row }) => {
+        const pool = row.original;
+        const isShared = sharingMap?.has(pool.name) ?? false;
+        const onFilterBySharedPools = filterBySharedPoolsMap?.get(pool.name);
+
+        return (
+          <div className="flex w-full min-w-0 items-center justify-between gap-2">
+            <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{pool.name}</span>
+            {isShared && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {onFilterBySharedPools ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFilterBySharedPools();
+                      }}
+                      className="shrink-0 rounded p-0.5 text-violet-500 transition-colors hover:bg-violet-100 hover:text-violet-600 focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:outline-none dark:text-violet-400 dark:hover:bg-violet-900/30 dark:hover:text-violet-300"
+                      aria-label="Show shared pools"
+                    >
+                      <CirclePile
+                        className={cn(compact ? "h-3 w-3" : "h-3.5 w-3.5")}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  ) : (
+                    <span className="inline-flex shrink-0">
+                      <CirclePile
+                        className={cn("text-violet-500 dark:text-violet-400", compact ? "h-3 w-3" : "h-3.5 w-3.5")}
+                        aria-label="This pool shares capacity with other pools"
+                      />
+                    </span>
+                  )}
+                </TooltipTrigger>
+                <TooltipContent>Show shared pools</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "status",
@@ -135,12 +166,23 @@ export function createPoolColumns({
       minSize: getMinSize("quota"),
       enableSorting: true,
       cell: ({ row }) => (
-        <GpuProgressCell
-          quota={row.original.quota}
-          type="quota"
-          displayMode={displayMode}
+        <InlineProgress
+          used={row.original.quota.used}
+          total={row.original.quota.limit}
           compact={compact}
         />
+      ),
+    },
+    {
+      id: "quotaFree",
+      accessorFn: (row) => row.quota.free,
+      header: COLUMN_LABELS.quotaFree,
+      minSize: getMinSize("quotaFree"),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="text-xs text-emerald-600 tabular-nums dark:text-emerald-400">
+          {Math.max(0, row.original.quota.free)}
+        </span>
       ),
     },
     {
@@ -149,22 +191,25 @@ export function createPoolColumns({
       header: COLUMN_LABELS.capacity,
       minSize: getMinSize("capacity"),
       enableSorting: true,
-      cell: ({ row }) => {
-        const pool = row.original;
-        const isShared = sharingMap?.has(pool.name) ?? false;
-        const onFilterBySharedPools = filterBySharedPoolsMap?.get(pool.name);
-
-        return (
-          <GpuProgressCell
-            quota={pool.quota}
-            type="capacity"
-            displayMode={displayMode}
-            compact={compact}
-            isShared={isShared}
-            onFilterBySharedPools={onFilterBySharedPools}
-          />
-        );
-      },
+      cell: ({ row }) => (
+        <InlineProgress
+          used={row.original.quota.totalUsage}
+          total={row.original.quota.totalCapacity}
+          compact={compact}
+        />
+      ),
+    },
+    {
+      id: "capacityFree",
+      accessorFn: (row) => row.quota.totalFree,
+      header: COLUMN_LABELS.capacityFree,
+      minSize: getMinSize("capacityFree"),
+      enableSorting: true,
+      cell: ({ row }) => (
+        <span className="text-xs text-emerald-600 tabular-nums dark:text-emerald-400">
+          {Math.max(0, row.original.quota.totalFree)}
+        </span>
+      ),
     },
     {
       id: "platforms",

@@ -66,7 +66,8 @@ def get_login_info(
                 raise osmo_errors.OSMOUserError('Must provide token')
             return login.token_login(
                 config.service_url,
-                login.construct_token_refresh_url(config.service_url, token),
+                login.construct_token_refresh_url(config.service_url),
+                token,
                 user_agent=user_agent,
             )
         else:

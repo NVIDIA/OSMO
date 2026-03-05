@@ -54,11 +54,12 @@ import {
   transformCredential,
 } from "@/lib/api/adapter/transforms";
 
-import type {
-  PoolResourcesResponse,
-  AllResourcesResponse,
-  ProfileUpdate,
-  CredentialCreate,
+import {
+  EMPTY_QUOTA,
+  type PoolResourcesResponse,
+  type AllResourcesResponse,
+  type ProfileUpdate,
+  type CredentialCreate,
 } from "@/lib/api/adapter/types";
 import {
   fetchPaginatedResources,
@@ -84,7 +85,7 @@ export function usePools(enabled = true) {
       query: {
         enabled,
         select: useCallback((rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
-          if (!rawData.data) return { pools: [], sharingGroups: [] };
+          if (!rawData.data) return { pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA };
           return transformPoolsResponse(rawData.data);
         }, []),
       },
@@ -94,6 +95,7 @@ export function usePools(enabled = true) {
   return {
     pools: data?.pools ?? [],
     sharingGroups: data?.sharingGroups ?? [],
+    gpuSummary: data?.gpuSummary ?? EMPTY_QUOTA,
     isLoading,
     error,
     refetch,
@@ -535,7 +537,7 @@ export function usePoolNames(enabled: boolean = true) {
         enabled,
         staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
         select: useCallback((rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
-          if (!rawData.data) return { pools: [], sharingGroups: [] };
+          if (!rawData.data) return { pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA };
           return transformPoolsResponse(rawData.data);
         }, []),
       },

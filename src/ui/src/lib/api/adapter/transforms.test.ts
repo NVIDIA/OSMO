@@ -23,6 +23,7 @@ import {
   transformVersionResponse,
 } from "@/lib/api/adapter/transforms";
 import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
+import { EMPTY_QUOTA } from "@/lib/api/adapter/types";
 
 // =============================================================================
 // Test fixtures - minimal data to verify transforms
@@ -79,6 +80,14 @@ const mockPoolResponse = {
       ],
     },
   ],
+  resource_sum: {
+    quota_used: "15",
+    quota_free: "105",
+    quota_limit: "120",
+    total_usage: "25",
+    total_capacity: "200",
+    total_free: "175",
+  },
 };
 
 const mockResourceResponse = {
@@ -169,9 +178,9 @@ const mockAllResourcesResponse = {
 
 describe("transformPoolsResponse", () => {
   it("transforms empty response", () => {
-    expect(transformPoolsResponse(null)).toEqual({ pools: [], sharingGroups: [] });
-    expect(transformPoolsResponse(undefined)).toEqual({ pools: [], sharingGroups: [] });
-    expect(transformPoolsResponse({})).toEqual({ pools: [], sharingGroups: [] });
+    expect(transformPoolsResponse(null)).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
+    expect(transformPoolsResponse(undefined)).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
+    expect(transformPoolsResponse({})).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
   });
 
   it("transforms pools from node_sets", () => {
@@ -246,6 +255,18 @@ describe("transformPoolsResponse", () => {
   it("handles missing exit actions gracefully", () => {
     const result = transformPoolsResponse(mockPoolResponse);
     expect(result.pools[1].defaultExitActions).toEqual({});
+  });
+
+  it("preserves resource_sum as gpuSummary", () => {
+    const result = transformPoolsResponse(mockPoolResponse);
+    expect(result.gpuSummary).toEqual({
+      used: 15,
+      free: 105,
+      limit: 120,
+      totalUsage: 25,
+      totalCapacity: 200,
+      totalFree: 175,
+    });
   });
 });
 

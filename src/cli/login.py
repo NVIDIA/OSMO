@@ -127,8 +127,8 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
             token = args.token
         else:
             raise osmo_errors.OSMOUserError('Must provide token file with --token_file or --token')
-        refresh_url = login.construct_token_refresh_url(url, token)
-        service_client.login_manager.token_login(url, refresh_url)
+        refresh_url = login.construct_token_refresh_url(url)
+        service_client.login_manager.token_login(url, refresh_url, token)
 
     # For developers, simply send username as a header
     else:

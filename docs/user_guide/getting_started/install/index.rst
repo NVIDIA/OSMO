@@ -71,3 +71,25 @@ After successful authentication, you are logged in. Welcome to OSMO.
   :class: no-copybutton
 
   Successfully logged in. Welcome <Your Full Name>.
+
+Agent Skill
+-----------
+
+OSMO provides an agent skill that enables AI agents to interact with the OSMO CLI on your behalf.
+Once installed, agents in tools such as Claude Code, Cursor and Codex can check GPU resources,
+generate and submit workflows, monitor progress, diagnose failures, and orchestrate end-to-end
+Physical AI workloads through natural language.
+
+The skill follows the `Agent Skills <https://agentskills.io>`_ open standard and is compatible with
+`30+ agent tools <https://skills.sh/>`_.
+
+To install:
+
+.. code-block:: bash
+
+  $ npx skills add NVIDIA/osmo
+
+.. seealso::
+
+   See the `skills/README <https://github.com/NVIDIA/osmo/tree/main/skills>`_ for detailed
+   installation options and usage examples.

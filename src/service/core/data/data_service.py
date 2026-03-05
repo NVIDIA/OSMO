@@ -1004,8 +1004,7 @@ def list_dataset_from_bucket(name: objects.DatasetPattern | None = None,
     """ This api returns the list of datasets/colections."""
     postgres = connectors.PostgresConnector.get_instance()
     fetch_cmd = '''
-            SELECT DISTINCT dataset.*, dv.created_date as dv_created_date,
-            dv.version_id as dv_version_id,
+            SELECT dataset.*, dv.created_date as dv_created_date, dv.version_id as dv_version_id,
             COALESCE(dv.created_date, dataset.created_date) as combined_date
             FROM dataset
             LEFT JOIN (SELECT dataset_version.* FROM dataset_version
@@ -1050,7 +1049,8 @@ def list_dataset_from_bucket(name: objects.DatasetPattern | None = None,
         fetch_cmd += ' AND name LIKE %s'
         fetch_input.append('%' + name + '%')
 
-    fetch_cmd += ' ORDER BY combined_date DESC LIMIT %s'
+    fetch_cmd += \
+        ' GROUP BY dataset.id, dv.created_date, dv.version_id ORDER BY combined_date DESC LIMIT %s'
     fetch_input.append(min(count, 1000))
 
     fetch_cmd = f'SELECT * FROM ({fetch_cmd}) as ds'

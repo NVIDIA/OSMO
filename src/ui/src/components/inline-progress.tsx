@@ -18,11 +18,7 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import type { DisplayMode } from "@/stores/shared-preferences-store";
 import { ProgressBar } from "@/components/progress-bar";
-
-// Re-export for consumers that import from here
-export type { DisplayMode };
 
 export interface InlineProgressProps {
   /** Current usage value */
@@ -35,8 +31,6 @@ export interface InlineProgressProps {
   compact?: boolean;
   /** Width of the progress bar */
   barWidth?: string;
-  /** Label for free display (e.g., "free", "idle", "available") */
-  freeLabel?: string;
   /** Additional content to render after the label (e.g., icons) */
   children?: React.ReactNode;
   /** Additional className for the container */
@@ -50,10 +44,8 @@ export interface InlineProgressProps {
 /**
  * InlineProgress - Horizontal progress display for table cells.
  *
- * Renders a progress bar with value label in a horizontal layout,
- * suitable for table cells and inline contexts.
- *
- * Composes from ProgressBar primitive.
+ * Renders a progress bar with a "{used}/{total}" fraction label.
+ * Suitable for table cells showing utilization.
  *
  * @example
  * ```tsx
@@ -78,7 +70,6 @@ export const InlineProgress = memo(function InlineProgress({
   displayMode = "used",
   compact = false,
   barWidth = "w-16",
-  freeLabel = "free",
   children,
   className,
 }: InlineProgressProps) {
@@ -91,14 +82,12 @@ export const InlineProgress = memo(function InlineProgress({
   if (compact) {
     return (
       <div className={cn("flex items-center gap-1.5", className)}>
-        <span className="text-xs text-zinc-700 tabular-nums dark:text-zinc-300">{displayLabel}</span>
+        <span className="text-xs text-zinc-700 tabular-nums dark:text-zinc-300">{label}</span>
         {children}
       </div>
     );
   }
 
-  // Convert width class to max-width for capped growth
-  // e.g., "w-16" -> "max-w-16", bar grows to fill but caps at this size
   const maxBarWidth = barWidth.replace(/^w-/, "max-w-");
 
   return (
@@ -108,9 +97,10 @@ export const InlineProgress = memo(function InlineProgress({
           value={used}
           max={total}
           size="md"
+          thresholdColors
         />
       </div>
-      <span className="text-xs whitespace-nowrap text-zinc-600 tabular-nums dark:text-zinc-400">{displayLabel}</span>
+      <span className="text-xs whitespace-nowrap text-zinc-600 tabular-nums dark:text-zinc-400">{label}</span>
       {children}
     </div>
   );

@@ -196,7 +196,7 @@ export const TASK_STATUS_METADATA: Record<TaskGroupStatus, TaskStatusMetadata> =
 
 export const WORKFLOW_STATUS_METADATA: Record<WorkflowStatus, WorkflowStatusMetadata> = {
   PENDING: {
-    category: "pending",
+    category: "waiting",
     isTerminal: false,
     isOngoing: false,
     isFailed: false,

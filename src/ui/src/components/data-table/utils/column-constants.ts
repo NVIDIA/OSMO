@@ -39,6 +39,9 @@ export const COLUMN_MIN_WIDTHS_REM = {
   /** Text that truncates with ellipsis (names, descriptions) */
   TEXT_TRUNCATE: 8.75,
 
+  /** Medium text labels */
+  TEXT_MEDIUM: 7.5,
+
   /** Short text labels (status, type) */
   TEXT_SHORT: 6,
 
@@ -81,6 +84,9 @@ export const COLUMN_MIN_WIDTHS_REM = {
 export const COLUMN_PREFERRED_WIDTHS_REM = {
   /** Text that truncates - comfortable reading width */
   TEXT_TRUNCATE: 16,
+
+  /** Medium text labels */
+  TEXT_MEDIUM: 12,
 
   /** Short text labels (status, type) - badge + text */
   TEXT_SHORT: 8,

@@ -21,26 +21,57 @@ import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM } from "@/components
 // Column IDs
 // =============================================================================
 
-export type PoolColumnId = "name" | "status" | "description" | "quota" | "capacity" | "platforms" | "backend";
+export type PoolColumnId =
+  | "name"
+  | "status"
+  | "description"
+  | "quota"
+  | "quotaFree"
+  | "capacity"
+  | "capacityFree"
+  | "platforms"
+  | "backend";
 
 // =============================================================================
 // Column Configuration (via factory)
 // =============================================================================
 
 const poolColumnConfig = createColumnConfig<PoolColumnId>({
-  columns: ["name", "status", "description", "quota", "capacity", "platforms", "backend"] as const,
+  columns: [
+    "name",
+    "status",
+    "description",
+    "quota",
+    "quotaFree",
+    "capacity",
+    "capacityFree",
+    "platforms",
+    "backend",
+  ] as const,
   labels: {
     name: "Pool",
     status: "Status",
     description: "Description",
-    quota: "Quota (GPU)",
-    capacity: "Capacity (GPU)",
+    quota: "Quota Used",
+    quotaFree: "Quota Free",
+    capacity: "Capacity Used",
+    capacityFree: "Capacity Free",
     platforms: "Platforms",
     backend: "Backend",
   },
   mandatory: ["name"],
-  defaultVisible: ["name", "status", "description", "quota", "capacity", "platforms"],
-  defaultOrder: ["name", "status", "description", "quota", "capacity", "platforms", "backend"],
+  defaultVisible: ["name", "status", "quota", "quotaFree", "capacity", "capacityFree", "platforms"],
+  defaultOrder: [
+    "name",
+    "status",
+    "description",
+    "quota",
+    "quotaFree",
+    "capacity",
+    "capacityFree",
+    "platforms",
+    "backend",
+  ],
   sizeConfig: [
     {
       id: "name",
@@ -63,9 +94,19 @@ const poolColumnConfig = createColumnConfig<PoolColumnId>({
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
     },
     {
+      id: "quotaFree",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_MEDIUM,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_MEDIUM,
+    },
+    {
       id: "capacity",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR + COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+    },
+    {
+      id: "capacityFree",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.TEXT_MEDIUM,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.TEXT_MEDIUM,
     },
     {
       id: "platforms",

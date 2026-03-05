@@ -1,5 +1,5 @@
 /*
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"encoding/binary"
 	"encoding/json"
@@ -140,18 +141,22 @@ func refreshJWTToken(cmdArgs args.CtrlArgs) error {
 		panic(fmt.Sprintf("Parsing refreshUrl failed: %v\n%s", cmdArgs.RefreshTokenUrl, err))
 	}
 
-	// Query parameters
+	// Query parameters (token goes in the body, not the URL)
 	params := url.Values{}
-	// Get refresh token
-	params.Add("refresh_token", string(refreshToken))
 	params.Add("workflow_id", cmdArgs.Workflow)
 	params.Add("group_name", cmdArgs.GroupName)
 	params.Add("task_name", cmdArgs.LogSource)
 	params.Add("retry_id", cmdArgs.RetryId)
 
-	// Encode query parameters and append to the base URL
 	u.RawQuery = params.Encode()
-	resp, err := http.Get(u.String())
+
+	// Send token in request body as JSON
+	requestBody, err := json.Marshal(map[string]string{"token": string(refreshToken)})
+	if err != nil {
+		osmo_errors.SetExitCode(osmo_errors.TOKEN_INVALID_CODE)
+		panic(fmt.Sprintf("Error marshaling token request body: %s\n", err))
+	}
+	resp, err := http.Post(u.String(), "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return &DialWebsocketError{
 			ErrorType: string(FetchFailureError),
@@ -216,10 +221,7 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 	if isRefresh {
 		err := refreshJWTToken(cmdArgs)
 		if err != nil {
-			// Exponential backoff
-			exponent := common.Min(retryCount, 5)
-			delay := time.Duration(math.Pow(2, float64(exponent))) * time.Second
-			time.Sleep(delay)
+			time.Sleep(data.ExponentialBackoffWithJitter(retryCount))
 			return err
 		}
 	}
@@ -245,10 +247,7 @@ func dialWebsocket(url string, conn **websocket.Conn, cmdArgs args.CtrlArgs, ret
 			}
 		}
 		if !data.WebsocketConnection.ReachedTimeout() {
-			// Exponential backoff
-			exponent := common.Min(retryCount, 5)
-			delay := time.Duration(math.Pow(2, float64(exponent))) * time.Second
-			time.Sleep(delay)
+			time.Sleep(data.ExponentialBackoffWithJitter(retryCount))
 			return err
 		}
 

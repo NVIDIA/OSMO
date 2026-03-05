@@ -222,7 +222,7 @@ export class EventGenerator {
           "Warning",
           "ErrImagePull",
           taskName,
-          "Failed to pull image: manifest not found",
+          `Failed to pull image "nvcr.io/nvidia/invalid:latest": rpc error: code=Unknown desc=failed to pull and unpack image "nvcr.io/nvidia/invalid:latest": failed to resolve reference "nvcr.io/nvidia/invalid:latest": failed to authorize: failed to fetch anonymous token: unexpected status from GET request to https://nvcr.io/proxy_auth?scope=repository%3Anvidia%2Finvalid%3Apull&service=nvcr.io: 401 Unauthorized`,
         ),
       );
       currentTime += faker.number.int({ min: 10000, max: 20000 });
@@ -232,7 +232,7 @@ export class EventGenerator {
           "Warning",
           "ImagePullBackOff",
           taskName,
-          "Back-off pulling image: manifest not found",
+          "Back-off pulling image: ErrImagePull:sha256:a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2/nvcr.io/nvidia/invalid:latest:manifest_unknown:manifest_unknown_to_registry",
         ),
       );
       return events;
@@ -270,7 +270,7 @@ export class EventGenerator {
             "Warning",
             "Evicted",
             taskName,
-            "Pod evicted due to node memory pressure",
+            `The node ${node} was under DiskPressure condition; pod ${taskName} (UID: ${faker.string.uuid()}) was evicted because the node's ephemeral-storage usage exceeded the eviction threshold. Usage: 92.4Gi of 100Gi limit. Container training was using 48.2Gi of local ephemeral storage for checkpoint files and model weights`,
           ),
         );
       } else if (fullStatus.toString().includes("OOM")) {
@@ -280,7 +280,7 @@ export class EventGenerator {
             "Warning",
             "OOMKilled",
             taskName,
-            "Container training exceeded memory limit (32Gi)",
+            `Container training in pod ${taskName} exceeded memory limit: the container was using 33.8Gi against a limit of 32Gi. The kernel OOM killer terminated process pid=4821 (python3) with signal SIGKILL(9). Current memory usage breakdown: RSS=32.1Gi, Cache=1.7Gi, Swap=0B. Peak memory usage recorded at container_memory_working_set_bytes=${faker.number.int({ min: 33000000000, max: 35000000000 })}`,
           ),
         );
         currentTime += faker.number.int({ min: 1000, max: 3000 });
@@ -290,7 +290,7 @@ export class EventGenerator {
             "Warning",
             "BackOff",
             taskName,
-            `Back-off restarting failed container training in pod ${taskName}`,
+            `Back-off restarting failed container training in pod ${taskName}: restart_count=3 last_exit_code=137 reason=OOMKilled back-off_delay=40s container_id=containerd://a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2`,
           ),
         );
       } else if (fullStatus === TaskGroupStatus.FAILED_START_ERROR) {
@@ -300,7 +300,7 @@ export class EventGenerator {
             "Warning",
             "BackOff",
             taskName,
-            "Container exited with code 1 (error)",
+            `Error from container runtime: OCI runtime create failed: runc create failed: unable to start container process: exec: "/usr/local/bin/entrypoint.sh": permission denied: unknown. Container_id=containerd://sha256:f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4`,
           ),
         );
         currentTime += faker.number.int({ min: 5000, max: 10000 });
@@ -310,18 +310,19 @@ export class EventGenerator {
             "Warning",
             "CrashLoopBackOff",
             taskName,
-            "Container is in crash loop, back-off restarting",
+            `Back-off restarting container training in pod ${taskName}: the container has crashed 5 times consecutively with exit code 1 over the last 240 seconds. Back-off delay increasing exponentially: 10s, 20s, 40s, 80s, 160s. Last known container state: terminated at ${new Date(currentTime).toISOString()} with reason=Error`,
           ),
         );
       } else {
         // Generic failure
+        const exitCode = faker.helpers.arrayElement([1, 137, 139]);
         events.push(
           this.createTaskEvent(
             new Date(currentTime),
             "Warning",
             "Failed",
             taskName,
-            `Container terminated with exit code ${faker.helpers.arrayElement([1, 137, 139])}`,
+            `Container terminated with exit code ${exitCode}: the main process (pid 1) in container training received signal ${exitCode === 137 ? "SIGKILL(9)" : exitCode === 139 ? "SIGSEGV(11)" : "EXIT(1)"} after running for ${faker.number.int({ min: 30, max: 600 })}s. Last 512 bytes of stderr: RuntimeError:CUDA_error:an_illegal_memory_access_was_encountered_at_/opt/pytorch/aten/src/ATen/native/cuda/Indexing.cu:1261:block=[256,1,1],thread=[128,0,0]_Assertion_srcIndex<srcSelectDimSize_failed`,
           ),
         );
       }
