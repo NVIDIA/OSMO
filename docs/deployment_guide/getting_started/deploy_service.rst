@@ -400,15 +400,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
         clientSecretKey: client_secret
         cookieSecretKey: cookie_secret
 
-      # Log agent configuration (optional)
-      logAgent:
-        enabled: false
-        # Uncomment and configure if using AWS CloudWatch
-        # cloudwatch:
-        #   enabled: true
-        #   clusterName: <your-cluster-name>
-        #   role: <your-aws-cloudwatch-role>
-
       # OpenTelemetry configuration (optional)
       otel:
         enabled: false
@@ -560,14 +551,6 @@ Create ``router_values.yaml`` for router with the following sample configuration
         clientSecretKey: client_secret
         cookieSecretKey: cookie_secret
 
-      # Log agent configuration (optional)
-      logAgent:
-        enabled: false
-        # Uncomment and configure if using AWS CloudWatch
-        # cloudwatch:
-        #   region: us-west-2
-        #   clusterName: <your-cluster-name>
-        #   role: <your-aws-cloudwatch-role>
 
 
 Create ``ui_values.yaml`` for ui with the following sample configurations:
@@ -656,13 +639,6 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
         clientSecretKey: client_secret
         cookieSecretKey: cookie_secret
 
-      # Log agent configuration (optional only used for AWS CloudWatch)
-      logAgent:
-        enabled: false
-        # Uncomment and configure if using AWS CloudWatch
-        # aws:
-        #   region: us-west-2
-        #   clusterName: <your-cluster-name>
 
 .. important::
    Replace all ``<your-*>`` placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.

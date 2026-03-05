@@ -246,19 +246,6 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | `sidecars.envoy.jwt.user_header` | JWT user header | `x-osmo-user` |
 | `sidecars.envoy.jwt.providers` | JWT providers configuration | See values.yaml |
 
-
-#### Log Agent Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.logAgent.enabled` | Enable log agent sidecar | `true` |
-| `sidecars.logAgent.image` | Log agent image | `fluent/fluent-bit:4.0.8-debug` |
-| `sidecars.logAgent.prometheusPort` | Prometheus metrics port | `2020` |
-| `sidecars.logAgent.configName` | Log agent config name | `osmo-log-agent-config` |
-| `sidecars.logAgent.cloudwatch.enabled` | Enable CloudWatch logging | `false` |
-| `sidecars.logAgent.cloudwatch.region` | AWS region for CloudWatch | `us-west-2` |
-| `sidecars.logAgent.cloudwatch.clusterName` | Cluster name for CloudWatch | `""` |
-
 #### OpenTelemetry Settings
 
 | Parameter | Description | Default |
@@ -316,7 +303,6 @@ The osmo platform consists of:
 
 ### Sidecar Components
 - **Envoy Proxy**: Advanced traffic routing, authentication
-- **Log Agent**: Centralized log collection and forwarding
 - **OpenTelemetry Collector**: Metrics and tracing collection
 - **Rate Limiter**: API endpoint rate limiting
 

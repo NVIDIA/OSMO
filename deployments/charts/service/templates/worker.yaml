@@ -180,9 +180,6 @@ spec:
           timeoutSeconds: 15
           initialDelaySeconds: 10
 
-      {{- if .Values.global.logs.enabled }}
-      {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
-      {{- end }}
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
@@ -194,7 +191,6 @@ spec:
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
-        {{- include "osmo.log-agent-volumes" . | nindent 8 }}
         {{- end}}
         {{- include "osmo.extra-volumes" .Values.services.worker | nindent 8 }}
         {{- if .Values.services.configFile.enabled}}

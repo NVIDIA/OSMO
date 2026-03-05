@@ -126,8 +126,6 @@ This chart installs and configures:
 | `service.services.delayedJobMonitor.imagePullPolicy`    | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent`                              |
 | `service.services.delayedJobMonitor.initContainers`     | Init containers for delayed job monitor service                  | Wait for postgres, redis, and localstack-s3 |
 | `service.sidecars.envoy.enabled`                        | Enable Envoy proxy sidecar container                             | `false`                                     |
-| `service.sidecars.logAgent.enabled`                     | Enable log agent sidecar for centralized log collection          | `false`                                     |
-| `service.sidecars.logAgent.logrotate.enabled`           | Enable automatic log rotation                                    | `false`                                     |
 | `service.sidecars.otel.enabled`                         | Enable OTEL collector sidecar for metrics and tracing            | `false`                                     |
 | `service.sidecars.rateLimit.enabled`                    | Enable rate limiting service                                     | `false`                                     |
 
@@ -155,7 +153,6 @@ This chart installs and configures:
 | `router.services.service.initContainers`      | Init containers for router service                      | Wait for postgres and redis  |
 | `router.services.postgres.password`           | PostgreSQL password for router                          | `"osmo"`                     |
 | `router.sidecars.envoy.enabled`               | Enable Envoy proxy sidecar container                    | `false`                      |
-| `router.sidecars.logAgent.enabled`            | Enable log agent sidecar for centralized log collection | `false`                      |
 
 ### Backend Operator Configuration
 

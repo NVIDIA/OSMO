@@ -241,7 +241,6 @@ spec:
       {{- if .Values.sidecars.otel.enabled }}
       {{- include "osmo.otel-sidecar-container" . | nindent 6}}
       {{- end }}
-      {{- include "osmo.log-agent-sidecar-container" . | nindent 6}}
       {{- if .Values.sidecars.rateLimit.enabled }}
       {{- include "osmo.rate-limit-sidecar-container" . | nindent 6}}
       {{- end }}
@@ -256,7 +255,6 @@ spec:
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
-          {{- include "osmo.log-agent-volumes" . | nindent 8 }}
         {{- end}}
         {{- if .Values.sidecars.rateLimit.enabled }}
         {{- include "osmo.rate-limit-volumes" . | nindent 8 }}

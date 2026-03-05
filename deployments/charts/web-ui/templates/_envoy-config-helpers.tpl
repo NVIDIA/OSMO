@@ -103,23 +103,38 @@ access_log:
 - name: envoy.access_loggers.file
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
-    path: "/logs/envoy_access_log.txt"
-    log_format: {
-      text_format: "[%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%\"\n"
-    }
-- name: envoy.access_loggers.file
-  filter:
-    header_filter:
-      header:
-        name: ":path"
-        string_match:
-          prefix: "/api/"
-  typed_config:
-    "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
-    path: "/logs/envoy_api_access_log.txt"
-    log_format: {
-      text_format: "[API] [%START_TIME%] \"%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%\" %RESPONSE_CODE% %RESPONSE_FLAGS% %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% \"%REQ(USER-AGENT)%\" \"%REQ(X-REQUEST-ID)%\" \"%REQ(:AUTHORITY)%\" \"%UPSTREAM_HOST%\" \"%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%\" \"%DOWNSTREAM_REMOTE_ADDRESS%\"\n"
-    }
+    path: "/dev/stdout"
+    log_format:
+      json_format:
+        start_time: "%START_TIME%"
+        method: "%REQ(:METHOD)%"
+        path: "%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%"
+        protocol: "%PROTOCOL%"
+        response_code: "%RESPONSE_CODE%"
+        response_code_details: "%RESPONSE_CODE_DETAILS%"
+        response_flags: "%RESPONSE_FLAGS%"
+        connection_termination_details: "%CONNECTION_TERMINATION_DETAILS%"
+        bytes_received: "%BYTES_RECEIVED%"
+        bytes_sent: "%BYTES_SENT%"
+        duration: "%DURATION%"
+        request_duration: "%REQUEST_DURATION%"
+        response_duration: "%RESPONSE_DURATION%"
+        response_tx_duration: "%RESPONSE_TX_DURATION%"
+        upstream_host: "%UPSTREAM_HOST%"
+        upstream_cluster: "%UPSTREAM_CLUSTER%"
+        upstream_local_address: "%UPSTREAM_LOCAL_ADDRESS%"
+        upstream_transport_failure_reason: "%UPSTREAM_TRANSPORT_FAILURE_REASON%"
+        upstream_request_attempt_count: "%UPSTREAM_REQUEST_ATTEMPT_COUNT%"
+        downstream_remote_address: "%DOWNSTREAM_REMOTE_ADDRESS%"
+        downstream_local_address: "%DOWNSTREAM_LOCAL_ADDRESS%"
+        requested_server_name: "%REQUESTED_SERVER_NAME%"
+        route_name: "%ROUTE_NAME%"
+        connection_id: "%CONNECTION_ID%"
+        user_agent: "%REQ(USER-AGENT)%"
+        request_id: "%REQ(X-REQUEST-ID)%"
+        authority: "%REQ(:AUTHORITY)%"
+        x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
+        username: "%REQ(X-AUTH-REQUEST-PREFERRED-USERNAME)%"
 {{- end }}
 
 {{/*

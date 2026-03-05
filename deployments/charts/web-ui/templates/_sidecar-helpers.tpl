@@ -32,11 +32,9 @@ Envoy sidecar container
   imagePullPolicy: {{ .Values.sidecars.envoy.images.pullPolicy }}
   args:
     - -c
-    - |
-      /usr/local/bin/envoy -c /var/config/config.yaml --log-level info 2>&1 | tee /logs/envoy.txt
-
-  command:
-    - /bin/sh
+    - /var/config/config.yaml
+    - --log-level
+    - info
   ports:
     {{- if .Values.sidecars.envoy.ssl.enabled }}
     - containerPort: 443
@@ -120,116 +118,6 @@ Envoy volumes
 {{- end }}
 
 
-
-{{/*
-Generate log agent sidecar container
-*/}}
-{{- define "ui.log-agent-sidecar-container" -}}
-{{- if .Values.sidecars.logAgent.enabled }}
-- name: log-agent
-  image: "{{ .Values.sidecars.logAgent.image.repository }}"
-  imagePullPolicy: {{ .Values.sidecars.logAgent.image.pullPolicy }}
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: ["ALL"]
-    runAsNonRoot: true
-    runAsUser: 10001
-  ports:
-  - containerPort: {{ .Values.sidecars.logAgent.fluentBitPrometheusPort }}
-    protocol: TCP
-  command: ["/bin/sh", "-c"]
-  args:
-  - |
-    {{- if .Values.sidecars.logAgent.logrotate.enabled }}
-    echo "$(date -Iseconds) Removing default logrotate configs..."
-    rm -f /etc/logrotate.d/*
-
-    run_logrotate_loop() {
-      while true; do
-        echo "$(date -Iseconds) Running logrotate..."
-        logrotate /fluent-bit/etc/logrotate-fluentbit.conf
-        echo "$(date -Iseconds) Successfully ran logrotate"
-        touch /tmp/logrotate-last-success
-        echo "$(date -Iseconds) Sleep for {{ .Values.sidecars.logAgent.logrotate.sleepSeconds }}s..."
-        sleep {{ .Values.sidecars.logAgent.logrotate.sleepSeconds }}
-      done
-    }
-
-    echo "$(date -Iseconds) Starting logrotate..."
-    run_logrotate_loop &
-    {{- else }}
-    echo "$(date -Iseconds) Logrotate is disabled, skipping logrotate..."
-    {{- end }}
-
-    echo "$(date -Iseconds) Starting fluentbit..."
-    /fluent-bit/bin/fluent-bit -c /fluent-bit/etc/fluent-bit.conf
-  env:
-  - name: NODE_NAME
-    valueFrom:
-      fieldRef:
-        fieldPath: spec.nodeName
-  - name: POD_NAME
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.name
-  - name: POD_NAMESPACE
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.namespace
-  - name: POD_IP
-    valueFrom:
-      fieldRef:
-        fieldPath: status.podIP
-  volumeMounts:
-  - name: log-agent-config
-    mountPath: /fluent-bit/etc
-  {{- if .Values.sidecars.logAgent.volumeMounts }}
-  {{- toYaml .Values.sidecars.logAgent.volumeMounts | nindent 2}}
-  {{- end }}
-  livenessProbe:
-    exec:
-      command: ["/bin/sh", "-c",
-                "reply=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:{{ .Values.sidecars.logAgent.fluentBitPrometheusPort }});
-                if [ \"$reply\" -lt 200 -o \"$reply\" -ge 400 ]; then exit 1; fi;
-                {{- if .Values.sidecars.logAgent.logrotate.enabled }}if [ ! $(find /tmp/logrotate-last-success -mmin -{{ .Values.sidecars.logAgent.logrotate.sleepSeconds }}) ]; then exit 1; fi;{{- end }}"
-      ]
-    initialDelaySeconds: 120
-    periodSeconds: 60
-    successThreshold: 1
-    failureThreshold: 3
-  readinessProbe:
-    httpGet:
-      path: /api/v1/metrics/prometheus
-      port: {{ .Values.sidecars.logAgent.fluentBitPrometheusPort }}
-    initialDelaySeconds: 15
-    periodSeconds: 20
-  resources:
-  {{- toYaml .Values.sidecars.logAgent.resources | nindent 4 }}
-{{- end }}
-{{- end }}
-
-{{/*
-Generate log agent volumes
-*/}}
-{{- define "ui.log-agent-volumes" -}}
-{{- if .Values.sidecars.logAgent.enabled }}
-- name: log-agent-config
-  configMap:
-    name: {{ .Values.services.ui.serviceName }}-log-agent-config
-{{- if .Values.sidecars.logAgent.logrotate.enabled }}
-- name: logrotate-config
-  configMap:
-    name: {{ .Values.services.ui.serviceName }}-log-agent-config
-    items:
-    - key: logrotate-fluentbit.conf
-      path: logrotate-fluentbit.conf
-{{- end }}
-{{- if .Values.sidecars.logAgent.volumes }}
-{{- toYaml .Values.sidecars.logAgent.volumes | nindent 0}}
-{{- end }}
-{{- end }}
-{{- end }}
 
 {{/*
 OAuth2 Proxy sidecar container
