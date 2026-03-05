@@ -48,6 +48,7 @@ import { usePoolsData } from "@/features/pools/hooks/use-pools-data";
 import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
 import { usePoolsAutoRefresh } from "@/features/pools/hooks/use-pools-auto-refresh";
 import { useProfile } from "@/lib/api/adapter/hooks";
+import { PoolGpuSummary } from "@/features/pools/components/pool-gpu-summary";
 
 // =============================================================================
 // Client Component
@@ -91,12 +92,22 @@ export function PoolsPageContent() {
   // TanStack Query will refetch in the background if data is stale.
   // ==========================================================================
 
-  const { pools, allPools, sharingGroups, isLoading, error, refetch, total, filteredTotal, hasActiveFilters } =
-    usePoolsData({
-      searchChips: effectiveChips,
-      accessiblePoolNames,
-      refetchInterval: autoRefresh.effectiveInterval,
-    });
+  const {
+    pools,
+    allPools,
+    sharingGroups,
+    gpuSummary,
+    isLoading,
+    error,
+    refetch,
+    total,
+    filteredTotal,
+    hasActiveFilters,
+  } = usePoolsData({
+    searchChips: effectiveChips,
+    accessiblePoolNames,
+    refetchInterval: autoRefresh.effectiveInterval,
+  });
 
   // ==========================================================================
   // Pool Panel State - URL state controls both selection and mounting
@@ -162,6 +173,19 @@ export function PoolsPageContent() {
             onSearchChipsChange={handleChipsChange}
             resultsCount={resultsCount}
             autoRefreshProps={autoRefreshProps}
+          />
+        </InlineErrorBoundary>
+      </div>
+
+      {/* GPU utilization summary */}
+      <div className="shrink-0">
+        <InlineErrorBoundary
+          title="GPU summary error"
+          compact
+        >
+          <PoolGpuSummary
+            summary={gpuSummary}
+            isLoading={isLoading}
           />
         </InlineErrorBoundary>
       </div>

@@ -31,7 +31,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { CollapsibleSection } from "@/components/workflow/collapsible-section";
 import { PoolPicker } from "@/components/workflow/pool-picker";
 import { PriorityPicker, PRIORITY_LABELS } from "@/components/workflow/priority-picker";
-import type { LocalpathWarnings } from "@/components/submit-workflow/use-submit-workflow-form";
+import type { LocalpathWarnings } from "@/components/submit-workflow/detect-localpath";
 
 /** Inline code token styled to stand out against the red error banner background. */
 function Token({ children }: { children: ReactNode }) {

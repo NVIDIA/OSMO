@@ -31,29 +31,7 @@ import { WorkflowPriority, useSubmitWorkflowApiPoolPoolNameWorkflowPost } from "
 import { useSubmitWorkflowStore } from "@/stores/submit-workflow-store";
 import { useProfile } from "@/lib/api/adapter/hooks";
 import { usePoolSelection } from "@/components/workflow/use-pool-selection";
-
-/**
- * Detect `localpath:` usage in the YAML spec.
- *
- * - hasFileLocalpath: `files[].localpath` — browser cannot read local files.
- * - hasDatasetLocalpath: `dataset.localpath` — browser cannot rsync.
- */
-function detectLocalpathUsage(spec: string): {
-  hasFileLocalpath: boolean;
-  hasDatasetLocalpath: boolean;
-} {
-  // files[].localpath — per docs, localpath: appears as a key inside a files: list item.
-  // Handles both the first-key form (  - localpath:) and subsequent-key form (    localpath:).
-  // The (?:[ \t]+[^\n]*\n)*? intermediary only matches indented lines, so it cannot
-  // skip past a new top-level key and produce a false positive.
-  const hasFileLocalpath = /^\s+files:\s*\n(?:[ \t]+[^\n]*\n)*?[ \t]+(?:-[ \t]+)?localpath:/m.test(spec);
-
-  // inputs[].dataset.localpath — per docs, localpath: appears as a child key of dataset:,
-  // optionally preceded by sibling keys such as name:.
-  const hasDatasetLocalpath = /(?:^|[ \t])-?[ \t]*dataset:\s*\n(?:[ \t]+[^\n]+\n)*?[ \t]+localpath:/m.test(spec);
-
-  return { hasFileLocalpath, hasDatasetLocalpath };
-}
+import { detectLocalpathUsage, type LocalpathWarnings } from "@/components/submit-workflow/detect-localpath";
 
 /** Extract a human-readable error message from various error shapes. */
 function extractErrorMessage(err: unknown): string {
@@ -75,11 +53,6 @@ function extractErrorMessage(err: unknown): string {
     }
   }
   return String(err);
-}
-
-export interface LocalpathWarnings {
-  hasFileLocalpath: boolean;
-  hasDatasetLocalpath: boolean;
 }
 
 /** Validation result tied to the spec that was validated for freshness detection. */

@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
-import { DisplayModeToggle } from "@/components/data-table/display-mode-toggle";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
@@ -140,8 +139,6 @@ export const PoolsToolbar = memo(function PoolsToolbar({
       ]}
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
-    >
-      <DisplayModeToggle />
-    </TableToolbar>
+    />
   );
 });

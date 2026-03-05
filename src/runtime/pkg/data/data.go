@@ -1,5 +1,5 @@
 /*
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"os"
 	"os/exec"
@@ -151,6 +151,20 @@ func (f WebsocketConnectionInfo) ReachedTimeout() bool {
 	return time.Since(f.DisconnectStartTime) >= f.Timeout
 }
 
+// ExponentialBackoffWithJitter returns a randomized delay using "equal jitter":
+// uniformly distributed in [backoff/2, backoff) where backoff = 2^min(retryCount,5) seconds.
+// The guaranteed minimum avoids near-zero sleeps while the jitter decorrelates
+// concurrent clients to prevent thundering herd.
+func ExponentialBackoffWithJitter(retryCount int) time.Duration {
+	exponent := common.Min(retryCount, 5)
+	maxDelay := time.Duration(math.Pow(2, float64(exponent))) * time.Second
+	if maxDelay <= 0 {
+		return 0
+	}
+	halfDelay := maxDelay / 2
+	return halfDelay + time.Duration(rand.Int64N(int64(halfDelay)))
+}
+
 func (f WebsocketConnectionInfo) TimeLeft() time.Duration {
 	return f.Timeout - time.Since(f.DisconnectStartTime)
 }
@@ -268,8 +282,7 @@ func RunOSMOCommandStreamingWithRetry(command []string, retryCommand []string,
 								osmoChan <- "Rate limited by service. Waiting before retrying..."
 								firstError = true
 							}
-							maxSleep := math.Pow(2, float64(math.Min(float64(backoffCount), 5)))
-							sleepTime = time.Second * time.Duration(1+rand.Float64()*(maxSleep-1))
+							sleepTime = ExponentialBackoffWithJitter(backoffCount)
 							backoffCount++
 							continueLoop = true
 						}
@@ -346,8 +359,7 @@ func RunOSMOCommandWithRetry(commandArgs []string, retryCount int,
 								osmoChan <- "Rate limited by service. Waiting before retrying..."
 								firstError = true
 							}
-							maxSleep := math.Pow(2, float64(math.Min(float64(backoffCount), 5)))
-							sleepTime = time.Second * time.Duration(1+rand.Float64()*(maxSleep-1))
+							sleepTime = ExponentialBackoffWithJitter(backoffCount)
 							backoffCount++
 							continueLoop = true
 						}

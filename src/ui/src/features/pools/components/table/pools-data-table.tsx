@@ -33,7 +33,7 @@ import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
-import { useDisplayMode, useCompactMode } from "@/hooks/shared-preferences-hooks";
+import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import { MANDATORY_COLUMN_IDS, asPoolColumnIds, POOL_COLUMN_SIZE_CONFIG } from "@/features/pools/lib/pool-columns";
@@ -97,7 +97,6 @@ export const PoolsDataTable = memo(function PoolsDataTable({
   } as const);
 
   // Shared preferences (hydration-safe)
-  const displayMode = useDisplayMode();
   const compactMode = useCompactMode();
 
   // Table store state
@@ -116,7 +115,6 @@ export const PoolsDataTable = memo(function PoolsDataTable({
     pools,
     sort: sortState,
     sharingGroups,
-    displayMode,
   });
 
   const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
@@ -148,12 +146,11 @@ export const PoolsDataTable = memo(function PoolsDataTable({
   const columns = useMemo(
     () =>
       createPoolColumns({
-        displayMode,
         compact: compactMode,
         sharingMap,
         filterBySharedPoolsMap,
       }),
-    [displayMode, compactMode, sharingMap, filterBySharedPoolsMap],
+    [compactMode, sharingMap, filterBySharedPoolsMap],
   );
 
   // Fixed columns (not draggable)

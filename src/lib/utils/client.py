@@ -226,8 +226,8 @@ class LoginManager():
         self._login_storage = login.dev_login(url, username)
         self._save_login_info(self._login_storage, welcome=True)
 
-    def token_login(self, url: str, access_token: str):
-        self._login_storage = login.token_login(url, access_token, self.user_agent)
+    def token_login(self, url: str, refresh_url: str, refresh_token: str):
+        self._login_storage = login.token_login(url, refresh_url, refresh_token, self.user_agent)
         self._save_login_info(self._login_storage, welcome=True)
 
     def logout(self):
@@ -274,7 +274,7 @@ class LoginManager():
             raise osmo_errors.OSMOUserError('Must login first with "login" command')
         if self._login_storage.token_login is None:
             raise osmo_errors.OSMOUserError('Must login first with token')
-        return login.fetch_token_from_refresh_url(self._login_storage.token_login.refresh_url or '')
+        return self._login_storage.token_login.refresh_token
 
 
 class ServiceClient():

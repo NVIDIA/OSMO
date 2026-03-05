@@ -249,6 +249,11 @@ class UserWithRoles(User):
     roles: List[UserRole] = []
 
 
+class TokenRequest(pydantic.BaseModel):
+    """Request body containing a token for JWT generation."""
+    token: str
+
+
 class CreateUserRequest(pydantic.BaseModel):
     """Request to create a new user."""
     id: str

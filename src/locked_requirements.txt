@@ -52,10 +52,6 @@ azure-storage-blob==12.26.0 \
     --hash=sha256:5dd7d7824224f7de00bfeb032753601c982655173061e242f13be6e26d78d71f \
     --hash=sha256:8c5631b8b22b4f53ec5fff2f3bededf34cfef111e2af613ad42c9e6de00a77fe
     # via -r requirements.txt
-backports-tarfile==1.2.0 \
-    --hash=sha256:77e284d754527b01fb1e6fa8a1afe577858ebe4e9dad8919e34c862cb399bc34 \
-    --hash=sha256:d75e02c268746e1b8144c278978b6e98e85de6ad16f8e4b0844a154557eca991
-    # via -r requirements.txt
 boto3==1.38.0 \
     --hash=sha256:8b6544eca17e31d1bfd538e5d152b96a68d6c92950352a0cd9679f89d217d53a \
     --hash=sha256:96898facb164b47859d40a4271007824a0a791c3811a7079ce52459d753d4474
@@ -602,7 +598,9 @@ lark==1.1.5 \
 macholib==1.16.3 \
     --hash=sha256:07ae9e15e8e4cd9a788013d81f5908b3609aa76f9b1421bae9c4d7606ec86a30 \
     --hash=sha256:0e315d7583d38b8c77e815b1ecbdbf504a8258d8b3e17b61165c6feb60d18f2c
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   pyinstaller
 markupsafe==3.0.3 \
     --hash=sha256:0303439a41979d9e74d18ff5e2dd8c43ed6c6001fd40e5bf2e43f7bd9bbc523f \
     --hash=sha256:068f375c472b3e7acbe2d5318dea141359e6900156b5b2ba06a30b169086b91a \
@@ -937,19 +935,19 @@ pydantic==1.10.26 \
     # via
     #   -r requirements.txt
     #   fastapi
-pyinstaller==6.12.0 \
-    --hash=sha256:0c271896a3a168f4f91827145702543db9c5427f4c7372a6df8c75925a3ac18a \
-    --hash=sha256:0e62d3906309248409f215b386f33afec845214e69cc0f296b93222b26a88f43 \
-    --hash=sha256:138856a5a503bb69c066377e0a22671b0db063e9cc14d5cf5c798a53561200d3 \
-    --hash=sha256:1834797be48ce1b26015af68bdeb3c61a6c7500136f04e0fc65e468115dec777 \
-    --hash=sha256:68f1e4cecf88a6272063977fa2a2c69ad37cf568e5901769d7206d0314c74f47 \
-    --hash=sha256:83c7f3bde9871b4a6aa71c66a96e8ba5c21668ce711ed97f510b9382d10aac6c \
-    --hash=sha256:8e92e9873a616547bbabbb5a3a9843d5f2ab40c3d8b26810acdf0fe257bee4cf \
-    --hash=sha256:a2abf5fde31a8b38b6df7939bcef8ac1d0c51e97e25317ce3555cd675259750f \
-    --hash=sha256:a69818815c6e0711c727edc30680cb1f81c691b59de35db81a2d9e0ae26a9ef1 \
-    --hash=sha256:aefe502d55c9cf6aeaed7feba80b5f8491ce43f8f2b5fe2d9aadca3ee5a05bc4 \
-    --hash=sha256:dac8a27988dbc33cdc34f2046803258bc3f6829de24de52745a5daa22bdba0f1 \
-    --hash=sha256:fea76fc9b55ffa730fcf90beb897cce4399938460b0b6f40507fbebfc752c753
+pyinstaller==6.19.0 \
+    --hash=sha256:1ec54ef967996ca61dacba676227e2b23219878ccce5ee9d6f3aada7b8ed8abf \
+    --hash=sha256:3c5c251054fe4cfaa04c34a363dcfbf811545438cb7198304cd444756bc2edd2 \
+    --hash=sha256:4190e76b74f0c4b5c5f11ac360928cd2e36ec8e3194d437bf6b8648c7bc0c134 \
+    --hash=sha256:481a909c8e60c8692fc60fcb1344d984b44b943f8bc9682f2fcdae305ad297e6 \
+    --hash=sha256:4ab2bb52e58448e14ddf9450601bdedd66800465043501c1d8f1cab87b60b122 \
+    --hash=sha256:8bd68abd812d8a6ba33b9f1810e91fee0f325969733721b78151f0065319ca11 \
+    --hash=sha256:a0fc5f6b3c55aa54353f0c74ffa59b1115433c1850c6f655d62b461a2ed6cbbe \
+    --hash=sha256:b5bb6536c6560330d364d91522250f254b107cf69129d9cbcd0e6727c570be33 \
+    --hash=sha256:c2d5a539b0bfe6159d5522c8c70e1c0e487f22c2badae0f97d45246223b798ea \
+    --hash=sha256:da6d5c6391ccefe73554b9fa29b86001c8e378e0f20c2a4004f836ba537eff63 \
+    --hash=sha256:e649ba6bd1b0b89b210ad92adb5fbdc8a42dd2c5ca4f72ef3a0bfec83a424b83 \
+    --hash=sha256:ec73aeb8bd9b7f2f1240d328a4542e90b3c6e6fbc106014778431c616592a865
     # via -r requirements.txt
 pyinstaller-hooks-contrib==2026.1 \
     --hash=sha256:66ad4888ba67de6f3cfd7ef554f9dd1a4389e2eb19f84d7129a5a6818e3f2180 \
