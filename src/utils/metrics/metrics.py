@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import enum
 from typing import Any, Dict, Union
 
+import prometheus_client
 from opentelemetry import metrics
 from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.sdk.resources import Resource, Attributes
@@ -81,7 +82,8 @@ class MetricCreator:
             raise osmo_errors.OSMOError(
                 'Only one instance of MetricCreator can exist!')
         self._config = config
-        reader = PrometheusMetricReader(port=self._config.metrics_prometheus_port)
+        prometheus_client.start_http_server(self._config.metrics_prometheus_port)
+        reader = PrometheusMetricReader()
         # add all labels to the metrics common to service
         service_name = self._config.metrics_otel_collector_component
         service_version = str(version.VERSION)

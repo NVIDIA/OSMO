@@ -25,6 +25,7 @@ osmo_py_library(
     deps = [
         requirement("opentelemetry-exporter-prometheus"),
         requirement("opentelemetry-sdk"),
+        requirement("prometheus-client"),
         requirement("pydantic"),
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:version",
