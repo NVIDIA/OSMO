@@ -55,6 +55,17 @@ def main():
     # Generate OpenAPI spec
     openapi_spec = app.openapi()
 
+    # Explicitly set explode=True for all array query parameters.
+    # OpenAPI 3 implies explode=True by default for query params, but orval's
+    # fetch client generator only honors it when explicitly present in the spec.
+    for path_item in openapi_spec.get('paths', {}).values():
+        for operation in path_item.values():
+            if not isinstance(operation, dict):
+                continue
+            for param in operation.get('parameters', []):
+                if param.get('in') == 'query' and param.get('schema', {}).get('type') == 'array':
+                    param.setdefault('explode', True)
+
     # Format JSON
     indent = 2 if args.pretty else None
     json_output = json.dumps(openapi_spec, indent=indent)

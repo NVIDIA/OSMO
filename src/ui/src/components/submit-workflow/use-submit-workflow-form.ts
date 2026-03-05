@@ -92,16 +92,16 @@ export interface UseSubmitWorkflowFormReturn {
   handleClose: () => void;
 }
 
-export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
+export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormReturn {
   const router = useNavigationRouter();
   const close = useSubmitWorkflowStore((s) => s.close);
   const { announcer } = useServices();
 
   const { profile } = useProfile();
   const defaultPool = profile?.pool.default ?? "";
-  const { pool, setPool, resetPool } = usePoolSelection(defaultPool);
+  const { pool, setPool } = usePoolSelection(defaultPool);
 
-  const [spec, setSpec] = useState("");
+  const [spec, setSpec] = useState(initialSpec);
   const [priority, setPriority] = useState<WorkflowPriority>(WorkflowPriority.NORMAL);
   const [error, setError] = useState<string | null>(null);
   const [dryRunSpec, setDryRunSpec] = useState<string | null>(null);
@@ -222,16 +222,9 @@ export function useSubmitWorkflowForm(): UseSubmitWorkflowFormReturn {
 
   const handleClose = useCallback(() => {
     if (!isPending) {
-      setSpec("");
-      resetPool();
-      setPriority(WorkflowPriority.NORMAL);
-      setError(null);
-      setDryRunSpec(null);
-      setDryRunError(null);
-      setValidationState(null);
       close();
     }
-  }, [isPending, close, resetPool]);
+  }, [isPending, close]);
 
   return useMemo(
     () => ({

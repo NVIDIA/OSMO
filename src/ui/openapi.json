@@ -2595,7 +2595,8 @@
               "description": "Filter by config types"
             },
             "name": "config_types",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "description": "Filter by config name",
@@ -2632,7 +2633,8 @@
               "description": "Filter by tags"
             },
             "name": "tags",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "description": "Filter by creation time before",
@@ -2951,7 +2953,7 @@
           "Auth API"
         ],
         "summary": "Get New Jwt Token",
-        "description": "API to fetch for a new access token using a refresh token.",
+        "description": "API to fetch for a new access token using a refresh token.\n\nDeprecated: Use POST /api/auth/jwt/refresh_token instead.",
         "operationId": "get_new_jwt_token_api_auth_jwt_refresh_token_get",
         "parameters": [
           {
@@ -3021,6 +3023,83 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Post New Jwt Token",
+        "description": "API to fetch for a new access token using a refresh token.",
+        "operationId": "post_new_jwt_token_api_auth_jwt_refresh_token_post",
+        "parameters": [
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workflow Id"
+            },
+            "name": "workflow_id",
+            "in": "query"
+          },
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Name"
+            },
+            "name": "group_name",
+            "in": "query"
+          },
+          {
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Name"
+            },
+            "name": "task_name",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "title": "Retry Id",
+              "default": 0
+            },
+            "name": "retry_id",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/auth/jwt/access_token": {
@@ -3029,7 +3108,7 @@
           "Auth API"
         ],
         "summary": "Get Jwt Token From Access Token",
-        "description": "API to create a new jwt token from an access token.",
+        "description": "API to create a new jwt token from an access token.\n\nDeprecated: Use POST /api/auth/jwt/access_token instead.",
         "operationId": "get_jwt_token_from_access_token_api_auth_jwt_access_token_get",
         "parameters": [
           {
@@ -3042,6 +3121,44 @@
             "in": "query"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Auth API"
+        ],
+        "summary": "Post Jwt Token From Access Token",
+        "description": "API to create a new jwt token from an access token.",
+        "operationId": "post_jwt_token_from_access_token_api_auth_jwt_access_token_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3111,7 +3228,8 @@
               "title": "Roles"
             },
             "name": "roles",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -3348,7 +3466,8 @@
               "title": "Roles"
             },
             "name": "roles",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -3525,7 +3644,8 @@
               "title": "Roles"
             },
             "name": "roles",
-            "in": "query"
+            "in": "query",
+            "explode": true
           }
         ],
         "responses": {
@@ -3968,7 +4088,8 @@
               "title": "Users"
             },
             "name": "users",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4526,7 +4647,8 @@
               "title": "Users"
             },
             "name": "users",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4546,7 +4668,8 @@
               "type": "array"
             },
             "name": "statuses",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4601,7 +4724,8 @@
               "title": "Pools"
             },
             "name": "pools",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4643,7 +4767,8 @@
               "title": "Tags"
             },
             "name": "tags",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4663,7 +4788,8 @@
               "type": "array"
             },
             "name": "priority",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4777,7 +4903,8 @@
               "type": "array"
             },
             "name": "statuses",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4789,7 +4916,8 @@
               "title": "Users"
             },
             "name": "users",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4811,7 +4939,8 @@
               "title": "Pools"
             },
             "name": "pools",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4833,7 +4962,8 @@
               "title": "Nodes"
             },
             "name": "nodes",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -4917,7 +5047,8 @@
               "type": "array"
             },
             "name": "priority",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -5316,7 +5447,8 @@
               "title": "Add"
             },
             "name": "add",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -5328,7 +5460,8 @@
               "title": "Remove"
             },
             "name": "remove",
-            "in": "query"
+            "in": "query",
+            "explode": true
           }
         ],
         "responses": {
@@ -5516,7 +5649,8 @@
               "title": "Task Ports"
             },
             "name": "task_ports",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -5849,7 +5983,8 @@
               "title": "Pools"
             },
             "name": "pools",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -5861,7 +5996,8 @@
               "title": "Platforms"
             },
             "name": "platforms",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -5989,7 +6125,8 @@
               "title": "Pools"
             },
             "name": "pools",
-            "in": "query"
+            "in": "query",
+            "explode": true
           }
         ],
         "responses": {
@@ -6044,7 +6181,8 @@
               "title": "Pools"
             },
             "name": "pools",
-            "in": "query"
+            "in": "query",
+            "explode": true
           }
         ],
         "responses": {
@@ -6160,7 +6298,8 @@
               "default": []
             },
             "name": "env_vars",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -6472,7 +6611,8 @@
               "default": []
             },
             "name": "set_tag",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -6485,7 +6625,8 @@
               "default": []
             },
             "name": "delete_tag",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -6498,7 +6639,8 @@
               "default": []
             },
             "name": "delete_label",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -6511,7 +6653,8 @@
               "default": []
             },
             "name": "delete_metadata",
-            "in": "query"
+            "in": "query",
+            "explode": true
           }
         ],
         "requestBody": {
@@ -6669,7 +6812,8 @@
               "title": "User"
             },
             "name": "user",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -6682,7 +6826,8 @@
               "default": []
             },
             "name": "buckets",
-            "in": "query"
+            "in": "query",
+            "explode": true
           },
           {
             "required": false,
@@ -11258,6 +11403,20 @@
         ],
         "title": "TokenIdentity",
         "description": "Identity when the request is authenticated with an access token. "
+      },
+      "TokenRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "TokenRequest",
+        "description": "Request body containing a token for JWT generation."
       },
       "Toleration": {
         "properties": {
