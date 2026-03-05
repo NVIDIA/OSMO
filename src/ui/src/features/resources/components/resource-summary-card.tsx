@@ -18,7 +18,7 @@
 
 import { memo } from "react";
 import { Zap, Cpu, MemoryStick, HardDrive } from "lucide-react";
-import { cn, formatCompact, formatBytes, formatBytesPair } from "@/lib/utils";
+import { cn, formatCompact, formatBytes, formatBytesTriple } from "@/lib/utils";
 import type { DisplayMode } from "@/stores/shared-preferences-store";
 import type { ResourceAggregates } from "@/lib/resource-aggregates";
 
@@ -62,13 +62,12 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
 
   // Format helper for each metric type
   const formatMetric = (
-    m: { used: number; total: number },
+    m: { used: number; total: number; free: number },
     isBytes: boolean,
   ): { freeValue: string; usedValue: string; totalValue: string; unit: string } => {
     if (isBytes) {
-      const free = m.total - m.used;
-      const freeFormatted = formatBytes(free);
-      const pair = formatBytesPair(m.used, m.total);
+      const freeFormatted = formatBytes(m.free);
+      const pair = formatBytesTriple(m.used, m.total, m.free);
       return {
         freeValue: freeFormatted.value,
         usedValue: pair.used,
@@ -76,10 +75,8 @@ export const AdaptiveSummary = memo(function AdaptiveSummary({
         unit: displayMode === "free" ? freeFormatted.unit : pair.unit,
       };
     }
-    // Non-bytes: use compact formatting
-    const free = m.total - m.used;
     return {
-      freeValue: formatCompact(free),
+      freeValue: formatCompact(m.free),
       usedValue: formatCompact(m.used),
       totalValue: formatCompact(m.total),
       unit: "",

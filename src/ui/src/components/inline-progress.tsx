@@ -25,8 +25,6 @@ export interface InlineProgressProps {
   used: number;
   /** Total/maximum value */
   total: number;
-  /** Display mode: show "used/total" or "free" */
-  displayMode?: DisplayMode;
   /** Compact mode: hide progress bar, show only text */
   compact?: boolean;
   /** Width of the progress bar */
@@ -49,35 +47,19 @@ export interface InlineProgressProps {
  *
  * @example
  * ```tsx
- * // Basic usage
  * <InlineProgress used={6} total={8} />
- *
- * // Free display mode
- * <InlineProgress used={6} total={8} displayMode="free" freeLabel="idle" />
- *
- * // Compact mode (no bar)
  * <InlineProgress used={6} total={8} compact />
- *
- * // With trailing content (e.g., icon)
- * <InlineProgress used={6} total={8}>
- *   <ShareIcon />
- * </InlineProgress>
  * ```
  */
 export const InlineProgress = memo(function InlineProgress({
   used,
   total,
-  displayMode = "used",
   compact = false,
   barWidth = "w-16",
   children,
   className,
 }: InlineProgressProps) {
-  const free = total - used;
-
-  // Format display label based on mode
-  const displayFree = Math.max(0, free);
-  const displayLabel = displayMode === "used" ? `${used}/${total}` : `${displayFree} ${freeLabel}`;
+  const label = `${used}/${total}`;
 
   if (compact) {
     return (

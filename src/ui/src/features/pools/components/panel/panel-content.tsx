@@ -118,6 +118,7 @@ export const PanelContent = memo(function PanelContent({
           label="GPU Quota"
           used={pool.quota.used}
           total={pool.quota.limit}
+          free={pool.quota.free}
         />
 
         {/* GPU Capacity */}
@@ -138,6 +139,7 @@ export const PanelContent = memo(function PanelContent({
           }
           used={pool.quota.totalUsage}
           total={pool.quota.totalCapacity}
+          free={pool.quota.totalFree}
         >
           {/* Shared pools info - colocated with capacity bar */}
           {sharedWith && sharedWith.length > 0 && (

@@ -17,7 +17,7 @@
 "use client";
 
 import { memo, type ReactNode } from "react";
-import { cn, formatCompact, formatBytesPair } from "@/lib/utils";
+import { cn, formatCompact, formatBytesTriple } from "@/lib/utils";
 import { ProgressBar } from "@/components/progress-bar";
 
 // =============================================================================
@@ -31,6 +31,8 @@ export interface CapacityBarProps {
   used: number;
   /** Total capacity */
   total: number;
+  /** Free/available amount (from API) */
+  free: number;
   /** If true, values are in GiB and will be formatted with appropriate binary unit (Ki, Mi, Gi, Ti) */
   isBytes?: boolean;
   /** Size variant */
@@ -56,11 +58,11 @@ export interface CapacityBarProps {
  *
  * @example
  * ```tsx
- * <CapacityBar label="GPU" used={6} total={8} />
- * <CapacityBar label="Memory" used={256} total={512} isBytes />
+ * <CapacityBar label="GPU" used={6} total={8} free={2} />
+ * <CapacityBar label="Memory" used={256} total={512} free={256} isBytes />
  *
  * // With children for related content
- * <CapacityBar label="GPU Capacity" used={6} total={8}>
+ * <CapacityBar label="GPU Capacity" used={6} total={8} free={2}>
  *   <SharedPoolsInfo pools={sharedPools} />
  * </CapacityBar>
  * ```
@@ -69,6 +71,7 @@ export const CapacityBar = memo(function CapacityBar({
   label,
   used,
   total,
+  free,
   isBytes = false,
   size = "md",
   showFree = true,
@@ -100,14 +103,13 @@ export const CapacityBar = memo(function CapacityBar({
   let ariaLabel: string;
 
   if (isBytes) {
-    const pair = formatBytesPair(used, total);
+    const pair = formatBytesTriple(used, total, free);
     usedStr = pair.used;
     totalStr = pair.total;
     unit = pair.unit;
     freeDisplay = pair.freeDisplay;
     ariaLabel = `${label}: ${pair.used} ${pair.unit} of ${pair.total} ${pair.unit} used`;
   } else {
-    const free = total - used;
     usedStr = formatCompact(used);
     totalStr = formatCompact(total);
     unit = "";
