@@ -1725,6 +1725,7 @@ async def main():
     osmo_logging.init_logger('backend-listener', config)
     logging.getLogger('websockets.client').setLevel(logging.ERROR)
     listener_metrics = metrics.MetricCreator(config=config).get_meter_instance()
+    listener_metrics.start_server()
 
     # Get backend conditions from service instead of hardcoded config
     service_login = service_connector.OsmoServiceConnector(config.service_url,

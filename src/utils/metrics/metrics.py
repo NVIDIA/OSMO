@@ -82,7 +82,6 @@ class MetricCreator:
             raise osmo_errors.OSMOError(
                 'Only one instance of MetricCreator can exist!')
         self._config = config
-        prometheus_client.start_http_server(self._config.metrics_prometheus_port)
         reader = PrometheusMetricReader()
         # add all labels to the metrics common to service
         service_name = self._config.metrics_otel_collector_component
@@ -117,6 +116,11 @@ class MetricCreator:
         self._cache: Dict[str, Any] = {}
         self._global_tags: Dict[str, str] = {}
         MetricCreator._meter_instance = self
+
+    def start_server(self):
+        """Start the Prometheus scrape endpoint, listening on all interfaces."""
+        prometheus_client.start_http_server(
+            self._config.metrics_prometheus_port, addr='0.0.0.0')
 
     def _get_merged_tags(self, tags: Dict[str, str] | None = None):
         merged = self._global_tags.copy()

@@ -387,6 +387,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     postgres = connectors.PostgresConnector(config)
     connectors.RedisConnector(config)
     api_service_metrics = metrics.MetricCreator(config=config).get_meter_instance()
+    api_service_metrics.start_server()
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
 

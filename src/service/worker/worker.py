@@ -208,6 +208,7 @@ def main():
     config = WorkerConfig.load()
     src.lib.utils.logging.init_logger('worker', config)
     worker_metrics = metrics.MetricCreator(config=config).get_meter_instance()
+    worker_metrics.start_server()
     connectors.RedisConnector(config)
 
     if config.method != 'dev':

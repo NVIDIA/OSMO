@@ -101,6 +101,7 @@ def main():
 
     if config.enable_metrics:
         delayed_job_monitor_metrics = metrics.MetricCreator(config=config).get_meter_instance()
+        delayed_job_monitor_metrics.start_server()
         get_delayed_set_length_callable = partial(get_set_length, config.redis_url)
         delayed_job_monitor_metrics.send_observable_gauge('osmo_delayed_job_length',
                                              callbacks=get_delayed_set_length_callable,
