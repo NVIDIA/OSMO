@@ -21,7 +21,7 @@ SPDX-License-Identifier: Apache-2.0
 ## Overview
 
 This workflow uses Isaac Sim, a robotics simulator, to generate synthetic data that can be used to train deep neural
-networks. The workflow consists of one main task that launches Isaac Sim.
+networks. The workflow consists of one main task that launches Isaac Sim, and generates 60 images.
 
 ## Prerequisites
 
