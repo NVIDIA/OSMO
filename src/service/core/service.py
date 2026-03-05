@@ -387,7 +387,6 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     postgres = connectors.PostgresConnector(config)
     connectors.RedisConnector(config)
     api_service_metrics = metrics.MetricCreator(config=config).get_meter_instance()
-    api_service_metrics.start_server()
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
 
@@ -470,6 +469,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
 def main():
     config = objects.WorkflowServiceConfig.load()
     configure_app(app, config)
+    metrics.MetricCreator.get_meter_instance().start_server()
 
     parsed_url = urlparse(config.host)
     host = parsed_url.hostname if parsed_url.hostname else ''
