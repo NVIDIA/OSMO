@@ -1716,6 +1716,13 @@ export interface TemplateSpec {
 }
 
 /**
+ * Request body containing a token for JWT generation.
+ */
+export interface TokenRequest {
+  token: string;
+}
+
+/**
  * Request body for updating config tags endpoint.
  */
 export interface UpdateConfigTagsRequest {
@@ -2013,6 +2020,13 @@ second_revision: number;
 
 export type GetNewJwtTokenApiAuthJwtRefreshTokenGetParams = {
 refresh_token: string;
+workflow_id: string;
+group_name: string;
+task_name: string;
+retry_id?: number;
+};
+
+export type PostNewJwtTokenApiAuthJwtRefreshTokenPostParams = {
 workflow_id: string;
 group_name: string;
 task_name: string;
@@ -7563,7 +7577,15 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["config_types","tags"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -8095,6 +8117,8 @@ export function useGetConfigDiffApiConfigsDiffGet<TData = Awaited<ReturnType<typ
 
 /**
  * API to fetch for a new access token using a refresh token.
+
+Deprecated: Use POST /api/auth/jwt/refresh_token instead.
  * @summary Get New Jwt Token
  */
 export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponse200 = {
@@ -8220,7 +8244,108 @@ export function useGetNewJwtTokenApiAuthJwtRefreshTokenGet<TData = Awaited<Retur
 
 
 /**
+ * API to fetch for a new access token using a refresh token.
+ * @summary Post New Jwt Token
+ */
+export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponseSuccess = (postNewJwtTokenApiAuthJwtRefreshTokenPostResponse200) & {
+  headers: Headers;
+};
+export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponseError = (postNewJwtTokenApiAuthJwtRefreshTokenPostResponse422) & {
+  headers: Headers;
+};
+
+export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse = (postNewJwtTokenApiAuthJwtRefreshTokenPostResponseSuccess | postNewJwtTokenApiAuthJwtRefreshTokenPostResponseError)
+
+export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl = (params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/auth/jwt/refresh_token?${stringifiedParams}` : `/api/auth/jwt/refresh_token`
+}
+
+export const postNewJwtTokenApiAuthJwtRefreshTokenPost = async (tokenRequest: TokenRequest,
+    params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams, options?: RequestInit): Promise<postNewJwtTokenApiAuthJwtRefreshTokenPostResponse> => {
+  
+  return customFetch<postNewJwtTokenApiAuthJwtRefreshTokenPostResponse>(getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl(params),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tokenRequest,)
+  }
+);}
+  
+
+
+
+export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>, TError,{data: TokenRequest;params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>, TError,{data: TokenRequest;params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams}, TContext> => {
+
+const mutationKey = ['postNewJwtTokenApiAuthJwtRefreshTokenPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>, {data: TokenRequest;params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams}> = (props) => {
+          const {data,params} = props ?? {};
+
+          return  postNewJwtTokenApiAuthJwtRefreshTokenPost(data,params,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostNewJwtTokenApiAuthJwtRefreshTokenPostMutationResult = NonNullable<Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>>
+    export type PostNewJwtTokenApiAuthJwtRefreshTokenPostMutationBody = TokenRequest
+    export type PostNewJwtTokenApiAuthJwtRefreshTokenPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Post New Jwt Token
+ */
+export const usePostNewJwtTokenApiAuthJwtRefreshTokenPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>, TError,{data: TokenRequest;params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postNewJwtTokenApiAuthJwtRefreshTokenPost>>,
+        TError,
+        {data: TokenRequest;params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams},
+        TContext
+      > => {
+      return useMutation(getPostNewJwtTokenApiAuthJwtRefreshTokenPostMutationOptions(options), queryClient);
+    }
+    
+/**
  * API to create a new jwt token from an access token.
+
+Deprecated: Use POST /api/auth/jwt/access_token instead.
  * @summary Get Jwt Token From Access Token
  */
 export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse200 = {
@@ -8346,6 +8471,97 @@ export function useGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet<TData = Aw
 
 
 /**
+ * API to create a new jwt token from an access token.
+ * @summary Post Jwt Token From Access Token
+ */
+export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse200 = {
+  data: unknown
+  status: 200
+}
+
+export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse422 = {
+  data: HTTPValidationError
+  status: 422
+}
+
+export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseSuccess = (postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse200) & {
+  headers: Headers;
+};
+export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseError = (postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse422) & {
+  headers: Headers;
+};
+
+export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse = (postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseSuccess | postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseError)
+
+export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl = () => {
+
+
+  
+
+  return `/api/auth/jwt/access_token`
+}
+
+export const postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = async (tokenRequest: TokenRequest, options?: RequestInit): Promise<postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse> => {
+  
+  return customFetch<postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse>(getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      tokenRequest,)
+  }
+);}
+  
+
+
+
+export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMutationOptions = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>, TError,{data: TokenRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>, TError,{data: TokenRequest}, TContext> => {
+
+const mutationKey = ['postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>, {data: TokenRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost(data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMutationResult = NonNullable<Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>>
+    export type PostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMutationBody = TokenRequest
+    export type PostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMutationError = HTTPValidationError
+
+    /**
+ * @summary Post Jwt Token From Access Token
+ */
+export const usePostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = <TError = HTTPValidationError,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>, TError,{data: TokenRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost>>,
+        TError,
+        {data: TokenRequest},
+        TContext
+      > => {
+      return useMutation(getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMutationOptions(options), queryClient);
+    }
+    
+/**
  * API to create a new access token.
 
 If roles are specified, all specified roles must be assigned to the user.
@@ -8378,7 +8594,15 @@ export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl = (tokenName
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["roles"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -8832,7 +9056,15 @@ export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostU
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["roles"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -9162,7 +9394,15 @@ export const getListUsersApiAuthUserGetUrl = (params?: ListUsersApiAuthUserGetPa
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["roles"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -10152,7 +10392,15 @@ export const getListAppsApiAppGetUrl = (params?: ListAppsApiAppGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["users"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11022,7 +11270,15 @@ export const getListWorkflowApiWorkflowGetUrl = (params?: ListWorkflowApiWorkflo
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["users","statuses","pools","tags","priority"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -11274,7 +11530,15 @@ export const getListTaskApiTaskGetUrl = (params?: ListTaskApiTaskGetParams,) => 
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["statuses","users","pools","nodes","priority"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12071,7 +12335,15 @@ export const getTagWorkflowApiWorkflowNameTagPostUrl = (name: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["add","remove"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12373,7 +12645,15 @@ export const getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl = (name
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["task_ports"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -12966,7 +13246,15 @@ export const getGetResourcesApiResourcesGetUrl = (params?: GetResourcesApiResour
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["pools","platforms"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -13215,7 +13503,15 @@ export const getGetPoolsApiPoolGetUrl = (params?: GetPoolsApiPoolGetParams,) => 
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["pools"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -13340,7 +13636,15 @@ export const getGetPoolQuotasApiPoolQuotaGetUrl = (params?: GetPoolQuotasApiPool
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["pools"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -13467,7 +13771,15 @@ export const getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl = (poolName: string
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["env_vars"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -13889,7 +14201,15 @@ export const getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePos
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["set_tag","delete_tag","delete_label","delete_metadata"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -14132,7 +14452,15 @@ export const getListDatasetFromBucketApiBucketListDatasetGetUrl = (params?: List
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["user","buckets"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }

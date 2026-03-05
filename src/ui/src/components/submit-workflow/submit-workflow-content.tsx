@@ -73,133 +73,143 @@ function useColumnResizer(initialPct = 55) {
   return { editorWidthPct, isDragging, splitRef, startDrag };
 }
 
-export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
-  const form = useSubmitWorkflowForm();
-  const { editorWidthPct, isDragging, splitRef, startDrag } = useColumnResizer();
-  const isOpen = useSubmitWorkflowStore((s) => s.isOpen);
+function SubmitTopBar({ onClose, disabled = false }: { onClose: () => void; disabled?: boolean }) {
+  return (
+    <div className="flex h-[50px] shrink-0 items-center gap-3.5 border-b border-zinc-200 bg-zinc-50 pr-2 pl-5 dark:border-zinc-700/60 dark:bg-zinc-950">
+      <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Submit Workflow</span>
+      <div className="flex-1" />
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={disabled}
+        aria-label="Close submit workflow"
+        className="flex size-8 items-center justify-center text-zinc-400 transition-colors hover:text-zinc-700 disabled:opacity-50 dark:text-zinc-500 dark:hover:text-zinc-200"
+      >
+        <X
+          className="size-4"
+          aria-hidden="true"
+        />
+      </button>
+    </div>
+  );
+}
 
-  // Show source picker until the user picks a source, then keep it dismissed
-  // for the rest of the session (even if spec is cleared on close). Resets when
-  // the overlay reopens so the next session starts fresh at the source picker.
-  const [showSourcePicker, setShowSourcePicker] = useState(true);
+export const SubmitWorkflowContent = memo(function SubmitWorkflowContent() {
+  const isOpen = useSubmitWorkflowStore((s) => s.isOpen);
+  const close = useSubmitWorkflowStore((s) => s.close);
+
+  // null = source picker phase (no form hooks, no API calls)
+  // string = form phase (form hooks mount, pool validation fires)
+  const [selectedSpec, setSelectedSpec] = useState<string | null>(null);
+
+  // Reset to source picker when overlay reopens
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   if (prevIsOpen !== isOpen) {
     setPrevIsOpen(isOpen);
-    if (isOpen) setShowSourcePicker(true);
+    if (isOpen) setSelectedSpec(null);
   }
-
-  const handleSourceSelect = useCallback(
-    (spec: string) => {
-      form.setSpec(spec);
-      setShowSourcePicker(false);
-    },
-    [form],
-  );
 
   return (
     <div className="flex h-full flex-col bg-white dark:bg-zinc-900">
-      {/* ── Top bar ─────────────────────────────────────────────── */}
-      <div className="flex h-[50px] shrink-0 items-center gap-3.5 border-b border-zinc-200 bg-zinc-50 pr-2 pl-5 dark:border-zinc-700/60 dark:bg-zinc-950">
-        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Submit Workflow</span>
-
-        <div className="flex-1" />
-
-        {/* Close button */}
-        <button
-          type="button"
-          onClick={form.handleClose}
-          disabled={form.isPending}
-          aria-label="Close submit workflow"
-          className="flex size-8 items-center justify-center text-zinc-400 transition-colors hover:text-zinc-700 disabled:opacity-50 dark:text-zinc-500 dark:hover:text-zinc-200"
-        >
-          <X
-            className="size-4"
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-
-      {/* ── Body ────────────────────────────────────────────────── */}
-      {showSourcePicker ? (
-        /* Source picker spans the full width before a spec is chosen */
-        <SourcePicker onSelect={handleSourceSelect} />
+      {selectedSpec !== null ? (
+        <SubmitWorkflowFormView
+          key={selectedSpec}
+          initialSpec={selectedSpec}
+        />
       ) : (
-        /* Split view: editor + resizer + config */
-        <div
-          ref={splitRef}
-          className="flex min-h-0 flex-1"
-        >
-          {/* Left: YAML editor */}
-          <div
-            className="flex flex-col"
-            style={{ flexBasis: `${editorWidthPct}%`, flexShrink: 1, minWidth: EDITOR_MIN_WIDTH_PX }}
-          >
-            <SubmitWorkflowEditorPanel
-              value={form.spec}
-              onChange={form.setSpec}
-              previewSpec={form.dryRunSpec}
-              onClearPreview={form.clearDryRun}
-            />
-          </div>
-
-          {/* Resizer */}
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Drag to resize panels"
-            className="group relative z-10 w-4 shrink-0 cursor-col-resize"
-            onMouseDown={startDrag}
-          >
-            {/* Vertical line */}
-            <div
-              className={cn(
-                "absolute inset-y-0 left-0 w-0.5 transition-colors",
-                isDragging
-                  ? "bg-blue-500"
-                  : "bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-700 dark:group-hover:bg-zinc-600",
-              )}
-            />
-            {/* Grip handle */}
-            <div
-              className={cn(
-                "absolute top-1/2 left-px z-10 -translate-x-1/2 -translate-y-1/2",
-                "rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150",
-                "dark:bg-zinc-800",
-                isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-              )}
-              aria-hidden="true"
-            >
-              <GripVertical
-                className="size-3 text-zinc-400 dark:text-zinc-500"
-                strokeWidth={1.5}
-              />
-            </div>
-          </div>
-
-          {/* Right: Config panel */}
-          <SubmitWorkflowConfigPanel
-            pool={form.pool}
-            onPoolChange={form.setPool}
-            priority={form.priority}
-            onPriorityChange={form.setPriority}
-            localpathWarnings={form.localpathWarnings}
-            error={form.error}
-            isPending={form.isPending}
-            canSubmit={form.canSubmit}
-            onClose={form.handleClose}
-            onSubmit={form.handleSubmit}
-            isDryRunPending={form.isDryRunPending}
-            dryRunError={form.dryRunError}
-            canDryRun={form.canDryRun}
-            onDryRun={form.handleDryRun}
-            isValidatePending={form.isValidatePending}
-            validationOk={form.validationOk}
-            validationError={form.validationError}
-            canValidate={form.canValidate}
-            onValidate={form.handleValidate}
-          />
-        </div>
+        <>
+          <SubmitTopBar onClose={close} />
+          <SourcePicker onSelect={setSelectedSpec} />
+        </>
       )}
     </div>
+  );
+});
+
+const SubmitWorkflowFormView = memo(function SubmitWorkflowFormView({ initialSpec }: { initialSpec: string }) {
+  const form = useSubmitWorkflowForm(initialSpec);
+  const { editorWidthPct, isDragging, splitRef, startDrag } = useColumnResizer();
+
+  return (
+    <>
+      <SubmitTopBar
+        onClose={form.handleClose}
+        disabled={form.isPending}
+      />
+
+      {/* Split view: editor + resizer + config */}
+      <div
+        ref={splitRef}
+        className="flex min-h-0 flex-1"
+      >
+        {/* Left: YAML editor */}
+        <div
+          className="flex flex-col"
+          style={{ flexBasis: `${editorWidthPct}%`, flexShrink: 1, minWidth: EDITOR_MIN_WIDTH_PX }}
+        >
+          <SubmitWorkflowEditorPanel
+            value={form.spec}
+            onChange={form.setSpec}
+            previewSpec={form.dryRunSpec}
+            onClearPreview={form.clearDryRun}
+          />
+        </div>
+
+        {/* Resizer */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Drag to resize panels"
+          className="group relative z-10 w-4 shrink-0 cursor-col-resize"
+          onMouseDown={startDrag}
+        >
+          <div
+            className={cn(
+              "absolute inset-y-0 left-0 w-0.5 transition-colors",
+              isDragging
+                ? "bg-blue-500"
+                : "bg-zinc-200 group-hover:bg-zinc-300 dark:bg-zinc-700 dark:group-hover:bg-zinc-600",
+            )}
+          />
+          <div
+            className={cn(
+              "absolute top-1/2 left-px z-10 -translate-x-1/2 -translate-y-1/2",
+              "rounded-sm bg-zinc-100 px-px py-1 shadow-md transition-opacity duration-150",
+              "dark:bg-zinc-800",
+              isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            )}
+            aria-hidden="true"
+          >
+            <GripVertical
+              className="size-3 text-zinc-400 dark:text-zinc-500"
+              strokeWidth={1.5}
+            />
+          </div>
+        </div>
+
+        {/* Right: Config panel */}
+        <SubmitWorkflowConfigPanel
+          pool={form.pool}
+          onPoolChange={form.setPool}
+          priority={form.priority}
+          onPriorityChange={form.setPriority}
+          localpathWarnings={form.localpathWarnings}
+          error={form.error}
+          isPending={form.isPending}
+          canSubmit={form.canSubmit}
+          onClose={form.handleClose}
+          onSubmit={form.handleSubmit}
+          isDryRunPending={form.isDryRunPending}
+          dryRunError={form.dryRunError}
+          canDryRun={form.canDryRun}
+          onDryRun={form.handleDryRun}
+          isValidatePending={form.isValidatePending}
+          validationOk={form.validationOk}
+          validationError={form.validationError}
+          canValidate={form.canValidate}
+          onValidate={form.handleValidate}
+        />
+      </div>
+    </>
   );
 });
