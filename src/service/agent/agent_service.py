@@ -110,7 +110,8 @@ def main():
     src.lib.utils.logging.init_logger('agent', config)
     postgres = connectors.PostgresConnector(config)
     connectors.RedisConnector(config)
-    metrics.MetricCreator(config=config).get_meter_instance().start_server()
+    agent_metrics = metrics.MetricCreator(config=config).get_meter_instance()
+    agent_metrics.start_server()
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
     parsed_url = urlparse(config.host)
