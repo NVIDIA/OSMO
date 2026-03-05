@@ -17,16 +17,13 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import enum
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict, Union
 
 from opentelemetry import metrics
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
 from opentelemetry.sdk.resources import Resource, Attributes
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.view import View, ExplicitBucketHistogramAggregation
-from opentelemetry.sdk.metrics.export import (
-    PeriodicExportingMetricReader, ConsoleMetricExporter
-)
 import pydantic
 
 from src.lib.utils import osmo_errors, version
@@ -48,21 +45,11 @@ class InstrumentType(enum.Enum):
 
 class MetricsCreatorConfig(pydantic.BaseModel):
     """ Manages the config for the Metrics Creator. """
-    metrics_otel_collector_host: str = pydantic.Field(
-        command_line='metrics_otel_collector_host',
-        env='METRICS_OTEL_COLLECTOR_HOST',
-        default='localhost',
-        description='The hostname of the OTEL collector to connect to.')
-    metrics_otel_collector_port: int = pydantic.Field(
-        command_line='metrics_otel_collector_port',
-        env='METRICS_OTEL_COLLECTOR_PORT',
-        default=12345,
-        description='The port of the OTEL collector to connect to.')
-    metrics_otel_collector_interval_in_millis: int = pydantic.Field(
-        command_line='metrics_otel_collector_interval_in_millis',
-        env='METRICS_OTEL_COLLECTOR_INTERVAL_IN_MILLIS',
-        default=DEFAULT_INTERVAL_IN_MILLISECONDS,
-        description='The interval in which the otel collector sends values')
+    metrics_prometheus_port: int = pydantic.Field(
+        command_line='metrics_prometheus_port',
+        env='METRICS_PROMETHEUS_PORT',
+        default=9464,
+        description='The port on which the Prometheus scrape endpoint is exposed.')
     metrics_otel_collector_component: str = pydantic.Field(
         command_line='metrics_otel_collector_component',
         env='METRICS_OTEL_COLLECTOR_COMPONENT',
@@ -73,14 +60,6 @@ class MetricsCreatorConfig(pydantic.BaseModel):
         env='METRICS_OTEL_ENABLE',
         default=True,
         description='If set false, will disable metrics')
-    method: Literal['dev'] | None = pydantic.Field(
-        command_line='method',
-        default=None,
-        description='If set to "dev", use ConsoleMetricExporter')
-
-    @property
-    def metrics_url(self):
-        return f'http://{self.metrics_otel_collector_host}:{self.metrics_otel_collector_port}/'
 
 class MetricCreator:
     """
@@ -102,16 +81,7 @@ class MetricCreator:
             raise osmo_errors.OSMOError(
                 'Only one instance of MetricCreator can exist!')
         self._config = config
-        # get value from env to test in dev
-        exporter: Any = OTLPMetricExporter(endpoint=config.metrics_url, insecure=True)
-        if self._config.method == 'dev':
-            exporter = ConsoleMetricExporter(
-                out=open('/dev/null', 'w', encoding='utf-8')
-            )
-        reader = PeriodicExportingMetricReader( \
-            exporter=exporter, export_interval_millis= \
-            self._config.metrics_otel_collector_interval_in_millis
-            )
+        reader = PrometheusMetricReader(port=self._config.metrics_prometheus_port)
         # add all labels to the metrics common to service
         service_name = self._config.metrics_otel_collector_component
         service_version = str(version.VERSION)

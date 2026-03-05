@@ -29,7 +29,6 @@ osmo_py_library(
     ],
     deps = [
         requirement("kombu"),
-        requirement("opentelemetry-exporter-otlp"),
         requirement("opentelemetry-instrumentation-fastapi"),
         requirement("opentelemetry-sdk"),
         requirement("pydantic"),

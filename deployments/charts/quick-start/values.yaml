@@ -516,12 +516,6 @@ service:
       ## Enable Envoy proxy sidecar container
       ##
       enabled: false
-    ## OpenTelemetry (OTEL) sidecar configuration
-    ##
-    otel:
-      ## Enable OTEL collector sidecar for metrics and tracing
-      ##
-      enabled: false
     ## OAuth2 Proxy sidecar configuration
     ##
     oauth2Proxy:
@@ -833,12 +827,3 @@ backend-operator:
     ##
     enabled: false
 
-  ## Configuration for backend operator sidecar containers
-  ##
-  sidecars:
-    ## OpenTelemetry (OTEL) sidecar configuration
-    ##
-    OTEL:
-      ## Enable OTEL collector sidecar for metrics and tracing
-      ##
-      enabled: false

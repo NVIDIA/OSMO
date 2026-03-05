@@ -1555,36 +1555,6 @@ sidecars:
       limits:
         memory: "128Mi"
 
-  ## OpenTelemetry (OTEL) configuration for observability
-  ##
-  otel:
-    ## Enable OTEL collector sidecar for metrics and tracing
-    ##
-    enabled: true
-
-    ## OTEL collector container image
-    ##
-    image: otel/opentelemetry-collector-contrib:0.68.0
-
-    ## ConfigMap name for OTEL collector configuration
-    ##
-    configName: otel-config
-
-    ## Resource limits and requests for OTEL containers
-    ##
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "128Mi"
-      limits:
-        memory: "128Mi"
-
-    ## Ports for OTEL collector
-    ##
-    ports:
-      - containerPort: 4000
-        name: metrics
-
   ## Rate limiting service configuration
   ##
   rateLimit:

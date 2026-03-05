@@ -36,9 +36,6 @@ spec:
       annotations:
         checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
-        {{- if .Values.sidecars.otel.enabled }}
-        sidecar.opentelemetry.io/inject: "true"
-      {{- end}}
     spec:
       {{- with .Values.services.service.hostAliases }}
       hostAliases:
@@ -83,7 +80,7 @@ spec:
         - --metrics_otel_collector_component
         - {{ .Values.services.service.serviceName }}
         - --metrics_otel_enable
-        - {{ .Values.sidecars.otel.enabled | quote }}
+        - "true"
         - --redis_host
         - {{ .Values.services.redis.serviceName }}
         - --redis_port
@@ -192,6 +189,9 @@ spec:
             drop: ["ALL"]
           runAsNonRoot: true
           runAsUser: 1001
+        ports:
+        - name: metrics
+          containerPort: 9464
         {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.service.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
@@ -238,9 +238,6 @@ spec:
       {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
       {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
       {{- include "osmo.authz-sidecar-container" . | nindent 6}}
-      {{- if .Values.sidecars.otel.enabled }}
-      {{- include "osmo.otel-sidecar-container" . | nindent 6}}
-      {{- end }}
       {{- if .Values.sidecars.rateLimit.enabled }}
       {{- include "osmo.rate-limit-sidecar-container" . | nindent 6}}
       {{- end }}
@@ -249,9 +246,6 @@ spec:
         {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.service.serviceName "serviceEnvoy" .Values.services.service.envoy "Values" .Values) | nindent 8 }}
         {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
-        {{- if .Values.sidecars.otel.enabled }}
-        {{- include "osmo.otel-volumes" . | nindent 8 }}
-        {{- end }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}

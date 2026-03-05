@@ -23,7 +23,7 @@ osmo_py_library(
         "metrics.py",
     ],
     deps = [
-        requirement("opentelemetry-exporter-otlp"),
+        requirement("opentelemetry-exporter-prometheus"),
         requirement("opentelemetry-sdk"),
         requirement("pydantic"),
         "//src/lib/utils:osmo_errors",

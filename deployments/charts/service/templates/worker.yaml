@@ -32,9 +32,6 @@ spec:
         {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.worker | nindent 8 }}
-        {{- if .Values.sidecars.otel.enabled }}
-        sidecar.opentelemetry.io/inject: "true"
-        {{- end}}
     spec:
       topologySpreadConstraints:
       {{- range .Values.services.service.topologySpreadConstraints }}
@@ -77,12 +74,15 @@ spec:
             drop: ["ALL"]
           runAsNonRoot: true
           runAsUser: 1001
+        ports:
+        - name: metrics
+          containerPort: 9464
         imagePullPolicy: {{ .Values.services.worker.imagePullPolicy }}
         args:
         - --metrics_otel_collector_component
         - {{ .Values.services.worker.serviceName }}
         - --metrics_otel_enable
-        - {{ .Values.sidecars.otel.enabled | quote }}
+        - "true"
         - --redis_host
         - {{ .Values.services.redis.serviceName }}
         - --redis_port
@@ -180,14 +180,8 @@ spec:
           timeoutSeconds: 15
           initialDelaySeconds: 10
 
-      {{- if .Values.sidecars.otel.enabled }}
-      {{- include "osmo.otel-sidecar-container" . | nindent 6}}
-      {{- end }}
       {{- include "osmo.extra-sidecars" .Values.services.worker | nindent 6 }}
       volumes:
-        {{- if .Values.sidecars.otel.enabled }}
-        {{- include "osmo.otel-volumes" . | nindent 8 }}
-        {{- end }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}

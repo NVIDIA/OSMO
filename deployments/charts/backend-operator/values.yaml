@@ -787,35 +787,3 @@ extraConfigMaps: {}
 #   labels:
 #     component: "custom"
 
-## Configuration for sidecar containers
-##
-sidecars:
-  ## OpenTelemetry (OTEL) configuration for observability
-  ##
-  OTEL:
-    ## Enable OTEL collector sidecar for metrics and tracing
-    ##
-    enabled: false
-
-    ## Docker image for OTEL collector
-    ##
-    image: otel/opentelemetry-collector-contrib:0.68.0
-
-    ## ConfigMap name for OTEL collector configuration
-    ##
-    configName: otel-config
-
-    ## Container ports configuration
-    ##
-    ports:
-    - containerPort: 4000
-      name: metrics
-
-    ## Resource limits and requests for OTEL container
-    ##
-    resources:
-      requests:
-        cpu: "100m"
-        memory: "128Mi"
-      limits:
-        memory: "128Mi"

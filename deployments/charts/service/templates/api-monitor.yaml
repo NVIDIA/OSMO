@@ -13,7 +13,6 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-{{- if .Values.sidecars.otel.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -23,6 +22,11 @@ spec:
   - interval: 15s
     port: metrics
     path: /metrics
+  {{- if .Values.sidecars.envoy.enabled }}
+  - interval: 15s
+    port: envoy-admin
+    path: /stats/prometheus
+  {{- end }}
   selector:
     matchExpressions:
     - { key: app,
@@ -33,4 +37,3 @@ spec:
                  {{ .Values.services.logger.serviceName }},
                  {{ .Values.services.delayedJobMonitor.serviceName }}]
       }
-{{- end }}

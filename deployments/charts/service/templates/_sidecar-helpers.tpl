@@ -77,40 +77,6 @@ Envoy sidecar container
 
 
 {{/*
-OTEL collector sidecar container
-*/}}
-{{- define "osmo.otel-sidecar-container" -}}
-{{- if .Values.sidecars.otel.enabled }}
-- name: otc-container
-  image: "{{ .Values.sidecars.otel.image }}"
-  securityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: ["ALL"]
-    runAsNonRoot: true
-    runAsUser: 1001
-  imagePullPolicy: IfNotPresent
-  args:
-  - --config=/conf/collector.yaml
-  ports:
-  {{ toYaml .Values.sidecars.otel.ports | nindent 2}}
-  volumeMounts:
-  - mountPath: /conf
-    name: config
-  resources:
-  {{- toYaml .Values.sidecars.otel.resources | nindent 4 }}
-  {{- range .Values.sidecars.otel.ports }}
-  livenessProbe:
-    httpGet:
-      path: /metrics
-      port: {{ .containerPort | default . }}
-    initialDelaySeconds: 15
-    periodSeconds: 30
-  {{- end }}
-{{- end }}
-{{- end }}
-
-{{/*
 Rate limit sidecar container
 */}}
 {{- define "osmo.rate-limit-sidecar-container" -}}
@@ -213,22 +179,6 @@ Envoy volumes
 {{- end }}
 {{- end }}
 
-
-{{/*
-OTEL volumes
-*/}}
-{{- define "osmo.otel-volumes" -}}
-{{- $prefix := .Prefix }}
-{{- if .Values.sidecars.otel.enabled}}
-- name: config
-  configMap:
-    name: {{ if $prefix }}{{ $prefix }}-{{ end }}{{ .Values.sidecars.otel.configName }}
-    defaultMode: 420
-    items:
-    - key: collector.yaml
-      path: collector.yaml
-{{- end }}
-{{- end }}
 
 {{/*
 Rate limit volumes

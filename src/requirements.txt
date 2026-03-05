@@ -74,7 +74,7 @@ pytz==2023.3
 lark==1.1.5
 
 # Opentelemetry Instrumentation
-opentelemetry-exporter-otlp==1.39.1
+opentelemetry-exporter-prometheus==0.60b1
 opentelemetry-instrumentation-fastapi==0.60b1
 opentelemetry-sdk==1.39.1
 

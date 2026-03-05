@@ -13,8 +13,6 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-{{- if .Values.sidecars.OTEL.enabled }}
-
 {{$name := or .Values.global.name .Release.Name }}
 
 apiVersion: monitoring.coreos.com/v1
@@ -34,4 +32,3 @@ spec:
         values: [{{ $name }}-{{ .Values.services.backendListener.serviceName }},
                  {{ $name }}-{{ .Values.services.backendWorker.serviceName }}]
       }
-{{- end }}

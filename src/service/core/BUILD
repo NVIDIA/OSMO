@@ -31,7 +31,6 @@ osmo_py_library(
         requirement("diskcache"),
         requirement("fastapi"),
         requirement("redis"),
-        requirement("opentelemetry-exporter-otlp"),
         requirement("opentelemetry-instrumentation-fastapi"),
         requirement("opentelemetry-sdk"),
         requirement("uvicorn"),

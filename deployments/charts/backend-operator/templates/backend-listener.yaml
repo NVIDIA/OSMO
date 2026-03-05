@@ -37,9 +37,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-      {{- if .Values.sidecars.OTEL.enabled }}
-        sidecar.opentelemetry.io/inject: "true"
-      {{- end}}
       {{- with .Values.services.backendListener.extraPodAnnotations }}
       {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -76,6 +73,9 @@ spec:
             drop: ["ALL"]
           runAsNonRoot: true
           runAsUser: 1001
+        ports:
+        - name: metrics
+          containerPort: 9464
         command:
         - backend_listener
         args:
@@ -103,7 +103,7 @@ spec:
         - --metrics_otel_collector_component
         - {{ $name }}-{{ .Values.services.backendListener.serviceName }}
         - --metrics_otel_enable
-        - {{ .Values.sidecars.OTEL.enabled | quote }}
+        - "true"
         - --enable_node_label_update
         - '{{ .Values.services.backendListener.enableNodeLabelUpdate }}'
         - --node_condition_prefix
@@ -170,13 +170,10 @@ spec:
           timeoutSeconds: 15
           initialDelaySeconds: 10
 
-      {{- if .Values.sidecars.OTEL.enabled }}
-      {{- include "backend-operator.injectOTEL" . | nindent 6}}
-      {{- end }}
       {{- with .Values.services.backendListener.extraSidecarContainers }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
-      {{- if or .Values.services.backendListener.volumes .Values.sidecars.OTEL.enabled (eq .Values.global.loginMethod "password") (eq .Values.global.loginMethod "token") }}
+      {{- if or .Values.services.backendListener.volumes (eq .Values.global.loginMethod "password") (eq .Values.global.loginMethod "token") }}
       volumes:
       {{- if .Values.services.backendListener.volumes }}
         {{- toYaml .Values.services.backendListener.volumes | nindent 6 }}
@@ -195,9 +192,6 @@ spec:
           items:
             - key: {{ .Values.global.accountTokenSecretKey }}
               path: token.txt
-      {{- end }}
-      {{- if .Values.sidecars.OTEL.enabled }}
-        {{- include "backend-operator.OTELVolumes" (dict "Values" .Values "Prefix" $name) | nindent 6 }}
       {{- end }}
       {{- end }}
 {{- end }}
