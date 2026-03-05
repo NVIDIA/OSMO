@@ -31,7 +31,6 @@ The `agents/` directory contains instructions for specialized subagents. Read th
 
 The `references/` directory has additional documentation:
 
-- `references/cookbook.md` — Real-world workflow examples to use as starting points
 - `references/workflow-patterns.md` — Multi-task, parallel execution, data dependencies, Jinja templating
 - `references/advanced-patterns.md` — Checkpointing, retry/exit behavior, node exclusion
 
@@ -144,10 +143,18 @@ If the user also wants monitoring, debugging, or reporting results, use the
    what they want to run. Write the spec to `workflow.yaml` in the current directory.
 
    **When generating a workflow spec:**
-   - Consult `references/cookbook.md` for the closest real-world example and fetch its
-     YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
-     Fetch the README as well, substituting the YAML file name with README. Summarize the
-     README, and add it as a comment in the generated workflow spec.
+   - Fetch the cookbook README via WebFetch to browse available examples:
+     `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/README.md`
+     Pick the closest match to the user's request. The cookbook README links to each
+     workflow's per-workflow README. To fetch the workflow YAML:
+     1. Fetch the per-workflow README at the linked path (e.g.
+        `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/<path>/README.md`).
+     2. Read that README to find the workflow YAML filename (do not assume it is
+        `workflow.yaml` — look for the actual filename referenced in the README).
+     3. Construct the workflow YAML URL as `<per-workflow README directory URL>/<filename>`
+        and fetch it.
+     Use the YAML as a starting point — adapt it rather than generating from scratch.
+     Summarize the per-workflow README and add it as a comment in the generated workflow spec.
    - **Preserve Jinja template variables.** If the cookbook YAML uses `{{variable}}`
      placeholders (e.g. `{{num_gpu}}`), do NOT replace or hardcode them in the YAML.
      Keep the template variables as-is and pass the user's values via `--set` at submit
@@ -158,7 +165,7 @@ If the user also wants monitoring, debugging, or reporting results, use the
      Do not manually scale `resources` values to match the user's requested GPU count —
      the template handles this.
    - **Use workflow README and YAML to decide submission count.** After fetching those
-     two files from `references/cookbook.md` find the throughput and constraint metadata
+     two files, find the throughput and constraint metadata
      (e.g. "60 images"). Before deciding whether to submit one or multiple
      workflows, read those annotations:
      - If a throughput figure is present and the user has a target quantity + time
