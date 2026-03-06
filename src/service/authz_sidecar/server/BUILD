@@ -49,3 +49,23 @@ go_test(
         "@org_golang_google_grpc//codes:go_default_library",
     ],
 )
+
+go_test(
+    name = "server_integration_test",
+    srcs = [
+        "authz_server_integration_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    tags = [
+        "requires-network",
+    ],
+    local = True,
+    deps = [
+        ":server",
+        "//src/tests/common/database:database_go",
+        "//src/utils/roles",
+        "@com_github_envoyproxy_go_control_plane_envoy//config/core/v3:go_default_library",
+        "@com_github_envoyproxy_go_control_plane_envoy//service/auth/v3:go_default_library",
+        "@org_golang_google_grpc//codes:go_default_library",
+    ],
+)

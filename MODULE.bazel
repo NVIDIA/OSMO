@@ -239,6 +239,11 @@ use_repo(
 
     # For Envoy (note: module is github.com/envoyproxy/go-control-plane/envoy)
     "com_github_envoyproxy_go_control_plane_envoy",
+
+    # For testcontainers (integration testing)
+    "com_github_testcontainers_testcontainers_go",
+    "com_github_testcontainers_testcontainers_go_modules_postgres",
+    "com_github_docker_docker",
 )
 
 ################

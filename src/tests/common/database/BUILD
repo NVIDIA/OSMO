@@ -17,6 +17,7 @@
 #####################################################################################
 
 load("//bzl:py.bzl", "osmo_py_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@osmo_python_deps//:requirements.bzl", osmo_requirement = "requirement")
 load("@osmo_tests_python_deps//:requirements.bzl", test_requirement = "requirement")
 
@@ -30,4 +31,19 @@ osmo_py_library(
         "//src/utils/connectors:connectors",
     ],
     visibility = ["//visibility:public"],
+)
+
+go_library(
+    name = "database_go",
+    srcs = glob(["*.go"]),
+    embedsrcs = glob(["testdata/**"]),
+    importpath = "go.corp.nvidia.com/osmo/tests/common/database",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//src/utils/postgres:postgres",
+        "@com_github_jackc_pgx_v5//pgxpool:go_default_library",
+        "@com_github_testcontainers_testcontainers_go//:go_default_library",
+        "@com_github_testcontainers_testcontainers_go_modules_postgres//:go_default_library",
+        "@com_github_testcontainers_testcontainers_go//wait:go_default_library",
+    ],
 )
