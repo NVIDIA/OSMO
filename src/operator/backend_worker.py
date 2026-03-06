@@ -115,7 +115,6 @@ class BackendWorker():
             name='progress_check_thread', target=self._monitor_progress, daemon=True)
         self._progress_thread.start()
         self.backend_metrics = metrics.MetricCreator(config=self.config).get_meter_instance()
-        self.backend_metrics.start_server()
 
     async def run_job(self, job_spec: Dict, context: JobContext):
         try:
@@ -255,6 +254,7 @@ async def main():
 
     job_queue: asyncio.Queue = asyncio.Queue()
     worker = BackendWorker(config)
+    worker.backend_metrics.start_server()
     while True:
         try:
             async with websockets.connect( # type: ignore

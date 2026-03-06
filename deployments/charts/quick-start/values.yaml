@@ -507,6 +507,11 @@ service:
           done
           echo "Localstack S3 is ready"
 
+  ## PodMonitor configuration (requires Prometheus Operator / monitoring.coreos.com CRD)
+  ##
+  podMonitor:
+    enabled: false
+
   ## Configuration for service sidecar containers
   ##
   sidecars:
@@ -819,6 +824,11 @@ backend-operator:
         limits:
           cpu: "250m"
           memory: "256Mi"
+
+  ## PodMonitor configuration (requires Prometheus Operator / monitoring.coreos.com CRD)
+  ##
+  podMonitor:
+    enabled: false
 
   ## Backend test runner configuration
   ##
