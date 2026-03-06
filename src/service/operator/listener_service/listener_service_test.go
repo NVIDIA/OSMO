@@ -98,7 +98,7 @@ func (m *mockStream) addRecvMessage(msg *pb.ListenerMessage) {
 // mockNodeConditionStream implements pb.ListenerService_NodeConditionStreamServer for testing.
 type mockNodeConditionStream struct {
 	grpc.ServerStream
-	sentMessages []*pb.NodeConditionsMessage
+	sentMessages []*pb.NodeConditionStreamResponse
 	sendError    error
 	ctx          context.Context
 }
@@ -117,7 +117,7 @@ func (m *mockNodeConditionStream) Context() context.Context {
 	return context.Background()
 }
 
-func (m *mockNodeConditionStream) Send(msg *pb.NodeConditionsMessage) error {
+func (m *mockNodeConditionStream) Send(msg *pb.NodeConditionStreamResponse) error {
 	if m.sendError != nil {
 		return m.sendError
 	}

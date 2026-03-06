@@ -66,8 +66,13 @@ func (ncrl *NodeConditionRuleListener) receiveMessages(
 		if err != nil {
 			return err
 		}
-		ncrl.nodeConditionRules.SetRules(msg.Rules)
-		ncrl.Logf("Updated node condition rules: %v", msg.Rules)
+		switch resp := msg.Response.(type) {
+		case *pb.NodeConditionStreamResponse_NodeConditions:
+			ncrl.nodeConditionRules.SetRules(resp.NodeConditions.Rules)
+			ncrl.Logf("Updated node condition rules: %v", resp.NodeConditions.Rules)
+		case *pb.NodeConditionStreamResponse_Heartbeat:
+			ncrl.Logf("Received heartbeat response: %s", resp.Heartbeat.Time)
+		}
 	}
 }
 
@@ -125,25 +130,17 @@ func (ncrl *NodeConditionRuleListener) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to create node condition stream: %w", err)
 	}
 
-	ncrl.Logf("Connected to node condition stream")
-
 	var wg sync.WaitGroup
 	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
-		if err := ncrl.receiveMessages(stream); err != nil {
-			ncrl.Logf("Error in receiveMessages: %v", err)
-			streamCancel(err)
-		}
+		streamCancel(ncrl.receiveMessages(stream))
 	}()
 
 	go func() {
 		defer wg.Done()
-		if err := ncrl.sendHeartbeats(streamCtx, stream); err != nil {
-			ncrl.Logf("Error in sendHeartbeats: %v", err)
-			streamCancel(err)
-		}
+		streamCancel(ncrl.sendHeartbeats(streamCtx, stream))
 	}()
 
 	// Block until the stream context is done (goroutine error or parent cancellation).

@@ -38,6 +38,14 @@ message HeartbeatMessage {
   string time = 1;  // ISO 8601 timestamp
 }
 
+// NodeConditionStreamResponse wraps the server's response in the NodeConditionStream.
+message NodeConditionStreamResponse {
+  oneof response {
+    NodeConditionsMessage node_conditions = 1;
+    HeartbeatMessage heartbeat = 2;
+  }
+}
+
 // ListenerService handles bidirectional streaming connections from workflow backends
 service ListenerService {
   // Bidirectional stream for backend communication (workflow updates, resource events, etc.)
@@ -45,7 +53,7 @@ service ListenerService {
 
   // Bidirectional stream: client sends heartbeats to keep stream alive; server sends node
   // condition rule updates (initial rules from DB, then pushed on Redis queue updates).
-  rpc NodeConditionStream(stream HeartbeatMessage) returns (stream NodeConditionsMessage);
+  rpc NodeConditionStream(stream HeartbeatMessage) returns (stream NodeConditionStreamResponse);
 
   // Initialize a workflow backend
   rpc InitBackend(InitBackendRequest) returns (InitBackendResponse);

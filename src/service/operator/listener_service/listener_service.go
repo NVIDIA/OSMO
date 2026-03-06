@@ -51,8 +51,9 @@ type ListenerService struct {
 	redisClient      *redis.Client
 	pgPool           *pgxpool.Pool
 	serviceHostname  string
-	progressWriter   *progress_check.ProgressWriter
-	progressInterval time.Duration
+	progressWriter    *progress_check.ProgressWriter
+	progressInterval  time.Duration
+	heartbeatInterval time.Duration
 }
 
 // NewListenerService creates a new listener service instance
@@ -87,8 +88,9 @@ func NewListenerService(
 		redisClient:      redisClient,
 		pgPool:           pgPool,
 		serviceHostname:  args.ServiceHostname,
-		progressWriter:   progressWriter,
-		progressInterval: time.Duration(args.OperatorProgressFrequencySec) * time.Second,
+		progressWriter:    progressWriter,
+		progressInterval:  time.Duration(args.OperatorProgressFrequencySec) * time.Second,
+		heartbeatInterval: time.Duration(args.HeartbeatIntervalSec) * time.Second,
 	}
 }
 
@@ -231,7 +233,11 @@ func (ls *ListenerService) NodeConditionStream(
 		return status.Error(codes.Internal, err.Error())
 	}
 
-	if err := stream.Send(&pb.NodeConditionsMessage{Rules: rules}); err != nil {
+	if err := stream.Send(&pb.NodeConditionStreamResponse{
+		Response: &pb.NodeConditionStreamResponse_NodeConditions{
+			NodeConditions: &pb.NodeConditionsMessage{Rules: rules},
+		},
+	}); err != nil {
 		return err
 	}
 	ls.logger.InfoContext(ctx, "sent initial node conditions to backend",
@@ -242,8 +248,14 @@ func (ls *ListenerService) NodeConditionStream(
 		for {
 			msg, err := stream.Recv()
 			if err != nil {
+				ls.logger.InfoContext(ctx, "heartbeat Recv ended",
+					slog.String("backend_name", backendName),
+					slog.String("error", err.Error()))
 				return
 			}
+			ls.logger.DebugContext(ctx, "received heartbeat",
+				slog.String("backend_name", backendName),
+				slog.String("time", msg.Time))
 			heartbeatTime, err := time.Parse(time.RFC3339, msg.Time)
 			if err != nil {
 				ls.logger.WarnContext(ctx, "failed to parse heartbeat time, skipping DB update",
@@ -263,6 +275,7 @@ func (ls *ListenerService) NodeConditionStream(
 
 	queueName := utils.BackendActionQueueName(backendName)
 	retryCount := 0
+	lastHeartbeat := time.Now()
 
 	for {
 		result, err := ls.redisClient.BLPop(ctx, redisBlockTimeout, queueName).Result()
@@ -288,25 +301,43 @@ func (ls *ListenerService) NodeConditionStream(
 				parsed.Rules = make(map[string]string)
 			}
 
-			if err := stream.Send(&pb.NodeConditionsMessage{Rules: parsed.Rules}); err != nil {
+			if err := stream.Send(&pb.NodeConditionStreamResponse{
+				Response: &pb.NodeConditionStreamResponse_NodeConditions{
+					NodeConditions: &pb.NodeConditionsMessage{Rules: parsed.Rules},
+				},
+			}); err != nil {
 				return err
 			}
 		} else {
 			if ctx.Err() != nil {
 				return nil
 			}
-			backoffDur := redisBlockTimeout
 			if err != redis.Nil {
 				retryCount++
-				backoffDur = backoff.CalculateBackoff(retryCount, 30*time.Second)
+				backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
 				ls.logger.ErrorContext(ctx, "redis BLPop error, retrying with backoff",
 					slog.String("backend_name", backendName),
 					slog.String("queue", queueName),
 					slog.String("error", err.Error()),
 					slog.Duration("backoff", backoffDur))
+				time.Sleep(backoffDur)
+				continue
 			}
-			time.Sleep(backoffDur)
-			continue
+			retryCount = 0
+		}
+
+		// Send heartbeat if enough time has elapsed since the last one.
+		if time.Since(lastHeartbeat) >= ls.heartbeatInterval {
+			if err := stream.Send(&pb.NodeConditionStreamResponse{
+				Response: &pb.NodeConditionStreamResponse_Heartbeat{
+					Heartbeat: &pb.HeartbeatMessage{
+						Time: time.Now().UTC().Format(time.RFC3339),
+					},
+				},
+			}); err != nil {
+				return err
+			}
+			lastHeartbeat = time.Now()
 		}
 	}
 }
