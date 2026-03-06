@@ -223,6 +223,12 @@ global:
         value: 50
         description: "Schedule last. Preemptible."
 
+## PodMonitor configuration (requires Prometheus Operator / monitoring.coreos.com CRD)
+## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
+##
+podMonitor:
+  enabled: true
+
 ## Configuration for individual backend operators
 ##
 services:

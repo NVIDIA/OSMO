@@ -1032,6 +1032,12 @@ services:
     # maxRequests: 100
     # routes: [...]
 
+## PodMonitor configuration (requires Prometheus Operator / monitoring.coreos.com CRD)
+## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
+##
+podMonitor:
+  enabled: true
+
 ## Configuration for service sidecar containers
 ##
 sidecars:
