@@ -1,5 +1,6 @@
 -- Schema for authz_sidecar integration tests.
 -- This creates the minimal set of tables needed by the roles and authz packages.
+-- The source of truth for the schema is in the src/utils/connectors/postgres.py file
 
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

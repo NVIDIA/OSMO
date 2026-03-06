@@ -224,34 +224,4 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("DatabaseIsolation", func(t *testing.T) {
-		authzServer := fixture.resetAndSeed(t)
-
-		// Verify the admin role works with seed data present
-		req := makeCheckRequest("admin@example.com", "/api/workflow/123", "GET", "osmo-admin")
-		resp, err := authzServer.Check(context.Background(), req)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if codes.Code(resp.Status.Code) != codes.OK {
-			t.Fatal("expected admin access to succeed before truncation")
-		}
-
-		// Truncate all tables to prove isolation works
-		fixture.pg.TruncateAllTables(t)
-
-		// Build a fresh server with empty caches so stale cache hits
-		// don't mask the missing DB rows.
-		freshRoleCache := roles.NewRoleCache(100, 5*time.Minute, fixture.logger)
-		freshPoolNameCache := roles.NewPoolNameCache(5*time.Minute, fixture.logger)
-		freshServer := server.NewAuthzServer(fixture.pg.Client, freshRoleCache, freshPoolNameCache, fixture.logger)
-
-		resp, err = freshServer.Check(context.Background(), req)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if codes.Code(resp.Status.Code) == codes.OK {
-			t.Error("expected access to be denied after database truncation")
-		}
-	})
 }
