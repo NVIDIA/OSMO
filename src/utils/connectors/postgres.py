@@ -614,22 +614,24 @@ class PostgresConnector:
                 jwetoken.deserialize(value)
                 encrypted = Encrypted(value)
                 cmd = (
-                    f"UPDATE credential SET payload['{key}'] = %s WHERE  "
-                    f"user_name = '{db_row.user_name}' AND cred_name = '{db_row.cred_name}' "
-                    f"AND payload['{key}'] = '{value}'"
+                    "UPDATE credential SET payload[%s] = %s WHERE "
+                    "user_name = %s AND cred_name = %s "
+                    "AND payload[%s] = %s"
                 )
+                cmd_args = (key, db_row.user_name, db_row.cred_name, key, value)
                 decrypted = self.secret_manager.decrypt(
-                    encrypted, db_row.user_name, self.generate_update_secret_func(cmd))
+                    encrypted, db_row.user_name,
+                    self.generate_update_secret_func(cmd, cmd_args))
                 result[key] = decrypted.value
             except (JWException, osmo_errors.OSMONotFoundError):
-                # Encypt value
                 result[key] = value
                 encrypted = self.secret_manager.encrypt(value, db_row.user_name)
                 cmd = (
-                    f"UPDATE credential SET payload['{key}'] = %s WHERE "
-                    f"user_name = '{db_row.user_name}' AND cred_name = '{db_row.cred_name}'"
+                    "UPDATE credential SET payload[%s] = %s WHERE "
+                    "user_name = %s AND cred_name = %s"
                 )
-                self.execute_commit_command(cmd, (encrypted.value,))
+                self.execute_commit_command(
+                    cmd, (key, encrypted.value, db_row.user_name, db_row.cred_name))
         return result
 
     def encrypt_dict(self, input_dict: Dict, user: str) -> Dict:
@@ -1445,9 +1447,10 @@ class PostgresConnector:
         encoded = self.encode_hstore(uek)
         self.execute_commit_command(cmd, (uid, encoded))
 
-    def generate_update_secret_func(self, cmd: str) -> Callable[[str], None]:
+    def generate_update_secret_func(self, cmd: str,
+                                    cmd_args: Tuple = ()) -> Callable[[str], None]:
         def func(new_encrypted: str):
-            self.execute_commit_command(cmd, (new_encrypted,))
+            self.execute_commit_command(cmd, (cmd_args[0], new_encrypted) + cmd_args[1:])
         return func
 
     def get_data_cred(self, user: str, profile: str) -> credentials.StaticDataCredential | None:
