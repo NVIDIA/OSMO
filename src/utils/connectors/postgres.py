@@ -614,9 +614,9 @@ class PostgresConnector:
                 jwetoken.deserialize(value)
                 encrypted = Encrypted(value)
                 cmd = (
-                    "UPDATE credential SET payload[%s] = %s WHERE "
-                    "user_name = %s AND cred_name = %s "
-                    "AND payload[%s] = %s"
+                    'UPDATE credential SET payload[%s] = %s WHERE '
+                    'user_name = %s AND cred_name = %s AND '
+                    'AND payload[%s] = %s;'
                 )
                 cmd_args = (key, db_row.user_name, db_row.cred_name, key, value)
                 decrypted = self.secret_manager.decrypt(
@@ -627,8 +627,8 @@ class PostgresConnector:
                 result[key] = value
                 encrypted = self.secret_manager.encrypt(value, db_row.user_name)
                 cmd = (
-                    "UPDATE credential SET payload[%s] = %s WHERE "
-                    "user_name = %s AND cred_name = %s"
+                    'UPDATE credential SET payload[%s] = %s WHERE '
+                    'user_name = %s AND cred_name = %s;'
                 )
                 self.execute_commit_command(
                     cmd, (key, encrypted.value, db_row.user_name, db_row.cred_name))
