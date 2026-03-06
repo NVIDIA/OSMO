@@ -134,12 +134,6 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
 | `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
 
-#### OpenTelemetry Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.otel.enabled` | Enable OpenTelemetry sidecar injection | `true` |
-
 #### Additional Custom Containers
 
 | Parameter | Description | Default |
@@ -155,5 +149,4 @@ This chart is self-contained and requires:
 - Properly configured OAuth2 provider
 
 **Optional Dependencies:**
-- OpenTelemetry collector (if OTEL sidecar injection is enabled)
 - Kubernetes secrets (if using `useKubernetesSecrets: true` for OAuth2 credentials)

@@ -147,17 +147,11 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendWorker.resources.limits.memory` | Memory limits | `1Gi` |
 
 
-### Service Sidecar Settings
-
-#### OpenTelemetry Settings
+### Prometheus Metrics Settings
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.OTEL.enabled` | Enable OpenTelemetry | `true` |
-| `sidecars.OTEL.image` | OpenTelemetry collector image | `otel/opentelemetry-collector-contrib:0.68.0` |
-| `sidecars.OTEL.configName` | OpenTelemetry config name | `otel-config` |
-| `sidecars.OTEL.ports` | OpenTelemetry container ports | `[{containerPort: 4000, name: metrics}]` |
-| `sidecars.OTEL.resources` | OpenTelemetry resource limits | See values.yaml |
+| `podMonitor.enabled` | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `true` |
 
 #### Extra ConfigMaps
 
@@ -189,7 +183,7 @@ extraConfigMaps:
 This chart requires:
 - A running Kubernetes cluster
 - Access to NVIDIA container registry
-- OpenTelemetry collector (if OTEL is enabled)
+- Prometheus Operator (if `podMonitor.enabled` is true)
 - Slack integration (if monitor Slack notifications enabled)
 - KAI scheduler
 

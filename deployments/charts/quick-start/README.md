@@ -126,7 +126,7 @@ This chart installs and configures:
 | `service.services.delayedJobMonitor.imagePullPolicy`    | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent`                              |
 | `service.services.delayedJobMonitor.initContainers`     | Init containers for delayed job monitor service                  | Wait for postgres, redis, and localstack-s3 |
 | `service.sidecars.envoy.enabled`                        | Enable Envoy proxy sidecar container                             | `false`                                     |
-| `service.sidecars.otel.enabled`                         | Enable OTEL collector sidecar for metrics and tracing            | `false`                                     |
+| `service.podMonitor.enabled`                            | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `false`         |
 | `service.sidecars.rateLimit.enabled`                    | Enable rate limiting service                                     | `false`                                     |
 
 ### Web UI Configuration
@@ -178,4 +178,4 @@ This chart installs and configures:
 | `backend-operator.services.backendWorker.resources.limits.cpu`        | CPU resource limits for backend worker container              | `"250m"`                     |
 | `backend-operator.services.backendWorker.resources.limits.memory`     | Memory resource limits for backend worker container           | `"256Mi"`                    |
 | `backend-operator.backendTestRunner.enabled`                          | Enable backend test runner                                    | `false`                      |
-| `backend-operator.sidecars.OTEL.enabled`                              | Enable OTEL collector sidecar for metrics and tracing         | `false`                      |
+| `backend-operator.podMonitor.enabled`                                 | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `false`       |

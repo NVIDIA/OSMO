@@ -246,13 +246,11 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | `sidecars.envoy.jwt.user_header` | JWT user header | `x-osmo-user` |
 | `sidecars.envoy.jwt.providers` | JWT providers configuration | See values.yaml |
 
-#### OpenTelemetry Settings
+#### Prometheus Metrics Settings
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.otel.enabled` | Enable OTEL collector | `true` |
-| `sidecars.otel.image` | OTEL collector image | `otel/opentelemetry-collector-contrib:0.68.0` |
-| `sidecars.otel.configName` | OTEL config name | `otel-config` |
+| `podMonitor.enabled` | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `true` |
 
 #### Rate Limit Settings
 
