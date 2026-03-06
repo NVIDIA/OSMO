@@ -33,6 +33,7 @@ type OperatorArgs struct {
 	LogLevel                     string
 	OperatorProgressDir          string
 	OperatorProgressFrequencySec int
+	HeartbeatIntervalSec         int
 
 	Redis    redis.RedisConfig
 	Postgres postgres.PostgresConfig
@@ -56,6 +57,9 @@ func OperatorParse() OperatorArgs {
 	operatorProgressFrequencySec := flag.Int("operator-progress-frequency-sec",
 		15,
 		"Progress frequency in seconds (for periodic progress reporting when idle)")
+	heartbeatIntervalSec := flag.Int("heartbeat-interval-sec",
+		20,
+		"Interval in seconds for sending heartbeat messages on NodeConditionStream")
 
 	// Redis configuration
 	redisFlagPtrs := redis.RegisterRedisFlags()
@@ -71,6 +75,7 @@ func OperatorParse() OperatorArgs {
 		LogLevel:                     *logLevel,
 		OperatorProgressDir:          *operatorProgressDir,
 		OperatorProgressFrequencySec: *operatorProgressFrequencySec,
+		HeartbeatIntervalSec:         *heartbeatIntervalSec,
 		Redis:                        redisFlagPtrs.ToRedisConfig(),
 		Postgres:                     postgresFlagPtrs.ToPostgresConfig(),
 	}

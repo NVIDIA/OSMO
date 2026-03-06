@@ -51,8 +51,9 @@ type ListenerService struct {
 	redisClient      *redis.Client
 	pgPool           *pgxpool.Pool
 	serviceHostname  string
-	progressWriter   *progress_check.ProgressWriter
-	progressInterval time.Duration
+	progressWriter    *progress_check.ProgressWriter
+	progressInterval  time.Duration
+	heartbeatInterval time.Duration
 }
 
 // NewListenerService creates a new listener service instance
@@ -87,8 +88,9 @@ func NewListenerService(
 		redisClient:      redisClient,
 		pgPool:           pgPool,
 		serviceHostname:  args.ServiceHostname,
-		progressWriter:   progressWriter,
-		progressInterval: time.Duration(args.OperatorProgressFrequencySec) * time.Second,
+		progressWriter:    progressWriter,
+		progressInterval:  time.Duration(args.OperatorProgressFrequencySec) * time.Second,
+		heartbeatInterval: time.Duration(args.HeartbeatIntervalSec) * time.Second,
 	}
 }
 
@@ -203,12 +205,11 @@ func (ls *ListenerService) ListenerStream(
 	return ls.handleListenerStream(stream)
 }
 
-// NodeConditionStream sends initial node conditions from the DB, then streams updates
+// NodeConditionStream sends initial node conditions from the DB, then streams updates.
+// It drains incoming heartbeats from the client to keep the bidirectional stream alive.
 func (ls *ListenerService) NodeConditionStream(
-	req *pb.NodeConditionStreamRequest,
 	stream pb.ListenerService_NodeConditionStreamServer,
 ) error {
-	_ = req
 	ctx := stream.Context()
 
 	backendName, err := utils.ExtractBackendName(ctx)
@@ -232,14 +233,49 @@ func (ls *ListenerService) NodeConditionStream(
 		return status.Error(codes.Internal, err.Error())
 	}
 
-	if err := stream.Send(&pb.NodeConditionsMessage{Rules: rules}); err != nil {
+	if err := stream.Send(&pb.NodeConditionStreamResponse{
+		Response: &pb.NodeConditionStreamResponse_NodeConditions{
+			NodeConditions: &pb.NodeConditionsMessage{Rules: rules},
+		},
+	}); err != nil {
 		return err
 	}
 	ls.logger.InfoContext(ctx, "sent initial node conditions to backend",
 		slog.String("backend_name", backendName))
 
+	// Drain incoming heartbeats and update last_heartbeat in the DB on each receipt.
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if err != nil {
+				ls.logger.InfoContext(ctx, "heartbeat Recv ended",
+					slog.String("backend_name", backendName),
+					slog.String("error", err.Error()))
+				return
+			}
+			ls.logger.DebugContext(ctx, "received heartbeat",
+				slog.String("backend_name", backendName),
+				slog.String("time", msg.Time))
+			heartbeatTime, err := time.Parse(time.RFC3339, msg.Time)
+			if err != nil {
+				ls.logger.WarnContext(ctx, "failed to parse heartbeat time, skipping DB update",
+					slog.String("backend_name", backendName),
+					slog.String("time", msg.Time),
+					slog.String("error", err.Error()))
+				continue
+			}
+			if err := utils.UpdateBackendLastHeartbeat(
+				ctx, ls.pgPool, backendName, heartbeatTime); err != nil {
+				ls.logger.WarnContext(ctx, "failed to update backend last heartbeat",
+					slog.String("backend_name", backendName),
+					slog.String("error", err.Error()))
+			}
+		}
+	}()
+
 	queueName := utils.BackendActionQueueName(backendName)
 	retryCount := 0
+	lastHeartbeat := time.Now()
 
 	for {
 		result, err := ls.redisClient.BLPop(ctx, redisBlockTimeout, queueName).Result()
@@ -265,25 +301,43 @@ func (ls *ListenerService) NodeConditionStream(
 				parsed.Rules = make(map[string]string)
 			}
 
-			if err := stream.Send(&pb.NodeConditionsMessage{Rules: parsed.Rules}); err != nil {
+			if err := stream.Send(&pb.NodeConditionStreamResponse{
+				Response: &pb.NodeConditionStreamResponse_NodeConditions{
+					NodeConditions: &pb.NodeConditionsMessage{Rules: parsed.Rules},
+				},
+			}); err != nil {
 				return err
 			}
 		} else {
 			if ctx.Err() != nil {
 				return nil
 			}
-			backoffDur := redisBlockTimeout
 			if err != redis.Nil {
 				retryCount++
-				backoffDur = backoff.CalculateBackoff(retryCount, 30*time.Second)
+				backoffDur := backoff.CalculateBackoff(retryCount, 30*time.Second)
 				ls.logger.ErrorContext(ctx, "redis BLPop error, retrying with backoff",
 					slog.String("backend_name", backendName),
 					slog.String("queue", queueName),
 					slog.String("error", err.Error()),
 					slog.Duration("backoff", backoffDur))
+				time.Sleep(backoffDur)
+				continue
 			}
-			time.Sleep(backoffDur)
-			continue
+			retryCount = 0
+		}
+
+		// Send heartbeat if enough time has elapsed since the last one.
+		if time.Since(lastHeartbeat) >= ls.heartbeatInterval {
+			if err := stream.Send(&pb.NodeConditionStreamResponse{
+				Response: &pb.NodeConditionStreamResponse_Heartbeat{
+					Heartbeat: &pb.HeartbeatMessage{
+						Time: time.Now().UTC().Format(time.RFC3339),
+					},
+				},
+			}); err != nil {
+				return err
+			}
+			lastHeartbeat = time.Now()
 		}
 	}
 }
