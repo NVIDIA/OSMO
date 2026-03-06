@@ -958,6 +958,8 @@ def set_user_credential(
     cmd = 'SELECT * FROM ueks WHERE uid = %s'
     rows = context.database.execute_fetch_command(cmd, (user_name,))
     if not rows:
+        postgres = connectors.PostgresConnector.get_instance()
+        connectors.UserProfile.fetch_from_db(postgres, user_name)
         context.database.secret_manager.add_new_user(user_name)
 
     credential = credential_option.get_credential()
