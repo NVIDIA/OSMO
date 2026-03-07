@@ -22,7 +22,7 @@ workflow:
   name: train-multi-gpu
   resources:
     default:  # Resources of each task
-      gpu: 8
+      gpu: {{num_gpu}}
       cpu: 16
       memory: 30Gi
       storage: 30Gi
@@ -41,7 +41,7 @@ workflow:
           mkdir -p {{output}}/models
 
           # Launch training
-          torchrun --nnodes 2 --nproc_per_node 8 --node_rank 0 \
+          torchrun --nnodes {{num_nodes}} --nproc_per_node {{num_gpu}} --node_rank 0 \
                     --master_addr {{host:master}} --master_port 29400 \
                     /tmp/train.py --total_epochs 10 --batch_size 32 \
                     --snapshot_path {{output}}/models/snapshot.pth
@@ -52,7 +52,8 @@ workflow:
             name: {{ output_dataset }}
             path: models
 
-    - name: worker  # Worker task that will communicate with the master task
+    {% for i in range(1, num_nodes) %}
+    - name: worker-{{i}}  # Worker task that will communicate with the master task
       image: nvcr.io/nvidia/pytorch:24.03-py3
       command: [bash]
       args: [/tmp/worker.sh]
@@ -63,12 +64,15 @@ workflow:
           mkdir -p {{output}}/models
 
           # Launch training
-          torchrun --nnodes 2 --nproc_per_node 8 --node_rank 1 \
+          torchrun --nnodes {{num_nodes}} --nproc_per_node {{num_gpu}} --node_rank {{i}} \
                     --master_addr {{host:master}} --master_port 29400 \
                     /tmp/train.py --total_epochs 10 --batch_size 32 \
                     --snapshot_path {{output}}/models/snapshot.pth
       - path: /tmp/train.py
         localpath: train.py
+    {% endfor %}
 
 default-values:
   output_dataset: my-trained-model  # The name of the output dataset
+  num_gpu: 8
+  num_nodes: 2
