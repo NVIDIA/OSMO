@@ -154,6 +154,10 @@ OAuth2 Proxy sidecar container
     - --set-xauthrequest=true
     - --set-authorization-header=true
     - --pass-access-token={{ .Values.sidecars.oauth2Proxy.passAccessToken }}
+    {{- if .Values.sidecars.oauth2Proxy.redisSessionStore }}
+    - --session-store-type=redis
+    - --redis-connection-url=redis://{{ .Values.services.redis.serviceName }}:{{ .Values.services.redis.port | default 6379 }}/{{ .Values.services.redis.dbNumber | default 0 }}
+    {{- end }}
     - --upstream=static://200
     - --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
     - --silence-ping-logging=true

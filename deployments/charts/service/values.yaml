@@ -1519,6 +1519,10 @@ sidecars:
     ##
     passAccessToken: false
 
+    ## Use Redis (services.redis) as the session store instead of in-memory
+    ##
+    redisSessionStore: false
+
     ## Use Kubernetes secrets for credentials
     ##
     useKubernetesSecrets: false

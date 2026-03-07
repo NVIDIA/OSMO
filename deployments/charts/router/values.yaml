@@ -279,6 +279,21 @@ services:
     ##
     password: ""
 
+  ## Redis cache service configuration
+  ##
+  redis:
+    ## Kubernetes service name for Redis (leave empty to use in-memory session store)
+    ##
+    serviceName: ""
+
+    ## Redis service port
+    ##
+    port: 6379
+
+    ## Redis database number to use (0-15)
+    ##
+    dbNumber: 0
+
 ## Configuration for sidecar containers
 ##
 sidecars:
@@ -495,6 +510,10 @@ sidecars:
     ## Pass the access token to upstream (disabled to reduce cookie size)
     ##
     passAccessToken: false
+
+    ## Use Redis (services.redis) as the session store instead of in-memory
+    ##
+    redisSessionStore: false
 
     ## Use Kubernetes secrets for credentials
     ##
