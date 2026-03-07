@@ -294,6 +294,10 @@ services:
     ##
     dbNumber: 0
 
+    ## Enable TLS encryption for Redis connections
+    ##
+    tlsEnabled: false
+
 ## Configuration for sidecar containers
 ##
 sidecars:
