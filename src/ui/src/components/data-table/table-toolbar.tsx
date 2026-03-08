@@ -96,7 +96,7 @@ function TableToolbarInner<T>({
   const toggleCompactMode = useSharedPreferences((s) => s.toggleCompactMode);
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-1">
       <div className="min-w-[300px] flex-1">
         <FilterBar
           data={data}
