@@ -21,7 +21,7 @@ import {
   Server,
   Database,
   TextSearch,
-  ChartBar,
+  ChartColumn,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,7 +50,7 @@ const userNav: NavItem[] = [
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
   { name: "Resources", href: "/resources", icon: Server },
-  { name: "Occupancy", href: "/occupancy", icon: ChartBar },
+  { name: "Occupancy", href: "/occupancy", icon: ChartColumn },
   { name: "Datasets", href: "/datasets", icon: Database },
 ];
 
