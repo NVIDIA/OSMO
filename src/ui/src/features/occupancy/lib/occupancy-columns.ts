@@ -57,8 +57,8 @@ const occupancyColumnConfig = createColumnConfig<OccupancyColumnId>({
   sizeConfig: [
     {
       id: "expand",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
-      preferredWidthRem: COLUMN_MIN_WIDTHS_REM.ACTIONS_ICON,
+      minWidthRem: 2,
+      preferredWidthRem: 2,
     },
     {
       id: "key",
@@ -72,23 +72,23 @@ const occupancyColumnConfig = createColumnConfig<OccupancyColumnId>({
     },
     {
       id: "gpu",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
     },
     {
       id: "cpu",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
     },
     {
       id: "memory",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
     },
     {
       id: "storage",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_WITH_PROGRESS_BAR,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.PROGRESS_BAR,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
     },
     {
       id: "high",

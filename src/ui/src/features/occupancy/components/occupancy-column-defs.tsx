@@ -68,6 +68,7 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       enableSorting: false,
       enableResizing: false,
       header: "",
+      meta: { cellClassName: "pl-3 pr-0" },
       cell: ({ row }) => {
         const original = row.original;
         if (original._type === "parent") {
