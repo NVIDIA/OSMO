@@ -435,7 +435,7 @@ Enabling Topology-Aware Scheduling
 
 Topology-aware scheduling ensures that tasks requiring high-bandwidth or low-latency
 communication are placed on physically co-located nodes—such as the same NVLink rack, spine
-switch, or availability zone. This requires KAI Scheduler v0.10 or later and nodes with the
+switch, or availability zone. This requires KAI Scheduler v0.12 or later and nodes with the
 appropriate Kubernetes labels applied.
 
 .. note::

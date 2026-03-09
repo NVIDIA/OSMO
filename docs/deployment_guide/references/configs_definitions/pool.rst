@@ -121,7 +121,7 @@ Pool
      - Array[`TopologyKey`_]
      - Ordered list of topology levels available in this pool, from coarsest to finest
        granularity. Enables topology-aware scheduling when non-empty. Only supported on pools
-       backed by KAI Scheduler v0.10 or later. See :ref:`concepts_topology` for details.
+       backed by KAI Scheduler v0.12 or later. See :ref:`concepts_topology` for details.
      - ``[]``
 
 .. _pool_config-resource-constraint:

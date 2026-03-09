@@ -274,7 +274,7 @@ KAI scheduler provides co-scheduling, priority, and preemption for workflows:
 
    $ helm upgrade --install kai-scheduler \
      oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
-     --version v0.8.1 \
+     --version v0.12.10 \
      --create-namespace -n kai-scheduler \
      --set global.nodeSelector.node_group=kai-scheduler \
      --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
