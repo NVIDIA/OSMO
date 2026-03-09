@@ -123,6 +123,7 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
 
     host_ip = get_host_ip()
 
+    metrics_port = '9467' if service_type == 'listener' else '9468'
     cmd = [
         'bazel', 'run', f'@osmo_workspace//src/operator:{service_name}',
         '--',
@@ -131,7 +132,8 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
         '--backend', 'default',
         '--namespace', 'default',
         '--username', 'testuser',
-        '--progress_folder_path', '/tmp/osmo/operator'
+        '--progress_folder_path', '/tmp/osmo/operator',
+        '--metrics_prometheus_port', metrics_port
     ]
 
     process = run_command_with_logging(
