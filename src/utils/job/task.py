@@ -1097,7 +1097,7 @@ class Task(pydantic.BaseModel):
     @staticmethod
     def batch_add_refresh_tokens_to_db(
         database: connectors.PostgresConnector,
-        token_entries: List[Tuple[int, str]],
+        token_entries: List[Tuple[str, str]],
     ):
         """Batch-update refresh tokens for multiple tasks in a single query.
 
@@ -2329,7 +2329,7 @@ class TaskGroup(pydantic.BaseModel):
         data_endpoints: Dict[str, credentials.StaticDataCredential] | None = None,
         skip_refresh_token: bool = False,
         auth_token: str | None = None,
-    ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[int, str]]]:
+    ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[str, str]]]:
         """
         Convert a task spec to a pod spec.
 
@@ -2344,8 +2344,6 @@ class TaskGroup(pydantic.BaseModel):
             The refresh token info is (task_db_key, refresh_token) when a
             token was generated for a first-attempt task, or None otherwise.
         """
-        pod_spec_start = time.monotonic()
-
         if workflow_config.workflow_data.credential is None:
             raise osmo_errors.OSMOServerError('Workflow data credential is not set')
 
@@ -2361,14 +2359,9 @@ class TaskGroup(pydantic.BaseModel):
             backend_config = connectors.Backend.fetch_from_db(
                 self.database, self.spec.tasks[0].backend)
 
-        logging.info('[convert_to_pod_spec] task=%s fallback_db_fetches took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
-
         files = task_spec.get_filemounts(self.group_uuid, k8s_factory)
         all_files = {file.digest: file for file in files}
         labels = self._task_labels(user, workflow_uuid, task_obj, task_spec, pool, priority)
-        logging.info('[convert_to_pod_spec] task=%s filemounts+labels took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
 
         if task_spec.resources.platform not in pool_info.platforms:
             raise osmo_errors.OSMOError(
@@ -2487,9 +2480,6 @@ class TaskGroup(pydantic.BaseModel):
 
         # TODO: Move files creation to separate file creation for sidecar
         # Add filemounts specified by user
-        logging.info('[convert_to_pod_spec] task=%s io_args+mounts took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
-
         if auth_token is not None:
             token = auth_token
         else:
@@ -2505,7 +2495,7 @@ class TaskGroup(pydantic.BaseModel):
         # Workaround for validation
         token_file = File(path='/token', contents=refresh_token)
         token_file.path = f'{OSMO_CONFIG_MOUNT_DIR}/{REFRESH_TOKEN_FILENAME}'
-        refresh_token_info: Optional[Tuple[int, str]] = None
+        refresh_token_info: Optional[Tuple[str, str]] = None
         if task_obj.retry_id == 0 and not skip_refresh_token:
             refresh_token_info = (task_obj.task_db_key, refresh_token)
 
@@ -2522,9 +2512,6 @@ class TaskGroup(pydantic.BaseModel):
             refresh_url = f'{service_url}/api/auth/jwt/refresh_token?{query}'
             login_yaml = create_login_dict(user, service_url, token, refresh_url,
                                            refresh_token=refresh_token)
-
-        logging.info('[convert_to_pod_spec] task=%s jwt+token took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
 
         user_config_yaml = create_config_dict(data_endpoints)
 
@@ -2579,9 +2566,6 @@ class TaskGroup(pydantic.BaseModel):
                                 contents=yaml.dump(dataset_metadata_info))
         metadata_file.path = f'{kb_objects.DATA_LOCATION}/default_metadata.yaml'
 
-        logging.info('[convert_to_pod_spec] task=%s config_yamls+file_mounts took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
-
         def _build_file_mount(file: File) -> kb_objects.FileMount:
             return kb_objects.FileMount(
                 group_uid=self.group_uuid,
@@ -2626,9 +2610,6 @@ class TaskGroup(pydantic.BaseModel):
                                     str(jinja_variables.get('USER_CACHE', '0MiB')),
                                     target='MiB'))
 
-        logging.info('[convert_to_pod_spec] task=%s variables+jinja took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
-
         control_container_spec = k8s_factory.create_control_container(
             ctrl_extra_args, workflow_config.backend_images.client, self.group_uuid, file_mounts,
             task_spec.downloadType.value, task_spec.resources, user_cache_size)
@@ -2658,9 +2639,6 @@ class TaskGroup(pydantic.BaseModel):
                     '-rsyncPathAllowList', ','.join(allowed_paths),
                 ]
 
-        logging.info('[convert_to_pod_spec] task=%s ctrl_container took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
-
         user_container_spec = task_spec.to_pod_container(
             user_args,
             user_files,
@@ -2668,9 +2646,6 @@ class TaskGroup(pydantic.BaseModel):
             f'{self.group_uuid}-user-secrets',
             f'{self.group_uuid}-file-dir',
             using_gpu)
-
-        logging.info('[convert_to_pod_spec] task=%s user_container took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
 
         image_pull_secrets = [{'name': self._get_image_secret_name(self.group_uuid, 'user')}]
         # Check if osmo credentials are configured
@@ -2733,9 +2708,6 @@ class TaskGroup(pydantic.BaseModel):
         substitute_pod_template_tokens(override_pod_template, jinja_variables)
         pod = apply_pod_template(pod, override_pod_template)
 
-        logging.info('[convert_to_pod_spec] task=%s total took %.3fs',
-                     task_spec.name, time.monotonic() - pod_spec_start)
-
         return pod, all_files, refresh_token_info
 
     def convert_all_pod_specs(
@@ -2766,7 +2738,6 @@ class TaskGroup(pydantic.BaseModel):
             List: List of pod in kubernetes spec.
             List[kb_objects.FileMount]: New File Mounts with metadata defaults
         """
-        all_pod_specs_start = time.monotonic()
         last_timestamp = datetime.datetime.now()
 
         postgres = connectors.PostgresConnector.get_instance()
@@ -2779,12 +2750,9 @@ class TaskGroup(pydantic.BaseModel):
             t.name: kb_objects.construct_pod_name(
                 workflow_uuid, t.task_uuid) for t in self.tasks}
 
-        logging.info('[convert_all_pod_specs] pre-loop db fetches took %.3fs',
-                     time.monotonic() - all_pod_specs_start)
-
         pods = []
         task_names = []
-        refresh_token_entries: List[Tuple[int, str]] = []
+        refresh_token_entries: List[Tuple[str, str]] = []
 
         # A list of new files to be returned to caller for further operation (e.g. secret creation)
         all_files: Dict[str, kb_objects.FileMount] = {}
@@ -2835,13 +2803,7 @@ class TaskGroup(pydantic.BaseModel):
                     progress_writer.report_progress()
                     last_timestamp = current_timestamp
 
-        logging.info('[convert_all_pod_specs] loop over %d tasks took %.3fs',
-                     len(pods), time.monotonic() - all_pod_specs_start)
-
         Task.batch_add_refresh_tokens_to_db(postgres, refresh_token_entries)
-
-        logging.info('[convert_all_pod_specs] total (incl batch token write) took %.3fs',
-                     time.monotonic() - all_pod_specs_start)
 
         return pods, list(all_files.values()), task_names
 
