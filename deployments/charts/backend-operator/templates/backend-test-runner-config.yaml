@@ -245,7 +245,7 @@ data:
                 - name: {{ .Values.backendTestRunner.volumes.testConfigName }}
                   configMap:
                     {{- $configMapName := .Values.backendTestRunner.configMap.nameTemplate }}
-                    name: {{ $configMapName | replace "{{.BackendName}}" "{{backend_name}}" | replace "{{.TestName}}" "{{test_name}}" | quote }}
+                    name: {{ $configMapName | replace "{{.TestName}}" "{{test_name}}" | quote }}
                     defaultMode: {{ .Values.backendTestRunner.configMap.defaultMode }}
                     optional: {{ .Values.backendTestRunner.configMap.optional }}
 
