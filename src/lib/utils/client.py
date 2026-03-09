@@ -158,7 +158,7 @@ class LoginManager():
     def device_code_login(self, url: str, device_endpoint: str | None):
         """ Log in using OAUTH2 device flow """
         # Generate a user code
-        login_info = self._login_config.fetch_login_info(url)
+        login_info = login.fetch_login_info(url)
         device_endpoint = device_endpoint or login_info['device_endpoint']
         client_id = self._login_config.client_id or login_info['client_id']
 

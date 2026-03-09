@@ -184,7 +184,7 @@ def owner_password_login(config: LoginConfig,
     headers = {}
     if user_agent:
         headers['User-Agent'] = user_agent
-    login_info = config.fetch_login_info(url)
+    login_info = fetch_login_info(url)
     token_endpoint = config.token_endpoint or login_info['token_endpoint']
     result = requests.post(token_endpoint, data={
         'client_id': config.client_id or login_info['client_id'],
