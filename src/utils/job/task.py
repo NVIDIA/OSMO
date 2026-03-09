@@ -2023,7 +2023,6 @@ class TaskGroup(pydantic.BaseModel):
         Raises:
             OSMOServerError: Failed to create k8s resources.
         """
-        spec_start = time.monotonic()
         last_timestamp = datetime.datetime.now()
 
         group_uid = self.group_uuid
@@ -2041,7 +2040,6 @@ class TaskGroup(pydantic.BaseModel):
                 'fileDir': OSMO_CONFIG_FILE_DIR
             })
 
-        section_start = time.monotonic()
         all_secrets, user_secrets = {}, {}
         credential_cache: Dict[str, Any] = {}
         for task in self.spec.tasks:
@@ -2071,31 +2069,22 @@ class TaskGroup(pydantic.BaseModel):
                     progress_writer.report_progress()
                     last_timestamp = current_timestamp
         progress_writer.report_progress()
-        logging.info(
-            'get_kb_specs [%s]: credentials took %.3fs (%d tasks, %d unique creds)',
-            group_uid, time.monotonic() - section_start,
-            len(self.spec.tasks), len(credential_cache))
 
         if all_secrets:
             user_secrets = k8s_factory.create_secret(
                 f'{group_uid}-user-secrets', labels, {}, all_secrets)
 
-        section_start = time.monotonic()
         registry_creds_user, registry_cred_osmo = self._get_registry_creds(user, workflow_config)
         image_secrets_user = k8s_factory.create_image_secret(
             self._get_image_secret_name(group_uid, 'user'), labels, registry_creds_user)
         if registry_cred_osmo:
             image_secrets_osmo = k8s_factory.create_image_secret(
                 self._get_image_secret_name(group_uid, 'osmo'), labels, registry_cred_osmo)
-        logging.info(
-            'get_kb_specs [%s]: registry creds took %.3fs',
-            group_uid, time.monotonic() - section_start)
 
         headless_service = None
         if len(self.spec.tasks) > 1:
             headless_service = k8s_factory.create_headless_service(group_uid, labels)
 
-        section_start = time.monotonic()
         pods, files_list, task_names = self.convert_all_pod_specs(
             workflow_uuid,
             user,
@@ -2107,19 +2096,12 @@ class TaskGroup(pydantic.BaseModel):
             progress_iter_freq,
 
         )
-        logging.info(
-            'get_kb_specs [%s]: convert_all_pod_specs took %.3fs (%d tasks)',
-            group_uid, time.monotonic() - section_start, len(task_names))
 
-        section_start = time.monotonic()
         # Build topology tree configuration
         topology_keys, task_infos = self._build_topology_tree(pool)
 
         group_objects = k8s_factory.create_group_k8s_resources(
             group_uid, pods, labels, pool, priority, topology_keys, task_infos)
-        logging.info(
-            'get_kb_specs [%s]: topology + group objects took %.3fs',
-            group_uid, time.monotonic() - section_start)
 
         pod_specs = dict(zip(task_names, pods))
 
@@ -2144,7 +2126,6 @@ class TaskGroup(pydantic.BaseModel):
             kb_resources.append(headless_service)
 
         # Prepend group template resources so they are created before pods
-        section_start = time.monotonic()
         pool_obj = connectors.Pool.fetch_from_db(self.database, pool)
         if pool_obj.parsed_group_templates:
             template_variables = self._convert_labels_to_variables(labels)
@@ -2164,13 +2145,6 @@ class TaskGroup(pydantic.BaseModel):
                     self.group_template_resource_types.append(
                         {'apiVersion': resource_type_key[0], 'kind': resource_type_key[1]}
                     )
-        logging.info(
-            'get_kb_specs [%s]: group templates took %.3fs',
-            group_uid, time.monotonic() - section_start)
-
-        logging.info(
-            'get_kb_specs [%s]: total took %.3fs (%d kb_resources)',
-            group_uid, time.monotonic() - spec_start, len(kb_resources))
 
         return kb_resources, pod_specs
 

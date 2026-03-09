@@ -449,11 +449,8 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
 
         Returns whether execute is ready to run and error message if failed
         """
-        prepare_start = time.time()
         group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
                                                  self.group_name)
-        logging.info('prepare_execute: fetch_from_db took %.2fs',
-                     time.time() - prepare_start, extra=self.log_labels())
 
         if group_obj.status not in \
             (task.TaskGroupStatus.WAITING, task.TaskGroupStatus.PROCESSING):
@@ -461,14 +458,10 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             f'{group_obj.status.value}.'
 
         if not self.k8s_resources:
-            step_start = time.time()
             workflow_config = context.postgres.get_workflow_configs()
             backend_config_cache = connectors.BackendConfigCache()
             workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
-            logging.info('prepare_execute: config+workflow fetch took %.2fs',
-                         time.time() - step_start, extra=self.log_labels())
 
-            step_start = time.time()
             resources, pod_specs = group_obj.get_kb_specs(
                 self.workflow_uuid,
                 self.user,
@@ -481,32 +474,16 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                 workflow_obj.plugins,
                 workflow_obj.priority,
             )
-            logging.info('prepare_execute: get_kb_specs took %.2fs (%d resources)',
-                         time.time() - step_start, len(resources), extra=self.log_labels())
-
             self.k8s_resources = resources
-
-            step_start = time.time()
             group_obj.update_group_template_resource_types()
-            logging.info('prepare_execute: update_group_template_resource_types took %.2fs',
-                         time.time() - step_start, extra=self.log_labels())
 
-            step_start = time.time()
             upload_task = UploadWorkflowFiles(
                 workflow_id=workflow_obj.workflow_id,
                 workflow_uuid=self.workflow_uuid,
                 files=[File(f'{task_name}.spec', yaml.dump(pod_spec))
                         for task_name, pod_spec in pod_specs.items()])
             upload_task.send_job_to_queue()
-            logging.info('prepare_execute: upload_task creation+enqueue took %.2fs',
-                         time.time() - step_start, extra=self.log_labels())
 
-        else:
-            logging.info('prepare_execute: k8s_resources already populated (%d resources)',
-                         len(self.k8s_resources), extra=self.log_labels())
-
-        logging.info('prepare_execute: total took %.2fs',
-                     time.time() - prepare_start, extra=self.log_labels())
         return True, ''
 
     def handle_failure(self, context: JobExecutionContext, error: str):
