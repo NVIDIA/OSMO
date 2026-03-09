@@ -201,6 +201,12 @@ def create_access_token(token_name: str,
         # Use the specified roles - validation happens in insert_into_db
         token_roles = roles
 
+    max_token_duration = postgres.get_service_configs().service_auth.max_token_duration
+    max_date = datetime.datetime.utcnow().date() + common.to_timedelta(max_token_duration)
+    if common.convert_str_to_time(expires_at, '%Y-%m-%d').date() > max_date:
+        raise osmo_errors.OSMOUserError(
+            f'Access token expiration date cannot be more than {max_token_duration} from now')
+
     objects.AccessToken.insert_into_db(
         postgres, user_name, token_name, access_token,
         expires_at, description, token_roles, user_name)
@@ -323,6 +329,12 @@ def admin_create_access_token(
     else:
         # Use the specified roles - validation happens in insert_into_db
         token_roles = roles
+
+    max_token_duration = postgres.get_service_configs().service_auth.max_token_duration
+    max_date = datetime.datetime.utcnow().date() + common.to_timedelta(max_token_duration)
+    if common.convert_str_to_time(expires_at, '%Y-%m-%d').date() > max_date:
+        raise osmo_errors.OSMOUserError(
+            f'Access token expiration date cannot be more than {max_token_duration} from now')
 
     objects.AccessToken.insert_into_db(
         postgres, user_id, token_name, access_token,

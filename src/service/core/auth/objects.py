@@ -120,11 +120,6 @@ class AccessToken(pydantic.BaseModel):
         if expires_date.date() <= current_date:
             raise osmo_errors.OSMOUserError(
                 f'Expiration date must be past the current date ({current_date})')
-        max_token_duration = database.get_service_configs().service_auth.max_token_duration
-        max_date = current_date + common.to_timedelta(max_token_duration)
-        if expires_date.date() > max_date:
-            raise osmo_errors.OSMOUserError(
-                f'Access token cannot last longer than {max_token_duration}')
 
         if not roles:
             raise osmo_errors.OSMOUserError(
