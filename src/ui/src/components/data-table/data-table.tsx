@@ -85,8 +85,10 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   headerClassName?: string;
   /** Extra classes applied to the <thead> element (e.g. "file-browser-thead" for a shadow-based bottom divider) */
   theadClassName?: string;
-  rowClassName?: string | ((item: TData) => string);
+  rowClassName?: string | ((item: TData, index: number) => string);
   sectionClassName?: string | ((section: Section<TData, TSectionMeta>) => string);
+  /** Whether a given row should show hover/pointer styles. Defaults to !!onRowClick for all rows. */
+  isRowInteractive?: (row: TData) => boolean;
   columnSizeConfigs?: readonly ColumnSizeConfig[];
   columnSizingPreferences?: ColumnSizingPreferences;
   onColumnSizingPreferenceChange?: (columnId: string, preference: ColumnSizingPreference) => void;
@@ -128,7 +130,6 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   onLoadMore,
   isFetchingNextPage,
   totalCount,
-  // Row heights use canonical constants from @/lib/config
   rowHeight = TABLE_ROW_HEIGHTS.NORMAL,
   sectionHeight = TABLE_ROW_HEIGHTS.SECTION,
   className,
@@ -151,6 +152,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   suspendResize,
   resizeCompleteEvent,
   registerLayoutStableCallback,
+  isRowInteractive,
 }: DataTableProps<TData, TSectionMeta>) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const tableElementRef = useRef<HTMLTableElement>(null);
@@ -178,7 +180,6 @@ function DataTableInner<TData, TSectionMeta = unknown>({
     return columns
       .map((c) => {
         if (typeof c.id === "string") return c.id;
-        // AccessorKeyColumnDef has accessorKey property
         if ("accessorKey" in c && c.accessorKey) return String(c.accessorKey);
         return "";
       })
@@ -199,38 +200,20 @@ function DataTableInner<TData, TSectionMeta = unknown>({
 
   const visibleColumnCount = visibleColumnIds.length;
 
-  const columnMinSizes = useMemo(() => {
-    const sizes: Record<string, number> = {};
-    for (const col of columns) {
-      const colId = col.id ?? ("accessorKey" in col && col.accessorKey ? String(col.accessorKey) : "");
-      if (colId && col.minSize != null) {
-        sizes[colId] = col.minSize;
-      }
-    }
-    return sizes;
-  }, [columns]);
-
-  const columnInitialSizes = useMemo(() => {
-    const sizes: Record<string, number> = {};
-    for (const col of columns) {
-      const colId = col.id ?? ("accessorKey" in col && col.accessorKey ? String(col.accessorKey) : "");
-      if (colId && col.size != null) {
-        sizes[colId] = col.size;
-      }
-    }
-    return sizes;
-  }, [columns]);
-
-  const columnResizability = useMemo(() => {
+  const { columnMinSizes, columnInitialSizes, columnResizability } = useMemo(() => {
+    const mins: Record<string, number> = {};
+    const initials: Record<string, number> = {};
     const resizability: Record<string, boolean> = {};
+
     for (const col of columns) {
       const colId = col.id ?? ("accessorKey" in col && col.accessorKey ? String(col.accessorKey) : "");
-      if (colId) {
-        // enableResizing defaults to true if not specified
-        resizability[colId] = col.enableResizing !== false;
-      }
+      if (!colId) continue;
+      if (col.minSize != null) mins[colId] = col.minSize;
+      if (col.size != null) initials[colId] = col.size;
+      resizability[colId] = col.enableResizing !== false;
     }
-    return resizability;
+
+    return { columnMinSizes: mins, columnInitialSizes: initials, columnResizability: resizability };
   }, [columns]);
 
   const showSkeleton = isLoading && allItems.length === 0;
@@ -252,19 +235,34 @@ function DataTableInner<TData, TSectionMeta = unknown>({
     registerLayoutStableCallback,
   });
 
-  // Track previous data length to detect empty → populated transitions
-  const prevDataLength = usePrevious(allItems.length);
+  // Toggle `is-scrolling` class to suppress row-position transitions during scroll.
+  // Removed 150ms after the last scroll event so expand/collapse animations work.
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl) return;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      scrollEl.classList.add("is-scrolling");
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => scrollEl.classList.remove("is-scrolling"), 150);
+    };
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scrollEl.removeEventListener("scroll", onScroll);
+      clearTimeout(timeoutId);
+    };
+  }, []);
 
-  // When transitioning from empty (0 items) to populated (>0 items),
-  // trigger column recalculation to ensure columns fill available space
+  // Recalculate column widths when data first arrives (empty -> populated)
+  const prevDataLength = usePrevious(allItems.length);
+  const { recalculate } = columnSizingHook;
   useEffect(() => {
     if (prevDataLength === 0 && allItems.length > 0) {
-      // Use RAF to ensure DOM has updated before recalculating
       requestAnimationFrame(() => {
-        columnSizingHook.recalculate();
+        recalculate();
       });
     }
-  }, [prevDataLength, allItems.length, columnSizingHook]);
+  }, [prevDataLength, allItems.length, recalculate]);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns unstable functions by design
   const table = useReactTable({
@@ -316,7 +314,6 @@ function DataTableInner<TData, TSectionMeta = unknown>({
     useVirtualizedTable<TData, TSectionMeta>({
       items: sections ? undefined : data,
       sections,
-      getRowId,
       scrollRef,
       rowHeight,
       sectionHeight,
@@ -369,7 +366,9 @@ function DataTableInner<TData, TSectionMeta = unknown>({
 
   const rowNavigation = useRowNavigation({
     rowCount: virtualItemCount,
-    visibleRowCount: Math.floor(600 / rowHeight),
+    visibleRowCount: scrollRef.current
+      ? Math.max(1, Math.floor(scrollRef.current.clientHeight / rowHeight))
+      : Math.floor(600 / rowHeight),
     onRowActivate: useCallback(
       (virtualIndex: number) => {
         const item = getItem(virtualIndex);
@@ -511,7 +510,6 @@ function DataTableInner<TData, TSectionMeta = unknown>({
 
                         const colIndex = headerIndex + 1;
 
-                        // Get custom header className from column meta (dependency injection)
                         const headerClassName = header.column.columnDef.meta?.headerClassName;
 
                         if (isFixed) {
@@ -577,6 +575,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                 onRowKeyDown={rowNavigation.handleRowKeyDown}
                 measureElement={measureElement}
                 compact={compact}
+                isRowInteractive={isRowInteractive}
               />
             </table>
 
@@ -635,5 +634,4 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   );
 }
 
-// Memoize with generic type preservation
 export const DataTable = memo(DataTableInner) as typeof DataTableInner;

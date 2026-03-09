@@ -24,12 +24,12 @@
 "use client";
 
 import { useState, useMemo, useCallback, memo } from "react";
-import { naturalCompare } from "@/lib/utils";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
+import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
-import { STATUS_SORT_ORDER } from "@/features/workflows/detail/lib/status";
+import { createTaskSortComparator } from "@/features/workflows/detail/lib/status";
 import type { TaskWithDuration, GroupWithLayout } from "@/features/workflows/detail/lib/workflow-types";
 import type { TaskQueryResponse } from "@/features/workflows/detail/lib/workflow-types";
 import {
@@ -118,68 +118,25 @@ export const GroupTasksTab = memo(function GroupTasksTab({
     const cols = createTaskColumns({
       renderTaskNameCell: (props) => <TaskNameCell {...props} />,
     });
-    // Find name column and remove custom headerClassName
-    const nameColumn = cols.find((col) => col.id === "name");
-    if (nameColumn?.meta) {
-      delete nameColumn.meta.headerClassName;
-    }
-    return cols;
+    // Return immutable-mapped columns, removing headerClassName from name column
+    return cols.map((col) =>
+      col.id === "name" && col.meta?.headerClassName !== undefined
+        ? { ...col, meta: { ...col.meta, headerClassName: undefined } }
+        : col,
+    );
   }, []);
 
   // Fixed columns (not draggable)
   const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
 
   // Column visibility map for TanStack
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {};
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    visibleColumnIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, visibleColumnIds]);
+  const columnVisibility = useColumnVisibility(columnOrder, visibleColumnIds);
 
-  // Sort comparator for client-side sorting
-  const sortComparator = useMemo(() => {
-    const column = sort?.column;
-    const direction = sort?.direction;
-    if (!column) return null;
-    const dir = direction === "asc" ? 1 : -1;
-
-    switch (column) {
-      case "status":
-        return (a: TaskWithDuration, b: TaskWithDuration) =>
-          ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
-      case "name":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.name, b.name) * dir;
-      case "duration":
-        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
-      case "node":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.node_name ?? "", b.node_name ?? "") * dir;
-      case "podIp":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.pod_ip ?? "", b.pod_ip ?? "") * dir;
-      case "exitCode":
-        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
-      case "startTime":
-        return (a: TaskWithDuration, b: TaskWithDuration) => {
-          const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
-          const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
-          return (aTime - bTime) * dir;
-        };
-      case "endTime":
-        return (a: TaskWithDuration, b: TaskWithDuration) => {
-          const aTime = a.end_time ? new Date(a.end_time).getTime() : 0;
-          const bTime = b.end_time ? new Date(b.end_time).getTime() : 0;
-          return (aTime - bTime) * dir;
-        };
-      case "retry":
-        return (a: TaskWithDuration, b: TaskWithDuration) => (a.retry_id - b.retry_id) * dir;
-      default:
-        return null;
-    }
-  }, [sort]);
+  // Sort comparator (shared with WorkflowTasksTable via createTaskSortComparator)
+  const sortComparator = useMemo(
+    () => createTaskSortComparator<TaskWithDuration>(sort?.column, sort?.direction),
+    [sort],
+  );
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
@@ -190,23 +147,12 @@ export const GroupTasksTab = memo(function GroupTasksTab({
     return result;
   }, [tasksWithDuration, searchChips, sortComparator]);
 
-  // Static presets for state filtering
-  const taskPresets = TASK_PRESETS;
-
   // Results count for FilterBar display
   const resultsCount = useResultsCount({
     total: totalTasks,
     filteredTotal: filteredTasks.length,
     hasActiveFilters: searchChips.length > 0,
   });
-
-  // Callbacks
-  const handleColumnOrderChange = useCallback(
-    (newOrder: string[]) => {
-      setColumnOrder(newOrder);
-    },
-    [setColumnOrder],
-  );
 
   const handleSortChange = useCallback(
     (newSort: SortState<string>) => {
@@ -235,12 +181,6 @@ export const GroupTasksTab = memo(function GroupTasksTab({
     [],
   );
 
-  // Convert store sort to DataTable format
-  const tableSorting = useMemo<SortState<string> | undefined>(() => {
-    if (!sort) return undefined;
-    return { column: sort.column, direction: sort.direction };
-  }, [sort]);
-
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Toolbar: Search + Controls */}
@@ -255,7 +195,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
           onSearchChipsChange={setSearchChips}
           defaultField="name"
           placeholder="Filter by name, status:, ip:, duration:..."
-          searchPresets={taskPresets}
+          searchPresets={TASK_PRESETS}
           resultsCount={resultsCount}
         />
       </div>
@@ -267,7 +207,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
         getRowId={getRowId}
         // Column management
         columnOrder={columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
         fixedColumns={fixedColumns}
         // Column sizing
@@ -275,7 +215,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
         suspendResize={isSuspended}
         registerLayoutStableCallback={registerLayoutStableCallback}
         // Sorting
-        sorting={tableSorting}
+        sorting={sort ?? undefined}
         onSortingChange={handleSortChange}
         // Layout
         rowHeight={rowHeight}

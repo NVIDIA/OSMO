@@ -14,27 +14,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Hook for virtualized table rendering.
- *
- * Wraps TanStack Virtual to work with native <table> elements.
- * Provides row indices, positions, and infinite scroll detection.
- *
- * Note: Requires @tanstack/react-virtual 3.13.12 (not 3.13.13+) to avoid
- * flushSync warnings during render. See https://github.com/TanStack/virtual/issues/1094
- */
-
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
 import { useSyncedRef, usePrevious } from "@react-hookz/web";
 import type { Section } from "@/components/data-table/types";
 import { VirtualItemTypes } from "@/components/data-table/constants";
-
-// =============================================================================
-// Types
-// =============================================================================
 
 export interface VirtualizedRow {
   index: number;
@@ -48,10 +34,8 @@ export interface UseVirtualizedTableOptions<T, TSectionMeta = unknown> {
   items?: T[];
   /** Sectioned data (mutually exclusive with items) */
   sections?: Section<T, TSectionMeta>[];
-  getRowId: (item: T) => string;
   scrollRef: React.RefObject<HTMLElement | null>;
   rowHeight: number;
-  /** Section header height (required if using sections) */
   sectionHeight?: number;
   overscan?: number;
   hasNextPage?: boolean;
@@ -62,9 +46,7 @@ export interface UseVirtualizedTableOptions<T, TSectionMeta = unknown> {
 export interface UseVirtualizedTableResult<T, TSectionMeta = unknown> {
   virtualRows: VirtualizedRow[];
   totalHeight: number;
-  /** Total data row count (excluding section headers, for aria-rowcount) */
   totalRowCount: number;
-  /** Total virtual item count (sections + data rows, for navigation) */
   virtualItemCount: number;
   getItem: (
     index: number,
@@ -74,18 +56,12 @@ export interface UseVirtualizedTableResult<T, TSectionMeta = unknown> {
     | null;
   measure: () => void;
   scrollToIndex: (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => void;
-  /** Ref callback for dynamic row measurement - attach to row elements */
   measureElement: (node: Element | null) => void;
 }
-
-// =============================================================================
-// Hook
-// =============================================================================
 
 export function useVirtualizedTable<T, TSectionMeta = unknown>({
   items,
   sections,
-  getRowId,
   scrollRef,
   rowHeight,
   sectionHeight = 36,
@@ -94,7 +70,6 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
   onLoadMore,
   isFetchingNextPage = false,
 }: UseVirtualizedTableOptions<T, TSectionMeta>): UseVirtualizedTableResult<T, TSectionMeta> {
-  // Build flat list of virtual items (sections + rows or just rows)
   const virtualItems = useMemo(() => {
     if (sections && sections.length > 0) {
       const result: Array<
@@ -103,8 +78,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
       > = [];
 
       for (const section of sections) {
-        // Use height 0 for sections with skipGroupRow (e.g., single-task groups)
-        // so they don't allocate vertical space in the virtual list
+        // Height 0 for skipped headers so they don't allocate vertical space
         const metadata = section.metadata as { skipGroupRow?: boolean } | undefined;
         const shouldSkipHeader = metadata?.skipGroupRow === true;
         const headerHeight = shouldSkipHeader ? 0 : sectionHeight;
@@ -129,31 +103,30 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     return [];
   }, [items, sections, rowHeight, sectionHeight]);
 
-  // Stable refs for accessing changing data in stable callbacks
-  // Note: Use useSyncedRef (not useEventCallback) for getRowId because it's called
-  // during render by getItemKey. useEventCallback throws when called during render.
   const virtualItemsRef = useSyncedRef(virtualItems);
-  const getRowIdRef = useSyncedRef(getRowId);
+  const virtualizerRef = useRef<Virtualizer<HTMLElement, Element> | null>(null);
 
-  // Estimate size function - stable callback using ref
+  // Dispatched from TV's onChange(sync=false); captured by flushSync in makeRowRef
+  // to commit row positions synchronously before paint.
+  const [, forceSyncTick] = useReducer((x: number) => x + 1, 0);
+
   const estimateSize = useCallback(
     (index: number) => virtualItemsRef.current[index]?.height ?? rowHeight,
     [virtualItemsRef, rowHeight],
   );
 
-  // Get item key - stable callback using refs
-  // Called during render by virtualizer, so must use refs (not useEventCallback)
+  // Uses virtual index (not item ID) so duplicate items (e.g. a resource in
+  // multiple pools) get independent entries in TV's itemSizeCache.
   const getItemKey = useCallback(
     (index: number) => {
       const item = virtualItemsRef.current[index];
       if (!item) return index;
       if (item.type === VirtualItemTypes.SECTION) return `section-${item.section.id}`;
-      return getRowIdRef.current(item.item);
+      return index;
     },
-    [virtualItemsRef, getRowIdRef],
+    [virtualItemsRef],
   );
 
-  // Create virtualizer with stable callbacks
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual returns unstable functions by design. React Compiler skips optimization. See: https://github.com/facebook/react/issues/33057
   const virtualizer = useVirtualizer({
     count: virtualItems.length,
@@ -161,30 +134,36 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     estimateSize,
     overscan,
     getItemKey,
+    onChange: (_instance, sync) => {
+      // Only for resize events (sync=false), not scroll updates
+      if (!sync) {
+        forceSyncTick();
+      }
+    },
   });
 
-  // Re-measure when heights change
+  virtualizerRef.current = virtualizer;
+
+  const measure = useCallback(() => {
+    virtualizerRef.current?.measure();
+  }, []);
+
   useEffect(() => {
     virtualizer.measure();
   }, [rowHeight, sectionHeight, virtualizer]);
 
-  // Get virtual items - TanStack Virtual handles reactivity internally
-  const virtualRows: VirtualizedRow[] = virtualizer.getVirtualItems().map((row) => ({
+  const rawVirtualItems = virtualizer.getVirtualItems();
+  const virtualRows: VirtualizedRow[] = rawVirtualItems.map((row) => ({
     index: row.index,
     start: row.start,
     size: row.size,
     key: String(row.key),
   }));
 
-  // Stable ref for optional load more callback
   const onLoadMoreRef = useSyncedRef(onLoadMore);
-
-  // Track if we've already triggered load more to prevent duplicate calls
   const loadMoreTriggeredRef = useRef(false);
 
-  // Reset the trigger flag when new data arrives (item count changes).
-  // This single mechanism works for both slow network responses and instant
-  // cached responses, making the logic agnostic of data source timing.
+  // Reset when new data arrives so another page can be requested
   const currentItemCount = items?.length ?? 0;
   const prevItemCount = usePrevious(currentItemCount);
   useEffect(() => {
@@ -199,20 +178,16 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     const scrollElement = scrollRef.current;
     if (!scrollElement) return;
 
-    // Track if effect is still active to prevent stale callback execution
     let isActive = true;
 
     const checkLoadMore = () => {
-      // Guard against stale execution after unmount
       if (!isActive) return;
-
       if (loadMoreTriggeredRef.current) return;
 
       const rows = virtualizer.getVirtualItems();
       const lastRow = rows.at(-1);
       if (!lastRow) return;
 
-      // Trigger load when within threshold items of end (balances UX with network efficiency)
       const LOAD_MORE_THRESHOLD = 10;
       if (lastRow.index >= virtualItems.length - LOAD_MORE_THRESHOLD) {
         loadMoreTriggeredRef.current = true;
@@ -222,7 +197,6 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
 
     scrollElement.addEventListener("scroll", checkLoadMore, { passive: true });
 
-    // Initial check after layout settles (100ms is typical for initial render)
     const INITIAL_CHECK_DELAY_MS = 100;
     const timeoutId = setTimeout(checkLoadMore, INITIAL_CHECK_DELAY_MS);
 
@@ -233,7 +207,6 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     };
   }, [scrollRef, virtualItems.length, hasNextPage, isFetchingNextPage, virtualizer, onLoadMoreRef]);
 
-  // Get item for a virtual row index
   const getItem = useCallback(
     (index: number) => {
       const item = virtualItems[index];
@@ -246,7 +219,6 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     [virtualItems],
   );
 
-  // Count total data rows (excluding section headers)
   const totalRowCount = useMemo(() => {
     if (sections) {
       return sections.reduce((sum, s) => sum + s.items.length, 0);
@@ -254,12 +226,11 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     return items?.length ?? 0;
   }, [items, sections]);
 
-  // Scroll to a specific index
   const scrollToIndex = useCallback(
     (index: number, options?: { align?: "start" | "center" | "end" | "auto" }) => {
       virtualizer.scrollToIndex(index, {
         align: options?.align ?? "auto",
-        behavior: "auto", // instant for keyboard nav
+        behavior: "auto",
       });
     },
     [virtualizer],
@@ -271,7 +242,7 @@ export function useVirtualizedTable<T, TSectionMeta = unknown>({
     totalRowCount,
     virtualItemCount: virtualItems.length,
     getItem,
-    measure: () => virtualizer.measure(),
+    measure,
     scrollToIndex,
     measureElement: virtualizer.measureElement,
   };

@@ -1,18 +1,18 @@
-//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-
-//Licensed under the Apache License, Version 2.0 (the "License");
-//you may not use this file except in compliance with the License.
-//You may obtain a copy of the License at
-
-//http://www.apache.org/licenses/LICENSE-2.0
-
-//Unless required by applicable law or agreed to in writing, software
-//distributed under the License is distributed on an "AS IS" BASIS,
-//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//See the License for the specific language governing permissions and
-//limitations under the License.
-
-//SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
 
 "use client";
 
@@ -36,6 +36,9 @@ import "@/features/occupancy/styles/occupancy.css";
 
 // Module-level constant — stable reference, no useMemo needed
 const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
+
+// Parent rows are interactive (toggle expand); child rows are not
+const isOccupancyRowInteractive = (row: OccupancyFlatRow) => row._type === "parent";
 
 // =============================================================================
 // Helpers
@@ -125,10 +128,9 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
     [setSort],
   );
 
-  // Row click toggles expand on parent rows; no-op on children
   const handleRowClick = useCallback(
     (row: OccupancyFlatRow) => {
-      if (row._type === "parent") onToggleExpand(row.key);
+      if (isOccupancyRowInteractive(row)) onToggleExpand(row.key);
     },
     [onToggleExpand],
   );
@@ -192,6 +194,7 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
         // Interaction
         onRowClick={handleRowClick}
         rowClassName={rowClassName}
+        isRowInteractive={isOccupancyRowInteractive}
       />
     </div>
   );

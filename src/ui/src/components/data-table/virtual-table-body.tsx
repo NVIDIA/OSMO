@@ -14,16 +14,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * VirtualTableBody
- *
- * Virtualized <tbody> using native table elements.
- * Renders only visible rows with absolute positioning for performance.
- */
-
 "use client";
 
 import { memo, useCallback, useRef } from "react";
+import { flushSync } from "react-dom";
+import { useSyncedRef } from "@react-hookz/web";
 import { flexRender, type Row } from "@tanstack/react-table";
 import { cn } from "@/lib/utils";
 import type { VirtualizedRow } from "@/components/data-table/hooks/use-virtualized-table";
@@ -31,59 +26,31 @@ import type { Section } from "@/components/data-table/types";
 import { getColumnCSSValue } from "@/components/data-table/utils/column-sizing";
 import { VirtualItemTypes } from "@/components/data-table/constants";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
-  /** Virtual rows to render */
   virtualRows: VirtualizedRow[];
-  /** Total height of all rows */
   totalHeight: number;
-  /** Get table row by virtual index */
   getTableRow: (index: number) => Row<TData> | undefined;
-  /** Get item info by virtual index (for sections) */
   getItem: (
     index: number,
   ) => { type: "section"; section: Section<TData, TSectionMeta> } | { type: "row"; item: TData } | null;
-  /** Number of columns (for section header colSpan) */
   columnCount: number;
-  /** Row click handler */
   onRowClick?: (item: TData, index: number) => void;
-  /** Row double-click handler */
   onRowDoubleClick?: (item: TData, index: number) => void;
-  /**
-   * Get the href for a row (if clicking navigates to a page).
-   * Used for middle-click behavior:
-   * - If getRowHref returns a URL → middle-click opens in new tab
-   * - If getRowHref returns undefined or is not provided → middle-click calls onRowClick (shows overlay)
-   */
+  /** Returns URL for middle-click "open in new tab", or undefined to fall back to onRowClick */
   getRowHref?: (item: TData) => string | undefined;
-  /** Selected row ID */
   selectedRowId?: string;
-  /** Get row ID for comparison */
   getRowId?: (item: TData) => string;
-  /** Custom row class name */
-  rowClassName?: string | ((item: TData) => string);
-  /** Custom section row class name (for zebra striping, borders, etc.) */
+  rowClassName?: string | ((item: TData, index: number) => string);
   sectionClassName?: string | ((section: Section<TData, TSectionMeta>) => string);
-  /** Render custom section header */
   renderSectionHeader?: (section: Section<TData, TSectionMeta>) => React.ReactNode;
-  /** Get tabIndex for a row (roving tabindex pattern) */
   getRowTabIndex?: (index: number) => 0 | -1;
-  /** Row focus handler */
   onRowFocus?: (index: number) => void;
-  /** Row keydown handler */
   onRowKeyDown?: (e: React.KeyboardEvent, index: number) => void;
-  /** Ref callback for dynamic row measurement */
   measureElement?: (node: Element | null) => void;
-  /** Compact mode - reduces cell padding */
   compact?: boolean;
+  /** Whether a given row should show hover/pointer styles. Defaults to !!onRowClick for all rows. */
+  isRowInteractive?: (row: TData) => boolean;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   virtualRows,
@@ -104,20 +71,32 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   onRowKeyDown,
   measureElement,
   compact = false,
+  isRowInteractive,
 }: VirtualTableBodyProps<TData, TSectionMeta>) {
-  /**
-   * Stores the row item resolved at mousedown time (first click of a potential
-   * double-click). Used as a fallback in handleTbodyDoubleClick when the
-   * virtualizer has remounted rows between the first click and the dblclick
-   * event (e.g. because opening a slideout panel narrowed the table).
-   */
+  // Fallback for dblclick when virtualizer remounts rows between clicks
   const lastMouseDownItemRef = useRef<{ item: TData; index: number } | null>(null);
 
-  /**
-   * Resolve row data from a delegated event target.
-   * Walks up the DOM to find the row element, parses its index,
-   * and returns the row item if it's a data row (not a section header).
-   */
+  // Stable ref: TV recreates measureElement every render by design
+  const measureElementRef = useSyncedRef(measureElement);
+
+  // Registers row with TV and attaches a supplemental ResizeObserver that
+  // wraps measureElement in flushSync. This captures TV's onChange(sync=false)
+  // dispatch synchronously, so row positions are correct before paint.
+  const makeRowRef = useCallback(
+    (node: HTMLTableRowElement | null): void | (() => void) => {
+      if (!node) return;
+      measureElementRef.current?.(node);
+      const observer = new ResizeObserver(() => {
+        flushSync(() => {
+          measureElementRef.current?.(node);
+        });
+      });
+      observer.observe(node, { box: "border-box" });
+      return () => observer.disconnect();
+    },
+    [measureElementRef],
+  );
+
   const resolveRowItem = useCallback(
     (target: HTMLElement): { item: TData; index: number } | null => {
       const row = target.closest<HTMLTableRowElement>('[role="row"][data-index]');
@@ -134,13 +113,9 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
       if (!onRowClick && !getRowHref) return;
 
-      // When a double-click handler is registered, skip the second click
-      // (detail >= 2) of a multi-click sequence. Without this guard the second
-      // click fires onRowClick → startViewTransition a second time, and the
-      // resulting document.startViewTransition competes with the one triggered
-      // by the immediately-following dblclick event. The browser cannot
-      // reliably run two overlapping view-transition update callbacks, so the
-      // dblclick's router.push never executes.
+      // Skip the second click of a multi-click sequence when dblclick is handled,
+      // otherwise two competing startViewTransition calls cause the dblclick's
+      // router.push to never execute.
       if (onRowDoubleClick && e.detail >= 2) return;
 
       const resolved = resolveRowItem(e.target as HTMLElement);
@@ -203,9 +178,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   const handleTbodyMouseDown = useCallback(
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
       if (!onRowDoubleClick) return;
-      // Only capture on the first press of a potential double-click (detail=1).
-      // This is used as a fallback in handleTbodyDoubleClick in case the
-      // virtualizer remounts rows between the first click and the dblclick event.
       if (e.detail !== 1) return;
       lastMouseDownItemRef.current = resolveRowItem(e.target as HTMLElement);
     },
@@ -215,8 +187,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   const handleTbodyDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
       if (!onRowDoubleClick) return;
-      // Fall back to the item captured at mousedown if the target element is no
-      // longer in the DOM (e.g. virtualizer remounted rows while panel opened).
+      // Fall back to mousedown capture if virtualizer remounted rows between clicks
       const resolved = resolveRowItem(e.target as HTMLElement) ?? lastMouseDownItemRef.current;
       if (!resolved) return;
       onRowDoubleClick(resolved.item, resolved.index);
@@ -242,7 +213,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         if (!item) return null;
 
         if (item.type === VirtualItemTypes.SECTION) {
-          // Render section header content
           const sectionContent = renderSectionHeader ? (
             renderSectionHeader(item.section)
           ) : (
@@ -258,17 +228,14 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             </td>
           );
 
-          // Skip rendering entire row if renderSectionHeader returns null
-          // (e.g., for single-task groups that don't need a section header)
+          // renderSectionHeader can return null to skip headers (e.g. single-item groups)
           if (sectionContent === null) {
             return null;
           }
 
-          // Calculate custom class name for section row (zebra striping, borders)
           const customSectionClassName =
             typeof sectionClassName === "function" ? sectionClassName(item.section) : sectionClassName;
 
-          // Use index in key to guarantee uniqueness in virtualized list
           return (
             <tr
               key={`section-${virtualRow.index}`}
@@ -278,7 +245,6 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
               className={cn("data-table-section-row sticky", customSectionClassName)}
               style={{
                 height: virtualRow.size,
-                // translate3d triggers GPU compositor layer for smoother animation
                 transform: `translate3d(0, ${virtualRow.start}px, 0)`,
               }}
             >
@@ -294,25 +260,25 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
         const rowId = getRowId?.(rowData);
         const isSelected = selectedRowId && rowId === selectedRowId;
 
-        const customClassName = typeof rowClassName === "function" ? rowClassName(rowData) : rowClassName;
+        const customClassName =
+          typeof rowClassName === "function" ? rowClassName(rowData, virtualRow.index) : rowClassName;
 
-        // Keyboard navigation support
         const tabIndex = getRowTabIndex?.(virtualRow.index) ?? (onRowClick ? 0 : undefined);
+        const isInteractive = isRowInteractive ? isRowInteractive(rowData) : !!onRowClick;
 
-        // Use virtual index in key to guarantee uniqueness even with duplicate data
         return (
           <tr
             key={`row-${virtualRow.index}`}
-            ref={measureElement}
+            ref={makeRowRef}
             data-index={virtualRow.index}
             role="row"
             data-row-id={rowId}
+            data-interactive={isInteractive || undefined}
             aria-rowindex={virtualRow.index + 2}
             aria-selected={isSelected ? true : undefined}
             tabIndex={tabIndex}
             className={cn(
               "data-table-row border-b border-zinc-200 dark:border-zinc-800",
-              onRowClick && "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900",
               isSelected && "bg-zinc-100 dark:bg-zinc-800",
               customClassName,
             )}
@@ -322,12 +288,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             }}
           >
             {row.getVisibleCells().map((cell, cellIndex) => {
-              // Cache CSS variable string to avoid duplicate function calls
               const cssWidth = getColumnCSSValue(cell.column.id);
-
-              // Get cell className from column meta (if provided).
-              // This allows columns to inject their styling requirements
-              // without VirtualTableBody needing specific knowledge of column types.
               const cellClassName = cell.column.columnDef.meta?.cellClassName;
 
               return (
@@ -339,13 +300,9 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
                   style={{
                     width: cssWidth,
                     minWidth: cssWidth,
-                    flexShrink: 0, // Prevent shrinking below specified width
+                    flexShrink: 0,
                   }}
-                  className={cn(
-                    "flex items-center",
-                    // Use custom className if provided, otherwise apply default padding
-                    cellClassName ?? (compact ? "px-4 py-1.5" : "px-4 py-3"),
-                  )}
+                  className={cn("flex items-center", cellClassName ?? (compact ? "px-4 py-1.5" : "px-4 py-3"))}
                 >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
@@ -358,5 +315,4 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   );
 }
 
-// Memo with generic support
 export const VirtualTableBody = memo(VirtualTableBodyInner) as typeof VirtualTableBodyInner;

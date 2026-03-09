@@ -36,7 +36,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
-import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
+import type { SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { cn } from "@/lib/utils";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
@@ -83,6 +83,9 @@ export interface WorkflowsDataTableProps {
 /** Stable row ID extractor */
 const getRowId = (workflow: WorkflowListEntry) => workflow.name;
 
+// Module-level constant — stable reference, no useMemo needed
+const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -124,9 +127,6 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
   // Create TanStack columns
   const columns = useMemo(() => createWorkflowColumns(), []);
 
-  // Fixed columns (not draggable)
-  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
-
   // Handle sort change
   const handleSortChange = useCallback(
     (newSort: SortState<string>) => {
@@ -137,26 +137,10 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
     [setSort],
   );
 
-  // Handle column order change
-  const handleColumnOrderChange = useCallback(
-    (newOrder: string[]) => {
-      setColumnOrder(newOrder);
-    },
-    [setColumnOrder],
-  );
-
-  // Handle column sizing preference change
-  const handleColumnSizingPreferenceChange = useCallback(
-    (columnId: string, preference: ColumnSizingPreference) => {
-      setColumnSizingPreference(columnId, preference);
-    },
-    [setColumnSizingPreference],
-  );
-
   const handleRowClick = useCallback(
     (workflow: WorkflowListEntry) => {
       const detailPath = `/workflows/${encodeURIComponent(workflow.name)}`;
-      const currentUrl = pathname + window.location.search;
+      const currentUrl = pathname + (typeof window !== "undefined" ? window.location.search : "");
       setOrigin(detailPath, currentUrl);
       startTransition(() => {
         router.push(detailPath);
@@ -171,17 +155,10 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
     [],
   );
 
-  // Augment workflows with visual row index for zebra striping
-  const workflowsWithIndex = useMemo(
-    () => workflows.map((workflow, index) => ({ ...workflow, _visualRowIndex: index })),
-    [workflows],
-  );
-
   // Row class for status styling + zebra striping
-  const rowClassName = useCallback((workflow: WorkflowListEntry & { _visualRowIndex?: number }) => {
+  const rowClassName = useCallback((workflow: WorkflowListEntry, index: number) => {
     const { category } = getStatusDisplay(workflow.status);
-    const visualIndex = workflow._visualRowIndex ?? 0;
-    const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
+    const zebraClass = index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
     return cn("workflows-row", `workflows-row--${category}`, zebraClass);
   }, []);
 
@@ -205,19 +182,19 @@ export const WorkflowsDataTable = memo(function WorkflowsDataTable({
 
   return (
     <div className="table-container relative flex h-full flex-col">
-      <DataTable<WorkflowListEntry & { _visualRowIndex?: number }>
-        data={workflowsWithIndex}
+      <DataTable<WorkflowListEntry>
+        data={workflows}
         columns={columns}
         getRowId={getRowId}
         // Column management
         columnOrder={columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
-        fixedColumns={fixedColumns}
+        fixedColumns={FIXED_COLUMNS}
         // Column sizing
         columnSizeConfigs={WORKFLOW_COLUMN_SIZE_CONFIG}
         columnSizingPreferences={columnSizingPreferences}
-        onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
+        onColumnSizingPreferenceChange={setColumnSizingPreference}
         // Sorting
         sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}

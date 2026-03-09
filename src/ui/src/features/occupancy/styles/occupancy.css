@@ -30,7 +30,7 @@
    Row Styles
    ============================================================================= */
 
-.occupancy-row {
+.occupancy-row:not(.occupancy-row--child) {
   @apply cursor-pointer transition-colors duration-75 ease-out;
 }
 
@@ -51,7 +51,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .occupancy-row {
+  .occupancy-row:not(.occupancy-row--child) {
     @apply transition-none;
   }
 }

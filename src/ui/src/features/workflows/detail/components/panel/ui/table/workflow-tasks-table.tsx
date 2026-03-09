@@ -29,9 +29,11 @@
 "use client";
 
 import { useMemo, useCallback, useState, memo, useRef } from "react";
+import { useSyncedRef } from "@react-hookz/web";
 import { naturalCompare } from "@/lib/utils";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
+import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
 import type { Section, SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
@@ -45,7 +47,7 @@ import {
 
 import { calculateTaskDuration } from "@/features/workflows/detail/lib/workflow-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import { computeTaskStats, STATUS_SORT_ORDER } from "@/features/workflows/detail/lib/status";
+import { computeTaskStats, createTaskSortComparator } from "@/features/workflows/detail/lib/status";
 import { createTaskColumns } from "@/features/workflows/detail/components/panel/core/lib/task-column-defs";
 import {
   TASK_WITH_TREE_COLUMN_SIZE_CONFIG,
@@ -69,6 +71,13 @@ import type {
   TaskQueryResponse,
   TaskWithDuration,
 } from "@/features/workflows/detail/lib/workflow-types";
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** Fixed columns (not draggable) — tree column must be first */
+const FIXED_COLUMNS = ["_tree", ...Array.from(MANDATORY_COLUMN_IDS)];
 
 // =============================================================================
 // Types
@@ -164,52 +173,34 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     return map;
   }, [groups]);
 
-  // Sort comparator (same as GroupDetails)
-  const sortComparator = useMemo(() => {
-    const column = sort?.column;
-    const direction = sort?.direction;
-    if (!column) return null;
-    const dir = direction === "asc" ? 1 : -1;
-
-    switch (column) {
-      case "status":
-        return (a: TaskWithDuration, b: TaskWithDuration) =>
-          ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
-      case "name":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.name, b.name) * dir;
-      case "duration":
-        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
-      case "node":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.node_name ?? "", b.node_name ?? "") * dir;
-      case "podIp":
-        return (a: TaskWithDuration, b: TaskWithDuration) => naturalCompare(a.pod_ip ?? "", b.pod_ip ?? "") * dir;
-      case "exitCode":
-        return (a: TaskWithDuration, b: TaskWithDuration) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
-      case "startTime":
-        return (a: TaskWithDuration, b: TaskWithDuration) => {
-          const aTime = a.start_time ? new Date(a.start_time).getTime() : 0;
-          const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
-          return (aTime - bTime) * dir;
-        };
-      case "endTime":
-        return (a: TaskWithDuration, b: TaskWithDuration) => {
-          const aTime = a.end_time ? new Date(a.end_time).getTime() : 0;
-          const bTime = b.end_time ? new Date(b.end_time).getTime() : 0;
-          return (aTime - bTime) * dir;
-        };
-      case "retry":
-        return (a: TaskWithDuration, b: TaskWithDuration) => (a.retry_id - b.retry_id) * dir;
-      default:
-        return null;
-    }
-  }, [sort]);
+  // Sort comparator (shared with GroupTasksTab via createTaskSortComparator)
+  const sortComparator = useMemo(
+    () => createTaskSortComparator<TaskWithDuration>(sort?.column, sort?.direction),
+    [sort],
+  );
 
   // Calculate total task count
   const totalTasks = useMemo(() => {
     return groups.reduce((sum, group) => sum + (group.tasks?.length ?? 0), 0);
   }, [groups]);
 
-  // Flatten all tasks for TableToolbar (needed for data prop)
+  // Flatten all tasks for TableToolbar search index — no `now` dep so the index
+  // only rebuilds when the task *list* changes, not every tick.
+  const allTasksForToolbar = useMemo(() => {
+    const tasks: TaskWithDuration[] = [];
+    for (const group of groups) {
+      for (const task of group.tasks || []) {
+        tasks.push({
+          ...task,
+          duration: calculateTaskDuration(task.start_time, task.end_time, task.status as TaskGroupStatus, 0),
+          _groupName: group.name,
+        });
+      }
+    }
+    return tasks;
+  }, [groups]);
+
+  // Flatten all tasks with live durations (for sections computation and live display)
   const allTasksWithDuration = useMemo(() => {
     const tasks: TaskWithDuration[] = [];
     for (const group of groups) {
@@ -217,14 +208,27 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         tasks.push({
           ...task,
           duration: calculateTaskDuration(task.start_time, task.end_time, task.status as TaskGroupStatus, now),
+          _groupName: group.name,
         });
       }
     }
     return tasks;
   }, [groups, now]);
 
+  // Build a lookup map from allTasksWithDuration for use in sections (avoids re-computing durations)
+  const taskDurationMap = useMemo(() => {
+    const map = new Map<string, TaskWithDuration>();
+    for (const task of allTasksWithDuration) {
+      const key = `${task._groupName ?? ""}:${task.name}:${task.retry_id}`;
+      map.set(key, task);
+    }
+    return map;
+  }, [allTasksWithDuration]);
+
   // Transform groups into sections with computed metadata
   // Critical flow: Raw tasks → Filter → Sort → Calculate position (_isLastTask) → Render
+  // Reuses allTasksWithDuration (memoized with [groups, now]) via taskDurationMap to avoid
+  // recomputing durations inside this useMemo.
   const { sections, filteredTaskCount } = useMemo((): {
     sections: Section<TaskWithDuration, GroupSectionMeta>[];
     filteredTaskCount: number;
@@ -235,17 +239,16 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       const totalTaskCount = taskArray.length;
       const isSingleTaskOriginal = totalTaskCount === 1;
 
-      // Build tasks with duration (status-aware calculation)
-      const buildTaskWithDuration = (task: (typeof taskArray)[0]): TaskWithDuration => ({
-        ...task,
-        duration: calculateTaskDuration(task.start_time, task.end_time, task.status as TaskGroupStatus, now),
-        _groupName: group.name,
-      });
+      // Look up task with live duration from the pre-computed map
+      const getTaskWithDuration = (task: (typeof taskArray)[0]): TaskWithDuration => {
+        const key = `${group.name}:${task.name}:${task.retry_id}`;
+        return taskDurationMap.get(key) ?? { ...task, duration: 0, _groupName: group.name };
+      };
 
       // ==== SINGLE-TASK GROUP ====
       if (isSingleTaskOriginal) {
         const singleTask = taskArray[0];
-        const taskWithDuration = buildTaskWithDuration(singleTask);
+        const taskWithDuration = getTaskWithDuration(singleTask);
 
         // Apply search filter
         const filteredArray = filterByChips([taskWithDuration], searchChips, TASK_SEARCH_FIELDS);
@@ -286,8 +289,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
 
       if (!isExpanded) {
         // Collapsed: check if ANY task matches the filter
-        const allTasksWithDuration = taskArray.map(buildTaskWithDuration);
-        const matchingTasks = filterByChips(allTasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
+        const groupTasksWithDuration = taskArray.map(getTaskWithDuration);
+        const matchingTasks = filterByChips(groupTasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
 
         if (matchingTasks.length === 0) {
           // No matching tasks: skip entire group (don't show group header)
@@ -301,7 +304,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
           items: [],
           metadata: {
             group,
-            stats: computeTaskStats(allTasksWithDuration),
+            stats: computeTaskStats(groupTasksWithDuration),
             taskCount: totalTaskCount,
             isSingleTask: false,
             skipGroupRow: false,
@@ -310,8 +313,8 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         };
       }
 
-      // Expanded: build all tasks with duration
-      const tasksWithDuration = taskArray.map(buildTaskWithDuration);
+      // Expanded: get all tasks with live durations from the pre-computed map
+      const tasksWithDuration = taskArray.map(getTaskWithDuration);
 
       // Step 1: Apply search filtering
       const filteredTasks = filterByChips(tasksWithDuration, searchChips, TASK_SEARCH_FIELDS);
@@ -392,7 +395,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     });
 
     return { sections: finalSections, filteredTaskCount: totalFiltered };
-  }, [groups, collapsedGroups, sortComparator, searchChips, now]);
+  }, [groups, taskDurationMap, collapsedGroups, sortComparator, searchChips]);
 
   // Results count for FilterBar display
   const resultsCount = useResultsCount({
@@ -435,25 +438,11 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     return [treeColumn, ...baseColumns];
   }, []);
 
-  // Fixed columns (not draggable) - tree column must be first
-  const fixedColumns = useMemo(() => ["_tree", ...Array.from(MANDATORY_COLUMN_IDS)], []);
-
   // Ensure tree column is always first in the order
   const tableColumnOrder = useMemo(() => ["_tree", ...columnOrder], [columnOrder]);
 
-  // Column visibility map for TanStack
-  const columnVisibility = useMemo(() => {
-    const visibility: Record<string, boolean> = {
-      _tree: true, // Tree column is always visible
-    };
-    columnOrder.forEach((id) => {
-      visibility[id] = false;
-    });
-    visibleColumnIds.forEach((id) => {
-      visibility[id] = true;
-    });
-    return visibility;
-  }, [columnOrder, visibleColumnIds]);
+  // Column visibility map for TanStack — _tree is always visible, included in visibleIds
+  const columnVisibility = useColumnVisibility(tableColumnOrder, ["_tree", ...visibleColumnIds]);
 
   // Get row ID - includes group name for uniqueness
   const getRowId = useCallback((task: TaskWithDuration) => {
@@ -494,16 +483,22 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
     [handleToggleGroup],
   );
 
+  // Stable ref to always access the current groupMap in cached callbacks
+  const groupMapRef = useSyncedRef(groupMap);
+
   // Get or create stable details callback for a group
   const getDetailsCallback = useCallback(
     (group: GroupWithLayout) => {
       const groupId = group.name;
       if (!detailsCallbacksRef.current.has(groupId)) {
-        detailsCallbacksRef.current.set(groupId, () => onSelectGroup(group));
+        detailsCallbacksRef.current.set(groupId, () => {
+          const currentGroup = groupMapRef.current.get(groupId);
+          if (currentGroup) onSelectGroup(currentGroup);
+        });
       }
       return detailsCallbacksRef.current.get(groupId)!;
     },
-    [onSelectGroup],
+    [onSelectGroup, groupMapRef],
   );
 
   // Render section header (as a single td spanning all columns)
@@ -623,7 +618,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
       {/* Toolbar: Search + Controls */}
       <div className="border-b border-gray-200 px-4 py-3 dark:border-zinc-800">
         <TableToolbar
-          data={allTasksWithDuration}
+          data={allTasksForToolbar}
           searchFields={TASK_SEARCH_FIELDS}
           columns={OPTIONAL_COLUMNS_ALPHABETICAL}
           visibleColumnIds={visibleColumnIds}
@@ -648,7 +643,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
         columnOrder={tableColumnOrder}
         onColumnOrderChange={handleColumnOrderChange}
         columnVisibility={columnVisibility}
-        fixedColumns={fixedColumns}
+        fixedColumns={FIXED_COLUMNS}
         // Column sizing (includes tree column + task columns)
         columnSizeConfigs={TASK_WITH_TREE_COLUMN_SIZE_CONFIG}
         suspendResize={isSuspended}
