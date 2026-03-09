@@ -133,10 +133,10 @@ helm upgrade my-router ./router -f my-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `services.redis.serviceName` | Kubernetes service name for Redis (leave empty to use in-memory session store for Oauth2-Proxy) | `""` |
+| `services.redis.serviceName` | Kubernetes service name for Redis (used for OAuth2-Proxy session store) | `redis` |
 | `services.redis.port` | Redis service port | `6379` |
 | `services.redis.dbNumber` | Redis database number to use (0–15) | `0` |
-| `services.redis.tlsEnabled` | Enable TLS encryption for Redis connections | `false` |
+| `services.redis.tlsEnabled` | Enable TLS encryption for Redis connections | `true` |
 
 ## Sidecar Configuration
 
@@ -205,7 +205,7 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
 | `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
 | `sidecars.oauth2Proxy.passAccessToken` | Pass the access token to upstream | `false` |
-| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `false` |
+| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `true` |
 | `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
 | `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |
 | `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
