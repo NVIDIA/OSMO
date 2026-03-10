@@ -1,0 +1,24 @@
+{
+  "operations": [
+    {
+      "add_column": {
+        "table": "resources",
+        "column": {
+          "name": "last_updated",
+          "type": "TIMESTAMP",
+          "nullable": true
+        }
+      }
+    },
+    {
+      "add_column": {
+        "table": "resources",
+        "column": {
+          "name": "last_usage_updated",
+          "type": "TIMESTAMP",
+          "nullable": true
+        }
+      }
+    }
+  ]
+}

@@ -206,7 +206,8 @@ def queue_update_group_job(message: backend_messages.UpdatePodBody):
     update_task.send_job_to_queue()
 
 
-def update_resource(backend: str, message: backend_messages.UpdateNodeBody):
+def update_resource(backend: str, message: backend_messages.UpdateNodeBody,
+                    message_timestamp: datetime.datetime | None = None):
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
     # If delete flag is set, delegate to delete_resource and ignore all other fields
@@ -214,17 +215,21 @@ def update_resource(backend: str, message: backend_messages.UpdateNodeBody):
         delete_resource(backend, message)
         return
 
+    timestamp = message_timestamp if message_timestamp else common.current_time()
+
     commit_cmd = '''
         INSERT INTO resources
         (name, backend, available, allocatable_fields, label_fields, usage_fields,
-         non_workflow_usage_fields, taints, conditions)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb[], %s::text[])
+         non_workflow_usage_fields, taints, conditions, last_updated)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb[], %s::text[], %s)
         ON CONFLICT (name, backend) DO UPDATE SET
         available = %s,
         allocatable_fields = %s,
         label_fields = %s,
         taints = %s::jsonb[],
-        conditions = %s::text[]
+        conditions = %s::text[],
+        last_updated = %s
+        WHERE resources.last_updated IS NULL OR resources.last_updated < %s
     '''
 
     resource = {
@@ -249,39 +254,50 @@ def update_resource(backend: str, message: backend_messages.UpdateNodeBody):
         resource['non_workflow_usage_fields'],
         resource['taints'],
         resource['conditions'],
+        timestamp,
         resource['available'],
         resource['allocatable_fields'],
         resource['label_fields'],
         resource['taints'],
-        resource['conditions']
+        resource['conditions'],
+        timestamp,
+        timestamp,
     )
 
-    postgres.execute_commit_command(commit_cmd, columns)
-    pool_config = connectors.fetch_verbose_pool_config(postgres, backend)
-    resource_entry = workflow.ResourcesEntry(hostname=message.hostname,
-                                             label_fields=message.label_fields,
-                                             backend=backend, taints=message.taints,
-                                             # Dummy placeholder values below
-                                             exposed_fields={},
-                                             usage_fields={},
-                                             non_workflow_usage_fields={},
-                                             allocatable_fields={},
-                                             pool_platform_labels={},
-                                             resource_type=connectors.BackendResourceType.SHARED,
-                                             conditions=message.conditions)
-    config_helpers.update_node_pool_platform(resource_entry, backend, pool_config)
+    rowcount = postgres.execute_commit_command(commit_cmd, columns)
+    if rowcount > 0:
+        pool_config = connectors.fetch_verbose_pool_config(postgres, backend)
+        resource_type = connectors.BackendResourceType.SHARED
+        resource_entry = workflow.ResourcesEntry(
+            hostname=message.hostname,
+            label_fields=message.label_fields,
+            backend=backend, taints=message.taints,
+            # Dummy placeholder values below
+            exposed_fields={},
+            usage_fields={},
+            non_workflow_usage_fields={},
+            allocatable_fields={},
+            pool_platform_labels={},
+            resource_type=resource_type,
+            conditions=message.conditions)
+        config_helpers.update_node_pool_platform(resource_entry, backend, pool_config)
 
 
-def update_resource_usage(backend: str, message: backend_messages.UpdateNodeUsageBody):
+def update_resource_usage(backend: str, message: backend_messages.UpdateNodeUsageBody,
+                          message_timestamp: datetime.datetime | None = None):
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
+    timestamp = message_timestamp if message_timestamp else common.current_time()
+
     commit_cmd = '''
         INSERT INTO resources
-        (name, backend, usage_fields, non_workflow_usage_fields)
-        VALUES (%s, %s, %s, %s)
+        (name, backend, usage_fields, non_workflow_usage_fields, last_usage_updated)
+        VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT (name, backend) DO UPDATE SET
         usage_fields = %s,
-        non_workflow_usage_fields = %s
+        non_workflow_usage_fields = %s,
+        last_usage_updated = %s
+        WHERE resources.last_usage_updated IS NULL OR resources.last_usage_updated < %s
     '''
 
     columns = (
@@ -289,8 +305,11 @@ def update_resource_usage(backend: str, message: backend_messages.UpdateNodeUsag
         backend,
         postgres.encode_hstore(message.usage_fields),
         postgres.encode_hstore(message.non_workflow_usage_fields),
+        timestamp,
         postgres.encode_hstore(message.usage_fields),
-        postgres.encode_hstore(message.non_workflow_usage_fields)
+        postgres.encode_hstore(message.non_workflow_usage_fields),
+        timestamp,
+        timestamp,
     )
 
     postgres.execute_commit_command(commit_cmd, columns)
@@ -331,9 +350,11 @@ def delete_resource(backend: str,
 
 
 def clean_resources(backend: str,
-                    message: backend_messages.NodeInventoryBody):
+                    message: backend_messages.NodeInventoryBody,
+                    message_timestamp: datetime.datetime | None = None):
     context = objects.WorkflowServiceContext.get()
     postgres = context.database
+    timestamp = message_timestamp if message_timestamp else common.current_time()
 
     # Track all resources from resources table
     cmd = 'SELECT name FROM resources where backend = %s'
@@ -343,8 +364,13 @@ def clean_resources(backend: str,
     # Find nodes that exist in the database but not in the message
     stale_nodes = db_node_names - set(message.hostnames)
     if stale_nodes:
-        commit_cmd = 'DELETE FROM resources WHERE name IN %s and backend = %s'
-        postgres.execute_commit_command(commit_cmd, (tuple(stale_nodes), backend))
+        # Only delete nodes whose last_updated is older than this inventory message,
+        # preventing a stale inventory from removing nodes added after it was created
+        commit_cmd = '''
+            DELETE FROM resources WHERE name IN %s AND backend = %s
+            AND (last_updated IS NULL OR last_updated < %s)
+        '''
+        postgres.execute_commit_command(commit_cmd, (tuple(stale_nodes), backend, timestamp))
 
 
 def clean_tasks(backend: str,
@@ -622,11 +648,14 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                 elif message_body.monitor_pod:
                     create_monitor_job(message_body.monitor_pod)
                 elif message_body.update_node:
-                    update_resource(name, message_body.update_node)
+                    update_resource(name, message_body.update_node,
+                                    message_timestamp=message.timestamp)
                 elif message_body.update_node_usage:
-                    update_resource_usage(name, message_body.update_node_usage)
+                    update_resource_usage(name, message_body.update_node_usage,
+                                          message_timestamp=message.timestamp)
                 elif message_body.node_inventory:
-                    clean_resources(name, message_body.node_inventory)
+                    clean_resources(name, message_body.node_inventory,
+                                    message_timestamp=message.timestamp)
                 elif message_body.task_list:
                     clean_tasks(name, message_body.task_list)
                 elif message_body.heartbeat:
