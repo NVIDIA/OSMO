@@ -141,6 +141,7 @@ Select one of the deployment options below depending on your needs and environme
   </a>
 </div>
 
+**Deploying on Microsoft Azure?** Get started with [Azure NVIDIA Reference Architecture](https://github.com/microsoft/physical-ai-toolchain). This jointly published architecture delivers a production-ready Physical AI pipeline on Microsoft Azure, integrating OSMO, Isaac Lab, and Isaac Sim with GPU-accelerated RL training, auto-scaling compute, and enterprise-grade Kubernetes security.
 
 
 ## Documentation
