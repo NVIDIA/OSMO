@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import datetime
+import re
 import secrets
 import time
 from typing import List, Optional
@@ -319,6 +320,7 @@ def admin_create_access_token(
     Returns:
         The generated access token string
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
@@ -354,6 +356,7 @@ def admin_list_access_tokens(user_id: str) -> List[objects.AccessTokenWithRoles]
     Returns:
         List of AccessTokenWithRoles objects
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate the target user exists
@@ -371,6 +374,7 @@ def admin_delete_access_token(user_id: str, token_name: str):
         user_id: The user ID who owns the token
         token_name: Name of the token to delete
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate the target user exists
@@ -432,6 +436,19 @@ def _validate_user_exists(postgres: connectors.PostgresConnector, user_id: str):
     """Validate that a user exists in the database."""
     if not _get_user_from_db(postgres, user_id):
         raise osmo_errors.OSMOUserError(f'User {user_id} not found')
+
+
+def _validate_username(user_id: str):
+    """Validate that a user ID matches the expected username format."""
+    if not re.fullmatch(common.USERNAME_REGEX, user_id):
+        raise osmo_errors.OSMOUserError(
+            f'Username {user_id} must match regex {common.USERNAME_REGEX}')
+
+
+def _validate_user_id_not_empty(user_id: str):
+    """Validate that a user ID is not empty or whitespace-only."""
+    if not user_id or not user_id.strip():
+        raise osmo_errors.OSMOUserError('User ID must not be empty')
 
 
 # =============================================================================
@@ -558,6 +575,7 @@ def create_user(
     Returns:
         Created User object
     """
+    _validate_username(request.id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Check if user already exists
@@ -617,6 +635,7 @@ def get_user(user_id: str) -> objects.UserWithRoles:
     Returns:
         UserWithRoles object
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     user_row = _get_user_from_db(postgres, user_id)
@@ -641,6 +660,7 @@ def delete_user(user_id: str):
     Args:
         user_id: The user ID to delete
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Check if user exists
@@ -666,6 +686,7 @@ def list_user_roles(user_id: str) -> objects.UserRolesResponse:
     Returns:
         UserRolesResponse with list of role assignments
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate user exists
@@ -697,6 +718,7 @@ def assign_role_to_user(
     Returns:
         UserRoleAssignment with assignment details
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate role exists (user existence is enforced by FK constraint on user_roles)
@@ -739,6 +761,7 @@ def remove_role_from_user(user_id: str, role_name: str):
         user_id: The user ID
         role_name: The role to remove
     """
+    _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Delete role assignment from user_roles
@@ -802,6 +825,9 @@ def bulk_assign_role(
     Returns:
         BulkAssignResponse with results
     """
+    for user_id in request.user_ids:
+        _validate_user_id_not_empty(user_id)
+
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate role exists
