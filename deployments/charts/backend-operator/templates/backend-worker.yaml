@@ -75,7 +75,7 @@ spec:
           runAsUser: 1001
         ports:
         - name: metrics
-          containerPort: 9468
+          containerPort: 9464
         command:
         - backend_worker
         args:
