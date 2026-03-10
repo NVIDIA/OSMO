@@ -245,7 +245,7 @@ OAuth2 Proxy sidecar container
   ports:
   - name: http
     containerPort: {{ .Values.sidecars.oauth2Proxy.httpPort }}
-  - name: metrics
+  - name: oauth2-metrics
     containerPort: {{ .Values.sidecars.oauth2Proxy.metricsPort }}
   livenessProbe:
     httpGet:

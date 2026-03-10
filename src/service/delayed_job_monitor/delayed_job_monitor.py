@@ -40,6 +40,11 @@ class DelayedJobMonitorConfig(connectors.RedisConfig, connectors.PostgresConfig,
                               src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
                               metrics.MetricsCreatorConfig):
     """Configuration for DelayedJobMonitor."""
+    metrics_prometheus_port: int = pydantic.Field(
+        command_line='metrics_prometheus_port',
+        env='METRICS_PROMETHEUS_PORT',
+        default=9466,
+        description='The port on which the Prometheus scrape endpoint is exposed.')
     # The amount of time the monitor waits before polling again (in seconds)
     poll_interval: int = pydantic.Field(
         command_line='poll_interval',

@@ -63,7 +63,7 @@ spec:
           runAsUser: 1001
         ports:
         - name: metrics
-          containerPort: 9464
+          containerPort: 9466
         command:
         - delayed_job_monitor
         imagePullPolicy: {{ .Values.services.delayedJobMonitor.imagePullPolicy }}

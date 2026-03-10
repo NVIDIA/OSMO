@@ -76,7 +76,7 @@ spec:
           runAsUser: 1001
         ports:
         - name: metrics
-          containerPort: 9464
+          containerPort: 9465
         imagePullPolicy: {{ .Values.services.worker.imagePullPolicy }}
         args:
         - --metrics_otel_collector_component

@@ -50,6 +50,11 @@ class BackendBaseConfig(logging.LoggingConfig, login.LoginConfig,
 
 class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     """Configuration for the backend listener service that monitors Kubernetes resources"""
+    metrics_prometheus_port: int = pydantic.Field(
+        command_line='metrics_prometheus_port',
+        env='METRICS_PROMETHEUS_PORT',
+        default=9467,
+        description='The port on which the Prometheus scrape endpoint is exposed.')
     include_namespace_usage: List[str] = pydantic.Field(
         command_line='include_namespace_usage',
         default=[],
@@ -161,6 +166,11 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
 
 class BackendWorkerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     """Configuration for the backend worker service that executes jobs"""
+    metrics_prometheus_port: int = pydantic.Field(
+        command_line='metrics_prometheus_port',
+        env='METRICS_PROMETHEUS_PORT',
+        default=9468,
+        description='The port on which the Prometheus scrape endpoint is exposed.')
     test_runner_namespace: str = pydantic.Field(
         command_line='test_runner_namespace',
         default='osmo-test',
