@@ -43,7 +43,7 @@ import type { OccupancyGroupBy, OccupancySortBy } from "@/lib/api/adapter/occupa
 // GroupBy parser for URL state
 // =============================================================================
 
-const GROUP_BY_VALUES = ["user", "pool"] as const;
+const GROUP_BY_VALUES = ["pool", "user"] as const;
 const parseAsGroupBy = parseAsStringLiteral(GROUP_BY_VALUES);
 
 // =============================================================================

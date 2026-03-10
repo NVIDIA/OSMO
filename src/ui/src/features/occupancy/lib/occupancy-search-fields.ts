@@ -16,72 +16,78 @@
 
 import type { SearchField } from "@/components/filter-bar/lib/types";
 import { WorkflowPriority, TaskGroupStatus } from "@/lib/api/generated";
-import type { OccupancyGroup } from "@/lib/api/adapter/occupancy";
+import type { OccupancyGroup, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 
 /**
  * FilterBar search field definitions for the occupancy page.
  *
- * Filtering is applied as API params (users/pools/priorities) so results
- * reflect server-side filtering. The FilterBar chips map to API query params
- * in use-occupancy-data.ts.
+ * All filtering is server-side via API query params (see use-occupancy-data.ts).
+ * These fields provide autocomplete suggestions only -- `match` is omitted so
+ * the FilterBar skips client-side filtering.
  *
- * Note: These search fields are used for autocomplete suggestions only.
- * The actual filtering happens via the API query params in the data hook.
+ * Fields are groupBy-aware: group keys and child keys swap between pool/user
+ * depending on the active groupBy, so getValues extracts from the correct level.
  */
-export const OCCUPANCY_SEARCH_FIELDS: SearchField<OccupancyGroup>[] = [
-  {
-    id: "user",
-    label: "User",
-    hint: "user name",
-    prefix: "user:",
-    freeFormHint: "Type any user, press Enter",
-    getValues: (groups) => groups.map((g) => g.key).slice(0, 20),
-    match: (group, value) => group.key.toLowerCase().includes(value.toLowerCase()),
-  },
-  {
-    id: "pool",
-    label: "Pool",
-    hint: "pool name",
-    prefix: "pool:",
-    freeFormHint: "Type any pool, press Enter",
-    getValues: (groups) => {
-      const pools = new Set<string>();
-      for (const group of groups) {
-        for (const child of group.children) pools.add(child.key);
-      }
-      return [...pools].sort().slice(0, 20);
+function getGroupKeys(groups: OccupancyGroup[]): string[] {
+  return groups.map((g) => g.key).slice(0, 20);
+}
+
+function getChildKeys(groups: OccupancyGroup[]): string[] {
+  const keys = new Set<string>();
+  for (const group of groups) {
+    for (const child of group.children) keys.add(child.key);
+  }
+  return [...keys].sort().slice(0, 20);
+}
+
+export function getOccupancySearchFields(groupBy: OccupancyGroupBy): SearchField<OccupancyGroup>[] {
+  const groupByPool = groupBy === "pool";
+
+  return [
+    {
+      id: "pool",
+      label: "Pool",
+      hint: "pool name",
+      prefix: "pool:",
+      freeFormHint: "Type any pool, press Enter",
+      getValues: (groups) => (groupByPool ? getGroupKeys(groups) : getChildKeys(groups)),
     },
-    match: () => true, // Filtering handled server-side
-  },
-  {
-    id: "priority",
-    label: "Priority",
-    hint: "HIGH, NORMAL, or LOW",
-    prefix: "priority:",
-    freeFormHint: "Type a priority, press Enter",
-    getValues: () => [WorkflowPriority.HIGH, WorkflowPriority.NORMAL, WorkflowPriority.LOW],
-    exhaustive: true,
-    requiresValidValue: true,
-    match: () => true, // Filtering handled server-side
-  },
-  {
-    id: "status",
-    label: "Status",
-    hint: "RUNNING, WAITING, ...",
-    prefix: "status:",
-    freeFormHint: "Type a status, press Enter",
-    getValues: () => [
-      TaskGroupStatus.RUNNING,
-      TaskGroupStatus.WAITING,
-      TaskGroupStatus.SCHEDULING,
-      TaskGroupStatus.INITIALIZING,
-      TaskGroupStatus.SUBMITTING,
-      TaskGroupStatus.PROCESSING,
-      TaskGroupStatus.COMPLETED,
-      TaskGroupStatus.FAILED,
-    ],
-    exhaustive: true,
-    requiresValidValue: true,
-    match: () => true, // Filtering handled server-side
-  },
-];
+    {
+      id: "user",
+      label: "User",
+      hint: "user name",
+      prefix: "user:",
+      freeFormHint: "Type any user, press Enter",
+      getValues: (groups) => (groupByPool ? getChildKeys(groups) : getGroupKeys(groups)),
+    },
+    {
+      id: "priority",
+      label: "Priority",
+      hint: "HIGH, NORMAL, or LOW",
+      prefix: "priority:",
+      freeFormHint: "Type a priority, press Enter",
+      getValues: () => [WorkflowPriority.HIGH, WorkflowPriority.NORMAL, WorkflowPriority.LOW],
+      exhaustive: true,
+      requiresValidValue: true,
+    },
+    {
+      id: "status",
+      label: "Status",
+      hint: "RUNNING, WAITING, ...",
+      prefix: "status:",
+      freeFormHint: "Type a status, press Enter",
+      getValues: () => [
+        TaskGroupStatus.RUNNING,
+        TaskGroupStatus.WAITING,
+        TaskGroupStatus.SCHEDULING,
+        TaskGroupStatus.INITIALIZING,
+        TaskGroupStatus.SUBMITTING,
+        TaskGroupStatus.PROCESSING,
+        TaskGroupStatus.COMPLETED,
+        TaskGroupStatus.FAILED,
+      ],
+      exhaustive: true,
+      requiresValidValue: true,
+    },
+  ];
+}
