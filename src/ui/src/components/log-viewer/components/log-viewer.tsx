@@ -18,7 +18,7 @@
 
 import { memo, useMemo, useRef, useCallback, useEffect, useState, startTransition, useDeferredValue } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
+import { User, Cpu, ZoomIn, ZoomOut, Download, ExternalLink, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFormattedHotkey, useModKey } from "@/hooks/use-hotkey-label";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
@@ -36,7 +36,7 @@ import {
   type TimelineContainerHandle,
 } from "@/components/log-viewer/components/timeline/components/timeline-container";
 import { LogList, type LogListHandle } from "@/components/log-viewer/components/log-list";
-import { Footer } from "@/components/log-viewer/components/footer";
+import { ScrollPinControl } from "@/components/log-viewer/components/scroll-pin-control";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
@@ -476,20 +476,117 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         />
       )}
 
-      {/* Section 1: Filter bar — excluded from focus redirect so dropdown items work */}
+      {/* Section 1: Filter bar + Actions — excluded from focus redirect so dropdown items work */}
       <div
-        className="shrink-0 border-b p-2"
+        className="shrink-0 border-b px-3 py-2"
         data-no-focus-redirect
       >
-        <FilterBar
-          ref={filterBarRef}
-          data={rawEntries}
-          fields={filterFields}
-          chips={filterChips}
-          onChipsChange={handleFilterChipsChange}
-          presets={LOG_FILTER_PRESETS}
-          placeholder={`Search logs (${searchShortcut})...`}
-        />
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <FilterBar
+              ref={filterBarRef}
+              data={rawEntries}
+              fields={filterFields}
+              chips={filterChips}
+              onChipsChange={handleFilterChipsChange}
+              presets={LOG_FILTER_PRESETS}
+              placeholder={`Search logs (${searchShortcut})...`}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Scroll/Pin controls */}
+            <ScrollPinControl
+              isStreaming={isStreaming ?? false}
+              isPinned={isPinnedToBottom}
+              onScrollToBottom={handleJumpToBottom}
+              onTogglePin={handleTogglePin}
+            />
+
+            {/* Show task toggle (hidden when scoped to a single task) */}
+            {scope !== "task" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={toggleShowTask}
+                    className={
+                      showTask
+                        ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
+                        : ""
+                    }
+                    aria-label={`${showTask ? "Hide" : "Show"} task`}
+                    aria-pressed={showTask}
+                  >
+                    <Tag className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{showTask ? "Hide" : "Show"} task</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Wrap lines toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={toggleWrapLines}
+                  className={
+                    wrapLines
+                      ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
+                      : ""
+                  }
+                  aria-label={`${wrapLines ? "Disable" : "Enable"} line wrap`}
+                  aria-pressed={wrapLines}
+                >
+                  <WrapText className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
+            </Tooltip>
+
+            {/* Download button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleDownload}
+                  aria-label="Download logs"
+                >
+                  <Download className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Download logs</TooltipContent>
+            </Tooltip>
+
+            {/* External link - opens raw logs in new tab */}
+            {externalLogUrl && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    asChild
+                    aria-label="Open raw logs in new tab"
+                  >
+                    <a
+                      href={externalLogUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Open raw logs in new tab</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Section 2: Timeline Histogram — excluded from focus redirect so draggers work */}
@@ -582,22 +679,6 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}
           hideTask={scope === "task"}
-        />
-      </div>
-
-      {/* Section 4: Footer */}
-      <div className="shrink-0">
-        <Footer
-          wrapLines={wrapLines}
-          onToggleWrapLines={toggleWrapLines}
-          showTask={scope === "task" ? false : showTask}
-          onToggleShowTask={scope === "task" ? undefined : toggleShowTask}
-          externalLogUrl={externalLogUrl}
-          onDownload={handleDownload}
-          isStreaming={isStreaming}
-          isPinnedToBottom={isPinnedToBottom}
-          onScrollToBottom={handleJumpToBottom}
-          onTogglePinnedToBottom={handleTogglePin}
         />
       </div>
     </div>

@@ -27,35 +27,23 @@ export interface InlineProgressProps {
   total: number;
   /** Compact mode: hide progress bar, show only text */
   compact?: boolean;
-  /** Width of the progress bar */
-  barWidth?: string;
   /** Additional content to render after the label (e.g., icons) */
   children?: React.ReactNode;
   /** Additional className for the container */
   className?: string;
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
 /**
- * InlineProgress - Horizontal progress display for table cells.
- *
- * Renders a progress bar with a "{used}/{total}" fraction label.
- * Suitable for table cells showing utilization.
+ * Horizontal progress display for table cells.
  *
  * @example
- * ```tsx
  * <InlineProgress used={6} total={8} />
  * <InlineProgress used={6} total={8} compact />
- * ```
  */
 export const InlineProgress = memo(function InlineProgress({
   used,
   total,
   compact = false,
-  barWidth = "w-16",
   children,
   className,
 }: InlineProgressProps) {
@@ -70,11 +58,9 @@ export const InlineProgress = memo(function InlineProgress({
     );
   }
 
-  const maxBarWidth = barWidth.replace(/^w-/, "max-w-");
-
   return (
     <div className={cn("flex min-w-0 flex-1 items-center gap-2", className)}>
-      <div className={cn(maxBarWidth, "min-w-6 shrink grow basis-0")}>
+      <div className="min-w-4 flex-1">
         <ProgressBar
           value={used}
           max={total}
@@ -82,7 +68,9 @@ export const InlineProgress = memo(function InlineProgress({
           thresholdColors
         />
       </div>
-      <span className="text-xs whitespace-nowrap text-zinc-600 tabular-nums dark:text-zinc-400">{label}</span>
+      <span className="min-w-[4.5rem] shrink-0 text-xs whitespace-nowrap text-zinc-600 tabular-nums dark:text-zinc-400">
+        {label}
+      </span>
       {children}
     </div>
   );

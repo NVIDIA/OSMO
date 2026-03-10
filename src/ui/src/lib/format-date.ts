@@ -318,18 +318,47 @@ export function formatTime24ShortUTC(date: Date | string | null): string {
 // =============================================================================
 
 /**
- * Format duration in seconds to human-readable form.
- * Output: "-" | "45s" | "5m" | "1h 30m"
+ * Format duration in seconds to human-readable form (max 2 levels of precision).
+ * The second unit is the next non-zero smaller unit, e.g. "4h 29s" when minutes = 0.
+ * Output: "-" | "45s" | "5m 3s" | "4h 29s" | "4d 22h" | "1w 5d" | "2mo 3w"
  *
  * SSR-safe: Pure function with no locale dependency.
  */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null) return "-";
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  const hours = Math.floor(seconds / 3600);
-  const mins = Math.round((seconds % 3600) / 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  const MINUTE = 60;
+  const HOUR = 3600;
+  const DAY = 86400;
+  const WEEK = 7 * DAY;
+  const MONTH = 30 * DAY;
+  if (seconds < MINUTE) return `${Math.trunc(seconds)}s`;
+  if (seconds < HOUR) {
+    const m = Math.trunc(seconds / MINUTE);
+    const s = Math.trunc(seconds % MINUTE);
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+  if (seconds < DAY) {
+    const h = Math.trunc(seconds / HOUR);
+    const m = Math.trunc((seconds % HOUR) / MINUTE);
+    const s = Math.trunc(seconds % MINUTE);
+    return m > 0 ? `${h}h ${m}m` : s > 0 ? `${h}h ${s}s` : `${h}h`;
+  }
+  if (seconds < WEEK) {
+    const d = Math.trunc(seconds / DAY);
+    const h = Math.trunc((seconds % DAY) / HOUR);
+    const m = Math.trunc((seconds % HOUR) / MINUTE);
+    return h > 0 ? `${d}d ${h}h` : m > 0 ? `${d}d ${m}m` : `${d}d`;
+  }
+  if (seconds < MONTH) {
+    const w = Math.trunc(seconds / WEEK);
+    const d = Math.trunc((seconds % WEEK) / DAY);
+    const h = Math.trunc((seconds % DAY) / HOUR);
+    return d > 0 ? `${w}w ${d}d` : h > 0 ? `${w}w ${h}h` : `${w}w`;
+  }
+  const mo = Math.trunc(seconds / MONTH);
+  const w = Math.trunc((seconds % MONTH) / WEEK);
+  const d = Math.trunc((seconds % WEEK) / DAY);
+  return w > 0 ? `${mo}mo ${w}w` : d > 0 ? `${mo}mo ${d}d` : `${mo}mo`;
 }
 
 // =============================================================================
