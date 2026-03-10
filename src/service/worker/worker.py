@@ -45,6 +45,7 @@ UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                    src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
                    metrics.MetricsCreatorConfig):
+    """Configuration for the OSMO service worker."""
     metrics_prometheus_port: int = pydantic.Field(
         command_line='metrics_prometheus_port',
         env='METRICS_PROMETHEUS_PORT',
