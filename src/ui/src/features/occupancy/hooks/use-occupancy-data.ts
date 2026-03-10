@@ -29,10 +29,17 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { WorkflowPriority, TaskGroupStatus } from "@/lib/api/generated";
+import type { WorkflowPriority } from "@/lib/api/generated";
+import { TaskGroupStatus } from "@/lib/api/generated";
 import type { OccupancyGroup, OccupancyGroupBy, OccupancySortBy, OccupancyTotals } from "@/lib/api/adapter/occupancy";
 import { fetchOccupancySummary, aggregateGroups, sortGroupsLocal } from "@/lib/api/adapter/occupancy-shim";
 import type { SearchChip } from "@/stores/types";
+
+const VALID_TASK_GROUP_STATUSES: ReadonlySet<string> = new Set(Object.values(TaskGroupStatus));
+
+function isTaskGroupStatus(value: string): value is TaskGroupStatus {
+  return VALID_TASK_GROUP_STATUSES.has(value);
+}
 
 // =============================================================================
 // Types
@@ -74,7 +81,7 @@ export function useOccupancyData({
       if (chip.field === "user") users.push(chip.value);
       else if (chip.field === "pool") pools.push(chip.value);
       else if (chip.field === "priority") priorities.push(chip.value as WorkflowPriority);
-      else if (chip.field === "status") statuses.push(chip.value as TaskGroupStatus);
+      else if (chip.field === "status" && isTaskGroupStatus(chip.value)) statuses.push(chip.value);
     }
     return { users, pools, priorities, statuses };
     // Intentionally excludes groupBy/sortBy/order — switching group view or
