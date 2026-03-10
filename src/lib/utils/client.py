@@ -160,7 +160,7 @@ class LoginManager():
         # Generate a user code
         login_info = login.fetch_login_info(url)
         device_endpoint = device_endpoint or login_info['device_endpoint']
-        client_id = self._login_config.client_id or login_info['client_id']
+        client_id = self._login_config.client_id or login_info['device_client_id']
 
         response = requests.post(device_endpoint, data={
             'client_id': client_id,

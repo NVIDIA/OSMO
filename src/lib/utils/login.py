@@ -187,7 +187,7 @@ def owner_password_login(config: LoginConfig,
     login_info = fetch_login_info(url)
     token_endpoint = config.token_endpoint or login_info['token_endpoint']
     result = requests.post(token_endpoint, data={
-        'client_id': config.client_id or login_info['client_id'],
+        'client_id': config.client_id or login_info['device_client_id'],
         'username': username,
         'password': password,
         'grant_type': 'password',
