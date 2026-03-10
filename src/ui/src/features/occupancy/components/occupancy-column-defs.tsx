@@ -18,7 +18,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatCompact, formatBytes } from "@/lib/utils";
 import type { OccupancyFlatRow, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 
 // =============================================================================
@@ -36,7 +36,18 @@ const PRIORITY_COLOR: Record<"high" | "normal" | "low", string> = {
 // =============================================================================
 
 function ResourceCell({ value }: { value: number }) {
-  return <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">{value}</span>;
+  return <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">{formatCompact(value)}</span>;
+}
+
+function BytesCell({ value }: { value: number }) {
+  if (value === 0) return <span className="text-zinc-300 dark:text-zinc-600">—</span>;
+  const { value: val, unit } = formatBytes(value);
+  return (
+    <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">
+      {val}
+      <span className="ml-0.5 text-xs text-zinc-400">{unit}</span>
+    </span>
+  );
 }
 
 function PriorityBadge({ value, colorClass }: { value: number; colorClass: string }) {
@@ -142,22 +153,22 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       cell: ({ row }) => <ResourceCell value={row.original.cpu} />,
     },
 
-    // Memory
+    // Memory (GiB)
     {
       id: "memory",
       accessorFn: (row) => row.memory,
       enableSorting: true,
       header: "Memory",
-      cell: ({ row }) => <ResourceCell value={row.original.memory} />,
+      cell: ({ row }) => <BytesCell value={row.original.memory} />,
     },
 
-    // Storage
+    // Storage (GiB)
     {
       id: "storage",
       accessorFn: (row) => row.storage,
       enableSorting: true,
       header: "Storage",
-      cell: ({ row }) => <ResourceCell value={row.original.storage} />,
+      cell: ({ row }) => <BytesCell value={row.original.storage} />,
     },
 
     // High priority count
