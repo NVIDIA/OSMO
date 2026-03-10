@@ -227,12 +227,15 @@ class MessageWorker:
                 helpers.send_pod_conditions(message_body.update_pod,
                                             self.workflow_config.max_event_log_lines)
             elif message_body.update_node:
-                helpers.update_resource(backend_name, message_body.update_node)
+                helpers.update_resource(backend_name, message_body.update_node,
+                                        message_timestamp=message.timestamp)
             elif message_body.update_node_usage:
                 helpers.update_resource_usage(
-                    backend_name, message_body.update_node_usage)
+                    backend_name, message_body.update_node_usage,
+                    message_timestamp=message.timestamp)
             elif message_body.node_inventory:
-                helpers.clean_resources(backend_name, message_body.node_inventory)
+                helpers.clean_resources(backend_name, message_body.node_inventory,
+                                        message_timestamp=message.timestamp)
             elif message_body.pod_event:
                 helpers.send_pod_event(
                     message_body.pod_event, self.workflow_config.max_event_log_lines)

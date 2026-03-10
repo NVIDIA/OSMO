@@ -994,6 +994,8 @@ class PostgresConnector:
                 usage_fields HSTORE,
                 non_workflow_usage_fields HSTORE,
                 conditions TEXT[],
+                last_updated TIMESTAMP,
+                last_usage_updated TIMESTAMP,
                 PRIMARY KEY (name, backend)
             );
         '''
