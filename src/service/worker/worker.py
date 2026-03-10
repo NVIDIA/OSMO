@@ -208,10 +208,10 @@ def main():
     config = WorkerConfig.load()
     src.lib.utils.logging.init_logger('worker', config)
     worker_metrics = metrics.MetricCreator(config=config).get_meter_instance()
-    worker_metrics.start_server()
     connectors.RedisConnector(config)
 
     if config.method != 'dev':
+        worker_metrics.start_server()
         worker_metrics.send_observable_gauge(
             'osmo_service_worker_job_queue_length',
             callbacks=partial(get_service_job_queue_length, config.redis_url),

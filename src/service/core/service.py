@@ -474,7 +474,8 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
 def main():
     config = objects.WorkflowServiceConfig.load()
     configure_app(app, config)
-    metrics.MetricCreator.get_meter_instance().start_server()
+    if config.method != 'dev':
+        metrics.MetricCreator.get_meter_instance().start_server()
 
     parsed_url = urlparse(config.host)
     host = parsed_url.hostname if parsed_url.hostname else ''
