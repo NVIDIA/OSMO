@@ -14,7 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
+import { useInterval } from "usehooks-ts";
 import { useMounted } from "@/hooks/use-mounted";
 import { useRefreshAnimation } from "@/components/refresh/use-refresh-animation";
 import { formatInterval } from "@/lib/format-interval";
@@ -40,18 +41,9 @@ export function useRefreshControlState(props: RefreshControlProps) {
     [setInterval],
   );
 
-  // Auto-refresh timer: calls onRefresh at the selected interval.
-  // Uses a ref so the timer doesn't restart when the callback identity changes.
-  const onRefreshRef = useRef(onRefresh);
-  useEffect(() => {
-    onRefreshRef.current = onRefresh;
-  });
-
-  useEffect(() => {
-    if (!mounted || !isAutoRefreshActive || !interval) return;
-    const id = window.setInterval(() => onRefreshRef.current(), interval);
-    return () => window.clearInterval(id);
-  }, [mounted, isAutoRefreshActive, interval]);
+  // Auto-refresh timer: fires onRefresh at the selected interval.
+  // useInterval handles callback stability internally and accepts null to pause.
+  useInterval(onRefresh, mounted && isAutoRefreshActive ? interval : null);
 
   return {
     mounted,

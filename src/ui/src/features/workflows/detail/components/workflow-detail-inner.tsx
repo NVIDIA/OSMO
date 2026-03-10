@@ -482,5 +482,3 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     </ShellProvider>
   );
 }
-
-export { WorkflowDetailInner as WorkflowDetailInnerWithProvider };
