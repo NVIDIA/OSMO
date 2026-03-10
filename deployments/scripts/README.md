@@ -230,7 +230,7 @@ The script will prompt for:
 
 ### Deployment with NGC Registry Credentials
 
-Required when pulling OSMO images and Helm charts from `nvcr.io` (NGC private registry).
+Required when pulling OSMO images and Helm charts from a private registry in `nvcr.io`.
 
 ```bash
 # Via flag
