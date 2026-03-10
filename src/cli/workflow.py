@@ -855,7 +855,8 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
     except requests.exceptions.ChunkedEncodingError as error:
         # Check if this is specifically the timeout case with InvalidChunkLength
         error_str = str(error)
-        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+        if ('InvalidChunkLength' in error_str and "got length b''" in error_str) or \
+            ('Response ended prematurely' in error_str):
             print('\nLog stream has timed out or failed. '
                   'Please run the command again to continue viewing logs.')
             return
