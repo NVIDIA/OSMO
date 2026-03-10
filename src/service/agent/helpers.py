@@ -264,20 +264,21 @@ def update_resource(backend: str, message: backend_messages.UpdateNodeBody,
         timestamp,
     )
 
-    postgres.execute_commit_command(commit_cmd, columns)
-    pool_config = connectors.fetch_verbose_pool_config(postgres, backend)
-    resource_entry = workflow.ResourcesEntry(hostname=message.hostname,
-                                             label_fields=message.label_fields,
-                                             backend=backend, taints=message.taints,
-                                             # Dummy placeholder values below
-                                             exposed_fields={},
-                                             usage_fields={},
-                                             non_workflow_usage_fields={},
-                                             allocatable_fields={},
-                                             pool_platform_labels={},
-                                             resource_type=connectors.BackendResourceType.SHARED,
-                                             conditions=message.conditions)
-    config_helpers.update_node_pool_platform(resource_entry, backend, pool_config)
+    rowcount = postgres.execute_commit_command(commit_cmd, columns)
+    if rowcount > 0:
+        pool_config = connectors.fetch_verbose_pool_config(postgres, backend)
+        resource_entry = workflow.ResourcesEntry(hostname=message.hostname,
+                                                 label_fields=message.label_fields,
+                                                 backend=backend, taints=message.taints,
+                                                 # Dummy placeholder values below
+                                                 exposed_fields={},
+                                                 usage_fields={},
+                                                 non_workflow_usage_fields={},
+                                                 allocatable_fields={},
+                                                 pool_platform_labels={},
+                                                 resource_type=connectors.BackendResourceType.SHARED,
+                                                 conditions=message.conditions)
+        config_helpers.update_node_pool_platform(resource_entry, backend, pool_config)
 
 
 def update_resource_usage(backend: str, message: backend_messages.UpdateNodeUsageBody,

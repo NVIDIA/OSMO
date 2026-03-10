@@ -475,13 +475,16 @@ class PostgresConnector:
                     cur.close()
 
     @retry
-    def execute_commit_command(self, command: str, args: Tuple):
+    def execute_commit_command(self, command: str, args: Tuple) -> int:
         """
         Connects and executes a command that updates the database.
 
         Args:
             command (str): The command to execute.
             args (Tuple): Any args for the command.
+
+        Returns:
+            int: The number of rows affected by the command.
 
         Raises:
             OSMODatabaseError: Error while executing the database command.
@@ -491,8 +494,10 @@ class PostgresConnector:
             try:
                 cur = conn.cursor()
                 cur.execute(command, args)
+                rowcount = cur.rowcount
                 cur.close()
                 conn.commit()
+                return rowcount
             except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
                 try:
                     if cur is not None:
