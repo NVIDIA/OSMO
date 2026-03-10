@@ -282,9 +282,9 @@ services:
   ## Redis cache service configuration
   ##
   redis:
-    ## Kubernetes service name for Redis (leave empty to use in-memory session store)
+    ## Kubernetes service name for Redis (used for OAuth2-Proxy session store)
     ##
-    serviceName: ""
+    serviceName: redis
 
     ## Redis service port
     ##
@@ -296,7 +296,7 @@ services:
 
     ## Enable TLS encryption for Redis connections
     ##
-    tlsEnabled: false
+    tlsEnabled: true
 
 ## Configuration for sidecar containers
 ##
@@ -517,7 +517,7 @@ sidecars:
 
     ## Use Redis (services.redis) as the session store instead of in-memory
     ##
-    redisSessionStore: false
+    redisSessionStore: true
 
     ## Use Kubernetes secrets for credentials
     ##
@@ -695,4 +695,3 @@ extraConfigMaps: []
 #   data:
 #     config.yaml: |
 #       key: value
-

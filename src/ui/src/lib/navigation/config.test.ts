@@ -30,15 +30,29 @@ describe("buildNavigation", () => {
       const nav = buildNavigation(false);
       const userItems = nav.sections[0].items;
 
-      expect(userItems).toHaveLength(5);
-      expect(userItems.map((i) => i.href)).toEqual(["/", "/workflows", "/pools", "/resources", "/datasets"]);
+      expect(userItems).toHaveLength(6);
+      expect(userItems.map((i) => i.href)).toEqual([
+        "/",
+        "/workflows",
+        "/pools",
+        "/resources",
+        "/occupancy",
+        "/datasets",
+      ]);
     });
 
     it("has correct route names", () => {
       const nav = buildNavigation(false);
       const userItems = nav.sections[0].items;
 
-      expect(userItems.map((i) => i.name)).toEqual(["Dashboard", "Workflows", "Pools", "Resources", "Datasets"]);
+      expect(userItems.map((i) => i.name)).toEqual([
+        "Dashboard",
+        "Workflows",
+        "Pools",
+        "Resources",
+        "Occupancy",
+        "Datasets",
+      ]);
     });
 
     it("does not include admin section", () => {
@@ -82,7 +96,7 @@ describe("buildNavigation", () => {
       const nav = buildNavigation(true);
       const userItems = nav.sections[0].items;
 
-      expect(userItems).toHaveLength(5);
+      expect(userItems).toHaveLength(6);
       expect(userItems[0].href).toBe("/");
     });
   });

@@ -111,6 +111,15 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.envoy.jwt.providers[].user_claim` | JWT user claim field | `preferred_username` |
 | `sidecars.envoy.jwt.providers[].cluster` | Target cluster name | `idp` |
 
+### Redis Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.redis.serviceName` | Kubernetes service name for Redis (used for OAuth2-Proxy session store) | `redis` |
+| `services.redis.port` | Redis service port | `6379` |
+| `services.redis.dbNumber` | Redis database number to use (0–15) | `0` |
+| `services.redis.tlsEnabled` | Enable TLS encryption for Redis connections | `true` |
+
 #### OAuth2 Proxy Sidecar
 
 | Parameter | Description | Default |
@@ -128,6 +137,7 @@ This Helm chart deploys the OSMO UI service along with its required sidecars and
 | `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
 | `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
 | `sidecars.oauth2Proxy.oidcEndSessionUrl` | IdP end-session endpoint for federated logout. When set, Envoy exposes `/signout` which redirects to `/oauth2/sign_out?rd=<url>`, clearing both the local session cookie and the IdP's SSO session. Requires `--whitelist-domain=<idp-domain>` in `extraArgs`. | `""` (disabled) |
+| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `true` |
 | `sidecars.oauth2Proxy.extraArgs` | Additional arguments passed to oauth2-proxy | `[]` |
 | `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
 | `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |

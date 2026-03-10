@@ -78,9 +78,9 @@ class LoginConfig(pydantic.BaseModel):
         command_line='token_endpoint',
         default = None,
         description='The url to get a token from device auth, client auth, or refresh token.')
-    client_id: str = pydantic.Field(
+    client_id: str | None = pydantic.Field(
         command_line='client_id',
-        default='osmo-device',
+        default=None,
         description='The client id for the OSMO application.')
     login_method: Literal['password', 'token'] | None = pydantic.Field(
         command_line='login_method',
@@ -176,7 +176,7 @@ def owner_password_login(config: LoginConfig,
                          url: str,
                          username: str,
                          password: str,
-                         user_agent: str| None) -> LoginStorage:
+                         user_agent: str| None,) -> LoginStorage:
     """ Log in using OAUTH2 resource owner password flow """
     # Do not allow IPV6 which doesn't work in some of our configurations
     urllib3.util.connection.HAS_IPV6 = False
@@ -184,9 +184,10 @@ def owner_password_login(config: LoginConfig,
     headers = {}
     if user_agent:
         headers['User-Agent'] = user_agent
-    token_endpoint = config.token_or_default(url)
+    login_info = fetch_login_info(url)
+    token_endpoint = config.token_endpoint or login_info['token_endpoint']
     result = requests.post(token_endpoint, data={
-        'client_id': config.client_id,
+        'client_id': config.client_id or login_info['device_client_id'],
         'username': username,
         'password': password,
         'grant_type': 'password',

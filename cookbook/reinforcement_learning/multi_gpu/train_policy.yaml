@@ -32,7 +32,7 @@ workflow:
 
         set -euxo pipefail
 
-        _isaac_sim/python.sh -m torch.distributed.run --nnodes=1 --nproc_per_node=2 \
+        _isaac_sim/python.sh -m torch.distributed.run --nnodes=1 --nproc_per_node={{num_gpu}} \
           --rdzv_endpoint=localhost:5555 \
           scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 \
           --headless --distributed

@@ -155,9 +155,13 @@ class LoginManager():
     def login_config(self) -> login.LoginConfig:
         return self._login_config
 
-    def device_code_login(self, url: str, device_endpoint: str, client_id: str):
+    def device_code_login(self, url: str, device_endpoint: str | None):
         """ Log in using OAUTH2 device flow """
         # Generate a user code
+        login_info = login.fetch_login_info(url)
+        device_endpoint = device_endpoint or login_info['device_endpoint']
+        client_id = self._login_config.client_id or login_info['device_client_id']
+
         response = requests.post(device_endpoint, data={
             'client_id': client_id,
             'scope': 'openid offline_access profile'

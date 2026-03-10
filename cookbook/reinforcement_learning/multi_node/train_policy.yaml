@@ -35,7 +35,7 @@ workflow:
 
           set -euxo pipefail
 
-          _isaac_sim/python.sh -m torch.distributed.run --nproc_per_node={{num_gpu}} --nnodes=2 --node_rank=0 \
+          _isaac_sim/python.sh -m torch.distributed.run --nproc_per_node={{num_gpu}} --nnodes={{num_nodes}} --node_rank=0 \
             --rdzv_id=123 --rdzv_backend=c10d --rdzv_endpoint=localhost:5555 \
             scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 --headless \
             --distributed
@@ -46,7 +46,8 @@ workflow:
       outputs:
       - dataset:
           name: robot-policy-dataset
-    - name: worker
+    {% for i in range(1, num_nodes) %}
+    - name: worker-{{i}}
       command: ["bash"]
       args: ["/tmp/entry.sh"]
       image: nvcr.io/nvidia/isaac-lab:2.2.0
@@ -59,7 +60,7 @@ workflow:
 
           set -euxo pipefail
 
-          _isaac_sim/python.sh -m torch.distributed.run --nproc_per_node={{num_gpu}} --nnodes=2 --node_rank=1 \
+          _isaac_sim/python.sh -m torch.distributed.run --nproc_per_node={{num_gpu}} --nnodes={{num_nodes}} --node_rank={{i}} \
             --rdzv_backend=c10d --rdzv_endpoint={{host:master}}:5555 \
             --rdzv_id=123 scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 \
             --headless --distributed
@@ -67,6 +68,7 @@ workflow:
           mv logs/ {{output}}/
 
         path: /tmp/entry.sh
+    {% endfor %}
   name: train-robot-multi-node
   resources:
     default:
@@ -77,3 +79,4 @@ workflow:
 
 default-values:
   num_gpu: 2
+  num_nodes: 2

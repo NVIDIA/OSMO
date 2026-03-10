@@ -1793,7 +1793,7 @@ sidecars:
 
     ## Use Redis (services.redis) as the session store instead of in-memory
     ##
-    redisSessionStore: false
+    redisSessionStore: true
 
     ## Use Kubernetes secrets for credentials
     ##

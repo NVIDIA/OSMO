@@ -46,6 +46,7 @@ from src.service.core.workflow import (
 )
 from src.service.logger import ctrl_websocket
 from src.utils import auth, connectors
+from src.utils.job import task as task_lib
 
 
 app = fastapi.FastAPI(docs_url='/api/docs', redoc_url=None, openapi_url='/api/openapi.json')
@@ -324,6 +325,10 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
     admin_username = config.default_admin_username
     admin_password = config.default_admin_password
     token_name = 'default-admin-token'
+
+    if len(admin_password) != task_lib.REFRESH_TOKEN_STR_LENGTH:
+        raise osmo_errors.OSMOUserError(
+            f'Default admin password must be {task_lib.REFRESH_TOKEN_STR_LENGTH} characters long')
 
     logging.info('Setting up default admin user: %s', admin_username)
 

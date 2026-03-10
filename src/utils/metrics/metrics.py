@@ -120,6 +120,8 @@ class MetricCreator:
 
     def start_server(self):
         """Start the Prometheus scrape endpoint, listening on all interfaces."""
+        if not self._config.metrics_otel_enable:
+            return None
         prometheus_client.start_http_server(
             self._config.metrics_prometheus_port, addr='0.0.0.0')
 

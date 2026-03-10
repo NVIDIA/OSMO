@@ -129,6 +129,15 @@ helm upgrade my-router ./router -f my-values.yaml
 | `services.postgres.user` | PostgreSQL username | `postgres` |
 | `services.postgres.password` | PostgreSQL password | `""` |
 
+### Redis Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.redis.serviceName` | Kubernetes service name for Redis (used for OAuth2-Proxy session store) | `redis` |
+| `services.redis.port` | Redis service port | `6379` |
+| `services.redis.dbNumber` | Redis database number to use (0–15) | `0` |
+| `services.redis.tlsEnabled` | Enable TLS encryption for Redis connections | `true` |
+
 ## Sidecar Configuration
 
 ### Envoy Proxy Sidecar
@@ -176,6 +185,31 @@ helm upgrade my-router ./router -f my-values.yaml
 | `sidecars.envoy.osmoauth.port` | OSMO auth service port | `80` |
 | `sidecars.envoy.osmoauth.hostname` | OSMO auth hostname | `""` |
 | `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
+
+### OAuth2 Proxy Sidecar
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.oauth2Proxy.enabled` | Enable OAuth2 Proxy sidecar | `true` |
+| `sidecars.oauth2Proxy.image` | OAuth2 Proxy container image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
+| `sidecars.oauth2Proxy.imagePullPolicy` | Image pull policy | `IfNotPresent` |
+| `sidecars.oauth2Proxy.httpPort` | HTTP port for OAuth2 Proxy | `4180` |
+| `sidecars.oauth2Proxy.metricsPort` | Metrics port for OAuth2 Proxy | `44180` |
+| `sidecars.oauth2Proxy.provider` | OIDC provider type | `oidc` |
+| `sidecars.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
+| `sidecars.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
+| `sidecars.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
+| `sidecars.oauth2Proxy.cookieSecure` | Set Secure flag on cookies | `true` |
+| `sidecars.oauth2Proxy.cookieDomain` | Cookie domain | `""` |
+| `sidecars.oauth2Proxy.cookieExpire` | Cookie expiration duration | `168h` |
+| `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
+| `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
+| `sidecars.oauth2Proxy.passAccessToken` | Pass the access token to upstream | `false` |
+| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `true` |
+| `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
+| `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |
+| `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
+| `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
 
 ## Extensibility Configuration
 

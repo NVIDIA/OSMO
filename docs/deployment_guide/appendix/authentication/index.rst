@@ -125,6 +125,10 @@ The service receives these via:
 - **Args:** ``--default_admin_username <username>`` when ``defaultAdmin.enabled`` is true.
 - **Env:** ``OSMO_DEFAULT_ADMIN_PASSWORD`` from the secret ``passwordSecretName`` and ``passwordSecretKey``.
 
+.. important::
+
+   The admin password must be 43 characters long.
+
 Example: create the secret and enable default admin in your values:
 
 .. code-block:: bash

@@ -764,7 +764,7 @@ backendTestRunner:
   configMap:
     ## ConfigMap name template
     ##
-    nameTemplate: "{{.BackendName}}-{{.TestName}}-config"
+    nameTemplate: "{{.TestName}}-config"
 
     ## Default mode for ConfigMap files
     ##
@@ -859,4 +859,3 @@ extraConfigMaps: {}
 #     description: "Custom configuration"
 #   labels:
 #     component: "custom"
-

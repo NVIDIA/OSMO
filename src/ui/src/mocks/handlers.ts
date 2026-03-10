@@ -36,6 +36,7 @@ import { datasetGenerator } from "@/mocks/generators/dataset-generator";
 import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { ptySimulator, type PTYScenario } from "@/mocks/generators/pty-simulator";
+import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString } from "@/mocks/utils";
 import { getMockWorkflow, getWorkflowLogConfig } from "@/mocks/mock-workflows";
 import { MOCK_CONFIG, SHARED_POOL_ALPHA, SHARED_POOL_BETA } from "@/mocks/seed/types";
@@ -1617,6 +1618,37 @@ export const handlers = [
   }),
 
   // ==========================================================================
+  // Task Summary — GET /api/task?summary=true
+  // ==========================================================================
+  // Handles the occupancy page data source. When summary=true the endpoint
+  // returns aggregated (user, pool, priority) resource-usage rows rather than
+  // individual task records.
+  http.get("*/api/task", async ({ request }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+
+    // Only intercept summary requests; let other /api/task calls pass through.
+    if (url.searchParams.get("summary") !== "true") {
+      return passthrough();
+    }
+
+    const users = url.searchParams.getAll("users");
+    const pools = url.searchParams.getAll("pools");
+    const priorities = url.searchParams.getAll("priority");
+    const limit = parseInt(url.searchParams.get("limit") ?? "10000", 10);
+
+    const summaries = taskSummaryGenerator.getSummaries({
+      users: users.length > 0 ? users : undefined,
+      pools: pools.length > 0 ? pools : undefined,
+      priorities: priorities.length > 0 ? priorities : undefined,
+      limit: isNaN(limit) ? undefined : limit,
+    });
+
+    return HttpResponse.json({ summaries });
+  }),
+
+  // ==========================================================================
   // Catch-All Handler (HMR Recursion Guard)
   // ==========================================================================
   // MUST be the last handler. During HMR, there's a brief window where
@@ -1675,4 +1707,5 @@ export {
   profileGenerator,
   portForwardGenerator,
   ptySimulator,
+  taskSummaryGenerator,
 };

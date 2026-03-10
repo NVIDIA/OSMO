@@ -307,6 +307,30 @@ Any field from `sidecars.envoy` can be overridden at the service level. Fields n
 | `sidecars.rateLimit.redis.port` | Redis port | `6379` |
 | `sidecars.rateLimit.configName` | Rate limit config name | `ratelimit-config` |
 
+#### OAuth2 Proxy Settings
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `sidecars.oauth2Proxy.enabled` | Enable OAuth2 Proxy sidecar | `true` |
+| `sidecars.oauth2Proxy.image` | OAuth2 Proxy container image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
+| `sidecars.oauth2Proxy.httpPort` | HTTP port for OAuth2 Proxy | `4180` |
+| `sidecars.oauth2Proxy.metricsPort` | Metrics port for OAuth2 Proxy | `44180` |
+| `sidecars.oauth2Proxy.provider` | OIDC provider type | `oidc` |
+| `sidecars.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
+| `sidecars.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
+| `sidecars.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
+| `sidecars.oauth2Proxy.cookieSecure` | Set Secure flag on cookies | `true` |
+| `sidecars.oauth2Proxy.cookieDomain` | Cookie domain | `""` |
+| `sidecars.oauth2Proxy.cookieExpire` | Cookie expiration duration | `168h` |
+| `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
+| `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
+| `sidecars.oauth2Proxy.passAccessToken` | Pass the access token to upstream | `false` |
+| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `true` |
+| `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
+| `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |
+| `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
+| `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
+
 ### Extensibility
 
 Each service supports extensibility through the following parameters:

@@ -31,7 +31,6 @@ The `agents/` directory contains instructions for specialized subagents. Read th
 
 The `references/` directory has additional documentation:
 
-- `references/cookbook.md` — Real-world workflow examples to use as starting points
 - `references/workflow-patterns.md` — Multi-task, parallel execution, data dependencies, Jinja templating
 - `references/advanced-patterns.md` — Checkpointing, retry/exit behavior, node exclusion
 
@@ -144,19 +143,37 @@ If the user also wants monitoring, debugging, or reporting results, use the
    what they want to run. Write the spec to `workflow.yaml` in the current directory.
 
    **When generating a workflow spec:**
-   - Consult `references/cookbook.md` for the closest real-world example and fetch its
-     YAML via WebFetch as a starting point. Adapt it rather than generating from scratch.
-     Fetch the README as well, substituting the YAML file name with README. Summarize the
-     README, and add it as a comment in the generated workflow spec.
-   - **Use cookbook metadata to decide submission count.** The cookbook table in
-     `references/cookbook.md` annotates entries with throughput and constraint metadata
-     (e.g. "60 images, 1 GPU ONLY"). Before deciding whether to submit one or multiple
+   - Fetch the cookbook README via WebFetch to browse available examples:
+     `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/README.md`
+     Pick the closest match to the user's request. The cookbook README links to each
+     workflow's per-workflow README. To fetch the workflow YAML:
+     1. Fetch the per-workflow README at the linked path (e.g.
+        `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/<path>/README.md`).
+     2. Read that README to find the workflow YAML filename (do not assume it is
+        `workflow.yaml` — look for the actual filename referenced in the README).
+     3. Construct the workflow YAML URL as `<per-workflow README directory URL>/<filename>`
+        and fetch it.
+     Use the YAML as a starting point — adapt it rather than generating from scratch.
+     Summarize the per-workflow README and add it as a comment in the generated workflow spec.
+   - **Preserve Jinja template variables.** If the cookbook YAML uses `{{variable}}`
+     placeholders (e.g. `{{num_gpu}}`), do NOT replace or hardcode them in the YAML.
+     Keep the template variables as-is and pass the user's values via `--set` at submit
+     time. Multiple variables are space-separated after a single `--set`:
+     ```
+     osmo workflow submit workflow.yaml --pool <pool_name> --set num_gpu=4 other_var=value
+     ```
+     Do not manually scale `resources` values to match the user's requested GPU count —
+     the template handles this.
+   - **Use workflow README and YAML to decide submission count.** After fetching those
+     two files, find the throughput and constraint metadata
+     (e.g. "60 images"). Before deciding whether to submit one or multiple
      workflows, read those annotations:
      - If a throughput figure is present and the user has a target quantity + time
        budget, calculate: `num_submissions = ceil(target / (throughput_per_run * time_budget))`
        and submit the same YAML that many times.
-     - If a constraint is present (e.g. "1 GPU ONLY"), respect it — do not scale by
-       requesting more GPUs per workflow; scale by submitting more workflows instead.
+     - For scaling workflows, if a workflow's resource spec uses variables, then you can pass
+       a new value in the submit call. If a resource spec uses constants, scale by submitting
+       more workflows instead of requesting more GPUs, CPUs, etc. for a workflow.
      - If no metadata is present, submit a single workflow unless the user says otherwise.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
@@ -202,8 +219,10 @@ If the user also wants monitoring, debugging, or reporting results, use the
    `Would you like me to submit this workflow to this pool?`
    Then execute the command yourself — do not tell the user to run it. Once confirmed, run:
    ```
-   osmo workflow submit workflow.yaml --pool <pool_name>
+   osmo workflow submit workflow.yaml --pool <pool_name> --set key=value other_key=value
    ```
+   Include `--set` only when the workflow has Jinja template variables to override
+   (e.g. `--set num_gpu=4`). Omit it if the YAML has no template variables.
    If the user wants to run the same workflow multiple times (e.g. "submit 2 of these"),
    submit the same YAML file multiple times — do not create duplicate YAML files.
    Report each workflow ID returned by the CLI so the user can track them.
@@ -218,7 +237,9 @@ If the user also wants monitoring, debugging, or reporting results, use the
 
    **Validation errors:** If submission fails with a validation error indicating that
    resources failed assertions, read the node capacity values from the error table and
-   adjust the `resources` section of `workflow.yaml` using these rules, then resubmit:
+   adjust the hard-coded values in the `resources` section of `workflow.yaml` using these
+   rules, then resubmit. (Do not touch Jinja template variables like `{{num_gpu}}` —
+   those are resolved at runtime via `--set`.)
 
    - **Storage / Memory:** use `floor(capacity * 0.9)` if capacity ≥ 50, otherwise `capacity - 2`
    - **CPU:** use `floor(capacity * 0.9)` if capacity ≥ 30, otherwise `capacity - 2`

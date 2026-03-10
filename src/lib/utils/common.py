@@ -110,6 +110,7 @@ DOCKER_MANIFEST_LIST_ENCODING = 'application/vnd.docker.distribution.manifest.li
 
 CONFIG_NAME_REGEX = r'^[a-zA-Z]([a-zA-Z0-9_.-]*[a-zA-Z0-9])?$'
 TOKEN_NAME_REGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
+USERNAME_REGEX = r'^[a-zA-Z0-9]([a-zA-Z0-9_.@-]*[a-zA-Z0-9])?$'
 
 # The keys to look for in the docker auth response
 DOCKER_AUTH_TOKEN_KEYS = ['token', 'access_token']

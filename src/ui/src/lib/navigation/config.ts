@@ -14,7 +14,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { LayoutDashboard, Workflow, Layers, Server, Database, TextSearch, type LucideIcon } from "lucide-react";
+import {
+  LayoutDashboard,
+  Workflow,
+  Layers,
+  Server,
+  Database,
+  TextSearch,
+  ChartColumn,
+  type LucideIcon,
+} from "lucide-react";
 
 // =============================================================================
 // Types
@@ -41,6 +50,7 @@ const userNav: NavItem[] = [
   { name: "Workflows", href: "/workflows", icon: Workflow },
   { name: "Pools", href: "/pools", icon: Layers },
   { name: "Resources", href: "/resources", icon: Server },
+  { name: "Occupancy", href: "/occupancy", icon: ChartColumn },
   { name: "Datasets", href: "/datasets", icon: Database },
 ];
 

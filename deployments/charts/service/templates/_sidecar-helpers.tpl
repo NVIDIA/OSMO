@@ -238,6 +238,7 @@ OAuth2 Proxy sidecar container
     - --redirect-url=https://{{ .Values.sidecars.envoy.service.hostname }}/oauth2/callback
     - --silence-ping-logging=true
     - --skip-provider-button=true
+    - --api-route=/api/.+
     {{- range .Values.sidecars.oauth2Proxy.extraArgs }}
     - {{ . }}
     {{- end }}
