@@ -111,8 +111,7 @@ def main():
     postgres = connectors.PostgresConnector(config)
     connectors.RedisConnector(config)
     agent_metrics = metrics.MetricCreator(config=config).get_meter_instance()
-    if config.method != 'dev':
-        agent_metrics.start_server()
+    agent_metrics.start_server()
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
     parsed_url = urlparse(config.host)
