@@ -51,8 +51,8 @@ export interface OccupancyToolbarProps {
 // =============================================================================
 
 const GROUP_BY_OPTIONS: { value: OccupancyGroupBy; label: string }[] = [
-  { value: "user", label: "By User" },
   { value: "pool", label: "By Pool" },
+  { value: "user", label: "By User" },
 ];
 
 function GroupByToggle({ value, onChange }: { value: OccupancyGroupBy; onChange: (v: OccupancyGroupBy) => void }) {

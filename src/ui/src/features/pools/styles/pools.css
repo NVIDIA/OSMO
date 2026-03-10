@@ -70,7 +70,14 @@
    ============================================================================= */
 
 .pools-row {
-  @apply transition-colors duration-75 ease-out;
+  /* Combine color transitions (hover) with the transform transition (row reposition on expand).
+     Can't use @apply transition-colors here — it overwrites transition-property and kills the
+     transform animation defined on .data-table-row. */
+  transition:
+    color 75ms ease-out,
+    background-color 75ms ease-out,
+    border-color 75ms ease-out,
+    transform var(--duration-normal) var(--ease-out);
 }
 
 .pools-row:not(.pools-row--selected):hover {

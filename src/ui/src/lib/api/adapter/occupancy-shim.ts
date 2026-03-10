@@ -37,7 +37,12 @@
  * =============================================================================
  */
 
-import { listTaskApiTaskGet, type ListTaskSummaryResponse, WorkflowPriority } from "@/lib/api/generated";
+import {
+  listTaskApiTaskGet,
+  type ListTaskSummaryResponse,
+  WorkflowPriority,
+  TaskGroupStatus,
+} from "@/lib/api/generated";
 import type { OccupancyGroup, OccupancyChild, OccupancyGroupBy, OccupancySortBy } from "@/lib/api/adapter/occupancy";
 
 // =============================================================================
@@ -55,6 +60,7 @@ export interface OccupancyQueryParams {
   users?: string[];
   pools?: string[];
   priorities?: WorkflowPriority[];
+  statuses?: TaskGroupStatus[];
 }
 
 export interface OccupancySummaryResult {
@@ -146,6 +152,7 @@ export async function fetchOccupancySummary(params: OccupancyQueryParams): Promi
     ...(params.users && params.users.length > 0 ? { users: params.users } : {}),
     ...(params.pools && params.pools.length > 0 ? { pools: params.pools } : {}),
     ...(params.priorities && params.priorities.length > 0 ? { priority: params.priorities } : {}),
+    ...(params.statuses && params.statuses.length > 0 ? { statuses: params.statuses } : {}),
   });
 
   // customFetch throws on 4xx/5xx — we only reach here on 200

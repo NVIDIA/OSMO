@@ -15,7 +15,7 @@
 //SPDX-License-Identifier: Apache-2.0
 
 import type { SearchField } from "@/components/filter-bar/lib/types";
-import { WorkflowPriority } from "@/lib/api/generated";
+import { WorkflowPriority, TaskGroupStatus } from "@/lib/api/generated";
 import type { OccupancyGroup } from "@/lib/api/adapter/occupancy";
 
 /**
@@ -60,6 +60,26 @@ export const OCCUPANCY_SEARCH_FIELDS: SearchField<OccupancyGroup>[] = [
     prefix: "priority:",
     freeFormHint: "Type a priority, press Enter",
     getValues: () => [WorkflowPriority.HIGH, WorkflowPriority.NORMAL, WorkflowPriority.LOW],
+    exhaustive: true,
+    requiresValidValue: true,
+    match: () => true, // Filtering handled server-side
+  },
+  {
+    id: "status",
+    label: "Status",
+    hint: "RUNNING, WAITING, ...",
+    prefix: "status:",
+    freeFormHint: "Type a status, press Enter",
+    getValues: () => [
+      TaskGroupStatus.RUNNING,
+      TaskGroupStatus.WAITING,
+      TaskGroupStatus.SCHEDULING,
+      TaskGroupStatus.INITIALIZING,
+      TaskGroupStatus.SUBMITTING,
+      TaskGroupStatus.PROCESSING,
+      TaskGroupStatus.COMPLETED,
+      TaskGroupStatus.FAILED,
+    ],
     exhaustive: true,
     requiresValidValue: true,
     match: () => true, // Filtering handled server-side

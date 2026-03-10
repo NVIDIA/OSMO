@@ -29,7 +29,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import type { WorkflowPriority } from "@/lib/api/generated";
+import type { WorkflowPriority, TaskGroupStatus } from "@/lib/api/generated";
 import type { OccupancyGroup, OccupancyGroupBy, OccupancySortBy, OccupancyTotals } from "@/lib/api/adapter/occupancy";
 import { fetchOccupancySummary, aggregateGroups, sortGroupsLocal } from "@/lib/api/adapter/occupancy-shim";
 import type { SearchChip } from "@/stores/types";
@@ -69,12 +69,14 @@ export function useOccupancyData({
     const users: string[] = [];
     const pools: string[] = [];
     const priorities: WorkflowPriority[] = [];
+    const statuses: TaskGroupStatus[] = [];
     for (const chip of searchChips) {
       if (chip.field === "user") users.push(chip.value);
       else if (chip.field === "pool") pools.push(chip.value);
       else if (chip.field === "priority") priorities.push(chip.value as WorkflowPriority);
+      else if (chip.field === "status") statuses.push(chip.value as TaskGroupStatus);
     }
-    return { users, pools, priorities };
+    return { users, pools, priorities, statuses };
     // Intentionally excludes groupBy/sortBy/order — switching group view or
     // resorting never triggers a network re-fetch. The shim returns raw rows;
     // aggregation + sort happen below.
