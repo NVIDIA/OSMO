@@ -134,7 +134,13 @@ export function VerticalRefreshControl(props: RefreshControlProps) {
             <span className="sr-only">Refresh workflow</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="left">{isRefreshing ? "Refreshing..." : "Refresh workflow"}</TooltipContent>
+        <TooltipContent side="left">
+          {isRefreshing
+            ? "Refreshing..."
+            : isAutoRefreshActive
+              ? `Refresh workflow (auto-refresh: ${intervalLabel})`
+              : "Refresh workflow"}
+        </TooltipContent>
       </Tooltip>
 
       <DropdownMenu>

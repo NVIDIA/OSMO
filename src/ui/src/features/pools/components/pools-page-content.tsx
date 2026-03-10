@@ -106,7 +106,6 @@ export function PoolsPageContent() {
   } = usePoolsData({
     searchChips: effectiveChips,
     accessiblePoolNames,
-    refetchInterval: autoRefresh.effectiveInterval,
   });
 
   // ==========================================================================
