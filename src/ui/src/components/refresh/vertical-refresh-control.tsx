@@ -153,7 +153,7 @@ export function VerticalRefreshControl(props: RefreshControlProps) {
           >
             {isAutoRefreshActive ? (
               <span
-                className="text-[9px] font-medium"
+                className="text-[11px] font-medium"
                 aria-hidden="true"
               >
                 {intervalLabel}

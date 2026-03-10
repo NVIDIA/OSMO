@@ -14,24 +14,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Hook to sort pools and build sharing map.
- *
- * This hook receives pre-filtered pools and:
- * - Sorts them by the current sort column
- * - Builds a sharing map for UI indicators
- *
- * Simplified from usePoolSections - no status grouping.
- */
-
 import { useMemo } from "react";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SortState } from "@/components/data-table/types";
 import { naturalCompare } from "@/lib/utils";
 
-// =============================================================================
-// Sorting
-// =============================================================================
+function utilization(used: number, total: number): number {
+  return total > 0 ? used / total : 0;
+}
 
 function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
   if (!sort?.column) return pools;
@@ -49,13 +39,15 @@ function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
         cmp = naturalCompare(a.backend, b.backend);
         break;
       case "quota":
-        cmp = a.quota.used - b.quota.used;
+        cmp = utilization(a.quota.used, a.quota.limit) - utilization(b.quota.used, b.quota.limit);
         break;
       case "quotaFree":
         cmp = a.quota.free - b.quota.free;
         break;
       case "capacity":
-        cmp = a.quota.totalUsage - b.quota.totalUsage;
+        cmp =
+          utilization(a.quota.totalUsage, a.quota.totalCapacity) -
+          utilization(b.quota.totalUsage, b.quota.totalCapacity);
         break;
       case "capacityFree":
         cmp = a.quota.totalFree - b.quota.totalFree;
@@ -65,41 +57,30 @@ function sortPools(pools: Pool[], sort: SortState<string> | null): Pool[] {
   });
 }
 
-// =============================================================================
-// Hook
-// =============================================================================
-
 interface UseSortedPoolsOptions {
-  /** Pre-filtered pools from usePoolsData */
   pools: Pool[];
-  /** Current sort state (from store or DataTable) */
   sort: SortState<string> | null;
-  /** Sharing groups for building sharing map */
   sharingGroups: string[][];
 }
 
 interface UseSortedPoolsResult {
-  /** Sorted pools */
   sortedPools: Pool[];
-  /** Map of pool names that share resources */
-  sharingMap: Map<string, boolean>;
+  sharingMap: Set<string>;
 }
 
 export function useSortedPools({ pools, sort, sharingGroups }: UseSortedPoolsOptions): UseSortedPoolsResult {
-  // Sort pools
   const sortedPools = useMemo(() => sortPools(pools, sort), [pools, sort]);
 
-  // Build map of pools that are shared (for UI indicators)
   const sharingMap = useMemo(() => {
-    const map = new Map<string, boolean>();
+    const set = new Set<string>();
     for (const group of sharingGroups) {
       if (group.length > 1) {
         for (const poolName of group) {
-          map.set(poolName, true);
+          set.add(poolName);
         }
       }
     }
-    return map;
+    return set;
   }, [sharingGroups]);
 
   return { sortedPools, sharingMap };

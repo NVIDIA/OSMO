@@ -14,13 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Pool Table Column Definitions
- *
- * TanStack Table column definitions for the pools table.
- * Contains JSX cell renderers - colocated with pools-data-table.tsx.
- */
-
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Pool } from "@/lib/api/adapter/types";
 import { CheckCircle2, CirclePile, Wrench, XCircle } from "lucide-react";
@@ -32,46 +25,23 @@ import { PlatformPills } from "@/components/platform-pills";
 import { POOL_COLUMN_SIZE_CONFIG, COLUMN_LABELS, type PoolColumnId } from "@/features/pools/lib/pool-columns";
 import { getStatusDisplay, STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
-// Status icons mapping
-const STATUS_ICONS = {
+const STATUS_ICONS: Record<StatusCategory, typeof CheckCircle2> = {
   online: CheckCircle2,
   maintenance: Wrench,
   offline: XCircle,
-} as const;
-
-// =============================================================================
-// Types
-// =============================================================================
+};
 
 export interface CreatePoolColumnsOptions {
-  /** Whether to show compact cells */
   compact?: boolean;
-  /** Map of pool names to whether they are shared */
-  sharingMap?: Map<string, boolean>;
-  /** Callback map for filtering by shared pools (keyed by pool name) */
+  sharingMap?: Set<string>;
   filterBySharedPoolsMap?: Map<string, () => void>;
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/** Get column minimum size from rem-based config */
 function getMinSize(id: PoolColumnId): number {
   const col = POOL_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
 }
 
-// =============================================================================
-// Column Definitions Factory
-// =============================================================================
-
-/**
- * Create TanStack Table column definitions for pools.
- *
- * GPU columns are split into used (bar + fraction) and free (emerald number)
- * pairs for clarity.
- */
 export function createPoolColumns({
   compact = false,
   sharingMap,
@@ -135,7 +105,7 @@ export function createPoolColumns({
       cell: ({ row }) => {
         const { category, label } = getStatusDisplay(row.original.status);
         const styles = STATUS_STYLES[category]?.badge;
-        const Icon = STATUS_ICONS[category as StatusCategory];
+        const Icon = STATUS_ICONS[category];
 
         if (!styles) {
           return <span className="text-zinc-500">{label}</span>;
