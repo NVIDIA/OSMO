@@ -17,6 +17,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import collections
 import dataclasses
 import datetime
@@ -57,6 +58,11 @@ SECRET_REDACTION_RE = re.compile(
     r'''(?i)[\w.-]{0,50}?(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passw(?:or)?d|secret|token)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([\w.=-]{10,150}|[a-z0-9][a-z0-9+/]{11,}={0,3})(?:[\x60'"\s;]|\\[nr]|$)'''  # pylint: disable=line-too-long
 )
 
+# Matches base64-encoded fragments: at least 16 chars of base64 alphabet with optional padding,
+# not adjacent to other base64 characters (to capture complete tokens).
+_BASE64_FRAGMENT_RE = re.compile(r'(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{16,}={0,2}(?![A-Za-z0-9+/=])')
+
+
 def redact_secrets(lines: storage.LinesStream) -> Generator[str, None, None]:
     """ Yield lines with secrets in the spec redacted. """
     def redact_value(secret: str) -> str:
@@ -66,7 +72,30 @@ def redact_secrets(lines: storage.LinesStream) -> Generator[str, None, None]:
         left = padding // 2
         right = padding - left
         return '*' * left + replacement + '*' * right
+
+    def redact_base64_fragments(line: str) -> str:
+        """
+        Find base64-encoded fragments in a line, decode them, redact any secrets found inside,
+        and re-encode the redacted content back to base64.
+        """
+        def replace_if_secrets(m: re.Match) -> str:
+            fragment = m.group(0)
+            try:
+                padded = fragment + '=' * (-len(fragment) % 4)
+                decoded = base64.b64decode(padded, validate=True).decode('utf-8')
+            except Exception:
+                return fragment
+            redacted = SECRET_REDACTION_RE.sub(
+                lambda sm: sm.group(0).replace(sm.group(1), redact_value(sm.group(1))),
+                decoded,
+            )
+            if redacted == decoded:
+                return fragment
+            return redact_value(fragment)
+        return _BASE64_FRAGMENT_RE.sub(replace_if_secrets, line)
+
     for line in lines:
+        line = redact_base64_fragments(line)
         yield SECRET_REDACTION_RE.sub(
             lambda m: m.group(0).replace(m.group(1), redact_value(m.group(1))), line)
 
