@@ -930,7 +930,7 @@ def calculate_pod_status(pod: Any) -> Tuple[task.TaskGroupStatus, str, Optional[
                     # When a container fails to create, the pod will not be Ready.
                     # The lastTransitionTime of this condition is the closest timestamp.
                     if condition.type == 'Ready' and condition.status == 'False':
-                        now = datetime.datetime.now()
+                        now = datetime.datetime.now(datetime.timezone.utc)
                         last_transition_time = condition.last_transition_time
                         if last_transition_time:
                             time_diff = now - last_transition_time
