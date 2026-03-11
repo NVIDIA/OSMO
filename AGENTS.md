@@ -100,7 +100,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 |---------|---------|
 | `service/router/` | Routes HTTP/WebSocket requests to backends. Sticky session routing. WebSocket endpoints for exec, portforward, rsync. |
 | `service/worker/` | Kombu-based Redis job queue consumer. Deduplicates jobs. Executes `FrontendJob` subclasses. |
-| `service/agent/` | Backend cluster integration via WebSocket. Receives node/pod/event/heartbeat streams from K8s backends. |
+| `service/agent/` | Backend cluster integration via WebSocket. Receives node/pod/event/heartbeat streams from K8s clusters. |
 | `service/logger/` | Receives structured logs from osmo-ctrl containers. Persists task metrics to PostgreSQL. Distributed barriers via Redis. |
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
 
