@@ -77,10 +77,11 @@ export function useDefaultFilter({
 
   const effectiveChips = useMemo((): SearchChip[] => {
     if (!shouldPrePopulate) return searchChips;
+    const prefix = label ?? field;
     const defaults: SearchChip[] = normalizedDefaults.map((v) => ({
       field,
       value: v,
-      label: label ?? `${field}: ${v}`,
+      label: normalizedDefaults.length > 1 ? `${prefix}: ${v}` : (label ?? `${field}: ${v}`),
     }));
     return [...searchChips, ...defaults];
   }, [searchChips, shouldPrePopulate, field, normalizedDefaults, label]);
@@ -94,10 +95,11 @@ export function useDefaultFilter({
 
   useEffect(() => {
     if (!shouldPrePopulate) return;
+    const prefix = label ?? field;
     const defaults: SearchChip[] = normalizedDefaults.map((v) => ({
       field,
       value: v,
-      label: label ?? `${field}: ${v}`,
+      label: normalizedDefaults.length > 1 ? `${prefix}: ${v}` : (label ?? `${field}: ${v}`),
     }));
     void setSearchChips([...searchChips, ...defaults], { history: "replace" });
   }, [shouldPrePopulate, searchChips, field, normalizedDefaults, label, setSearchChips]);
