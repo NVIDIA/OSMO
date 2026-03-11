@@ -40,6 +40,8 @@ const (
 	// Header names
 	headerOsmoUser         = "x-osmo-user"
 	headerOsmoRoles        = "x-osmo-roles"
+	headerOsmoTokenName    = "x-osmo-token-name"
+	headerOsmoWorkflowID   = "x-osmo-workflow-id"
 	headerOsmoAllowedPools = "x-osmo-allowed-pools"
 
 	// Default role added to all users
@@ -134,9 +136,11 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	method := httpAttrs.GetMethod()
 	headers := httpAttrs.GetHeaders()
 
-	// Extract user and roles from headers
+	// Extract user, roles, and token/workflow identifiers from headers
 	user := headers[headerOsmoUser]
 	rolesHeader := headers[headerOsmoRoles]
+	tokenName := headers[headerOsmoTokenName]
+	workflowID := headers[headerOsmoWorkflowID]
 
 	// Parse roles (comma-separated)
 	var roleNames []string
@@ -153,7 +157,9 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	// complete set of assigned OSMO roles in a single atomic operation.
 	// This maps external role names (from the JWT) to OSMO roles via
 	// role_external_mappings and applies sync_mode logic (import/force).
-	if user != "" {
+	// Skip sync for access tokens and workflow-originated requests, as their
+	// roles are already resolved from the access_token_roles table.
+	if user != "" && tokenName == "" && workflowID == "" {
 		dbRoleNames, err := roles.SyncUserRoles(ctx, s.pgClient, user, roleNames, s.logger)
 		if err != nil {
 			s.logger.Error("failed to sync user roles",
@@ -173,6 +179,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		slog.String("user", user),
 		slog.String("path", path),
 		slog.String("method", method),
+		slog.String("token_name", tokenName),
+		slog.String("workflow_id", workflowID),
 		slog.Any("roles", roleNames),
 	)
 
@@ -181,6 +189,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	if err != nil {
 		s.logger.Error("error resolving roles",
 			slog.String("user", user),
+			slog.String("token_name", tokenName),
+			slog.String("workflow_id", workflowID),
 			slog.String("error", err.Error()),
 			slog.Any("roles", roleNames),
 		)
@@ -199,6 +209,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 			slog.String("user", user),
 			slog.String("path", path),
 			slog.String("method", method),
+			slog.String("token_name", tokenName),
+			slog.String("workflow_id", workflowID),
 			slog.Any("roles", roleNames),
 			slog.Duration("parse", parseDone.Sub(checkStart)),
 			slog.Duration("sync_roles", syncDone.Sub(parseDone)),
@@ -213,6 +225,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		slog.String("user", user),
 		slog.String("path", path),
 		slog.String("method", method),
+		slog.String("token_name", tokenName),
+		slog.String("workflow_id", workflowID),
 	)
 
 	responseHeaders := map[string]string{}
@@ -229,6 +243,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		slog.String("user", user),
 		slog.String("path", path),
 		slog.String("method", method),
+		slog.String("token_name", tokenName),
+		slog.String("workflow_id", workflowID),
 		slog.Duration("parse", parseDone.Sub(checkStart)),
 		slog.Duration("sync_roles", syncDone.Sub(parseDone)),
 		slog.Duration("resolve_roles", resolveDone.Sub(syncDone)),
