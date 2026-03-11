@@ -28,6 +28,12 @@
 
 import { useState, useCallback, useMemo } from "react";
 import type { FieldSuggestion, ParsedInput, SearchField, Suggestion } from "@/components/filter-bar/lib/types";
+import {
+  isDateRangeField,
+  DATE_CUSTOM_FROM,
+  DATE_CUSTOM_TO,
+  DATE_CUSTOM_APPLY,
+} from "@/components/filter-bar/lib/types";
 
 // ---------------------------------------------------------------------------
 // External interfaces
@@ -74,6 +80,12 @@ interface UseFilterKeyboardReturn<T> {
   navigationLevel: "field" | "value" | null;
   /** Reset all navigation state */
   resetNavigation: () => void;
+  /**
+   * Advance the cycle one step from a known sentinel position.
+   * Used when Tab/Shift-Tab fires on a date-picker DOM element (not the filter bar input)
+   * so the stale highlightedIndex is bypassed.
+   */
+  stepCycle: (direction: "forward" | "backward", fromValue: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,6 +144,28 @@ export function useFilterKeyboard<T>(
     [navState, resetNavigation],
   );
 
+  const stepCycle = useCallback(
+    (direction: "forward" | "backward", fromValue: string) => {
+      actions.focusInput();
+      if (nav.state.level === null || nav.state.items.length === 0) {
+        enterNavigationMode(state, nav, actions, direction);
+        return;
+      }
+      const fromIdx = nav.state.items.findIndex((item) => item.value === fromValue);
+      const startIdx = fromIdx >= 0 ? fromIdx : nav.state.highlightedIndex;
+      const nextIdx =
+        direction === "forward"
+          ? (startIdx + 1) % nav.state.items.length
+          : startIdx <= 0
+            ? nav.state.items.length - 1
+            : startIdx - 1;
+      nav.setState({ ...nav.state, highlightedIndex: nextIdx });
+      const item = nav.state.items[nextIdx];
+      if (item) actions.fillInput(item.inputValue);
+    },
+    [state, nav, actions],
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       switch (e.key) {
@@ -173,6 +207,7 @@ export function useFilterKeyboard<T>(
     displaySelectables,
     navigationLevel: navState.level,
     resetNavigation,
+    stepCycle,
   };
 }
 
@@ -365,6 +400,26 @@ function onEnter<T>(
     }
 
     if (nav.state.level === "value" && nav.state.highlightedIndex >= 0) {
+      const current = nav.state.items[nav.state.highlightedIndex];
+      if (
+        current &&
+        current.suggestion.type !== "preset" &&
+        current.suggestion.type !== "hint" &&
+        isDateRangeField(current.suggestion.field)
+      ) {
+        // Sentinel items (From/To/Apply): focus is already moved by the date picker's useEffect.
+        // Don't commit — let the focused element handle subsequent interaction.
+        if (
+          current.value === DATE_CUSTOM_FROM ||
+          current.value === DATE_CUSTOM_TO ||
+          current.value === DATE_CUSTOM_APPLY
+        ) {
+          return;
+        }
+        // Date-range preset: select directly (parsedInput.query is empty, input held at prefix)
+        actions.selectSuggestion(current.value);
+        return;
+      }
       if (parsedInput.hasPrefix && parsedInput.field && parsedInput.query.trim()) {
         if (actions.addChipFromParsedInput()) {
           actions.resetInput();
@@ -436,7 +491,14 @@ function buildValueCycleItems<T>(selectables: Suggestion<T>[]): CycleItem<T>[] {
     .filter((s): s is FieldSuggestion<T> => s.type !== "preset")
     .map((s) => ({
       value: s.value,
-      inputValue: s.field.prefix ? `${s.field.prefix}${s.value}` : s.value,
+      // Date-range presets: keep input at just the prefix so the picker stays open
+      // and shows all presets; the highlighted preset is indicated via the picker's UI.
+      inputValue:
+        s.field && isDateRangeField(s.field)
+          ? (s.field.prefix ?? "")
+          : s.field.prefix
+            ? `${s.field.prefix}${s.value}`
+            : s.value,
       suggestion: s,
     }));
 }

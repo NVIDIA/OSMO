@@ -31,6 +31,7 @@ import {
   type WorkflowPriority,
   type SrcServiceCoreWorkflowObjectsListEntry,
 } from "@/lib/api/generated";
+import { parseDateRangeValue } from "@/lib/date-range-utils";
 
 // =============================================================================
 // Types
@@ -46,7 +47,7 @@ export interface WorkflowFilterParams {
   showAllUsers?: boolean;
   /** Sort direction */
   sortDirection?: "ASC" | "DESC";
-  /** ISO date string — only return workflows submitted after this time */
+  /** ISO date string — fallback for occupancy cross-link when no submitted chip exists */
   submittedAfter?: string;
 }
 
@@ -90,11 +91,22 @@ function buildApiParams(
   const priorityChips = getChipValues(chips, "priority");
   const tagChips = getChipValues(chips, "tag");
 
+  // Resolve submitted date range: chip takes precedence over prop
+  let resolvedAfter = submittedAfter;
+  let resolvedBefore: string | undefined;
+  const submittedChip = getFirstChipValue(chips, "submitted");
+  if (submittedChip) {
+    const range = parseDateRangeValue(submittedChip);
+    if (range) {
+      resolvedAfter = range.start.toISOString();
+      resolvedBefore = range.end.toISOString();
+    }
+  }
+
   return {
     offset,
     limit,
     order: sortDirection,
-    // Filters - only include if chips exist
     users: userChips.length > 0 ? userChips : undefined,
     statuses: statusChips.length > 0 ? (statusChips as WorkflowStatus[]) : undefined,
     pools: poolChips.length > 0 ? poolChips : undefined,
@@ -102,13 +114,10 @@ function buildApiParams(
     app: getFirstChipValue(chips, "app"),
     priority: priorityChips.length > 0 ? (priorityChips as WorkflowPriority[]) : undefined,
     tags: tagChips.length > 0 ? tagChips : undefined,
-    // Toggles
-    // Only send all_users=true when no user chips exist (to show all users' workflows)
-    // When user chips exist, don't send all_users (backend filters by those specific users)
-    all_users: userChips.length === 0 ? showAllUsers : undefined,
-    // all_pools is implicit: true when no pool filter, false when pool filter exists
+    all_users: userChips.length === 0 && showAllUsers ? true : undefined,
     all_pools: poolChips.length === 0,
-    submitted_after: submittedAfter,
+    submitted_after: resolvedAfter,
+    submitted_before: resolvedBefore,
   };
 }
 
@@ -201,6 +210,7 @@ export function buildWorkflowsQueryKey(
   const pools = getChipValues(searchChips, "pool").sort();
   const priority = getChipValues(searchChips, "priority").sort();
   const tags = getChipValues(searchChips, "tag").sort();
+  const submitted = getFirstChipValue(searchChips, "submitted");
 
   // Build query key - only include filters that have values
   const filters: Record<string, string | string[]> = {};
@@ -211,6 +221,7 @@ export function buildWorkflowsQueryKey(
   if (pools.length > 0) filters.pools = pools;
   if (priority.length > 0) filters.priority = priority;
   if (tags.length > 0) filters.tags = tags;
+  if (submitted) filters.submitted = submitted;
 
   return [
     "workflows",

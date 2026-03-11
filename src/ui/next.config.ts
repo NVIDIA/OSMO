@@ -204,6 +204,9 @@ const nextConfig: NextConfig = {
             // Dataset file proxy route - alias to production version (zero mock code)
             "@/app/proxy/dataset/file/route.impl":
               "@/app/proxy/dataset/file/route.impl.production",
+
+            // Auth server utilities - alias to production version (zero env fallbacks)
+            "@/lib/auth/server": "@/lib/auth/server.production",
           }
         : {},
   },

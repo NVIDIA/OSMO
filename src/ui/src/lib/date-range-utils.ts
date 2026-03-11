@@ -100,12 +100,19 @@ export function parseDateRangeValue(value: string): { start: Date; end: Date } |
     return parseIsoRangeString(value);
   }
 
-  // Handle single ISO date: "YYYY-MM-DD" — treated as full UTC day
+  // Handle single date or datetime
   const singleDate = parseIsoDate(value);
   if (singleDate) {
-    const end = new Date(singleDate.getTime());
-    end.setUTCHours(23, 59, 59, 999);
-    return { start: singleDate, end };
+    // Date-only ("YYYY-MM-DD"): treat as the full UTC day.
+    // Use midnight of the *next* day as the exclusive upper bound so that
+    // submit_time < end captures every event on this day including 23:59:59.999Z.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const end = new Date(singleDate.getTime());
+      end.setUTCDate(end.getUTCDate() + 1); // advance to next midnight
+      return { start: singleDate, end };
+    }
+    // Datetime ("YYYY-MM-DDTHH:mm"): use the exact moment as both bounds
+    return { start: singleDate, end: singleDate };
   }
 
   // Backward compat: check preset labels (e.g., "last 7 days")
@@ -121,25 +128,41 @@ export function parseDateRangeValue(value: string): { start: Date; end: Date } |
 // Internal helpers
 // =============================================================================
 
-/** Parse "YYYY-MM-DD..YYYY-MM-DD" → { start, end } with end extended to 23:59:59.999Z */
+/** Parse "YYYY-MM-DD..YYYY-MM-DD" or "YYYY-MM-DDTHH:mm..YYYY-MM-DDTHH:mm" range strings */
 function parseIsoRangeString(value: string): { start: Date; end: Date } | null {
   const parts = value.split("..");
   if (parts.length !== 2) return null;
 
+  const endStr = parts[1].trim();
   const start = parseIsoDate(parts[0].trim());
-  const end = parseIsoDate(parts[1].trim());
+  const end = parseIsoDate(endStr);
   if (!start || !end || start > end) return null;
 
-  // Make end inclusive: extend to last ms of the UTC day
-  const endInclusive = new Date(end.getTime());
-  endInclusive.setUTCHours(23, 59, 59, 999);
+  // Date-only end: advance to midnight of the next day so that the exclusive
+  // submitted_before < end captures every event on the chosen end date (including 23:59:59.999Z).
+  // Datetime end: the user chose an explicit exclusive cutoff — use it as-is.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(endStr)) {
+    const endExclusive = new Date(end.getTime());
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1); // next midnight
+    return { start, end: endExclusive };
+  }
 
-  return { start, end: endInclusive };
+  return { start, end };
 }
 
-/** Parse "YYYY-MM-DD" as UTC midnight, or null if format is invalid */
+/**
+ * Parse a date or datetime string to a Date, or null if invalid.
+ * - "YYYY-MM-DD" → UTC midnight
+ * - "YYYY-MM-DDTHH:mm" → local time (datetime-local input format)
+ */
 function parseIsoDate(str: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return null;
-  const d = new Date(str + "T00:00:00.000Z");
-  return isNaN(d.getTime()) ? null : d;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const d = new Date(str + "T00:00:00.000Z");
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(str)) {
+    const d = new Date(str); // interpreted as local time by the browser
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }

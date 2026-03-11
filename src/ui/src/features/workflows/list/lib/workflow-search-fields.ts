@@ -49,6 +49,14 @@ export const WORKFLOW_FIELD: Readonly<Record<string, SearchField<WorkflowListEnt
     exhaustive: true,
     requiresValidValue: true,
   },
+  submitted: {
+    id: "submitted",
+    label: "Submitted",
+    hint: "filter by submission date or range",
+    prefix: "submitted:",
+    singular: true,
+    type: "date-range" as const,
+  },
   app: {
     id: "app",
     label: "App",

@@ -71,6 +71,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       WORKFLOW_FIELD.priority,
       WORKFLOW_FIELD.app,
       WORKFLOW_FIELD.tag,
+      WORKFLOW_FIELD.submitted,
     ],
     [userField, poolField],
   );
@@ -141,7 +142,7 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       searchChips={searchChips}
       onSearchChipsChange={onSearchChipsChange}
       defaultField="name"
-      placeholder="Search workflows... (try 'name:', 'status:', 'user:', 'pool:')"
+      placeholder="Search workflows... (try 'name:', 'status:', 'submitted:', 'pool:')"
       searchPresets={searchPresets}
       resultsCount={resultsCount}
       autoRefreshProps={autoRefreshProps}
