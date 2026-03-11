@@ -446,7 +446,10 @@ function SuggestionItemInner<T>({ suggestion, onSelect }: SuggestionItemProps<T>
         {suggestion.type === "field" ? (
           <span className="fb-suggestion-field-prefix">{suggestion.label}</span>
         ) : (
-          <span>{suggestion.label}</span>
+          <span>
+            <span className="fb-suggestion-field-prefix">{suggestion.field.prefix}</span>
+            {suggestion.label.slice(suggestion.field.prefix.length)}
+          </span>
         )}
       </span>
       {suggestion.hint && <span className="text-muted-foreground ml-2 shrink-0 text-xs">{suggestion.hint}</span>}

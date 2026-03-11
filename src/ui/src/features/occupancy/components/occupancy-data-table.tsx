@@ -17,6 +17,7 @@
 "use client";
 
 import { useMemo, useCallback, memo } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
@@ -31,12 +32,11 @@ import {
   asOccupancyColumnIds,
   OCCUPANCY_COLUMN_SIZE_CONFIG,
 } from "@/features/occupancy/lib/occupancy-columns";
-import { createOccupancyColumns } from "@/features/occupancy/components/occupancy-column-defs";
+import { createOccupancyColumns, buildWorkflowsUrl } from "@/features/occupancy/components/occupancy-column-defs";
 import { useOccupancyTableStore } from "@/features/occupancy/stores/occupancy-table-store";
 import "@/features/occupancy/styles/occupancy.css";
 
 const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
-const isOccupancyRowInteractive = (row: OccupancyFlatRow) => row._type === "parent";
 
 function flattenForTable(groups: OccupancyGroup[], expandedKeys: Set<string>): OccupancyFlatRow[] {
   return groups.flatMap((group, groupIndex) => {
@@ -88,6 +88,7 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
   error,
   onRetry,
 }: OccupancyDataTableProps) {
+  const router = useRouter();
   const compactMode = useCompactMode();
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
@@ -114,9 +115,30 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
 
   const handleRowClick = useCallback(
     (row: OccupancyFlatRow) => {
-      if (isOccupancyRowInteractive(row)) onToggleExpand(row.key);
+      if (row._type === "parent") {
+        onToggleExpand(row.key);
+      } else {
+        router.push(buildWorkflowsUrl(row, groupBy, searchChips));
+      }
     },
-    [onToggleExpand],
+    [onToggleExpand, router, groupBy, searchChips],
+  );
+
+  const getRowHref = useCallback(
+    (row: OccupancyFlatRow) => {
+      if (row._type === "child") return buildWorkflowsUrl(row, groupBy, searchChips);
+      return undefined;
+    },
+    [groupBy, searchChips],
+  );
+
+  const getRowTitle = useCallback(
+    (row: OccupancyFlatRow) => {
+      if (row._type !== "child") return undefined;
+      if (groupBy === "pool") return `View ${row.key}'s workflows`;
+      return `View workflows for ${row.key}`;
+    },
+    [groupBy],
   );
 
   // Zebra striping keyed on group index so parent + children share the same stripe
@@ -171,8 +193,9 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
         isLoading={isLoading}
         emptyContent={emptyContent}
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
+        getRowTitle={getRowTitle}
         rowClassName={rowClassName}
-        isRowInteractive={isOccupancyRowInteractive}
       />
     </div>
   );

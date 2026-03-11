@@ -38,6 +38,8 @@ export interface VirtualTableBodyProps<TData, TSectionMeta = unknown> {
   onRowDoubleClick?: (item: TData, index: number) => void;
   /** Returns URL for middle-click "open in new tab", or undefined to fall back to onRowClick */
   getRowHref?: (item: TData) => string | undefined;
+  /** Native tooltip (title attribute) for a row, shown on hover */
+  getRowTitle?: (item: TData) => string | undefined;
   selectedRowId?: string;
   getRowId?: (item: TData) => string;
   rowClassName?: string | ((item: TData, index: number) => string);
@@ -61,6 +63,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
   onRowClick,
   onRowDoubleClick,
   getRowHref,
+  getRowTitle,
   selectedRowId,
   getRowId,
   rowClassName,
@@ -276,6 +279,7 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
             data-interactive={isInteractive || undefined}
             aria-rowindex={virtualRow.index + 2}
             aria-selected={isSelected ? true : undefined}
+            title={getRowTitle?.(rowData)}
             tabIndex={tabIndex}
             className={cn(
               "data-table-row border-b border-zinc-200 dark:border-zinc-800",

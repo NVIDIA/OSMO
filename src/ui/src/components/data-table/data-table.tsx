@@ -80,6 +80,8 @@ export interface DataTableProps<TData, TSectionMeta = unknown> {
   onRowDoubleClick?: (row: TData) => void;
   /** For middle-click: returns URL for new tab, or undefined to call onRowClick */
   getRowHref?: (row: TData) => string | undefined;
+  /** Native tooltip (title attribute) for a row, shown on hover */
+  getRowTitle?: (row: TData) => string | undefined;
   selectedRowId?: string;
   /** Override default header cell padding/styling for all columns (default: "px-4 py-3") */
   headerClassName?: string;
@@ -141,6 +143,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
   onFocusedRowChange,
   onRowDoubleClick,
   getRowHref,
+  getRowTitle,
   selectedRowId,
   headerClassName: tableHeaderClassName,
   theadClassName,
@@ -565,6 +568,7 @@ function DataTableInner<TData, TSectionMeta = unknown>({
                 onRowClick={onRowClick}
                 onRowDoubleClick={onRowDoubleClick}
                 getRowHref={getRowHref}
+                getRowTitle={getRowTitle}
                 selectedRowId={selectedRowId}
                 getRowId={getRowId}
                 rowClassName={rowClassName}

@@ -35,7 +35,7 @@
 }
 
 .occupancy-row--child {
-  @apply cursor-default text-sm;
+  @apply cursor-pointer text-sm;
 }
 
 .occupancy-row:not(.occupancy-row--child):hover {
