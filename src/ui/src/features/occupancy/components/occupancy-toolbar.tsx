@@ -27,10 +27,7 @@ import type { OccupancyGroup, OccupancyGroupBy } from "@/lib/api/adapter/occupan
 import { OPTIONAL_COLUMNS } from "@/features/occupancy/lib/occupancy-columns";
 import { getOccupancySearchFields } from "@/features/occupancy/lib/occupancy-search-fields";
 import { useOccupancyTableStore } from "@/features/occupancy/stores/occupancy-table-store";
-
-// =============================================================================
-// Types
-// =============================================================================
+import { TASK_GROUP_STATUS_PRESETS } from "@/lib/task-group-status-presets";
 
 export interface OccupancyToolbarProps {
   groups: OccupancyGroup[];
@@ -45,10 +42,6 @@ export interface OccupancyToolbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
 }
-
-// =============================================================================
-// GroupBy Toggle
-// =============================================================================
 
 const GROUP_BY_OPTIONS: { value: OccupancyGroupBy; label: string }[] = [
   { value: "pool", label: "By Pool" },
@@ -99,10 +92,6 @@ function GroupByToggle({ value, onChange }: { value: OccupancyGroupBy; onChange:
   );
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
 export const OccupancyToolbar = memo(function OccupancyToolbar({
   groups,
   groupBy,
@@ -138,6 +127,7 @@ export const OccupancyToolbar = memo(function OccupancyToolbar({
           searchChips={searchChips}
           onSearchChipsChange={onSearchChipsChange}
           placeholder="Search pools, users, priority..."
+          searchPresets={TASK_GROUP_STATUS_PRESETS}
           resultsCount={resultsCount}
           autoRefreshProps={refreshProps}
         >

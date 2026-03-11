@@ -18,16 +18,6 @@ import type { SearchField } from "@/components/filter-bar/lib/types";
 import { WorkflowPriority, TaskGroupStatus } from "@/lib/api/generated";
 import type { OccupancyGroup, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 
-/**
- * FilterBar search field definitions for the occupancy page.
- *
- * All filtering is server-side via API query params (see use-occupancy-data.ts).
- * These fields provide autocomplete suggestions only -- `match` is omitted so
- * the FilterBar skips client-side filtering.
- *
- * Fields are groupBy-aware: group keys and child keys swap between pool/user
- * depending on the active groupBy, so getValues extracts from the correct level.
- */
 function getGroupKeys(groups: OccupancyGroup[]): string[] {
   return groups.map((g) => g.key).slice(0, 20);
 }
@@ -76,16 +66,7 @@ export function getOccupancySearchFields(groupBy: OccupancyGroupBy): SearchField
       hint: "RUNNING, WAITING, ...",
       prefix: "status:",
       freeFormHint: "Type a status, press Enter",
-      getValues: () => [
-        TaskGroupStatus.RUNNING,
-        TaskGroupStatus.WAITING,
-        TaskGroupStatus.SCHEDULING,
-        TaskGroupStatus.INITIALIZING,
-        TaskGroupStatus.SUBMITTING,
-        TaskGroupStatus.PROCESSING,
-        TaskGroupStatus.COMPLETED,
-        TaskGroupStatus.FAILED,
-      ],
+      getValues: () => Object.values(TaskGroupStatus),
       exhaustive: true,
       requiresValidValue: true,
     },

@@ -14,15 +14,6 @@
 
 //SPDX-License-Identifier: Apache-2.0
 
-/**
- * Occupancy Page Content (Client Component)
- *
- * Layout: Toolbar → Summary cards → Collapsible-row table
- *
- * Data source: GET /api/task?summary=true → aggregated by user or pool.
- * All aggregation is client-side (shim) until backend ships group_by pagination (Issue #23).
- */
-
 "use client";
 
 import { useMemo, useCallback, useState } from "react";
@@ -39,23 +30,11 @@ import { useOccupancyData } from "@/features/occupancy/hooks/use-occupancy-data"
 import { useOccupancyTableStore } from "@/features/occupancy/stores/occupancy-table-store";
 import type { OccupancyGroupBy, OccupancySortBy } from "@/lib/api/adapter/occupancy";
 
-// =============================================================================
-// GroupBy parser for URL state
-// =============================================================================
-
 const GROUP_BY_VALUES = ["pool", "user"] as const;
 const parseAsGroupBy = parseAsStringLiteral(GROUP_BY_VALUES);
 
-// =============================================================================
-// Component
-// =============================================================================
-
 export function OccupancyPageContent() {
   usePage({ title: "Occupancy" });
-
-  // ==========================================================================
-  // URL State
-  // ==========================================================================
 
   const [groupBy, setGroupBy] = useQueryState(
     "groupBy",
@@ -67,17 +46,9 @@ export function OccupancyPageContent() {
     defaultValue: TaskGroupStatus.RUNNING,
   });
 
-  // ==========================================================================
-  // Sort state from table store
-  // ==========================================================================
-
   const sortState = useOccupancyTableStore((s) => s.sort);
   const sortBy: OccupancySortBy = (sortState?.column as OccupancySortBy) ?? "gpu";
   const order: "asc" | "desc" = sortState?.direction ?? "desc";
-
-  // ==========================================================================
-  // Data
-  // ==========================================================================
 
   const { groups, totals, isLoading, error, refetch, truncated } = useOccupancyData({
     groupBy,
@@ -85,10 +56,6 @@ export function OccupancyPageContent() {
     order,
     searchChips,
   });
-
-  // ==========================================================================
-  // Toolbar props
-  // ==========================================================================
 
   const resultsCount = useResultsCount({
     total: groups.length,
@@ -103,11 +70,7 @@ export function OccupancyPageContent() {
     [setGroupBy],
   );
 
-  // ==========================================================================
-  // Expand/collapse state — lifted here so toolbar can drive expand-all/collapse-all.
-  // Reset when groupBy changes (stale keys from old view are meaningless).
-  // ==========================================================================
-
+  // Expand/collapse state resets when groupBy changes (stale keys are meaningless)
   const [expandedState, setExpandedState] = useState<{ groupBy: OccupancyGroupBy; keys: Set<string> }>({
     groupBy,
     keys: new Set(),
@@ -140,13 +103,8 @@ export function OccupancyPageContent() {
 
   const allExpanded = groups.length > 0 && expandedKeys.size === groups.length;
 
-  // ==========================================================================
-  // Render
-  // ==========================================================================
-
   return (
     <div className="flex h-full flex-col gap-4 p-6">
-      {/* Toolbar */}
       <div className="shrink-0">
         <InlineErrorBoundary
           title="Toolbar error"
@@ -168,7 +126,6 @@ export function OccupancyPageContent() {
         </InlineErrorBoundary>
       </div>
 
-      {/* KPI summary cards */}
       <div className="shrink-0">
         <InlineErrorBoundary
           title="Summary cards error"
@@ -181,7 +138,6 @@ export function OccupancyPageContent() {
         </InlineErrorBoundary>
       </div>
 
-      {/* Scale limit warning */}
       {truncated && (
         <div className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
           Results may be incomplete — reached the 10,000 row fetch limit. Backend group_by pagination (Issue #23) is
@@ -189,7 +145,6 @@ export function OccupancyPageContent() {
         </div>
       )}
 
-      {/* Main table */}
       <div className="min-h-0 flex-1">
         <InlineErrorBoundary
           title="Unable to display occupancy table"
@@ -199,6 +154,7 @@ export function OccupancyPageContent() {
           <OccupancyDataTable
             groups={groups}
             groupBy={groupBy}
+            searchChips={searchChips}
             expandedKeys={expandedKeys}
             onToggleExpand={handleToggleExpand}
             isLoading={isLoading}

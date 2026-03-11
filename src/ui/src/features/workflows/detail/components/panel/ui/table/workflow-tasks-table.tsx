@@ -61,10 +61,8 @@ import { SplitGroupHeader } from "@/features/workflows/detail/components/panel/u
 import { TaskNameCell } from "@/features/workflows/detail/components/panel/ui/table/tree/task-name-cell";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import {
-  TASK_SEARCH_FIELDS,
-  TASK_PRESETS,
-} from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import { TASK_SEARCH_FIELDS } from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import { TASK_GROUP_STATUS_PRESETS } from "@/lib/task-group-status-presets";
 
 import type {
   GroupWithLayout,
@@ -627,7 +625,7 @@ export const WorkflowTasksTable = memo(function WorkflowTasksTable({
           onSearchChipsChange={setSearchChips}
           defaultField="name"
           placeholder="Filter by name, status:, ip:, duration:..."
-          searchPresets={TASK_PRESETS}
+          searchPresets={TASK_GROUP_STATUS_PRESETS}
           resultsCount={resultsCount}
         />
       </div>

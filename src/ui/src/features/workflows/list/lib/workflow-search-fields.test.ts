@@ -15,11 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import {
-  WORKFLOW_STATIC_FIELDS,
-  STATUS_PRESETS,
-  createPresetChips,
-} from "@/features/workflows/list/lib/workflow-search-fields";
+import { WORKFLOW_STATIC_FIELDS } from "@/features/workflows/list/lib/workflow-search-fields";
+import { STATUS_PRESETS, createPresetChips } from "@/lib/workflows/workflow-status-presets";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 
 function createWorkflow(overrides: Partial<WorkflowListEntry> = {}): WorkflowListEntry {

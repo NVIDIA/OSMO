@@ -61,6 +61,10 @@ export function useDefaultFilter({
 
   const hasDefaultInUrl = useMemo(() => searchChips.some((c) => c.field === field), [searchChips, field]);
 
+  // When both optOut and explicit chips are present, explicit chips win.
+  // Compute this synchronously so callers never see a transient contradictory state.
+  const effectiveOptOut = optOut && !hasDefaultInUrl;
+
   const shouldPrePopulate = !optOut && !hasDefaultInUrl && !!defaultValue;
 
   const effectiveChips = useMemo((): SearchChip[] => {
@@ -68,6 +72,13 @@ export function useDefaultFilter({
     const chipLabel = label ?? `${field}: ${defaultValue}`;
     return [...searchChips, { field, value: defaultValue!, label: chipLabel }];
   }, [searchChips, shouldPrePopulate, field, defaultValue, label]);
+
+  // If the URL has the opt-out flag set but also has explicit chips for this field,
+  // the two are contradictory. The explicit chips win — clear the opt-out so downstream
+  // consumers (e.g. showAllUsers) don't ignore the manual filter.
+  useEffect(() => {
+    if (optOut && hasDefaultInUrl) void setOptOut(false);
+  }, [optOut, hasDefaultInUrl, setOptOut]);
 
   useEffect(() => {
     if (!shouldPrePopulate) return;
@@ -91,5 +102,5 @@ export function useDefaultFilter({
     [effectiveChips, field, optOut, setOptOut, setSearchChips],
   );
 
-  return { effectiveChips, handleChipsChange, optOut };
+  return { effectiveChips, handleChipsChange, optOut: effectiveOptOut };
 }

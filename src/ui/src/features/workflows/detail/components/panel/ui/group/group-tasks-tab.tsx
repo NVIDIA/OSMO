@@ -41,10 +41,8 @@ import {
 import { createTaskColumns } from "@/features/workflows/detail/components/panel/core/lib/task-column-defs";
 import { filterByChips } from "@/components/filter-bar/lib/filter";
 import type { SearchChip } from "@/components/filter-bar/lib/types";
-import {
-  TASK_SEARCH_FIELDS,
-  TASK_PRESETS,
-} from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import { TASK_SEARCH_FIELDS } from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import { TASK_GROUP_STATUS_PRESETS } from "@/lib/task-group-status-presets";
 import { useTaskTableStore } from "@/features/workflows/detail/components/panel/core/stores/task-table-store";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
@@ -195,7 +193,7 @@ export const GroupTasksTab = memo(function GroupTasksTab({
           onSearchChipsChange={setSearchChips}
           defaultField="name"
           placeholder="Filter by name, status:, ip:, duration:..."
-          searchPresets={TASK_PRESETS}
+          searchPresets={TASK_GROUP_STATUS_PRESETS}
           resultsCount={resultsCount}
         />
       </div>

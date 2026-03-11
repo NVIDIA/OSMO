@@ -18,18 +18,11 @@ import type { SearchField } from "@/components/filter-bar/lib/types";
 import { WorkflowPriority } from "@/lib/api/generated";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
 import { ALL_WORKFLOW_STATUSES } from "@/lib/workflows/workflow-constants";
-import { STATUS_PRESETS, createPresetChips, type StatusPresetId } from "@/lib/workflows/workflow-status-presets";
 import { naturalCompare } from "@/lib/utils";
-export { STATUS_PRESETS, createPresetChips };
-export type { StatusPresetId };
 
-/**
- * Static workflow search fields. Async fields (user, pool) are provided
- * separately by useWorkflowAsyncFields(). Filtering is server-side;
- * no `match` functions are needed.
- */
-export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze([
-  {
+// Static fields keyed by id. Async fields (user, pool) provided by useWorkflowAsyncFields().
+export const WORKFLOW_FIELD: Readonly<Record<string, SearchField<WorkflowListEntry>>> = Object.freeze({
+  name: {
     id: "name",
     label: "Name",
     hint: "workflow name (substring match)",
@@ -38,7 +31,7 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     singular: true,
     getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
   },
-  {
+  status: {
     id: "status",
     label: "Status",
     hint: "workflow status",
@@ -47,7 +40,7 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     exhaustive: true,
     requiresValidValue: true,
   },
-  {
+  priority: {
     id: "priority",
     label: "Priority",
     hint: "HIGH, NORMAL, LOW",
@@ -56,7 +49,7 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     exhaustive: true,
     requiresValidValue: true,
   },
-  {
+  app: {
     id: "app",
     label: "App",
     hint: "app name",
@@ -66,7 +59,7 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     getValues: (workflows) =>
       [...new Set(workflows.map((w) => w.app_name).filter((a): a is string => !!a))].sort(naturalCompare),
   },
-  {
+  tag: {
     id: "tag",
     label: "Tag",
     hint: "workflow tag",
@@ -74,4 +67,8 @@ export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] =
     freeFormHint: "Type any tag, press Enter",
     getValues: () => [],
   },
-]);
+});
+
+export const WORKFLOW_STATIC_FIELDS: readonly SearchField<WorkflowListEntry>[] = Object.freeze(
+  Object.values(WORKFLOW_FIELD),
+);

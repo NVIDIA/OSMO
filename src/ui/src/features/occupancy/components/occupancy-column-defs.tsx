@@ -17,23 +17,28 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Layers, MoreHorizontal, Workflow } from "lucide-react";
 import { cn, formatCompact, formatBytes } from "@/lib/utils";
+import { Link } from "@/components/link";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
+import { useMounted } from "@/hooks/use-mounted";
+import type { SearchChip } from "@/stores/types";
 import type { OccupancyFlatRow, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 
-// =============================================================================
-// Constants
-// =============================================================================
+/** Occupancy chip fields that map directly to workflow filters.
+ * "status" is excluded — TaskGroupStatus is per-task-group, not per-workflow. */
+const CROSS_LINKABLE_FIELDS: ReadonlySet<string> = new Set(["pool", "user", "priority"]);
 
 const PRIORITY_COLOR: Record<"high" | "normal" | "low", string> = {
   high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
   normal: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   low: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
 };
-
-// =============================================================================
-// Helpers
-// =============================================================================
 
 function ResourceCell({ value }: { value: number }) {
   return <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">{formatCompact(value)}</span>;
@@ -64,16 +69,100 @@ function PriorityBadge({ value, colorClass }: { value: number; colorClass: strin
   );
 }
 
-// =============================================================================
-// Column Definitions
-// =============================================================================
+function buildWorkflowsUrl(row: OccupancyFlatRow, groupBy: OccupancyGroupBy, searchChips: SearchChip[]): string {
+  const params: string[] = [];
+  if (row._type === "parent") {
+    params.push(`f=${groupBy}:${encodeURIComponent(row.key)}`);
+  } else {
+    params.push(`f=${groupBy}:${encodeURIComponent(row.parentKey)}`);
+    const childDim = groupBy === "pool" ? "user" : "pool";
+    params.push(`f=${childDim}:${encodeURIComponent(row.key)}`);
+  }
+  // Child rows provide both pool+user; parent rows only provide their own dimension.
+  // Only exclude what the row already supplies so searchChip context isn't lost.
+  const rowFields = row._type === "child" ? new Set(["pool", "user"]) : new Set([groupBy]);
+  for (const chip of searchChips) {
+    if (CROSS_LINKABLE_FIELDS.has(chip.field) && !rowFields.has(chip.field))
+      params.push(`f=${chip.field}:${encodeURIComponent(chip.value)}`);
+  }
+  return `/workflows?${params.join("&")}&all=true`;
+}
 
-export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<OccupancyFlatRow>[] {
+function ParentRowActions({
+  original,
+  href,
+  groupBy,
+}: {
+  original: OccupancyFlatRow & { _type: "parent" };
+  href: string;
+  groupBy: OccupancyGroupBy;
+}) {
+  const mounted = useMounted();
+
+  if (!mounted) {
+    return (
+      <button
+        type="button"
+        className="shrink-0 rounded p-0.5 opacity-0"
+        disabled
+        aria-label="Row actions"
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+      </button>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        asChild
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className={cn(
+            "hover:bg-accent focus-visible:ring-ring shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover/occ-row:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none data-[state=open]:opacity-100",
+            original.isExpanded && "opacity-100",
+          )}
+          aria-label="Row actions"
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem asChild>
+          <Link
+            href={href}
+            className="flex items-center gap-2"
+          >
+            <Workflow className="h-4 w-4" />
+            View Workflows
+          </Link>
+        </DropdownMenuItem>
+        {groupBy === "pool" && (
+          <DropdownMenuItem asChild>
+            <Link
+              href={`/pools?all=true&view=${encodeURIComponent(original.key)}`}
+              className="flex items-center gap-2"
+            >
+              <Layers className="h-4 w-4" />
+              View Pool
+            </Link>
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function createOccupancyColumns(
+  groupBy: OccupancyGroupBy,
+  searchChips: SearchChip[],
+): ColumnDef<OccupancyFlatRow>[] {
   const keyLabel = groupBy === "user" ? "User" : "Pool";
   const countLabel = groupBy === "user" ? "Pools" : "Users";
 
   return [
-    // Expand/collapse chevron
     {
       id: "expand",
       enableSorting: false,
@@ -99,7 +188,6 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       },
     },
 
-    // Primary key (user or pool name)
     {
       id: "key",
       accessorFn: (row) => row.key,
@@ -107,21 +195,31 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       header: keyLabel,
       cell: ({ row }) => {
         const original = row.original;
-        const isChild = original._type === "child";
+        const href = buildWorkflowsUrl(original, groupBy, searchChips);
+        if (original._type === "child") {
+          return (
+            <Link
+              href={href}
+              className="hover:text-primary pl-2 text-sm text-zinc-600 underline decoration-zinc-400/50 underline-offset-2 transition-colors hover:decoration-current dark:text-zinc-400"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {original.key}
+            </Link>
+          );
+        }
         return (
-          <span
-            className={cn(
-              "block truncate font-medium",
-              isChild ? "pl-2 text-sm text-zinc-600 dark:text-zinc-400" : "text-zinc-900 dark:text-zinc-100",
-            )}
-          >
-            {original.key}
-          </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate font-medium text-zinc-900 dark:text-zinc-100">{original.key}</span>
+            <ParentRowActions
+              original={original}
+              href={href}
+              groupBy={groupBy}
+            />
+          </div>
         );
       },
     },
 
-    // Child count (parent rows only)
     {
       id: "count",
       enableSorting: false,
@@ -135,7 +233,6 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       },
     },
 
-    // GPU
     {
       id: "gpu",
       accessorFn: (row) => row.gpu,
@@ -143,8 +240,6 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       header: "GPU",
       cell: ({ row }) => <ResourceCell value={row.original.gpu} />,
     },
-
-    // CPU
     {
       id: "cpu",
       accessorFn: (row) => row.cpu,
@@ -152,8 +247,6 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       header: "CPU",
       cell: ({ row }) => <ResourceCell value={row.original.cpu} />,
     },
-
-    // Memory (GiB)
     {
       id: "memory",
       accessorFn: (row) => row.memory,
@@ -161,8 +254,6 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       header: "Memory",
       cell: ({ row }) => <BytesCell value={row.original.memory} />,
     },
-
-    // Storage (GiB)
     {
       id: "storage",
       accessorFn: (row) => row.storage,
@@ -171,43 +262,16 @@ export function createOccupancyColumns(groupBy: OccupancyGroupBy): ColumnDef<Occ
       cell: ({ row }) => <BytesCell value={row.original.storage} />,
     },
 
-    // High priority count
-    {
-      id: "high",
+    ...(["high", "normal", "low"] as const).map((p) => ({
+      id: p,
       enableSorting: false,
-      header: "High",
-      cell: ({ row }) => (
+      header: `${p[0].toUpperCase()}${p.slice(1)}`,
+      cell: ({ row }: { row: { original: OccupancyFlatRow } }) => (
         <PriorityBadge
-          value={row.original.high}
-          colorClass={PRIORITY_COLOR.high}
+          value={row.original[p]}
+          colorClass={PRIORITY_COLOR[p]}
         />
       ),
-    },
-
-    // Normal priority count
-    {
-      id: "normal",
-      enableSorting: false,
-      header: "Normal",
-      cell: ({ row }) => (
-        <PriorityBadge
-          value={row.original.normal}
-          colorClass={PRIORITY_COLOR.normal}
-        />
-      ),
-    },
-
-    // Low priority count
-    {
-      id: "low",
-      enableSorting: false,
-      header: "Low",
-      cell: ({ row }) => (
-        <PriorityBadge
-          value={row.original.low}
-          colorClass={PRIORITY_COLOR.low}
-        />
-      ),
-    },
+    })),
   ];
 }

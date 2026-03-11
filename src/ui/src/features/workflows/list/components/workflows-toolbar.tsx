@@ -21,16 +21,14 @@ import { User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount, SearchField } from "@/components/filter-bar/lib/types";
+import { presetPillClasses } from "@/components/filter-bar/lib/preset-pill";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { useWorkflowsTableStore } from "@/features/workflows/list/stores/workflows-table-store";
 import { OPTIONAL_COLUMNS } from "@/features/workflows/list/lib/workflow-columns";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
-import {
-  WORKFLOW_STATIC_FIELDS,
-  createPresetChips,
-  type StatusPresetId,
-} from "@/features/workflows/list/lib/workflow-search-fields";
+import { WORKFLOW_FIELD } from "@/features/workflows/list/lib/workflow-search-fields";
+import { createPresetChips, type StatusPresetId } from "@/lib/workflows/workflow-status-presets";
 import { STATUS_STYLES } from "@/lib/workflows/workflow-constants";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { useWorkflowAsyncFields } from "@/features/workflows/list/hooks/use-workflow-async-fields";
@@ -41,16 +39,6 @@ const STATUS_PRESET_CONFIG: { id: StatusPresetId; label: string }[] = [
   { id: "completed", label: "Completed" },
   { id: "failed", label: "Failed" },
 ];
-
-function presetPillClasses(bgClass: string, active: boolean): string {
-  return cn(
-    "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
-    bgClass,
-    active && "ring-2 ring-black/15 ring-inset dark:ring-white/20",
-    "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
-    !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
-  );
-}
 
 export interface WorkflowsToolbarProps {
   workflows: WorkflowListEntry[];
@@ -76,13 +64,13 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
 
   const searchFields = useMemo(
     (): readonly SearchField<WorkflowListEntry>[] => [
-      WORKFLOW_STATIC_FIELDS[0], // name
-      WORKFLOW_STATIC_FIELDS[1], // status
-      userField, // async - complete user list
-      poolField, // async - complete pool list
-      WORKFLOW_STATIC_FIELDS[2], // priority
-      WORKFLOW_STATIC_FIELDS[3], // app
-      WORKFLOW_STATIC_FIELDS[4], // tag
+      WORKFLOW_FIELD.name,
+      WORKFLOW_FIELD.status,
+      userField,
+      poolField,
+      WORKFLOW_FIELD.priority,
+      WORKFLOW_FIELD.app,
+      WORKFLOW_FIELD.tag,
     ],
     [userField, poolField],
   );

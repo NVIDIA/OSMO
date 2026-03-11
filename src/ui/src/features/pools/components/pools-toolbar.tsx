@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
 import type { SearchPreset, PresetRenderProps, ResultsCount } from "@/components/filter-bar/lib/types";
+import { presetPillClasses } from "@/components/filter-bar/lib/preset-pill";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
@@ -29,7 +30,6 @@ import { OPTIONAL_COLUMNS } from "@/features/pools/lib/pool-columns";
 import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
 import { STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
 
-/** Status icons matching the table column badges */
 const STATUS_ICONS = {
   online: CheckCircle2,
   maintenance: Wrench,
@@ -41,28 +41,15 @@ export interface PoolsToolbarProps {
   sharingGroups?: string[][];
   searchChips: SearchChip[];
   onSearchChipsChange: (chips: SearchChip[]) => void;
-  /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
-  /** Optional auto-refresh controls (if not provided, no refresh button shown) */
   autoRefreshProps?: RefreshControlProps;
 }
 
-/** Status preset configurations */
 const STATUS_PRESET_CONFIG: { id: StatusCategory; label: string }[] = [
   { id: "online", label: "Online" },
   { id: "maintenance", label: "Maintenance" },
   { id: "offline", label: "Offline" },
 ];
-
-function presetPillClasses(colorClasses: string, active: boolean): string {
-  return cn(
-    "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
-    colorClasses,
-    active && "ring-2 ring-white/40 ring-inset dark:ring-white/20",
-    "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
-    !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
-  );
-}
 
 export const PoolsToolbar = memo(function PoolsToolbar({
   pools,
@@ -75,10 +62,8 @@ export const PoolsToolbar = memo(function PoolsToolbar({
   const visibleColumnIds = usePoolsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = usePoolsTableStore((s) => s.toggleColumn);
 
-  // Create search fields with sharing context
   const searchFields = useMemo(() => createPoolSearchFields(sharingGroups), [sharingGroups]);
 
-  // Create status presets for quick filtering with custom badge rendering
   const statusPresets = useMemo(
     (): SearchPreset[] =>
       STATUS_PRESET_CONFIG.map(({ id, label }) => {
@@ -88,9 +73,8 @@ export const PoolsToolbar = memo(function PoolsToolbar({
         return {
           id,
           chips: [{ field: "status", value: id, label: `status: ${label}` }],
-          // Custom render matching the table's status badge exactly
           render: ({ active }: PresetRenderProps) => (
-            <span className={presetPillClasses(styles.bg, active)}>
+            <span className={presetPillClasses(styles.bg, active, "ring-white/40 ring-inset dark:ring-white/20")}>
               <Icon className={cn("size-3.5", styles.icon)} />
               <span className={cn("text-xs font-semibold", styles.text)}>{label}</span>
             </span>
@@ -114,7 +98,13 @@ export const PoolsToolbar = memo(function PoolsToolbar({
         return [...nonScopeChips, { field: "scope", value: "user", label: "My Pools" }];
       },
       render: ({ active }: PresetRenderProps) => (
-        <span className={presetPillClasses("bg-amber-50 dark:bg-amber-500/20", active)}>
+        <span
+          className={presetPillClasses(
+            "bg-amber-50 dark:bg-amber-500/20",
+            active,
+            "ring-white/40 ring-inset dark:ring-white/20",
+          )}
+        >
           <User className="size-3.5 text-amber-600 dark:text-amber-400" />
           <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">My Pools</span>
         </span>
