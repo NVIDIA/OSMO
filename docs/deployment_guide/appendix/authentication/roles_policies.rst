@@ -481,7 +481,7 @@ Pool Access Issues
 --------------------
 
 1. **Check role policies**: Ensure the role has a policy allowing ``workflow:Create`` scoped to the target pool (e.g., ``resources: ["pool/my-pool"]``)
-2. **Check role assignment**: Ensure the user has the role in OSMO (via ``osmo user roles list <user_id>`` or IdP role mapping)
+2. **Check role assignment**: Ensure the user has the role in OSMO (via ``osmo user get <user_id>`` or IdP role mapping)
 3. **Review resource scope**: Verify the policy's ``resources`` field matches the pool name (e.g., ``pool/my-pool`` or ``pool/*``)
 
 .. _actions_resources_reference:
