@@ -855,7 +855,8 @@ class UpdateGroup(WorkflowJob):
 
         workflow_config = context.postgres.get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(
+            context.postgres, self.workflow_id, fetch_groups=False)
         total_timeout = task_common.calculate_total_timeout(
             workflow_obj.workflow_id,
             workflow_obj.timeout.queue_timeout, workflow_obj.timeout.exec_timeout)
