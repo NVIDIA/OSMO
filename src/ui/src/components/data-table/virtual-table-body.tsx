@@ -116,6 +116,10 @@ function VirtualTableBodyInner<TData, TSectionMeta = unknown>({
     (e: React.MouseEvent<HTMLTableSectionElement>) => {
       if (!onRowClick && !getRowHref) return;
 
+      // If the user dragged to select text, don't trigger navigation.
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) return;
+
       // Skip the second click of a multi-click sequence when dblclick is handled,
       // otherwise two competing startViewTransition calls cause the dblclick's
       // router.push to never execute.
