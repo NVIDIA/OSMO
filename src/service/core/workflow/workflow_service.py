@@ -26,7 +26,7 @@ import http
 import json
 import logging
 import re
-from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
+from typing import Any, AsyncGenerator, Dict, Generator, Iterable, List, Optional
 import urllib.parse
 import yaml
 
@@ -49,11 +49,11 @@ router_pool = fastapi.APIRouter(tags = ['Pool API'])
 
 FETCH_TASK_LIMIT = 1000
 
-"""
-Regex to match secrets in the spec. While this is not a perfect solution, it solves the majority of cases.
-Regex from: https://lookingatcomputer.substack.com/p/regex-is-almost-all-you-need
-Proper secret management; https://nvidia.github.io/OSMO/main/user_guide/getting_started/credentials.html
-"""
+# Regex to match secrets in the spec. While this is not a perfect solution, it solves the majority
+# of cases.
+# Regex from: https://lookingatcomputer.substack.com/p/regex-is-almost-all-you-need
+# Proper secret management:
+# https://nvidia.github.io/OSMO/main/user_guide/getting_started/credentials.html
 SECRET_REDACTION_RE = re.compile(
     r'''(?i)[\w.-]{0,50}?(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passw(?:or)?d|secret|token)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([\w.=-]{10,150}|[a-z0-9][a-z0-9+/]{11,}={0,3})(?:[\x60'"\s;]|\\[nr]|$)'''  # pylint: disable=line-too-long
 )
@@ -63,10 +63,10 @@ SECRET_REDACTION_RE = re.compile(
 _BASE64_FRAGMENT_RE = re.compile(r'(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{16,}={0,2}(?![A-Za-z0-9+/=])')
 
 
-def redact_secrets(lines: storage.LinesStream) -> Generator[str, None, None]:
+def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
     """ Yield lines with secrets in the spec redacted. """
     def redact_value(secret: str) -> str:
-        """ Replace a secret with **redacted**, padded with '*' on each end to match original length. """
+        """ Replace a secret with **redacted**, padded with '*' to match original length. """
         replacement = '**redacted**'
         padding = max(0, len(secret) - len(replacement))
         left = padding // 2
@@ -83,7 +83,7 @@ def redact_secrets(lines: storage.LinesStream) -> Generator[str, None, None]:
             try:
                 padded = fragment + '=' * (-len(fragment) % 4)
                 decoded = base64.b64decode(padded, validate=True).decode('utf-8')
-            except Exception:
+            except (ValueError, UnicodeDecodeError):
                 return fragment
             redacted = SECRET_REDACTION_RE.sub(
                 lambda sm: sm.group(0).replace(sm.group(1), redact_value(sm.group(1))),
