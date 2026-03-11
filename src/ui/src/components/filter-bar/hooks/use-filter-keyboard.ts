@@ -493,12 +493,7 @@ function buildValueCycleItems<T>(selectables: Suggestion<T>[]): CycleItem<T>[] {
       value: s.value,
       // Date-range presets: keep input at just the prefix so the picker stays open
       // and shows all presets; the highlighted preset is indicated via the picker's UI.
-      inputValue:
-        s.field && isDateRangeField(s.field)
-          ? (s.field.prefix ?? "")
-          : s.field.prefix
-            ? `${s.field.prefix}${s.value}`
-            : s.value,
+      inputValue: isDateRangeField(s.field) ? s.field.prefix : s.field.prefix ? `${s.field.prefix}${s.value}` : s.value,
       suggestion: s,
     }));
 }

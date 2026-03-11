@@ -30,6 +30,7 @@
 import { useState, useCallback, useMemo, memo, useRef, useEffect } from "react";
 import { DATE_RANGE_PRESETS } from "@/lib/date-range-utils";
 import { DATE_CUSTOM_FROM, DATE_CUSTOM_TO, DATE_CUSTOM_APPLY } from "@/components/filter-bar/lib/types";
+import { MONTHS_SHORT } from "@/lib/format-date";
 
 interface FilterBarDatePickerProps {
   /** Called when a date or range is committed. Value is preset label, ISO date, or ISO range. */
@@ -39,8 +40,6 @@ interface FilterBarDatePickerProps {
   /** Called when Tab/Shift-Tab should wrap the cycle (e.g. Tab past Apply, Shift-Tab on From). */
   onCycleStep?: (direction: "forward" | "backward", fromValue: string) => void;
 }
-
-const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 /** Format a UTC YYYY-MM-DD string as "Mar 4" or "Mar 4 '25" (if year differs from currentYear). */
 function fmtUtcDate(isoDate: string, currentYear: number): string {
@@ -70,7 +69,6 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
 }: FilterBarDatePickerProps) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [activePreset, setActivePreset] = useState<string | null>(null);
 
   const fromRef = useRef<HTMLInputElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
@@ -97,41 +95,28 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
     [currentYear],
   );
 
-  const handlePreset = useCallback(
-    (label: string) => {
-      setActivePreset(label);
-      onCommit(label);
-    },
-    [onCommit],
-  );
+  // toDate must be strictly after fromDate (same minute = zero-second window after +1min adjustment)
+  const rangeError = !!fromDate && !!toDate && toDate <= fromDate;
 
   const handleApply = useCallback(() => {
-    if (!fromDate) return;
-    setActivePreset(null);
+    if (!fromDate || rangeError) return;
     if (toDate) {
       onCommit(`${fromDate}..${toDate}`);
     } else {
       onCommit(fromDate);
     }
-  }, [fromDate, toDate, onCommit]);
+  }, [fromDate, toDate, rangeError, onCommit]);
 
   const handleFromChange = useCallback((value: string) => {
     setFromDate(value);
-    setActivePreset(null);
-    // Clear "to" if it's now before "from"
-    setToDate((prev) => (prev && prev < value ? "" : prev));
+    // Clear "to" if it's now at or before "from" (equal = invalid range after +1min adjustment)
+    setToDate((prev) => (prev && prev <= value ? "" : prev));
   }, []);
-
-  const handleToChange = useCallback((value: string) => {
-    setToDate(value);
-    setActivePreset(null);
-  }, []);
-
-  const canApply = !!fromDate;
 
   return (
     <div
       className="fb-date-picker"
+      role="none"
       onKeyDown={(e) => e.stopPropagation()}
     >
       <div className="fb-date-split">
@@ -144,8 +129,8 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
               type="button"
               tabIndex={-1}
               className="fb-date-preset-row"
-              data-active={activePreset === preset.label || highlightedLabel === preset.label ? "" : undefined}
-              onClick={() => handlePreset(preset.label)}
+              data-active={highlightedLabel === preset.label ? "" : undefined}
+              onClick={() => onCommit(preset.label)}
             >
               <span className="fb-date-preset-label">{preset.label}</span>
               <span className="fb-date-preset-hint">{presetHints[preset.label]}</span>
@@ -185,17 +170,28 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
               id="fb-date-to"
               type="datetime-local"
               value={toDate}
-              onChange={(e) => handleToChange(e.target.value)}
+              onChange={(e) => setToDate(e.target.value)}
               min={fromDate || undefined}
               className="fb-date-input"
-              aria-label="To date"
+              data-error={rangeError ? "" : undefined}
+              aria-invalid={rangeError}
+              aria-describedby={rangeError ? "fb-date-range-error" : undefined}
             />
+            {rangeError && (
+              <span
+                id="fb-date-range-error"
+                className="fb-date-error"
+                role="alert"
+              >
+                &ldquo;To&rdquo; must be after &ldquo;From&rdquo;
+              </span>
+            )}
           </div>
           <button
             ref={applyRef}
             type="button"
             onClick={handleApply}
-            disabled={!canApply}
+            disabled={!fromDate || rangeError}
             onKeyDown={(e) => {
               if (e.key === "Tab" && !e.shiftKey) {
                 e.preventDefault();

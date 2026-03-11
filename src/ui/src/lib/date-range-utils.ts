@@ -111,8 +111,9 @@ export function parseDateRangeValue(value: string): { start: Date; end: Date } |
       end.setUTCDate(end.getUTCDate() + 1); // advance to next midnight
       return { start: singleDate, end };
     }
-    // Datetime ("YYYY-MM-DDTHH:mm"): use the exact moment as both bounds
-    return { start: singleDate, end: singleDate };
+    // Datetime ("YYYY-MM-DDTHH:mm"): treat as the full minute.
+    // Advance end by 1 minute so submitted_before captures any event at HH:mm:ss.
+    return { start: singleDate, end: new Date(singleDate.getTime() + 60_000) };
   }
 
   // Backward compat: check preset labels (e.g., "last 7 days")

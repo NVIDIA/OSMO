@@ -40,6 +40,10 @@
 
   /* Dropdown max height */
   --fb-dropdown-max-height: 380px;
+
+  /* Date picker column sizing */
+  --fb-date-right-min: 185px;
+  --fb-date-left-max: 270px;
 }
 
 /* Dark mode blue accents */
@@ -387,11 +391,6 @@
     14px + 100px + 16px + 130px    = 260px
   Container query hides hints at rail < 260px so they are always fully shown or fully hidden.
 */
-:root {
-  --fb-date-right-min: 185px;
-  --fb-date-left-max: 270px;
-}
-
 .fb-date-split {
   display: grid;
   grid-template-columns: minmax(0, var(--fb-date-left-max)) minmax(var(--fb-date-right-min), 1fr);
@@ -531,6 +530,17 @@
   outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 1px var(--ring);
+}
+
+.fb-date-input[data-error] {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 1px var(--destructive);
+}
+
+.fb-date-error {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--destructive);
 }
 
 .fb-date-input::-webkit-calendar-picker-indicator {

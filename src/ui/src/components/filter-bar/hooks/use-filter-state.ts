@@ -345,7 +345,7 @@ export function useFilterState<T>({
   const activeDateRangeField = useMemo((): DateRangeSearchField<T> | null => {
     if (navigationLevel === "field") return null;
     if (parsedInput.hasPrefix && parsedInput.field && isDateRangeField(parsedInput.field)) {
-      return parsedInput.field as DateRangeSearchField<T>;
+      return parsedInput.field;
     }
     return null;
   }, [parsedInput, navigationLevel]);
