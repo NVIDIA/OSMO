@@ -22,15 +22,18 @@ import type { SearchChip } from "@/stores/types";
 import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
 
 /**
- * Adds a default filter chip when no chip for `field` is present in the URL,
+ * Adds default filter chip(s) when no chip for `field` is present in the URL,
  * unless the user has explicitly opted out via `?{optOutParam}=true`.
+ *
+ * Accepts a single `defaultValue` string or an array of strings (for multi-chip defaults
+ * like defaulting to all running-category statuses).
  *
  * - effectiveChips is computed synchronously so the first render uses correct params (no double-fetch).
  * - The chip is NOT written to the URL on mount — only when the user interacts with the filter bar.
  *   Writing it on mount caused a race with nuqs: the effect fired before nuqs had fully parsed all
  *   repeated `f=` URL params, so it overwrote the URL with a partial chip set (losing all but the first).
  * - Removing all chips for `field` sets ?{optOutParam}=true; adding one clears it.
- * - After nuqs has parsed the URL (post-paint), an effect writes the default chip to the URL
+ * - After nuqs has parsed the URL (post-paint), an effect writes the default chip(s) to the URL
  *   using history:"replace" so that refresh/share reflects the active filter.
  */
 export function useDefaultFilter({
@@ -40,7 +43,7 @@ export function useDefaultFilter({
   optOutParam = "all",
 }: {
   field: string;
-  defaultValue: string | null | undefined;
+  defaultValue: string | string[] | null | undefined;
   label?: string;
   optOutParam?: string;
 }): {
@@ -49,6 +52,11 @@ export function useDefaultFilter({
   optOut: boolean;
 } {
   const { searchChips, setSearchChips } = useUrlChips();
+
+  const normalizedDefaults = useMemo(
+    () => (defaultValue == null ? [] : Array.isArray(defaultValue) ? defaultValue : [defaultValue]),
+    [defaultValue],
+  );
 
   const [optOut, setOptOut] = useQueryState(
     optOutParam,
@@ -65,13 +73,17 @@ export function useDefaultFilter({
   // Compute this synchronously so callers never see a transient contradictory state.
   const effectiveOptOut = optOut && !hasDefaultInUrl;
 
-  const shouldPrePopulate = !optOut && !hasDefaultInUrl && !!defaultValue;
+  const shouldPrePopulate = !optOut && !hasDefaultInUrl && normalizedDefaults.length > 0;
 
   const effectiveChips = useMemo((): SearchChip[] => {
     if (!shouldPrePopulate) return searchChips;
-    const chipLabel = label ?? `${field}: ${defaultValue}`;
-    return [...searchChips, { field, value: defaultValue!, label: chipLabel }];
-  }, [searchChips, shouldPrePopulate, field, defaultValue, label]);
+    const defaults: SearchChip[] = normalizedDefaults.map((v) => ({
+      field,
+      value: v,
+      label: label ?? `${field}: ${v}`,
+    }));
+    return [...searchChips, ...defaults];
+  }, [searchChips, shouldPrePopulate, field, normalizedDefaults, label]);
 
   // If the URL has the opt-out flag set but also has explicit chips for this field,
   // the two are contradictory. The explicit chips win — clear the opt-out so downstream
@@ -82,10 +94,13 @@ export function useDefaultFilter({
 
   useEffect(() => {
     if (!shouldPrePopulate) return;
-    const chipLabel = label ?? `${field}: ${defaultValue}`;
-    const defaultChip: SearchChip = { field, value: defaultValue!, label: chipLabel };
-    void setSearchChips([...searchChips, defaultChip], { history: "replace" });
-  }, [shouldPrePopulate, searchChips, field, defaultValue, label, setSearchChips]);
+    const defaults: SearchChip[] = normalizedDefaults.map((v) => ({
+      field,
+      value: v,
+      label: label ?? `${field}: ${v}`,
+    }));
+    void setSearchChips([...searchChips, ...defaults], { history: "replace" });
+  }, [shouldPrePopulate, searchChips, field, normalizedDefaults, label, setSearchChips]);
 
   const handleChipsChange = useCallback(
     (newChips: SearchChip[]) => {

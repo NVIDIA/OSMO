@@ -18,11 +18,11 @@
 
 import { useMemo, useCallback, useState } from "react";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
-import { TaskGroupStatus } from "@/lib/api/generated";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
 import { useDefaultFilter } from "@/components/filter-bar/hooks/use-default-filter";
+import { TASK_STATE_CATEGORIES } from "@/lib/task-group-status-presets";
 import { OccupancyToolbar } from "@/features/occupancy/components/occupancy-toolbar";
 import { OccupancySummary } from "@/features/occupancy/components/occupancy-summary";
 import { OccupancyDataTable } from "@/features/occupancy/components/occupancy-data-table";
@@ -43,7 +43,7 @@ export function OccupancyPageContent() {
 
   const { effectiveChips: searchChips, handleChipsChange: setSearchChips } = useDefaultFilter({
     field: "status",
-    defaultValue: TaskGroupStatus.RUNNING,
+    defaultValue: TASK_STATE_CATEGORIES.running,
   });
 
   const sortState = useOccupancyTableStore((s) => s.sort);
