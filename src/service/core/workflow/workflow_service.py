@@ -48,6 +48,28 @@ router_pool = fastapi.APIRouter(tags = ['Pool API'])
 
 FETCH_TASK_LIMIT = 1000
 
+"""
+Regex to match secrets in the spec. While this is not a perfect solution, it solves the majority of cases.
+Regex from: https://lookingatcomputer.substack.com/p/regex-is-almost-all-you-need
+Proper secret management; https://nvidia.github.io/OSMO/main/user_guide/getting_started/credentials.html
+"""
+SECRET_REDACTION_RE = re.compile(
+    r'''(?i)[\w.-]{0,50}?(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passw(?:or)?d|secret|token)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([\w.=-]{10,150}|[a-z0-9][a-z0-9+/]{11,}={0,3})(?:[\x60'"\s;]|\\[nr]|$)'''  # pylint: disable=line-too-long
+)
+
+def redact_secrets(lines: storage.LinesStream) -> Generator[str, None, None]:
+    """ Yield lines with secrets in the spec redacted. """
+    def redact_value(secret: str) -> str:
+        """ Replace a secret with **redacted**, padded with '*' on each end to match original length. """
+        replacement = '**redacted**'
+        padding = max(0, len(secret) - len(replacement))
+        left = padding // 2
+        right = padding - left
+        return '*' * left + replacement + '*' * right
+    for line in lines:
+        yield SECRET_REDACTION_RE.sub(
+            lambda m: m.group(0).replace(m.group(1), redact_value(m.group(1))), line)
+
 
 class ActionType(enum.Enum):
     EXEC = 'exec'
@@ -881,7 +903,8 @@ def download_workflow_spec(workflow_id: str, use_template: bool = False):
 @router.get('/api/workflow/{name}/spec', response_class=fastapi.responses.PlainTextResponse)
 def get_workflow_spec(name: str, use_template: bool = False) -> Any:
     """ Returns the workflow spec. """
-    return fastapi.responses.StreamingResponse(download_workflow_spec(name, use_template))
+    return fastapi.responses.StreamingResponse(
+        redact_secrets(download_workflow_spec(name, use_template)))
 
 
 @router.post('/api/workflow/{name}/tag')
