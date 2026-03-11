@@ -58,18 +58,12 @@ class TestRedactSecretsPlaintext(unittest.TestCase):
     def test_redacts_aws_access_key_id(self):
         redacted = _redact(_SPEC_WITH_SECRETS)
         self.assertNotIn(_AWS_ACCESS_KEY, redacted)
-        self.assertIn('**redacted**', redacted)
+        self.assertIn('[MASKED]', redacted)
 
     def test_redacts_aws_secret_access_key(self):
         redacted = _redact(_SPEC_WITH_SECRETS)
         self.assertNotIn(_AWS_SECRET_KEY, redacted)
-        self.assertIn('**redacted**', redacted)
-
-    def test_redacted_value_pads_to_original_length(self):
-        # _AWS_ACCESS_KEY is 20 chars; '**redacted**' is 12 chars → 8 padding chars split
-        # evenly (4 per side), giving '****' + '**redacted**' + '****' = 20 chars total.
-        redacted = _redact(_SPEC_WITH_SECRETS)
-        self.assertIn('*' * 4 + '**redacted**' + '*' * 4, redacted)
+        self.assertIn('[MASKED]', redacted)
 
     def test_preserves_non_secret_content(self):
         redacted = _redact(_SPEC_WITH_SECRETS)
@@ -88,7 +82,7 @@ class TestRedactSecretsBase64(unittest.TestCase):
         redacted = _redact(spec)
 
         self.assertNotIn(encoded, redacted)
-        self.assertIn('**redacted**', redacted)
+        self.assertIn('[MASKED]', redacted)
 
     def test_leaves_safe_base64_untouched(self):
         safe_text = 'this is completely safe content with no credentials at all'

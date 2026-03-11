@@ -65,18 +65,10 @@ _BASE64_FRAGMENT_RE = re.compile(r'(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{16,}={0,2}(?!
 
 def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
     """ Yield lines with secrets in the spec redacted. """
-    def redact_value(secret: str) -> str:
-        """ Replace a secret with **redacted**, padded with '*' to match original length. """
-        replacement = '**redacted**'
-        padding = max(0, len(secret) - len(replacement))
-        left = padding // 2
-        right = padding - left
-        return '*' * left + replacement + '*' * right
-
     def redact_base64_fragments(line: str) -> str:
         """
         Find base64-encoded fragments in a line, decode them, redact any secrets found inside,
-        and re-encode the redacted content back to base64.
+        and replace the whole fragment with [MASKED].
         """
         def replace_if_secrets(m: re.Match) -> str:
             fragment = m.group(0)
@@ -86,18 +78,18 @@ def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
             except (ValueError, UnicodeDecodeError):
                 return fragment
             redacted = SECRET_REDACTION_RE.sub(
-                lambda sm: sm.group(0).replace(sm.group(1), redact_value(sm.group(1))),
+                lambda sm: sm.group(0).replace(sm.group(1), '[MASKED]'),
                 decoded,
             )
             if redacted == decoded:
                 return fragment
-            return redact_value(fragment)
+            return '[MASKED]'
         return _BASE64_FRAGMENT_RE.sub(replace_if_secrets, line)
 
     for line in lines:
         line = redact_base64_fragments(line)
         yield SECRET_REDACTION_RE.sub(
-            lambda m: m.group(0).replace(m.group(1), redact_value(m.group(1))), line)
+            lambda m: m.group(0).replace(m.group(1), '[MASKED]'), line)
 
 
 class ActionType(enum.Enum):
@@ -933,8 +925,9 @@ def download_workflow_spec(workflow_id: str, use_template: bool = False):
 def get_workflow_spec(name: str, use_template: bool = False) -> Any:
     """ Returns the workflow spec. """
     return fastapi.responses.StreamingResponse(
-        redact_secrets(download_workflow_spec(name, use_template)))
-
+        redact_secrets(download_workflow_spec(name, use_template)),
+        media_type='application/yaml'
+    )
 
 @router.post('/api/workflow/{name}/tag')
 def tag_workflow(name: str,
