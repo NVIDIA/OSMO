@@ -30,7 +30,7 @@ These principles guard against how Claude tends to reason incorrectly about code
 
 When two things are inconsistent, identify which is *correct* and fix the other. Do not flatten both to a common (often weaker) state to create false consistency.
 
-```
+```text
 ❌ A strips time from a datetime-local input → downgrade input to type="date" for "consistency"
 ✅ A strips time from a datetime-local input → remove the stripping; the datetime was correct
 ```
@@ -52,7 +52,7 @@ If the rationale for a change involves "simpler" at the cost of capability, stop
 
 Before using a fact to justify a change, ask: *"Does this same evidence equally support the opposite conclusion?"*
 
-```
+```text
 Fact: backend accepts datetime.datetime
 → Wrong: "date-only strings work too, so use type='date'"
 → Right: "the backend supports full precision — use datetime-local and pass full timestamps"
@@ -97,7 +97,7 @@ pnpm generate-api           # Regenerate from backend OpenAPI spec
 
 ## Architecture: The Critical Layer Pattern
 
-```
+```text
 Page → Headless Hook → Adapter Hook → Generated API → Backend
             ↓
      Themed Components

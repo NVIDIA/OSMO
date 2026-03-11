@@ -153,8 +153,9 @@ function parseIsoRangeString(value: string): { start: Date; end: Date } | null {
 
 /**
  * Parse a date or datetime string to a Date, or null if invalid.
- * - "YYYY-MM-DD" → UTC midnight
- * - "YYYY-MM-DDTHH:mm" → local time (datetime-local input format)
+ * Both branches produce UTC dates so server and client agree (no hydration mismatch).
+ * - "YYYY-MM-DD"      → UTC midnight
+ * - "YYYY-MM-DDTHH:mm" → UTC at the given hour/minute
  */
 function parseIsoDate(str: string): Date | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
@@ -162,7 +163,7 @@ function parseIsoDate(str: string): Date | null {
     return isNaN(d.getTime()) ? null : d;
   }
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(str)) {
-    const d = new Date(str); // interpreted as local time by the browser
+    const d = new Date(str + ":00.000Z");
     return isNaN(d.getTime()) ? null : d;
   }
   return null;

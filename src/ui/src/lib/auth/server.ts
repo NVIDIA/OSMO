@@ -38,8 +38,6 @@ import {
 import { hasAdminRole } from "@/lib/auth/roles";
 import type { User } from "@/lib/auth/user-context";
 
-export { hasServerAdminRole } from "@/lib/auth/server.production";
-
 export async function getServerUserRoles(): Promise<string[]> {
   const roles = await prodGetServerUserRoles();
   if (roles.length > 0) return roles;
@@ -47,6 +45,10 @@ export async function getServerUserRoles(): Promise<string[]> {
     .split(/[,\s]+/)
     .map((r) => r.trim())
     .filter(Boolean);
+}
+
+export async function hasServerAdminRole(): Promise<boolean> {
+  return hasAdminRole(await getServerUserRoles());
 }
 
 export async function getServerUsername(): Promise<string | null> {
