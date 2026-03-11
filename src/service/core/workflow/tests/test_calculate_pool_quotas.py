@@ -454,6 +454,31 @@ class TestCalculatePoolQuotas(unittest.TestCase):
         self.assertEqual(usage.total_free, '0')
         self.assertEqual(usage.quota_limit, '0')
 
+    def test_multiple_pools_with_no_resources_same_backend(self):
+        """Multiple pools on the same backend with no nodes should each appear
+        as their own entry in the response, not silently overwrite each other."""
+        pool_configs = {
+            'pool-a': make_pool_config('pool-a', 'k8s-1'),
+            'pool-b': make_pool_config('pool-b', 'k8s-1'),
+            'pool-c': make_pool_config('pool-c', 'k8s-1'),
+        }
+
+        response = calculate_pool_quotas(pool_configs, [], [])
+
+        # All three pools should be present in the response
+        pool_names = {
+            pool.name
+            for node_set in response.node_sets
+            for pool in node_set.pools
+        }
+        self.assertEqual(pool_names, {'pool-a', 'pool-b', 'pool-c'})
+
+        for pool_name in ('pool-a', 'pool-b', 'pool-c'):
+            usage = get_pool_usage(response, pool_name)
+            self.assertEqual(usage.total_capacity, '0')
+            self.assertEqual(usage.total_free, '0')
+            self.assertEqual(usage.quota_limit, '0')
+
     def test_no_tasks(self):
         """No running tasks should show zero usage."""
         pool_configs = {'pool-a': make_pool_config('pool-a', 'k8s-1')}

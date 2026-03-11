@@ -253,7 +253,11 @@ def calculate_pool_quotas(
         merged_nodes: frozenset[str] = frozenset().union(
             *(node_sets[pool].nodes for pool in component_pools)
         )
-        pools_by_nodeset[NodeSet(start_nodeset.backend, merged_nodes)] = component_pools
+        nodeset_key = NodeSet(start_nodeset.backend, merged_nodes)
+        if nodeset_key in pools_by_nodeset:
+            pools_by_nodeset[nodeset_key].extend(component_pools)
+        else:
+            pools_by_nodeset[nodeset_key] = component_pools
 
     gpu_usage_by_nodeset = {
         nodeset: sum((node_gpu_usage.get(node, NodeGpuUsage()) for node in nodeset.nodes),
