@@ -34,8 +34,9 @@ const parseAsChipStrings = createMultiParser({
   serialize: (values: readonly string[]) => Array.from(values),
   eq: (a: string[], b: string[]) => {
     if (a.length !== b.length) return false;
-    const setA = new Set(a);
-    return b.every((v) => setA.has(v));
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((v, i) => v === sortedB[i]);
   },
 });
 

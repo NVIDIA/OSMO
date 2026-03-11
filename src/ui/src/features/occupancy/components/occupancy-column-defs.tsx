@@ -105,7 +105,7 @@ function ParentRowActions({
         type="button"
         className="shrink-0 rounded p-0.5 opacity-0"
         disabled
-        aria-label="Row actions"
+        aria-label={`Row actions ${original.key}`}
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
       </button>
@@ -124,7 +124,7 @@ function ParentRowActions({
             "hover:bg-accent focus-visible:ring-ring shrink-0 rounded p-0.5 opacity-0 transition-opacity group-hover/occ-row:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:outline-none data-[state=open]:opacity-100",
             original.isExpanded && "opacity-100",
           )}
-          aria-label="Row actions"
+          aria-label={`Row actions ${original.key}`}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />
         </button>
