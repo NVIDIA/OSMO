@@ -306,12 +306,14 @@ create_image_pull_secrets() {
     fi
 
     for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE" "$OSMO_WORKFLOWS_NAMESPACE"; do
-        kubectl create secret docker-registry "$NGC_SECRET_NAME" \
+        local secret_yaml
+        secret_yaml=$(kubectl create secret docker-registry "$NGC_SECRET_NAME" \
             --docker-server=nvcr.io \
             --docker-username='$oauthtoken' \
             --docker-password="$NGC_API_KEY" \
             --namespace "$namespace" \
-            --dry-run=client -o yaml | kubectl apply -f -
+            --dry-run=client -o yaml)
+        $RUN_KUBECTL_APPLY_STDIN "$secret_yaml"
         log_info "  Applied $NGC_SECRET_NAME in namespace $namespace"
     done
 
@@ -569,7 +571,7 @@ setup_backend_operator() {
     else
         # Port forward to OSMO service
         log_info "Starting port-forward to OSMO service..."
-        kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
+        $RUN_KUBECTL "port-forward service/osmo-service 9000:80 -n $OSMO_NAMESPACE" &
         local port_forward_pid=$!
         sleep 5
 
@@ -586,10 +588,12 @@ setup_backend_operator() {
                 -t json 2>/dev/null | jq -r '.token' || echo "")
 
             if [[ -n "$backend_token" && "$backend_token" != "null" ]]; then
-                kubectl create secret generic osmo-operator-token \
+                local token_secret_yaml
+                token_secret_yaml=$(kubectl create secret generic osmo-operator-token \
                     --from-literal=token="$backend_token" \
                     --namespace "$OSMO_OPERATOR_NAMESPACE" \
-                    --dry-run=client -o yaml | kubectl apply -f -
+                    --dry-run=client -o yaml)
+                $RUN_KUBECTL_APPLY_STDIN "$token_secret_yaml"
 
                 log_success "Backend token created"
                 token_created=true
@@ -724,10 +728,10 @@ deploy_k8s_main() {
     deploy_osmo_ui
     deploy_osmo_router
 
-    wait_for_pods "$OSMO_NAMESPACE" 300 "" "kubectl"
+    wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
 
     setup_backend_operator
-    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "kubectl"
+    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "$RUN_KUBECTL"
 
     verify_deployment
     print_access_instructions

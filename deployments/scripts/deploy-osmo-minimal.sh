@@ -385,13 +385,12 @@ handle_configuration() {
 
     if [[ "$has_all_required" == true ]]; then
         # All required values provided — regenerate so flags always win.
+        # Skip interactive configuration entirely; go straight to tfvars generation.
         case "$PROVIDER" in
             azure)
-                azure_configure_interactively
                 azure_generate_tfvars "$tfvars_file"
                 ;;
             aws)
-                aws_configure_interactively
                 aws_generate_tfvars "$tfvars_file"
                 ;;
         esac
@@ -469,16 +468,17 @@ deploy_osmo() {
     add_helm_repos
     create_database
     create_secrets
+    create_image_pull_secrets
     create_helm_values
 
     deploy_osmo_service
     deploy_osmo_ui
     deploy_osmo_router
 
-    wait_for_pods "$OSMO_NAMESPACE" 300 "" "kubectl"
+    wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
 
     setup_backend_operator
-    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "kubectl"
+    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "$RUN_KUBECTL"
 
     verify_deployment
     print_access_instructions
