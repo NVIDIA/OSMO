@@ -20,7 +20,6 @@ import argparse
 import enum
 import json
 import subprocess
-import sys
 from typing import Any, Dict, Literal, Set, TypedDict
 
 from src.cli import editor
@@ -357,6 +356,10 @@ def _run_show_command(service_client: client.ServiceClient, args: argparse.Names
     # Parse the config identifier
     if ':' in args.config:
         # Format is <CONFIG_TYPE>:<revision>
+        if args.verbose:
+            raise osmo_errors.OSMOUserError(
+                '--verbose is not supported for historical revisions'
+            )
         revision = config_history.ConfigHistoryRevision(args.config)
         params: Dict[str, Any] = {
             'config_types': [revision.config_type.value],
@@ -375,12 +378,11 @@ def _run_show_command(service_client: client.ServiceClient, args: argparse.Names
         data = result['configs'][0]['data']
     else:
         # Format is <CONFIG_TYPE>
-        verbose = args.verbose
-        if verbose and args.config != config_history.ConfigHistoryType.POOL.value:
-            print(f'Warning: --verbose is only supported for POOL configs, ignoring for {args.config}',
-                  file=sys.stderr)
-            verbose = False
-        request_params: Dict[str, Any] | None = {'verbose': True} if verbose else None
+        if args.verbose and args.config != config_history.ConfigHistoryType.POOL.value:
+            raise osmo_errors.OSMOUserError(
+                f'--verbose is only supported for POOL configs, not {args.config}'
+            )
+        request_params: Dict[str, Any] | None = {'verbose': True} if args.verbose else None
         data = _get_current_config(service_client, args.config, params=request_params)
 
     # Handle multiple name arguments for indexing
