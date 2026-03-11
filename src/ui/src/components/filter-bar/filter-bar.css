@@ -428,7 +428,7 @@
   padding: 0.4375rem 0.625rem 0.4375rem 0.875rem;
   font-size: 0.8125rem;
   line-height: 1.25rem;
-  color: var(--muted-foreground);
+  color: var(--fb-accent);
   cursor: pointer;
   text-align: left;
   border-left: 2px solid transparent;
@@ -440,7 +440,6 @@
 
 .fb-date-preset-row:hover {
   background-color: var(--accent);
-  color: var(--accent-foreground);
 }
 
 .fb-date-preset-row[data-active] {
@@ -475,7 +474,7 @@
   padding-left: 1rem;
   font-size: 0.6875rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: var(--muted-foreground);
+  color: var(--foreground);
   opacity: 0.5;
 }
 
@@ -501,6 +500,11 @@
   gap: 0.5rem;
 }
 
+.fb-date-custom .fb-date-section-label {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .fb-date-field {
   display: flex;
   flex-direction: column;
@@ -510,7 +514,7 @@
 .fb-date-label {
   font-size: 0.6875rem;
   line-height: 1rem;
-  color: var(--muted-foreground);
+  color: var(--foreground);
   opacity: 0.7;
 }
 
@@ -560,7 +564,7 @@
   border-radius: 0.375rem;
   border: 1px solid var(--border);
   background-color: var(--secondary);
-  color: var(--secondary-foreground);
+  color: var(--fb-accent);
   padding: 0.375rem 0.75rem;
   font-size: 0.8125rem;
   line-height: 1.25rem;

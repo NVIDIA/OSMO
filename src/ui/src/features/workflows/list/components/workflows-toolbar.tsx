@@ -68,10 +68,10 @@ export const WorkflowsToolbar = memo(function WorkflowsToolbar({
       WORKFLOW_FIELD.status,
       userField,
       poolField,
+      WORKFLOW_FIELD.submitted,
       WORKFLOW_FIELD.priority,
       WORKFLOW_FIELD.app,
       WORKFLOW_FIELD.tag,
-      WORKFLOW_FIELD.submitted,
     ],
     [userField, poolField],
   );
