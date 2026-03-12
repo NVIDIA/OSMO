@@ -1045,7 +1045,7 @@ class Task(pydantic.BaseModel):
     def batch_insert_to_db(
         database: connectors.PostgresConnector,
         task_entries: List[Tuple],
-        batch_size: int = 2,
+        batch_size: int = 100,
     ):
         """Batch-insert multiple tasks in a single query.
 
