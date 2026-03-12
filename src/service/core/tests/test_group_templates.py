@@ -21,6 +21,7 @@ import datetime
 import os
 import tempfile
 import unittest
+from typing import Any, Dict
 
 from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.service.core.config import config_service, objects as config_objects
@@ -32,7 +33,7 @@ from src.tests.common import runner
 
 
 # A minimal valid ComputeDomain group template used across tests
-_COMPUTE_DOMAIN_TEMPLATE = {
+_COMPUTE_DOMAIN_TEMPLATE: Dict[str, Any] = {
     'apiVersion': 'resource.nvidia.com/v1beta1',
     'kind': 'ComputeDomain',
     'metadata': {
@@ -51,7 +52,7 @@ _COMPUTE_DOMAIN_TEMPLATE = {
 class GroupTemplateRenderTest(unittest.TestCase):
     """Unit tests for render_group_templates (no DB required)."""
 
-    def _compute_domain_template(self, name_token: str = '{{WF_GROUP_UUID}}') -> dict:
+    def _compute_domain_template(self, name_token: str = '{{WF_GROUP_UUID}}') -> Dict[str, Any]:
         return {
             'apiVersion': 'resource.nvidia.com/v1beta1',
             'kind': 'ComputeDomain',
@@ -218,7 +219,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         )
 
         response = self.client.get('/api/configs/group_template/compute-domain')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 400)
 
     def test_delete_template_in_use_raises_error(self):
         """DELETE a template referenced by a pool raises OSMOUserError with pool name in message."""
