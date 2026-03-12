@@ -40,10 +40,10 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "pool status",
     prefix: "status:",
     singular: true,
-    getValues: () => Object.values(PoolStatus).map((s) => s.toUpperCase()),
+    getValues: () => Object.values(PoolStatus),
     exhaustive: true,
     requiresValidValue: true,
-    match: (pool, value) => pool.status.toUpperCase() === value.toUpperCase(),
+    match: (pool, value) => pool.status === value,
   },
   // Note: status filter is also handled via presets in the toolbar
   {

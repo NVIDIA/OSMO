@@ -35,12 +35,6 @@ import { PRIORITY_DISPLAY } from "@/lib/workflows/priority-display";
  * "status" is excluded — TaskGroupStatus is per-task-group, not per-workflow. */
 const CROSS_LINKABLE_FIELDS: ReadonlySet<string> = new Set(["pool", "user", "priority"]);
 
-const PRIORITY_META = {
-  high: PRIORITY_DISPLAY.HIGH,
-  normal: PRIORITY_DISPLAY.NORMAL,
-  low: PRIORITY_DISPLAY.LOW,
-} as const;
-
 function ResourceCell({ value }: { value: number }) {
   return <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">{formatCompact(value)}</span>;
 }
@@ -56,8 +50,9 @@ function BytesCell({ value }: { value: number }) {
   );
 }
 
-function PriorityBadge({ value, priority }: { value: number; priority: keyof typeof PRIORITY_META }) {
-  const { bg, text, Icon, iconClass } = PRIORITY_META[priority];
+function PriorityBadge({ value, priority }: { value: number; priority: "high" | "normal" | "low" }) {
+  if (value === 0) return <span className="text-zinc-300 dark:text-zinc-600">—</span>;
+  const { bg, text, Icon, iconClass } = PRIORITY_DISPLAY[priority.toUpperCase() as keyof typeof PRIORITY_DISPLAY];
   return (
     <span
       className={cn(
