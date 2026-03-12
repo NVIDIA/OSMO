@@ -106,7 +106,7 @@ export const PoolPicker = memo(function PoolPicker({ pool, onChange }: PoolPicke
   );
 
   const selectedPool = useMemo(() => {
-    if (allPools) return allPools.find((p) => p.name === pool);
+    if (allPools.length > 0) return allPools.find((p) => p.name === pool);
     return individualPoolData ?? null;
   }, [allPools, individualPoolData, pool]);
 
