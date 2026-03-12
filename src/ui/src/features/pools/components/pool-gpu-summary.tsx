@@ -67,9 +67,6 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
             {tooltip}
           </TooltipContent>
         </Tooltip>
-        <span className="ml-auto text-sm font-semibold text-zinc-600 tabular-nums dark:text-zinc-400">
-          {Math.round(percent)}%
-        </span>
       </div>
 
       <ProgressBar
@@ -85,6 +82,10 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{formatCompact(used)}</span>
           <span className="text-xs text-zinc-400 dark:text-zinc-500">/ {formatCompact(total)}</span>
           <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500">used</span>
+          <span className="mx-0.5 text-xs text-zinc-300 dark:text-zinc-600">·</span>
+          <span className="text-xs font-semibold text-zinc-500 tabular-nums dark:text-zinc-400">
+            {Math.round(percent)}%
+          </span>
         </div>
         <div className="flex items-baseline gap-1">
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{formatCompact(free)}</span>
