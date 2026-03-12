@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import copy
-from typing import Dict, List
+from typing import Any, Dict, List
 import unittest
 
 from src.lib.utils import common
@@ -38,7 +38,7 @@ def create_lvm_volume(name: str, size: str):
     }
 
 def create_container(cpu: str = '1', ephemeral_storage: str = '1Gi', memory: str = '1Gi',
-                     name='user', volume_mounts: List = []):
+                     name: str = 'user', volume_mounts: List[Dict[str, Any]] | None = None):
     result = {
         'name': name,
         'image': 'ubuntu:latest',
@@ -55,6 +55,8 @@ def create_container(cpu: str = '1', ephemeral_storage: str = '1Gi', memory: str
             }
         }
     }
+    if volume_mounts is None:
+        volume_mounts = []
     if volume_mounts:
         result['volumeMounts'] = volume_mounts
     return result
@@ -85,7 +87,7 @@ def create_toleration():
 
 
 class TaskTest(unittest.TestCase):
-    def check_other_fields(self, final_pod: Dict, tolerations: Dict, labels: List):
+    def check_other_fields(self, final_pod: Dict[str, Any], tolerations: Dict[str, Any], labels: Dict[str, str]):
         self.assertEqual(final_pod['spec']['tolerations'], tolerations)
         self.assertEqual(final_pod['metadata']['labels'], labels)
 
@@ -450,6 +452,99 @@ class TaskTest(unittest.TestCase):
 
         # Check that the contents of the list is correct
         self.assertEqual(rendered_excluded_list, exclude_list)
+
+
+class GroupTemplateRenderTest(unittest.TestCase):
+    """Unit tests for render_group_templates."""
+
+    def _compute_domain_template(self, name_token: str = '{{WF_GROUP_UUID}}') -> Dict[str, Any]:
+        return {
+            'apiVersion': 'resource.nvidia.com/v1beta1',
+            'kind': 'ComputeDomain',
+            'metadata': {
+                'name': f'compute-domain-{name_token}',
+            },
+            'spec': {
+                'channel': {
+                    'resourceClaimTemplate': {
+                        'name': f'compute-domain-{name_token}',
+                    }
+                }
+            }
+        }
+
+    def test_basic_variable_substitution(self):
+        """Variables in template fields are substituted with provided values."""
+        group_uuid = 'abc-123'
+        templates = [self._compute_domain_template()]
+        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {})
+
+        self.assertEqual(result[0]['metadata']['name'], f'compute-domain-{group_uuid}')
+        self.assertEqual(
+            result[0]['spec']['channel']['resourceClaimTemplate']['name'],
+            f'compute-domain-{group_uuid}',
+        )
+
+    def test_namespace_stripped(self):
+        """metadata.namespace is removed from the rendered output."""
+        templates = [{
+            'apiVersion': 'v1',
+            'kind': 'ConfigMap',
+            'metadata': {'name': 'my-cm', 'namespace': 'user-namespace'},
+        }]
+        result = task.render_group_templates(templates, {}, {})
+        self.assertNotIn('namespace', result[0]['metadata'])
+
+    def test_osmo_labels_injected(self):
+        """OSMO labels are added into metadata.labels of the rendered resource."""
+        templates = [{'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': 'my-cm'}}]
+        labels = {'osmo.group_uuid': 'grp-1', 'osmo.workflow_uuid': 'wf-1'}
+        result = task.render_group_templates(templates, {}, labels)
+
+        self.assertEqual(result[0]['metadata']['labels']['osmo.group_uuid'], 'grp-1')
+        self.assertEqual(result[0]['metadata']['labels']['osmo.workflow_uuid'], 'wf-1')
+
+    def test_existing_labels_preserved_and_merged(self):
+        """Pre-existing metadata.labels on the template are kept alongside injected OSMO labels."""
+        templates = [{
+            'apiVersion': 'v1',
+            'kind': 'ConfigMap',
+            'metadata': {'name': 'my-cm', 'labels': {'custom-key': 'custom-value'}},
+        }]
+        labels = {'osmo.group_uuid': 'grp-1'}
+        result = task.render_group_templates(templates, {}, labels)
+
+        self.assertEqual(result[0]['metadata']['labels']['custom-key'], 'custom-value')
+        self.assertEqual(result[0]['metadata']['labels']['osmo.group_uuid'], 'grp-1')
+
+    def test_input_templates_not_mutated(self):
+        """The original templates list and its contents are unchanged after rendering."""
+        templates = [self._compute_domain_template()]
+        original = copy.deepcopy(templates)
+        task.render_group_templates(templates, {'WF_GROUP_UUID': 'xyz'}, {'osmo.group_uuid': 'g'})
+        self.assertEqual(templates, original)
+
+    def test_multiple_templates_all_rendered(self):
+        """All templates in the input list are rendered and returned."""
+        group_uuid = 'grp-42'
+        templates = [
+            self._compute_domain_template(),
+            {
+                'apiVersion': 'v1',
+                'kind': 'Secret',
+                'metadata': {'name': 'secret-{{WF_GROUP_UUID}}'},
+            },
+        ]
+        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {})
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['metadata']['name'], f'compute-domain-{group_uuid}')
+        self.assertEqual(result[1]['metadata']['name'], f'secret-{group_uuid}')
+
+    def test_empty_templates_returns_empty_list(self):
+        """An empty template list returns an empty list without error."""
+        result = task.render_group_templates([], {'WF_GROUP_UUID': 'grp-1'}, {})
+        self.assertEqual(result, [])
 
 
 if __name__ == '__main__':
