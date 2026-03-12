@@ -1041,6 +1041,42 @@ class Task(pydantic.BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+    @staticmethod
+    def batch_insert_to_db(
+        database: connectors.PostgresConnector,
+        task_entries: List[Tuple],
+        batch_size: int = 100,
+    ):
+        """Batch-insert multiple tasks in a single query.
+
+        Args:
+            database: The Postgres connector instance.
+            task_entries: List of tuples, each containing the full set of
+                column values for a single task row (same order as insert_to_db).
+            batch_size: Maximum number of rows per INSERT statement.
+        """
+        if not task_entries:
+            return
+
+        for i in range(0, len(task_entries), batch_size):
+            chunk = task_entries[i:i + batch_size]
+            values_clause = ','.join(
+                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
+                * len(chunk)
+            )
+            flat_args: List[Any] = []
+            for entry in chunk:
+                flat_args.extend(entry)
+
+            insert_cmd = f'''
+                INSERT INTO tasks
+                (workflow_id, name, group_name, task_db_key, retry_id, task_uuid,
+                 status, pod_name, failure_message, gpu_count, cpu_count,
+                 disk_count, memory_count, exit_actions, lead)
+                VALUES {values_clause} ON CONFLICT DO NOTHING;
+            '''
+            database.execute_commit_command(insert_cmd, tuple(flat_args))
+
     def insert_to_db(self, gpu_count: float, cpu_count: float, disk_count: float,
                      memory_count: float, status: TaskGroupStatus = TaskGroupStatus.WAITING,
                      failure_message: str | None = None):

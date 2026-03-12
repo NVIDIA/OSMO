@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import collections
 import datetime
+import json
 import math
 from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Set
 import yaml
@@ -1040,6 +1041,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
 
         # Write workflow and group objects to the database
         workflow_obj.insert_to_db()
+        task_entries: list[tuple] = []
         for group_obj in workflow_obj.groups:
             group_obj.workflow_id_internal = workflow_obj.workflow_id
             group_obj.spec = \
@@ -1048,13 +1050,23 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
             group_obj.insert_to_db()
             for task_obj, task_obj_spec in zip(group_obj.tasks, group_obj.spec.tasks):
                 task_obj.workflow_id_internal = workflow_obj.workflow_id
-                task_obj.insert_to_db(
-                    gpu_count=task_obj_spec.resources.gpu or 0,
-                    cpu_count=task_obj_spec.resources.cpu or 0,
-                    disk_count=common.convert_resource_value_str(
+                workflow_uuid = task_obj.workflow_uuid if task_obj.workflow_uuid else ''
+                task_entries.append((
+                    task_obj.workflow_id_internal, task_obj.name, task_obj.group_name,
+                    task_obj.task_db_key, task_obj.retry_id, task_obj.task_uuid,
+                    task.TaskGroupStatus.WAITING.name,
+                    kb_objects.construct_pod_name(workflow_uuid, task_obj.task_uuid),
+                    None,
+                    task_obj_spec.resources.gpu or 0,
+                    task_obj_spec.resources.cpu or 0,
+                    common.convert_resource_value_str(
                         task_obj_spec.resources.storage or '0', 'GiB'),
-                    memory_count=common.convert_resource_value_str(
-                        task_obj_spec.resources.memory or '0', 'GiB'))
+                    common.convert_resource_value_str(
+                        task_obj_spec.resources.memory or '0', 'GiB'),
+                    json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
+                    task_obj.lead,
+                ))
+        task.Task.batch_insert_to_db(postgres, task_entries)
 
         logs = f'{service_url}/api/workflow/{workflow_obj.workflow_id}/logs'
         context = WorkflowServiceContext.get()

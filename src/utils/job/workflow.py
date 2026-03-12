@@ -530,6 +530,10 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         workflow_config = database.get_workflow_configs()
         dataset_config = database.get_dataset_configs()
         image_hash_map: Dict[str, str] = {}
+        default_user_bucket = connectors.UserProfile.fetch_from_db(database, user).bucket
+        default_service_bucket = dataset_config.default_bucket
+        user_creds = database.get_all_data_creds(user)
+        generic_cred_cache: Dict[str, Any] = {}
         for group in self.groups:
             for group_task in group.tasks:
                 response = self.validate_registry(
@@ -562,13 +566,18 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 self.validate_data(
                     user, dataset_config, group_task, seen_data_input,
                     seen_data_output, workflow_config.credential_config.disable_data_validation,
-                    seen_bucket_input, seen_bucket_output)
-                self.validate_generic_cred(user, database, group_task)
+                    seen_bucket_input, seen_bucket_output,
+                    default_user_bucket, default_service_bucket, user_creds)
+                self.validate_generic_cred(user, database, group_task,
+                                           generic_cred_cache)
 
     def validate_generic_cred(self, user: str, database: connectors.PostgresConnector,
-                              group_task: task.TaskSpec):
+                              group_task: task.TaskSpec,
+                              generic_cred_cache: Dict[str, Any]):
         for cred_name, cred_map in group_task.credentials.items():
-            payload = database.get_generic_cred(user, cred_name)
+            if cred_name not in generic_cred_cache:
+                generic_cred_cache[cred_name] = database.get_generic_cred(user, cred_name)
+            payload = generic_cred_cache[cred_name]
             if isinstance(cred_map, str):
                 continue
             elif isinstance(cred_map, Dict):
@@ -622,12 +631,10 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     def validate_data(self, user: str, dataset_config: connectors.DatasetConfig,
                       group_task: task.TaskSpec, seen_uri_input: Set[str],
                       seen_uri_output: Set[str], disabled_data: List[str],
-                      seen_bucket_input: Set[str], seen_bucket_output: Set[str]):
-
-        postgres = connectors.PostgresConnector.get_instance()
-        default_user_bucket = connectors.UserProfile.fetch_from_db(postgres, user).bucket
-        default_service_bucket = postgres.get_dataset_configs().default_bucket
-        user_creds = postgres.get_all_data_creds(user)
+                      seen_bucket_input: Set[str], seen_bucket_output: Set[str],
+                      default_user_bucket: Optional[str],
+                      default_service_bucket: str,
+                      user_creds: Dict[str, Any]):
 
         def _validate_input_output(data_spec: Union[task.InputType, task.OutputType, task.TaskKPI],
                                    is_input: bool):
