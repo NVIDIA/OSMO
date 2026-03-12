@@ -19,7 +19,7 @@ import base64
 import textwrap
 import unittest
 
-from src.service.core.workflow.workflow_service import redact_secrets
+from src.lib.utils.redact import redact_secrets
 
 
 # The AWS keys used below are the well-known example credentials from the AWS documentation

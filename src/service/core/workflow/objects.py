@@ -27,6 +27,7 @@ import pydantic
 from src.lib.data import storage
 from src.lib.data.storage.credentials import credentials as data_credentials
 from src.lib.utils import credentials, common, osmo_errors, priority as wf_priority
+from src.lib.utils.redact import redact_secrets
 import src.lib.utils.logging
 from src.utils.job import app, common as task_common, jobs, kb_objects, task, workflow
 from src.utils import connectors, static_config, yaml as util_yaml
@@ -902,10 +903,16 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                 convert_task_file_contents(task_spec)
 
         workflow_spec = yaml.dump(workflow_dict, default_flow_style=False, allow_unicode=True)
+
+        # Redact secrets in the workflow spec
+        workflow_spec = next(redact_secrets(list(workflow_spec)))
+
         files = [
             jobs.File(path=common.WORKFLOW_SPEC_FILE_NAME, content=workflow_spec)
         ]
         if original_templated_spec is not None:
+            # Redact secrets in the original templated spec
+            original_templated_spec = next(redact_secrets(list(original_templated_spec)))
             files.append(jobs.File(
                 path=common.TEMPLATED_WORKFLOW_SPEC_FILE_NAME,
                 content=original_templated_spec))

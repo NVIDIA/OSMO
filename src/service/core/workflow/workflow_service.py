@@ -17,7 +17,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import base64
 import collections
 import dataclasses
 import datetime
@@ -26,7 +25,7 @@ import http
 import json
 import logging
 import re
-from typing import Any, AsyncGenerator, Dict, Generator, Iterable, List, Optional
+from typing import Any, AsyncGenerator, Dict, Generator, List, Optional
 import urllib.parse
 import yaml
 
@@ -36,6 +35,7 @@ import fastapi.staticfiles
 
 from src.lib.data import storage
 from src.lib.utils import common, credentials, login, osmo_errors, priority as wf_priority
+from src.lib.utils.redact import redact_secrets
 from src.utils.job import common as job_common, jobs, workflow, task
 from src.service.core.workflow import helpers, objects
 from src.utils import connectors
@@ -48,49 +48,6 @@ router_pool = fastapi.APIRouter(tags = ['Pool API'])
 
 
 FETCH_TASK_LIMIT = 1000
-
-# Regex to match secrets in the spec. While this is not a perfect solution, it solves the majority
-# of cases.
-# Regex from: https://lookingatcomputer.substack.com/p/regex-is-almost-all-you-need
-# Proper secret management:
-# https://nvidia.github.io/OSMO/main/user_guide/getting_started/credentials.html
-SECRET_REDACTION_RE = re.compile(
-    r'''(?i)[\w.-]{0,50}?(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passw(?:or)?d|secret|token)(?:[ \t\w.-]{0,20})[\s'"]{0,3}(?:=|>|:{1,3}=|\|\||:|=>|\?=|,)[\x60'"\s=]{0,5}([\w.=-]{10,150}|[a-z0-9][a-z0-9+/]{11,}={0,3})(?:[\x60'"\s;]|\\[nr]|$)'''  # pylint: disable=line-too-long
-)
-
-# Matches base64-encoded fragments: at least 16 chars of base64 alphabet with optional padding,
-# not adjacent to other base64 characters (to capture complete tokens).
-_BASE64_FRAGMENT_RE = re.compile(r'(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{16,}={0,2}(?![A-Za-z0-9+/=])')
-
-
-def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
-    """ Yield lines with secrets in the spec redacted. """
-    def redact_base64_fragments(line: str) -> str:
-        """
-        Find base64-encoded fragments in a line, decode them, redact any secrets found inside,
-        and replace the whole fragment with [MASKED].
-        """
-        def replace_if_secrets(m: re.Match) -> str:
-            fragment = m.group(0)
-            try:
-                padded = fragment + '=' * (-len(fragment) % 4)
-                decoded = base64.b64decode(padded, validate=True).decode('utf-8')
-            except (ValueError, UnicodeDecodeError):
-                return fragment
-            redacted = SECRET_REDACTION_RE.sub(
-                lambda sm: sm.group(0).replace(sm.group(1), '[MASKED]'),
-                decoded,
-            )
-            if redacted == decoded:
-                return fragment
-            return '[MASKED]'
-        return _BASE64_FRAGMENT_RE.sub(replace_if_secrets, line)
-
-    for line in lines:
-        line = redact_base64_fragments(line)
-        yield SECRET_REDACTION_RE.sub(
-            lambda m: m.group(0).replace(m.group(1), '[MASKED]'), line)
-
 
 class ActionType(enum.Enum):
     EXEC = 'exec'

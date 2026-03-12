@@ -39,6 +39,7 @@ osmo_py_library(
         "//src/lib/utils:login",
         "//src/lib/utils:priority",
         "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:redact",
         "//src/utils:static_config",
         "//src/utils/job:job",
         "//src/utils:yaml",

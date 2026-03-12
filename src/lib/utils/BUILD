@@ -182,3 +182,8 @@ osmo_py_library(
         ":osmo_errors",
     ],
 )
+
+osmo_py_library(
+    name = "redact",
+    srcs = ["redact.py"],
+)

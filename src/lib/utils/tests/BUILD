@@ -42,3 +42,11 @@ osmo_py_test(
         "//src/lib/utils:jinja_sandbox",
     ]
 )
+
+osmo_py_test(
+    name = "test_redact_secrets",
+    srcs = ["test_redact_secrets.py"],
+    deps = [
+        "//src/lib/utils:redact",
+    ],
+)
