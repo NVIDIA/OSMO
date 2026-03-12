@@ -61,7 +61,13 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
         <span className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">{label}</span>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Info className="h-3 w-3 shrink-0 cursor-default text-zinc-400 dark:text-zinc-500" />
+            <button
+              type="button"
+              className="inline-flex shrink-0 cursor-default"
+              aria-label={`${label} info`}
+            >
+              <Info className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
+            </button>
           </TooltipTrigger>
           <TooltipContent
             side="top"

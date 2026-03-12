@@ -29,6 +29,7 @@ import {
 import { useMounted } from "@/hooks/use-mounted";
 import type { SearchChip } from "@/stores/types";
 import type { OccupancyFlatRow, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
+import { WorkflowPriority } from "@/lib/api/generated";
 import { PRIORITY_DISPLAY } from "@/lib/workflows/priority-display";
 
 /** Occupancy chip fields that map directly to workflow filters.
@@ -50,14 +51,19 @@ function BytesCell({ value }: { value: number }) {
   );
 }
 
-function PriorityBadge({ value, priority }: { value: number; priority: "high" | "normal" | "low" }) {
+function PriorityBadge({ value, priority }: { value: number; priority: WorkflowPriority }) {
   if (value === 0) return <span className="text-zinc-300 dark:text-zinc-600">—</span>;
-  const { bg, text, Icon, iconClass } = PRIORITY_DISPLAY[priority.toUpperCase() as keyof typeof PRIORITY_DISPLAY];
+  const { bg, text, Icon, iconClass, label } = PRIORITY_DISPLAY[priority];
   return (
     <span
       className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium tabular-nums", bg, text)}
+      aria-label={`${label} priority: ${value}`}
+      title={`${label} priority: ${value}`}
     >
-      <Icon className={iconClass} />
+      <Icon
+        className={iconClass}
+        aria-hidden="true"
+      />
       {value}
     </span>
   );
@@ -265,15 +271,15 @@ export function createOccupancyColumns(
         <div className="flex items-center gap-1">
           <PriorityBadge
             value={row.original.high}
-            priority="high"
+            priority={WorkflowPriority.HIGH}
           />
           <PriorityBadge
             value={row.original.normal}
-            priority="normal"
+            priority={WorkflowPriority.NORMAL}
           />
           <PriorityBadge
             value={row.original.low}
-            priority="low"
+            priority={WorkflowPriority.LOW}
           />
         </div>
       ),

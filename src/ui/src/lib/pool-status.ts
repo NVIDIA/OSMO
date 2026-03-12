@@ -65,3 +65,13 @@ export const STATUS_STYLES = {
 export function getStatusStyles(status: string) {
   return STATUS_STYLES[getStatusDisplay(status).category];
 }
+
+/**
+ * Ordered set of allowed status filter values.
+ * Single source of truth for both search-field dropdowns and toolbar presets.
+ */
+export const POOL_STATUS_FILTER_VALUES: { id: StatusCategory; label: string }[] = [
+  { id: "online", label: "Online" },
+  { id: "maintenance", label: "Maintenance" },
+  { id: "offline", label: "Offline" },
+];

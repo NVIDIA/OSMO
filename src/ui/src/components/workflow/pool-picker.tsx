@@ -111,7 +111,6 @@ export const PoolPicker = memo(function PoolPicker({ pool, onChange }: PoolPicke
   }, [allPools, individualPoolData, pool]);
 
   const accessiblePools = useMemo(() => {
-    if (!allPools) return undefined;
     if (!accessibleSet) return allPools;
     return allPools.filter((p) => accessibleSet.has(p.name));
   }, [allPools, accessibleSet]);

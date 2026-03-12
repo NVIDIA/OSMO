@@ -28,7 +28,7 @@ import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "@/features/pools/lib/pool-columns";
 import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
-import { STATUS_STYLES, type StatusCategory } from "@/lib/pool-status";
+import { STATUS_STYLES, POOL_STATUS_FILTER_VALUES, type StatusCategory } from "@/lib/pool-status";
 
 const STATUS_ICONS = {
   online: CheckCircle2,
@@ -45,12 +45,6 @@ export interface PoolsToolbarProps {
   autoRefreshProps?: RefreshControlProps;
 }
 
-const STATUS_PRESET_CONFIG: { id: StatusCategory; label: string }[] = [
-  { id: "online", label: "Online" },
-  { id: "maintenance", label: "Maintenance" },
-  { id: "offline", label: "Offline" },
-];
-
 export const PoolsToolbar = memo(function PoolsToolbar({
   pools,
   sharingGroups = [],
@@ -66,7 +60,7 @@ export const PoolsToolbar = memo(function PoolsToolbar({
 
   const statusPresets = useMemo(
     (): SearchPreset[] =>
-      STATUS_PRESET_CONFIG.map(({ id, label }) => {
+      POOL_STATUS_FILTER_VALUES.map(({ id, label }) => {
         const styles = STATUS_STYLES[id].badge;
         const Icon = STATUS_ICONS[id];
 

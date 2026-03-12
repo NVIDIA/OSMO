@@ -122,6 +122,7 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
       role="none"
       onKeyDown={(e) => {
         if (e.key === "Escape") {
+          e.stopPropagation();
           e.preventDefault();
           onClose?.();
         } else {
