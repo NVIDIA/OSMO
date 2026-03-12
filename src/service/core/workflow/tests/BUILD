@@ -46,3 +46,11 @@ py_test(
     ],
 )
 
+py_test(
+    name = "test_redact_secrets",
+    srcs = ["test_redact_secrets.py"],
+    deps = [
+        "//src/service/core/workflow",
+    ],
+)
+

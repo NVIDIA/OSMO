@@ -136,16 +136,27 @@ export interface AsyncSearchField<T> extends BaseSearchField<T> {
 }
 
 /**
- * A search field that is either sync (derives values from parent data)
- * or async (loads its own data from an API).
+ * Date-range search field: shows a date picker in the dropdown instead of text suggestions.
+ * Selecting a date or range creates a chip with an ISO date string or range string.
+ * @template T - The data item type (kept for union compatibility)
+ */
+export interface DateRangeSearchField<T> extends BaseSearchField<T> {
+  /** Discriminant: date-range fields render a date picker in the dropdown */
+  type: "date-range";
+}
+
+/**
+ * A search field that is either sync (derives values from parent data),
+ * async (loads its own data from an API), or date-range (renders a date picker).
  *
  * Use the `type` discriminant to narrow:
  * - `type: undefined | 'sync'` -> SyncSearchField (default, backward compatible)
  * - `type: 'async'` -> AsyncSearchField (self-loading, has isLoading)
+ * - `type: 'date-range'` -> DateRangeSearchField (shows date picker in dropdown)
  *
  * @template T - The data item type being searched
  */
-export type SearchField<T> = SyncSearchField<T> | AsyncSearchField<T>;
+export type SearchField<T> = SyncSearchField<T> | AsyncSearchField<T> | DateRangeSearchField<T>;
 
 /**
  * Type guard: check if a field is async.
@@ -156,10 +167,19 @@ export function isAsyncField<T>(field: SearchField<T>): field is AsyncSearchFiel
 }
 
 /**
+ * Type guard: check if a field is a date-range field.
+ */
+export function isDateRangeField<T>(field: SearchField<T>): field is DateRangeSearchField<T> {
+  return field.type === "date-range";
+}
+
+/**
  * Get values from a field, handling both sync and async variants.
  * For sync fields, passes the data array. For async fields, calls with no args.
+ * For date-range fields, returns empty array (picker shown in dropdown instead).
  */
 export function getFieldValues<T>(field: SearchField<T>, data: T[]): string[] {
+  if (isDateRangeField(field)) return [];
   if (isAsyncField(field)) {
     return field.getValues();
   }
@@ -323,6 +343,15 @@ export interface PresetSuggestion {
  * Either a field/value/hint suggestion or a preset suggestion.
  */
 export type Suggestion<T> = FieldSuggestion<T> | PresetSuggestion;
+
+/**
+ * Sentinel suggestion values for date picker custom input navigation.
+ * When the keyboard cycle highlights one of these, the date picker
+ * moves DOM focus to the corresponding element (From/To input or Apply button).
+ */
+export const DATE_CUSTOM_FROM = "__date-custom-from__";
+export const DATE_CUSTOM_TO = "__date-custom-to__";
+export const DATE_CUSTOM_APPLY = "__date-custom-apply__";
 
 /**
  * Parsed input result.

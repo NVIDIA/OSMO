@@ -3,3 +3,6 @@ reviews:
   profile: chill # assertive / chill profile
   auto_review:
     enabled: true # Enable auto-review for this repository
+  path_instructions:
+    - path: "src/**"
+      instructions: "If this PR adds, removes, or renames a service, module, or major component, check that AGENTS.md is updated accordingly."

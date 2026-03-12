@@ -57,6 +57,10 @@
   align-items: stretch;
   will-change: transform;
   backface-visibility: hidden;
+  /* Smooth repositioning when a preceding row changes height (e.g. ExpandableChips expand).
+     Disabled during active scroll (.is-scrolling) to prevent virtualized rows from animating
+     as they enter the viewport — only expand/collapse-driven position changes are animated. */
+  transition: transform var(--duration-normal) var(--ease-out);
   /* Subtle fade-in prevents jarring "pop" when rows appear during fast scroll */
   animation: row-fade-in var(--duration-quick) var(--ease-out);
 
@@ -99,6 +103,21 @@
   align-items: center;
   flex: 1;
   padding: 0;
+}
+
+/* Suppress position transition during active scroll — virtualized rows must snap to position
+   when entering/leaving the viewport. The .is-scrolling class is toggled by DataTable. */
+.is-scrolling .data-table-row {
+  transition: none;
+}
+
+/* Interactive rows: pointer cursor + hover highlight */
+.data-table-row[data-interactive] {
+  cursor: pointer;
+}
+
+.data-table-row[data-interactive]:hover {
+  @apply bg-zinc-50 dark:bg-zinc-900;
 }
 
 /* Focus state for group rows */

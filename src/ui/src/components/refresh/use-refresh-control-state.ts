@@ -15,6 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback } from "react";
+import { useInterval } from "usehooks-ts";
 import { useMounted } from "@/hooks/use-mounted";
 import { useRefreshAnimation } from "@/components/refresh/use-refresh-animation";
 import { formatInterval } from "@/lib/format-interval";
@@ -39,6 +40,10 @@ export function useRefreshControlState(props: RefreshControlProps) {
     },
     [setInterval],
   );
+
+  // Auto-refresh timer: fires onRefresh at the selected interval.
+  // useInterval handles callback stability internally and accepts null to pause.
+  useInterval(onRefresh, mounted && isAutoRefreshActive ? interval : null);
 
   return {
     mounted,

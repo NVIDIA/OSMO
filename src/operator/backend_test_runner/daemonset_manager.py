@@ -269,7 +269,7 @@ class DaemonSetManager:
                             name=pod.metadata.name,
                             namespace=self.namespace,
                             body=kb_client.V1DeleteOptions(
-                                grace_period_seconds=0,
+                                grace_period_seconds=30,
                                 propagation_policy='Background'
                             )
                         )
@@ -281,6 +281,30 @@ class DaemonSetManager:
             logging.error('Error during cleanup: %s', e)
             raise
 
+    def _wait_for_daemonset_deletion(self, timeout: int = 120) -> None:
+        """Poll until the daemonset is fully removed from the API server.
+
+        After delete_daemonset() the object may still exist with a deletionTimestamp
+        while Kubernetes garbage-collects dependents.  Attempting to create a new
+        daemonset with the same name before it is gone causes a 409 Conflict.
+
+        Args:
+            timeout: Maximum seconds to wait for the daemonset to disappear.
+        """
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                self.apps_v1.read_namespaced_daemon_set(
+                    name=self.name, namespace=self.namespace)
+                logging.info('Waiting for daemonset %s to be fully deleted...', self.name)
+                time.sleep(2)
+            except kb_client.rest.ApiException as e:
+                if e.status == 404:
+                    logging.info('Daemonset %s fully deleted', self.name)
+                    return
+                raise
+        logging.warning('Timed out waiting for daemonset %s deletion after %ds', self.name, timeout)
+
     def deploy_and_wait(self) -> bool:
         """Deploy daemonset and wait for condition on all nodes.
 
@@ -291,6 +315,7 @@ class DaemonSetManager:
         try:
             # Clean up any existing resources with this name if exists
             self.delete_daemonset()
+            self._wait_for_daemonset_deletion()
             # Create daemonset
             self.create_daemonset()
             logging.info('Waiting for daemonset and conditions at %s', time.time())

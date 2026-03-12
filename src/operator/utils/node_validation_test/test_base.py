@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 
 from datetime import datetime
 import logging
+import signal
 import time
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,23 @@ from kubernetes import client, config as kb_config
 
 from src.lib.utils import logging as logging_utils, osmo_errors
 from src.utils import static_config
+
+
+def _sigterm_handler(signum: int, frame: Any) -> None:  # pylint: disable=unused-argument
+    """Convert SIGTERM into SystemExit so that finally blocks execute during pod termination."""
+    logging.info('Received SIGTERM (signal %d), raising SystemExit for graceful cleanup', signum)
+    raise SystemExit(128 + signum)
+
+
+def register_graceful_shutdown() -> None:
+    """Register a SIGTERM handler that triggers finally-block cleanup.
+
+    Kubernetes sends SIGTERM before SIGKILL during pod termination.
+    Python's default SIGTERM handler terminates without running finally blocks.
+    This converts SIGTERM into SystemExit, which does trigger finally blocks,
+    allowing validators to clean up resources (e.g. benchmark pods) on shutdown.
+    """
+    signal.signal(signal.SIGTERM, _sigterm_handler)
 
 DEFAULT_NODE_CONDITION_PREFIX = 'osmo.nvidia.com/'
 
@@ -138,6 +156,8 @@ class NodeTestBase:
         Args:
             node_name: Optional node name. If not provided, will be read from NODE_NAME env var.
         """
+        register_graceful_shutdown()
+
         # Load in-cluster config
         try:
             kb_config.load_incluster_config()

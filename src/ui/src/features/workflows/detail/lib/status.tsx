@@ -47,6 +47,8 @@ export {
   computeTaskStats,
   computeGroupStatus,
   computeGroupDuration,
+  // Sort
+  createTaskSortComparator,
   // Constants
   STATUS_CATEGORY_MAP,
   STATUS_SORT_ORDER,

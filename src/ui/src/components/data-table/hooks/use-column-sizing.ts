@@ -269,6 +269,8 @@ export function useColumnSizing({
 
   // Track pending idle callback for cleanup
   const pendingIdleCallbackRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
+  // Track which scheduler was used so cleanup uses the correct cancel API
+  const useRicRef = useRef(typeof requestIdleCallback !== "undefined");
 
   // Remeasure when a column becomes NO_TRUNCATE
   useEffect(() => {
@@ -305,7 +307,11 @@ export function useColumnSizing({
       }
     };
 
-    if (typeof requestIdleCallback !== "undefined") {
+    // Capture the scheduler flag at effect setup time so the cleanup function
+    // can use the same value (lint: ref values may change by cleanup time).
+    const useRic = useRicRef.current;
+
+    if (useRic) {
       pendingIdleCallbackRef.current = requestIdleCallback(measureNewColumns, { timeout: 500 });
     } else {
       // Safari fallback: Use RAF to ensure DOM measurement happens at optimal time
@@ -317,13 +323,11 @@ export function useColumnSizing({
 
     return () => {
       if (pendingIdleCallbackRef.current !== null) {
-        if (typeof cancelIdleCallback !== "undefined" && typeof pendingIdleCallbackRef.current === "number") {
-          cancelIdleCallback(pendingIdleCallbackRef.current);
-        } else if (typeof cancelAnimationFrame !== "undefined") {
+        if (useRic) {
+          cancelIdleCallback(pendingIdleCallbackRef.current as number);
+        } else {
           // Safari fallback uses RAF, so cancel with cancelAnimationFrame
           cancelAnimationFrame(pendingIdleCallbackRef.current as number);
-        } else {
-          clearTimeout(pendingIdleCallbackRef.current as ReturnType<typeof setTimeout>);
         }
         pendingIdleCallbackRef.current = null;
       }

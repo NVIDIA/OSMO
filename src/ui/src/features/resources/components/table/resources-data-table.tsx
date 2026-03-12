@@ -28,7 +28,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
-import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
+import type { SortState } from "@/components/data-table/types";
 import type { DisplayMode } from "@/stores/shared-preferences-store";
 import { useDisplayMode, useCompactMode } from "@/hooks/shared-preferences-hooks";
 import type { Resource } from "@/lib/api/adapter/types";
@@ -48,6 +48,9 @@ import { naturalCompare } from "@/lib/utils";
 
 /** Stable row ID extractor - defined outside component to avoid recreating */
 const getRowId = (resource: Resource) => resource.name;
+
+// Module-level constant — stable reference, no useMemo needed
+const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
 
 /**
  * Sort resources by column and direction.
@@ -184,18 +187,7 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
     [displayMode],
   );
 
-  // Fixed columns (not draggable)
-  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
-
-  // Handle column sizing preference change
-  const handleColumnSizingPreferenceChange = useCallback(
-    (columnId: string, preference: ColumnSizingPreference) => {
-      setColumnSizingPreference(columnId, preference);
-    },
-    [setColumnSizingPreference],
-  );
-
-  // Handle sort change - simply pass the column to the store
+  // Handle sort change
   const handleSortChange = useCallback(
     (newSort: SortState<string>) => {
       if (newSort.column) {
@@ -205,24 +197,9 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
     [setSort],
   );
 
-  // Handle column order change
-  const handleColumnOrderChange = useCallback(
-    (newOrder: string[]) => {
-      setColumnOrder(newOrder);
-    },
-    [setColumnOrder],
-  );
-
-  // Augment resources with visual row index for zebra striping
-  const resourcesWithIndex = useMemo(
-    () => sortedResources.map((resource, index) => ({ ...resource, _visualRowIndex: index })),
-    [sortedResources],
-  );
-
   // Row class for zebra striping
-  const rowClassName = useCallback((resource: Resource & { _visualRowIndex?: number }) => {
-    const visualIndex = resource._visualRowIndex ?? 0;
-    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
+  const rowClassName = useCallback((_resource: Resource, index: number) => {
+    return index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No resources found" />, []);
@@ -245,19 +222,19 @@ export const ResourcesDataTable = memo(function ResourcesDataTable({
 
   return (
     <div className="table-container relative flex h-full flex-col">
-      <DataTable<Resource & { _visualRowIndex?: number }>
-        data={resourcesWithIndex}
+      <DataTable<Resource>
+        data={sortedResources}
         columns={columns}
         getRowId={getRowId}
         // Column management
         columnOrder={columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
-        fixedColumns={fixedColumns}
+        fixedColumns={FIXED_COLUMNS}
         // Column sizing
         columnSizeConfigs={RESOURCE_COLUMN_SIZE_CONFIG}
         columnSizingPreferences={columnSizingPreferences}
-        onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
+        onColumnSizingPreferenceChange={setColumnSizingPreference}
         // Sorting
         sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}

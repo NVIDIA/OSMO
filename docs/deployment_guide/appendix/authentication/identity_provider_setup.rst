@@ -187,14 +187,14 @@ Verification
 ============
 
 - **Browser:** Open ``https://<your-domain>`` in a private window. You should be redirected to the IdP, then back to OSMO with a session.
-- **CLI:** After logging in, run ``osmo user roles list <user_id>`` to confirm the user has the expected roles.
+- **CLI:** After logging in, run ``osmo user get <user_id>`` to confirm the user has the expected roles.
 
 Troubleshooting
 ===============
 
 - **Invalid token / 401:** Check issuer and audience in Envoy match the JWT. Ensure the IdP’s JWKS URI is reachable from the cluster and the signing key is present.
 - **Redirect fails:** Ensure the redirect URI in the IdP exactly matches (scheme, host, path, no trailing slash).
-- **User has no roles / 403:** Ensure the user exists in OSMO and has roles (via ``osmo user roles list <user_id>`` or IdP mapping). Verify the user claim (e.g. ``preferred_username``, ``email``) matches what OSMO expects.
+- **User has no roles / 403:** Ensure the user exists in OSMO and has roles (via ``osmo user get <user_id>`` or IdP mapping). Verify the user claim (e.g. ``preferred_username``, ``email``) matches what OSMO expects.
 
 .. seealso::
 

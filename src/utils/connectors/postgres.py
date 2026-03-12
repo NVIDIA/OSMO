@@ -24,6 +24,7 @@ import enum
 import json
 import logging
 import math
+import types
 import os
 import re
 import threading
@@ -446,15 +447,12 @@ class PostgresConnector:
                 cur = conn.cursor(
                     cursor_factory=psycopg2.extras.RealDictCursor)
                 cur.execute(command, args)
-                # Create a pydantic instance from dictionary pairs
                 rows = cur.fetchall()
                 if not return_raw:
-                    # Pydantic cannot deep copy memoryview object, so cast it to bytes object
+                    # Cast memoryview objects to bytes and provide attribute access
                     rows = [
-                        pydantic.create_model(
-                            'DynamicModel', **{k: common.handle_memoryview(v) or \
-                                               (Any, common.handle_memoryview(v))
-                                               for k, v in row.items()})()  # type: ignore
+                        types.SimpleNamespace(**{k: common.handle_memoryview(v)
+                                                for k, v in row.items()})
                         for row in rows]
                 cur.close()
                 conn.commit()

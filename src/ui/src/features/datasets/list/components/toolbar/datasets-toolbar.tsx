@@ -18,50 +18,24 @@
 
 import { memo, useMemo } from "react";
 import { User } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { SearchChip } from "@/stores/types";
 import type { ResultsCount, SearchField, SearchPreset } from "@/components/filter-bar/lib/types";
+import { presetPillClasses } from "@/components/filter-bar/lib/preset-pill";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { useDatasetsTableStore } from "@/features/datasets/list/stores/datasets-table-store";
 import { OPTIONAL_COLUMNS } from "@/features/datasets/list/lib/dataset-columns";
 import { DATASET_STATIC_FIELDS, type Dataset } from "@/features/datasets/list/lib/dataset-search-fields";
 import { useDatasetsAsyncFields } from "@/features/datasets/list/hooks/use-datasets-async-fields";
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-function presetPillClasses(bgClass: string, active: boolean): string {
-  return cn(
-    "inline-flex items-center gap-1.5 rounded px-2 py-0.5 transition-all",
-    bgClass,
-    active && "ring-2 ring-black/15 ring-inset dark:ring-white/20",
-    "group-data-[selected=true]:scale-105 group-data-[selected=true]:shadow-lg",
-    !active && "opacity-70 group-data-[selected=true]:opacity-100 hover:opacity-100",
-  );
-}
-
-// =============================================================================
-// Props
-// =============================================================================
-
 export interface DatasetsToolbarProps {
   datasets: Dataset[];
   searchChips: SearchChip[];
   onSearchChipsChange: (chips: SearchChip[]) => void;
-  /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
-  /** Current username for "My Datasets" preset */
   currentUsername?: string | null;
-  /** Manual refresh callback */
   onRefresh: () => void;
-  /** Loading state for refresh button */
   isRefreshing: boolean;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const DatasetsToolbar = memo(function DatasetsToolbar({
   datasets,
@@ -75,18 +49,16 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
   const visibleColumnIds = useDatasetsTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useDatasetsTableStore((s) => s.toggleColumn);
 
-  // Async fields: user list from /api/users with lazy loading
   const { userField } = useDatasetsAsyncFields();
 
-  // Compose static + async fields
   const searchFields = useMemo(
     (): readonly SearchField<Dataset>[] => [
-      DATASET_STATIC_FIELDS[0], // type
-      DATASET_STATIC_FIELDS[1], // name
-      DATASET_STATIC_FIELDS[2], // bucket
-      userField, // async - complete user list
-      DATASET_STATIC_FIELDS[3], // created_at
-      DATASET_STATIC_FIELDS[4], // updated_at
+      DATASET_STATIC_FIELDS[0],
+      DATASET_STATIC_FIELDS[1],
+      DATASET_STATIC_FIELDS[2],
+      userField,
+      DATASET_STATIC_FIELDS[3],
+      DATASET_STATIC_FIELDS[4],
     ],
     [userField],
   );
@@ -123,7 +95,6 @@ export const DatasetsToolbar = memo(function DatasetsToolbar({
     return [{ label: "User:", items: [myDatasetsPreset] }];
   }, [myDatasetsPreset]);
 
-  // Memoize autoRefreshProps to prevent unnecessary TableToolbar re-renders
   const autoRefreshProps = useMemo(
     () => ({
       onRefresh,

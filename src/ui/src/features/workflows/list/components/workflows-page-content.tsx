@@ -73,7 +73,6 @@ export function WorkflowsPageContent({ initialUsername }: WorkflowsPageContentPr
     searchChips: effectiveChips,
     showAllUsers: optOut,
     sortDirection,
-    refetchInterval: autoRefresh.effectiveInterval,
   });
 
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });

@@ -60,7 +60,7 @@ class MetricsCreatorConfig(pydantic.BaseModel):
     metrics_otel_enable: bool = pydantic.Field(
         command_line='metrics_otel_enable',
         env='METRICS_OTEL_ENABLE',
-        default=True,
+        default=False,
         description='If set false, will disable metrics')
 
 class MetricCreator:

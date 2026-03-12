@@ -25,12 +25,9 @@ import type { ResultsCount } from "@/components/filter-bar/lib/types";
 import type { SearchChip } from "@/stores/types";
 import type { OccupancyGroup, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 import { OPTIONAL_COLUMNS } from "@/features/occupancy/lib/occupancy-columns";
-import { OCCUPANCY_SEARCH_FIELDS } from "@/features/occupancy/lib/occupancy-search-fields";
+import { getOccupancySearchFields } from "@/features/occupancy/lib/occupancy-search-fields";
 import { useOccupancyTableStore } from "@/features/occupancy/stores/occupancy-table-store";
-
-// =============================================================================
-// Types
-// =============================================================================
+import { TASK_GROUP_STATUS_PRESETS } from "@/lib/task-group-status-presets";
 
 export interface OccupancyToolbarProps {
   groups: OccupancyGroup[];
@@ -46,13 +43,9 @@ export interface OccupancyToolbarProps {
   isRefreshing: boolean;
 }
 
-// =============================================================================
-// GroupBy Toggle
-// =============================================================================
-
 const GROUP_BY_OPTIONS: { value: OccupancyGroupBy; label: string }[] = [
-  { value: "user", label: "By User" },
   { value: "pool", label: "By Pool" },
+  { value: "user", label: "By User" },
 ];
 
 function GroupByToggle({ value, onChange }: { value: OccupancyGroupBy; onChange: (v: OccupancyGroupBy) => void }) {
@@ -99,10 +92,6 @@ function GroupByToggle({ value, onChange }: { value: OccupancyGroupBy; onChange:
   );
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
 export const OccupancyToolbar = memo(function OccupancyToolbar({
   groups,
   groupBy,
@@ -119,6 +108,7 @@ export const OccupancyToolbar = memo(function OccupancyToolbar({
   const visibleColumnIds = useOccupancyTableStore((s) => s.visibleColumnIds);
   const toggleColumn = useOccupancyTableStore((s) => s.toggleColumn);
 
+  const searchFields = useMemo(() => getOccupancySearchFields(groupBy), [groupBy]);
   const refreshProps: RefreshControlProps = useMemo(() => ({ onRefresh, isRefreshing }), [onRefresh, isRefreshing]);
 
   return (
@@ -130,13 +120,14 @@ export const OccupancyToolbar = memo(function OccupancyToolbar({
       <div className="min-w-0 flex-1">
         <TableToolbar
           data={groups}
-          searchFields={OCCUPANCY_SEARCH_FIELDS}
+          searchFields={searchFields}
           columns={OPTIONAL_COLUMNS}
           visibleColumnIds={visibleColumnIds}
           onToggleColumn={toggleColumn}
           searchChips={searchChips}
           onSearchChipsChange={onSearchChipsChange}
-          placeholder="Search users, pools, priority..."
+          placeholder="Search pools, users, priority..."
+          searchPresets={TASK_GROUP_STATUS_PRESETS}
           resultsCount={resultsCount}
           autoRefreshProps={refreshProps}
         >

@@ -40,6 +40,25 @@ osmo_py_test(
     visibility = ["//visibility:public"],
 )
 
+osmo_py_test(
+    name = "test_group_templates",
+    srcs = ["test_group_templates.py"],
+    deps = [
+        ":fixture",
+        "//src/lib/utils:common",
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:priority",
+        "//src/service/core:service_lib",
+        "//src/tests/common",
+        "//src/tests/common/storage",
+    ],
+    size = "large",
+    tags = [
+        "requires-network",
+    ],
+    visibility = ["//visibility:public"],
+)
+
 osmo_py_library(
     name = "fixture",
     srcs = ["fixture.py"],
