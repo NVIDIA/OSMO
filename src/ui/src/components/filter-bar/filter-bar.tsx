@@ -189,6 +189,7 @@ function FilterBarInner<T>(
           activeDateRangeField={activeDateRangeField}
           onDateCommit={handleDateCommit}
           onDateCycleStep={stepDateCycle}
+          onDateClose={handleBackdropDismiss}
         />
       </Command>
     </div>
