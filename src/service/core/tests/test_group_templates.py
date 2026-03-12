@@ -20,6 +20,7 @@ import copy
 import datetime
 import os
 import tempfile
+import unittest
 
 from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.service.core.config import config_service, objects as config_objects
@@ -47,12 +48,107 @@ _COMPUTE_DOMAIN_TEMPLATE = {
 }
 
 
-class GroupTemplateCRUDTest(service_fixture.ServiceTestFixture):
-    """Tests for Group Template REST API endpoints: PUT, GET, LIST, DELETE."""
+class GroupTemplateRenderTest(unittest.TestCase):
+    """Unit tests for render_group_templates (no DB required)."""
+
+    def _compute_domain_template(self, name_token: str = '{{WF_GROUP_UUID}}') -> dict:
+        return {
+            'apiVersion': 'resource.nvidia.com/v1beta1',
+            'kind': 'ComputeDomain',
+            'metadata': {
+                'name': f'compute-domain-{name_token}',
+            },
+            'spec': {
+                'channel': {
+                    'resourceClaimTemplate': {
+                        'name': f'compute-domain-{name_token}',
+                    }
+                }
+            }
+        }
+
+    def test_basic_variable_substitution(self):
+        """Variables in template fields are substituted with provided values."""
+        group_uuid = 'abc-123'
+        templates = [self._compute_domain_template()]
+        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {})
+
+        self.assertEqual(result[0]['metadata']['name'], f'compute-domain-{group_uuid}')
+        self.assertEqual(
+            result[0]['spec']['channel']['resourceClaimTemplate']['name'],
+            f'compute-domain-{group_uuid}',
+        )
+
+    def test_namespace_stripped(self):
+        """metadata.namespace is removed from the rendered output."""
+        templates = [{
+            'apiVersion': 'v1',
+            'kind': 'ConfigMap',
+            'metadata': {'name': 'my-cm', 'namespace': 'user-namespace'},
+        }]
+        result = task.render_group_templates(templates, {}, {})
+        self.assertNotIn('namespace', result[0]['metadata'])
+
+    def test_osmo_labels_injected(self):
+        """OSMO labels are added into metadata.labels of the rendered resource."""
+        templates = [{'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': {'name': 'my-cm'}}]
+        labels = {'osmo.group_uuid': 'grp-1', 'osmo.workflow_uuid': 'wf-1'}
+        result = task.render_group_templates(templates, {}, labels)
+
+        self.assertEqual(result[0]['metadata']['labels']['osmo.group_uuid'], 'grp-1')
+        self.assertEqual(result[0]['metadata']['labels']['osmo.workflow_uuid'], 'wf-1')
+
+    def test_existing_labels_preserved_and_merged(self):
+        """Pre-existing metadata.labels on the template are kept alongside injected OSMO labels."""
+        templates = [{
+            'apiVersion': 'v1',
+            'kind': 'ConfigMap',
+            'metadata': {'name': 'my-cm', 'labels': {'custom-key': 'custom-value'}},
+        }]
+        labels = {'osmo.group_uuid': 'grp-1'}
+        result = task.render_group_templates(templates, {}, labels)
+
+        self.assertEqual(result[0]['metadata']['labels']['custom-key'], 'custom-value')
+        self.assertEqual(result[0]['metadata']['labels']['osmo.group_uuid'], 'grp-1')
+
+    def test_input_templates_not_mutated(self):
+        """The original templates list and its contents are unchanged after rendering."""
+        templates = [self._compute_domain_template()]
+        original = copy.deepcopy(templates)
+        task.render_group_templates(templates, {'WF_GROUP_UUID': 'xyz'}, {'osmo.group_uuid': 'g'})
+        self.assertEqual(templates, original)
+
+    def test_multiple_templates_all_rendered(self):
+        """All templates in the input list are rendered and returned."""
+        group_uuid = 'grp-42'
+        templates = [
+            self._compute_domain_template(),
+            {
+                'apiVersion': 'v1',
+                'kind': 'Secret',
+                'metadata': {'name': 'secret-{{WF_GROUP_UUID}}'},
+            },
+        ]
+        result = task.render_group_templates(templates, {'WF_GROUP_UUID': group_uuid}, {})
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['metadata']['name'], f'compute-domain-{group_uuid}')
+        self.assertEqual(result[1]['metadata']['name'], f'secret-{group_uuid}')
+
+    def test_empty_templates_returns_empty_list(self):
+        """An empty template list returns an empty list without error."""
+        result = task.render_group_templates([], {'WF_GROUP_UUID': 'grp-1'}, {})
+        self.assertEqual(result, [])
+
+
+class GroupTemplateTest(service_fixture.ServiceTestFixture):
+    """DB-backed tests for group template CRUD, pool assignment, and KB spec generation."""
 
     def setUp(self):
         super().setUp()
         self.database = connectors.PostgresConnector.get_instance()
+
+    # ── CRUD tests ────────────────────────────────────────────────────────────
 
     def test_put_and_get_single_template(self):
         """PUT a group template via API, then GET it and verify the body matches."""
@@ -172,17 +268,11 @@ class GroupTemplateCRUDTest(service_fixture.ServiceTestFixture):
                 self.database, 'namespaced-template')
         self.assertIn('namespace', str(context.exception).lower())
 
-
-class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
-    """Tests that Pool.calculate_group_templates correctly populates parsed_group_templates."""
-
-    def setUp(self):
-        super().setUp()
-        self.database = connectors.PostgresConnector.get_instance()
-        self.create_test_backend(self.database)
+    # ── Pool group template assignment tests ──────────────────────────────────
 
     def test_pool_with_single_group_template(self):
         """Pool assigned one group template has it in parsed_group_templates."""
+        self.create_test_backend(self.database)
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
         self.create_test_pool(
             pool_name='nvlink-pool',
@@ -204,6 +294,7 @@ class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
             'kind': 'ConfigMap',
             'metadata': {'name': 'shared-config'},
         }
+        self.create_test_backend(self.database)
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
         self.create_test_group_template('shared-config', second_template)
         self.create_test_pool(
@@ -232,6 +323,7 @@ class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
             'metadata': {'name': 'compute-domain-shared'},
             'spec': {'extra': 'value'},
         }
+        self.create_test_backend(self.database)
         self.create_test_group_template('base-cd', base_template)
         self.create_test_group_template('patch-cd', patch_template)
         self.create_test_pool(
@@ -248,6 +340,7 @@ class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_pool_parsed_templates_updated_when_template_changes(self):
         """After updating a group template, the pool's parsed_group_templates reflects the change."""
+        self.create_test_backend(self.database)
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
         self.create_test_pool(
             pool_name='nvlink-pool',
@@ -267,6 +360,7 @@ class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_pool_with_no_group_templates(self):
         """Pool with empty common_group_templates has an empty parsed_group_templates."""
+        self.create_test_backend(self.database)
         self.create_test_pool(pool_name='plain-pool', backend='test_backend')
 
         pool = connectors.Pool.fetch_from_db(self.database, 'plain-pool')
@@ -274,6 +368,7 @@ class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_pool_nonexistent_group_template_raises_error(self):
         """Assigning a non-existent group template name to a pool raises an error."""
+        self.create_test_backend(self.database)
         with self.assertRaises(osmo_errors.OSMOUsageError):
             self.create_test_pool(
                 pool_name='bad-pool',
@@ -281,33 +376,28 @@ class PoolGroupTemplateTest(service_fixture.ServiceTestFixture):
                 common_group_templates=['does-not-exist'],
             )
 
+    # ── KB spec generation tests ───────────────────────────────────────────────
 
-class CreateGroupGroupTemplateTest(service_fixture.ServiceTestFixture):
-    """Integration tests that group template resources are rendered and prepended during
-    task group KB spec generation (get_kb_specs)."""
-
-    def setUp(self):
-        super().setUp()
-        self.database = connectors.PostgresConnector.get_instance()
+    def _setup_for_kb_specs(self):
+        """Set up backend, workflow config, group template, pool, task group, and progress writer."""
         self.create_test_backend(self.database)
 
-        # Set up minimal workflow config (required by get_kb_specs)
-        workflow_config = connectors.WorkflowConfig(
-            workflow_data={
-                'credential': {
-                    'endpoint': 's3://bucket.io/AUTH_test/workflows',
-                    'access_key_id': 'test',
-                    'access_key': 'test_key',
-                    'region': 'us-east-1',
-                },
-            },
-        )
         config_service.put_workflow_configs(
-            request=config_objects.PutWorkflowRequest(configs=workflow_config),
+            request=config_objects.PutWorkflowRequest(configs=connectors.WorkflowConfig(
+                workflow_data={
+                    'credential': {
+                        'endpoint': 's3://bucket.io/AUTH_test/workflows',
+                        'access_key_id': 'test',
+                        'access_key': 'test_key',
+                        'region': 'us-east-1',
+                    },
+                },
+            )),
             username='test@nvidia.com',
         )
 
         self._tmpdir_obj = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmpdir_obj.cleanup)
         self._progress_writer = progress.ProgressWriter(
             os.path.join(self._tmpdir_obj.name, 'progress.txt'))
 
@@ -319,12 +409,8 @@ class CreateGroupGroupTemplateTest(service_fixture.ServiceTestFixture):
         )
         self.task_group = self.create_task_group(self.database)
 
-    def tearDown(self):
-        self._tmpdir_obj.cleanup()
-        super().tearDown()
-
     def _run_get_kb_specs(self, pool_name: str, task_group: task.TaskGroup):
-        """Helper to invoke get_kb_specs with standard test arguments."""
+        """Invoke get_kb_specs with standard test arguments."""
         workflow_config = self.database.get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
         return task_group.get_kb_specs(
@@ -342,6 +428,7 @@ class CreateGroupGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_group_template_resources_prepended(self):
         """Group template resources appear before pod/secret resources in kb_resources."""
+        self._setup_for_kb_specs()
         kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         self.assertGreater(len(kb_resources), 0)
@@ -351,16 +438,17 @@ class CreateGroupGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_group_template_variable_substitution_in_kb_specs(self):
         """WF_GROUP_UUID token in the template name is replaced with the actual group UUID."""
+        self._setup_for_kb_specs()
         kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group)
 
-        group_template_resource = kb_resources[0]
-        rendered_name = group_template_resource['metadata']['name']
+        rendered_name = kb_resources[0]['metadata']['name']
         self.assertNotIn('{{', rendered_name)
         self.assertIn(self.task_group.group_uuid, rendered_name)
 
     def test_group_template_osmo_labels_on_rendered_resource(self):
         """OSMO labels (osmo.group_uuid, osmo.workflow_uuid, etc.) are present on the
         rendered resource."""
+        self._setup_for_kb_specs()
         kb_resources, _ = self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         rendered_labels = kb_resources[0]['metadata']['labels']
@@ -370,6 +458,7 @@ class CreateGroupGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_group_template_resource_types_recorded_on_task_group(self):
         """After get_kb_specs, group_template_resource_types on the TaskGroup is populated."""
+        self._setup_for_kb_specs()
         self._run_get_kb_specs('nvlink-pool', self.task_group)
 
         self.assertEqual(len(self.task_group.group_template_resource_types), 1)
@@ -379,14 +468,12 @@ class CreateGroupGroupTemplateTest(service_fixture.ServiceTestFixture):
 
     def test_no_group_templates_no_prepended_resources(self):
         """A pool with no group templates does not prepend any extra resources."""
+        self._setup_for_kb_specs()
         self.create_test_pool(pool_name='plain-pool', backend='test_backend')
-        task_group = self.create_task_group(self.database)
 
-        kb_resources, _ = self._run_get_kb_specs('plain-pool', task_group)
+        kb_resources, _ = self._run_get_kb_specs('plain-pool', self.task_group)
 
-        self.assertEqual(task_group.group_template_resource_types, [])
-
-        # First resource should not be a ComputeDomain
+        self.assertEqual(self.task_group.group_template_resource_types, [])
         for resource in kb_resources:
             self.assertNotEqual(resource.get('kind'), 'ComputeDomain')
 
