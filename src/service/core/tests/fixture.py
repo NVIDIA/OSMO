@@ -118,15 +118,19 @@ class ServiceTestFixture(fixtures.PostgresFixture,
 
         super().tearDown()
 
-    def create_test_backend(self, backend_name='test_backend'):
+    def create_test_backend(self, database=None, backend_name='test_backend'):
         """Helper function to create a test backend.
 
         Args:
+            database: Database connector instance. If None, gets the current instance.
             backend_name: Name of the backend to create.
 
         Returns:
             The created backend configuration
         """
+        if database is None:
+            database = connectors.postgres.PostgresConnector.get_instance()
+
         backend = {
             'k8s_uid': 'test_uid',
             'k8s_namespace': 'test_namespace',
@@ -134,7 +138,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             'node_condition_prefix': 'test.osmo.nvidia.com/',
         }
         agent_helpers.create_backend(
-            backend_name, backend_messages.InitBody(**backend))
+            database, backend_name, backend_messages.InitBody(**backend))
 
     def create_test_group_template(self, name: str, group_template: Dict[str, Any]) -> None:
         """Helper function to create a group template.
@@ -193,10 +197,8 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         )
         return pool_config
 
-    def create_task_group(self):
+    def create_task_group(self, database):
         """Helper function to create a task group for token substitution testing."""
-        context = objects.WorkflowServiceContext.get()
-        database = context.database
         # Create workflow record in database
         workflow_uuid = common.generate_unique_id()
         cmd = '''
