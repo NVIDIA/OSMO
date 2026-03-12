@@ -39,7 +39,7 @@ _BASE64_FRAGMENT_RE = re.compile(
 
 
 _ENTROPY_THRESHOLD = 3.0
-_NEVER_MASK_VALUES = frozenset({'true', 'false', '0', '1', ''})
+_NEVER_MASK_VALUES = frozenset({'true', 'false', 'True', 'False', 'TRUE', 'FALSE', '0', '1', ''})
 
 # Env var names that always warrant masking regardless of value entropy.
 _SENSITIVE_ENV_NAME_RE = re.compile(
