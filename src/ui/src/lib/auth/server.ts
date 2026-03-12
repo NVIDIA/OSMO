@@ -41,8 +41,8 @@ import { hasAdminRole } from "@/lib/auth/roles";
 import type { User } from "@/lib/auth/user-context";
 
 export async function getServerUserRoles(): Promise<string[]> {
-  const roles = await prodGetServerUserRoles();
-  if (roles.length > 0) return roles;
+  const username = await prodGetServerUsername();
+  if (username !== null) return prodGetServerUserRoles();
   return (process.env.DEV_USER_ROLES ?? "")
     .split(/[,\s]+/)
     .map((r) => r.trim())

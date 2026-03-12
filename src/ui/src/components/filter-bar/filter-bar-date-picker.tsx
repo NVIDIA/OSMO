@@ -39,6 +39,8 @@ interface FilterBarDatePickerProps {
   highlightedLabel?: string;
   /** Called when Tab/Shift-Tab should wrap the cycle (e.g. Tab past Apply, Shift-Tab on From). */
   onCycleStep?: (direction: "forward" | "backward", fromValue: string) => void;
+  /** Called when Escape is pressed to close the date picker / dropdown. */
+  onClose?: () => void;
 }
 
 /** Format a UTC YYYY-MM-DD string as "Mar 4" or "Mar 4 '25" (if year differs from currentYear). */
@@ -66,6 +68,7 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
   onCommit,
   highlightedLabel,
   onCycleStep,
+  onClose,
 }: FilterBarDatePickerProps) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -117,7 +120,15 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
     <div
       className="fb-date-picker"
       role="none"
-      onKeyDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          e.preventDefault();
+          onClose?.();
+        } else {
+          e.stopPropagation();
+        }
+      }}
     >
       <div className="fb-date-split">
         {/* Left rail: presets with right-aligned date hints */}

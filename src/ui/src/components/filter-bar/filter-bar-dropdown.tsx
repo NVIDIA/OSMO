@@ -95,6 +95,8 @@ interface FilterBarDropdownProps<T> {
   onDateCommit?: (value: string) => void;
   /** Advance the date picker cycle from a sentinel when Tab/Shift-Tab fires on a picker element */
   onDateCycleStep?: (direction: "forward" | "backward", fromValue: string) => void;
+  /** Called when Escape is pressed inside the date picker to close the dropdown */
+  onDateClose?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +117,7 @@ function FilterBarDropdownInner<T>({
   activeDateRangeField,
   onDateCommit,
   onDateCycleStep,
+  onDateClose,
 }: FilterBarDropdownProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -188,6 +191,7 @@ function FilterBarDropdownInner<T>({
               onCommit={onDateCommit}
               highlightedLabel={highlightedSuggestionValue}
               onCycleStep={onDateCycleStep}
+              onClose={onDateClose}
             />
           ) : (
             <>

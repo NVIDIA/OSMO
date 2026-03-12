@@ -145,7 +145,7 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
   const rowClassName = useCallback((row: OccupancyFlatRow) => {
     const zebraClass =
       row._visualGroupIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
-    if (row._type === "child") return `occupancy-row occupancy-row--child ${zebraClass}`;
+    if (row._type === "child") return `occupancy-row occupancy-row--child group/occ-child ${zebraClass}`;
     return `occupancy-row group/occ-row ${zebraClass}${row.isExpanded ? " font-medium" : ""}`;
   }, []);
 

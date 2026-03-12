@@ -21,24 +21,14 @@ import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM } from "@/components
 // Column IDs
 // =============================================================================
 
-export type OccupancyColumnId =
-  | "expand"
-  | "key"
-  | "count"
-  | "gpu"
-  | "cpu"
-  | "memory"
-  | "storage"
-  | "high"
-  | "normal"
-  | "low";
+export type OccupancyColumnId = "expand" | "key" | "count" | "gpu" | "cpu" | "memory" | "storage" | "priority";
 
 // =============================================================================
 // Column Configuration (via factory)
 // =============================================================================
 
 const occupancyColumnConfig = createColumnConfig<OccupancyColumnId>({
-  columns: ["expand", "key", "count", "gpu", "cpu", "memory", "storage", "high", "normal", "low"] as const,
+  columns: ["expand", "key", "count", "gpu", "cpu", "memory", "storage", "priority"] as const,
   labels: {
     expand: "",
     key: "Name",
@@ -47,13 +37,11 @@ const occupancyColumnConfig = createColumnConfig<OccupancyColumnId>({
     cpu: "CPU",
     memory: "Memory",
     storage: "Storage",
-    high: "High",
-    normal: "Normal",
-    low: "Low",
+    priority: "Priority",
   },
   mandatory: ["expand", "key"],
-  defaultVisible: ["expand", "key", "count", "gpu", "cpu", "memory", "storage", "high", "normal", "low"],
-  defaultOrder: ["expand", "key", "count", "gpu", "cpu", "memory", "storage", "high", "normal", "low"],
+  defaultVisible: ["expand", "key", "count", "gpu", "cpu", "memory", "storage", "priority"],
+  defaultOrder: ["expand", "key", "count", "gpu", "cpu", "memory", "storage", "priority"],
   sizeConfig: [
     {
       id: "expand",
@@ -91,19 +79,9 @@ const occupancyColumnConfig = createColumnConfig<OccupancyColumnId>({
       preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
     },
     {
-      id: "high",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
-    },
-    {
-      id: "normal",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
-    },
-    {
-      id: "low",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
+      id: "priority",
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT * 3 + 1,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT * 3 + 1,
     },
   ],
   defaultSort: { column: "gpu", direction: "desc" },

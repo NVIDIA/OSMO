@@ -46,12 +46,6 @@ export const STATUS_STYLES: Record<
 
 export type Priority = (typeof WorkflowPriority)[keyof typeof WorkflowPriority];
 
-const VALID_PRIORITIES: ReadonlySet<string> = new Set(Object.values(WorkflowPriority));
-
-function isPriority(value: string): value is Priority {
-  return VALID_PRIORITIES.has(value);
-}
-
 export const PRIORITY_STYLES: Record<
   Priority,
   {
@@ -76,14 +70,6 @@ export const PRIORITY_STYLES: Record<
     label: "Low",
   },
 };
-
-export function getPriorityDisplay(priority: string): { label: string; bg: string; text: string } {
-  const normalized = priority.toUpperCase();
-  if (isPriority(normalized)) {
-    return PRIORITY_STYLES[normalized];
-  }
-  return PRIORITY_STYLES[WorkflowPriority.NORMAL];
-}
 
 export const ALL_WORKFLOW_STATUSES: readonly WorkflowStatusType[] = Object.values(
   WorkflowStatus,
