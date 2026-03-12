@@ -16,6 +16,7 @@
 
 import type { SearchField } from "@/components/filter-bar/lib/types";
 import type { Pool } from "@/lib/api/adapter/types";
+import { PoolStatus } from "@/lib/api/generated";
 import { createNumericSearchFieldPair } from "@/lib/filter-utils";
 
 // ============================================================================
@@ -33,7 +34,18 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     getValues: (pools) => pools.map((p) => p.name).slice(0, 20),
     match: (pool, value) => pool.name.toLowerCase().includes(value.toLowerCase()),
   },
-  // Note: status filter is handled via presets in the toolbar, not as a typed field
+  {
+    id: "status",
+    label: "Status",
+    hint: "pool status",
+    prefix: "status:",
+    singular: true,
+    getValues: () => Object.values(PoolStatus).map((s) => s.toUpperCase()),
+    exhaustive: true,
+    requiresValidValue: true,
+    match: (pool, value) => pool.status.toUpperCase() === value.toUpperCase(),
+  },
+  // Note: status filter is also handled via presets in the toolbar
   {
     id: "platform",
     label: "Platform",
