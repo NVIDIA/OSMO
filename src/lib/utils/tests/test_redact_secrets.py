@@ -19,7 +19,7 @@ import base64
 import textwrap
 import unittest
 
-from src.lib.utils.redact import redact_secrets
+from src.lib.utils.redact import redact_pod_spec_env, redact_secrets
 
 
 # The AWS keys used below are the well-known example credentials from the AWS documentation
@@ -92,6 +92,51 @@ class TestRedactSecretsBase64(unittest.TestCase):
         redacted = _redact(spec)
 
         self.assertIn(encoded, redacted)
+
+
+class TestRedactPodSpecEnv(unittest.TestCase):
+    """redact_pod_spec_env masks high-entropy values and leaves low-entropy values untouched."""
+
+    def _make_pod_spec(self, *containers: list) -> dict:
+        return {'containers': containers, 'initContainers': []}
+
+    def test_masks_high_entropy_secret(self):
+        pod_spec = self._make_pod_spec(
+            {'name': 'app', 'env': [{'name': 'AWS_SECRET_ACCESS_KEY', 'value': _AWS_SECRET_KEY}]},
+        )
+        redacted = redact_pod_spec_env(pod_spec)
+        self.assertEqual(redacted['containers'][0]['env'][0]['value'], '[MASKED]')
+
+    def test_preserves_low_entropy_value(self):
+        pod_spec = self._make_pod_spec(
+            {'name': 'app', 'env': [{'name': 'ENABLE_FEATURE', 'value': 'true'}]},
+        )
+        redacted = redact_pod_spec_env(pod_spec)
+        self.assertEqual(redacted['containers'][0]['env'][0]['value'], 'true')
+
+    def test_does_not_modify_original(self):
+        pod_spec = self._make_pod_spec(
+            {'name': 'app', 'env': [{'name': 'AWS_SECRET_ACCESS_KEY', 'value': _AWS_SECRET_KEY}]},
+        )
+        redact_pod_spec_env(pod_spec)
+        self.assertEqual(pod_spec['containers'][0]['env'][0]['value'], _AWS_SECRET_KEY)
+
+    def test_masks_in_init_containers(self):
+        pod_spec = {
+            'containers': [],
+            'initContainers': [
+                {'name': 'init', 'env': [{'name': 'AWS_SECRET_ACCESS_KEY', 'value': _AWS_SECRET_KEY}]},
+            ],
+        }
+        redacted = redact_pod_spec_env(pod_spec)
+        self.assertEqual(redacted['initContainers'][0]['env'][0]['value'], '[MASKED]')
+
+    def test_leaves_value_from_untouched(self):
+        pod_spec = self._make_pod_spec(
+            {'name': 'app', 'env': [{'name': 'MY_SECRET', 'valueFrom': {'secretKeyRef': {'name': 'my-secret', 'key': 'value'}}}]},  # pylint: disable=line-too-long
+        )
+        redacted = redact_pod_spec_env(pod_spec)
+        self.assertNotIn('value', redacted['containers'][0]['env'][0])
 
 
 if __name__ == '__main__':

@@ -38,6 +38,7 @@ import yaml
 
 from src.lib.data import storage
 from src.lib.utils import common, osmo_errors, priority as wf_priority
+from src.lib.utils.redact import redact_pod_spec_env
 from src.utils import connectors
 from src.utils.job import app, backend_job_defs, common as task_common, kb_objects, task, workflow
 from src.utils.job.jobs_base import Job, JobResult, JobStatus, update_progress_writer
@@ -480,7 +481,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             upload_task = UploadWorkflowFiles(
                 workflow_id=workflow_obj.workflow_id,
                 workflow_uuid=self.workflow_uuid,
-                files=[File(f'{task_name}.spec', yaml.dump(pod_spec))
+                files=[File(f'{task_name}.spec', yaml.dump(redact_pod_spec_env(pod_spec)))
                         for task_name, pod_spec in pod_specs.items()])
             upload_task.send_job_to_queue()
 

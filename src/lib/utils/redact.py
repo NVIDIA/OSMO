@@ -16,8 +16,11 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 import base64
+import collections
+import copy
+import math
 import re
-from typing import Generator, Iterable
+from typing import Dict, Generator, Iterable
 
 
 # Regex to match secrets in the spec. While this is not a perfect solution, it solves the majority
@@ -33,6 +36,42 @@ SECRET_REDACTION_RE = re.compile(
 _BASE64_FRAGMENT_RE = re.compile(
     r'(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{16,}={0,2}(?![A-Za-z0-9+/=])'
 )
+
+
+_ENTROPY_THRESHOLD = 3.0
+
+
+def _shannon_entropy(data: str) -> float:
+    """
+    Calculate the Shannon entropy of a string (bits per character).
+    https://en.wiktionary.org/wiki/Shannon_entropy
+    """
+    if not data:
+        return 0.0
+    inv_length = 1.0 / len(data)
+    entropy = 0.0
+    for count in collections.Counter(data).values():
+        freq = count * inv_length
+        entropy -= freq * math.log2(freq)
+    return entropy
+
+
+def redact_pod_spec_env(pod_spec: Dict) -> Dict:
+    """
+    Return a deep copy of pod_spec with high-entropy env var values replaced by [MASKED].
+
+    Only values whose Shannon entropy exceeds _ENTROPY_THRESHOLD are masked, leaving
+    low-entropy values like 'true', 'false', or plain URLs untouched. Covers both
+    'containers' and 'initContainers'. Entries that use 'valueFrom' (i.e. have no
+    'value' key) are left untouched.
+    """
+    pod_spec = copy.deepcopy(pod_spec)
+    for container_list_key in ('containers', 'initContainers'):
+        for container in pod_spec.get('spec', pod_spec).get(container_list_key, []):
+            for env_entry in container.get('env', []):
+                if 'value' in env_entry and _shannon_entropy(env_entry['value']) > _ENTROPY_THRESHOLD:
+                    env_entry['value'] = '[MASKED]'
+    return pod_spec
 
 
 def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:

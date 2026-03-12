@@ -905,14 +905,14 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         workflow_spec = yaml.dump(workflow_dict, default_flow_style=False, allow_unicode=True)
 
         # Redact secrets in the workflow spec
-        workflow_spec = next(redact_secrets(list(workflow_spec)))
+        workflow_spec = ''.join(redact_secrets((workflow_spec,)))
 
         files = [
             jobs.File(path=common.WORKFLOW_SPEC_FILE_NAME, content=workflow_spec)
         ]
         if original_templated_spec is not None:
             # Redact secrets in the original templated spec
-            original_templated_spec = next(redact_secrets(list(original_templated_spec)))
+            original_templated_spec = ''.join(redact_secrets((original_templated_spec,)))
             files.append(jobs.File(
                 path=common.TEMPLATED_WORKFLOW_SPEC_FILE_NAME,
                 content=original_templated_spec))
