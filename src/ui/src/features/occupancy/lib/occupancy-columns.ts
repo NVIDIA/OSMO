@@ -21,15 +21,7 @@ import { COLUMN_MIN_WIDTHS_REM, COLUMN_PREFERRED_WIDTHS_REM } from "@/components
 // Column IDs
 // =============================================================================
 
-export type OccupancyColumnId =
-  | "expand"
-  | "key"
-  | "count"
-  | "gpu"
-  | "cpu"
-  | "memory"
-  | "storage"
-  | "priority";
+export type OccupancyColumnId = "expand" | "key" | "count" | "gpu" | "cpu" | "memory" | "storage" | "priority";
 
 // =============================================================================
 // Column Configuration (via factory)

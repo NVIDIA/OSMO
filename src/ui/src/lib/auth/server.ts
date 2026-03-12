@@ -42,7 +42,7 @@ import type { User } from "@/lib/auth/user-context";
 
 export async function getServerUserRoles(): Promise<string[]> {
   const username = await prodGetServerUsername();
-  if (username !== null) return await prodGetServerUserRoles();
+  if (username !== null) return prodGetServerUserRoles();
   return (process.env.DEV_USER_ROLES ?? "")
     .split(/[,\s]+/)
     .map((r) => r.trim())

@@ -20,8 +20,10 @@ import { PRIORITY_STYLES } from "@/lib/workflows/workflow-constants";
 
 export const PRIORITY_DISPLAY = {
   [WorkflowPriority.HIGH]: { ...PRIORITY_STYLES[WorkflowPriority.HIGH], Icon: ArrowUp, iconClass: "size-3 shrink-0" },
-  [WorkflowPriority.NORMAL]: { ...PRIORITY_STYLES[WorkflowPriority.NORMAL], Icon: Circle, iconClass: "size-1.5 shrink-0 fill-current opacity-50 mr-0.5" },
+  [WorkflowPriority.NORMAL]: {
+    ...PRIORITY_STYLES[WorkflowPriority.NORMAL],
+    Icon: Circle,
+    iconClass: "size-1.5 shrink-0 fill-current opacity-50 mr-0.5",
+  },
   [WorkflowPriority.LOW]: { ...PRIORITY_STYLES[WorkflowPriority.LOW], Icon: ArrowDown, iconClass: "size-3 shrink-0" },
 } as const;
-
-export type PriorityDisplay = (typeof PRIORITY_DISPLAY)[keyof typeof PRIORITY_DISPLAY];

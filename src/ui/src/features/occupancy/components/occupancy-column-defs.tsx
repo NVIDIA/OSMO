@@ -55,11 +55,7 @@ function PriorityBadge({ value, priority }: { value: number; priority: "high" | 
   const { bg, text, Icon, iconClass } = PRIORITY_DISPLAY[priority.toUpperCase() as keyof typeof PRIORITY_DISPLAY];
   return (
     <span
-      className={cn(
-        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
-        bg,
-        text,
-      )}
+      className={cn("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium tabular-nums", bg, text)}
     >
       <Icon className={iconClass} />
       {value}
@@ -267,9 +263,18 @@ export function createOccupancyColumns(
       header: "Priority",
       cell: ({ row }: { row: { original: OccupancyFlatRow } }) => (
         <div className="flex items-center gap-1">
-          <PriorityBadge value={row.original.high} priority="high" />
-          <PriorityBadge value={row.original.normal} priority="normal" />
-          <PriorityBadge value={row.original.low} priority="low" />
+          <PriorityBadge
+            value={row.original.high}
+            priority="high"
+          />
+          <PriorityBadge
+            value={row.original.normal}
+            priority="normal"
+          />
+          <PriorityBadge
+            value={row.original.low}
+            priority="low"
+          />
         </div>
       ),
     },

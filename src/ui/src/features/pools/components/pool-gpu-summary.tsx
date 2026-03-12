@@ -63,7 +63,10 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
           <TooltipTrigger asChild>
             <Info className="h-3 w-3 shrink-0 cursor-default text-zinc-400 dark:text-zinc-500" />
           </TooltipTrigger>
-          <TooltipContent side="top" className="max-w-48">
+          <TooltipContent
+            side="top"
+            className="max-w-48"
+          >
             {tooltip}
           </TooltipContent>
         </Tooltip>

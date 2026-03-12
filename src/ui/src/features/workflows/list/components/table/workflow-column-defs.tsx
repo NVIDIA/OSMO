@@ -17,7 +17,6 @@
 // NOTE: Only submit_time is sortable (backend limitation)
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle } from "lucide-react";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
@@ -27,20 +26,16 @@ import {
   COLUMN_LABELS,
   type WorkflowColumnId,
 } from "@/features/workflows/list/lib/workflow-columns";
-import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay } from "@/lib/workflows/workflow-constants";
+import { getStatusDisplay, STATUS_STYLES } from "@/lib/workflows/workflow-constants";
 import { PRIORITY_DISPLAY } from "@/lib/workflows/priority-display";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
-import { WorkflowStatus } from "@/lib/api/generated";
-
+import { WorkflowStatus, WorkflowPriority } from "@/lib/api/generated";
 
 function getMinSize(id: WorkflowColumnId): number {
   const col = WORKFLOW_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
   return col ? remToPx(col.minWidthRem) : 80;
 }
-
-// SSR-safe date formatters from @/lib/format-date
-// These produce consistent output between server and client
 
 export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[] {
   return [
@@ -191,20 +186,14 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       minSize: getMinSize("priority"),
       enableSorting: false, // Backend only sorts by submit_time
       cell: ({ row }) => {
-        const priority = row.original.priority;
-        const display = getPriorityDisplay(priority);
-        const { Icon, iconClass } = PRIORITY_DISPLAY[priority.toUpperCase() as keyof typeof PRIORITY_DISPLAY] ?? { Icon: AlertTriangle, iconClass: "size-3 shrink-0" };
+        const { bg, text, label, Icon, iconClass } =
+          PRIORITY_DISPLAY[row.original.priority.toUpperCase() as keyof typeof PRIORITY_DISPLAY] ??
+          PRIORITY_DISPLAY[WorkflowPriority.NORMAL];
 
         return (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium",
-              display.bg,
-              display.text,
-            )}
-          >
+          <span className={cn("inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium", bg, text)}>
             <Icon className={iconClass} />
-            {display.label}
+            {label}
           </span>
         );
       },
