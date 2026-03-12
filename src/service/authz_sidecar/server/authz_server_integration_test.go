@@ -66,11 +66,21 @@ func (f *testFixture) resetAndSeed(t *testing.T) *server.AuthzServer {
 }
 
 func makeCheckRequest(user, path, method string, roleNames string) *envoy_service_auth_v3.CheckRequest {
+	return makeCheckRequestWithHeaders(user, path, method, roleNames, "", "")
+}
+
+func makeCheckRequestWithHeaders(user, path, method, roleNames, tokenName, workflowID string) *envoy_service_auth_v3.CheckRequest {
 	headers := map[string]string{
 		"x-osmo-user": user,
 	}
 	if roleNames != "" {
 		headers["x-osmo-roles"] = roleNames
+	}
+	if tokenName != "" {
+		headers["x-osmo-token-name"] = tokenName
+	}
+	if workflowID != "" {
+		headers["x-osmo-workflow-id"] = workflowID
 	}
 
 	return &envoy_service_auth_v3.CheckRequest{
@@ -212,6 +222,377 @@ func TestIntegration(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				req := makeCheckRequest(tt.user, tt.path, tt.method, tt.roles)
+				resp, err := authzServer.Check(context.Background(), req)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				gotCode := codes.Code(resp.Status.Code)
+				if gotCode != tt.wantCode {
+					t.Errorf("Check() status = %v, want %v", gotCode, tt.wantCode)
+				}
+			})
+		}
+	})
+
+	// Tests that x-osmo-token-name skips SyncUserRoles, so the request only
+	// uses the roles from the header, not the user's DB-assigned roles.
+	t.Run("TokenAccessBypassesRoleSync", func(t *testing.T) {
+		authzServer := fixture.resetAndSeed(t)
+
+		tests := []struct {
+			name      string
+			user      string
+			roles     string
+			tokenName string
+			path      string
+			method    string
+			wantCode  codes.Code
+		}{
+			{
+				name:      "token with restricted role cannot create workflows on staging",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "my-api-token",
+				path:      "/api/pool/staging/workflow",
+				method:    "POST",
+				wantCode:  codes.PermissionDenied,
+			},
+			{
+				name:      "same user WITHOUT token header CAN create workflows via DB roles",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "",
+				path:      "/api/pool/staging/workflow",
+				method:    "POST",
+				wantCode:  codes.OK,
+			},
+			{
+				name:      "token with restricted role cannot list pools",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "my-api-token",
+				path:      "/api/pool",
+				method:    "GET",
+				wantCode:  codes.PermissionDenied,
+			},
+			{
+				name:      "same user WITHOUT token header CAN list pools via DB roles",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "",
+				path:      "/api/pool",
+				method:    "GET",
+				wantCode:  codes.OK,
+			},
+			{
+				name:      "token with restricted role cannot read profile",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "my-api-token",
+				path:      "/api/profile/settings",
+				method:    "GET",
+				wantCode:  codes.PermissionDenied,
+			},
+			{
+				name:      "token with no roles only gets default - cannot create workflows",
+				user:      "user@example.com",
+				roles:     "",
+				tokenName: "my-api-token",
+				path:      "/api/pool/staging/workflow",
+				method:    "POST",
+				wantCode:  codes.PermissionDenied,
+			},
+			{
+				name:      "token with full user role in header CAN create workflows",
+				user:      "user@example.com",
+				roles:     "osmo-user",
+				tokenName: "my-api-token",
+				path:      "/api/pool/staging/workflow",
+				method:    "POST",
+				wantCode:  codes.OK,
+			},
+			{
+				name:      "token with full user role in header CAN list pools",
+				user:      "user@example.com",
+				roles:     "osmo-user",
+				tokenName: "my-api-token",
+				path:      "/api/pool",
+				method:    "GET",
+				wantCode:  codes.OK,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := makeCheckRequestWithHeaders(tt.user, tt.path, tt.method, tt.roles, tt.tokenName, "")
+				resp, err := authzServer.Check(context.Background(), req)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				gotCode := codes.Code(resp.Status.Code)
+				if gotCode != tt.wantCode {
+					t.Errorf("Check() status = %v, want %v", gotCode, tt.wantCode)
+				}
+			})
+		}
+	})
+
+	// Tests that x-osmo-workflow-id skips SyncUserRoles the same way tokens do.
+	t.Run("WorkflowIDBypassesRoleSync", func(t *testing.T) {
+		authzServer := fixture.resetAndSeed(t)
+
+		tests := []struct {
+			name       string
+			user       string
+			roles      string
+			workflowID string
+			path       string
+			method     string
+			wantCode   codes.Code
+		}{
+			{
+				name:       "workflow request with restricted role cannot create workflows on staging",
+				user:       "user@example.com",
+				roles:      "osmo-restricted",
+				workflowID: "wf-abc-123",
+				path:       "/api/pool/staging/workflow",
+				method:     "POST",
+				wantCode:   codes.PermissionDenied,
+			},
+			{
+				name:       "same user WITHOUT workflow ID CAN create workflows via DB roles",
+				user:       "user@example.com",
+				roles:      "osmo-restricted",
+				workflowID: "",
+				path:       "/api/pool/staging/workflow",
+				method:     "POST",
+				wantCode:   codes.OK,
+			},
+			{
+				name:       "workflow request with restricted role cannot list pools",
+				user:       "user@example.com",
+				roles:      "osmo-restricted",
+				workflowID: "wf-abc-123",
+				path:       "/api/pool",
+				method:     "GET",
+				wantCode:   codes.PermissionDenied,
+			},
+			{
+				name:       "workflow request with no roles only gets default - cannot create workflows",
+				user:       "user@example.com",
+				roles:      "",
+				workflowID: "wf-abc-123",
+				path:       "/api/pool/staging/workflow",
+				method:     "POST",
+				wantCode:   codes.PermissionDenied,
+			},
+			{
+				name:       "workflow request with full user role in header CAN create workflows",
+				user:       "user@example.com",
+				roles:      "osmo-user",
+				workflowID: "wf-abc-123",
+				path:       "/api/pool/staging/workflow",
+				method:     "POST",
+				wantCode:   codes.OK,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := makeCheckRequestWithHeaders(tt.user, tt.path, tt.method, tt.roles, "", tt.workflowID)
+				resp, err := authzServer.Check(context.Background(), req)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				gotCode := codes.Code(resp.Status.Code)
+				if gotCode != tt.wantCode {
+					t.Errorf("Check() status = %v, want %v", gotCode, tt.wantCode)
+				}
+			})
+		}
+	})
+
+	// Tests app API endpoints, including the user-scoped creation path
+	// (/api/app/user/{app_name}) that requires a wildcard pattern in the
+	// action registry.
+	t.Run("AppAccess", func(t *testing.T) {
+		authzServer := fixture.resetAndSeed(t)
+
+		tests := []struct {
+			name      string
+			user      string
+			roles     string
+			tokenName string
+			path      string
+			method    string
+			wantCode  codes.Code
+		}{
+			{
+				name:     "user can create app at base path",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app",
+				method:   "POST",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "user can create app at user-scoped path",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app/user/my-app",
+				method:   "POST",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "user can create app at user-scoped path with query params",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app/user/integration_test_app?description=This+is+a+test+app",
+				method:   "POST",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "user can read apps",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app",
+				method:   "GET",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "user can read specific app",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app/my-app",
+				method:   "GET",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "user can update app",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app/my-app",
+				method:   "PUT",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "user can delete app",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/app/my-app",
+				method:   "DELETE",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "restricted role cannot create app",
+				user:     "restricted@example.com",
+				roles:    "osmo-restricted",
+				path:     "/api/app/user/my-app",
+				method:   "POST",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:     "restricted role cannot read apps",
+				user:     "restricted@example.com",
+				roles:    "osmo-restricted",
+				path:     "/api/app",
+				method:   "GET",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:      "token with restricted role cannot create app",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "my-api-token",
+				path:      "/api/app/user/my-app",
+				method:    "POST",
+				wantCode:  codes.PermissionDenied,
+			},
+			{
+				name:      "token with restricted role cannot read apps",
+				user:      "user@example.com",
+				roles:     "osmo-restricted",
+				tokenName: "my-api-token",
+				path:      "/api/app",
+				method:    "GET",
+				wantCode:  codes.PermissionDenied,
+			},
+			{
+				name:      "token with user role CAN create app",
+				user:      "user@example.com",
+				roles:     "osmo-user",
+				tokenName: "full-access-token",
+				path:      "/api/app/user/my-app",
+				method:    "POST",
+				wantCode:  codes.OK,
+			},
+			{
+				name:      "token with user role CAN read apps",
+				user:      "user@example.com",
+				roles:     "osmo-user",
+				tokenName: "full-access-token",
+				path:      "/api/app",
+				method:    "GET",
+				wantCode:  codes.OK,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := makeCheckRequestWithHeaders(tt.user, tt.path, tt.method, tt.roles, tt.tokenName, "")
+				resp, err := authzServer.Check(context.Background(), req)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				gotCode := codes.Code(resp.Status.Code)
+				if gotCode != tt.wantCode {
+					t.Errorf("Check() status = %v, want %v", gotCode, tt.wantCode)
+				}
+			})
+		}
+	})
+
+	// When both token name and workflow ID are set, role sync is still skipped.
+	t.Run("BothTokenAndWorkflowIDBypassRoleSync", func(t *testing.T) {
+		authzServer := fixture.resetAndSeed(t)
+
+		tests := []struct {
+			name     string
+			user     string
+			roles    string
+			path     string
+			method   string
+			wantCode codes.Code
+		}{
+			{
+				name:     "both headers set - restricted role cannot create workflows",
+				user:     "user@example.com",
+				roles:    "osmo-restricted",
+				path:     "/api/pool/staging/workflow",
+				method:   "POST",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:     "both headers set - restricted role cannot list pools",
+				user:     "user@example.com",
+				roles:    "osmo-restricted",
+				path:     "/api/pool",
+				method:   "GET",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:     "both headers set - full user role still works",
+				user:     "user@example.com",
+				roles:    "osmo-user",
+				path:     "/api/pool/staging/workflow",
+				method:   "POST",
+				wantCode: codes.OK,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := makeCheckRequestWithHeaders(tt.user, tt.path, tt.method, tt.roles, "my-api-token", "wf-abc-123")
 				resp, err := authzServer.Check(context.Background(), req)
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)

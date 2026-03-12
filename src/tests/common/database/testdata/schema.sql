@@ -17,11 +17,34 @@ CREATE TABLE IF NOT EXISTS roles (
 );
 
 CREATE TABLE IF NOT EXISTS user_roles (
-    user_id TEXT NOT NULL REFERENCES users(id),
-    role_name TEXT NOT NULL REFERENCES roles(name),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_name TEXT NOT NULL REFERENCES roles(name) ON DELETE CASCADE,
     assigned_by TEXT NOT NULL DEFAULT '',
     assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (user_id, role_name)
+    UNIQUE (user_id, role_name)
+);
+
+CREATE TABLE IF NOT EXISTS access_token (
+    user_name TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_name TEXT NOT NULL,
+    access_token BYTEA,
+    expires_at TIMESTAMP,
+    description TEXT,
+    last_seen_at TIMESTAMP WITH TIME ZONE,
+    PRIMARY KEY (user_name, token_name),
+    CONSTRAINT unique_access_token UNIQUE (access_token)
+);
+
+CREATE TABLE IF NOT EXISTS access_token_roles (
+    user_name TEXT NOT NULL,
+    token_name TEXT NOT NULL,
+    user_role_id UUID NOT NULL REFERENCES user_roles(id) ON DELETE CASCADE,
+    assigned_by TEXT NOT NULL,
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_name, token_name, user_role_id),
+    FOREIGN KEY (user_name, token_name)
+        REFERENCES access_token(user_name, token_name) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS role_external_mappings (

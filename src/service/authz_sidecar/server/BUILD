@@ -59,7 +59,6 @@ go_test(
     tags = [
         "requires-network",
     ],
-    local = True,
     deps = [
         ":server",
         "//src/tests/common/database:database_go",

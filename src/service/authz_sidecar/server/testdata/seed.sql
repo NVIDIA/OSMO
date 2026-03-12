@@ -20,12 +20,12 @@ INSERT INTO roles (name, description, policies, immutable) VALUES (
     TRUE
 );
 
--- User role: workflow read/create, pool read
+-- User role: workflow read/create, pool read, app CRUD
 INSERT INTO roles (name, description, policies, immutable) VALUES (
     'osmo-user',
-    'Standard user with workflow access',
+    'Standard user with workflow and app access',
     ARRAY[
-        '{"actions": ["workflow:Read", "workflow:Create", "pool:Read", "pool:List", "profile:Read", "resources:Read"], "resources": ["*"]}'::jsonb
+        '{"actions": ["workflow:Read", "workflow:Create", "pool:Read", "pool:List", "profile:Read", "resources:Read", "app:Create", "app:Read", "app:Update", "app:Delete"], "resources": ["*"]}'::jsonb
     ],
     FALSE
 );
@@ -49,8 +49,19 @@ INSERT INTO users (id, created_at, created_by) VALUES
     ('user@example.com', NOW(), 'seed'),
     ('restricted@example.com', NOW(), 'seed');
 
--- User role assignments
-INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at) VALUES
-    ('admin@example.com', 'osmo-admin', 'seed', NOW()),
-    ('user@example.com', 'osmo-user', 'seed', NOW()),
-    ('restricted@example.com', 'osmo-restricted', 'seed', NOW());
+-- User role assignments (explicit UUIDs so access_token_roles can reference them)
+INSERT INTO user_roles (id, user_id, role_name, assigned_by, assigned_at) VALUES
+    ('a0000000-0000-0000-0000-000000000001', 'admin@example.com', 'osmo-admin', 'seed', NOW()),
+    ('a0000000-0000-0000-0000-000000000002', 'user@example.com', 'osmo-user', 'seed', NOW()),
+    ('a0000000-0000-0000-0000-000000000003', 'user@example.com', 'osmo-restricted', 'seed', NOW()),
+    ('a0000000-0000-0000-0000-000000000004', 'restricted@example.com', 'osmo-restricted', 'seed', NOW());
+
+-- Access tokens for user@example.com
+INSERT INTO access_token (user_name, token_name, description) VALUES
+    ('user@example.com', 'my-api-token', 'Token with only restricted role'),
+    ('user@example.com', 'full-access-token', 'Token with full user role');
+
+-- Token role assignments: my-api-token only gets osmo-restricted (a subset of the user's roles)
+INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by) VALUES
+    ('user@example.com', 'my-api-token', 'a0000000-0000-0000-0000-000000000003', 'seed'),
+    ('user@example.com', 'full-access-token', 'a0000000-0000-0000-0000-000000000002', 'seed');

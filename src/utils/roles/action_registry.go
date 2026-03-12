@@ -255,6 +255,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== APP ====================
 	ActionAppCreate: {
 		{Path: "/api/app", Methods: []string{"POST"}},
+		{Path: "/api/app/*", Methods: []string{"POST"}},
 	},
 	ActionAppRead: {
 		{Path: "/api/app", Methods: []string{"GET"}},
