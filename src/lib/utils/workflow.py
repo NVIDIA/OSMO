@@ -44,7 +44,7 @@ def parse_workflow_spec(workflow_spec: str) -> Dict[str, str]:
     Each top-level key (e.g. workflow:, resources:, default-values:) becomes an entry in the
     returned dict. The value is the full raw text block for that section, including the key line
     itself, with no YAML parsing applied. Raises OSMOUserError if any top-level key appears more
-    than once, or if no workflow section is found.
+    than once.
     """
     section_pattern = re.compile(
         r'^([a-zA-Z][a-zA-Z0-9_-]*):(.*?)(?=^[a-zA-Z][a-zA-Z0-9_-]*:|\Z)',
