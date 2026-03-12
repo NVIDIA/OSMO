@@ -148,7 +148,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         super().setUp()
         self.database = connectors.PostgresConnector.get_instance()
 
-    # ── CRUD tests ────────────────────────────────────────────────────────────
+    # --- CRUD tests ---
 
     def test_put_and_get_single_template(self):
         """PUT a group template via API, then GET it and verify the body matches."""
@@ -268,7 +268,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
                 self.database, 'namespaced-template')
         self.assertIn('namespace', str(context.exception).lower())
 
-    # ── Pool group template assignment tests ──────────────────────────────────
+    # --- Pool group template assignment tests ---
 
     def test_pool_with_single_group_template(self):
         """Pool assigned one group template has it in parsed_group_templates."""
@@ -376,7 +376,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
                 common_group_templates=['does-not-exist'],
             )
 
-    # ── KB spec generation tests ───────────────────────────────────────────────
+    # --- KB spec generation tests ---
 
     def _setup_for_kb_specs(self):
         """Set up backend, workflow config, group template, pool, task group, and progress writer."""
