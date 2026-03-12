@@ -205,7 +205,6 @@ class SubmitWorkflow(WorkflowJob):
         Executes the job. Returns true if the job was completed successful and can
         be removed from the message queue, or false if the job failed.
         """
-        last_timestamp = datetime.datetime.now()
         postgres = context.postgres
 
         # Create workflow and groups in database

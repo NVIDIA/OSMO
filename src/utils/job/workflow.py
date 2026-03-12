@@ -632,7 +632,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                       group_task: task.TaskSpec, seen_uri_input: Set[str],
                       seen_uri_output: Set[str], disabled_data: List[str],
                       seen_bucket_input: Set[str], seen_bucket_output: Set[str],
-                      default_user_bucket: Optional[str],
+                      default_user_bucket: str | None,
                       default_service_bucket: str,
                       user_creds: Dict[str, Any]):
 
