@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import textwrap
 import unittest
+from typing import Any
 
 from src.lib.utils.redact import redact_pod_spec_env, redact_secrets
 
@@ -97,7 +98,7 @@ class TestRedactSecretsBase64(unittest.TestCase):
 class TestRedactPodSpecEnv(unittest.TestCase):
     """redact_pod_spec_env masks high-entropy values and leaves low-entropy values untouched."""
 
-    def _make_pod_spec(self, *containers: list) -> dict:
+    def _make_pod_spec(self, *containers: Any) -> dict:
         return {'containers': containers, 'initContainers': []}
 
     def test_masks_high_entropy_secret(self):
@@ -125,7 +126,9 @@ class TestRedactPodSpecEnv(unittest.TestCase):
         pod_spec = {
             'containers': [],
             'initContainers': [
-                {'name': 'init', 'env': [{'name': 'AWS_SECRET_ACCESS_KEY', 'value': _AWS_SECRET_KEY}]},
+                {'name': 'init', 'env': [
+                    {'name': 'AWS_SECRET_ACCESS_KEY', 'value': _AWS_SECRET_KEY},
+                ]},
             ],
         }
         redacted = redact_pod_spec_env(pod_spec)

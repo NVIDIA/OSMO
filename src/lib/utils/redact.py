@@ -69,7 +69,8 @@ def redact_pod_spec_env(pod_spec: Dict) -> Dict:
     for container_list_key in ('containers', 'initContainers'):
         for container in pod_spec.get('spec', pod_spec).get(container_list_key, []):
             for env_entry in container.get('env', []):
-                if 'value' in env_entry and _shannon_entropy(env_entry['value']) > _ENTROPY_THRESHOLD:
+                if 'value' in env_entry and \
+                        _shannon_entropy(env_entry['value']) > _ENTROPY_THRESHOLD:
                     env_entry['value'] = '[MASKED]'
     return pod_spec
 
