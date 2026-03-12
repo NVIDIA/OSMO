@@ -134,6 +134,24 @@ class TestRedactPodSpecEnv(unittest.TestCase):
         redacted = redact_pod_spec_env(pod_spec)
         self.assertEqual(redacted['initContainers'][0]['env'][0]['value'], '[MASKED]')
 
+    def test_masks_by_sensitive_name_regardless_of_entropy(self):
+        # Low-entropy value but name contains 'token' — masked because of the name.
+        pod_spec = self._make_pod_spec(
+            {'name': 'app', 'env': [{'name': 'REFRESH_TOKEN_VALUE', 'value': 'abc123abc123'}]},
+        )
+        redacted = redact_pod_spec_env(pod_spec)
+        self.assertEqual(redacted['containers'][0]['env'][0]['value'], '[MASKED]')
+
+    def test_never_masks_boolean_and_numeric_literals(self):
+        for literal in ('true', 'false', '0', '1'):
+            with self.subTest(literal=literal):
+                # Use a sensitive name to confirm the never-mask list takes precedence.
+                pod_spec = self._make_pod_spec(
+                    {'name': 'app', 'env': [{'name': 'SECRET_ENABLED', 'value': literal}]},
+                )
+                redacted = redact_pod_spec_env(pod_spec)
+                self.assertEqual(redacted['containers'][0]['env'][0]['value'], literal)
+
     def test_leaves_value_from_untouched(self):
         pod_spec = self._make_pod_spec(
             {'name': 'app', 'env': [{'name': 'MY_SECRET', 'valueFrom': {'secretKeyRef': {'name': 'my-secret', 'key': 'value'}}}]},  # pylint: disable=line-too-long

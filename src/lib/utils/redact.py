@@ -39,6 +39,13 @@ _BASE64_FRAGMENT_RE = re.compile(
 
 
 _ENTROPY_THRESHOLD = 3.0
+_NEVER_MASK_VALUES = frozenset({'true', 'false', '0', '1', ''})
+
+# Env var names that always warrant masking regardless of value entropy.
+_SENSITIVE_ENV_NAME_RE = re.compile(
+    r'(?:access|auth|(?-i:[Aa]pi|API)|credential|creds|key|passwd|password|secret|token)',
+    re.IGNORECASE,
+)
 
 
 def _shannon_entropy(data: str) -> float:
@@ -58,19 +65,27 @@ def _shannon_entropy(data: str) -> float:
 
 def redact_pod_spec_env(pod_spec: Dict) -> Dict:
     """
-    Return a deep copy of pod_spec with high-entropy env var values replaced by [MASKED].
+    Return a deep copy of pod_spec with sensitive env var values replaced by [MASKED].
 
-    Only values whose Shannon entropy exceeds _ENTROPY_THRESHOLD are masked, leaving
-    low-entropy values like 'true', 'false', or plain URLs untouched. Covers both
-    'containers' and 'initContainers'. Entries that use 'valueFrom' (i.e. have no
-    'value' key) are left untouched.
+    A value is masked if either:
+    - the env var name matches _SENSITIVE_ENV_NAME_RE (e.g. contains 'key', 'secret', 'token'), or
+    - the value's Shannon entropy exceeds _ENTROPY_THRESHOLD.
+
+    Values in _NEVER_MASK_VALUES ('true', 'false', '0', '1') are always left untouched.
+    Covers both 'containers' and 'initContainers'. Entries that use 'valueFrom' (i.e.
+    have no 'value' key) are left untouched.
     """
     pod_spec = copy.deepcopy(pod_spec)
     for container_list_key in ('containers', 'initContainers'):
         for container in pod_spec.get('spec', pod_spec).get(container_list_key, []):
             for env_entry in container.get('env', []):
-                if 'value' in env_entry and \
-                        _shannon_entropy(env_entry['value']) > _ENTROPY_THRESHOLD:
+                if 'value' not in env_entry:
+                    continue
+                value = env_entry['value']
+                if value in _NEVER_MASK_VALUES:
+                    continue
+                if _SENSITIVE_ENV_NAME_RE.search(env_entry['name']) or \
+                        _shannon_entropy(value) > _ENTROPY_THRESHOLD:
                     env_entry['value'] = '[MASKED]'
     return pod_spec
 
