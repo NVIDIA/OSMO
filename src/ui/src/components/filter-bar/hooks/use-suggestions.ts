@@ -23,8 +23,15 @@
 
 import { useMemo } from "react";
 import type { SearchField, SearchChip, SearchPreset, Suggestion, ParsedInput } from "@/components/filter-bar/lib/types";
-import { getFieldValues } from "@/components/filter-bar/lib/types";
+import {
+  getFieldValues,
+  isDateRangeField,
+  DATE_CUSTOM_FROM,
+  DATE_CUSTOM_TO,
+  DATE_CUSTOM_APPLY,
+} from "@/components/filter-bar/lib/types";
 import { parseInput, getFieldHint } from "@/components/filter-bar/lib/parse-input";
+import { DATE_RANGE_PRESETS } from "@/lib/date-range-utils";
 
 interface UseSuggestionsOptions<T> {
   /** Current input value */
@@ -105,6 +112,29 @@ function generateSuggestions<T>(
   }
 
   if (parsedInput.hasPrefix && parsedInput.field) {
+    // Date-range fields show a picker in the dropdown — surface presets and custom inputs
+    // as value suggestions so keyboard navigation (Tab/↑↓/Enter) works like other fields.
+    if (isDateRangeField(parsedInput.field)) {
+      const lowerQuery = parsedInput.query.toLowerCase();
+      for (const preset of DATE_RANGE_PRESETS) {
+        if (!lowerQuery || preset.label.toLowerCase().includes(lowerQuery)) {
+          items.push({
+            type: "value",
+            field: parsedInput.field,
+            value: preset.label,
+            label: preset.label,
+          });
+        }
+      }
+      // Custom range inputs are always shown (only when not filtering presets)
+      if (!lowerQuery) {
+        items.push({ type: "value", field: parsedInput.field, value: DATE_CUSTOM_FROM, label: "From date" });
+        items.push({ type: "value", field: parsedInput.field, value: DATE_CUSTOM_TO, label: "To date" });
+        items.push({ type: "value", field: parsedInput.field, value: DATE_CUSTOM_APPLY, label: "Apply" });
+      }
+      return items;
+    }
+
     // Show values for the selected field
     const field = parsedInput.field;
     const currentPrefix = field.prefix;

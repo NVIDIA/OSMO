@@ -18,6 +18,7 @@ import { describe, it, expect } from "vitest";
 import { WORKFLOW_STATIC_FIELDS } from "@/features/workflows/list/lib/workflow-search-fields";
 import { STATUS_PRESETS, createPresetChips } from "@/lib/workflows/workflow-status-presets";
 import type { WorkflowListEntry } from "@/lib/api/adapter/types";
+import { isDateRangeField, getFieldValues } from "@/components/filter-bar/lib/types";
 
 function createWorkflow(overrides: Partial<WorkflowListEntry> = {}): WorkflowListEntry {
   return {
@@ -53,8 +54,11 @@ describe("WORKFLOW_STATIC_FIELDS structure", () => {
       expect(field).toHaveProperty("id");
       expect(field).toHaveProperty("label");
       expect(field).toHaveProperty("prefix");
-      expect(field).toHaveProperty("getValues");
-      expect(typeof field.getValues).toBe("function");
+      // date-range fields don't have getValues — they show a picker instead
+      if (!isDateRangeField(field)) {
+        expect(field).toHaveProperty("getValues");
+        expect(typeof field.getValues).toBe("function");
+      }
     }
   });
 
@@ -83,7 +87,7 @@ describe("name field", () => {
       createWorkflow({ name: "gamma" }),
     ];
 
-    const values = nameField.getValues(workflows);
+    const values = getFieldValues(nameField, workflows);
 
     expect(values).toContain("alpha");
     expect(values).toContain("beta");
@@ -93,7 +97,7 @@ describe("name field", () => {
   it("limits values to 20 suggestions", () => {
     const workflows = Array.from({ length: 30 }, (_, i) => createWorkflow({ name: `workflow-${i}` }));
 
-    const values = nameField.getValues(workflows);
+    const values = getFieldValues(nameField, workflows);
 
     expect(values.length).toBe(20);
   });
@@ -111,7 +115,7 @@ describe("status field", () => {
   });
 
   it("returns all workflow statuses", () => {
-    const values = statusField.getValues([]);
+    const values = getFieldValues(statusField, []);
 
     expect(values).toContain("RUNNING");
     expect(values).toContain("COMPLETED");
@@ -133,7 +137,7 @@ describe("priority field", () => {
   });
 
   it("returns fixed priority values", () => {
-    const values = priorityField.getValues([]);
+    const values = getFieldValues(priorityField, []);
 
     expect(values).toEqual(["HIGH", "NORMAL", "LOW"]);
   });
@@ -149,7 +153,7 @@ describe("app field", () => {
       createWorkflow({ app_name: undefined }),
     ];
 
-    const values = appField.getValues(workflows);
+    const values = getFieldValues(appField, workflows);
 
     expect(values).toContain("app-a");
     expect(values).toContain("app-b");
@@ -163,7 +167,7 @@ describe("tag field", () => {
   it("returns empty values (tags not in list response)", () => {
     const workflows = [createWorkflow()];
 
-    const values = tagField.getValues(workflows);
+    const values = getFieldValues(tagField, workflows);
 
     expect(values).toEqual([]);
   });

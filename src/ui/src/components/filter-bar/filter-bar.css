@@ -40,6 +40,10 @@
 
   /* Dropdown max height */
   --fb-dropdown-max-height: 380px;
+
+  /* Date picker column sizing */
+  --fb-date-right-min: 185px;
+  --fb-date-left-max: 270px;
 }
 
 /* Dark mode blue accents */
@@ -353,6 +357,239 @@
 
 .fb-section-border {
   border-bottom: 1px solid var(--border);
+}
+
+/* =============================================================================
+   Date Picker Panel — B1 "Split Rail" layout
+   Left: preset list (label + right-aligned date hint) with active border indicator.
+   Right: stacked From/To inputs + Apply.
+   ============================================================================= */
+
+.fb-date-picker {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/*
+  Right column minimum:
+    datetime-local input content  ≈ 160px  (mm/dd/yyyy, --:-- -- at 0.75rem + calendar icon)
+    .fb-date-custom h-padding     =  24px  (0.75rem × 2)
+  → --fb-date-right-min            = 184px  (rounded up to 185px)
+
+  Left rail maximum (cap so extra space flows to the right column):
+    Row left-padding               =  14px  (0.875rem)
+    Longest label "last 365 days"  ≈ 100px
+    Minimum gap (padding-left)     =  16px  (1rem, enforced on hint)
+    Longest hint "MMM DD 'YY – MMM DD" ≈ 130px  (19 chars × ~6.6px/ch at 0.6875rem monospace)
+    Row right-padding              =  10px  (0.625rem)
+    ─────────────────────────────────────────────────────
+    Total                          ≈ 270px  → --fb-date-left-max: 270px
+
+  Grid: left capped at --fb-date-left-max, right gets all remaining space (min --fb-date-right-min).
+
+  Hint hide threshold (= max content without right-padding):
+    14px + 100px + 16px + 130px    = 260px
+  Container query hides hints at rail < 260px so they are always fully shown or fully hidden.
+*/
+.fb-date-split {
+  display: grid;
+  grid-template-columns: minmax(0, var(--fb-date-left-max)) minmax(var(--fb-date-right-min), 1fr);
+  min-height: 12rem;
+}
+
+/* Left rail */
+.fb-date-rail {
+  border-right: 1px solid var(--border);
+  padding: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  container-type: inline-size;
+  container-name: date-rail;
+}
+
+.fb-date-section-label {
+  padding: 0 0.75rem 0.375rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.55;
+}
+
+.fb-date-preset-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.625rem 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  color: var(--fb-accent);
+  cursor: pointer;
+  text-align: left;
+  border-left: 2px solid transparent;
+  transition:
+    background-color 150ms,
+    color 150ms,
+    border-color 150ms;
+}
+
+.fb-date-preset-row:hover {
+  background-color: var(--accent);
+}
+
+.fb-date-preset-row[data-active] {
+  border-left-color: var(--fb-accent);
+  background-color: color-mix(in oklch, var(--fb-accent) 10%, transparent);
+  color: var(--fb-accent);
+  font-weight: 500;
+  padding-left: 0.75rem; /* compensate for 2px border so text stays aligned */
+}
+
+.fb-date-preset-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* Label: never wraps or shrinks — always takes its natural width */
+.fb-date-preset-label {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Hint: right-aligned, minimum gap from label via padding-left.
+   Collapses to nothing when there is no room (min-width: 0 + overflow: hidden).
+   Fully hidden via container query before any clipping can occur. */
+.fb-date-preset-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: right;
+  /* padding-left enforces the minimum visual gap between label and hint */
+  padding-left: 1rem;
+  font-size: 0.6875rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--foreground);
+  opacity: 0.5;
+}
+
+.fb-date-preset-row[data-active] .fb-date-preset-hint {
+  opacity: 0.7;
+  color: currentColor;
+}
+
+/* Hide hints when the rail is narrower than the space needed to show them fully.
+   Threshold = row-padding + longest-label + min-gap + longest-hint = 14+100+16+130 = 260px.
+   This guarantees hints are always fully visible or completely absent. */
+@container date-rail (max-width: 259px) {
+  .fb-date-preset-hint {
+    display: none;
+  }
+}
+
+/* Right column: custom range */
+.fb-date-custom {
+  padding: 0.5rem 0.75rem 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.fb-date-custom .fb-date-section-label {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.fb-date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fb-date-label {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--foreground);
+  opacity: 0.7;
+}
+
+.fb-date-input {
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  color: var(--foreground);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  transition: border-color 150ms;
+}
+
+.fb-date-input:focus {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 1px var(--ring);
+}
+
+.fb-date-input[data-error] {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 1px var(--destructive);
+}
+
+.fb-date-error {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  color: var(--destructive);
+}
+
+.fb-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.fb-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.fb-date-apply {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--fb-accent);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 150ms,
+    color 150ms;
+  width: 100%;
+  margin-top: auto;
+}
+
+.fb-date-apply:hover:not(:disabled) {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.fb-date-apply:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fb-date-apply:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 
 /* =============================================================================

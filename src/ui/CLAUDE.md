@@ -22,6 +22,52 @@ cd external/src/ui && pnpm type-check && pnpm lint && pnpm test --run
 pnpm format
 ```
 
+## Reasoning Integrity: Avoiding Systematic Failure Modes
+
+These principles guard against how Claude tends to reason incorrectly about code changes.
+
+### Fix at the source — never by convergence
+
+When two things are inconsistent, identify which is *correct* and fix the other. Do not flatten both to a common (often weaker) state to create false consistency.
+
+```text
+❌ A strips time from a datetime-local input → downgrade input to type="date" for "consistency"
+✅ A strips time from a datetime-local input → remove the stripping; the datetime was correct
+```
+
+**The pattern to catch:** "These two things are inconsistent, so I'll make them both match the simpler one." This is always wrong. One side is the bug; find it.
+
+### Capability loss is a regression — always
+
+Reducing precision, expressiveness, or user capability requires explicit user approval even when it creates consistency or simplifies the implementation. This includes:
+
+- Input type downgrades (`datetime-local` → `date`, `number` → `text`)
+- Data truncation (full ISO datetime → date-only string, float → int)
+- Feature removal (range picker → single value, multi-select → single-select)
+- API parameter removal or narrowing
+
+If the rationale for a change involves "simpler" at the cost of capability, stop and ask.
+
+### Apply the reversal test before citing evidence
+
+Before using a fact to justify a change, ask: *"Does this same evidence equally support the opposite conclusion?"*
+
+```text
+Fact: backend accepts datetime.datetime
+→ Wrong: "date-only strings work too, so use type='date'"
+→ Right: "the backend supports full precision — use datetime-local and pass full timestamps"
+```
+
+If evidence supports both a conclusion and its opposite, it is not justifying the change — it is post-hoc rationalization. Recognizing this pattern should trigger a full re-examination of the decision.
+
+### Design intent vs. implementation bug: assume capability when uncertain
+
+When implementation looks inconsistent (e.g., `datetime-local` input but time is then stripped), one side is correct intent and the other is the bug. **Default assumption: the richer/more capable side is the intent, the lossy transformation is the bug.** If genuinely uncertain, ask the user — do not silently resolve the ambiguity by picking the simpler option.
+
+### Post-hoc rationalization: when evidence confirms a prior decision, be suspicious
+
+Evidence found *after* a decision that *perfectly supports* it is a red flag. When you notice you are building a case for something already decided, explicitly argue the opposite before proceeding.
+
 ## Development Commands
 
 ```bash
@@ -51,7 +97,7 @@ pnpm generate-api           # Regenerate from backend OpenAPI spec
 
 ## Architecture: The Critical Layer Pattern
 
-```
+```text
 Page → Headless Hook → Adapter Hook → Generated API → Backend
             ↓
      Themed Components

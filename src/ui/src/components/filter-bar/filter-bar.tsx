@@ -83,6 +83,9 @@ function FilterBarInner<T>(
     handleBackdropDismiss,
     handleKeyDown,
     isPresetActive,
+    activeDateRangeField,
+    handleDateCommit,
+    stepDateCycle,
     setInputRefCallbacks,
   } = useFilterState({
     chips,
@@ -183,6 +186,9 @@ function FilterBarInner<T>(
           isFieldLoading={isFieldLoading}
           loadingFieldLabel={loadingFieldLabel}
           highlightedSuggestionValue={highlightedSuggestionValue}
+          activeDateRangeField={activeDateRangeField}
+          onDateCommit={handleDateCommit}
+          onDateCycleStep={stepDateCycle}
         />
       </Command>
     </div>

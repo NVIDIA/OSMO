@@ -36,7 +36,14 @@ import { memo, useRef, useMemo, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { CommandList, CommandItem, CommandGroup } from "@/components/shadcn/command";
 import { useVirtualizerCompat } from "@/hooks/use-virtualizer-compat";
-import type { FieldSuggestion, PresetSuggestion, SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
+import type {
+  FieldSuggestion,
+  PresetSuggestion,
+  SearchPreset,
+  Suggestion,
+  DateRangeSearchField,
+} from "@/components/filter-bar/lib/types";
+import { FilterBarDatePicker } from "@/components/filter-bar/filter-bar-date-picker";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -82,6 +89,12 @@ interface FilterBarDropdownProps<T> {
   loadingFieldLabel?: string;
   /** Currently highlighted cmdk value — drives scroll-into-view */
   highlightedSuggestionValue?: string;
+  /** Active date-range field, if any — renders date picker instead of suggestions */
+  activeDateRangeField?: DateRangeSearchField<T> | null;
+  /** Callback when a date value is committed from the date picker */
+  onDateCommit?: (value: string) => void;
+  /** Advance the date picker cycle from a sentinel when Tab/Shift-Tab fires on a picker element */
+  onDateCycleStep?: (direction: "forward" | "backward", fromValue: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +112,9 @@ function FilterBarDropdownInner<T>({
   isFieldLoading,
   loadingFieldLabel,
   highlightedSuggestionValue,
+  activeDateRangeField,
+  onDateCommit,
+  onDateCycleStep,
 }: FilterBarDropdownProps<T>) {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -166,37 +182,57 @@ function FilterBarDropdownInner<T>({
             overflow-hidden (not overflow-y-auto) means CommandList itself never scrolls;
             the inner .fb-suggestions-scroll is the sole scroll container. */}
         <CommandList className="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden">
-          {/* Presets — present in selectables when input is empty */}
-          {presetGroups.length > 0 && (
-            <PresetsSection
-              groups={presetGroups}
-              onSelect={onSelect}
-              isPresetActive={isPresetActive}
+          {/* Date picker panel — replaces suggestions when a date-range field is active */}
+          {activeDateRangeField && onDateCommit ? (
+            <FilterBarDatePicker
+              onCommit={onDateCommit}
+              highlightedLabel={highlightedSuggestionValue}
+              onCycleStep={onDateCycleStep}
             />
-          )}
-
-          {/* Hints (non-interactive, shown above suggestions) */}
-          {hints.length > 0 && <HintsSection hints={hints} />}
-
-          {/* Async field loading state */}
-          {isFieldLoading ? (
-            <LoadingSection label={loadingFieldLabel} />
           ) : (
-            /* Suggestions - virtualized when large */
-            fieldSelectables.length > 0 && (
-              <SuggestionsSection
-                selectables={fieldSelectables}
-                onSelect={onSelect}
-                highlightedSuggestionValue={highlightedSuggestionValue}
-              />
-            )
+            <>
+              {/* Presets — present in selectables when input is empty */}
+              {presetGroups.length > 0 && (
+                <PresetsSection
+                  groups={presetGroups}
+                  onSelect={onSelect}
+                  isPresetActive={isPresetActive}
+                />
+              )}
+
+              {/* Hints (non-interactive, shown above suggestions) */}
+              {hints.length > 0 && <HintsSection hints={hints} />}
+
+              {/* Async field loading state */}
+              {isFieldLoading ? (
+                <LoadingSection label={loadingFieldLabel} />
+              ) : (
+                /* Suggestions - virtualized when large */
+                fieldSelectables.length > 0 && (
+                  <SuggestionsSection
+                    selectables={fieldSelectables}
+                    onSelect={onSelect}
+                    highlightedSuggestionValue={highlightedSuggestionValue}
+                  />
+                )
+              )}
+            </>
           )}
         </CommandList>
 
         {/* Footer */}
         <div className="fb-footer border-border">
-          <kbd className="fb-footer-kbd">↑↓</kbd> <kbd className="fb-footer-kbd">Tab</kbd> fill{" "}
-          <kbd className="fb-footer-kbd">Enter</kbd> accept <kbd className="fb-footer-kbd">Esc</kbd> undo
+          {activeDateRangeField ? (
+            <>
+              <kbd className="fb-footer-kbd">Tab</kbd> navigate <kbd className="fb-footer-kbd">Enter</kbd> apply{" "}
+              <kbd className="fb-footer-kbd">Esc</kbd> cancel
+            </>
+          ) : (
+            <>
+              <kbd className="fb-footer-kbd">↑↓</kbd> <kbd className="fb-footer-kbd">Tab</kbd> fill{" "}
+              <kbd className="fb-footer-kbd">Enter</kbd> accept <kbd className="fb-footer-kbd">Esc</kbd> undo
+            </>
+          )}
         </div>
       </div>
     </>
