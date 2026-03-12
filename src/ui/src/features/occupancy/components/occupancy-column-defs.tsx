@@ -29,16 +29,17 @@ import {
 import { useMounted } from "@/hooks/use-mounted";
 import type { SearchChip } from "@/stores/types";
 import type { OccupancyFlatRow, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
+import { PRIORITY_DISPLAY } from "@/lib/workflows/priority-display";
 
 /** Occupancy chip fields that map directly to workflow filters.
  * "status" is excluded — TaskGroupStatus is per-task-group, not per-workflow. */
 const CROSS_LINKABLE_FIELDS: ReadonlySet<string> = new Set(["pool", "user", "priority"]);
 
-const PRIORITY_COLOR: Record<"high" | "normal" | "low", string> = {
-  high: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  normal: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  low: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
-};
+const PRIORITY_META = {
+  high: PRIORITY_DISPLAY.HIGH,
+  normal: PRIORITY_DISPLAY.NORMAL,
+  low: PRIORITY_DISPLAY.LOW,
+} as const;
 
 function ResourceCell({ value }: { value: number }) {
   return <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">{formatCompact(value)}</span>;
@@ -55,15 +56,17 @@ function BytesCell({ value }: { value: number }) {
   );
 }
 
-function PriorityBadge({ value, colorClass }: { value: number; colorClass: string }) {
-  if (value === 0) return <span className="text-zinc-300 dark:text-zinc-600">—</span>;
+function PriorityBadge({ value, priority }: { value: number; priority: keyof typeof PRIORITY_META }) {
+  const { bg, text, Icon, iconClass } = PRIORITY_META[priority];
   return (
     <span
       className={cn(
-        "inline-flex min-w-[1.5rem] items-center justify-center rounded px-1.5 py-0.5 text-xs font-semibold tabular-nums",
-        colorClass,
+        "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
+        bg,
+        text,
       )}
     >
+      <Icon className={iconClass} />
       {value}
     </span>
   );
@@ -263,16 +266,17 @@ export function createOccupancyColumns(
       cell: ({ row }) => <BytesCell value={row.original.storage} />,
     },
 
-    ...(["high", "normal", "low"] as const).map((p) => ({
-      id: p,
+    {
+      id: "priority",
       enableSorting: false,
-      header: `${p[0].toUpperCase()}${p.slice(1)}`,
+      header: "Priority",
       cell: ({ row }: { row: { original: OccupancyFlatRow } }) => (
-        <PriorityBadge
-          value={row.original[p]}
-          colorClass={PRIORITY_COLOR[p]}
-        />
+        <div className="flex items-center gap-1">
+          <PriorityBadge value={row.original.high} priority="high" />
+          <PriorityBadge value={row.original.normal} priority="normal" />
+          <PriorityBadge value={row.original.low} priority="low" />
+        </div>
       ),
-    })),
+    },
   ];
 }

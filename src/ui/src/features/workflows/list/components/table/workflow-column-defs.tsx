@@ -17,7 +17,7 @@
 // NOTE: Only submit_time is sortable (backend limitation)
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertTriangle, ArrowUp, ArrowDown, Minus } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { remToPx } from "@/components/data-table/utils/column-sizing";
 import { cn } from "@/lib/utils";
 import { formatDateTimeFull, formatDateTimeSuccinct } from "@/lib/format-date";
@@ -28,15 +28,11 @@ import {
   type WorkflowColumnId,
 } from "@/features/workflows/list/lib/workflow-columns";
 import { getStatusDisplay, STATUS_STYLES, getPriorityDisplay } from "@/lib/workflows/workflow-constants";
+import { PRIORITY_DISPLAY } from "@/lib/workflows/priority-display";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { formatDuration } from "@/lib/format-date";
 import { WorkflowStatus } from "@/lib/api/generated";
 
-const PRIORITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  HIGH: ArrowUp,
-  NORMAL: Minus,
-  LOW: ArrowDown,
-};
 
 function getMinSize(id: WorkflowColumnId): number {
   const col = WORKFLOW_COLUMN_SIZE_CONFIG.find((c) => c.id === id);
@@ -197,7 +193,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
       cell: ({ row }) => {
         const priority = row.original.priority;
         const display = getPriorityDisplay(priority);
-        const Icon = PRIORITY_ICONS[priority.toUpperCase()] ?? AlertTriangle;
+        const { Icon, iconClass } = PRIORITY_DISPLAY[priority.toUpperCase() as keyof typeof PRIORITY_DISPLAY] ?? { Icon: AlertTriangle, iconClass: "size-3 shrink-0" };
 
         return (
           <span
@@ -207,7 +203,7 @@ export function createWorkflowColumns(): ColumnDef<WorkflowListEntry, unknown>[]
               display.text,
             )}
           >
-            <Icon className="size-3" />
+            <Icon className={iconClass} />
             {display.label}
           </span>
         );
