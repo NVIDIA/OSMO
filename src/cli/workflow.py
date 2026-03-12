@@ -261,7 +261,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                              type=validation.positive_integer,
                              help='Display the given count of workflows. Default value is 20. '
                                   'Use --offset to skip results for pagination.')
-    list_parser.add_argument('--offset',
+    list_parser.add_argument('--offset', '-f',
                              default=0,
                              type=validation.non_negative_integer,
                              help='Skip the first N workflows (newest first, server-side order). '
