@@ -409,31 +409,29 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         pool_info = connectors.Pool.fetch_from_db(database, self.pool)
 
         # Validate topology requirements early (before async job creation)
-        if pool_info.topology_keys:
-            topology_keys = [
-                topology_module.TopologyKey(key=topology_key.key, label=topology_key.label)
-                for topology_key in pool_info.topology_keys
-            ]
-            task_infos = []
-            for group in self.groups:
-                for task_obj in group.tasks:
-                    topology_requirements = []
-                    if task_obj.resources.topology:
-                        for req in task_obj.resources.topology:
-                            is_required = (
-                                req.requirementType == connectors.TopologyRequirementType.REQUIRED
-                            )
-                            topology_requirements.append(topology_module.TopologyRequirement(
-                                key=req.key,
-                                group=req.group,
-                                required=is_required
-                            ))
-                    task_infos.append(topology_module.TaskTopology(
-                        name=task_obj.name,
-                        topology_requirements=topology_requirements
-                    ))
-            # This will raise ValueError if validation fails
-            topology_module.validate_topology_requirements(task_infos, topology_keys)
+        topology_keys = [
+            topology_module.TopologyKey(key=topology_key.key, label=topology_key.label)
+            for topology_key in pool_info.topology_keys
+        ]
+        task_infos = []
+        for group in self.groups:
+            for task_obj in group.tasks:
+                topology_requirements = []
+                if task_obj.resources.topology:
+                    for req in task_obj.resources.topology:
+                        is_required = (
+                            req.requirementType == connectors.TopologyRequirementType.REQUIRED
+                        )
+                        topology_requirements.append(topology_module.TopologyRequirement(
+                            key=req.key,
+                            group=req.group,
+                            required=is_required
+                        ))
+                task_infos.append(topology_module.TaskTopology(
+                    name=task_obj.name,
+                    topology_requirements=topology_requirements
+                ))
+        topology_module.validate_topology_requirements(task_infos, topology_keys)
 
         validated_resources_dict: Dict[connectors.ResourceSpec, bool] = {}
         validated_privilege_host_mount: Set[int] = set()

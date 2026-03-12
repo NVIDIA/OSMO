@@ -458,6 +458,32 @@ class ValidationTests(TopologyTestBase):
 
         self.assertIn('same topology keys', str(context.exception))
 
+    def test_topology_key_referenced_but_pool_has_none(self):
+        """
+        A workflow that references a topology key should be rejected when the pool
+        has no topology keys configured (empty list).
+        This covers the case in Test 1 of the topology test plan.
+        """
+        task_infos = [
+            topology.TaskTopology(
+                name='shard-1',
+                topology_requirements=[
+                    topology.TopologyRequirement(key='gpu-clique', group='clique-group', required=True)
+                ]
+            ),
+            topology.TaskTopology(
+                name='shard-2',
+                topology_requirements=[
+                    topology.TopologyRequirement(key='gpu-clique', group='clique-group', required=True)
+                ]
+            ),
+        ]
+
+        with self.assertRaises(osmo_errors.OSMOResourceError) as context:
+            topology.validate_topology_requirements(task_infos, topology_keys=[])
+
+        self.assertIn('gpu-clique', str(context.exception))
+
     def test_mixed_topology_and_non_topology_same_group(self):
         """
         Tests behavior when some tasks have topology and others don't.
