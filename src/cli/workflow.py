@@ -259,7 +259,13 @@ def setup_parser(parser: argparse._SubParsersAction):
     list_parser.add_argument('--count', '-c',
                              default=20,
                              type=validation.positive_integer,
-                             help='Display the given count of workflows. Default value is 20.')
+                             help='Display the given count of workflows. Default value is 20. '
+                                  'Use --offset to skip results for pagination.')
+    list_parser.add_argument('--offset',
+                             default=0,
+                             type=validation.non_negative_integer,
+                             help='Skip the first N workflows (newest first, server-side order). '
+                                  'Use with --count to paginate results. Default is 0.')
     list_parser.add_argument('--name', '-n',
                              type=str,
                              help='Display workflows which contains the string.')
@@ -1030,7 +1036,7 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
     while True:
         count = min(args.count - current_count, 1000)
         params['limit'] = count
-        params['offset'] = current_count
+        params['offset'] = args.offset + current_count
 
         workflow_result = service_client.request(
             client.RequestMethod.GET,
