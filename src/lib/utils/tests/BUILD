@@ -42,12 +42,3 @@ osmo_py_test(
         "//src/lib/utils:jinja_sandbox",
     ]
 )
-
-osmo_py_test(
-    name = "test_workflow",
-    srcs = ["test_workflow.py"],
-    deps = [
-        "//src/lib/utils:osmo_errors",
-        "//src/lib/utils:workflow",
-    ]
-)

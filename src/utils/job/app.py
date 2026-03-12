@@ -293,6 +293,4 @@ class AppVersion(pydantic.BaseModel):
 
 def validate_app_content(app_content: str):
     """ Validate the app content """
-    sections = workflow_utils.parse_workflow_spec(app_content)
-    if 'workflow' not in sections:
-        raise osmo_errors.OSMOUserError('Workflow spec not found.')
+    workflow_utils.parse_workflow_spec(app_content)

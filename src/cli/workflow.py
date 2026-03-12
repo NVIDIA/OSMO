@@ -1114,10 +1114,8 @@ def _load_workflow_text(workflow_file: str) -> str:
     with open(workflow_file, 'r', encoding='utf-8') as file:
         file_text = file.read()
 
-        sections = workflow_utils.parse_workflow_spec(file_text)
-        if 'workflow' not in sections:
-            raise osmo_errors.OSMOUserError('Workflow spec not found.')
-        return sections['workflow']
+        workflow_spec, _ = workflow_utils.parse_workflow_spec(file_text)
+        return workflow_spec
 
 
 def _load_local_files_helper(workflow_file: str, section_dict: Dict):
