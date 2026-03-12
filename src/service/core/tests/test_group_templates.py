@@ -311,7 +311,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.assertIn('ConfigMap', kinds)
 
     def test_pool_group_templates_merged_on_same_resource_key(self):
-        """Two templates with the same (apiVersion, kind, metadata.name) are merged into one entry."""
+        """Two templates with the same (apiVersion, kind, metadata.name) are merged."""
         base_template = {
             'apiVersion': 'resource.nvidia.com/v1beta1',
             'kind': 'ComputeDomain',
@@ -340,7 +340,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
         self.assertEqual(merged['spec']['extra'], 'value')
 
     def test_pool_parsed_templates_updated_when_template_changes(self):
-        """After updating a group template, the pool's parsed_group_templates reflects the change."""
+        """After updating a group template, pool's parsed_group_templates reflects the change."""
         self.create_test_backend(self.database)
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
         self.create_test_pool(
@@ -380,7 +380,7 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
     # --- KB spec generation tests ---
 
     def _setup_for_kb_specs(self):
-        """Set up backend, workflow config, group template, pool, task group, and progress writer."""
+        """Set up backend, workflow config, group template, pool, and task group."""
         self.create_test_backend(self.database)
 
         config_service.put_workflow_configs(
@@ -397,10 +397,10 @@ class GroupTemplateTest(service_fixture.ServiceTestFixture):
             username='test@nvidia.com',
         )
 
-        self._tmpdir_obj = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmpdir_obj.cleanup)
+        tmpdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        self.addCleanup(tmpdir.cleanup)
         self._progress_writer = progress.ProgressWriter(
-            os.path.join(self._tmpdir_obj.name, 'progress.txt'))
+            os.path.join(tmpdir.name, 'progress.txt'))
 
         self.create_test_group_template('compute-domain', _COMPUTE_DOMAIN_TEMPLATE)
         self.create_test_pool(
