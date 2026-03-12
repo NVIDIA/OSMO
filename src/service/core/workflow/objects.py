@@ -808,6 +808,24 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         pool_info = connectors.Pool.fetch_from_db(self.context.database, self.pool)
         self.backend = pool_info.backend
 
+        # Validate top-level keys before Jinja rendering. parse_workflow_spec extracts only
+        # the text starting at "workflow:", so keys that sort alphabetically before "workflow:"
+        # (e.g. "resources:") would be silently dropped before pydantic can reject them.
+        # Parsing the raw file here catches those cases.
+        allowed_top_level_keys = {'workflow', 'version', 'default-values'}
+        try:
+            raw_dict = yaml.safe_load(template_spec.file)
+            if isinstance(raw_dict, dict):
+                unexpected_keys = sorted(set(raw_dict.keys()) - allowed_top_level_keys)
+                if unexpected_keys:
+                    self.name = f'failed-{self.base32_id}'
+                    raise osmo_errors.OSMOUsageError(
+                        f'Workflow spec has unexpected top-level keys: {unexpected_keys}. '
+                        f'All fields must be nested inside the "workflow:" block.',
+                        workflow_id=self.name)
+        except yaml.YAMLError:
+            pass  # Let the main YAML parsing below handle malformed YAML
+
         try:
             updated_workflow_txt = template_spec.load_template_with_variables()
             updated_workflow_dict: Dict[str, Any] = yaml.safe_load(updated_workflow_txt)
