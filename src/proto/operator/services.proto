@@ -46,10 +46,10 @@ message NodeConditionStreamResponse {
   }
 }
 
-// ListenerService handles bidirectional streaming connections from workflow backends
+// ListenerService handles connections from workflow backends
 service ListenerService {
-  // Bidirectional stream for backend communication (workflow updates, resource events, etc.)
-  rpc ListenerStream(stream ListenerMessage) returns (stream AckMessage);
+  // Unary RPC for sending a single listener message and receiving an ACK.
+  rpc SendListenerMessage(ListenerMessage) returns (AckMessage);
 
   // Bidirectional stream: client sends heartbeats to keep stream alive; server sends node
   // condition rule updates (initial rules from DB, then pushed on Redis queue updates).

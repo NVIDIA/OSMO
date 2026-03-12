@@ -17,12 +17,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"go.corp.nvidia.com/osmo/operator/utils"
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
@@ -224,6 +227,115 @@ func TestEventKeyComposite(t *testing.T) {
 	// Different event type should create different key
 	if key1 == key3 {
 		t.Error("Different event types should create different keys")
+	}
+}
+
+// TestEventListenerDrainPopulatesUnackedQueue verifies that drainMessageChannel
+// moves pending channel messages into the unacked queue using drop-oldest semantics.
+func TestEventListenerDrainPopulatesUnackedQueue(t *testing.T) {
+	args := utils.ListenerArgs{
+		EventChanSize:        10,
+		ProgressFrequencySec: 60,
+	}
+	inst := utils.NewNoopInstruments()
+	el := NewEventListener(args, inst)
+
+	ch := make(chan *pb.ListenerMessage, 5)
+	// Pre-fill channel with messages
+	for i := 0; i < 3; i++ {
+		ch <- &pb.ListenerMessage{Uuid: fmt.Sprintf("drain-%d", i)}
+	}
+
+	el.DrainMessageChannel(ch)
+
+	unacked := el.GetUnackedMessages()
+	if unacked.Qsize() != 3 {
+		t.Errorf("Qsize() = %d, expected 3 after drain", unacked.Qsize())
+	}
+
+	var sent []string
+	unacked.ResendAll(context.Background(), func(_ context.Context, msg *pb.ListenerMessage) error {
+		sent = append(sent, msg.Uuid)
+		return nil
+	})
+	for i, uuid := range sent {
+		expected := fmt.Sprintf("drain-%d", i)
+		if uuid != expected {
+			t.Errorf("sent[%d] = %s, expected %s", i, uuid, expected)
+		}
+	}
+}
+
+// TestEventListenerDrainRespectsCapacity verifies that drainMessageChannel
+// uses drop-oldest semantics when the queue is at capacity.
+func TestEventListenerDrainRespectsCapacity(t *testing.T) {
+	args := utils.ListenerArgs{
+		EventChanSize:        10,
+		MaxUnackedMessages:   3,
+		ProgressFrequencySec: 60,
+	}
+	inst := utils.NewNoopInstruments()
+	el := NewEventListener(args, inst)
+
+	ch := make(chan *pb.ListenerMessage, 10)
+	// Pre-fill channel with 5 messages (exceeds capacity of 3)
+	for i := 0; i < 5; i++ {
+		ch <- &pb.ListenerMessage{Uuid: fmt.Sprintf("drain-%d", i)}
+	}
+
+	el.DrainMessageChannel(ch)
+
+	unacked := el.GetUnackedMessages()
+	if unacked.Qsize() != 3 {
+		t.Errorf("Qsize() = %d, expected 3 (capped at capacity)", unacked.Qsize())
+	}
+
+	// Oldest messages should have been evicted, newest 3 remain
+	var sent []string
+	unacked.ResendAll(context.Background(), func(_ context.Context, msg *pb.ListenerMessage) error {
+		sent = append(sent, msg.Uuid)
+		return nil
+	})
+	for i, uuid := range sent {
+		expected := fmt.Sprintf("drain-%d", i+2)
+		if uuid != expected {
+			t.Errorf("sent[%d] = %s, expected %s", i, uuid, expected)
+		}
+	}
+}
+
+// TestEventListenerResendBeforeNewMessages verifies that ResendAll is invoked
+// on the unacked queue at the start of sendMessages, before reading from the channel.
+func TestEventListenerResendBeforeNewMessages(t *testing.T) {
+	// This test verifies the ResendAll integration at the UnackMessages level,
+	// since sendMessages requires a live gRPC connection for SendMessage.
+	unacked := utils.NewUnackMessages(10)
+	unacked.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "old-1"})
+	unacked.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "old-2"})
+
+	var sentOrder []string
+	sendFunc := func(_ context.Context, msg *pb.ListenerMessage) error {
+		sentOrder = append(sentOrder, msg.Uuid)
+		return nil
+	}
+
+	ctx := context.Background()
+	err := unacked.ResendAll(ctx, sendFunc)
+	if err != nil {
+		t.Fatalf("ResendAll failed: %v", err)
+	}
+
+	// Verify old messages were sent in order
+	if len(sentOrder) != 2 {
+		t.Fatalf("Expected 2 messages sent, got %d", len(sentOrder))
+	}
+	if sentOrder[0] != "old-1" || sentOrder[1] != "old-2" {
+		t.Errorf("Expected send order [old-1, old-2], got %v", sentOrder)
+	}
+
+	// Queue should be empty after successful resend
+	if unacked.Qsize() != 0 {
+		t.Errorf("Qsize() = %d, expected 0 after successful resend", unacked.Qsize())
 	}
 }
 

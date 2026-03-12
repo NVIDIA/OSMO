@@ -34,7 +34,7 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// WorkflowListener manages the bidirectional gRPC stream connection to the operator service
+// WorkflowListener manages unary RPC calls to the operator service
 type WorkflowListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
@@ -68,12 +68,12 @@ func NewWorkflowListener(args utils.ListenerArgs, inst *utils.Instruments) *Work
 	return wl
 }
 
-// Run manages the bidirectional streaming lifecycle
+// Run manages the unary RPC lifecycle
 func (wl *WorkflowListener) Run(ctx context.Context) error {
 	ch := make(chan *pb.ListenerMessage, wl.args.PodUpdateChanSize)
 	return wl.BaseListener.Run(
 		ctx,
-		"Connected to the service, workflow listener stream established",
+		"Connected to operator service, unary workflow listener established",
 		ch,
 		wl.watchPods,
 		wl.sendMessages,
@@ -87,6 +87,15 @@ func (wl *WorkflowListener) sendMessages(
 ) error {
 	wl.Logf("Starting message sender for workflow channel")
 	defer wl.Logf("Stopping workflow message sender")
+	defer wl.DrainMessageChannel(ch)
+
+	// Resend any unacked messages from a previous connection before processing new ones
+	err := wl.GetUnackedMessages().ResendAll(
+		ctx, wl.SendMessage)
+	if err != nil {
+		wl.Logf("Failed to resend unacked messages: %v", err)
+		return fmt.Errorf("failed to resend unacked messages: %w", err)
+	}
 
 	progressTicker := time.NewTicker(time.Duration(wl.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
@@ -94,8 +103,6 @@ func (wl *WorkflowListener) sendMessages(
 	for {
 		select {
 		case <-ctx.Done():
-			wl.Logf("Stopping message sender, draining channel...")
-			wl.drainMessageChannel(ch)
 			return nil
 		case <-progressTicker.C:
 			progressWriter := wl.GetProgressWriter()
@@ -106,40 +113,18 @@ func (wl *WorkflowListener) sendMessages(
 			}
 		case msg, ok := <-ch:
 			if !ok {
-				wl.Logf("Pod watcher stopped, draining channel...")
 				wl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, wl.MetricAttrs)
-				wl.drainMessageChannel(ch)
 				return fmt.Errorf("pod watcher stopped")
 			}
-			if err := wl.BaseListener.SendMessage(ctx, msg); err != nil {
+			if err := wl.SendMessage(ctx, msg); err != nil {
+				wl.GetUnackedMessages().AddMessageDropOldest(msg)
 				return fmt.Errorf("failed to send message: %w", err)
 			}
 		}
 	}
 }
 
-// drainMessageChannel reads remaining messages from ch and adds them to unacked queue.
-// This prevents message loss during connection breaks
-// TODO watch should call drainMessageChannel before returning
-func (wl *WorkflowListener) drainMessageChannel(ch <-chan *pb.ListenerMessage) {
-	drained := 0
-	unackedMessages := wl.GetUnackedMessages()
-	for {
-		select {
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-			unackedMessages.AddMessageForced(msg)
-			drained++
-		default:
-			if drained > 0 {
-				wl.Logf("Drained %d messages from channel to unacked queue", drained)
-			}
-			return
-		}
-	}
-}
+
 
 // watchPods watches for pod changes and writes ListenerMessages to ch.
 func (wl *WorkflowListener) watchPods(

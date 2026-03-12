@@ -59,12 +59,12 @@ func NewNodeListener(
 	return nl
 }
 
-// Run manages the bidirectional streaming lifecycle
+// Run manages the unary RPC lifecycle for node events
 func (nl *NodeListener) Run(ctx context.Context) error {
 	ch := make(chan *pb.ListenerMessage, nl.args.NodeUpdateChanSize)
 	return nl.BaseListener.Run(
 		ctx,
-		"Connected to operator service, node stream established",
+		"Connected to operator service, unary node listener established",
 		ch,
 		nl.watchNodes,
 		nl.sendMessages,
@@ -96,7 +96,7 @@ func (nl *NodeListener) sendMessages(
 				nl.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nl.MetricAttrs)
 				return fmt.Errorf("node watcher stopped")
 			}
-			if err := nl.BaseListener.SendMessage(ctx, msg); err != nil {
+			if err := nl.SendMessage(ctx, msg); err != nil {
 				return fmt.Errorf("failed to send node message: %w", err)
 			}
 		}

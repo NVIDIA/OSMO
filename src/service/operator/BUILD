@@ -81,7 +81,9 @@ go_test(
     deps = [
         "//src/proto/operator:operator_go_proto",
         "@com_github_redis_go_redis_v9//:go-redis",
+        "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
+        "@org_golang_google_grpc//status",
     ],
 )
 

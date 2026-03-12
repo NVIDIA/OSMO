@@ -17,10 +17,12 @@
 package main
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"go.corp.nvidia.com/osmo/operator/utils"
+	pb "go.corp.nvidia.com/osmo/proto/operator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -93,3 +95,154 @@ func TestNewNodeListener(t *testing.T) {
 		t.Error("Expected unackedMessages to be initialized")
 	}
 }
+
+func TestNodeListener_SendMessages_ChannelClosed(t *testing.T) {
+	args := utils.ListenerArgs{
+		ServiceURL:           "http://localhost:8000",
+		Backend:              "test-backend",
+		Namespace:            "osmo",
+		NodeUpdateChanSize:   100,
+		MaxUnackedMessages:   100,
+		NodeConditionPrefix:  "osmo.nvidia.com/",
+		ProgressDir:          "/tmp/osmo/operator/",
+		ProgressFrequencySec: 15,
+	}
+
+	nodeConditionRules := utils.NewNodeConditionRules()
+	listener := NewNodeListener(args, nodeConditionRules, utils.NewNoopInstruments())
+
+	ch := make(chan *pb.ListenerMessage, 10)
+	close(ch)
+
+	ctx := context.Background()
+	err := listener.sendMessages(ctx, ch)
+	if err == nil {
+		t.Fatal("expected error when channel is closed, got nil")
+	}
+	expectedMsg := "node watcher stopped"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error %q, got %q", expectedMsg, err.Error())
+	}
+}
+
+func TestNodeListener_SendMessages_ContextCancelled(t *testing.T) {
+	args := utils.ListenerArgs{
+		ServiceURL:           "http://localhost:8000",
+		Backend:              "test-backend",
+		Namespace:            "osmo",
+		NodeUpdateChanSize:   100,
+		MaxUnackedMessages:   100,
+		NodeConditionPrefix:  "osmo.nvidia.com/",
+		ProgressDir:          "/tmp/osmo/operator/",
+		ProgressFrequencySec: 15,
+	}
+
+	nodeConditionRules := utils.NewNodeConditionRules()
+	listener := NewNodeListener(args, nodeConditionRules, utils.NewNoopInstruments())
+
+	ch := make(chan *pb.ListenerMessage, 10)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := listener.sendMessages(ctx, ch)
+	if err != nil {
+		t.Fatalf("expected nil error on context cancellation, got: %v", err)
+	}
+}
+
+func TestNodeListener_SendMessages_ProgressReport(t *testing.T) {
+	args := utils.ListenerArgs{
+		ServiceURL:           "http://localhost:8000",
+		Backend:              "test-backend",
+		Namespace:            "osmo",
+		NodeUpdateChanSize:   100,
+		MaxUnackedMessages:   100,
+		NodeConditionPrefix:  "osmo.nvidia.com/",
+		ProgressDir:          "/tmp/osmo/operator/",
+		ProgressFrequencySec: 1,
+	}
+
+	nodeConditionRules := utils.NewNodeConditionRules()
+	listener := NewNodeListener(args, nodeConditionRules, utils.NewNoopInstruments())
+
+	ch := make(chan *pb.ListenerMessage, 10)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- listener.sendMessages(ctx, ch)
+	}()
+
+	select {
+	case err := <-errChan:
+		if err != nil {
+			t.Fatalf("expected nil error, got: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("test timed out")
+	}
+}
+
+func TestNodeListener_BuildResourceMessage(t *testing.T) {
+	args := utils.ListenerArgs{
+		ServiceURL:           "http://localhost:8000",
+		Backend:              "test-backend",
+		Namespace:            "osmo",
+		NodeUpdateChanSize:   100,
+		MaxUnackedMessages:   100,
+		NodeConditionPrefix:  "osmo.nvidia.com/",
+		ProgressDir:          "/tmp/osmo/operator/",
+		ProgressFrequencySec: 15,
+	}
+
+	nodeConditionRules := utils.NewNodeConditionRules()
+	listener := NewNodeListener(args, nodeConditionRules, utils.NewNoopInstruments())
+
+	tracker := utils.NewNodeStateTracker(1 * time.Minute)
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"kubernetes.io/hostname": "test-node",
+			},
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	}
+
+	msg := listener.buildResourceMessage(node, tracker, false, nil)
+	if msg == nil {
+		t.Fatal("expected non-nil message for new node")
+	}
+
+	updateNode := msg.GetUpdateNode()
+	if updateNode == nil {
+		t.Fatal("expected UpdateNode body")
+	}
+	if updateNode.Hostname != "test-node" {
+		t.Errorf("expected hostname test-node, got %s", updateNode.Hostname)
+	}
+
+	// Second call should return nil (no change)
+	msg2 := listener.buildResourceMessage(node, tracker, false, nil)
+	if msg2 != nil {
+		t.Error("expected nil message for unchanged node")
+	}
+
+	// Delete should always return a message
+	msg3 := listener.buildResourceMessage(node, tracker, true, nil)
+	if msg3 == nil {
+		t.Fatal("expected non-nil message for delete event")
+	}
+	if !msg3.GetUpdateNode().Delete {
+		t.Error("expected Delete to be true")
+	}
+}
+

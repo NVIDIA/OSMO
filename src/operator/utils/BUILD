@@ -123,3 +123,12 @@ go_test(
     embed = [":utils"],
     deps = [],
 )
+
+go_test(
+    name = "base_listener_test",
+    srcs = ["base_listener_test.go"],
+    embed = [":utils"],
+    deps = [
+        "//src/proto/operator:operator_go_proto",
+    ],
+)

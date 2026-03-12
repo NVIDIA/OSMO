@@ -27,25 +27,13 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// MessageSender defines the interface for sending messages
-type MessageSender interface {
-	Send(*pb.ListenerMessage) error
-}
-
-// UnackMessages provides flow control and reliability by tracking messages that have been sent
-// but not yet acknowledged by the server. When the max limit is reached, sending is
-// paused until ACKs are received, preventing unbounded memory growth.
-//
-// Key features:
-// - Thread-safe message tracking using mutex
-// - Flow control via readyToSend channel
-// - Automatic backpressure when max unacked messages limit is reached
-// - Message persistence for potential reconnection scenarios
+// UnackMessages tracks messages that have been sent but not yet delivered
+// to the server. It provides a bounded buffer with oldest-eviction policy,
+// and bulk resend for reconnection scenarios.
 type UnackMessages struct {
-	mu                 sync.RWMutex
-	messages           map[string]*pb.ListenerMessage // key: message UUID
-	readyToSend        chan struct{}                  // buffered channel for flow control
-	maxUnackedMessages int                            // 0 means unlimited
+	mu                 sync.Mutex
+	messages           []*pb.ListenerMessage
+	maxUnackedMessages int // 0 means unlimited
 }
 
 // NewUnackMessages creates a new unack messages tracker
@@ -54,103 +42,59 @@ func NewUnackMessages(maxUnackedMessages int) *UnackMessages {
 		maxUnackedMessages = 0
 	}
 
-	readyChan := make(chan struct{}, 1)
-	readyChan <- struct{}{} // Start in ready state
-
 	return &UnackMessages{
-		messages:           make(map[string]*pb.ListenerMessage),
-		readyToSend:        readyChan,
 		maxUnackedMessages: maxUnackedMessages,
 	}
 }
 
-// AddMessage adds a message to the unacked queue
-func (um *UnackMessages) AddMessage(ctx context.Context, msg *pb.ListenerMessage) error {
-	// Wait for flow control signal (non-blocking if not at capacity)
-	select {
-	case <-um.readyToSend:
-		// Got the ready signal, proceed
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
+// AddMessageDropOldest adds a message to the unacked queue, evicting the oldest
+// message if at capacity. This is non-blocking and used for fire-and-forget
+// listeners (e.g., events) where backpressure would cause memory leaks.
+func (um *UnackMessages) AddMessageDropOldest(msg *pb.ListenerMessage) {
 	um.mu.Lock()
 	defer um.mu.Unlock()
 
-	um.messages[msg.Uuid] = msg
-	queueSize := len(um.messages)
-
-	// Check if we've reached the limit after adding
-	if um.maxUnackedMessages > 0 && queueSize >= um.maxUnackedMessages {
-		log.Printf("Warning: Reached max unacked message count of %d", um.maxUnackedMessages)
-		// Don't put back the ready signal - we're at capacity
-	} else {
-		// Put the ready signal back
-		select {
-		case um.readyToSend <- struct{}{}:
-		default:
-			// Channel already has a signal
-		}
+	if um.maxUnackedMessages > 0 && len(um.messages) >= um.maxUnackedMessages {
+		um.messages = um.messages[1:]
 	}
-
-	return nil
-}
-
-// AddMessageForced adds a message bypassing flow control limits
-// Used during channel draining to preserve all pending messages
-func (um *UnackMessages) AddMessageForced(msg *pb.ListenerMessage) {
-	um.mu.Lock()
-	defer um.mu.Unlock()
-	um.messages[msg.Uuid] = msg
-}
-
-// RemoveMessage removes a message from the unacked queue
-func (um *UnackMessages) RemoveMessage(uuid string) {
-	um.mu.Lock()
-	defer um.mu.Unlock()
-
-	if _, exists := um.messages[uuid]; exists {
-		delete(um.messages, uuid)
-		select {
-		case um.readyToSend <- struct{}{}:
-		default:
-			// Channel already has a signal
-		}
-	}
-}
-
-// ListMessages returns a slice of all unacked messages in order
-func (um *UnackMessages) ListMessages() []*pb.ListenerMessage {
-	um.mu.RLock()
-	defer um.mu.RUnlock()
-
-	messages := make([]*pb.ListenerMessage, 0, len(um.messages))
-	for _, msg := range um.messages {
-		messages = append(messages, msg)
-	}
-	return messages
+	um.messages = append(um.messages, msg)
 }
 
 // Qsize returns the number of unacked messages
 func (um *UnackMessages) Qsize() int {
-	um.mu.RLock()
-	defer um.mu.RUnlock()
+	um.mu.Lock()
+	defer um.mu.Unlock()
 	return len(um.messages)
 }
 
-// ResendAll resends all unacked messages using the provided sender
-// This is typically used after reconnection to ensure no messages are lost
-func (um *UnackMessages) ResendAll(sender MessageSender) error {
-	messages := um.ListMessages()
+// ResendAll resends all unacked messages using a unary RPC callback.
+// Successfully sent messages are removed from the queue. On failure, iteration
+// stops immediately and remaining messages stay in the queue for the next attempt.
+func (um *UnackMessages) ResendAll(
+	ctx context.Context,
+	send func(context.Context, *pb.ListenerMessage) error,
+) error {
+	um.mu.Lock()
+	messages := make([]*pb.ListenerMessage, len(um.messages))
+	copy(messages, um.messages)
+	um.mu.Unlock()
+
 	if len(messages) == 0 {
 		return nil
 	}
 
-	log.Printf("Resending %d unacked messages from previous connection", len(messages))
-	for _, msg := range messages {
-		if err := sender.Send(msg); err != nil {
+	log.Printf("Resending %d unacked messages via unary RPC", len(messages))
+	for i, msg := range messages {
+		if err := send(ctx, msg); err != nil {
+			um.mu.Lock()
+			um.messages = um.messages[i:]
+			um.mu.Unlock()
 			return fmt.Errorf("failed to resend unacked message %s: %w", msg.Uuid, err)
 		}
 	}
+
+	um.mu.Lock()
+	um.messages = um.messages[:0]
+	um.mu.Unlock()
 	return nil
 }

@@ -21,45 +21,10 @@ package utils
 import (
 	"context"
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
-
-// Mock MessageSender for testing
-type mockMessageSender struct {
-	messages []*pb.ListenerMessage
-	mu       sync.Mutex
-	failNext bool
-}
-
-func (m *mockMessageSender) Send(msg *pb.ListenerMessage) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if m.failNext {
-		m.failNext = false
-		return fmt.Errorf("mock send error")
-	}
-
-	m.messages = append(m.messages, msg)
-	return nil
-}
-
-func (m *mockMessageSender) GetMessages() []*pb.ListenerMessage {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return append([]*pb.ListenerMessage{}, m.messages...)
-}
-
-func (m *mockMessageSender) SetFailNext(fail bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.failNext = fail
-}
 
 func TestNewUnackMessages(t *testing.T) {
 	tests := []struct {
@@ -85,348 +50,160 @@ func TestNewUnackMessages(t *testing.T) {
 	}
 }
 
-func TestUnackMessages_AddAndRemove(t *testing.T) {
-	um := NewUnackMessages(10)
-	ctx := context.Background()
+func TestAddMessageDropOldest_Basic(t *testing.T) {
+	um := NewUnackMessages(3)
 
-	msg1 := &pb.ListenerMessage{Uuid: "msg-1"}
-	msg2 := &pb.ListenerMessage{Uuid: "msg-2"}
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-1"})
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-2"})
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-3"})
 
-	// Add messages
-	err := um.AddMessage(ctx, msg1)
-	if err != nil {
-		t.Fatalf("AddMessage failed: %v", err)
-	}
-
-	err = um.AddMessage(ctx, msg2)
-	if err != nil {
-		t.Fatalf("AddMessage failed: %v", err)
-	}
-
-	if um.Qsize() != 2 {
-		t.Errorf("Qsize() = %d, expected 2", um.Qsize())
-	}
-
-	// Remove message
-	um.RemoveMessage("msg-1")
-	if um.Qsize() != 1 {
-		t.Errorf("Qsize() after remove = %d, expected 1", um.Qsize())
-	}
-
-	// Remove non-existent message (should not error)
-	um.RemoveMessage("non-existent")
-	if um.Qsize() != 1 {
-		t.Errorf("Qsize() after removing non-existent = %d, expected 1", um.Qsize())
-	}
-
-	// Remove remaining message
-	um.RemoveMessage("msg-2")
-	if um.Qsize() != 0 {
-		t.Errorf("Qsize() after removing all = %d, expected 0", um.Qsize())
-	}
-}
-
-func TestUnackMessages_AddMessageForced(t *testing.T) {
-	um := NewUnackMessages(2)
-	ctx := context.Background()
-
-	// Fill to capacity
-	um.AddMessage(ctx, &pb.ListenerMessage{Uuid: "msg-1"})
-	um.AddMessage(ctx, &pb.ListenerMessage{Uuid: "msg-2"})
-
-	// Try to add normally (should block if we didn't use forced)
-	// Instead use forced to bypass limit
-	um.AddMessageForced(&pb.ListenerMessage{Uuid: "msg-3"})
+	// Add one more — should evict msg-1
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-4"})
 
 	if um.Qsize() != 3 {
 		t.Errorf("Qsize() = %d, expected 3", um.Qsize())
 	}
+
+	// Verify contents via ResendAll
+	var sent []string
+	um.ResendAll(context.Background(), func(_ context.Context, msg *pb.ListenerMessage) error {
+		sent = append(sent, msg.Uuid)
+		return nil
+	})
+
+	if len(sent) != 3 {
+		t.Fatalf("len(sent) = %d, expected 3", len(sent))
+	}
+	if sent[0] != "msg-2" {
+		t.Errorf("Expected oldest to be msg-2 after eviction, got %s", sent[0])
+	}
+	if sent[2] != "msg-4" {
+		t.Errorf("Expected newest to be msg-4, got %s", sent[2])
+	}
 }
 
-func TestUnackMessages_ListMessages(t *testing.T) {
+func TestAddMessageDropOldest_OrderPreserved(t *testing.T) {
+	um := NewUnackMessages(10)
+
+	for i := 0; i < 5; i++ {
+		um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)})
+	}
+
+	// Verify order via ResendAll
+	var sent []string
+	um.ResendAll(context.Background(), func(_ context.Context, msg *pb.ListenerMessage) error {
+		sent = append(sent, msg.Uuid)
+		return nil
+	})
+
+	if len(sent) != 5 {
+		t.Fatalf("len(sent) = %d, expected 5", len(sent))
+	}
+
+	for i, uuid := range sent {
+		expected := fmt.Sprintf("msg-%d", i)
+		if uuid != expected {
+			t.Errorf("sent[%d] = %s, expected %s", i, uuid, expected)
+		}
+	}
+}
+
+func TestResendAll_Success(t *testing.T) {
 	um := NewUnackMessages(10)
 	ctx := context.Background()
 
-	msg1 := &pb.ListenerMessage{Uuid: "msg-1"}
-	msg2 := &pb.ListenerMessage{Uuid: "msg-2"}
-	msg3 := &pb.ListenerMessage{Uuid: "msg-3"}
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-1"})
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-2"})
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-3"})
 
-	um.AddMessage(ctx, msg1)
-	um.AddMessage(ctx, msg2)
-	um.AddMessage(ctx, msg3)
-
-	messages := um.ListMessages()
-	if len(messages) != 3 {
-		t.Errorf("len(ListMessages()) = %d, expected 3", len(messages))
+	var sent []*pb.ListenerMessage
+	sendFunc := func(_ context.Context, msg *pb.ListenerMessage) error {
+		sent = append(sent, msg)
+		return nil
 	}
 
-	// Check that all UUIDs are present
-	uuids := make(map[string]bool)
-	for _, msg := range messages {
-		uuids[msg.Uuid] = true
-	}
-
-	if !uuids["msg-1"] || !uuids["msg-2"] || !uuids["msg-3"] {
-		t.Error("Not all messages found in ListMessages()")
-	}
-}
-
-func TestUnackMessages_FlowControl(t *testing.T) {
-	um := NewUnackMessages(2)
-	ctx := context.Background()
-
-	// Add up to limit
-	err := um.AddMessage(ctx, &pb.ListenerMessage{Uuid: "msg-1"})
-	if err != nil {
-		t.Fatalf("First AddMessage failed: %v", err)
-	}
-
-	err = um.AddMessage(ctx, &pb.ListenerMessage{Uuid: "msg-2"})
-	if err != nil {
-		t.Fatalf("Second AddMessage failed: %v", err)
-	}
-
-	// Try to add one more - should block
-	ctx2, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
-
-	err = um.AddMessage(ctx2, &pb.ListenerMessage{Uuid: "msg-3"})
-	if err == nil {
-		t.Error("Expected context timeout error when exceeding limit")
-	}
-
-	// Remove one message to unblock
-	um.RemoveMessage("msg-1")
-
-	// Now we should be able to add
-	err = um.AddMessage(context.Background(), &pb.ListenerMessage{Uuid: "msg-3"})
-	if err != nil {
-		t.Errorf("AddMessage after remove failed: %v", err)
-	}
-}
-
-func TestUnackMessages_ResendAll(t *testing.T) {
-	um := NewUnackMessages(10)
-	ctx := context.Background()
-
-	msg1 := &pb.ListenerMessage{Uuid: "msg-1"}
-	msg2 := &pb.ListenerMessage{Uuid: "msg-2"}
-	msg3 := &pb.ListenerMessage{Uuid: "msg-3"}
-
-	um.AddMessage(ctx, msg1)
-	um.AddMessage(ctx, msg2)
-	um.AddMessage(ctx, msg3)
-
-	// Create mock sender
-	sender := &mockMessageSender{}
-
-	// Resend all
-	err := um.ResendAll(sender)
+	err := um.ResendAll(ctx, sendFunc)
 	if err != nil {
 		t.Fatalf("ResendAll failed: %v", err)
 	}
 
-	// Check that all messages were sent
-	sentMessages := sender.GetMessages()
-	if len(sentMessages) != 3 {
-		t.Errorf("len(sentMessages) = %d, expected 3", len(sentMessages))
+	if len(sent) != 3 {
+		t.Errorf("len(sent) = %d, expected 3", len(sent))
+	}
+	if um.Qsize() != 0 {
+		t.Errorf("Qsize() = %d, expected 0 after successful resend", um.Qsize())
 	}
 }
 
-func TestUnackMessages_ResendAll_Error(t *testing.T) {
+func TestResendAll_PartialFailure(t *testing.T) {
 	um := NewUnackMessages(10)
 	ctx := context.Background()
 
-	msg1 := &pb.ListenerMessage{Uuid: "msg-1"}
-	um.AddMessage(ctx, msg1)
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-1"})
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-2"})
+	um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: "msg-3"})
 
-	// Create mock sender that fails
-	sender := &mockMessageSender{}
-	sender.SetFailNext(true)
+	callCount := 0
+	sendFunc := func(_ context.Context, msg *pb.ListenerMessage) error {
+		callCount++
+		if callCount == 2 {
+			return fmt.Errorf("send error on second message")
+		}
+		return nil
+	}
 
-	// Resend should fail
-	err := um.ResendAll(sender)
+	err := um.ResendAll(ctx, sendFunc)
 	if err == nil {
-		t.Error("Expected error from ResendAll when sender fails")
+		t.Fatal("Expected error from ResendAll on partial failure")
+	}
+
+	// msg-1 was sent successfully, msg-2 failed — msg-2 and msg-3 should remain
+	if um.Qsize() != 2 {
+		t.Errorf("Qsize() = %d, expected 2 after partial failure", um.Qsize())
+	}
+
+	// Verify remaining messages via a second ResendAll
+	var remaining []string
+	um.ResendAll(ctx, func(_ context.Context, msg *pb.ListenerMessage) error {
+		remaining = append(remaining, msg.Uuid)
+		return nil
+	})
+
+	if len(remaining) != 2 {
+		t.Fatalf("len(remaining) = %d, expected 2", len(remaining))
+	}
+	if remaining[0] != "msg-2" {
+		t.Errorf("Expected first remaining message to be msg-2, got %s", remaining[0])
+	}
+	if remaining[1] != "msg-3" {
+		t.Errorf("Expected second remaining message to be msg-3, got %s", remaining[1])
 	}
 }
 
-func TestUnackMessages_ResendAll_Empty(t *testing.T) {
+func TestResendAll_Empty(t *testing.T) {
 	um := NewUnackMessages(10)
+	ctx := context.Background()
 
-	// Create mock sender
-	sender := &mockMessageSender{}
+	callCount := 0
+	sendFunc := func(_ context.Context, msg *pb.ListenerMessage) error {
+		callCount++
+		return nil
+	}
 
-	// Resend with no messages
-	err := um.ResendAll(sender)
+	err := um.ResendAll(ctx, sendFunc)
 	if err != nil {
 		t.Errorf("ResendAll on empty queue failed: %v", err)
 	}
-
-	// No messages should be sent
-	sentMessages := sender.GetMessages()
-	if len(sentMessages) != 0 {
-		t.Errorf("len(sentMessages) = %d, expected 0", len(sentMessages))
-	}
-}
-
-func TestUnackMessages_Concurrent(t *testing.T) {
-	um := NewUnackMessages(100)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	numGoroutines := 20 // Reduced to avoid overwhelming the system
-	messagesPerRoutine := 10
-
-	var wg sync.WaitGroup
-	var addedCount, removedCount int64
-
-	// Add messages concurrently
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < messagesPerRoutine; j++ {
-				msg := &pb.ListenerMessage{
-					Uuid: fmt.Sprintf("msg-%d-%d", id, j),
-				}
-				if err := um.AddMessage(ctx, msg); err == nil {
-					atomic.AddInt64(&addedCount, 1)
-				}
-			}
-		}(i)
-	}
-
-	// Remove messages concurrently - remove whatever actually exists
-	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
-			defer wg.Done()
-			for j := 0; j < messagesPerRoutine; j++ {
-				// Keep trying until we successfully remove or context times out
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-					}
-
-					messages := um.ListMessages()
-					if len(messages) > 0 {
-						um.RemoveMessage(messages[0].Uuid)
-						atomic.AddInt64(&removedCount, 1)
-						break
-					}
-					// No messages available, wait a bit
-					time.Sleep(time.Millisecond)
-				}
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	// Check that we added and removed messages successfully
-	t.Logf("Added: %d, Removed: %d, Final queue size: %d", addedCount, removedCount, um.Qsize())
-
-	// Final queue size should be small (most removes should have succeeded)
-	finalSize := um.Qsize()
-	if finalSize > messagesPerRoutine*numGoroutines/2 {
-		t.Errorf("Unexpected queue size after concurrent ops: %d (added: %d, removed: %d)", finalSize, addedCount, removedCount)
-	}
-}
-
-func TestUnackMessages_UnlimitedCapacity(t *testing.T) {
-	um := NewUnackMessages(0) // 0 means unlimited
-	ctx := context.Background()
-
-	// Add many messages
-	for i := 0; i < 1000; i++ {
-		msg := &pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)}
-		err := um.AddMessage(ctx, msg)
-		if err != nil {
-			t.Fatalf("AddMessage failed at %d: %v", i, err)
-		}
-	}
-
-	if um.Qsize() != 1000 {
-		t.Errorf("Qsize() = %d, expected 1000", um.Qsize())
-	}
-}
-
-func TestUnackMessages_ContextCancellation(t *testing.T) {
-	um := NewUnackMessages(1)
-	ctx := context.Background()
-
-	// Fill to capacity
-	um.AddMessage(ctx, &pb.ListenerMessage{Uuid: "msg-1"})
-
-	// Create cancelled context
-	ctx2, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	// Try to add with cancelled context
-	err := um.AddMessage(ctx2, &pb.ListenerMessage{Uuid: "msg-2"})
-	if err == nil {
-		t.Error("Expected error when adding with cancelled context")
-	}
-	if err != context.Canceled {
-		t.Errorf("Expected context.Canceled error, got %v", err)
-	}
-}
-
-// Benchmark tests
-func BenchmarkUnackMessages_AddMessage(b *testing.B) {
-	um := NewUnackMessages(0) // Unlimited
-	ctx := context.Background()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		msg := &pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)}
-		um.AddMessage(ctx, msg)
-	}
-}
-
-func BenchmarkUnackMessages_RemoveMessage(b *testing.B) {
-	um := NewUnackMessages(0)
-	ctx := context.Background()
-
-	// Pre-populate
-	for i := 0; i < b.N; i++ {
-		msg := &pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)}
-		um.AddMessage(ctx, msg)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		um.RemoveMessage(fmt.Sprintf("msg-%d", i))
-	}
-}
-
-func BenchmarkUnackMessages_ListMessages(b *testing.B) {
-	um := NewUnackMessages(0)
-	ctx := context.Background()
-
-	// Add 100 messages
-	for i := 0; i < 100; i++ {
-		msg := &pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)}
-		um.AddMessage(ctx, msg)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		um.ListMessages()
+	if callCount != 0 {
+		t.Errorf("callCount = %d, expected 0 (callback should not be called)", callCount)
 	}
 }
 
 func BenchmarkUnackMessages_Qsize(b *testing.B) {
 	um := NewUnackMessages(0)
-	ctx := context.Background()
 
-	// Add some messages
 	for i := 0; i < 50; i++ {
-		msg := &pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)}
-		um.AddMessage(ctx, msg)
+		um.AddMessageDropOldest(&pb.ListenerMessage{Uuid: fmt.Sprintf("msg-%d", i)})
 	}
 
 	b.ResetTimer()

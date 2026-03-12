@@ -33,7 +33,7 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// EventListener manages the bidirectional gRPC stream connection for Kubernetes events
+// EventListener manages unary RPC calls for Kubernetes events
 type EventListener struct {
 	*utils.BaseListener
 	args utils.ListenerArgs
@@ -51,12 +51,12 @@ func NewEventListener(args utils.ListenerArgs, inst *utils.Instruments) *EventLi
 	return el
 }
 
-// Run manages the bidirectional streaming lifecycle
+// Run manages the unary RPC lifecycle
 func (el *EventListener) Run(ctx context.Context) error {
 	ch := make(chan *pb.ListenerMessage, el.args.EventChanSize)
 	return el.BaseListener.Run(
 		ctx,
-		"Connected to the service, event listener stream established",
+		"Connected to operator service, unary event listener established",
 		ch,
 		el.watchEvents,
 		el.sendMessages,
@@ -70,6 +70,15 @@ func (el *EventListener) sendMessages(
 ) error {
 	el.Logf("Starting message sender for event channel")
 	defer el.Logf("Stopping event message sender")
+	defer el.DrainMessageChannel(ch)
+
+	// Resend any unacked messages from a previous connection before processing new ones
+	err := el.GetUnackedMessages().ResendAll(
+		ctx, el.SendMessage)
+	if err != nil {
+		el.Logf("Failed to resend unacked messages: %v", err)
+		return fmt.Errorf("failed to resend unacked messages: %w", err)
+	}
 
 	progressTicker := time.NewTicker(time.Duration(el.args.ProgressFrequencySec) * time.Second)
 	defer progressTicker.Stop()
@@ -90,7 +99,8 @@ func (el *EventListener) sendMessages(
 				el.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, el.MetricAttrs)
 				return fmt.Errorf("event watcher stopped")
 			}
-			if err := el.BaseListener.SendMessage(ctx, msg); err != nil {
+			if err := el.SendMessage(ctx, msg); err != nil {
+				el.GetUnackedMessages().AddMessageDropOldest(msg)
 				return fmt.Errorf("failed to send message: %w", err)
 			}
 		}

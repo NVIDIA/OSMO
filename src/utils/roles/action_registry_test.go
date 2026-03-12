@@ -304,8 +304,8 @@ func TestGRPCPathsResolveToActionInternalOperator(t *testing.T) {
 		wantAction string
 	}{
 		{
-			name:       "ListenerStream resolves to ActionInternalOperator",
-			path:       "/operator.ListenerService/ListenerStream",
+			name:       "SendListenerMessage resolves to ActionInternalOperator",
+			path:       "/operator.ListenerService/SendListenerMessage",
 			method:     "POST",
 			wantAction: ActionInternalOperator,
 		},
@@ -342,8 +342,8 @@ func TestExtractResourceFromPathGRPC(t *testing.T) {
 		wantResource string
 	}{
 		{
-			name:         "gRPC path returns backend wildcard (no agent segment)",
-			path:         "/operator.ListenerService/ListenerStream",
+			name:         "gRPC SendListenerMessage returns backend wildcard",
+			path:         "/operator.ListenerService/SendListenerMessage",
 			action:       ActionInternalOperator,
 			wantResource: "backend/*",
 		},

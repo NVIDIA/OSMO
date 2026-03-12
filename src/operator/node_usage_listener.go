@@ -32,7 +32,7 @@ import (
 	pb "go.corp.nvidia.com/osmo/proto/operator"
 )
 
-// NodeUsageListener manages the bidirectional gRPC stream for pod resource usage
+// NodeUsageListener manages unary RPC calls for pod resource usage
 type NodeUsageListener struct {
 	*utils.BaseListener
 	args       utils.ListenerArgs
@@ -52,12 +52,12 @@ func NewNodeUsageListener(args utils.ListenerArgs, inst *utils.Instruments) *Nod
 	return nul
 }
 
-// Run manages the bidirectional streaming lifecycle
+// Run manages the unary RPC lifecycle
 func (nul *NodeUsageListener) Run(ctx context.Context) error {
 	ch := make(chan *pb.ListenerMessage, nul.args.UsageChanSize)
 	return nul.BaseListener.Run(
 		ctx,
-		"Connected to the service, node usage listener stream established",
+		"Connected to operator service, unary node usage listener established",
 		ch,
 		nul.watchPods,
 		nul.sendMessages,
@@ -88,7 +88,7 @@ func (nul *NodeUsageListener) sendMessages(
 				nul.inst.MessageChannelClosedUnexpectedly.Add(ctx, 1, nul.MetricAttrs)
 				return fmt.Errorf("usage watcher stopped")
 			}
-			if err := nul.BaseListener.SendMessage(ctx, msg); err != nil {
+			if err := nul.SendMessage(ctx, msg); err != nil {
 				return fmt.Errorf("failed to send UpdateNodeUsageBody message: %w", err)
 			}
 		}

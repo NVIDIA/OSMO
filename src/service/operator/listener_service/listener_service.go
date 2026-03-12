@@ -47,10 +47,10 @@ const (
 // ListenerService handles workflow listener gRPC streaming operations
 type ListenerService struct {
 	pb.UnimplementedListenerServiceServer
-	logger           *slog.Logger
-	redisClient      *redis.Client
-	pgPool           *pgxpool.Pool
-	serviceHostname  string
+	logger            *slog.Logger
+	redisClient       *redis.Client
+	pgPool            *pgxpool.Pool
+	serviceHostname   string
 	progressWriter    *progress_check.ProgressWriter
 	progressInterval  time.Duration
 	heartbeatInterval time.Duration
@@ -84,10 +84,10 @@ func NewListenerService(
 	}
 
 	return &ListenerService{
-		logger:           logger,
-		redisClient:      redisClient,
-		pgPool:           pgPool,
-		serviceHostname:  args.ServiceHostname,
+		logger:            logger,
+		redisClient:       redisClient,
+		pgPool:            pgPool,
+		serviceHostname:   args.ServiceHostname,
 		progressWriter:    progressWriter,
 		progressInterval:  time.Duration(args.OperatorProgressFrequencySec) * time.Second,
 		heartbeatInterval: time.Duration(args.HeartbeatIntervalSec) * time.Second,
@@ -130,79 +130,27 @@ func (ls *ListenerService) pushMessageToRedis(
 	return nil
 }
 
-// handleListenerStream processes messages from a bidirectional gRPC stream.
-// It handles receiving messages, pushing to Redis, sending ACK responses, and reporting progress.
-func (ls *ListenerService) handleListenerStream(
-	stream pb.ListenerService_ListenerStreamServer,
-) error {
-	ctx := stream.Context()
-
-	// Extract backend name from gRPC metadata (required)
+// SendListenerMessage handles a single unary listener message and returns an ACK.
+func (ls *ListenerService) SendListenerMessage(
+	ctx context.Context,
+	msg *pb.ListenerMessage,
+) (*pb.AckMessage, error) {
 	backendName, err := utils.ExtractBackendName(ctx)
 	if err != nil {
-		ls.logger.ErrorContext(
-			ctx,
-			"failed to extract backend name",
+		ls.logger.ErrorContext(ctx, "failed to extract backend name",
+			slog.String("error", err.Error()))
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	if err := ls.pushMessageToRedis(ctx, msg, backendName); err != nil {
+		ls.logger.ErrorContext(ctx, "failed to push message to Redis stream",
 			slog.String("error", err.Error()),
-		)
-		return status.Error(codes.InvalidArgument, err.Error())
+			slog.String("uuid", msg.Uuid),
+			slog.String("backend_name", backendName))
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	ls.logger.InfoContext(ctx, "listener stream opened",
-		slog.String("backend_name", backendName))
-	defer ls.logger.InfoContext(ctx, "listener stream closed",
-		slog.String("backend_name", backendName))
-
-	lastProgressReport := time.Now()
-
-	// Handle bidirectional streaming
-	for {
-		// Receive message from backend
-		msg, err := stream.Recv()
-		if err != nil {
-			if utils.IsExpectedClose(err) {
-				return nil
-			}
-			ls.logger.ErrorContext(
-				ctx, "failed to receive message", slog.String("error", err.Error()))
-			return err
-		}
-
-		// Push message to Redis Stream before sending ACK
-		if err := ls.pushMessageToRedis(ctx, msg, backendName); err != nil {
-			ls.logger.ErrorContext(ctx, "failed to push message to Redis stream",
-				slog.String("error", err.Error()),
-				slog.String("uuid", msg.Uuid))
-			return err
-		}
-
-		// Send ACK response
-		ack := &pb.AckMessage{
-			AckUuid: msg.Uuid, // Acknowledge the received message UUID
-		}
-
-		if err := stream.Send(ack); err != nil {
-			ls.logger.ErrorContext(ctx, "failed to send ACK", slog.String("error", err.Error()))
-			return err
-		}
-
-		// Report progress after successfully processing message
-		now := time.Now()
-		if ls.progressWriter != nil && now.Sub(lastProgressReport) >= ls.progressInterval {
-			if err := ls.progressWriter.ReportProgress(); err != nil {
-				ls.logger.WarnContext(ctx, "failed to report progress",
-					slog.String("error", err.Error()))
-			}
-			lastProgressReport = now
-		}
-	}
-}
-
-// ListenerStream handles bidirectional streaming for backend communication.
-// It receives all types of messages (update_pod, logging, resource, resource_usage) and sends ACK responses.
-func (ls *ListenerService) ListenerStream(
-	stream pb.ListenerService_ListenerStreamServer) error {
-	return ls.handleListenerStream(stream)
+	return &pb.AckMessage{AckUuid: msg.Uuid}, nil
 }
 
 // NodeConditionStream sends initial node conditions from the DB, then streams updates.
