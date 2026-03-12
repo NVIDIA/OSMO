@@ -28,7 +28,6 @@ from urllib.parse import urlparse
 
 import pydantic
 import requests  # type: ignore
-import yaml
 
 from src.lib.data import storage
 from src.lib.utils import (common, jinja_sandbox, osmo_errors, priority as wf_priority,
@@ -790,18 +789,10 @@ class TemplateSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             str: yaml file
         """
         try:
-            sections = workflow_utils.parse_workflow_spec(self.file)
-            allowed_sections = {'workflow', 'default-values'}
-            unknown_sections = set(sections.keys()) - allowed_sections
-            if unknown_sections:
-                raise osmo_errors.OSMOUserError(
-                    f'Unknown top-level keys in workflow spec: {sorted(unknown_sections)}')
-            if 'workflow' not in sections:
-                raise osmo_errors.OSMOUserError('Workflow spec not found.')
-            file_text = sections['workflow']
+            file_text, default_values = workflow_utils.parse_workflow_spec(self.file)
             template_data: Dict[str, Any] = {}
-            if 'default-values' in sections:
-                template_data = yaml.safe_load(sections['default-values'])['default-values']
+            if default_values:
+                template_data = default_values
 
             # Get CLI set values
             for data in self.set_variables:
