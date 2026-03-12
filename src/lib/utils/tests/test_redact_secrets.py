@@ -102,18 +102,20 @@ class TestRedactPodSpecEnv(unittest.TestCase):
         return {'containers': containers, 'initContainers': []}
 
     def test_masks_high_entropy_secret(self):
+        # Neutral name ('FOO') so only the entropy rule can trigger masking.
         pod_spec = self._make_pod_spec(
-            {'name': 'app', 'env': [{'name': 'AWS_SECRET_ACCESS_KEY', 'value': _AWS_SECRET_KEY}]},
+            {'name': 'app', 'env': [{'name': 'FOO', 'value': _AWS_SECRET_KEY}]},
         )
         redacted = redact_pod_spec_env(pod_spec)
         self.assertEqual(redacted['containers'][0]['env'][0]['value'], '[MASKED]')
 
     def test_preserves_low_entropy_value(self):
+        # Neutral name ('FOO') and a short benign value not in _NEVER_MASK_VALUES.
         pod_spec = self._make_pod_spec(
-            {'name': 'app', 'env': [{'name': 'ENABLE_FEATURE', 'value': 'true'}]},
+            {'name': 'app', 'env': [{'name': 'FOO', 'value': 'hello'}]},
         )
         redacted = redact_pod_spec_env(pod_spec)
-        self.assertEqual(redacted['containers'][0]['env'][0]['value'], 'true')
+        self.assertEqual(redacted['containers'][0]['env'][0]['value'], 'hello')
 
     def test_does_not_modify_original(self):
         pod_spec = self._make_pod_spec(
