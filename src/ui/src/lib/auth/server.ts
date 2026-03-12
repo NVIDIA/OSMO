@@ -34,6 +34,8 @@ import {
   getServerUserRoles as prodGetServerUserRoles,
   getServerUsername as prodGetServerUsername,
   getServerUser as prodGetServerUser,
+  deriveDisplayName,
+  getInitials,
 } from "@/lib/auth/server.production";
 import { hasAdminRole } from "@/lib/auth/roles";
 import type { User } from "@/lib/auth/user-context";
@@ -64,13 +66,14 @@ export async function getServerUser(): Promise<User | null> {
 
   const email = process.env.DEV_USER_EMAIL ?? username;
   const roles = await getServerUserRoles();
+  const name = deriveDisplayName(username);
 
   return {
     id: username,
-    name: username,
+    name,
     email,
     username,
     isAdmin: hasAdminRole(roles),
-    initials: username.slice(0, 2).toUpperCase(),
+    initials: getInitials(name),
   };
 }

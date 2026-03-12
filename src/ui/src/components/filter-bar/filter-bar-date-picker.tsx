@@ -155,7 +155,6 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
               value={fromDate}
               onChange={(e) => handleFromChange(e.target.value)}
               className="fb-date-input"
-              aria-label="From date"
             />
           </div>
           <div className="fb-date-field">

@@ -115,9 +115,9 @@ function generateSuggestions<T>(
     // Date-range fields show a picker in the dropdown — surface presets and custom inputs
     // as value suggestions so keyboard navigation (Tab/↑↓/Enter) works like other fields.
     if (isDateRangeField(parsedInput.field)) {
-      const query = parsedInput.query.toLowerCase();
+      const lowerQuery = parsedInput.query.toLowerCase();
       for (const preset of DATE_RANGE_PRESETS) {
-        if (!query || preset.label.toLowerCase().includes(query)) {
+        if (!lowerQuery || preset.label.toLowerCase().includes(lowerQuery)) {
           items.push({
             type: "value",
             field: parsedInput.field,
@@ -127,7 +127,7 @@ function generateSuggestions<T>(
         }
       }
       // Custom range inputs are always shown (only when not filtering presets)
-      if (!query) {
+      if (!lowerQuery) {
         items.push({ type: "value", field: parsedInput.field, value: DATE_CUSTOM_FROM, label: "From date" });
         items.push({ type: "value", field: parsedInput.field, value: DATE_CUSTOM_TO, label: "To date" });
         items.push({ type: "value", field: parsedInput.field, value: DATE_CUSTOM_APPLY, label: "Apply" });

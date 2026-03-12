@@ -62,7 +62,7 @@ export async function getServerUser(): Promise<User | null> {
   };
 }
 
-function deriveDisplayName(username: string): string {
+export function deriveDisplayName(username: string): string {
   const namePart = username.includes("@") ? username.split("@")[0] : username;
   if (!namePart) return "User";
   const parts = namePart.split(/[._-]+/).filter(Boolean);
@@ -70,7 +70,7 @@ function deriveDisplayName(username: string): string {
   return parts.map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
 
-function getInitials(name: string): string {
+export function getInitials(name: string): string {
   return name
     .split(/[\s@]+/)
     .slice(0, 2)
