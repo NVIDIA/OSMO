@@ -153,7 +153,7 @@ function LogEntryRowInner({
               )}
               title={entry.labels.task}
             >
-              [{entry.labels.task}]
+              {entry.labels.source === "osmo" ? `[osmo] [${entry.labels.task}]` : `[${entry.labels.task}]`}
             </span>
           )}
         </span>
