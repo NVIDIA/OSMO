@@ -18,6 +18,7 @@
 
 import { useState, useCallback, useMemo, memo } from "react";
 import { MONTHS_SHORT } from "@/lib/format-date";
+import "@/components/date-range-picker/date-range-picker.css";
 
 // =============================================================================
 // Types
