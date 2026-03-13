@@ -113,7 +113,10 @@ export function UtilizationChart() {
   const displayStartMs = range.start;
   const displayEndMs = range.end;
 
-  const { buckets, truncated, isLoading, granularityMs } = useUtilizationData({ displayStartMs, displayEndMs });
+  const { buckets, truncated, isLoading, error, refetch, granularityMs } = useUtilizationData({
+    displayStartMs,
+    displayEndMs,
+  });
 
   const totals = useMemo(() => {
     const hours = granularityMs / 3_600_000;
@@ -227,7 +230,26 @@ export function UtilizationChart() {
 
         <CardContent className="pt-4 pr-2 pb-1 pl-0 sm:pt-6 sm:pr-4 sm:pb-2">
           {isLoading ? (
-            <Skeleton className="aspect-video w-full" />
+            <div className="flex h-[250px] flex-col gap-3 px-6">
+              <Skeleton className="h-full w-full rounded-md" />
+              <Skeleton className="mx-auto h-3 w-2/3 rounded-md" />
+            </div>
+          ) : error ? (
+            <div className="flex h-[250px] flex-col items-center justify-center gap-3 text-center">
+              <p className="text-muted-foreground text-sm">Failed to load utilization data</p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                Retry
+              </button>
+            </div>
+          ) : buckets.length === 0 ? (
+            <div className="flex h-[250px] flex-col items-center justify-center gap-1 text-center">
+              <p className="text-muted-foreground text-sm">No utilization data for this range</p>
+              <p className="text-muted-foreground/60 text-xs">Try selecting a different time range</p>
+            </div>
           ) : (
             <ChartContainer
               config={chartConfig}

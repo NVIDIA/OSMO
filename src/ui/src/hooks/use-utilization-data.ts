@@ -90,7 +90,7 @@ export function useUtilizationData({
 
   const queryKey = UTILIZATION_QUERY_KEY(tierStartISO, tier);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey,
     queryFn: () => fetchAllTasks(tierStartISO, tierEndISO),
     staleTime: QUERY_STALE_TIME.STANDARD,
@@ -108,6 +108,8 @@ export function useUtilizationData({
     buckets,
     truncated: data?.truncated ?? false,
     isLoading,
+    error,
+    refetch,
     granularityMs,
   };
 }
