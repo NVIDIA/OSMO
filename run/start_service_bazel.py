@@ -315,8 +315,7 @@ def _start_service_worker():
         'bazel', 'run', '@osmo_workspace//src/service/worker:worker_binary',
         '--',
         '--method=dev',
-        '--progress_file', '/tmp/osmo/service/last_progress_worker',
-        '--metrics_prometheus_port', '9465'
+        '--progress_file', '/tmp/osmo/service/last_progress_worker'
     ]
 
     process = run_command_with_logging(
@@ -388,8 +387,7 @@ def _start_delayed_job_monitor():
         '@osmo_workspace//src/service/delayed_job_monitor:delayed_job_monitor_binary',
         '--',
         '--method=dev',
-        '--progress_file', '/tmp/osmo/service/last_progress_delayed_job_monitor',
-        '--metrics_prometheus_port', '9466'
+        '--progress_file', '/tmp/osmo/service/last_progress_delayed_job_monitor'
     ]
 
     process = run_command_with_logging(

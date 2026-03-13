@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,6 +37,9 @@ class AsymmetricKeyPair(pydantic.BaseModel):
     public_key: str
     private_key: pydantic.SecretStr
 
+    class Config:
+        keep_untouched = (property,)
+
     @classmethod
     def generate(cls) -> 'AsymmetricKeyPair':
         return AsymmetricKeyPair()  # type: ignore
@@ -51,10 +54,17 @@ class AsymmetricKeyPair(pydantic.BaseModel):
         # TODO: Properly validate the private/public key match
         return values
 
+    def _get_cached_pem_key(self) -> bytes:
+        cached = self.__dict__.get('_pem_key_cache')
+        if cached is None:
+            cached = jwk.JWK.from_json(
+                self.private_key.get_secret_value()
+            ).export_to_pem(private_key=True, password=None)
+            self.__dict__['_pem_key_cache'] = cached
+        return cached
+
     def create_jwt(self, claims: Dict[str, Any]) -> str:
-        pem_key = jwk.JWK.from_json(self.private_key.get_secret_value()).export_to_pem(
-            private_key=True, password=None)
-        return jwt.encode(claims, key=pem_key, algorithm='RS256')
+        return jwt.encode(claims, key=self._get_cached_pem_key(), algorithm='RS256')
 
 
 class LoginInfo(pydantic.BaseModel):

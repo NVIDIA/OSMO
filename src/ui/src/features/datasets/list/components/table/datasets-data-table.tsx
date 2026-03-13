@@ -36,7 +36,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
-import type { ColumnSizingPreference, SortState } from "@/components/data-table/types";
+import type { SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
 import type { Dataset } from "@/lib/api/adapter/datasets";
@@ -88,6 +88,9 @@ export interface DatasetsDataTableProps {
 /** Stable row ID extractor */
 const getRowId = (dataset: Dataset) => `${dataset.bucket}-${dataset.name}`;
 
+// Module-level constant — stable reference, no useMemo needed
+const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -126,28 +129,11 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
 
   const columns = useMemo(() => createDatasetColumns(openPanel), [openPanel]);
 
-  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
-
-  const handleColumnOrderChange = useCallback(
-    (newOrder: string[]) => {
-      setColumnOrder(newOrder);
-    },
-    [setColumnOrder],
-  );
-
-  // Handle column sizing preference change
-  const handleColumnSizingPreferenceChange = useCallback(
-    (columnId: string, preference: ColumnSizingPreference) => {
-      setColumnSizingPreference(columnId, preference);
-    },
-    [setColumnSizingPreference],
-  );
-
   // Row click navigates to dataset detail page
   const handleRowClick = useCallback(
     (dataset: Dataset) => {
       const detailPath = `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
-      const currentUrl = pathname + window.location.search;
+      const currentUrl = pathname + (typeof window !== "undefined" ? window.location.search : "");
       setOrigin(detailPath, currentUrl);
       startTransition(() => {
         router.push(detailPath);
@@ -161,16 +147,9 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
     return `/datasets/${encodeURIComponent(dataset.bucket)}/${encodeURIComponent(dataset.name)}`;
   }, []);
 
-  // Augment datasets with visual row index for zebra striping
-  const datasetsWithIndex = useMemo(
-    () => datasets.map((dataset, index) => ({ ...dataset, _visualRowIndex: index })),
-    [datasets],
-  );
-
   // Row class for zebra striping
-  const rowClassName = useCallback((dataset: Dataset & { _visualRowIndex?: number }) => {
-    const visualIndex = dataset._visualRowIndex ?? 0;
-    return visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
+  const rowClassName = useCallback((_dataset: Dataset, index: number) => {
+    return index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No datasets found" />, []);
@@ -193,22 +172,22 @@ export const DatasetsDataTable = memo(function DatasetsDataTable({
 
   return (
     <div className="table-container relative flex h-full flex-col">
-      <DataTable<Dataset & { _visualRowIndex?: number }>
-        data={datasetsWithIndex}
+      <DataTable<Dataset>
+        data={datasets}
         columns={columns}
         getRowId={getRowId}
         // Column management
         columnOrder={columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
-        fixedColumns={fixedColumns}
+        fixedColumns={FIXED_COLUMNS}
         // Sorting
         sorting={sorting}
         onSortingChange={onSortingChange}
         // Column sizing
         columnSizeConfigs={DATASET_COLUMN_SIZE_CONFIG}
         columnSizingPreferences={columnSizingPreferences}
-        onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
+        onColumnSizingPreferenceChange={setColumnSizingPreference}
         // Pagination
         hasNextPage={hasNextPage}
         onLoadMore={onLoadMore}

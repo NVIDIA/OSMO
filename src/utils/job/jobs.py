@@ -461,6 +461,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             workflow_config = context.postgres.get_workflow_configs()
             backend_config_cache = connectors.BackendConfigCache()
             workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+
             resources, pod_specs = group_obj.get_kb_specs(
                 self.workflow_uuid,
                 self.user,
@@ -473,7 +474,6 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                 workflow_obj.plugins,
                 workflow_obj.priority,
             )
-
             self.k8s_resources = resources
             group_obj.update_group_template_resource_types()
 
@@ -855,7 +855,8 @@ class UpdateGroup(WorkflowJob):
 
         workflow_config = context.postgres.get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(
+            context.postgres, self.workflow_id, fetch_groups=False)
         total_timeout = task_common.calculate_total_timeout(
             workflow_obj.workflow_id,
             workflow_obj.timeout.queue_timeout, workflow_obj.timeout.exec_timeout)
@@ -1106,7 +1107,7 @@ class UpdateGroup(WorkflowJob):
         # Get create job
         pod_list = {new_task.name: kb_objects.construct_pod_name(
             self.workflow_uuid, new_task.task_uuid)}
-        pod, _, = group.convert_to_pod_spec(
+        pod, _, _ = group.convert_to_pod_spec(
             new_task,
             spec,
             self.workflow_uuid,

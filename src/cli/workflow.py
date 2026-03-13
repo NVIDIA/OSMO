@@ -259,7 +259,13 @@ def setup_parser(parser: argparse._SubParsersAction):
     list_parser.add_argument('--count', '-c',
                              default=20,
                              type=validation.positive_integer,
-                             help='Display the given count of workflows. Default value is 20.')
+                             help='Display the given count of workflows. Default value is 20. '
+                                  'Use --offset to skip results for pagination.')
+    list_parser.add_argument('--offset', '-f',
+                             default=0,
+                             type=validation.non_negative_integer,
+                             help='Skip the first N workflows (newest first, server-side order). '
+                                  'Use with --count to paginate results. Default is 0.')
     list_parser.add_argument('--name', '-n',
                              type=str,
                              help='Display workflows which contains the string.')
@@ -855,7 +861,8 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
     except requests.exceptions.ChunkedEncodingError as error:
         # Check if this is specifically the timeout case with InvalidChunkLength
         error_str = str(error)
-        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+        if ('InvalidChunkLength' in error_str and "got length b''" in error_str) or \
+            ('Response ended prematurely' in error_str):
             print('\nLog stream has timed out or failed. '
                   'Please run the command again to continue viewing logs.')
             return
@@ -885,7 +892,8 @@ def _workflow_events(service_client: client.ServiceClient, args: argparse.Namesp
     except requests.exceptions.ChunkedEncodingError as error:
         # Check if this is specifically the timeout case with InvalidChunkLength
         error_str = str(error)
-        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+        if ('InvalidChunkLength' in error_str and "got length b''" in error_str) or \
+            ('Response ended prematurely' in error_str):
             print('\nEvent stream has timed out or failed. '
                   'Please run the command again to continue viewing events.')
             return
@@ -1028,7 +1036,7 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
     while True:
         count = min(args.count - current_count, 1000)
         params['limit'] = count
-        params['offset'] = current_count
+        params['offset'] = args.offset + current_count
 
         workflow_result = service_client.request(
             client.RequestMethod.GET,

@@ -138,8 +138,7 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
             '--serviceURL', f'http://{host_ip}:8002',
             '--backend', 'default',
             '--namespace', 'default',
-            '--progressDir', '/tmp/osmo/operator/',
-            '--metrics_prometheus_port', '9467'
+            '--progressDir', '/tmp/osmo/operator/'
         ]
     else:
         cmd = [
@@ -150,8 +149,7 @@ def _start_backend_operator(service_type: Literal['listener', 'worker'], emoji: 
             '--backend', 'default',
             '--namespace', 'default',
             '--username', 'testuser',
-            '--progress_folder_path', '/tmp/osmo/operator',
-            '--metrics_prometheus_port', '9468'
+            '--progress_folder_path', '/tmp/osmo/operator'
         ]
 
     process = run_command_with_logging(

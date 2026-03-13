@@ -1090,10 +1090,42 @@ class Task(pydantic.BaseModel):
             WHERE task_db_key = %s;
         '''
 
-        # Database write
         self.database.execute_commit_command(
             update_cmd,
             (hashed_token, self.task_db_key))
+
+    @staticmethod
+    def batch_add_refresh_tokens_to_db(
+        database: connectors.PostgresConnector,
+        token_entries: List[Tuple[str, str]],
+    ):
+        """Batch-update refresh tokens for multiple tasks in a single query.
+
+        Args:
+            database: The Postgres connector instance.
+            token_entries: List of (task_db_key, refresh_token) pairs.
+        """
+        if not token_entries:
+            return
+
+        hashed_entries = [
+            (auth.hash_access_token(token), task_db_key)
+            for task_db_key, token in token_entries
+        ]
+
+        values_clause = ','.join(['(%s, %s)'] * len(hashed_entries))
+        flat_args = []
+        for hashed_token, task_db_key in hashed_entries:
+            flat_args.extend([task_db_key, hashed_token])
+
+        update_cmd = f'''
+            UPDATE tasks AS t
+            SET refresh_token = v.token
+            FROM (VALUES {values_clause}) AS v(key, token)
+            WHERE t.task_db_key = v.key;
+        '''
+
+        database.execute_commit_command(update_cmd, tuple(flat_args))
 
     @classmethod
     def from_db_row(cls, task_row, database) -> 'Task':
@@ -2009,9 +2041,13 @@ class TaskGroup(pydantic.BaseModel):
             })
 
         all_secrets, user_secrets = {}, {}
+        credential_cache: Dict[str, Any] = {}
         for task in self.spec.tasks:
             for cred_name, cred_map in task.credentials.items():
-                payload = self.database.get_generic_cred(user, cred_name)
+                if cred_name not in credential_cache:
+                    credential_cache[cred_name] = \
+                        self.database.get_generic_cred(user, cred_name)
+                payload = credential_cache[cred_name]
                 if isinstance(cred_map, str):
                     for cred_key, cred_value in payload.items():
                         cred_file = File(path=cred_map + '/' + cred_key,
@@ -2218,9 +2254,13 @@ class TaskGroup(pydantic.BaseModel):
     def _get_registry_creds(self, user: str, workflow_config: connectors.WorkflowConfig):
         """ Got registry credentials for both user and osmo. """
         registry_creds_user = {}
+        registry_cred_cache: Dict[str, Any] = {}
         for task in self.spec.tasks:
             image_info = common.docker_parse(task.image)
-            payload = self.database.get_registry_cred(user, image_info.host)
+            if image_info.host not in registry_cred_cache:
+                registry_cred_cache[image_info.host] = self.database.get_registry_cred(
+                    user, image_info.host)
+            payload = registry_cred_cache[image_info.host]
             if payload:
                 auth_string = f'''{payload['username']}:{payload['auth']}'''
                 registry_creds_user[image_info.host] = \
@@ -2262,9 +2302,21 @@ class TaskGroup(pydantic.BaseModel):
         pool_info: connectors.Pool | None = None,
         data_endpoints: Dict[str, credentials.StaticDataCredential] | None = None,
         skip_refresh_token: bool = False,
-    ) -> Tuple[Dict, Dict[str, kb_objects.FileMount]]:
+        auth_token: str | None = None,
+    ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[str, str]]]:
         """
         Convert a task spec to a pod spec.
+
+        Args:
+            auth_token: Pre-created JWT token. When provided, skips the
+                per-task ``create_idtoken_jwt`` call. Callers that invoke
+                this method in a loop with identical JWT claims should
+                create the token once and pass it here.
+
+        Returns:
+            Tuple of (pod dict, file mounts dict, refresh token info).
+            The refresh token info is (task_db_key, refresh_token) when a
+            token was generated for a first-attempt task, or None otherwise.
         """
         if workflow_config.workflow_data.credential is None:
             raise osmo_errors.OSMOServerError('Workflow data credential is not set')
@@ -2402,20 +2454,24 @@ class TaskGroup(pydantic.BaseModel):
 
         # TODO: Move files creation to separate file creation for sidecar
         # Add filemounts specified by user
-        end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
-        token = service_config.service_auth.create_idtoken_jwt(
-            end_timeout,
-            user,
-            service_config.service_auth.ctrl_roles,
-            workflow_id=self.workflow_id)
+        if auth_token is not None:
+            token = auth_token
+        else:
+            end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
+            token = service_config.service_auth.create_idtoken_jwt(
+                end_timeout,
+                user,
+                service_config.service_auth.ctrl_roles,
+                workflow_id=self.workflow_id)
 
         refresh_token = secrets.token_urlsafe(REFRESH_TOKEN_LENGTH)
 
         # Workaround for validation
         token_file = File(path='/token', contents=refresh_token)
         token_file.path = f'{OSMO_CONFIG_MOUNT_DIR}/{REFRESH_TOKEN_FILENAME}'
+        refresh_token_info: Optional[Tuple[str, str]] = None
         if task_obj.retry_id == 0 and not skip_refresh_token:
-            task_obj.add_refresh_token_to_db(refresh_token)
+            refresh_token_info = (task_obj.task_db_key, refresh_token)
 
         # Create Login and Config yaml
         service_url = service_config.service_base_url
@@ -2626,7 +2682,7 @@ class TaskGroup(pydantic.BaseModel):
         substitute_pod_template_tokens(override_pod_template, jinja_variables)
         pod = apply_pod_template(pod, override_pod_template)
 
-        return pod, all_files
+        return pod, all_files, refresh_token_info
 
     def convert_all_pod_specs(
         self,
@@ -2670,10 +2726,16 @@ class TaskGroup(pydantic.BaseModel):
 
         pods = []
         task_names = []
+        refresh_token_entries: List[Tuple[str, str]] = []
 
         # A list of new files to be returned to caller for further operation (e.g. secret creation)
         all_files: Dict[str, kb_objects.FileMount] = {}
         data_endpoints = postgres.get_all_data_creds(user)
+
+        end_timeout = int(time.time() + common.ACCESS_TOKEN_TIMEOUT)
+        auth_token = service_config.service_auth.create_idtoken_jwt(
+            end_timeout, user, service_config.service_auth.ctrl_roles,
+            workflow_id=self.workflow_id)
 
         for task_spec in self.spec.tasks:
             task_obj: Task | None = None
@@ -2684,7 +2746,7 @@ class TaskGroup(pydantic.BaseModel):
                 raise osmo_errors.OSMOError(
                     f'Task {task_spec.name} is not found!')
 
-            pod, files = self.convert_to_pod_spec(
+            pod, files, refresh_token_info = self.convert_to_pod_spec(
                 task_obj,
                 task_spec,
                 workflow_uuid,
@@ -2699,11 +2761,14 @@ class TaskGroup(pydantic.BaseModel):
                 service_config,
                 dataset_config,
                 pool_info,
-                data_endpoints)
+                data_endpoints,
+                auth_token=auth_token)
 
             pods.append(pod)
             all_files.update(files)
             task_names.append(task_spec.name)
+            if refresh_token_info is not None:
+                refresh_token_entries.append(refresh_token_info)
 
             if progress_writer:
                 current_timestamp = datetime.datetime.now()
@@ -2711,6 +2776,8 @@ class TaskGroup(pydantic.BaseModel):
                 if time_elapsed > progress_iter_freq:
                     progress_writer.report_progress()
                     last_timestamp = current_timestamp
+
+        Task.batch_add_refresh_tokens_to_db(postgres, refresh_token_entries)
 
         return pods, list(all_files.values()), task_names
 

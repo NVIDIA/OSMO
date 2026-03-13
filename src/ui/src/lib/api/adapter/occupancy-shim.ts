@@ -37,7 +37,12 @@
  * =============================================================================
  */
 
-import { listTaskApiTaskGet, type ListTaskSummaryResponse, WorkflowPriority } from "@/lib/api/generated";
+import {
+  listTaskApiTaskGet,
+  type ListTaskSummaryResponse,
+  WorkflowPriority,
+  TaskGroupStatus,
+} from "@/lib/api/generated";
 import type { OccupancyGroup, OccupancyChild, OccupancyGroupBy, OccupancySortBy } from "@/lib/api/adapter/occupancy";
 
 // =============================================================================
@@ -55,6 +60,7 @@ export interface OccupancyQueryParams {
   users?: string[];
   pools?: string[];
   priorities?: WorkflowPriority[];
+  statuses?: TaskGroupStatus[];
 }
 
 export interface OccupancySummaryResult {
@@ -140,12 +146,18 @@ export function sortGroupsLocal(
 // =============================================================================
 
 export async function fetchOccupancySummary(params: OccupancyQueryParams): Promise<OccupancySummaryResult> {
+  const hasPoolFilter = params.pools != null && params.pools.length > 0;
+  const hasUserFilter = params.users != null && params.users.length > 0;
+
   const response = await listTaskApiTaskGet({
     summary: true,
     limit: MAX_SUMMARY_ROWS,
-    ...(params.users && params.users.length > 0 ? { users: params.users } : {}),
-    ...(params.pools && params.pools.length > 0 ? { pools: params.pools } : {}),
+    ...(hasUserFilter ? { users: params.users } : {}),
+    ...(hasPoolFilter ? { pools: params.pools } : {}),
     ...(params.priorities && params.priorities.length > 0 ? { priority: params.priorities } : {}),
+    ...(params.statuses && params.statuses.length > 0 ? { statuses: params.statuses } : {}),
+    all_pools: !hasPoolFilter,
+    all_users: !hasUserFilter,
   });
 
   // customFetch throws on 4xx/5xx — we only reach here on 200

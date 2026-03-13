@@ -48,7 +48,7 @@
 "use client";
 
 import { usePage } from "@/components/chrome/page-context";
-import { WorkflowDetailInnerWithProvider } from "@/features/workflows/detail/components/workflow-detail-inner";
+import { WorkflowDetailInner } from "@/features/workflows/detail/components/workflow-detail-inner";
 
 // =============================================================================
 // Direct Import for ReactFlow
@@ -115,7 +115,7 @@ export function WorkflowDetailContent({ name, initialView }: WorkflowDetailConte
   // No top-level boundary - components handle their own errors for granular failure isolation
   return (
     <div className="h-full">
-      <WorkflowDetailInnerWithProvider
+      <WorkflowDetailInner
         name={name}
         initialView={initialView}
       />

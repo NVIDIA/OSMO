@@ -16,6 +16,7 @@
 
 // Pure status functions. Metadata generated from backend via `pnpm generate-api`.
 
+import { naturalCompare } from "@/lib/utils";
 import { TaskGroupStatus, WorkflowStatus } from "@/lib/api/generated";
 import {
   TASK_STATUS_METADATA,
@@ -346,4 +347,59 @@ export function computeGroupDuration(stats: TaskStats, now?: number): number | n
   const endTime = stats.hasRunning ? (now ?? Date.now()) : stats.latestEnd;
   if (endTime === null) return null;
   return Math.max(0, Math.floor((endTime - stats.earliestStart) / 1000));
+}
+
+// =============================================================================
+// Task Sort Comparator
+// =============================================================================
+
+/** Minimal shape required by the sort comparator (satisfied by TaskWithDuration) */
+interface SortableTask {
+  status: string;
+  name: string;
+  duration?: number | null;
+  node_name?: string | null;
+  pod_ip?: string | null;
+  exit_code?: number | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  retry_id: number;
+}
+
+/**
+ * Create a comparator for sorting tasks by the given column and direction.
+ * Returns null if the column is unknown or not provided.
+ *
+ * Shared by WorkflowTasksTable (tree view) and GroupTasksTab (flat view).
+ */
+export function createTaskSortComparator<T extends SortableTask>(
+  column: string | undefined,
+  direction: "asc" | "desc" | undefined,
+): ((a: T, b: T) => number) | null {
+  if (!column) return null;
+  const dir = direction === "asc" ? 1 : -1;
+
+  switch (column) {
+    case "status":
+      return (a, b) => ((STATUS_SORT_ORDER[a.status] ?? 99) - (STATUS_SORT_ORDER[b.status] ?? 99)) * dir;
+    case "name":
+      return (a, b) => naturalCompare(a.name, b.name) * dir;
+    case "duration":
+      return (a, b) => ((a.duration ?? 0) - (b.duration ?? 0)) * dir;
+    case "node":
+      return (a, b) => naturalCompare(a.node_name ?? "", b.node_name ?? "") * dir;
+    case "podIp":
+      return (a, b) => naturalCompare(a.pod_ip ?? "", b.pod_ip ?? "") * dir;
+    case "exitCode":
+      return (a, b) => ((a.exit_code ?? -1) - (b.exit_code ?? -1)) * dir;
+    case "startTime":
+      return (a, b) =>
+        ((a.start_time ? Date.parse(a.start_time) : 0) - (b.start_time ? Date.parse(b.start_time) : 0)) * dir;
+    case "endTime":
+      return (a, b) => ((a.end_time ? Date.parse(a.end_time) : 0) - (b.end_time ? Date.parse(b.end_time) : 0)) * dir;
+    case "retry":
+      return (a, b) => (a.retry_id - b.retry_id) * dir;
+    default:
+      return null;
+  }
 }

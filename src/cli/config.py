@@ -324,12 +324,17 @@ def _fetch_data_from_config(config_info: Any) -> Any:
     return config_info
 
 
-def _get_current_config(service_client: client.ServiceClient, config_type: str) -> Any:
+def _get_current_config(
+    service_client: client.ServiceClient,
+    config_type: str,
+    params: Dict[str, Any] | None = None,
+) -> Any:
     """
     Get the current config
     Args:
         service_client: The service client instance
         config_type: The string config type from parsed arguments
+        params: Optional query parameters to include in the request
     """
     if config_type not in [t.value for t in config_history.ConfigHistoryType]:
         raise osmo_errors.OSMOUserError(
@@ -337,7 +342,7 @@ def _get_current_config(service_client: client.ServiceClient, config_type: str) 
             f'Available types: {CONFIG_TYPES_STRING}'
         )
     return service_client.request(
-        client.RequestMethod.GET, f'api/configs/{config_type.lower()}'
+        client.RequestMethod.GET, f'api/configs/{config_type.lower()}', params=params
     )
 
 
@@ -351,6 +356,10 @@ def _run_show_command(service_client: client.ServiceClient, args: argparse.Names
     # Parse the config identifier
     if ':' in args.config:
         # Format is <CONFIG_TYPE>:<revision>
+        if args.verbose:
+            raise osmo_errors.OSMOUserError(
+                '--verbose is not supported for historical revisions'
+            )
         revision = config_history.ConfigHistoryRevision(args.config)
         params: Dict[str, Any] = {
             'config_types': [revision.config_type.value],
@@ -369,7 +378,12 @@ def _run_show_command(service_client: client.ServiceClient, args: argparse.Names
         data = result['configs'][0]['data']
     else:
         # Format is <CONFIG_TYPE>
-        data = _get_current_config(service_client, args.config)
+        if args.verbose and args.config != config_history.ConfigHistoryType.POOL.value:
+            raise osmo_errors.OSMOUserError(
+                f'--verbose is only supported for POOL configs, not {args.config}'
+            )
+        request_params: Dict[str, Any] | None = {'verbose': True} if args.verbose else None
+        data = _get_current_config(service_client, args.config, params=request_params)
 
     # Handle multiple name arguments for indexing
     if args.names:
@@ -897,6 +911,12 @@ Show the ``default_cpu`` resource validation rule::
 Show the ``user_workflow_limits`` workflow configuration in a previous revision::
 
     osmo config show WORKFLOW:3 user_workflow_limits
+
+Show a pool configuration with parsed pod templates, group templates, and resource validations::
+
+    osmo config show POOL --verbose
+
+    osmo config show POOL my-pool --verbose
 '''
     )
     show_parser.add_argument(
@@ -908,6 +928,12 @@ Show the ``user_workflow_limits`` workflow configuration in a previous revision:
         'names',
         nargs='*',
         help='Optional names/indices to index into the config. Can be used to show a named config.'
+    )
+    show_parser.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Show verbose output including parsed pod templates, group templates, and resource '
+             'validations. Only applicable when CONFIG_TYPE is POOL.',
     )
 
     show_parser.set_defaults(func=_run_show_command)

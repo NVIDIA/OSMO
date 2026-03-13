@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import logging
 import io
 import time
+from typing import Any, Dict
 
 from fastapi import testclient
 
@@ -117,15 +118,19 @@ class ServiceTestFixture(fixtures.PostgresFixture,
 
         super().tearDown()
 
-    def create_test_backend(self, backend_name='test_backend'):
+    def create_test_backend(self, database=None, backend_name='test_backend'):
         """Helper function to create a test backend.
 
         Args:
+            database: Database connector instance. If None, gets the current instance.
             backend_name: Name of the backend to create.
 
         Returns:
             The created backend configuration
         """
+        if database is None:
+            database = connectors.postgres.PostgresConnector.get_instance()
+
         backend = {
             'k8s_uid': 'test_uid',
             'k8s_namespace': 'test_namespace',
@@ -133,11 +138,25 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             'node_condition_prefix': 'test.osmo.nvidia.com/',
         }
         agent_helpers.create_backend(
-            backend_name, backend_messages.InitBody(**backend))
+            database, backend_name, backend_messages.InitBody(**backend))
+
+    def create_test_group_template(self, name: str, group_template: Dict[str, Any]) -> None:
+        """Helper function to create a group template.
+
+        Args:
+            name: Name of the group template
+            group_template: The group template dict (must contain apiVersion, kind, metadata.name)
+        """
+        config_service.put_group_template(
+            name=name,
+            request=config_objects.PutGroupTemplateRequest(configs=group_template),
+            username='test@nvidia.com',
+        )
 
     def create_test_pool(self, pool_name='test_pool', description='test_description',
                          default_platform='test_platform', backend='test_backend',
-                         common_pod_template=None, enable_maintenance=False):
+                         common_pod_template=None, common_group_templates=None,
+                         enable_maintenance=False):
         """Helper function to create a test pool with configurable parameters.
 
         Args:
@@ -146,6 +165,7 @@ class ServiceTestFixture(fixtures.PostgresFixture,
             default_platform: Default platform for the pool
             backend: Backend for the pool
             common_pod_template: List of pod templates to use (defaults to None)
+            common_group_templates: List of group template names to use (defaults to None)
             enable_maintenance: Whether maintenance mode is enabled
 
         Returns:
@@ -165,6 +185,9 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         if common_pod_template:
             pool_config['common_pod_template'] = common_pod_template
 
+        if common_group_templates:
+            pool_config['common_group_templates'] = common_group_templates
+
         config_service.put_pool(
             name=pool_name,
             request=config_objects.PutPoolRequest(
@@ -174,10 +197,8 @@ class ServiceTestFixture(fixtures.PostgresFixture,
         )
         return pool_config
 
-    def create_task_group(self):
+    def create_task_group(self, database):
         """Helper function to create a task group for token substitution testing."""
-        context = objects.WorkflowServiceContext.get()
-        database = context.database
         # Create workflow record in database
         workflow_uuid = common.generate_unique_id()
         cmd = '''

@@ -17,7 +17,7 @@
 "use client";
 
 import { useMemo, useCallback } from "react";
-import { useQueryState, parseAsArrayOf, parseAsString } from "nuqs";
+import { useQueryState, createMultiParser } from "nuqs";
 import type { SearchChip } from "@/stores/types";
 import { parseUrlChips } from "@/lib/url-utils";
 
@@ -25,14 +25,25 @@ export interface SetSearchChipsOptions {
   history?: "push" | "replace";
 }
 
-/**
- * URL-synced search chips. Parses "field:value" from repeated URL params (?f=field:value)
- * into SearchChip[] and writes changes back to the URL for shareable filtered views.
- */
+// Uses repeated query params (?f=pool:X&f=user:Y) for filter chips.
+// type:"multi" makes nuqs call searchParams.getAll(), collecting repeated params.
+// Each param value is one chip string — no secondary separator that could corrupt
+// values containing commas.
+const parseAsChipStrings = createMultiParser({
+  parse: (values: readonly string[]) => values.filter(Boolean),
+  serialize: (values: readonly string[]) => Array.from(values),
+  eq: (a: string[], b: string[]) => {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((v, i) => v === sortedB[i]);
+  },
+});
+
 export function useUrlChips({ paramName = "f" }: { paramName?: string } = {}) {
   const [filterStrings, setFilterStrings] = useQueryState(
     paramName,
-    parseAsArrayOf(parseAsString).withOptions({
+    parseAsChipStrings.withOptions({
       shallow: true,
       history: "push",
       clearOnDefault: true,

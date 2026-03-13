@@ -132,7 +132,7 @@ Troubleshooting
 Verify IdP configuration (redirect URIs, client ID/secret), Envoy OAuth2 and JWT provider settings (issuer, audience, JWKS URI), and that the IdP is reachable from the cluster.
 
 **User has no permissions (403)**
-Check that the user has roles in OSMO (via ``osmo user roles list <user_id>`` or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
+Check that the user has roles in OSMO (via ``osmo user get <user_id>`` or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
 
 **Token validation failures**
 Ensure issuer and audience in Envoy match the JWT. Check JWKS URI connectivity from Envoy. For access tokens, ensure the token exists and is not expired.

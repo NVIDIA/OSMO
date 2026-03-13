@@ -32,7 +32,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
 import { useColumnVisibility } from "@/components/data-table/hooks/use-column-visibility";
-import type { SortState, ColumnSizingPreference } from "@/components/data-table/types";
+import type { SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import type { Pool } from "@/lib/api/adapter/types";
 import type { SearchChip } from "@/stores/types";
@@ -73,6 +73,9 @@ export interface PoolsDataTableProps {
 
 /** Stable row ID extractor */
 const getRowId = (pool: Pool) => pool.name;
+
+// Module-level constant — stable reference, no useMemo needed
+const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
 
 // =============================================================================
 // Component
@@ -153,9 +156,6 @@ export const PoolsDataTable = memo(function PoolsDataTable({
     [compactMode, sharingMap, filterBySharedPoolsMap],
   );
 
-  // Fixed columns (not draggable)
-  const fixedColumns = useMemo(() => Array.from(MANDATORY_COLUMN_IDS), []);
-
   // Handle sort change
   const handleSortChange = useCallback(
     (newSort: SortState<string>) => {
@@ -166,22 +166,6 @@ export const PoolsDataTable = memo(function PoolsDataTable({
     [setSort],
   );
 
-  // Handle column order change
-  const handleColumnOrderChange = useCallback(
-    (newOrder: string[]) => {
-      setColumnOrder(newOrder);
-    },
-    [setColumnOrder],
-  );
-
-  // Handle column sizing preference change
-  const handleColumnSizingPreferenceChange = useCallback(
-    (columnId: string, preference: ColumnSizingPreference) => {
-      setColumnSizingPreference(columnId, preference);
-    },
-    [setColumnSizingPreference],
-  );
-
   // Handle row click - call onPoolSelect with pool name
   const handleRowClick = useCallback(
     (pool: Pool) => {
@@ -190,19 +174,12 @@ export const PoolsDataTable = memo(function PoolsDataTable({
     [onPoolSelect],
   );
 
-  // Augment pools with visual row index for zebra striping
-  const poolsWithIndex = useMemo(
-    () => sortedPools.map((pool, index) => ({ ...pool, _visualRowIndex: index })),
-    [sortedPools],
-  );
-
   // Row class for status styling + zebra striping
   const rowClassName = useCallback(
-    (pool: Pool & { _visualRowIndex?: number }) => {
+    (pool: Pool, index: number) => {
       const { category } = getStatusDisplay(pool.status);
       const isSelected = selectedPoolName === pool.name;
-      const visualIndex = pool._visualRowIndex ?? 0;
-      const zebraClass = visualIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
+      const zebraClass = index % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
       return ["pools-row", `pools-row--${category}`, isSelected && "pools-row--selected", zebraClass]
         .filter(Boolean)
         .join(" ");
@@ -236,19 +213,19 @@ export const PoolsDataTable = memo(function PoolsDataTable({
 
   return (
     <div className="pools-table-container table-container relative h-full">
-      <DataTable<Pool & { _visualRowIndex?: number }>
-        data={poolsWithIndex}
+      <DataTable<Pool>
+        data={sortedPools}
         columns={columns}
         getRowId={getRowId}
         // Column management
         columnOrder={columnOrder}
-        onColumnOrderChange={handleColumnOrderChange}
+        onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
-        fixedColumns={fixedColumns}
+        fixedColumns={FIXED_COLUMNS}
         // Column sizing
         columnSizeConfigs={POOL_COLUMN_SIZE_CONFIG}
         columnSizingPreferences={columnSizingPreferences}
-        onColumnSizingPreferenceChange={handleColumnSizingPreferenceChange}
+        onColumnSizingPreferenceChange={setColumnSizingPreference}
         // Sorting
         sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}

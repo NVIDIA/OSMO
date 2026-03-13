@@ -34,18 +34,19 @@ from src.utils.job import task
 
 
 def parse_time_string(time_str: str) -> datetime.datetime:
-    """Parse time strings like 'now', 'now-5m', 'now-15m' into datetime objects"""
+    """Parse time strings like 'now', 'now-5m', 'now-15m' into timezone-aware UTC datetimes."""
+    utc_now = datetime.datetime.now(datetime.timezone.utc)
     if time_str == 'now':
-        return datetime.datetime.now()
+        return utc_now
     elif time_str.startswith('now-'):
         parts = time_str[4:]
         if parts.endswith('m'):
             minutes = int(parts[:-1])
-            return datetime.datetime.now() - datetime.timedelta(minutes=minutes)
+            return utc_now - datetime.timedelta(minutes=minutes)
         elif parts.endswith('h'):
             hours = int(parts[:-1])
-            return datetime.datetime.now() - datetime.timedelta(hours=hours)
-    return datetime.datetime.now()
+            return utc_now - datetime.timedelta(hours=hours)
+    return utc_now
 
 
 def create_pod_from_json(test_input: Dict) -> V1Pod:

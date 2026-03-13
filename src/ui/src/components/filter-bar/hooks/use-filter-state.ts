@@ -31,8 +31,14 @@
  */
 
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import type { SearchChip, SearchField, SearchPreset, Suggestion } from "@/components/filter-bar/lib/types";
-import { isAsyncField } from "@/components/filter-bar/lib/types";
+import type {
+  SearchChip,
+  SearchField,
+  SearchPreset,
+  Suggestion,
+  DateRangeSearchField,
+} from "@/components/filter-bar/lib/types";
+import { isAsyncField, isDateRangeField } from "@/components/filter-bar/lib/types";
 import { useChips } from "@/components/filter-bar/hooks/use-chips";
 import { useSuggestions } from "@/components/filter-bar/hooks/use-suggestions";
 import { useFilterKeyboard } from "@/components/filter-bar/hooks/use-filter-keyboard";
@@ -82,6 +88,14 @@ interface UseFilterStateReturn<T> {
 
   // Preset state
   isPresetActive: (preset: SearchPreset) => boolean;
+
+  // Date range
+  /** Active date-range field (when user has typed its prefix), or null */
+  activeDateRangeField: DateRangeSearchField<T> | null;
+  /** Commit a date value for the active date-range field */
+  handleDateCommit: (value: string) => void;
+  /** Advance the date picker cycle from a sentinel position (for Tab/Shift-Tab wrap) */
+  stepDateCycle: (direction: "forward" | "backward", fromValue: string) => void;
 
   // Ref setup
   setInputRefCallbacks: (callbacks: InputRefCallbacks) => void;
@@ -246,6 +260,17 @@ export function useFilterState<T>({
     clearValidationError();
   }, [clearValidationError]);
 
+  const handleDateCommit = useCallback(
+    (value: string) => {
+      if (parsedInput.field && isDateRangeField(parsedInput.field)) {
+        addChip(parsedInput.field, value);
+        resetInput();
+        inputCallbacksRef.current.focus();
+      }
+    },
+    [parsedInput, addChip, resetInput],
+  );
+
   // ========== Keyboard hook ==========
 
   const keyboardState = useMemo<FilterKeyboardState<T>>(
@@ -287,7 +312,7 @@ export function useFilterState<T>({
     [removeChip, resetInput, parsedInput, addChip, handleSelect, setValidationError, addTextChip],
   );
 
-  const { handleKeyDown, highlightedSuggestionValue, displaySelectables, navigationLevel, resetNavigation } =
+  const { handleKeyDown, highlightedSuggestionValue, displaySelectables, navigationLevel, resetNavigation, stepCycle } =
     useFilterKeyboard(keyboardState, keyboardActions);
 
   // Wire up the bridge ref so resetInput/handleInputChange/handleClearAll can reset navigation
@@ -312,9 +337,23 @@ export function useFilterState<T>({
   // with a prefix, hints flow naturally from the matched field.
   const visibleHints = navigationLevel === "field" ? [] : hints;
 
+  // Derive active date-range field.
+  // Suppress while navigationLevel === "field": the user is still cycling through field
+  // suggestions (input is temporarily filled with each prefix as a preview). Only activate
+  // the date picker once the user has committed — either by pressing Enter (transitions to
+  // "value" level) or by typing the prefix themselves (level === null).
+  const activeDateRangeField = useMemo((): DateRangeSearchField<T> | null => {
+    if (navigationLevel === "field") return null;
+    if (parsedInput.hasPrefix && parsedInput.field && isDateRangeField(parsedInput.field)) {
+      return parsedInput.field;
+    }
+    return null;
+  }, [parsedInput, navigationLevel]);
+
   const hasContent = displaySelectables.length > 0 || visibleHints.length > 0;
   // Preset suggestions are in displaySelectables when input is empty, so hasContent covers them.
-  const showDropdown = (isOpen && hasContent) || !!validationError || isFieldLoading;
+  // Also show dropdown when a date-range field is active (to show the date picker).
+  const showDropdown = (isOpen && (hasContent || !!activeDateRangeField)) || !!validationError || isFieldLoading;
 
   // ========== Return ==========
 
@@ -337,6 +376,9 @@ export function useFilterState<T>({
     handleBackdropDismiss,
     handleKeyDown,
     isPresetActive,
+    activeDateRangeField,
+    handleDateCommit,
+    stepDateCycle: stepCycle,
     setInputRefCallbacks,
   };
 }

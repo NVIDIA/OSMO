@@ -53,6 +53,8 @@ OSMO_WORKFLOWS_NAMESPACE="${OSMO_WORKFLOWS_NAMESPACE:-osmo-workflows}"
 OSMO_IMAGE_REGISTRY="${OSMO_IMAGE_REGISTRY:-nvcr.io/nvidia/osmo}"
 OSMO_IMAGE_TAG="${OSMO_IMAGE_TAG:-latest}"
 BACKEND_TOKEN_EXPIRY="${BACKEND_TOKEN_EXPIRY:-2027-01-01}"
+NGC_API_KEY="${NGC_API_KEY:-}"
+NGC_SECRET_NAME="nvcr-secret"
 
 # Provider-specific settings (set by loading provider script)
 PROVIDER=""
@@ -93,6 +95,10 @@ parse_k8s_args() {
             --dry-run)
                 DRY_RUN=true
                 shift
+                ;;
+            --ngc-api-key)
+                NGC_API_KEY="$2"
+                shift 2
                 ;;
             *)
                 shift
@@ -286,6 +292,34 @@ data:
     log_success "Secrets created"
 }
 
+create_image_pull_secrets() {
+    if [[ -z "$NGC_API_KEY" ]]; then
+        log_info "NGC_API_KEY not set, skipping image pull secret creation"
+        return
+    fi
+
+    log_info "Creating NGC image pull secrets..."
+
+    if [[ "$DRY_RUN" == true ]]; then
+        log_info "[DRY-RUN] Would create $NGC_SECRET_NAME in namespaces: $OSMO_NAMESPACE, $OSMO_OPERATOR_NAMESPACE, $OSMO_WORKFLOWS_NAMESPACE"
+        return
+    fi
+
+    for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE" "$OSMO_WORKFLOWS_NAMESPACE"; do
+        local secret_yaml
+        secret_yaml=$(kubectl create secret docker-registry "$NGC_SECRET_NAME" \
+            --docker-server=nvcr.io \
+            --docker-username='$oauthtoken' \
+            --docker-password="$NGC_API_KEY" \
+            --namespace "$namespace" \
+            --dry-run=client -o yaml)
+        $RUN_KUBECTL_APPLY_STDIN "$secret_yaml"
+        log_info "  Applied $NGC_SECRET_NAME in namespace $namespace"
+    done
+
+    log_success "NGC image pull secrets created"
+}
+
 ###############################################################################
 # Helm Functions
 ###############################################################################
@@ -301,7 +335,12 @@ add_helm_repos() {
     if [[ "$IS_PRIVATE_CLUSTER" == "true" ]]; then
         $RUN_HELM "repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo && helm repo update"
     else
-        helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo || true
+        if [[ -n "$NGC_API_KEY" ]]; then
+            helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo \
+                --username='$oauthtoken' --password="$NGC_API_KEY" || true
+        else
+            helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo || true
+        fi
         helm repo update
     fi
 
@@ -311,12 +350,18 @@ add_helm_repos() {
 create_helm_values() {
     log_info "Creating OSMO Helm values files..."
 
+    local ngc_pull_secret_yaml=""
+    if [[ -n "$NGC_API_KEY" ]]; then
+        ngc_pull_secret_yaml="  imagePullSecret: ${NGC_SECRET_NAME}"
+    fi
+
     # Service values
     cat > "$VALUES_DIR/service_values.yaml" <<EOF
 # OSMO Service Values - Auto-generated
 global:
   osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
   osmoImageTag: ${OSMO_IMAGE_TAG}
+${ngc_pull_secret_yaml}
 
 services:
   configFile:
@@ -376,6 +421,7 @@ EOF
 global:
   osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
   osmoImageTag: ${OSMO_IMAGE_TAG}
+${ngc_pull_secret_yaml}
 
 services:
   ui:
@@ -398,6 +444,7 @@ EOF
 global:
   osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
   osmoImageTag: ${OSMO_IMAGE_TAG}
+${ngc_pull_secret_yaml}
 
 services:
   configFile:
@@ -433,6 +480,7 @@ EOF
 global:
   osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
   osmoImageTag: ${OSMO_IMAGE_TAG}
+${ngc_pull_secret_yaml}
   serviceUrl: http://osmo-agent.${OSMO_NAMESPACE}.svc.cluster.local
   agentNamespace: ${OSMO_OPERATOR_NAMESPACE}
   backendNamespace: ${OSMO_WORKFLOWS_NAMESPACE}
@@ -523,7 +571,7 @@ setup_backend_operator() {
     else
         # Port forward to OSMO service
         log_info "Starting port-forward to OSMO service..."
-        kubectl port-forward service/osmo-service 9000:80 -n "$OSMO_NAMESPACE" &
+        $RUN_KUBECTL "port-forward service/osmo-service 9000:80 -n $OSMO_NAMESPACE" &
         local port_forward_pid=$!
         sleep 5
 
@@ -540,10 +588,12 @@ setup_backend_operator() {
                 -t json 2>/dev/null | jq -r '.token' || echo "")
 
             if [[ -n "$backend_token" && "$backend_token" != "null" ]]; then
-                kubectl create secret generic osmo-operator-token \
+                local token_secret_yaml
+                token_secret_yaml=$(kubectl create secret generic osmo-operator-token \
                     --from-literal=token="$backend_token" \
                     --namespace "$OSMO_OPERATOR_NAMESPACE" \
-                    --dry-run=client -o yaml | kubectl apply -f -
+                    --dry-run=client -o yaml)
+                $RUN_KUBECTL_APPLY_STDIN "$token_secret_yaml"
 
                 log_success "Backend token created"
                 token_created=true
@@ -584,6 +634,10 @@ cleanup_osmo() {
     $RUN_HELM "uninstall ui-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
     $RUN_HELM "uninstall router-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
     $RUN_HELM "uninstall osmo-operator --namespace $OSMO_OPERATOR_NAMESPACE" 2>/dev/null || true
+
+    for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE" "$OSMO_WORKFLOWS_NAMESPACE"; do
+        $RUN_KUBECTL "delete secret $NGC_SECRET_NAME --namespace $namespace --ignore-not-found=true" 2>/dev/null || true
+    done
 
     $RUN_KUBECTL "delete namespace $OSMO_NAMESPACE" 2>/dev/null || true
     $RUN_KUBECTL "delete namespace $OSMO_OPERATOR_NAMESPACE" 2>/dev/null || true
@@ -667,16 +721,17 @@ deploy_k8s_main() {
     add_helm_repos
     create_database
     create_secrets
+    create_image_pull_secrets
     create_helm_values
 
     deploy_osmo_service
     deploy_osmo_ui
     deploy_osmo_router
 
-    wait_for_pods "$OSMO_NAMESPACE" 300 "" "kubectl"
+    wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
 
     setup_backend_operator
-    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "kubectl"
+    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "$RUN_KUBECTL"
 
     verify_deployment
     print_access_instructions

@@ -30,7 +30,7 @@
 
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo } from "react";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { usePage } from "@/components/chrome/page-context";
 import { useResultsCount } from "@/components/filter-bar/hooks/use-results-count";
@@ -106,7 +106,6 @@ export function PoolsPageContent() {
   } = usePoolsData({
     searchChips: effectiveChips,
     accessiblePoolNames,
-    refetchInterval: autoRefresh.effectiveInterval,
   });
 
   // ==========================================================================
@@ -124,14 +123,6 @@ export function PoolsPageContent() {
     hasSelection: Boolean(selectedPoolName && selectedPool),
     onClosed: clearSelectedPool,
   });
-
-  // Open panel with a pool (URL-synced)
-  const handlePoolSelect = useCallback(
-    (poolName: string) => {
-      setSelectedPoolName(poolName);
-    },
-    [setSelectedPoolName],
-  );
 
   // Results count for FilterBar display (consolidated hook)
   const resultsCount = useResultsCount({ total, filteredTotal, hasActiveFilters });
@@ -203,7 +194,7 @@ export function PoolsPageContent() {
             isLoading={isLoading}
             error={error ?? undefined}
             onRetry={refetch}
-            onPoolSelect={handlePoolSelect}
+            onPoolSelect={setSelectedPoolName}
             selectedPoolName={selectedPoolName}
             onSearchChipsChange={handleChipsChange}
           />
@@ -236,7 +227,7 @@ export function PoolsPageContent() {
           <PanelContent
             pool={selectedPool}
             sharingGroups={sharingGroups}
-            onPoolSelect={handlePoolSelect}
+            onPoolSelect={setSelectedPoolName}
             selectedPlatform={selectedPlatform}
             onPlatformSelect={setSelectedPlatform}
           />
