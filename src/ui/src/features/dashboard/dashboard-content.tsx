@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { getStatusDisplay, STATUS_STYLES } from "@/lib/workflows/workflow-constants";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { STATUS_PRESETS } from "@/lib/workflows/workflow-status-presets";
+import { UtilizationChart } from "@/components/utilization-chart/utilization-chart";
 
 // =============================================================================
 // Dashboard Content
@@ -129,6 +130,9 @@ export function DashboardContent({ submittedAfter }: DashboardContentProps) {
           />
         </div>
       </InlineErrorBoundary>
+
+      {/* Utilization chart */}
+      <UtilizationChart />
 
       {/* Recent workflows */}
       <InlineErrorBoundary
