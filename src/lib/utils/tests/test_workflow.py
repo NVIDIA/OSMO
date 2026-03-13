@@ -81,8 +81,7 @@ workflow:
             workflow_utils.parse_workflow_spec(spec)
         self.assertIn('workflow', str(context.exception))
 
-    def test_extra_top_level_section_ignored(self):
-        """Extra top-level sections (e.g. resources:) are ignored; workflow is still extracted."""
+    def test_unknown_top_level_key_raises(self):
         spec = """\
 workflow:
   name: my-wf
@@ -90,6 +89,10 @@ resources:
   default:
     cpu: 10
 """
-        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
-        self.assertIn('name: my-wf', workflow_spec)
-        self.assertIsNone(default_values)
+        with self.assertRaises(osmo_errors.OSMOUserError) as context:
+            workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('resources', str(context.exception))
+
+
+if __name__ == '__main__':
+    unittest.main()
