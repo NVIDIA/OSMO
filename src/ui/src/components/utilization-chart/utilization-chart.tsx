@@ -25,7 +25,8 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/shadcn/pop
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
 import { DateRangePicker, type DateRangePickerResult } from "@/components/date-range-picker/date-range-picker";
 import { useUtilizationData } from "@/hooks/use-utilization-data";
-import { type MetricKey, type RawUtilizationBucket, TIER_MS, autoGranularityMs, ceilToHour } from "@/lib/api/adapter/utilization";
+import { type MetricKey, type RawUtilizationBucket, TIER_MS, ceilToHour } from "@/lib/api/adapter/utilization";
+import { parseDateRangeValue } from "@/lib/date-range-utils";
 import { formatCompact, formatBytes, cn } from "@/lib/utils";
 import { MONTHS_SHORT } from "@/lib/format-date";
 
@@ -116,7 +117,7 @@ function rangeFromPreset(key: PresetKey): { start: number; end: number } {
 }
 
 export function UtilizationChart() {
-  const [activePreset, setActivePreset] = useState<PresetKey>(DEFAULT_PRESET);
+  const [activePreset, setActivePreset] = useState<PresetKey | null>(DEFAULT_PRESET);
   const [activeMetric, setActiveMetric] = useState<MetricKey>("gpu");
   const [range, setRange] = useState(rangeFromPreset(DEFAULT_PRESET));
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -124,10 +125,7 @@ export function UtilizationChart() {
   const displayStartMs = range.start;
   const displayEndMs = range.end;
 
-  const { buckets, truncated, isLoading } = useUtilizationData({ displayStartMs, displayEndMs });
-
-  const rangeMs = displayEndMs - displayStartMs;
-  const granularityMs = autoGranularityMs(rangeMs);
+  const { buckets, truncated, isLoading, granularityMs } = useUtilizationData({ displayStartMs, displayEndMs });
 
   const totals = useMemo(() => {
     const hours = granularityMs / 3_600_000;
@@ -141,34 +139,21 @@ export function UtilizationChart() {
     return result;
   }, [buckets, granularityMs]);
 
-  const isCustom = !RANGE_PRESETS.some((p) => p.key === activePreset && range.end - range.start === p.ms);
+  const isCustom = activePreset === null;
 
   const handlePresetClick = useCallback((key: PresetKey) => {
     setActivePreset(key);
     setRange(rangeFromPreset(key));
   }, []);
 
-  const handleCustomCommit = useCallback(
-    (result: DateRangePickerResult) => {
-      const { value } = result;
-      if (value.includes("..")) {
-        const [fromStr, toStr] = value.split("..");
-        const start = new Date(fromStr.includes("T") ? fromStr : `${fromStr}T00:00:00`).getTime();
-        const end = new Date(toStr.includes("T") ? toStr : `${toStr}T23:59:59`).getTime();
-        if (!Number.isNaN(start) && !Number.isNaN(end) && end > start) {
-          setRange({ start, end });
-          setPopoverOpen(false);
-        }
-      } else {
-        const preset = RANGE_PRESETS.find((p) => p.label === value);
-        if (preset) {
-          handlePresetClick(preset.key);
-          setPopoverOpen(false);
-        }
-      }
-    },
-    [handlePresetClick],
-  );
+  const handleCustomCommit = useCallback((result: DateRangePickerResult) => {
+    const parsed = parseDateRangeValue(result.value);
+    if (parsed && parsed.end > parsed.start) {
+      setActivePreset(null);
+      setRange({ start: parsed.start.getTime(), end: parsed.end.getTime() });
+      setPopoverOpen(false);
+    }
+  }, []);
 
   const metrics: MetricKey[] = ["gpu", "cpu", "memory", "storage"];
 
@@ -233,9 +218,11 @@ export function UtilizationChart() {
                 type="button"
                 onClick={() => setActiveMetric(metric)}
                 data-active={activeMetric === metric}
-                className="group relative z-30 flex flex-1 flex-col justify-center gap-1 border-l first:border-l-0 px-6 py-4 text-left last:rounded-tr-lg data-[active=true]:bg-zinc-900 data-[active=true]:text-white dark:data-[active=true]:bg-zinc-100 dark:data-[active=true]:text-zinc-900 lg:border-l lg:first:border-l lg:px-8 lg:py-6"
+                className="group relative z-30 flex flex-1 flex-col justify-center gap-1 border-l px-6 py-4 text-left first:border-l-0 last:rounded-tr-lg data-[active=true]:bg-zinc-900 data-[active=true]:text-white lg:border-l lg:px-8 lg:py-6 lg:first:border-l dark:data-[active=true]:bg-zinc-100 dark:data-[active=true]:text-zinc-900"
               >
-                <span className="text-muted-foreground text-xs group-data-[active=true]:text-inherit group-data-[active=true]:opacity-80">{chartConfig[metric].label}</span>
+                <span className="text-muted-foreground text-xs group-data-[active=true]:text-inherit group-data-[active=true]:opacity-80">
+                  {chartConfig[metric].label}
+                </span>
                 <span className="text-lg leading-none font-bold whitespace-nowrap sm:text-2xl">
                   {isLoading ? "—" : METRIC_TOTAL_FORMAT[metric](totals[metric])}
                 </span>
@@ -244,7 +231,7 @@ export function UtilizationChart() {
           </div>
         </CardHeader>
 
-        <CardContent className="pl-0 pr-2 pt-4 pb-1 sm:pr-4 sm:pt-6 sm:pb-2">
+        <CardContent className="pt-4 pr-2 pb-1 pl-0 sm:pt-6 sm:pr-4 sm:pb-2">
           {isLoading ? (
             <Skeleton className="aspect-video w-full" />
           ) : (

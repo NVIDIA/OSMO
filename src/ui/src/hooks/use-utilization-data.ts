@@ -86,7 +86,7 @@ interface UseUtilizationDataParams {
 export function useUtilizationData({
   displayStartMs,
   displayEndMs,
-}: UseUtilizationDataParams): UtilizationResult & { isLoading: boolean } {
+}: UseUtilizationDataParams): UtilizationResult & { isLoading: boolean; granularityMs: number } {
   const rangeMs = displayEndMs - displayStartMs;
   const tier: FetchTier = selectTier(rangeMs);
   const tierMs = TIER_MS[tier];
@@ -116,5 +116,6 @@ export function useUtilizationData({
     buckets,
     truncated: data?.truncated ?? false,
     isLoading,
+    granularityMs,
   };
 }

@@ -260,8 +260,7 @@ function generateTask(taskIndex: number, nowMs: number): ListTaskEntry {
 
   const startHour = generateStartHour(taskIndex, workload);
   const startMs = nowMs - daysAgo * MS_PER_DAY + startHour * MS_PER_HOUR;
-  const durationMs =
-    seededFloat(`${key}:dur`, workload.durationHours[0], workload.durationHours[1]) * MS_PER_HOUR;
+  const durationMs = seededFloat(`${key}:dur`, workload.durationHours[0], workload.durationHours[1]) * MS_PER_HOUR;
 
   const status = seededWeighted(
     `${key}:status`,

@@ -78,7 +78,8 @@ export const DateRangePicker = memo(function DateRangePicker({
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
 
   const presetHints = useMemo(
-    () => (hasPresets ? Object.fromEntries(presets.map((p) => [p.label, buildPresetHint(p.getValue(), currentYear)])) : {}),
+    () =>
+      hasPresets ? Object.fromEntries(presets.map((p) => [p.label, buildPresetHint(p.getValue(), currentYear)])) : {},
     [presets, currentYear, hasPresets],
   );
 
