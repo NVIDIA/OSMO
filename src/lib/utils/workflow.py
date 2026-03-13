@@ -17,9 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import re
-from typing import Dict, Tuple
-
-import yaml
+from typing import Dict
 
 from . import osmo_errors
 
@@ -39,30 +37,25 @@ def fetch_default_values(workflow_spec: str) -> str | None:
     return None
 
 
-def parse_workflow_spec(workflow_spec: str) -> Tuple[str, Dict | None]:
-    """ Parse the workflow spec. """
-    workflow_pattern = re.compile(r'(^workflow:.*?)(?=^workflow:|\Z)',
-                                  re.DOTALL | re.MULTILINE)
-    workflows = workflow_pattern.findall(workflow_spec)
-    if len(workflows) > 1:
-        raise osmo_errors.OSMOUserError('Multiple workflows sections found in the workflow spec.')
+def parse_workflow_spec(workflow_spec: str) -> Dict[str, str]:
+    """
+    Parse a workflow spec string into a mapping of top-level section names to their raw text.
 
-    if workflows:
-        workflow_portion = workflows[0]
-    else:
-        raise osmo_errors.OSMOUserError('Workflow spec not found.')
-
-    default_values_pattern = re.compile(r'(^default-values:.*?)(?=^(?![#\s])\S|\Z)',
-                                        re.DOTALL | re.MULTILINE)
-    default_locs = default_values_pattern.findall(workflow_spec)
-    if len(default_locs) > 1:
-        raise osmo_errors.OSMOUserError(
-            'Multiple default-values sections found in the workflow spec.')
-
-    default_values = None
-
-    # Get default values from 'default-values'
-    if default_locs:
-        default_values = yaml.safe_load(default_locs[0])['default-values']
-
-    return workflow_portion, default_values
+    Each top-level key (e.g. workflow:, resources:, default-values:) becomes an entry in the
+    returned dict. The value is the full raw text block for that section, including the key line
+    itself, with no YAML parsing applied. Raises OSMOUserError if any top-level key appears more
+    than once, or if no workflow section is found.
+    """
+    section_pattern = re.compile(
+        r'^([a-zA-Z][a-zA-Z0-9_-]*):(.*?)(?=^[a-zA-Z][a-zA-Z0-9_-]*:|\Z)',
+        re.DOTALL | re.MULTILINE,
+    )
+    sections: Dict[str, str] = {}
+    for match in section_pattern.finditer(workflow_spec):
+        key = match.group(1)
+        raw_block = match.group(1) + ':' + match.group(2)
+        if key in sections:
+            raise osmo_errors.OSMOUserError(
+                f'Duplicate top-level key "{key}" found in the workflow spec.')
+        sections[key] = raw_block
+    return sections

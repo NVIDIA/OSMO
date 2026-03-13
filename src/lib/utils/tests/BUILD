@@ -48,5 +48,14 @@ osmo_py_test(
     srcs = ["test_redact_secrets.py"],
     deps = [
         "//src/lib/utils:redact",
-    ],
+    ]
+)
+
+osmo_py_test(
+    name = "test_workflow",
+    srcs = ["test_workflow.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:workflow",
+    ]
 )

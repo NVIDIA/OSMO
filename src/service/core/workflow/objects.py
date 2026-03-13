@@ -813,8 +813,6 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         try:
             updated_workflow_txt = template_spec.load_template_with_variables()
             updated_workflow_dict: Dict[str, Any] = yaml.safe_load(updated_workflow_txt)
-            if 'default-values' in updated_workflow_dict:
-                del updated_workflow_dict['default-values']
         except yaml.YAMLError as yaml_error:
             err_msg=f'Workflow spec is not properly formatted: {yaml_error}'
             # Construct a workflow ID with format <name>-<number>
