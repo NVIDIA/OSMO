@@ -104,6 +104,8 @@ def _get_boto_config(scheme: str) -> botocore.config.Config:
             },
             max_pool_connections=max_pool_connections,
             s3={'addressing_style': 'virtual'},
+            request_checksum_calculation='when_required',
+            response_checksum_validation='when_required',
         )
 
     return botocore.config.Config(
@@ -112,6 +114,8 @@ def _get_boto_config(scheme: str) -> botocore.config.Config:
             'mode': 'standard',
         },
         max_pool_connections=max_pool_connections,
+        request_checksum_calculation='when_required',
+        response_checksum_validation='when_required',
     )
 
 
