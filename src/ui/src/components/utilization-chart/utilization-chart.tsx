@@ -30,20 +30,12 @@ import { parseDateRangeValue } from "@/lib/date-range-utils";
 import { formatCompact, formatBytes, cn } from "@/lib/utils";
 import { MONTHS_SHORT } from "@/lib/format-date";
 
-// =============================================================================
-// Chart Config
-// =============================================================================
-
 const chartConfig = {
   gpu: { label: "GPUs", color: "var(--chart-gpu)" },
   cpu: { label: "CPUs", color: "var(--chart-cpu)" },
   memory: { label: "Memory", color: "var(--chart-memory)" },
   storage: { label: "Storage", color: "var(--chart-storage)" },
 } satisfies ChartConfig;
-
-// =============================================================================
-// Presets
-// =============================================================================
 
 type PresetKey = "1d" | "3d" | "7d" | "14d" | "30d";
 
@@ -57,9 +49,7 @@ const RANGE_PRESETS: { key: PresetKey; label: string; ms: number }[] = [
 
 const DEFAULT_PRESET: PresetKey = "7d";
 
-// =============================================================================
-// Formatting helpers
-// =============================================================================
+const METRICS: MetricKey[] = ["gpu", "cpu", "memory", "storage"];
 
 const METRIC_TOTAL_FORMAT: Record<MetricKey, (v: number) => string> = {
   gpu: (v) => `${formatCompact(v)}\u00B7h`,
@@ -106,10 +96,6 @@ function formatTooltipTime(timestampMs: number, granularityMs: number): string {
   return `${mon} ${day}, ${fmtTime(d)} – ${fmtTime(endD)}`;
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
 function rangeFromPreset(key: PresetKey): { start: number; end: number } {
   const end = ceilToHour(Date.now());
   const ms = RANGE_PRESETS.find((p) => p.key === key)?.ms ?? TIER_MS["7d"];
@@ -154,8 +140,6 @@ export function UtilizationChart() {
       setPopoverOpen(false);
     }
   }, []);
-
-  const metrics: MetricKey[] = ["gpu", "cpu", "memory", "storage"];
 
   return (
     <InlineErrorBoundary title="Unable to load utilization chart">
@@ -212,7 +196,7 @@ export function UtilizationChart() {
 
           {/* Right: metric tabs */}
           <div className="flex self-stretch border-t lg:border-t-0">
-            {metrics.map((metric) => (
+            {METRICS.map((metric) => (
               <button
                 key={metric}
                 type="button"

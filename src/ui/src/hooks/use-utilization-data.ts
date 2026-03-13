@@ -33,10 +33,6 @@ import {
   ceilToHour,
 } from "@/lib/api/adapter/utilization";
 
-// =============================================================================
-// Paginated fetch
-// =============================================================================
-
 const PAGE_LIMIT = 1_000;
 
 async function fetchAllTasks(
@@ -73,10 +69,6 @@ async function fetchAllTasks(
 
   return { tasks: allTasks.slice(0, MAX_TASK_ROWS), truncated };
 }
-
-// =============================================================================
-// Hook
-// =============================================================================
 
 interface UseUtilizationDataParams {
   displayStartMs: number;

@@ -15,30 +15,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
- * Utilization Task Generator
- *
- * Generates realistic ListTaskEntry[] for the utilization dashboard mock.
- * Tasks span the last 35 days (5-day padding before the 30d fetch window)
- * with varied resource profiles, durations, and temporal patterns.
- *
- * Scenario coverage:
- *   - 7 workload profiles: large training, medium training, short experiments,
- *     inference serving, CPU preprocessing, benchmarks, long-running services
- *   - Temporal patterns: business-hours peaks, overnight training, idle weekends
- *   - Edge cases: still-running tasks (null end_time), pre-window spans,
- *     zero-GPU CPU-only tasks, very large tasks (128 GPUs), very short tasks
- *   - Deterministic: seeded for stable data across hot-reloads
- *   - Supports started_before / ended_after / limit / offset filtering
+ * Generates deterministic ListTaskEntry[] for the utilization dashboard mock.
+ * Tasks span the last 35 days with varied workload profiles, temporal patterns,
+ * and edge cases (still-running, zero-GPU, pre-window spans).
  */
 
 import { faker } from "@faker-js/faker";
 import type { ListTaskEntry } from "@/lib/api/generated";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
-
-// ============================================================================
-// Constants
-// ============================================================================
+import { hashString } from "@/mocks/utils";
 
 const BASE_SEED = 0xcafe_babe;
 const MS_PER_HOUR = 3_600_000;
@@ -58,10 +44,6 @@ const POOLS = [
   "benchmark-pool",
   "research-cluster",
 ];
-
-// ============================================================================
-// Workload profiles
-// ============================================================================
 
 interface WorkloadProfile {
   name: string;
@@ -190,42 +172,25 @@ const WORKLOADS: WorkloadProfile[] = [
   },
 ];
 
-// ============================================================================
-// Deterministic seeding helpers
-// ============================================================================
-
-function hashKey(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = Math.imul(31, h) + s.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
 function seededInt(key: string, min: number, max: number): number {
-  faker.seed(BASE_SEED ^ hashKey(key));
+  faker.seed(BASE_SEED ^ hashString(key));
   return faker.number.int({ min, max });
 }
 
 function seededFloat(key: string, min: number, max: number): number {
-  faker.seed(BASE_SEED ^ hashKey(key));
+  faker.seed(BASE_SEED ^ hashString(key));
   return faker.number.float({ min, max, multipleOf: 0.01 });
 }
 
 function seededChoice<T>(key: string, arr: readonly T[]): T {
-  faker.seed(BASE_SEED ^ hashKey(key));
+  faker.seed(BASE_SEED ^ hashString(key));
   return faker.helpers.arrayElement(arr as T[]);
 }
 
 function seededWeighted<T>(key: string, items: { value: T; weight: number }[]): T {
-  faker.seed(BASE_SEED ^ hashKey(key));
+  faker.seed(BASE_SEED ^ hashString(key));
   return faker.helpers.weightedArrayElement(items.map((i) => ({ value: i.value, weight: i.weight })));
 }
-
-// ============================================================================
-// Task generation
-// ============================================================================
 
 function pickWorkload(taskIndex: number): WorkloadProfile {
   return seededWeighted(
@@ -309,10 +274,6 @@ function generateTask(taskIndex: number, nowMs: number): ListTaskEntry {
   };
 }
 
-// ============================================================================
-// Pre-generate all tasks at module load (deterministic)
-// ============================================================================
-
 const NOW_MS = Date.now();
 const TASK_COUNT = 420;
 
@@ -326,10 +287,6 @@ ALL_TASKS.sort((a, b) => {
   const bTime = b.start_time ? new Date(b.start_time).getTime() : 0;
   return bTime - aTime;
 });
-
-// ============================================================================
-// Generator class
-// ============================================================================
 
 export interface UtilizationTaskFilters {
   started_before?: string;

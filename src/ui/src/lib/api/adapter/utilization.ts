@@ -16,10 +16,6 @@
 
 import type { ListTaskEntry } from "@/lib/api/generated";
 
-// =============================================================================
-// Hour-Aligned Anchoring
-// =============================================================================
-
 const MS_PER_HOUR = 3_600_000;
 
 /** Snap a timestamp up to the next full hour (no-op if already on the hour). */
@@ -31,10 +27,6 @@ export function ceilToHour(ms: number): number {
 export function floorToHour(ms: number): number {
   return Math.floor(ms / MS_PER_HOUR) * MS_PER_HOUR;
 }
-
-// =============================================================================
-// Fetch Tiers
-// =============================================================================
 
 export type FetchTier = "1d" | "3d" | "7d" | "14d" | "30d";
 
@@ -55,10 +47,6 @@ export function selectTier(rangeMs: number): FetchTier {
   return "30d";
 }
 
-// =============================================================================
-// Auto-Granularity
-// =============================================================================
-
 export function autoGranularityMs(rangeMs: number): number {
   const days = rangeMs / 86_400_000;
   if (days <= 3) return 3_600_000; // 1h  -> 24-72 points
@@ -66,10 +54,6 @@ export function autoGranularityMs(rangeMs: number): number {
   if (days <= 14) return 21_600_000; // 6h  -> 56 points
   return 43_200_000; // 12h -> 60 points
 }
-
-// =============================================================================
-// Bucket Types
-// =============================================================================
 
 export interface RawUtilizationBucket {
   timestamp: number;
@@ -86,18 +70,10 @@ export interface UtilizationResult {
 
 export type MetricKey = "gpu" | "cpu" | "memory" | "storage";
 
-// =============================================================================
-// Constants
-// =============================================================================
-
 export const MAX_TASK_ROWS = 5_000;
 
 export const UTILIZATION_QUERY_KEY = (tierStart: string, tier: FetchTier) =>
   ["/api/task/utilization", { tierStart, tier }] as const;
-
-// =============================================================================
-// Bucketing
-// =============================================================================
 
 interface ParsedTask {
   startMs: number;

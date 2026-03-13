@@ -20,10 +20,6 @@ import { useState, useCallback, useMemo, memo } from "react";
 import { MONTHS_SHORT } from "@/lib/format-date";
 import "@/components/date-range-picker/date-range-picker.css";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface DateRangePresetItem {
   label: string;
   getValue: () => string;
@@ -41,10 +37,6 @@ interface DateRangePickerProps {
   onCommit: (result: DateRangePickerResult) => void;
 }
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
 function fmtUtcDate(isoDate: string, currentYear: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
   const mon = MONTHS_SHORT[d.getUTCMonth()];
@@ -60,10 +52,6 @@ function buildPresetHint(rawValue: string, currentYear: number): string {
   }
   return fmtUtcDate(rawValue, currentYear);
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const DateRangePicker = memo(function DateRangePicker({
   presets,

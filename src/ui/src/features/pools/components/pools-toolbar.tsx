@@ -28,7 +28,7 @@ import type { RefreshControlProps } from "@/components/refresh/refresh-control";
 import { usePoolsTableStore } from "@/features/pools/stores/pools-table-store";
 import { OPTIONAL_COLUMNS } from "@/features/pools/lib/pool-columns";
 import { createPoolSearchFields } from "@/features/pools/lib/pool-search-fields";
-import { STATUS_STYLES, POOL_STATUS_FILTER_VALUES, type StatusCategory } from "@/lib/pool-status";
+import { STATUS_STYLES, POOL_STATUS_FILTER_VALUES } from "@/lib/pool-status";
 
 const STATUS_ICONS = {
   online: CheckCircle2,

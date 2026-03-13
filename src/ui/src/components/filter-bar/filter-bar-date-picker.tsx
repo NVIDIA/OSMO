@@ -44,33 +44,21 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
   onCycleStep,
   onClose,
 }: FilterBarDatePickerProps) {
-  const fromRef = useRef<HTMLInputElement>(null);
-  const toRef = useRef<HTMLInputElement>(null);
-  const applyRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (highlightedLabel === DATE_CUSTOM_FROM) {
-      fromRef.current?.focus();
-    } else if (highlightedLabel === DATE_CUSTOM_TO) {
-      toRef.current?.focus();
-    } else if (highlightedLabel === DATE_CUSTOM_APPLY) {
-      applyRef.current?.focus();
-    }
-  }, [highlightedLabel]);
-
-  // Resolve refs to the date picker's inner inputs/button on mount.
-  // The general DateRangePicker uses ids "drp-from", "drp-to" for its inputs.
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Focus the appropriate inner element when keyboard navigation highlights a sentinel.
+  // Queries the DOM directly since DateRangePicker owns the elements via stable ids/classes.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const from = container.querySelector<HTMLInputElement>("#drp-from");
-    const to = container.querySelector<HTMLInputElement>("#drp-to");
-    const apply = container.querySelector<HTMLButtonElement>(".fb-date-apply");
-    if (from) (fromRef as React.MutableRefObject<HTMLInputElement | null>).current = from;
-    if (to) (toRef as React.MutableRefObject<HTMLInputElement | null>).current = to;
-    if (apply) (applyRef as React.MutableRefObject<HTMLButtonElement | null>).current = apply;
-  }, []);
+    if (highlightedLabel === DATE_CUSTOM_FROM) {
+      container.querySelector<HTMLInputElement>("#drp-from")?.focus();
+    } else if (highlightedLabel === DATE_CUSTOM_TO) {
+      container.querySelector<HTMLInputElement>("#drp-to")?.focus();
+    } else if (highlightedLabel === DATE_CUSTOM_APPLY) {
+      container.querySelector<HTMLButtonElement>(".fb-date-apply")?.focus();
+    }
+  }, [highlightedLabel]);
 
   const handleCommit = useCallback(
     (result: DateRangePickerResult) => {
@@ -88,7 +76,11 @@ export const FilterBarDatePicker = memo(function FilterBarDatePicker({
           e.stopPropagation();
           e.preventDefault();
           onClose?.();
-        } else if (e.key === "Tab" && !e.shiftKey && e.target === applyRef.current) {
+        } else if (
+          e.key === "Tab" &&
+          !e.shiftKey &&
+          e.target === containerRef.current?.querySelector(".fb-date-apply")
+        ) {
           e.preventDefault();
           onCycleStep?.("forward", DATE_CUSTOM_APPLY);
         } else {
