@@ -23,13 +23,9 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/shadcn/popover";
 import { InlineErrorBoundary } from "@/components/error/inline-error-boundary";
-import {
-  DateRangePicker,
-  type DateRangePickerResult,
-  type DateRangePresetItem,
-} from "@/components/date-range-picker/date-range-picker";
+import { DateRangePicker, type DateRangePickerResult } from "@/components/date-range-picker/date-range-picker";
 import { useUtilizationData } from "@/hooks/use-utilization-data";
-import { type MetricKey, type RawUtilizationBucket, TIER_MS, autoGranularityMs } from "@/lib/api/adapter/utilization";
+import { type MetricKey, type RawUtilizationBucket, TIER_MS, autoGranularityMs, ceilToHour } from "@/lib/api/adapter/utilization";
 import { formatCompact, formatBytes, cn } from "@/lib/utils";
 import { MONTHS_SHORT } from "@/lib/format-date";
 
@@ -109,23 +105,14 @@ function formatTooltipTime(timestampMs: number, granularityMs: number): string {
   return `${mon} ${day}, ${fmtTime(d)} – ${fmtTime(endD)}`;
 }
 
-const datePickerPresets: DateRangePresetItem[] = RANGE_PRESETS.map((p) => ({
-  label: p.label,
-  getValue: () => {
-    const now = new Date();
-    const start = new Date(now.getTime() - p.ms);
-    return `${start.toISOString().slice(0, 10)}..${now.toISOString().slice(0, 10)}`;
-  },
-}));
-
 // =============================================================================
 // Component
 // =============================================================================
 
 function rangeFromPreset(key: PresetKey): { start: number; end: number } {
-  const now = Date.now();
+  const end = ceilToHour(Date.now());
   const ms = RANGE_PRESETS.find((p) => p.key === key)?.ms ?? TIER_MS["7d"];
-  return { start: now - ms, end: now };
+  return { start: end - ms, end };
 }
 
 export function UtilizationChart() {
@@ -187,12 +174,12 @@ export function UtilizationChart() {
 
   return (
     <InlineErrorBoundary title="Unable to load utilization chart">
-      <Card>
-        <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 sm:flex-row">
+      <Card className="gap-0 rounded-lg border-zinc-200 py-0 shadow-none dark:border-zinc-800 dark:bg-zinc-950">
+        <CardHeader className="flex flex-col items-stretch space-y-0 border-b p-0 lg:flex-row">
           {/* Left: title + range controls */}
-          <div className="flex flex-1 flex-col justify-center gap-1 px-6 py-5 sm:py-6">
+          <div className="flex flex-1 flex-col justify-center gap-4 px-6 py-5 sm:py-6">
             <CardTitle>Resource Utilization</CardTitle>
-            <div className="flex items-center gap-2 pt-1">
+            <div className="flex items-center gap-2">
               <div className="flex rounded-md border border-zinc-200 dark:border-zinc-800">
                 {RANGE_PRESETS.map((p) => (
                   <button
@@ -232,30 +219,24 @@ export function UtilizationChart() {
                   className="w-auto p-0"
                   align="start"
                 >
-                  <DateRangePicker
-                    presets={datePickerPresets}
-                    onCommit={handleCustomCommit}
-                  />
+                  <DateRangePicker onCommit={handleCustomCommit} />
                 </PopoverContent>
               </Popover>
             </div>
           </div>
 
           {/* Right: metric tabs */}
-          <div className="flex">
+          <div className="flex self-stretch border-t lg:border-t-0">
             {metrics.map((metric) => (
               <button
                 key={metric}
                 type="button"
                 onClick={() => setActiveMetric(metric)}
-                data-active={activeMetric === metric || undefined}
-                className={cn(
-                  "relative z-10 flex flex-1 flex-col justify-center gap-1 border-t border-l px-6 py-4 text-left sm:border-t-0 sm:border-l sm:px-8 sm:py-6",
-                  "data-[active]:bg-muted/50",
-                )}
+                data-active={activeMetric === metric}
+                className="group relative z-30 flex flex-1 flex-col justify-center gap-1 border-l first:border-l-0 px-6 py-4 text-left last:rounded-tr-lg data-[active=true]:bg-zinc-900 data-[active=true]:text-white dark:data-[active=true]:bg-zinc-100 dark:data-[active=true]:text-zinc-900 lg:border-l lg:first:border-l lg:px-8 lg:py-6"
               >
-                <span className="text-muted-foreground text-xs">{chartConfig[metric].label}</span>
-                <span className="text-lg leading-none font-bold sm:text-xl">
+                <span className="text-muted-foreground text-xs group-data-[active=true]:text-inherit group-data-[active=true]:opacity-80">{chartConfig[metric].label}</span>
+                <span className="text-lg leading-none font-bold whitespace-nowrap sm:text-2xl">
                   {isLoading ? "—" : METRIC_TOTAL_FORMAT[metric](totals[metric])}
                 </span>
               </button>
@@ -263,7 +244,7 @@ export function UtilizationChart() {
           </div>
         </CardHeader>
 
-        <CardContent className="px-2 sm:p-6">
+        <CardContent className="pl-0 pr-2 pt-4 pb-1 sm:pr-4 sm:pt-6 sm:pb-2">
           {isLoading ? (
             <Skeleton className="aspect-video w-full" />
           ) : (
@@ -274,7 +255,7 @@ export function UtilizationChart() {
               <AreaChart
                 accessibilityLayer
                 data={buckets}
-                margin={{ left: 12, right: 12 }}
+                margin={{ left: 16, right: 24 }}
               >
                 <CartesianGrid vertical={false} />
                 <XAxis
@@ -295,7 +276,7 @@ export function UtilizationChart() {
                     }
                     return formatCompact(value);
                   }}
-                  width={60}
+                  width={40}
                 />
                 <ChartTooltip
                   content={

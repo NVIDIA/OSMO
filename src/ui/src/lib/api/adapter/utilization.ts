@@ -17,6 +17,22 @@
 import type { ListTaskEntry } from "@/lib/api/generated";
 
 // =============================================================================
+// Hour-Aligned Anchoring
+// =============================================================================
+
+const MS_PER_HOUR = 3_600_000;
+
+/** Snap a timestamp up to the next full hour (no-op if already on the hour). */
+export function ceilToHour(ms: number): number {
+  return Math.ceil(ms / MS_PER_HOUR) * MS_PER_HOUR;
+}
+
+/** Snap a timestamp down to the previous full hour (no-op if already on the hour). */
+export function floorToHour(ms: number): number {
+  return Math.floor(ms / MS_PER_HOUR) * MS_PER_HOUR;
+}
+
+// =============================================================================
 // Fetch Tiers
 // =============================================================================
 

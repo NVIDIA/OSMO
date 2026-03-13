@@ -29,6 +29,8 @@ import {
   bucketTasks,
   UTILIZATION_QUERY_KEY,
   MAX_TASK_ROWS,
+  floorToHour,
+  ceilToHour,
 } from "@/lib/api/adapter/utilization";
 
 // =============================================================================
@@ -89,9 +91,10 @@ export function useUtilizationData({
   const tier: FetchTier = selectTier(rangeMs);
   const tierMs = TIER_MS[tier];
 
-  const tierStartMs = displayEndMs - tierMs;
+  const tierStartMs = floorToHour(displayEndMs - tierMs);
+  const tierEndMs = ceilToHour(displayEndMs);
   const tierStartISO = new Date(tierStartMs).toISOString();
-  const tierEndISO = new Date(displayEndMs).toISOString();
+  const tierEndISO = new Date(tierEndMs).toISOString();
 
   const queryKey = UTILIZATION_QUERY_KEY(tierStartISO, tier);
 

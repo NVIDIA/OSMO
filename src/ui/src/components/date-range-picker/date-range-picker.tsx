@@ -36,7 +36,7 @@ export interface DateRangePickerResult {
 }
 
 interface DateRangePickerProps {
-  presets: DateRangePresetItem[];
+  presets?: DateRangePresetItem[];
   activePresetLabel?: string;
   onCommit: (result: DateRangePickerResult) => void;
 }
@@ -73,11 +73,13 @@ export const DateRangePicker = memo(function DateRangePicker({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
+  const hasPresets = presets != null && presets.length > 0;
+
   const currentYear = useMemo(() => new Date().getUTCFullYear(), []);
 
   const presetHints = useMemo(
-    () => Object.fromEntries(presets.map((p) => [p.label, buildPresetHint(p.getValue(), currentYear)])),
-    [presets, currentYear],
+    () => (hasPresets ? Object.fromEntries(presets.map((p) => [p.label, buildPresetHint(p.getValue(), currentYear)])) : {}),
+    [presets, currentYear, hasPresets],
   );
 
   const rangeError = !!fromDate && !!toDate && toDate <= fromDate;
@@ -93,13 +95,80 @@ export const DateRangePicker = memo(function DateRangePicker({
     setToDate((prev) => (prev && prev <= value ? "" : prev));
   }, []);
 
+  const customRangePanel = (
+    <div className="fb-date-custom">
+      {hasPresets && <div className="fb-date-section-label">Custom range</div>}
+      <div className="fb-date-field">
+        <label
+          className="fb-date-label"
+          htmlFor="drp-from"
+        >
+          From
+        </label>
+        <input
+          id="drp-from"
+          type="datetime-local"
+          value={fromDate}
+          onChange={(e) => handleFromChange(e.target.value)}
+          className="fb-date-input"
+        />
+      </div>
+      <div className="fb-date-field">
+        <label
+          className="fb-date-label"
+          htmlFor="drp-to"
+        >
+          To
+        </label>
+        <input
+          id="drp-to"
+          type="datetime-local"
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          min={fromDate || undefined}
+          className="fb-date-input"
+          data-error={rangeError ? "" : undefined}
+          aria-invalid={rangeError}
+          aria-describedby={rangeError ? "drp-range-error" : undefined}
+        />
+        {rangeError && (
+          <span
+            id="drp-range-error"
+            className="fb-date-error"
+            role="alert"
+          >
+            &ldquo;To&rdquo; must be after &ldquo;From&rdquo;
+          </span>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={handleApply}
+        disabled={!fromDate || rangeError}
+        className="fb-date-apply"
+      >
+        Apply →
+      </button>
+    </div>
+  );
+
+  if (!hasPresets) {
+    return (
+      <div
+        className="fb-date-picker"
+        role="none"
+      >
+        {customRangePanel}
+      </div>
+    );
+  }
+
   return (
     <div
       className="fb-date-picker"
       role="none"
     >
       <div className="fb-date-split">
-        {/* Left rail: presets */}
         <div className="fb-date-rail">
           <div className="fb-date-section-label">Presets</div>
           {presets.map((preset) => (
@@ -115,62 +184,7 @@ export const DateRangePicker = memo(function DateRangePicker({
             </button>
           ))}
         </div>
-
-        {/* Right: custom range */}
-        <div className="fb-date-custom">
-          <div className="fb-date-section-label">Custom range</div>
-          <div className="fb-date-field">
-            <label
-              className="fb-date-label"
-              htmlFor="drp-from"
-            >
-              From
-            </label>
-            <input
-              id="drp-from"
-              type="datetime-local"
-              value={fromDate}
-              onChange={(e) => handleFromChange(e.target.value)}
-              className="fb-date-input"
-            />
-          </div>
-          <div className="fb-date-field">
-            <label
-              className="fb-date-label"
-              htmlFor="drp-to"
-            >
-              To
-            </label>
-            <input
-              id="drp-to"
-              type="datetime-local"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              min={fromDate || undefined}
-              className="fb-date-input"
-              data-error={rangeError ? "" : undefined}
-              aria-invalid={rangeError}
-              aria-describedby={rangeError ? "drp-range-error" : undefined}
-            />
-            {rangeError && (
-              <span
-                id="drp-range-error"
-                className="fb-date-error"
-                role="alert"
-              >
-                &ldquo;To&rdquo; must be after &ldquo;From&rdquo;
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={!fromDate || rangeError}
-            className="fb-date-apply"
-          >
-            Apply →
-          </button>
-        </div>
+        {customRangePanel}
       </div>
     </div>
   );

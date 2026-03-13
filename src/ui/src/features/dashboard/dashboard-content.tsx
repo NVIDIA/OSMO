@@ -131,9 +131,6 @@ export function DashboardContent({ submittedAfter }: DashboardContentProps) {
         </div>
       </InlineErrorBoundary>
 
-      {/* Utilization chart */}
-      <UtilizationChart />
-
       {/* Recent workflows */}
       <InlineErrorBoundary
         title="Unable to load recent workflows"
@@ -187,6 +184,9 @@ export function DashboardContent({ submittedAfter }: DashboardContentProps) {
           </div>
         </div>
       </InlineErrorBoundary>
+
+      {/* Utilization chart */}
+      <UtilizationChart />
 
       {/* Version info — lazy: only fetches when this component renders */}
       <InlineErrorBoundary
