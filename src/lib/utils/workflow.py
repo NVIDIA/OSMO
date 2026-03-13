@@ -45,7 +45,7 @@ def parse_workflow_spec(workflow_spec: str) -> Tuple[str, Dict | None]:
         r'^([a-zA-Z][a-zA-Z0-9_-]*):(.*?)(?=^[a-zA-Z][a-zA-Z0-9_-]*:|\Z)',
         re.DOTALL | re.MULTILINE,
     )
-    allowed_sections = {'workflow', 'default-values'}
+    allowed_sections = {'workflow', 'default-values', 'version'}
     sections: Dict[str, str] = {}
     for match in section_pattern.finditer(workflow_spec):
         key = match.group(1)

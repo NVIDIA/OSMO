@@ -81,6 +81,17 @@ workflow:
             workflow_utils.parse_workflow_spec(spec)
         self.assertIn('workflow', str(context.exception))
 
+    def test_version_key_allowed(self):
+        spec = """\
+version: 2
+workflow:
+  name: my-wf
+  groups: []
+"""
+        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('name: my-wf', workflow_spec)
+        self.assertIsNone(default_values)
+
     def test_unknown_top_level_key_raises(self):
         spec = """\
 workflow:
