@@ -34,6 +34,10 @@ export interface DateRangePickerResult {
 interface DateRangePickerProps {
   presets?: DateRangePresetItem[];
   activePresetLabel?: string;
+  /** Pre-fill the "From" input (datetime-local format: "YYYY-MM-DDTHH:MM") */
+  initialFrom?: string;
+  /** Pre-fill the "To" input (datetime-local format: "YYYY-MM-DDTHH:MM") */
+  initialTo?: string;
   onCommit: (result: DateRangePickerResult) => void;
 }
 
@@ -56,10 +60,12 @@ function buildPresetHint(rawValue: string, currentYear: number): string {
 export const DateRangePicker = memo(function DateRangePicker({
   presets,
   activePresetLabel,
+  initialFrom,
+  initialTo,
   onCommit,
 }: DateRangePickerProps) {
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(initialFrom ?? "");
+  const [toDate, setToDate] = useState(initialTo ?? "");
 
   const hasPresets = presets != null && presets.length > 0;
 

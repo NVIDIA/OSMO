@@ -107,6 +107,8 @@ export function UtilizationChart() {
   const [activeMetric, setActiveMetric] = useState<MetricKey>("gpu");
   const [range, setRange] = useState(rangeFromPreset(DEFAULT_PRESET));
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
   const displayStartMs = range.start;
   const displayEndMs = range.end;
@@ -130,6 +132,8 @@ export function UtilizationChart() {
   const handlePresetClick = useCallback((key: PresetKey) => {
     setActivePreset(key);
     setRange(rangeFromPreset(key));
+    setCustomFrom("");
+    setCustomTo("");
   }, []);
 
   const handleCustomCommit = useCallback((result: DateRangePickerResult) => {
@@ -137,6 +141,8 @@ export function UtilizationChart() {
     if (parsed && parsed.end > parsed.start) {
       setActivePreset(null);
       setRange({ start: parsed.start.getTime(), end: parsed.end.getTime() });
+      setCustomFrom(result.value.split("..")[0] ?? "");
+      setCustomTo(result.value.split("..")[1] ?? "");
       setPopoverOpen(false);
     }
   }, []);
@@ -188,7 +194,11 @@ export function UtilizationChart() {
                   className="w-auto p-0"
                   align="start"
                 >
-                  <DateRangePicker onCommit={handleCustomCommit} />
+                  <DateRangePicker
+                    initialFrom={customFrom}
+                    initialTo={customTo}
+                    onCommit={handleCustomCommit}
+                  />
                 </PopoverContent>
               </Popover>
             </div>
