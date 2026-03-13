@@ -29,9 +29,9 @@ workflow:
   name: my-wf
   groups: []
 """
-        sections = workflow_utils.parse_workflow_spec(spec)
-        self.assertIn('workflow', sections)
-        self.assertEqual(set(sections.keys()), {'workflow'})
+        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('workflow:', workflow_spec)
+        self.assertIsNone(default_values)
 
     def test_workflow_then_default_values(self):
         spec = """\
@@ -41,10 +41,9 @@ workflow:
 default-values:
   foo: bar
 """
-        sections = workflow_utils.parse_workflow_spec(spec)
-        self.assertEqual(set(sections.keys()), {'workflow', 'default-values'})
-        self.assertIn('name: my-wf', sections['workflow'])
-        self.assertIn('foo: bar', sections['default-values'])
+        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('name: my-wf', workflow_spec)
+        self.assertEqual(default_values, {'foo': 'bar'})
 
     def test_default_values_before_workflow(self):
         spec = """\
@@ -54,10 +53,9 @@ workflow:
   name: my-wf
   groups: []
 """
-        sections = workflow_utils.parse_workflow_spec(spec)
-        self.assertEqual(set(sections.keys()), {'workflow', 'default-values'})
-        self.assertIn('name: my-wf', sections['workflow'])
-        self.assertIn('foo: bar', sections['default-values'])
+        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('name: my-wf', workflow_spec)
+        self.assertEqual(default_values, {'foo': 'bar'})
 
     def test_jinja_content_not_at_root_indent(self):
         spec = """\
@@ -68,9 +66,9 @@ workflow:
   - name: task-{{ i }}
 {% endfor %}
 """
-        sections = workflow_utils.parse_workflow_spec(spec)
-        self.assertIn('workflow', sections)
-        self.assertIn('task-', sections['workflow'])
+        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('task-', workflow_spec)
+        self.assertIsNone(default_values)
 
     def test_duplicate_workflow_raises(self):
         spec = """\
@@ -83,8 +81,8 @@ workflow:
             workflow_utils.parse_workflow_spec(spec)
         self.assertIn('workflow', str(context.exception))
 
-    def test_unknown_top_level_key_is_returned(self):
-        """parse_workflow_spec returns all keys; callers decide what is allowed."""
+    def test_extra_top_level_section_ignored(self):
+        """Extra top-level sections (e.g. resources:) are ignored; workflow is still extracted."""
         spec = """\
 workflow:
   name: my-wf
@@ -92,6 +90,6 @@ resources:
   default:
     cpu: 10
 """
-        sections = workflow_utils.parse_workflow_spec(spec)
-        self.assertIn('resources', sections)
-        self.assertIn('workflow', sections)
+        workflow_spec, default_values = workflow_utils.parse_workflow_spec(spec)
+        self.assertIn('name: my-wf', workflow_spec)
+        self.assertIsNone(default_values)
