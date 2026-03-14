@@ -259,7 +259,7 @@ class ListTaskSummaryEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @classmethod
     def from_db_row(cls, row: Any) -> 'ListTaskSummaryEntry':
         """ Create ListEntry from the DB query result. """
-        return ListTaskSummaryEntry(
+        return ListTaskSummaryEntry.construct(
             user=row['submitted_by'],
             pool=row['pool'],
             storage=row['disk_count'],
@@ -286,7 +286,7 @@ class ListTaskSummaryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     @classmethod
     def from_db_rows(cls, rows: Any) -> 'ListTaskSummaryResponse':
         summaries = [ListTaskSummaryEntry.from_db_row(row) for row in rows]
-        return ListTaskSummaryResponse(summaries=summaries)
+        return ListTaskSummaryResponse.construct(summaries=summaries)
 
 
 class ListTaskAggregatedResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
@@ -361,7 +361,7 @@ class ListTaskEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         overview = f'{base_url}/workflows/{row["workflow_id"]}'
         if config.method == 'dev':
             overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
-        return ListTaskEntry(
+        return ListTaskEntry.construct(
             user=row['submitted_by'],
             workflow_id=row['workflow_id'],
             workflow_uuid=row['workflow_uuid'],
@@ -398,7 +398,7 @@ class ListTaskResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     def from_db_rows(cls, rows: Any, base_url: str) -> 'ListTaskResponse':
         backend_lookup: Dict = {}
         tasks = [ListTaskEntry.from_db_row(row, base_url, backend_lookup) for row in rows]
-        return ListTaskResponse(tasks=tasks)
+        return ListTaskResponse.construct(tasks=tasks)
 
 
 class TaskQueryResponse(pydantic.BaseModel):
