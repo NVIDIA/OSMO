@@ -33,7 +33,11 @@ from src.utils import connectors
 router = fastapi.APIRouter(tags = ['Workflow App API'])
 
 
-@router.get('/api/app', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/app',
+    response_class=common.PrettyJSONResponse,
+    response_model=objects.ListResponse,
+)
 def list_apps(name: str | None = None,
               users: List[str] | None = fastapi.Query(default = None),
               all_users: bool = False,
@@ -58,7 +62,11 @@ def list_apps(name: str | None = None,
     return objects.ListResponse(apps=apps, more_entries=len(apps) > limit)
 
 
-@router.get('/api/app/user/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/app/user/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=objects.GetAppResponse,
+)
 def get_app(name: objects.AppNamePattern,
             version: int | None = None,
             limit: int = 20,
@@ -121,7 +129,11 @@ def create_app(name: objects.AppNamePattern,
     upload_app.send_job_to_queue()
 
 
-@router.patch('/api/app/user/{name}')
+@router.patch(
+    '/api/app/user/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=objects.EditResponse,
+)
 def update_app(name: objects.AppNamePattern,
                app_content: str = fastapi.Body(...),
                username: str = fastapi.Depends(connectors.parse_username)) \

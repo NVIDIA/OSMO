@@ -165,38 +165,46 @@ async def get_osmo_client_version(request: fastapi.Request):
     return client_version
 
 
-@misc_router.get('/health')
+@misc_router.get('/health', response_model=Dict[str, str])
 async def health():
     """ To be used for the readiness probe, but not liveness probe. That way, if this method is
     slow, no new traffic gets routed, instead of killing the service. """
     return {'status': 'OK'}
 
 
-@misc_router.get('/api/version')
+@misc_router.get('/api/version', response_model=version.Version)
 def get_version():
     return version.VERSION
 
 
-@misc_router.get('/api/users', response_class=common.PrettyJSONResponse)
+@misc_router.get(
+    '/api/users',
+    response_class=common.PrettyJSONResponse,
+    response_model=List[str],
+)
 def get_users() -> List[str]:
     """ Returns the values of all users who have submitted a workflow. """
     user_list = helpers.get_all_users()
     return [item.submitted_by for item in user_list]
 
 
-@misc_router.get('/api/tag')
+@misc_router.get('/api/tag', response_model=Dict[str, List[str]])
 def get_available_workflow_tags():
     """ Returns all workflow tags. """
     context = objects.WorkflowServiceContext.get()
     return {'tags': context.database.get_workflow_configs().workflow_info.tags}
 
 
-@misc_router.get('/api/plugins/configs', response_class=common.PrettyJSONResponse)
-def get_workflow_plugins_configs() -> Dict:
+@misc_router.get(
+    '/api/plugins/configs',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.PluginsConfig,
+)
+def get_workflow_plugins_configs() -> connectors.PluginsConfig:
     """Get all the workflow plugins configurations"""
     context = objects.WorkflowServiceContext.get()
     workflow_configs = context.database.get_workflow_configs()
-    return workflow_configs.plugins_config.dict(by_alias=True)
+    return workflow_configs.plugins_config
 
 
 app.include_router(misc_router)

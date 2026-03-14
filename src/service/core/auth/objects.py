@@ -313,3 +313,10 @@ class AccessTokenRolesResponse(pydantic.BaseModel):
     user_name: str
     token_name: str
     roles: List[AccessTokenRole]
+
+
+class JwtTokenResponse(pydantic.BaseModel):
+    """Response for JWT token creation endpoints."""
+    token: str | None
+    expires_at: int | None
+    error: str | None

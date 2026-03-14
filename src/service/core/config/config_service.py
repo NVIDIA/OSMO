@@ -54,11 +54,15 @@ def _check_config_name(name: str, name_type: ConfigNameType):
              'be alphanumeric and contain dash or underscore.'
         )
 
-@router.get('/api/configs/service', response_class=common.PrettyJSONResponse)
-def read_service_configs() -> Dict:
+@router.get(
+    '/api/configs/service',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.ServiceConfig,
+)
+def read_service_configs() -> connectors.ServiceConfig:
     """Read all the service configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_service_configs().dict(by_alias=True)
+    return postgres.get_service_configs()
 
 
 @router.put('/api/configs/service')
@@ -80,11 +84,15 @@ def patch_service_configs(
     return helpers.patch_configs(request, connectors.ConfigType.SERVICE, username)
 
 
-@router.get('/api/configs/workflow', response_class=common.PrettyJSONResponse)
-def read_workflow_configs() -> Dict:
+@router.get(
+    '/api/configs/workflow',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.WorkflowConfig,
+)
+def read_workflow_configs() -> connectors.WorkflowConfig:
     """Read all the workflow configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_workflow_configs().dict(by_alias=True)
+    return postgres.get_workflow_configs()
 
 
 @router.put('/api/configs/workflow')
@@ -105,11 +113,15 @@ def patch_workflow_configs(
     return helpers.patch_configs(request, connectors.ConfigType.WORKFLOW, username)
 
 
-@router.get('/api/configs/dataset', response_class=common.PrettyJSONResponse)
-def read_dataset_configs() -> Dict:
+@router.get(
+    '/api/configs/dataset',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.DatasetConfig,
+)
+def read_dataset_configs() -> connectors.DatasetConfig:
     """Read all the dataset configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_dataset_configs().dict(by_alias=True)
+    return postgres.get_dataset_configs()
 
 
 @router.put('/api/configs/dataset')
@@ -208,7 +220,11 @@ def create_clean_config_api(app: fastapi.FastAPI):
                       response_model=Dict, methods=['POST'], tags=['Config API'])
 
 
-@router.get('/api/configs/backend', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend',
+    response_class=common.PrettyJSONResponse,
+    response_model=objects.ListBackendsResponse,
+)
 def list_backends() -> objects.ListBackendsResponse:
     """ List all backends. """
     postgres = connectors.PostgresConnector.get_instance()
@@ -225,7 +241,11 @@ def update_backend(
     helpers.update_backend(name, request, username)
 
 
-@router.get('/api/configs/backend/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.Backend,
+)
 def get_backend(name: str) -> connectors.Backend:
     """ Get info for a specific backend. """
     postgres = connectors.PostgresConnector.get_instance()
@@ -253,7 +273,11 @@ def delete_backend(
     helpers.delete_backend(name, request, username)
 
 
-@router.get('/api/configs/pool', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/pool',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.VerbosePoolConfig | connectors.EditablePoolConfig,
+)
 def list_pools(verbose: bool = False, backend: str | None = None) -> \
     connectors.VerbosePoolConfig | connectors.EditablePoolConfig:
     """ List all Pools """
@@ -366,9 +390,15 @@ def put_pools(
         helpers.update_backend_queues(backend)
 
 
-@router.get('/api/configs/pool/{name}', response_class=common.PrettyJSONResponse)
-def read_pool(name: str,
-              verbose: bool = False) -> Any:
+@router.get(
+    '/api/configs/pool/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.Pool | connectors.PoolEditable,
+)
+def read_pool(
+    name: str,
+    verbose: bool = False,
+) -> connectors.Pool | connectors.PoolEditable:
     """
     Read Pool configuration
 
@@ -520,9 +550,15 @@ def delete_pool(
         helpers.update_backend_queues(backend)
 
 
-@router.get('/api/configs/pool/{name}/platform', response_class=common.PrettyJSONResponse)
-def list_platforms_in_pool(name: str,
-                           verbose: bool = False) -> Dict[str, Any]:
+@router.get(
+    '/api/configs/pool/{name}/platform',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, connectors.Platform] | Dict[str, connectors.PlatformEditable],
+)
+def list_platforms_in_pool(
+    name: str,
+    verbose: bool = False,
+) -> Dict[str, connectors.Platform] | Dict[str, connectors.PlatformEditable]:
     """
     List all Platforms
 
@@ -534,11 +570,16 @@ def list_platforms_in_pool(name: str,
     return connectors.fetch_platform_config(name, pool_type, postgres)
 
 
-@router.get('/api/configs/pool/{name}/platform/{platform_name}',
-            response_class=common.PrettyJSONResponse)
-def read_platform_in_pool(name: str,
-                          platform_name: str,
-                          verbose: bool = False) -> Any:
+@router.get(
+    '/api/configs/pool/{name}/platform/{platform_name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.Platform | connectors.PlatformEditable,
+)
+def read_platform_in_pool(
+    name: str,
+    platform_name: str,
+    verbose: bool = False,
+) -> connectors.Platform | connectors.PlatformEditable:
     """
     Read Platform
 
@@ -603,16 +644,23 @@ def rename_platform_in_pool(name: str, platform_name: str,
         tags=request.tags,
     )
 
-
-@router.get('/api/configs/pod_template', response_class=common.PrettyJSONResponse)
-def list_pod_templates() -> Dict[str, Dict]:
+@router.get(
+    '/api/configs/pod_template',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, Any],
+)
+def list_pod_templates() -> Dict[str, Any]:
     """ List all Pod Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.PodTemplate.list_from_db(postgres)
 
 
-@router.get('/api/configs/pod_template/{name}', response_class=common.PrettyJSONResponse)
-def read_pod_template(name: str) -> Dict:
+@router.get(
+    '/api/configs/pod_template/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, Any],
+)
+def read_pod_template(name: str) -> Dict[str, Any]:
     """ Read Pod Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.PodTemplate.fetch_from_db(postgres, name)
@@ -701,15 +749,23 @@ def delete_pod_template(
     )
 
 
-@router.get('/api/configs/group_template', response_class=common.PrettyJSONResponse)
-def list_group_templates() -> Dict[str, Dict]:
+@router.get(
+    '/api/configs/group_template',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, Dict[str, Any]],
+)
+def list_group_templates() -> Dict[str, Dict[str, Any]]:
     """ List all Group Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.GroupTemplate.list_from_db(postgres)
 
 
-@router.get('/api/configs/group_template/{name}', response_class=common.PrettyJSONResponse)
-def read_group_template(name: str) -> Dict:
+@router.get(
+    '/api/configs/group_template/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, Any],
+)
+def read_group_template(name: str) -> Dict[str, Any]:
     """ Read Group Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.GroupTemplate.fetch_from_db(postgres, name)
@@ -771,14 +827,22 @@ def delete_group_template(
     )
 
 
-@router.get('/api/configs/resource_validation', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/resource_validation',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, List[connectors.ResourceAssertion]],
+)
 def list_resource_validations() -> Dict[str, List[connectors.ResourceAssertion]]:
     """ List all Resource Validation configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.ResourceValidation.list_from_db(postgres)
 
 
-@router.get('/api/configs/resource_validation/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/resource_validation/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=List[connectors.ResourceAssertion],
+)
 def read_resource_validation(name: str) -> List[connectors.ResourceAssertion]:
     """ Read Resource Validation configurations """
     postgres = connectors.PostgresConnector.get_instance()
@@ -846,14 +910,22 @@ def delete_resource_validation(
     )
 
 
-@router.get('/api/configs/role', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/role',
+    response_class=common.PrettyJSONResponse,
+    response_model=List[connectors.Role],
+)
 def list_roles() -> List[connectors.Role]:
     """ List all Roles """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.Role.list_from_db(postgres)
 
 
-@router.get('/api/configs/role/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/role/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.Role,
+)
 def read_role(name: str) -> connectors.Role:
     """ Read Role """
     postgres = connectors.PostgresConnector.get_instance()
@@ -908,8 +980,12 @@ def delete_role(name: str,
     )
 
 
-@router.get('/api/configs/backend_test', response_class=common.PrettyJSONResponse)
-def list_backend_tests() -> Dict[str, Dict]:
+@router.get(
+    '/api/configs/backend_test',
+    response_class=common.PrettyJSONResponse,
+    response_model=Dict[str, connectors.BackendTests],
+)
+def list_backend_tests() -> Dict[str, connectors.BackendTests]:
     """ List all backend test configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.BackendTests.list_from_db(postgres)
@@ -938,7 +1014,11 @@ def put_backend_tests(
     )
 
 
-@router.get('/api/configs/backend_test/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend_test/{name}',
+    response_class=common.PrettyJSONResponse,
+    response_model=connectors.BackendTests,
+)
 def read_backend_test(name: str) -> connectors.BackendTests:
     """ Read backend test configuration """
     postgres = connectors.PostgresConnector.get_instance()
@@ -1429,7 +1509,11 @@ def diff_secret_strs(first_data: Any, second_data: Any, second_revision: int) ->
         return second_data
 
 
-@router.get('/api/configs/diff', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/diff',
+    response_class=common.PrettyJSONResponse,
+    response_model=objects.ConfigDiffResponse,
+)
 def get_config_diff(
     request: Annotated[objects.ConfigDiffRequest, fastapi.Query()],
 ) -> objects.ConfigDiffResponse:
