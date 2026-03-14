@@ -14,12 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Dashboard Content (Client Component)
- *
- * Interactive dashboard content with hydrated data.
- */
-
 "use client";
 
 import { useMemo, useEffect } from "react";
@@ -34,10 +28,12 @@ import { cn } from "@/lib/utils";
 import { getStatusDisplay, STATUS_STYLES } from "@/lib/workflows/workflow-constants";
 import { WORKFLOW_STATUS_ICONS } from "@/lib/workflows/workflow-status-icons";
 import { STATUS_PRESETS } from "@/lib/workflows/workflow-status-presets";
+import dynamic from "next/dynamic";
 
-// =============================================================================
-// Dashboard Content
-// =============================================================================
+const UtilizationChart = dynamic(
+  () => import("@/components/utilization-chart/utilization-chart").then((m) => ({ default: m.UtilizationChart })),
+  { ssr: false },
+);
 
 interface DashboardContentProps {
   /** Server-computed 24h cutoff (ISO string) — ensures query key matches between SSR and client */
@@ -184,6 +180,9 @@ export function DashboardContent({ submittedAfter }: DashboardContentProps) {
         </div>
       </InlineErrorBoundary>
 
+      {/* Utilization chart */}
+      <UtilizationChart />
+
       {/* Version info — lazy: only fetches when this component renders */}
       <InlineErrorBoundary
         title="Version info error"
@@ -194,10 +193,6 @@ export function DashboardContent({ submittedAfter }: DashboardContentProps) {
     </div>
   );
 }
-
-// =============================================================================
-// Subcomponents
-// =============================================================================
 
 /**
  * Lazy version footer — only triggers the /api/version fetch when rendered.

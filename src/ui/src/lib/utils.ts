@@ -61,8 +61,8 @@ export function formatCompact(value: number): string {
   return value.toString();
 }
 
-type ByteUnit = "Ki" | "Mi" | "Gi" | "Ti";
-const UNIT_ORDER: ByteUnit[] = ["Ki", "Mi", "Gi", "Ti"];
+type ByteUnit = "Ki" | "Mi" | "Gi" | "Ti" | "Pi";
+const UNIT_ORDER: ByteUnit[] = ["Ki", "Mi", "Gi", "Ti", "Pi"];
 
 interface FormattedBytes {
   value: string;
@@ -79,10 +79,16 @@ function formatDecimal(n: number): string {
   return fixed.replace(/\.0$/, "");
 }
 
-// Format GiB to most readable binary unit (Ki, Mi, Gi, Ti)
+// Format GiB to most readable binary unit (Ki, Mi, Gi, Ti, Pi)
 export function formatBytes(gib: number): FormattedBytes {
   if (gib === 0) {
     return { value: "0", unit: "Gi", display: "0 Gi", rawGib: 0 };
+  }
+
+  if (gib >= 1024 * 1024) {
+    const pi = gib / (1024 * 1024);
+    const formatted = formatDecimal(pi);
+    return { value: formatted, unit: "Pi", display: `${formatted} Pi`, rawGib: gib };
   }
 
   if (gib >= 1024) {
@@ -109,6 +115,8 @@ export function formatBytes(gib: number): FormattedBytes {
 
 function gibToUnit(gib: number, unit: ByteUnit): number {
   switch (unit) {
+    case "Pi":
+      return gib / (1024 * 1024);
     case "Ti":
       return gib / 1024;
     case "Gi":

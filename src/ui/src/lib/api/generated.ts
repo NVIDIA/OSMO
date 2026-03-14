@@ -2118,6 +2118,8 @@ all_pools?: boolean;
 nodes?: string[];
 started_after?: string;
 started_before?: string;
+ended_after?: string;
+ended_before?: string;
 offset?: number;
 limit?: number;
 order?: ListOrder;

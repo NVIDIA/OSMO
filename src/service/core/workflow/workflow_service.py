@@ -637,6 +637,8 @@ def list_task(workflow_id: str | None = None,
               nodes: List[str] | None = fastapi.Query(default = None),
               started_after: datetime.datetime | None = None,
               started_before: datetime.datetime | None = None,
+              ended_after: datetime.datetime | None = None,
+              ended_before: datetime.datetime | None = None,
               offset: int = 0,
               limit: int = 20,
               order: connectors.ListOrder = fastapi.Query(default=connectors.ListOrder.ASC),
@@ -665,8 +667,8 @@ def list_task(workflow_id: str | None = None,
     if all_pools:
         pools = []
     rows = helpers.get_tasks(workflow_id, statuses, users, pools, nodes,
-                             started_after, started_before, offset, limit, order, summary,
-                             aggregate_by_workflow,
+                             started_after, started_before, ended_after, ended_before,
+                             offset, limit, order, summary, aggregate_by_workflow,
                              priority=priority, return_raw=True)
     if summary:
         return objects.ListTaskSummaryResponse.from_db_rows(rows)
