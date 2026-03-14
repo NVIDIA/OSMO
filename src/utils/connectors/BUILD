@@ -5,6 +5,7 @@ osmo_py_library(
     name = "connectors",
     srcs = glob(["*.py"]),
     deps = [
+        requirement("fastapi"),
         requirement("jwcrypto"),
         requirement("kombu"),
         requirement("kubernetes"),

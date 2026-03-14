@@ -30,7 +30,7 @@ import re
 import threading
 import typing
 from functools import wraps
-from typing import Any, Callable, Dict, Generator, List, Literal, Optional, Tuple, Type
+from typing import Any, Callable, Dict, Generator, List, Literal, Mapping, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 import fastapi
@@ -3758,12 +3758,11 @@ def fetch_editable_pool_config(database: PostgresConnector,
         pools={pool_row['name']: PoolEditable(**pool_row) for pool_row in pool_rows})
 
 
-def fetch_platform_config(name: str,
-                          pool_type: PoolType,
-                          database: PostgresConnector) \
-                          -> Dict[str, Platform] | \
-                             Dict[str, PlatformEditable] | \
-                             Dict[str, PlatformMinimal]:
+def fetch_platform_config(
+    name: str,
+    pool_type: PoolType,
+    database: PostgresConnector,
+) -> Mapping[str, Platform | PlatformEditable | PlatformMinimal]:
 
     platforms = Pool.fetch_from_db(database, name).platforms
     if pool_type == PoolType.VERBOSE:

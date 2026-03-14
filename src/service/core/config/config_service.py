@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import enum
 import re
-from typing import Annotated, Any, Dict, List
+from typing import Annotated, Any, Dict, List, Mapping
 
 import fastapi
 import pydantic
@@ -545,17 +545,21 @@ def delete_pool(
 
 @router.get(
     '/api/configs/pool/{name}/platform',
-    response_model=Dict[str, connectors.Platform] | Dict[str, connectors.PlatformEditable],
+    response_model=dict[
+        str,
+        connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal,
+    ],
 )
 def list_platforms_in_pool(
     name: str,
     verbose: bool = False,
-) -> Dict[str, connectors.Platform] | Dict[str, connectors.PlatformEditable]:
+) -> Mapping[str, connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal]:
     """
     List all Platforms
 
     Return type Any to prevent unwanted artifacts between verbose and editable outputs
-    Should return Dict[str, Platform] or Dict[str, PlatformEditable] objects
+    Should return Mapping[str, connectors.Platform | connectors.PlatformEditable |
+    connectors.PlatformMinimal] objects
     """
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
@@ -564,18 +568,18 @@ def list_platforms_in_pool(
 
 @router.get(
     '/api/configs/pool/{name}/platform/{platform_name}',
-    response_model=connectors.Platform | connectors.PlatformEditable,
+    response_model=connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal,
 )
 def read_platform_in_pool(
     name: str,
     platform_name: str,
     verbose: bool = False,
-) -> connectors.Platform | connectors.PlatformEditable:
+) -> connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal:
     """
     Read Platform
 
     Return type Any to prevent unwanted artifacts between verbose and editable outputs
-    Should return Platform or PlatformEditable objects
+    Should return Platform or PlatformEditable or PlatformMinimal objects
     """
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
@@ -967,7 +971,7 @@ def delete_role(name: str,
     '/api/configs/backend_test',
     response_model=Dict[str, connectors.BackendTests],
 )
-def list_backend_tests() -> Dict[str, connectors.BackendTests]:
+def list_backend_tests() -> Dict[str, Dict]:
     """ List all backend test configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.BackendTests.list_from_db(postgres)
