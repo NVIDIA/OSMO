@@ -179,7 +179,6 @@ def get_version():
 
 @misc_router.get(
     '/api/users',
-    response_class=common.PrettyJSONResponse,
     response_model=List[str],
 )
 def get_users() -> List[str]:
@@ -197,7 +196,6 @@ def get_available_workflow_tags():
 
 @misc_router.get(
     '/api/plugins/configs',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.PluginsConfig,
 )
 def get_workflow_plugins_configs() -> connectors.PluginsConfig:

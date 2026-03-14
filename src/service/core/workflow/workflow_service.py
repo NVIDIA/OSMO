@@ -93,7 +93,6 @@ class BaseResourceUsage:
 
 @router_pool.get(
     '/api/pool',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.MinimalPoolConfig,
 )
 def get_pools(
@@ -293,7 +292,6 @@ def calculate_pool_quotas(
 
 @router_pool.get(
     '/api/pool_quota',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.PoolResponse,
 )
 def get_pool_quotas(all_pools: bool = True,
@@ -579,7 +577,6 @@ def cancel_workflow(name: str,
 
 @router.get(
     '/api/workflow',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.ListResponse,
 )
 def list_workflow(users: List[str] | None = fastapi.Query(default = None),
@@ -633,7 +630,6 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
 
 @router.get(
     '/api/workflow/{name}/task/{task_name}',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.TaskEntry,
 )
 def get_workflow_task(name: str, task_name: str) -> objects.TaskEntry:
@@ -643,9 +639,11 @@ def get_workflow_task(name: str, task_name: str) -> objects.TaskEntry:
     return objects.TaskEntry.from_db_row(task_row)
 
 
-@router.get('/api/task', response_class=common.PrettyJSONResponse,
-            response_model=objects.ListTaskSummaryResponse | objects.ListTaskResponse | \
-                objects.ListTaskAggregatedResponse)
+@router.get(
+    '/api/task',
+    response_model=objects.ListTaskSummaryResponse | objects.ListTaskResponse |
+    objects.ListTaskAggregatedResponse,
+)
 def list_task(workflow_id: str | None = None,
               statuses: List[task.TaskGroupStatus] | None = \
                   fastapi.Query(default = None),
@@ -697,7 +695,6 @@ def list_task(workflow_id: str | None = None,
 
 @router.get(
     '/api/workflow/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.WorkflowQueryResponse,
 )
 def get_workflow(name: str, skip_groups: bool = False, verbose: bool = False
@@ -946,7 +943,6 @@ def tag_workflow(name: str,
 
 @router_resource.get(
     '/api/resources',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.ResourcesResponse | objects.PoolResourcesResponse,
 )
 def get_resources(pools: List[str] | None = fastapi.Query(default = None),
@@ -972,7 +968,6 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
 
 @router_resource.get(
     '/api/resources/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.ResourcesResponse,
 )
 def get_one_resource(name: str) -> objects.ResourcesResponse:
@@ -985,7 +980,6 @@ def get_one_resource(name: str) -> objects.ResourcesResponse:
 
 @router_credentials.get(
     '/api/credentials',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.CredentialGetResponse,
 )
 def get_user_credential(

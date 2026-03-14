@@ -56,7 +56,6 @@ def _check_config_name(name: str, name_type: ConfigNameType):
 
 @router.get(
     '/api/configs/service',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.ServiceConfig,
 )
 def read_service_configs() -> connectors.ServiceConfig:
@@ -86,7 +85,6 @@ def patch_service_configs(
 
 @router.get(
     '/api/configs/workflow',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.WorkflowConfig,
 )
 def read_workflow_configs() -> connectors.WorkflowConfig:
@@ -115,7 +113,6 @@ def patch_workflow_configs(
 
 @router.get(
     '/api/configs/dataset',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.DatasetConfig,
 )
 def read_dataset_configs() -> connectors.DatasetConfig:
@@ -222,7 +219,6 @@ def create_clean_config_api(app: fastapi.FastAPI):
 
 @router.get(
     '/api/configs/backend',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.ListBackendsResponse,
 )
 def list_backends() -> objects.ListBackendsResponse:
@@ -243,7 +239,6 @@ def update_backend(
 
 @router.get(
     '/api/configs/backend/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.Backend,
 )
 def get_backend(name: str) -> connectors.Backend:
@@ -275,7 +270,6 @@ def delete_backend(
 
 @router.get(
     '/api/configs/pool',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.VerbosePoolConfig | connectors.EditablePoolConfig,
 )
 def list_pools(verbose: bool = False, backend: str | None = None) -> \
@@ -392,7 +386,6 @@ def put_pools(
 
 @router.get(
     '/api/configs/pool/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.Pool | connectors.PoolEditable,
 )
 def read_pool(
@@ -552,7 +545,6 @@ def delete_pool(
 
 @router.get(
     '/api/configs/pool/{name}/platform',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, connectors.Platform] | Dict[str, connectors.PlatformEditable],
 )
 def list_platforms_in_pool(
@@ -572,7 +564,6 @@ def list_platforms_in_pool(
 
 @router.get(
     '/api/configs/pool/{name}/platform/{platform_name}',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.Platform | connectors.PlatformEditable,
 )
 def read_platform_in_pool(
@@ -646,7 +637,6 @@ def rename_platform_in_pool(name: str, platform_name: str,
 
 @router.get(
     '/api/configs/pod_template',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, Any],
 )
 def list_pod_templates() -> Dict[str, Any]:
@@ -657,7 +647,6 @@ def list_pod_templates() -> Dict[str, Any]:
 
 @router.get(
     '/api/configs/pod_template/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, Any],
 )
 def read_pod_template(name: str) -> Dict[str, Any]:
@@ -751,7 +740,6 @@ def delete_pod_template(
 
 @router.get(
     '/api/configs/group_template',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, Dict[str, Any]],
 )
 def list_group_templates() -> Dict[str, Dict[str, Any]]:
@@ -762,7 +750,6 @@ def list_group_templates() -> Dict[str, Dict[str, Any]]:
 
 @router.get(
     '/api/configs/group_template/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, Any],
 )
 def read_group_template(name: str) -> Dict[str, Any]:
@@ -829,7 +816,6 @@ def delete_group_template(
 
 @router.get(
     '/api/configs/resource_validation',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, List[connectors.ResourceAssertion]],
 )
 def list_resource_validations() -> Dict[str, List[connectors.ResourceAssertion]]:
@@ -840,7 +826,6 @@ def list_resource_validations() -> Dict[str, List[connectors.ResourceAssertion]]
 
 @router.get(
     '/api/configs/resource_validation/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=List[connectors.ResourceAssertion],
 )
 def read_resource_validation(name: str) -> List[connectors.ResourceAssertion]:
@@ -912,7 +897,6 @@ def delete_resource_validation(
 
 @router.get(
     '/api/configs/role',
-    response_class=common.PrettyJSONResponse,
     response_model=List[connectors.Role],
 )
 def list_roles() -> List[connectors.Role]:
@@ -923,7 +907,6 @@ def list_roles() -> List[connectors.Role]:
 
 @router.get(
     '/api/configs/role/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.Role,
 )
 def read_role(name: str) -> connectors.Role:
@@ -982,7 +965,6 @@ def delete_role(name: str,
 
 @router.get(
     '/api/configs/backend_test',
-    response_class=common.PrettyJSONResponse,
     response_model=Dict[str, connectors.BackendTests],
 )
 def list_backend_tests() -> Dict[str, connectors.BackendTests]:
@@ -1016,7 +998,6 @@ def put_backend_tests(
 
 @router.get(
     '/api/configs/backend_test/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=connectors.BackendTests,
 )
 def read_backend_test(name: str) -> connectors.BackendTests:
@@ -1511,7 +1492,6 @@ def diff_secret_strs(first_data: Any, second_data: Any, second_revision: int) ->
 
 @router.get(
     '/api/configs/diff',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.ConfigDiffResponse,
 )
 def get_config_diff(

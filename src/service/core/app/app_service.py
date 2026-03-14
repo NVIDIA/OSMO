@@ -35,7 +35,6 @@ router = fastapi.APIRouter(tags = ['Workflow App API'])
 
 @router.get(
     '/api/app',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.ListResponse,
 )
 def list_apps(name: str | None = None,
@@ -64,7 +63,6 @@ def list_apps(name: str | None = None,
 
 @router.get(
     '/api/app/user/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.GetAppResponse,
 )
 def get_app(name: objects.AppNamePattern,
@@ -86,7 +84,7 @@ def get_app(name: objects.AppNamePattern,
     )
 
 
-@router.get('/api/app/user/{name}/spec', response_class=common.PrettyJSONResponse)
+@router.get('/api/app/user/{name}/spec')
 def get_app_content(name: objects.AppNamePattern,
                     version: int | None = None):
     postgres = connectors.PostgresConnector.get_instance()
@@ -131,7 +129,6 @@ def create_app(name: objects.AppNamePattern,
 
 @router.patch(
     '/api/app/user/{name}',
-    response_class=common.PrettyJSONResponse,
     response_model=objects.EditResponse,
 )
 def update_app(name: objects.AppNamePattern,

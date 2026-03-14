@@ -33,7 +33,6 @@ import time
 from typing import Annotated, Any, Callable, Coroutine, Dict, Generator, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 import uuid
 
-import fastapi
 import pydantic
 import pytz
 import requests  # type: ignore
@@ -787,17 +786,6 @@ def verify_dict_keys(data: Dict):
                 raise osmo_errors.OSMOUserError('Keys can only consist of lower and upper ' +
                                                 f'case letters, numbers, "-" and "_": {key}')
 
-
-class PrettyJSONResponse(fastapi.Response):
-    media_type = 'application/json'
-
-    def render(self, content: Any) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-            indent=4,
-        ).encode('utf-8')
 
 
 def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
