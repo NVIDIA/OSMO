@@ -462,6 +462,15 @@ export interface DataConfig {
 }
 
 /**
+ * Object storing Download Response. 
+ */
+export interface DataDeleteResponse {
+  versions?: string[];
+  delete_locations?: string[];
+  cleaned_size?: number;
+}
+
+/**
  * Object storing Info Element. 
  */
 export interface DataInfoCollectionEntry {
@@ -696,6 +705,22 @@ export interface EditablePoolConfig {
   pools?: EditablePoolConfigPools;
 }
 
+export interface GetVersionEntry {
+  version: number;
+  created_by: string;
+  created_date: string;
+  status: string;
+}
+
+export interface GetAppResponse {
+  uuid: string;
+  name: string;
+  description: string;
+  created_date: string;
+  owner: string;
+  versions: GetVersionEntry[];
+}
+
 /**
  * Response body for config history endpoint.
  */
@@ -785,6 +810,15 @@ export interface ValidationError {
 
 export interface HTTPValidationError {
   detail?: ValidationError[];
+}
+
+/**
+ * Response for JWT token creation endpoints.
+ */
+export interface JwtTokenResponse {
+  token?: string;
+  expires_at?: number;
+  error?: string;
 }
 
 /**
@@ -1791,6 +1825,16 @@ export interface VerbosePoolConfig {
 }
 
 /**
+ * A class to maintain version information. 
+ */
+export interface Version {
+  major: string;
+  minor?: string;
+  revision?: string;
+  hash?: string;
+}
+
+/**
  * Represents the state of plugins in a workflow upon submission. 
  */
 export interface WorkflowPlugins {
@@ -1942,9 +1986,23 @@ export type ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams = {
 verbose?: boolean;
 };
 
+export type ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 = {[key: string]: Platform | PlatformEditable | PlatformMinimal};
+
 export type ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams = {
 verbose?: boolean;
 };
+
+export type ListPodTemplatesApiConfigsPodTemplateGet200 = { [key: string]: unknown };
+
+export type ReadPodTemplateApiConfigsPodTemplateNameGet200 = { [key: string]: unknown };
+
+export type ListGroupTemplatesApiConfigsGroupTemplateGet200 = {[key: string]: { [key: string]: unknown }};
+
+export type ReadGroupTemplateApiConfigsGroupTemplateNameGet200 = { [key: string]: unknown };
+
+export type ListResourceValidationsApiConfigsResourceValidationGet200 = {[key: string]: ResourceAssertion[]};
+
+export type ListBackendTestsApiConfigsBackendTestGet200 = {[key: string]: BackendTests};
 
 export type GetConfigsHistoryApiConfigsHistoryGetParams = {
 /**
@@ -2244,12 +2302,16 @@ export type SetNotificationSettingsApiProfileSettingsPostParams = {
 set_default_backend?: boolean;
 };
 
+export type HealthHealthGet200 = {[key: string]: string};
+
+export type GetAvailableWorkflowTagsApiTagGet200 = {[key: string]: string[]};
+
 /**
  * Read all the service configurations
  * @summary Read Service Configs
  */
 export type readServiceConfigsApiConfigsServiceGetResponse200 = {
-  data: string
+  data: ServiceConfig
   status: 200
 }
 
@@ -2394,7 +2456,7 @@ export const patchServiceConfigsApiConfigsServicePatch = async (patchConfigReque
  * @summary Read Workflow Configs
  */
 export type readWorkflowConfigsApiConfigsWorkflowGetResponse200 = {
-  data: string
+  data: WorkflowConfig
   status: 200
 }
 
@@ -2539,7 +2601,7 @@ export const patchWorkflowConfigsApiConfigsWorkflowPatch = async (patchConfigReq
  * @summary Read Dataset Configs
  */
 export type readDatasetConfigsApiConfigsDatasetGetResponse200 = {
-  data: string
+  data: DatasetConfig
   status: 200
 }
 
@@ -2788,7 +2850,7 @@ export const patchDatasetApiConfigsDatasetNamePatch = async (name: string,
  * @summary List Backends
  */
 export type listBackendsApiConfigsBackendGetResponse200 = {
-  data: string
+  data: ListBackendsResponse
   status: 200
 }
 
@@ -2831,7 +2893,7 @@ export const listBackendsApiConfigsBackendGet = async ( options?: RequestInit): 
  * @summary Get Backend
  */
 export type getBackendApiConfigsBackendNameGetResponse200 = {
-  data: string
+  data: Backend
   status: 200
 }
 
@@ -2985,7 +3047,7 @@ export const deleteBackendApiConfigsBackendNameDelete = async (name: string,
  * @summary List Pools
  */
 export type listPoolsApiConfigsPoolGetResponse200 = {
-  data: string
+  data: VerbosePoolConfig | EditablePoolConfig
   status: 200
 }
 
@@ -3096,7 +3158,7 @@ Should return Pool or PoolEditable objects
  * @summary Read Pool
  */
 export type readPoolApiConfigsPoolNameGetResponse200 = {
-  data: string
+  data: Pool | PoolEditable
   status: 200
 }
 
@@ -3362,11 +3424,12 @@ export const renamePoolApiConfigsPoolNameRenamePut = async (name: string,
  * List all Platforms
 
 Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Dict[str, Platform] or Dict[str, PlatformEditable] objects
+Should return Mapping[str, connectors.Platform | connectors.PlatformEditable |
+connectors.PlatformMinimal] objects
  * @summary List Platforms In Pool
  */
 export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse200 = {
-  data: string
+  data: ListPlatformsInPoolApiConfigsPoolNamePlatformGet200
   status: 200
 }
 
@@ -3424,11 +3487,11 @@ export const listPlatformsInPoolApiConfigsPoolNamePlatformGet = async (name: str
  * Read Platform
 
 Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Platform or PlatformEditable objects
+Should return Platform or PlatformEditable or PlatformMinimal objects
  * @summary Read Platform In Pool
  */
 export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse200 = {
-  data: string
+  data: Platform | PlatformEditable | PlatformMinimal
   status: 200
 }
 
@@ -3597,7 +3660,7 @@ export const renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePut
  * @summary List Pod Templates
  */
 export type listPodTemplatesApiConfigsPodTemplateGetResponse200 = {
-  data: string
+  data: ListPodTemplatesApiConfigsPodTemplateGet200
   status: 200
 }
 
@@ -3691,7 +3754,7 @@ export const putPodTemplatesApiConfigsPodTemplatePut = async (putPodTemplatesReq
  * @summary Read Pod Template
  */
 export type readPodTemplateApiConfigsPodTemplateNameGetResponse200 = {
-  data: string
+  data: ReadPodTemplateApiConfigsPodTemplateNameGet200
   status: 200
 }
 
@@ -3845,7 +3908,7 @@ export const deletePodTemplateApiConfigsPodTemplateNameDelete = async (name: str
  * @summary List Group Templates
  */
 export type listGroupTemplatesApiConfigsGroupTemplateGetResponse200 = {
-  data: string
+  data: ListGroupTemplatesApiConfigsGroupTemplateGet200
   status: 200
 }
 
@@ -3939,7 +4002,7 @@ export const putGroupTemplatesApiConfigsGroupTemplatePut = async (putGroupTempla
  * @summary Read Group Template
  */
 export type readGroupTemplateApiConfigsGroupTemplateNameGetResponse200 = {
-  data: string
+  data: ReadGroupTemplateApiConfigsGroupTemplateNameGet200
   status: 200
 }
 
@@ -4093,7 +4156,7 @@ export const deleteGroupTemplateApiConfigsGroupTemplateNameDelete = async (name:
  * @summary List Resource Validations
  */
 export type listResourceValidationsApiConfigsResourceValidationGetResponse200 = {
-  data: string
+  data: ListResourceValidationsApiConfigsResourceValidationGet200
   status: 200
 }
 
@@ -4187,7 +4250,7 @@ export const putResourceValidationsApiConfigsResourceValidationPut = async (putR
  * @summary Read Resource Validation
  */
 export type readResourceValidationApiConfigsResourceValidationNameGetResponse200 = {
-  data: string
+  data: ResourceAssertion[]
   status: 200
 }
 
@@ -4341,7 +4404,7 @@ export const deleteResourceValidationApiConfigsResourceValidationNameDelete = as
  * @summary List Roles
  */
 export type listRolesApiConfigsRoleGetResponse200 = {
-  data: string
+  data: Role[]
   status: 200
 }
 
@@ -4435,7 +4498,7 @@ export const putRolesApiConfigsRolePut = async (putRolesRequest: PutRolesRequest
  * @summary Read Role
  */
 export type readRoleApiConfigsRoleNameGetResponse200 = {
-  data: string
+  data: Role
   status: 200
 }
 
@@ -4589,7 +4652,7 @@ export const deleteRoleApiConfigsRoleNameDelete = async (name: string,
  * @summary List Backend Tests
  */
 export type listBackendTestsApiConfigsBackendTestGetResponse200 = {
-  data: string
+  data: ListBackendTestsApiConfigsBackendTestGet200
   status: 200
 }
 
@@ -4683,7 +4746,7 @@ export const putBackendTestsApiConfigsBackendTestPut = async (putBackendTestsReq
  * @summary Read Backend Test
  */
 export type readBackendTestApiConfigsBackendTestNameGetResponse200 = {
-  data: string
+  data: BackendTests
   status: 200
 }
 
@@ -5139,7 +5202,7 @@ Raises:
  * @summary Get Config Diff
  */
 export type getConfigDiffApiConfigsDiffGetResponse200 = {
-  data: string
+  data: ConfigDiffResponse
   status: 200
 }
 
@@ -5198,7 +5261,7 @@ Deprecated: Use POST /api/auth/jwt/refresh_token instead.
  * @summary Get New Jwt Token
  */
 export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponse200 = {
-  data: unknown
+  data: JwtTokenResponse
   status: 200
 }
 
@@ -5255,7 +5318,7 @@ export const getNewJwtTokenApiAuthJwtRefreshTokenGet = async (params: GetNewJwtT
  * @summary Post New Jwt Token
  */
 export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse200 = {
-  data: unknown
+  data: JwtTokenResponse
   status: 200
 }
 
@@ -5316,7 +5379,7 @@ Deprecated: Use POST /api/auth/jwt/access_token instead.
  * @summary Get Jwt Token From Access Token
  */
 export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse200 = {
-  data: unknown
+  data: JwtTokenResponse
   status: 200
 }
 
@@ -5373,7 +5436,7 @@ export const getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet = async (params:
  * @summary Post Jwt Token From Access Token
  */
 export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse200 = {
-  data: unknown
+  data: JwtTokenResponse
   status: 200
 }
 
@@ -5429,7 +5492,7 @@ current roles from the user_roles table.
  * @summary Create Access Token
  */
 export type createAccessTokenApiAuthAccessTokenTokenNamePostResponse200 = {
-  data: unknown
+  data: string
   status: 200
 }
 
@@ -5672,7 +5735,7 @@ Returns:
  * @summary Admin Create Access Token
  */
 export type adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse200 = {
-  data: unknown
+  data: string
   status: 200
 }
 
@@ -6385,7 +6448,7 @@ export const bulkAssignRoleApiAuthRolesRoleNameUsersPost = async (roleName: stri
  * @summary List Apps
  */
 export type listAppsApiAppGetResponse200 = {
-  data: string
+  data: SrcServiceCoreAppObjectsListResponse
   status: 200
 }
 
@@ -6449,7 +6512,7 @@ export const listAppsApiAppGet = async (params?: ListAppsApiAppGetParams, option
  * @summary Get App
  */
 export type getAppApiAppUserNameGetResponse200 = {
-  data: string
+  data: GetAppResponse
   status: 200
 }
 
@@ -6676,7 +6739,7 @@ export const updateAppApiAppUserNamePatch = async (name: string,
  * @summary Get App Content
  */
 export type getAppContentApiAppUserNameSpecGetResponse200 = {
-  data: string
+  data: unknown
   status: 200
 }
 
@@ -6844,7 +6907,7 @@ export const cancelWorkflowApiWorkflowNameCancelPost = async (name: string,
  * @summary List Workflow
  */
 export type listWorkflowApiWorkflowGetResponse200 = {
-  data: string
+  data: SrcServiceCoreWorkflowObjectsListResponse
   status: 200
 }
 
@@ -6909,7 +6972,7 @@ export const listWorkflowApiWorkflowGet = async (params?: ListWorkflowApiWorkflo
  * @summary Get Workflow Task
  */
 export type getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse200 = {
-  data: string
+  data: TaskEntry
   status: 200
 }
 
@@ -6960,7 +7023,7 @@ export const getWorkflowTaskApiWorkflowNameTaskTaskNameGet = async (name: string
  * @summary List Task
  */
 export type listTaskApiTaskGetResponse200 = {
-  data: string
+  data: ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse
   status: 200
 }
 
@@ -7025,7 +7088,7 @@ export const listTaskApiTaskGet = async (params?: ListTaskApiTaskGetParams, opti
  * @summary Get Workflow
  */
 export type getWorkflowApiWorkflowNameGetResponse200 = {
-  data: string
+  data: WorkflowQueryResponse
   status: 200
 }
 
@@ -7691,7 +7754,7 @@ export const rsyncTaskApiWorkflowNameRsyncTaskTaskNamePost = async (name: string
  * @summary Get User Credential
  */
 export type getUserCredentialApiCredentialsGetResponse200 = {
-  data: string
+  data: CredentialGetResponse
   status: 200
 }
 
@@ -7843,7 +7906,7 @@ export const deleteUsersCredentialApiCredentialsCredNameDelete = async (credName
  * @summary Get Resources
  */
 export type getResourcesApiResourcesGetResponse200 = {
-  data: string
+  data: ResourcesResponse | PoolResourcesResponse
   status: 200
 }
 
@@ -7908,7 +7971,7 @@ export const getResourcesApiResourcesGet = async (params?: GetResourcesApiResour
  * @summary Get One Resource
  */
 export type getOneResourceApiResourcesNameGetResponse200 = {
-  data: string
+  data: ResourcesResponse
   status: 200
 }
 
@@ -7962,7 +8025,7 @@ in the response.
  * @summary Get Pools
  */
 export type getPoolsApiPoolGetResponse200 = {
-  data: string
+  data: MinimalPoolConfig
   status: 200
 }
 
@@ -8026,7 +8089,7 @@ export const getPoolsApiPoolGet = async (params?: GetPoolsApiPoolGetParams, opti
  * @summary Get Pool Quotas
  */
 export type getPoolQuotasApiPoolQuotaGetResponse200 = {
-  data: string
+  data: PoolResponse
   status: 200
 }
 
@@ -8269,7 +8332,7 @@ export const getBucketInfoApiBucketGet = async (params?: GetBucketInfoApiBucketG
  * @summary Delete Dataset
  */
 export type deleteDatasetApiBucketBucketDatasetNameDeleteResponse200 = {
-  data: unknown
+  data: DataDeleteResponse
   status: 200
 }
 
@@ -8791,7 +8854,7 @@ slow, no new traffic gets routed, instead of killing the service.
  * @summary Health
  */
 export type healthHealthGetResponse200 = {
-  data: unknown
+  data: HealthHealthGet200
   status: 200
 }
 
@@ -8833,7 +8896,7 @@ export const healthHealthGet = async ( options?: RequestInit): Promise<healthHea
  * @summary Get Version
  */
 export type getVersionApiVersionGetResponse200 = {
-  data: unknown
+  data: Version
   status: 200
 }
 
@@ -8876,7 +8939,7 @@ export const getVersionApiVersionGet = async ( options?: RequestInit): Promise<g
  * @summary Get Users
  */
 export type getUsersApiUsersGetResponse200 = {
-  data: string
+  data: string[]
   status: 200
 }
 
@@ -8919,7 +8982,7 @@ export const getUsersApiUsersGet = async ( options?: RequestInit): Promise<getUs
  * @summary Get Available Workflow Tags
  */
 export type getAvailableWorkflowTagsApiTagGetResponse200 = {
-  data: unknown
+  data: GetAvailableWorkflowTagsApiTagGet200
   status: 200
 }
 
@@ -8962,7 +9025,7 @@ export const getAvailableWorkflowTagsApiTagGet = async ( options?: RequestInit):
  * @summary Get Workflow Plugins Configs
  */
 export type getWorkflowPluginsConfigsApiPluginsConfigsGetResponse200 = {
-  data: string
+  data: PluginsConfig
   status: 200
 }
 
@@ -8999,19 +9062,25 @@ export const getWorkflowPluginsConfigsApiPluginsConfigsGet = async ( options?: R
 }
 
 
-export const getReadServiceConfigsApiConfigsServiceGetResponseMock = (): string => (faker.word.sample())
+export const getReadServiceConfigsApiConfigsServiceGetResponseMock = (overrideResponse: Partial<Extract<ServiceConfig, object>> = {}): ServiceConfig => ({service_base_url: faker.string.alpha({length: {min: 10, max: 20}}), service_auth: faker.helpers.arrayElement([{keys: {
+        [faker.string.alphanumeric(5)]: {public_key: faker.string.alpha({length: {min: 10, max: 20}}), private_key: faker.internet.password()}
+      }, active_key: faker.string.alpha({length: {min: 10, max: 20}}), issuer: faker.string.alpha({length: {min: 10, max: 20}}), audience: faker.string.alpha({length: {min: 10, max: 20}}), user_roles: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), ctrl_roles: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), login_info: {...{device_endpoint: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), device_client_id: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), browser_endpoint: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), browser_client_id: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), token_endpoint: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), logout_endpoint: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])},}, max_token_duration: faker.string.alpha({length: {min: 10, max: 20}})}, undefined]), cli_config: {...{latest_version: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), min_supported_version: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), client_install_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])},}, max_pod_restart_limit: faker.string.alpha({length: {min: 10, max: 20}}), agent_queue_size: faker.number.int(), ...overrideResponse})
 
 export const getPutServiceConfigsApiConfigsServicePutResponseMock = (): PutServiceConfigsApiConfigsServicePut200 => ({})
 
 export const getPatchServiceConfigsApiConfigsServicePatchResponseMock = (): PatchServiceConfigsApiConfigsServicePatch200 => ({})
 
-export const getReadWorkflowConfigsApiConfigsWorkflowGetResponseMock = (): string => (faker.word.sample())
+export const getReadWorkflowConfigsApiConfigsWorkflowGetResponseMock = (overrideResponse: Partial<Extract<WorkflowConfig, object>> = {}): WorkflowConfig => ({workflow_data: {...{credential: faker.helpers.arrayElement([{endpoint: faker.string.alpha({length: {min: 10, max: 20}}), region: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), override_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), access_key_id: faker.string.alpha({length: {min: 10, max: 20}}), access_key: faker.internet.password()}, undefined]), base_url: faker.string.alpha({length: {min: 10, max: 20}}), websocket_timeout: faker.number.int(), data_timeout: faker.number.int(), download_type: faker.helpers.arrayElement(Object.values(DownloadType))},}, workflow_log: {...{credential: faker.helpers.arrayElement([{endpoint: faker.string.alpha({length: {min: 10, max: 20}}), region: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), override_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), access_key_id: faker.string.alpha({length: {min: 10, max: 20}}), access_key: faker.internet.password()}, undefined])},}, workflow_app: {...{credential: faker.helpers.arrayElement([{endpoint: faker.string.alpha({length: {min: 10, max: 20}}), region: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), override_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), access_key_id: faker.string.alpha({length: {min: 10, max: 20}}), access_key: faker.internet.password()}, undefined])},}, workflow_info: {...{tags: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), max_name_length: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)()},}, backend_images: {...{init: faker.string.alpha({length: {min: 10, max: 20}}), client: faker.string.alpha({length: {min: 10, max: 20}}), credential: {...{registry: faker.string.alpha({length: {min: 10, max: 20}}), username: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), auth: faker.internet.password()},}},}, workflow_alerts: {...{slack_token: faker.internet.password(), smtp_settings: {...{host: faker.string.alpha({length: {min: 10, max: 20}}), sender: faker.string.alpha({length: {min: 10, max: 20}}), password: faker.internet.password()},}},}, credential_config: {...{disable_registry_validation: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), disable_data_validation: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},}, user_workflow_limits: {...{max_num_workflows: faker.helpers.arrayElement([faker.number.int({min: 0}), undefined]), max_num_tasks: faker.helpers.arrayElement([faker.number.int({min: 0}), undefined]), jinja_sandbox_workers: faker.number.int(), jinja_sandbox_max_time: faker.number.float({fractionDigits: 2}), jinja_sandbox_memory_limit: faker.number.int()},}, plugins_config: {...{rsync: {...{enabled: faker.datatype.boolean(), enable_telemetry: faker.datatype.boolean(), read_bandwidth_limit: faker.number.int({min: 0}), write_bandwidth_limit: faker.number.int({min: 0}), allowed_paths: {
+        [faker.string.alphanumeric(5)]: {path: faker.string.alpha({length: {min: 10, max: 20}}), writable: faker.datatype.boolean()}
+      }, daemon_debounce_delay: faker.number.float({min: 0, fractionDigits: 2}), daemon_poll_interval: faker.number.float({min: 0, fractionDigits: 2}), daemon_reconcile_interval: faker.number.float({min: 0, fractionDigits: 2}), client_upload_rate_limit: faker.number.int({min: 0})},}},}, max_num_tasks: faker.number.int(), max_num_ports_per_task: faker.number.int(), max_retry_per_task: faker.number.int(), max_retry_per_job: faker.number.int(), default_schedule_timeout: faker.number.int(), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), force_cleanup_delay: faker.string.alpha({length: {min: 10, max: 20}}), max_log_lines: faker.number.int(), max_task_log_lines: faker.number.int(), max_error_log_lines: faker.number.int(), max_event_log_lines: faker.number.int(), task_heartbeat_frequency: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
 
 export const getPutWorkflowConfigsApiConfigsWorkflowPutResponseMock = (): PutWorkflowConfigsApiConfigsWorkflowPut200 => ({})
 
 export const getPatchWorkflowConfigsApiConfigsWorkflowPatchResponseMock = (): PatchWorkflowConfigsApiConfigsWorkflowPatch200 => ({})
 
-export const getReadDatasetConfigsApiConfigsDatasetGetResponseMock = (): string => (faker.word.sample())
+export const getReadDatasetConfigsApiConfigsDatasetGetResponseMock = (overrideResponse: Partial<Extract<DatasetConfig, object>> = {}): DatasetConfig => ({buckets: {
+        [faker.string.alphanumeric(5)]: {dataset_path: faker.helpers.fromRegExp('(^swift://[^/,;*]+(/[^/,;*]+){2,}/*$|^s3://[^/,;*]+(/[^/,;*]+)*/*$|^gs://[^/,;*]+(/[^/,;*]+)*/*$|^tos://[^/,;*]+(/[^/,;*]+)+/*$|^azure://[^/,;*]+(/[^/,;*]+)+/*$)'), region: faker.string.alpha({length: {min: 10, max: 20}}), description: 'A test resource', mode: faker.string.alpha({length: {min: 10, max: 20}}), default_credential: faker.helpers.arrayElement([{endpoint: faker.string.alpha({length: {min: 10, max: 20}}), region: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), override_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), access_key_id: faker.string.alpha({length: {min: 10, max: 20}}), access_key: faker.internet.password()}, undefined])}
+      }, default_bucket: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
 
 export const getPutDatasetConfigsApiConfigsDatasetPutResponseMock = (): PutDatasetConfigsApiConfigsDatasetPut200 => ({})
 
@@ -9019,45 +9088,97 @@ export const getPatchDatasetConfigsApiConfigsDatasetPatchResponseMock = (): Patc
 
 export const getPatchDatasetApiConfigsDatasetNamePatchResponseMock = (): PatchDatasetApiConfigsDatasetNamePatch200 => ({})
 
-export const getListBackendsApiConfigsBackendGetResponseMock = (): string => (faker.word.sample())
+export const getListBackendsApiConfigsBackendGetResponseMock = (overrideResponse: Partial<Extract<ListBackendsResponse, object>> = {}): ListBackendsResponse => ({backends: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', version: faker.string.alpha({length: {min: 10, max: 20}}), k8s_uid: faker.string.alpha({length: {min: 10, max: 20}}), k8s_namespace: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), dashboard_url: faker.string.alpha({length: {min: 10, max: 20}}), grafana_url: faker.string.alpha({length: {min: 10, max: 20}}), tests: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), scheduler_settings: {scheduler_type: {...faker.helpers.arrayElement(Object.values(BackendSchedulerType)),}, scheduler_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), scheduler_timeout: faker.number.int()}, node_conditions: {rules: faker.helpers.arrayElement([{
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, undefined]), prefix: faker.string.alpha({length: {min: 10, max: 20}})}, last_heartbeat: faker.date.past().toISOString().slice(0, 19) + 'Z', created_date: faker.date.past().toISOString().slice(0, 19) + 'Z', router_address: faker.string.alpha({length: {min: 10, max: 20}}), online: faker.datatype.boolean()})), ...overrideResponse})
 
-export const getGetBackendApiConfigsBackendNameGetResponseMock = (): string => (faker.word.sample())
+export const getGetBackendApiConfigsBackendNameGetResponseMock = (overrideResponse: Partial<Extract<Backend, object>> = {}): Backend => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', version: faker.string.alpha({length: {min: 10, max: 20}}), k8s_uid: faker.string.alpha({length: {min: 10, max: 20}}), k8s_namespace: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), dashboard_url: faker.string.alpha({length: {min: 10, max: 20}}), grafana_url: faker.string.alpha({length: {min: 10, max: 20}}), tests: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), scheduler_settings: {scheduler_type: {...faker.helpers.arrayElement(Object.values(BackendSchedulerType)),}, scheduler_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), scheduler_timeout: faker.number.int()}, node_conditions: {rules: faker.helpers.arrayElement([{
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, undefined]), prefix: faker.string.alpha({length: {min: 10, max: 20}})}, last_heartbeat: faker.date.past().toISOString().slice(0, 19) + 'Z', created_date: faker.date.past().toISOString().slice(0, 19) + 'Z', router_address: faker.string.alpha({length: {min: 10, max: 20}}), online: faker.datatype.boolean(), ...overrideResponse})
 
-export const getListPoolsApiConfigsPoolGetResponseMock = (): string => (faker.word.sample())
+export const getListPoolsApiConfigsPoolGetResponseMock = (): VerbosePoolConfig | EditablePoolConfig => (faker.helpers.arrayElement([{pools: {
+        [faker.string.alphanumeric(5)]: {name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', status: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(PoolStatus)), undefined]), download_type: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(DownloadType)), undefined]), enable_maintenance: faker.datatype.boolean(), backend: faker.string.alpha({length: {min: 10, max: 20}}), default_platform: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_exit_actions: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, resources: {...{gpu: faker.helpers.arrayElement([{guarantee: faker.number.int(), maximum: faker.number.int(), weight: faker.number.int()}, undefined])},}, topology_keys: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), label: faker.string.alpha({length: {min: 10, max: 20}})})), common_default_variables: {}, common_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), common_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}, common_group_templates: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_group_templates: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({})), platforms: {
+        [faker.string.alphanumeric(5)]: {description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}}
+      }, last_heartbeat: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined])}
+      }},{pools: {
+        [faker.string.alphanumeric(5)]: {name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', status: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(PoolStatus)), undefined]), download_type: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(DownloadType)), undefined]), enable_maintenance: faker.datatype.boolean(), backend: faker.string.alpha({length: {min: 10, max: 20}}), default_platform: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_exit_actions: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, resources: {...{gpu: faker.helpers.arrayElement([{guarantee: faker.number.int(), maximum: faker.number.int(), weight: faker.number.int()}, undefined])},}, topology_keys: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), label: faker.string.alpha({length: {min: 10, max: 20}})})), common_default_variables: {}, common_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), common_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), common_group_templates: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), platforms: {
+        [faker.string.alphanumeric(5)]: {description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))}
+      }}
+      }},]))
 
-export const getReadPoolApiConfigsPoolNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadPoolApiConfigsPoolNameGetResponseMock = (): Pool | PoolEditable => (faker.helpers.arrayElement([{name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', status: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(PoolStatus)), undefined]), download_type: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(DownloadType)), undefined]), enable_maintenance: faker.datatype.boolean(), backend: faker.string.alpha({length: {min: 10, max: 20}}), default_platform: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_exit_actions: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, resources: {...{gpu: faker.helpers.arrayElement([{guarantee: faker.number.int(), maximum: faker.number.int(), weight: faker.number.int()}, undefined])},}, topology_keys: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), label: faker.string.alpha({length: {min: 10, max: 20}})})), common_default_variables: {}, common_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), common_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}, common_group_templates: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_group_templates: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({})), platforms: {
+        [faker.string.alphanumeric(5)]: {description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}}
+      }, last_heartbeat: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined])},{name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', status: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(PoolStatus)), undefined]), download_type: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(DownloadType)), undefined]), enable_maintenance: faker.datatype.boolean(), backend: faker.string.alpha({length: {min: 10, max: 20}}), default_platform: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_exit_actions: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, resources: {...{gpu: faker.helpers.arrayElement([{guarantee: faker.number.int(), maximum: faker.number.int(), weight: faker.number.int()}, undefined])},}, topology_keys: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), label: faker.string.alpha({length: {min: 10, max: 20}})})), common_default_variables: {}, common_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), common_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), common_group_templates: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), platforms: {
+        [faker.string.alphanumeric(5)]: {description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))}
+      }},]))
 
-export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetResponseMock = (): string => (faker.word.sample())
+export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetResponseMock = (): ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 => ({
+        [faker.string.alphanumeric(5)]: faker.helpers.arrayElement([{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},])
+      })
 
-export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseMock = (): Platform | PlatformEditable | PlatformMinimal => (faker.helpers.arrayElement([{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},]))
 
-export const getListPodTemplatesApiConfigsPodTemplateGetResponseMock = (): string => (faker.word.sample())
+export const getListPodTemplatesApiConfigsPodTemplateGetResponseMock = (): ListPodTemplatesApiConfigsPodTemplateGet200 => ({})
 
-export const getReadPodTemplateApiConfigsPodTemplateNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadPodTemplateApiConfigsPodTemplateNameGetResponseMock = (): ReadPodTemplateApiConfigsPodTemplateNameGet200 => ({})
 
-export const getListGroupTemplatesApiConfigsGroupTemplateGetResponseMock = (): string => (faker.word.sample())
+export const getListGroupTemplatesApiConfigsGroupTemplateGetResponseMock = (): ListGroupTemplatesApiConfigsGroupTemplateGet200 => ({
+        [faker.string.alphanumeric(5)]: {}
+      })
 
-export const getReadGroupTemplateApiConfigsGroupTemplateNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadGroupTemplateApiConfigsGroupTemplateNameGetResponseMock = (): ReadGroupTemplateApiConfigsGroupTemplateNameGet200 => ({})
 
-export const getListResourceValidationsApiConfigsResourceValidationGetResponseMock = (): string => (faker.word.sample())
+export const getListResourceValidationsApiConfigsResourceValidationGetResponseMock = (): ListResourceValidationsApiConfigsResourceValidationGet200 => ({
+        [faker.string.alphanumeric(5)]: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})}))
+      })
 
-export const getReadResourceValidationApiConfigsResourceValidationNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadResourceValidationApiConfigsResourceValidationNameGetResponseMock = (): ResourceAssertion[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})))
 
-export const getListRolesApiConfigsRoleGetResponseMock = (): string => (faker.word.sample())
+export const getListRolesApiConfigsRoleGetResponseMock = (): Role[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', policies: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({effect: faker.helpers.arrayElement(Object.values(PolicyEffect)), actions: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), resources: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined])})), immutable: faker.datatype.boolean(), sync_mode: faker.helpers.arrayElement(Object.values(SyncMode)), external_roles: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined])})))
 
-export const getReadRoleApiConfigsRoleNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadRoleApiConfigsRoleNameGetResponseMock = (overrideResponse: Partial<Extract<Role, object>> = {}): Role => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', policies: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({effect: faker.helpers.arrayElement(Object.values(PolicyEffect)), actions: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), resources: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined])})), immutable: faker.datatype.boolean(), sync_mode: faker.helpers.arrayElement(Object.values(SyncMode)), external_roles: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined]), ...overrideResponse})
 
-export const getListBackendTestsApiConfigsBackendTestGetResponseMock = (): string => (faker.word.sample())
+export const getListBackendTestsApiConfigsBackendTestGetResponseMock = (): ListBackendTestsApiConfigsBackendTestGet200 => ({
+        [faker.string.alphanumeric(5)]: {name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', cron_schedule: faker.string.alpha({length: {min: 1, max: 20}}), test_timeout: faker.string.alpha({length: {min: 10, max: 20}}), node_conditions: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), common_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}}
+      })
 
-export const getReadBackendTestApiConfigsBackendTestNameGetResponseMock = (): string => (faker.word.sample())
+export const getReadBackendTestApiConfigsBackendTestNameGetResponseMock = (overrideResponse: Partial<Extract<BackendTests, object>> = {}): BackendTests => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', cron_schedule: faker.string.alpha({length: {min: 1, max: 20}}), test_timeout: faker.string.alpha({length: {min: 10, max: 20}}), node_conditions: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), common_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}, ...overrideResponse})
 
 export const getGetConfigsHistoryApiConfigsHistoryGetResponseMock = (overrideResponse: Partial<Extract<GetConfigsHistoryResponse, object>> = {}): GetConfigsHistoryResponse => ({configs: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({config_type: faker.helpers.arrayElement(Object.values(SrcLibUtilsConfigHistoryConfigHistoryType)), name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), revision: faker.number.int(), username: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), created_at: faker.date.past().toISOString().slice(0, 19) + 'Z', description: 'A test resource', tags: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined]), data: faker.helpers.arrayElement([{}, undefined])})), ...overrideResponse})
 
-export const getGetConfigDiffApiConfigsDiffGetResponseMock = (): string => (faker.word.sample())
+export const getGetConfigDiffApiConfigsDiffGetResponseMock = (overrideResponse: Partial<Extract<ConfigDiffResponse, object>> = {}): ConfigDiffResponse => ({first_data: faker.helpers.arrayElement([{}, undefined]), second_data: faker.helpers.arrayElement([{}, undefined]), ...overrideResponse})
+
+export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetResponseMock = (overrideResponse: Partial<Extract<JwtTokenResponse, object>> = {}): JwtTokenResponse => ({token: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), expires_at: faker.helpers.arrayElement([faker.number.int(), undefined]), error: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), ...overrideResponse})
+
+export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostResponseMock = (overrideResponse: Partial<Extract<JwtTokenResponse, object>> = {}): JwtTokenResponse => ({token: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), expires_at: faker.helpers.arrayElement([faker.number.int(), undefined]), error: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), ...overrideResponse})
+
+export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponseMock = (overrideResponse: Partial<Extract<JwtTokenResponse, object>> = {}): JwtTokenResponse => ({token: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), expires_at: faker.helpers.arrayElement([faker.number.int(), undefined]), error: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), ...overrideResponse})
+
+export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseMock = (overrideResponse: Partial<Extract<JwtTokenResponse, object>> = {}): JwtTokenResponse => ({token: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), expires_at: faker.helpers.arrayElement([faker.number.int(), undefined]), error: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), ...overrideResponse})
+
+export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostResponseMock = (): string => (faker.word.sample())
 
 export const getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponseMock = (overrideResponse: Partial<Extract<AccessTokenRolesResponse, object>> = {}): AccessTokenRolesResponse => ({user_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), token_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), roles: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({role_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), assigned_by: faker.string.alpha({length: {min: 10, max: 20}}), assigned_at: faker.date.past().toISOString().slice(0, 19) + 'Z'})), ...overrideResponse})
 
 export const getListAccessTokensApiAuthAccessTokenGetResponseMock = (): AccessTokenWithRoles[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({user_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), token_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), expires_at: faker.date.past().toISOString().slice(0, 19) + 'Z', description: 'A test resource', roles: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))})))
+
+export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponseMock = (): string => (faker.word.sample())
 
 export const getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetResponseMock = (): AccessTokenWithRoles[] => (Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({user_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), token_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), expires_at: faker.date.past().toISOString().slice(0, 19) + 'Z', description: 'A test resource', roles: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))})))
 
@@ -9075,9 +9196,9 @@ export const getListUsersWithRoleApiAuthRolesRoleNameUsersGetResponseMock = (ove
 
 export const getBulkAssignRoleApiAuthRolesRoleNameUsersPostResponseMock = (overrideResponse: Partial<Extract<BulkAssignResponse, object>> = {}): BulkAssignResponse => ({role_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), assigned: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), already_assigned: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), failed: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), ...overrideResponse})
 
-export const getListAppsApiAppGetResponseMock = (): string => (faker.word.sample())
+export const getListAppsApiAppGetResponseMock = (overrideResponse: Partial<Extract<SrcServiceCoreAppObjectsListResponse, object>> = {}): SrcServiceCoreAppObjectsListResponse => ({apps: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({uuid: faker.string.alpha({length: {min: 10, max: 20}}), name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', created_date: faker.date.past().toISOString().slice(0, 19) + 'Z', owner: faker.string.alpha({length: {min: 10, max: 20}}), latest_version: faker.string.alpha({length: {min: 10, max: 20}})})), more_entries: faker.datatype.boolean(), ...overrideResponse})
 
-export const getGetAppApiAppUserNameGetResponseMock = (): string => (faker.word.sample())
+export const getGetAppApiAppUserNameGetResponseMock = (overrideResponse: Partial<Extract<GetAppResponse, object>> = {}): GetAppResponse => ({uuid: faker.string.alpha({length: {min: 10, max: 20}}), name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', created_date: faker.date.past().toISOString().slice(0, 19) + 'Z', owner: faker.string.alpha({length: {min: 10, max: 20}}), versions: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({version: faker.number.int(), created_by: faker.string.alpha({length: {min: 10, max: 20}}), created_date: faker.date.past().toISOString().slice(0, 19) + 'Z', status: faker.string.alpha({length: {min: 10, max: 20}})})), ...overrideResponse})
 
 export const getDeleteAppApiAppUserNameDeleteResponseMock = (): DeleteAppApiAppUserNameDelete200 => ({
         [faker.string.alphanumeric(5)]: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.number.int()))
@@ -9085,19 +9206,17 @@ export const getDeleteAppApiAppUserNameDeleteResponseMock = (): DeleteAppApiAppU
 
 export const getUpdateAppApiAppUserNamePatchResponseMock = (overrideResponse: Partial<Extract<EditResponse, object>> = {}): EditResponse => ({uuid: faker.string.alpha({length: {min: 10, max: 20}}), version: faker.number.int(), name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), created_by: faker.string.alpha({length: {min: 10, max: 20}}), created_date: faker.date.past().toISOString().slice(0, 19) + 'Z', ...overrideResponse})
 
-export const getGetAppContentApiAppUserNameSpecGetResponseMock = (): string => (faker.word.sample())
-
 export const getRenameAppApiAppUserNameRenamePostResponseMock = (): string => (faker.word.sample())
 
 export const getCancelWorkflowApiWorkflowNameCancelPostResponseMock = (overrideResponse: Partial<Extract<CancelResponse, object>> = {}): CancelResponse => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), ...overrideResponse})
 
-export const getListWorkflowApiWorkflowGetResponseMock = (): string => (faker.word.sample())
+export const getListWorkflowApiWorkflowGetResponseMock = (overrideResponse: Partial<Extract<SrcServiceCoreWorkflowObjectsListResponse, object>> = {}): SrcServiceCoreWorkflowObjectsListResponse => ({workflows: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({user: faker.string.alpha({length: {min: 10, max: 20}}), name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), workflow_uuid: faker.string.alpha({length: {min: 10, max: 20}}), submit_time: faker.date.past().toISOString().slice(0, 19) + 'Z', start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), queued_time: faker.number.float({fractionDigits: 2}), duration: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), undefined]), status: faker.helpers.arrayElement(Object.values(WorkflowStatus)), overview: faker.string.alpha({length: {min: 10, max: 20}}), logs: faker.string.alpha({length: {min: 10, max: 20}}), error_logs: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), grafana_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), dashboard_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), pool: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), app_owner: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), app_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), app_version: faker.helpers.arrayElement([faker.number.int(), undefined]), priority: faker.string.alpha({length: {min: 10, max: 20}})})), more_entries: faker.datatype.boolean(), ...overrideResponse})
 
-export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetResponseMock = (): string => (faker.word.sample())
+export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetResponseMock = (overrideResponse: Partial<Extract<TaskEntry, object>> = {}): TaskEntry => ({workflow_id: faker.string.alpha({length: {min: 10, max: 20}}), task_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), node: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), status: faker.helpers.arrayElement(Object.values(TaskGroupStatus)), storage: faker.number.int(), cpu: faker.number.int(), memory: faker.number.int(), gpu: faker.number.int(), ...overrideResponse})
 
-export const getListTaskApiTaskGetResponseMock = (): string => (faker.word.sample())
+export const getListTaskApiTaskGetResponseMock = (): ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse => (faker.helpers.arrayElement([{summaries: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({user: faker.string.alpha({length: {min: 10, max: 20}}), pool: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), storage: faker.number.int(), cpu: faker.number.int(), memory: faker.number.int(), gpu: faker.number.int(), priority: faker.string.alpha({length: {min: 10, max: 20}})}))},{tasks: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({user: faker.string.alpha({length: {min: 10, max: 20}}), workflow_id: faker.string.alpha({length: {min: 10, max: 20}}), workflow_uuid: faker.string.alpha({length: {min: 10, max: 20}}), task_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), retry_id: faker.number.int(), pool: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), node: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), duration: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), undefined]), status: faker.helpers.arrayElement(Object.values(TaskGroupStatus)), overview: faker.string.alpha({length: {min: 10, max: 20}}), logs: faker.string.alpha({length: {min: 10, max: 20}}), error_logs: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), grafana_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), dashboard_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), storage: faker.number.int(), cpu: faker.number.int(), memory: faker.number.int(), gpu: faker.number.int(), priority: faker.string.alpha({length: {min: 10, max: 20}})}))},{summaries: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({user: faker.string.alpha({length: {min: 10, max: 20}}), pool: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), storage: faker.number.int(), cpu: faker.number.int(), memory: faker.number.int(), gpu: faker.number.int(), priority: faker.string.alpha({length: {min: 10, max: 20}}), workflow_id: faker.string.alpha({length: {min: 10, max: 20}})}))},]))
 
-export const getGetWorkflowApiWorkflowNameGetResponseMock = (): string => (faker.word.sample())
+export const getGetWorkflowApiWorkflowNameGetResponseMock = (overrideResponse: Partial<Extract<WorkflowQueryResponse, object>> = {}): WorkflowQueryResponse => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), uuid: faker.string.alpha({length: {min: 10, max: 20}}), submitted_by: faker.string.alpha({length: {min: 10, max: 20}}), cancelled_by: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), spec: faker.string.alpha({length: {min: 10, max: 20}}), template_spec: faker.string.alpha({length: {min: 10, max: 20}}), logs: faker.string.alpha({length: {min: 10, max: 20}}), events: faker.string.alpha({length: {min: 10, max: 20}}), overview: faker.string.alpha({length: {min: 10, max: 20}}), parent_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), parent_job_id: faker.helpers.arrayElement([faker.number.int(), undefined]), dashboard_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), grafana_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), tags: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), submit_time: faker.date.past().toISOString().slice(0, 19) + 'Z', start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), exec_timeout: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), undefined]), queue_timeout: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), undefined]), duration: faker.helpers.arrayElement([faker.number.float({fractionDigits: 2}), undefined]), queued_time: faker.number.float({fractionDigits: 2}), status: faker.helpers.arrayElement(Object.values(WorkflowStatus)), outputs: faker.string.alpha({length: {min: 10, max: 20}}), groups: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), status: faker.helpers.arrayElement(Object.values(TaskGroupStatus)), start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), processing_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), scheduling_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), initializing_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), remaining_upstream_groups: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined]), downstream_groups: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined]), failure_message: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), tasks: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), retry_id: faker.number.int(), status: faker.helpers.arrayElement(Object.values(TaskGroupStatus)), failure_message: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), exit_code: faker.helpers.arrayElement([faker.number.int(), undefined]), logs: faker.string.alpha({length: {min: 10, max: 20}}), error_logs: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), processing_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), scheduling_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), initializing_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), events: faker.string.alpha({length: {min: 10, max: 20}}), start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), input_download_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), input_download_end_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), output_upload_start_time: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined]), dashboard_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), pod_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), pod_ip: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), task_uuid: faker.string.alpha({length: {min: 10, max: 20}}), node_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), lead: faker.datatype.boolean()}))})), pool: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), backend: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), app_owner: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), app_name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), app_version: faker.helpers.arrayElement([faker.number.int(), undefined]), plugins: {rsync: faker.datatype.boolean()}, priority: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
 
 export const getGetWorkflowLogsApiWorkflowNameLogsGetResponseMock = (): string => (faker.word.sample())
 
@@ -9119,19 +9238,35 @@ export const getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse
 
 export const getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponseMock = (overrideResponse: Partial<Extract<RouterResponse, object>> = {}): RouterResponse => ({router_address: faker.string.alpha({length: {min: 10, max: 20}}), key: faker.string.alpha({length: {min: 10, max: 20}}), cookie: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
 
-export const getGetUserCredentialApiCredentialsGetResponseMock = (): string => (faker.word.sample())
+export const getGetUserCredentialApiCredentialsGetResponseMock = (overrideResponse: Partial<Extract<CredentialGetResponse, object>> = {}): CredentialGetResponse => ({credentials: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      })), ...overrideResponse})
 
 export const getDeleteUsersCredentialApiCredentialsCredNameDeleteResponseMock = (overrideResponse: Partial<Extract<CredentialGetResponse, object>> = {}): CredentialGetResponse => ({credentials: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
       })), ...overrideResponse})
 
-export const getGetResourcesApiResourcesGetResponseMock = (): string => (faker.word.sample())
+export const getGetResourcesApiResourcesGetResponseMock = (): ResourcesResponse | PoolResourcesResponse => (faker.helpers.arrayElement([{resources: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({hostname: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), exposed_fields: {}, taints: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({})), usage_fields: {}, conditions: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined]), non_workflow_usage_fields: {}, allocatable_fields: {}, platform_allocatable_fields: faker.helpers.arrayElement([{}, undefined]), platform_available_fields: faker.helpers.arrayElement([{}, undefined]), platform_workflow_allocatable_fields: faker.helpers.arrayElement([{}, undefined]), config_fields: faker.helpers.arrayElement([{}, undefined]), backend: faker.string.alpha({length: {min: 10, max: 20}}), label_fields: faker.helpers.arrayElement([{}, undefined]), pool_platform_labels: {
+        [faker.string.alphanumeric(5)]: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))
+      }, resource_type: faker.helpers.arrayElement(Object.values(BackendResourceType))}))},{pools: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({pool: faker.string.alpha({length: {min: 10, max: 20}}), platform: faker.string.alpha({length: {min: 10, max: 20}}), status: faker.helpers.arrayElement(Object.values(PoolStatus)), usage_fields: {}, allocatable_fields: {}, backend: faker.string.alpha({length: {min: 10, max: 20}})}))},]))
 
-export const getGetOneResourceApiResourcesNameGetResponseMock = (): string => (faker.word.sample())
+export const getGetOneResourceApiResourcesNameGetResponseMock = (overrideResponse: Partial<Extract<ResourcesResponse, object>> = {}): ResourcesResponse => ({resources: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({hostname: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), exposed_fields: {}, taints: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({})), usage_fields: {}, conditions: faker.helpers.arrayElement([Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), undefined]), non_workflow_usage_fields: {}, allocatable_fields: {}, platform_allocatable_fields: faker.helpers.arrayElement([{}, undefined]), platform_available_fields: faker.helpers.arrayElement([{}, undefined]), platform_workflow_allocatable_fields: faker.helpers.arrayElement([{}, undefined]), config_fields: faker.helpers.arrayElement([{}, undefined]), backend: faker.string.alpha({length: {min: 10, max: 20}}), label_fields: faker.helpers.arrayElement([{}, undefined]), pool_platform_labels: {
+        [faker.string.alphanumeric(5)]: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))
+      }, resource_type: faker.helpers.arrayElement(Object.values(BackendResourceType))})), ...overrideResponse})
 
-export const getGetPoolsApiPoolGetResponseMock = (): string => (faker.word.sample())
+export const getGetPoolsApiPoolGetResponseMock = (overrideResponse: Partial<Extract<MinimalPoolConfig, object>> = {}): MinimalPoolConfig => ({pools: {
+        [faker.string.alphanumeric(5)]: {name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', status: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(PoolStatus)), undefined]), download_type: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(DownloadType)), undefined]), enable_maintenance: faker.datatype.boolean(), backend: faker.string.alpha({length: {min: 10, max: 20}}), default_platform: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_exit_actions: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, resources: {...{gpu: faker.helpers.arrayElement([{guarantee: faker.number.int(), maximum: faker.number.int(), weight: faker.number.int()}, undefined])},}, topology_keys: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), label: faker.string.alpha({length: {min: 10, max: 20}})})), platforms: {
+        [faker.string.alphanumeric(5)]: {description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))}
+      }}
+      }, ...overrideResponse})
 
-export const getGetPoolQuotasApiPoolQuotaGetResponseMock = (): string => (faker.word.sample())
+export const getGetPoolQuotasApiPoolQuotaGetResponseMock = (overrideResponse: Partial<Extract<PoolResponse, object>> = {}): PoolResponse => ({node_sets: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({pools: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), description: 'A test resource', status: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(PoolStatus)), undefined]), download_type: faker.helpers.arrayElement([faker.helpers.arrayElement(Object.values(DownloadType)), undefined]), enable_maintenance: faker.datatype.boolean(), backend: faker.string.alpha({length: {min: 10, max: 20}}), default_platform: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), default_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_exec_timeout: faker.string.alpha({length: {min: 10, max: 20}}), max_queue_timeout: faker.string.alpha({length: {min: 10, max: 20}}), default_exit_actions: {
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      }, resources: {...{gpu: faker.helpers.arrayElement([{guarantee: faker.number.int(), maximum: faker.number.int(), weight: faker.number.int()}, undefined])},}, topology_keys: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), label: faker.string.alpha({length: {min: 10, max: 20}})})), platforms: {
+        [faker.string.alphanumeric(5)]: {description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))}
+      }, resource_usage: {quota_used: faker.string.alpha({length: {min: 10, max: 20}}), quota_free: faker.string.alpha({length: {min: 10, max: 20}}), quota_limit: faker.string.alpha({length: {min: 10, max: 20}}), total_usage: faker.string.alpha({length: {min: 10, max: 20}}), total_capacity: faker.string.alpha({length: {min: 10, max: 20}}), total_free: faker.string.alpha({length: {min: 10, max: 20}})}}))})), resource_sum: {quota_used: faker.string.alpha({length: {min: 10, max: 20}}), quota_free: faker.string.alpha({length: {min: 10, max: 20}}), quota_limit: faker.string.alpha({length: {min: 10, max: 20}}), total_usage: faker.string.alpha({length: {min: 10, max: 20}}), total_capacity: faker.string.alpha({length: {min: 10, max: 20}}), total_free: faker.string.alpha({length: {min: 10, max: 20}})}, ...overrideResponse})
 
 export const getSubmitWorkflowApiPoolPoolNameWorkflowPostResponseMock = (overrideResponse: Partial<Extract<SubmitResponse, object>> = {}): SubmitResponse => ({name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), overview: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), logs: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), spec: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), dashboard_url: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), ...overrideResponse})
 
@@ -9140,6 +9275,8 @@ export const getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostRespo
 export const getGetBucketInfoApiBucketGetResponseMock = (overrideResponse: Partial<Extract<BucketInfoResponse, object>> = {}): BucketInfoResponse => ({default: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), buckets: {
         [faker.string.alphanumeric(5)]: {path: faker.string.alpha({length: {min: 10, max: 20}}), description: 'A test resource', mode: faker.string.alpha({length: {min: 10, max: 20}}), default_cred: faker.datatype.boolean()}
       }, ...overrideResponse})
+
+export const getDeleteDatasetApiBucketBucketDatasetNameDeleteResponseMock = (overrideResponse: Partial<Extract<DataDeleteResponse, object>> = {}): DataDeleteResponse => ({versions: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), delete_locations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), cleaned_size: faker.number.int(), ...overrideResponse})
 
 export const getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponseMock = (overrideResponse: Partial<Extract<DataAttributeResponse, object>> = {}): DataAttributeResponse => ({tag_response: faker.helpers.arrayElement([{version_id: faker.string.alpha({length: {min: 10, max: 20}}), tags: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))}, undefined]), label_response: faker.helpers.arrayElement([{metadata: {}}, undefined]), metadata_response: faker.helpers.arrayElement([{metadata: {}}, undefined]), ...overrideResponse})
 
@@ -9151,12 +9288,24 @@ export const getQueryDatasetApiBucketBucketQueryGetResponseMock = (overrideRespo
 
 export const getGetNotificationSettingsApiProfileSettingsGetResponseMock = (overrideResponse: Partial<Extract<ProfileResponse, object>> = {}): ProfileResponse => ({profile: {username: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), email_notification: faker.helpers.arrayElement([faker.datatype.boolean(), undefined]), slack_notification: faker.helpers.arrayElement([faker.datatype.boolean(), undefined]), bucket: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), pool: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])}, roles: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), pools: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), token: faker.helpers.arrayElement([{name: (() => `pool-${Math.random().toString(36).slice(2, 7)}`)(), expires_at: faker.helpers.arrayElement([faker.date.past().toISOString().slice(0, 19) + 'Z', undefined])}, undefined]), ...overrideResponse})
 
-export const getGetUsersApiUsersGetResponseMock = (): string => (faker.word.sample())
+export const getHealthHealthGetResponseMock = (): HealthHealthGet200 => ({
+        [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
+      })
 
-export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetResponseMock = (): string => (faker.word.sample())
+export const getGetVersionApiVersionGetResponseMock = (overrideResponse: Partial<Extract<Version, object>> = {}): Version => ({major: faker.string.alpha({length: {min: 10, max: 20}}), minor: faker.string.alpha({length: {min: 10, max: 20}}), revision: faker.string.alpha({length: {min: 10, max: 20}}), hash: faker.string.alpha({length: {min: 10, max: 20}}), ...overrideResponse})
+
+export const getGetUsersApiUsersGetResponseMock = (): string[] => (Array.from({length: faker.number.int({min: 1, max: 10})}, () => faker.word.sample()))
+
+export const getGetAvailableWorkflowTagsApiTagGetResponseMock = (): GetAvailableWorkflowTagsApiTagGet200 => ({
+        [faker.string.alphanumeric(5)]: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))
+      })
+
+export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetResponseMock = (overrideResponse: Partial<Extract<PluginsConfig, object>> = {}): PluginsConfig => ({rsync: {...{enabled: faker.datatype.boolean(), enable_telemetry: faker.datatype.boolean(), read_bandwidth_limit: faker.number.int({min: 0}), write_bandwidth_limit: faker.number.int({min: 0}), allowed_paths: {
+        [faker.string.alphanumeric(5)]: {path: faker.string.alpha({length: {min: 10, max: 20}}), writable: faker.datatype.boolean()}
+      }, daemon_debounce_delay: faker.number.float({min: 0, fractionDigits: 2}), daemon_poll_interval: faker.number.float({min: 0, fractionDigits: 2}), daemon_reconcile_interval: faker.number.float({min: 0, fractionDigits: 2}), client_upload_rate_limit: faker.number.int({min: 0})},}, ...overrideResponse})
 
 
-export const getReadServiceConfigsApiConfigsServiceGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadServiceConfigsApiConfigsServiceGetMockHandler = (overrideResponse?: ServiceConfig | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ServiceConfig> | ServiceConfig), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/service', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9192,7 +9341,7 @@ export const getPatchServiceConfigsApiConfigsServicePatchMockHandler = (override
   }, options)
 }
 
-export const getReadWorkflowConfigsApiConfigsWorkflowGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadWorkflowConfigsApiConfigsWorkflowGetMockHandler = (overrideResponse?: WorkflowConfig | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<WorkflowConfig> | WorkflowConfig), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/workflow', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9228,7 +9377,7 @@ export const getPatchWorkflowConfigsApiConfigsWorkflowPatchMockHandler = (overri
   }, options)
 }
 
-export const getReadDatasetConfigsApiConfigsDatasetGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadDatasetConfigsApiConfigsDatasetGetMockHandler = (overrideResponse?: DatasetConfig | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<DatasetConfig> | DatasetConfig), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/dataset', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9286,7 +9435,7 @@ export const getPatchDatasetApiConfigsDatasetNamePatchMockHandler = (overrideRes
   }, options)
 }
 
-export const getListBackendsApiConfigsBackendGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListBackendsApiConfigsBackendGetMockHandler = (overrideResponse?: ListBackendsResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListBackendsResponse> | ListBackendsResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/backend', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9298,7 +9447,7 @@ export const getListBackendsApiConfigsBackendGetMockHandler = (overrideResponse?
   }, options)
 }
 
-export const getGetBackendApiConfigsBackendNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetBackendApiConfigsBackendNameGetMockHandler = (overrideResponse?: Backend | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Backend> | Backend), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/backend/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9330,7 +9479,7 @@ export const getDeleteBackendApiConfigsBackendNameDeleteMockHandler = (overrideR
   }, options)
 }
 
-export const getListPoolsApiConfigsPoolGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListPoolsApiConfigsPoolGetMockHandler = (overrideResponse?: VerbosePoolConfig | EditablePoolConfig | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<VerbosePoolConfig | EditablePoolConfig> | VerbosePoolConfig | EditablePoolConfig), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pool', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9352,7 +9501,7 @@ export const getPutPoolsApiConfigsPoolPutMockHandler = (overrideResponse?: unkno
   }, options)
 }
 
-export const getReadPoolApiConfigsPoolNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadPoolApiConfigsPoolNameGetMockHandler = (overrideResponse?: Pool | PoolEditable | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Pool | PoolEditable> | Pool | PoolEditable), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pool/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9404,7 +9553,7 @@ export const getRenamePoolApiConfigsPoolNameRenamePutMockHandler = (overrideResp
   }, options)
 }
 
-export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetMockHandler = (overrideResponse?: ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListPlatformsInPoolApiConfigsPoolNamePlatformGet200> | ListPlatformsInPoolApiConfigsPoolNamePlatformGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pool/:name/platform', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9416,7 +9565,7 @@ export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetMockHandler = (o
   }, options)
 }
 
-export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetMockHandler = (overrideResponse?: Platform | PlatformEditable | PlatformMinimal | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Platform | PlatformEditable | PlatformMinimal> | Platform | PlatformEditable | PlatformMinimal), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pool/:name/platform/:platformName', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9448,7 +9597,7 @@ export const getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
   }, options)
 }
 
-export const getListPodTemplatesApiConfigsPodTemplateGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListPodTemplatesApiConfigsPodTemplateGetMockHandler = (overrideResponse?: ListPodTemplatesApiConfigsPodTemplateGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListPodTemplatesApiConfigsPodTemplateGet200> | ListPodTemplatesApiConfigsPodTemplateGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pod_template', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9470,7 +9619,7 @@ export const getPutPodTemplatesApiConfigsPodTemplatePutMockHandler = (overrideRe
   }, options)
 }
 
-export const getReadPodTemplateApiConfigsPodTemplateNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadPodTemplateApiConfigsPodTemplateNameGetMockHandler = (overrideResponse?: ReadPodTemplateApiConfigsPodTemplateNameGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ReadPodTemplateApiConfigsPodTemplateNameGet200> | ReadPodTemplateApiConfigsPodTemplateNameGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pod_template/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9502,7 +9651,7 @@ export const getDeletePodTemplateApiConfigsPodTemplateNameDeleteMockHandler = (o
   }, options)
 }
 
-export const getListGroupTemplatesApiConfigsGroupTemplateGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListGroupTemplatesApiConfigsGroupTemplateGetMockHandler = (overrideResponse?: ListGroupTemplatesApiConfigsGroupTemplateGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListGroupTemplatesApiConfigsGroupTemplateGet200> | ListGroupTemplatesApiConfigsGroupTemplateGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/group_template', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9524,7 +9673,7 @@ export const getPutGroupTemplatesApiConfigsGroupTemplatePutMockHandler = (overri
   }, options)
 }
 
-export const getReadGroupTemplateApiConfigsGroupTemplateNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadGroupTemplateApiConfigsGroupTemplateNameGetMockHandler = (overrideResponse?: ReadGroupTemplateApiConfigsGroupTemplateNameGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ReadGroupTemplateApiConfigsGroupTemplateNameGet200> | ReadGroupTemplateApiConfigsGroupTemplateNameGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/group_template/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9556,7 +9705,7 @@ export const getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteMockHandler 
   }, options)
 }
 
-export const getListResourceValidationsApiConfigsResourceValidationGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListResourceValidationsApiConfigsResourceValidationGetMockHandler = (overrideResponse?: ListResourceValidationsApiConfigsResourceValidationGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListResourceValidationsApiConfigsResourceValidationGet200> | ListResourceValidationsApiConfigsResourceValidationGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/resource_validation', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9578,7 +9727,7 @@ export const getPutResourceValidationsApiConfigsResourceValidationPutMockHandler
   }, options)
 }
 
-export const getReadResourceValidationApiConfigsResourceValidationNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadResourceValidationApiConfigsResourceValidationNameGetMockHandler = (overrideResponse?: ResourceAssertion[] | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ResourceAssertion[]> | ResourceAssertion[]), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/resource_validation/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9610,7 +9759,7 @@ export const getDeleteResourceValidationApiConfigsResourceValidationNameDeleteMo
   }, options)
 }
 
-export const getListRolesApiConfigsRoleGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListRolesApiConfigsRoleGetMockHandler = (overrideResponse?: Role[] | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Role[]> | Role[]), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/role', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9632,7 +9781,7 @@ export const getPutRolesApiConfigsRolePutMockHandler = (overrideResponse?: unkno
   }, options)
 }
 
-export const getReadRoleApiConfigsRoleNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadRoleApiConfigsRoleNameGetMockHandler = (overrideResponse?: Role | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Role> | Role), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/role/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9664,7 +9813,7 @@ export const getDeleteRoleApiConfigsRoleNameDeleteMockHandler = (overrideRespons
   }, options)
 }
 
-export const getListBackendTestsApiConfigsBackendTestGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListBackendTestsApiConfigsBackendTestGetMockHandler = (overrideResponse?: ListBackendTestsApiConfigsBackendTestGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListBackendTestsApiConfigsBackendTestGet200> | ListBackendTestsApiConfigsBackendTestGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/backend_test', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9686,7 +9835,7 @@ export const getPutBackendTestsApiConfigsBackendTestPutMockHandler = (overrideRe
   }, options)
 }
 
-export const getReadBackendTestApiConfigsBackendTestNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getReadBackendTestApiConfigsBackendTestNameGetMockHandler = (overrideResponse?: BackendTests | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<BackendTests> | BackendTests), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/backend_test/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9770,7 +9919,7 @@ export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
   }, options)
 }
 
-export const getGetConfigDiffApiConfigsDiffGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetConfigDiffApiConfigsDiffGetMockHandler = (overrideResponse?: ConfigDiffResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ConfigDiffResponse> | ConfigDiffResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/diff', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -9782,51 +9931,61 @@ export const getGetConfigDiffApiConfigsDiffGetMockHandler = (overrideResponse?: 
   }, options)
 }
 
-export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetMockHandler = (overrideResponse?: JwtTokenResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<JwtTokenResponse> | JwtTokenResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/auth/jwt/refresh_token', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetNewJwtTokenApiAuthJwtRefreshTokenGetResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostMockHandler = (overrideResponse?: JwtTokenResponse | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<JwtTokenResponse> | JwtTokenResponse), options?: RequestHandlerOptions) => {
   return http.post('*/api/auth/jwt/refresh_token', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getPostNewJwtTokenApiAuthJwtRefreshTokenPostResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetMockHandler = (overrideResponse?: JwtTokenResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<JwtTokenResponse> | JwtTokenResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/auth/jwt/access_token', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostMockHandler = (overrideResponse?: JwtTokenResponse | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<JwtTokenResponse> | JwtTokenResponse), options?: RequestHandlerOptions) => {
   return http.post('*/api/auth/jwt/access_token', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
   return http.post('*/api/auth/access_token/:tokenName', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getCreateAccessTokenApiAuthAccessTokenTokenNamePostResponseMock(),
       { status: 200
       })
   }, options)
@@ -9866,11 +10025,13 @@ export const getListAccessTokensApiAuthAccessTokenGetMockHandler = (overrideResp
   }, options)
 }
 
-export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.post>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
   return http.post('*/api/auth/user/:userId/access_token/:tokenName', async (info: Parameters<Parameters<typeof http.post>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponseMock(),
       { status: 200
       })
   }, options)
@@ -10002,7 +10163,7 @@ export const getBulkAssignRoleApiAuthRolesRoleNameUsersPostMockHandler = (overri
   }, options)
 }
 
-export const getListAppsApiAppGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListAppsApiAppGetMockHandler = (overrideResponse?: SrcServiceCoreAppObjectsListResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<SrcServiceCoreAppObjectsListResponse> | SrcServiceCoreAppObjectsListResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/app', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10014,7 +10175,7 @@ export const getListAppsApiAppGetMockHandler = (overrideResponse?: string | ((in
   }, options)
 }
 
-export const getGetAppApiAppUserNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetAppApiAppUserNameGetMockHandler = (overrideResponse?: GetAppResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<GetAppResponse> | GetAppResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/app/user/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10060,13 +10221,11 @@ export const getUpdateAppApiAppUserNamePatchMockHandler = (overrideResponse?: Ed
   }, options)
 }
 
-export const getGetAppContentApiAppUserNameSpecGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetAppContentApiAppUserNameSpecGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
   return http.get('*/api/app/user/:name/spec', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
+  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-  
-    return HttpResponse.json(overrideResponse !== undefined
-    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
-    : getGetAppContentApiAppUserNameSpecGetResponseMock(),
+    return new HttpResponse(null,
       { status: 200
       })
   }, options)
@@ -10096,7 +10255,7 @@ export const getCancelWorkflowApiWorkflowNameCancelPostMockHandler = (overrideRe
   }, options)
 }
 
-export const getListWorkflowApiWorkflowGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListWorkflowApiWorkflowGetMockHandler = (overrideResponse?: SrcServiceCoreWorkflowObjectsListResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<SrcServiceCoreWorkflowObjectsListResponse> | SrcServiceCoreWorkflowObjectsListResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/workflow', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10108,7 +10267,7 @@ export const getListWorkflowApiWorkflowGetMockHandler = (overrideResponse?: stri
   }, options)
 }
 
-export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetMockHandler = (overrideResponse?: TaskEntry | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<TaskEntry> | TaskEntry), options?: RequestHandlerOptions) => {
   return http.get('*/api/workflow/:name/task/:taskName', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10120,7 +10279,7 @@ export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetMockHandler = (over
   }, options)
 }
 
-export const getListTaskApiTaskGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getListTaskApiTaskGetMockHandler = (overrideResponse?: ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse> | ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/task', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10132,7 +10291,7 @@ export const getListTaskApiTaskGetMockHandler = (overrideResponse?: string | ((i
   }, options)
 }
 
-export const getGetWorkflowApiWorkflowNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetWorkflowApiWorkflowNameGetMockHandler = (overrideResponse?: WorkflowQueryResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<WorkflowQueryResponse> | WorkflowQueryResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/workflow/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10266,7 +10425,7 @@ export const getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostMockHandler = (over
   }, options)
 }
 
-export const getGetUserCredentialApiCredentialsGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetUserCredentialApiCredentialsGetMockHandler = (overrideResponse?: CredentialGetResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<CredentialGetResponse> | CredentialGetResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/credentials', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10300,7 +10459,7 @@ export const getDeleteUsersCredentialApiCredentialsCredNameDeleteMockHandler = (
   }, options)
 }
 
-export const getGetResourcesApiResourcesGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetResourcesApiResourcesGetMockHandler = (overrideResponse?: ResourcesResponse | PoolResourcesResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ResourcesResponse | PoolResourcesResponse> | ResourcesResponse | PoolResourcesResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/resources', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10312,7 +10471,7 @@ export const getGetResourcesApiResourcesGetMockHandler = (overrideResponse?: str
   }, options)
 }
 
-export const getGetOneResourceApiResourcesNameGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetOneResourceApiResourcesNameGetMockHandler = (overrideResponse?: ResourcesResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<ResourcesResponse> | ResourcesResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/resources/:name', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10324,7 +10483,7 @@ export const getGetOneResourceApiResourcesNameGetMockHandler = (overrideResponse
   }, options)
 }
 
-export const getGetPoolsApiPoolGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetPoolsApiPoolGetMockHandler = (overrideResponse?: MinimalPoolConfig | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<MinimalPoolConfig> | MinimalPoolConfig), options?: RequestHandlerOptions) => {
   return http.get('*/api/pool', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10336,7 +10495,7 @@ export const getGetPoolsApiPoolGetMockHandler = (overrideResponse?: string | ((i
   }, options)
 }
 
-export const getGetPoolQuotasApiPoolQuotaGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetPoolQuotasApiPoolQuotaGetMockHandler = (overrideResponse?: PoolResponse | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<PoolResponse> | PoolResponse), options?: RequestHandlerOptions) => {
   return http.get('*/api/pool_quota', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10384,11 +10543,13 @@ export const getGetBucketInfoApiBucketGetMockHandler = (overrideResponse?: Bucke
   }, options)
 }
 
-export const getDeleteDatasetApiBucketBucketDatasetNameDeleteMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getDeleteDatasetApiBucketBucketDatasetNameDeleteMockHandler = (overrideResponse?: DataDeleteResponse | ((info: Parameters<Parameters<typeof http.delete>[1]>[0]) => Promise<DataDeleteResponse> | DataDeleteResponse), options?: RequestHandlerOptions) => {
   return http.delete('*/api/bucket/:bucket/dataset/:name', async (info: Parameters<Parameters<typeof http.delete>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getDeleteDatasetApiBucketBucketDatasetNameDeleteResponseMock(),
       { status: 200
       })
   }, options)
@@ -10484,27 +10645,31 @@ export const getGetOsmoClientVersionClientVersionGetMockHandler = (overrideRespo
   }, options)
 }
 
-export const getHealthHealthGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getHealthHealthGetMockHandler = (overrideResponse?: HealthHealthGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<HealthHealthGet200> | HealthHealthGet200), options?: RequestHandlerOptions) => {
   return http.get('*/health', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getHealthHealthGetResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getGetVersionApiVersionGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getGetVersionApiVersionGetMockHandler = (overrideResponse?: Version | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Version> | Version), options?: RequestHandlerOptions) => {
   return http.get('*/api/version', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetVersionApiVersionGetResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getGetUsersApiUsersGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetUsersApiUsersGetMockHandler = (overrideResponse?: string[] | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string[]> | string[]), options?: RequestHandlerOptions) => {
   return http.get('*/api/users', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10516,17 +10681,19 @@ export const getGetUsersApiUsersGetMockHandler = (overrideResponse?: string | ((
   }, options)
 }
 
-export const getGetAvailableWorkflowTagsApiTagGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getGetAvailableWorkflowTagsApiTagGetMockHandler = (overrideResponse?: GetAvailableWorkflowTagsApiTagGet200 | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<GetAvailableWorkflowTagsApiTagGet200> | GetAvailableWorkflowTagsApiTagGet200), options?: RequestHandlerOptions) => {
   return http.get('*/api/tag', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
-  if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
-    return new HttpResponse(null,
+  
+    return HttpResponse.json(overrideResponse !== undefined
+    ? (typeof overrideResponse === "function" ? await overrideResponse(info) : overrideResponse)
+    : getGetAvailableWorkflowTagsApiTagGetResponseMock(),
       { status: 200
       })
   }, options)
 }
 
-export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetMockHandler = (overrideResponse?: string | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<string> | string), options?: RequestHandlerOptions) => {
+export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetMockHandler = (overrideResponse?: PluginsConfig | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<PluginsConfig> | PluginsConfig), options?: RequestHandlerOptions) => {
   return http.get('*/api/plugins/configs', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   

@@ -12,6 +12,7 @@ import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  InvalidateOptions,
   MutationFunction,
   QueryClient,
   QueryFunction,
@@ -469,6 +470,15 @@ export interface DataConfig {
 }
 
 /**
+ * Object storing Download Response. 
+ */
+export interface DataDeleteResponse {
+  versions?: string[];
+  delete_locations?: string[];
+  cleaned_size?: number;
+}
+
+/**
  * Object storing Info Element. 
  */
 export interface DataInfoCollectionEntry {
@@ -703,6 +713,22 @@ export interface EditablePoolConfig {
   pools?: EditablePoolConfigPools;
 }
 
+export interface GetVersionEntry {
+  version: number;
+  created_by: string;
+  created_date: string;
+  status: string;
+}
+
+export interface GetAppResponse {
+  uuid: string;
+  name: string;
+  description: string;
+  created_date: string;
+  owner: string;
+  versions: GetVersionEntry[];
+}
+
 /**
  * Response body for config history endpoint.
  */
@@ -792,6 +818,15 @@ export interface ValidationError {
 
 export interface HTTPValidationError {
   detail?: ValidationError[];
+}
+
+/**
+ * Response for JWT token creation endpoints.
+ */
+export interface JwtTokenResponse {
+  token?: string;
+  expires_at?: number;
+  error?: string;
 }
 
 /**
@@ -1798,6 +1833,16 @@ export interface VerbosePoolConfig {
 }
 
 /**
+ * A class to maintain version information. 
+ */
+export interface Version {
+  major: string;
+  minor?: string;
+  revision?: string;
+  hash?: string;
+}
+
+/**
  * Represents the state of plugins in a workflow upon submission. 
  */
 export interface WorkflowPlugins {
@@ -1949,9 +1994,23 @@ export type ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams = {
 verbose?: boolean;
 };
 
+export type ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 = {[key: string]: Platform | PlatformEditable | PlatformMinimal};
+
 export type ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams = {
 verbose?: boolean;
 };
+
+export type ListPodTemplatesApiConfigsPodTemplateGet200 = { [key: string]: unknown };
+
+export type ReadPodTemplateApiConfigsPodTemplateNameGet200 = { [key: string]: unknown };
+
+export type ListGroupTemplatesApiConfigsGroupTemplateGet200 = {[key: string]: { [key: string]: unknown }};
+
+export type ReadGroupTemplateApiConfigsGroupTemplateNameGet200 = { [key: string]: unknown };
+
+export type ListResourceValidationsApiConfigsResourceValidationGet200 = {[key: string]: ResourceAssertion[]};
+
+export type ListBackendTestsApiConfigsBackendTestGet200 = {[key: string]: BackendTests};
 
 export type GetConfigsHistoryApiConfigsHistoryGetParams = {
 /**
@@ -2251,6 +2310,10 @@ export type SetNotificationSettingsApiProfileSettingsPostParams = {
 set_default_backend?: boolean;
 };
 
+export type HealthHealthGet200 = {[key: string]: string};
+
+export type GetAvailableWorkflowTagsApiTagGet200 = {[key: string]: string[]};
+
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 
@@ -2259,18 +2322,6 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * Read all the service configurations
  * @summary Read Service Configs
  */
-export type readServiceConfigsApiConfigsServiceGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readServiceConfigsApiConfigsServiceGetResponseSuccess = (readServiceConfigsApiConfigsServiceGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type readServiceConfigsApiConfigsServiceGetResponse = (readServiceConfigsApiConfigsServiceGetResponseSuccess)
-
 export const getReadServiceConfigsApiConfigsServiceGetUrl = () => {
 
 
@@ -2279,9 +2330,9 @@ export const getReadServiceConfigsApiConfigsServiceGetUrl = () => {
   return `/api/configs/service`
 }
 
-export const readServiceConfigsApiConfigsServiceGet = async ( options?: RequestInit): Promise<readServiceConfigsApiConfigsServiceGetResponse> => {
+export const readServiceConfigsApiConfigsServiceGet = async ( options?: RequestInit): Promise<ServiceConfig> => {
   
-  return customFetch<readServiceConfigsApiConfigsServiceGetResponse>(getReadServiceConfigsApiConfigsServiceGetUrl(),
+  return customFetch<ServiceConfig>(getReadServiceConfigsApiConfigsServiceGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2364,6 +2415,17 @@ export function useReadServiceConfigsApiConfigsServiceGet<TData = Awaited<Return
 }
 
 
+/**
+ * @summary Read Service Configs
+ */
+export const invalidateReadServiceConfigsApiConfigsServiceGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadServiceConfigsApiConfigsServiceGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -2371,25 +2433,6 @@ export function useReadServiceConfigsApiConfigsServiceGet<TData = Awaited<Return
  * Put service configurations
  * @summary Put Service Configs
  */
-export type putServiceConfigsApiConfigsServicePutResponse200 = {
-  data: PutServiceConfigsApiConfigsServicePut200
-  status: 200
-}
-
-export type putServiceConfigsApiConfigsServicePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putServiceConfigsApiConfigsServicePutResponseSuccess = (putServiceConfigsApiConfigsServicePutResponse200) & {
-  headers: Headers;
-};
-export type putServiceConfigsApiConfigsServicePutResponseError = (putServiceConfigsApiConfigsServicePutResponse422) & {
-  headers: Headers;
-};
-
-export type putServiceConfigsApiConfigsServicePutResponse = (putServiceConfigsApiConfigsServicePutResponseSuccess | putServiceConfigsApiConfigsServicePutResponseError)
-
 export const getPutServiceConfigsApiConfigsServicePutUrl = () => {
 
 
@@ -2398,9 +2441,9 @@ export const getPutServiceConfigsApiConfigsServicePutUrl = () => {
   return `/api/configs/service`
 }
 
-export const putServiceConfigsApiConfigsServicePut = async (putServiceRequest: PutServiceRequest, options?: RequestInit): Promise<putServiceConfigsApiConfigsServicePutResponse> => {
+export const putServiceConfigsApiConfigsServicePut = async (putServiceRequest: PutServiceRequest, options?: RequestInit): Promise<PutServiceConfigsApiConfigsServicePut200> => {
   
-  return customFetch<putServiceConfigsApiConfigsServicePutResponse>(getPutServiceConfigsApiConfigsServicePutUrl(),
+  return customFetch<PutServiceConfigsApiConfigsServicePut200>(getPutServiceConfigsApiConfigsServicePutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -2462,25 +2505,6 @@ export const usePutServiceConfigsApiConfigsServicePut = <TError = HTTPValidation
  * Patch service configurations
  * @summary Patch Service Configs
  */
-export type patchServiceConfigsApiConfigsServicePatchResponse200 = {
-  data: PatchServiceConfigsApiConfigsServicePatch200
-  status: 200
-}
-
-export type patchServiceConfigsApiConfigsServicePatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type patchServiceConfigsApiConfigsServicePatchResponseSuccess = (patchServiceConfigsApiConfigsServicePatchResponse200) & {
-  headers: Headers;
-};
-export type patchServiceConfigsApiConfigsServicePatchResponseError = (patchServiceConfigsApiConfigsServicePatchResponse422) & {
-  headers: Headers;
-};
-
-export type patchServiceConfigsApiConfigsServicePatchResponse = (patchServiceConfigsApiConfigsServicePatchResponseSuccess | patchServiceConfigsApiConfigsServicePatchResponseError)
-
 export const getPatchServiceConfigsApiConfigsServicePatchUrl = () => {
 
 
@@ -2489,9 +2513,9 @@ export const getPatchServiceConfigsApiConfigsServicePatchUrl = () => {
   return `/api/configs/service`
 }
 
-export const patchServiceConfigsApiConfigsServicePatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<patchServiceConfigsApiConfigsServicePatchResponse> => {
+export const patchServiceConfigsApiConfigsServicePatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<PatchServiceConfigsApiConfigsServicePatch200> => {
   
-  return customFetch<patchServiceConfigsApiConfigsServicePatchResponse>(getPatchServiceConfigsApiConfigsServicePatchUrl(),
+  return customFetch<PatchServiceConfigsApiConfigsServicePatch200>(getPatchServiceConfigsApiConfigsServicePatchUrl(),
   {      
     ...options,
     method: 'PATCH',
@@ -2553,18 +2577,6 @@ export const usePatchServiceConfigsApiConfigsServicePatch = <TError = HTTPValida
  * Read all the workflow configurations
  * @summary Read Workflow Configs
  */
-export type readWorkflowConfigsApiConfigsWorkflowGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readWorkflowConfigsApiConfigsWorkflowGetResponseSuccess = (readWorkflowConfigsApiConfigsWorkflowGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type readWorkflowConfigsApiConfigsWorkflowGetResponse = (readWorkflowConfigsApiConfigsWorkflowGetResponseSuccess)
-
 export const getReadWorkflowConfigsApiConfigsWorkflowGetUrl = () => {
 
 
@@ -2573,9 +2585,9 @@ export const getReadWorkflowConfigsApiConfigsWorkflowGetUrl = () => {
   return `/api/configs/workflow`
 }
 
-export const readWorkflowConfigsApiConfigsWorkflowGet = async ( options?: RequestInit): Promise<readWorkflowConfigsApiConfigsWorkflowGetResponse> => {
+export const readWorkflowConfigsApiConfigsWorkflowGet = async ( options?: RequestInit): Promise<WorkflowConfig> => {
   
-  return customFetch<readWorkflowConfigsApiConfigsWorkflowGetResponse>(getReadWorkflowConfigsApiConfigsWorkflowGetUrl(),
+  return customFetch<WorkflowConfig>(getReadWorkflowConfigsApiConfigsWorkflowGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2658,6 +2670,17 @@ export function useReadWorkflowConfigsApiConfigsWorkflowGet<TData = Awaited<Retu
 }
 
 
+/**
+ * @summary Read Workflow Configs
+ */
+export const invalidateReadWorkflowConfigsApiConfigsWorkflowGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadWorkflowConfigsApiConfigsWorkflowGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -2665,25 +2688,6 @@ export function useReadWorkflowConfigsApiConfigsWorkflowGet<TData = Awaited<Retu
  * Put workflow configurations
  * @summary Put Workflow Configs
  */
-export type putWorkflowConfigsApiConfigsWorkflowPutResponse200 = {
-  data: PutWorkflowConfigsApiConfigsWorkflowPut200
-  status: 200
-}
-
-export type putWorkflowConfigsApiConfigsWorkflowPutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putWorkflowConfigsApiConfigsWorkflowPutResponseSuccess = (putWorkflowConfigsApiConfigsWorkflowPutResponse200) & {
-  headers: Headers;
-};
-export type putWorkflowConfigsApiConfigsWorkflowPutResponseError = (putWorkflowConfigsApiConfigsWorkflowPutResponse422) & {
-  headers: Headers;
-};
-
-export type putWorkflowConfigsApiConfigsWorkflowPutResponse = (putWorkflowConfigsApiConfigsWorkflowPutResponseSuccess | putWorkflowConfigsApiConfigsWorkflowPutResponseError)
-
 export const getPutWorkflowConfigsApiConfigsWorkflowPutUrl = () => {
 
 
@@ -2692,9 +2696,9 @@ export const getPutWorkflowConfigsApiConfigsWorkflowPutUrl = () => {
   return `/api/configs/workflow`
 }
 
-export const putWorkflowConfigsApiConfigsWorkflowPut = async (putWorkflowRequest: PutWorkflowRequest, options?: RequestInit): Promise<putWorkflowConfigsApiConfigsWorkflowPutResponse> => {
+export const putWorkflowConfigsApiConfigsWorkflowPut = async (putWorkflowRequest: PutWorkflowRequest, options?: RequestInit): Promise<PutWorkflowConfigsApiConfigsWorkflowPut200> => {
   
-  return customFetch<putWorkflowConfigsApiConfigsWorkflowPutResponse>(getPutWorkflowConfigsApiConfigsWorkflowPutUrl(),
+  return customFetch<PutWorkflowConfigsApiConfigsWorkflowPut200>(getPutWorkflowConfigsApiConfigsWorkflowPutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -2756,25 +2760,6 @@ export const usePutWorkflowConfigsApiConfigsWorkflowPut = <TError = HTTPValidati
  * Patch workflow configurations
  * @summary Patch Workflow Configs
  */
-export type patchWorkflowConfigsApiConfigsWorkflowPatchResponse200 = {
-  data: PatchWorkflowConfigsApiConfigsWorkflowPatch200
-  status: 200
-}
-
-export type patchWorkflowConfigsApiConfigsWorkflowPatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type patchWorkflowConfigsApiConfigsWorkflowPatchResponseSuccess = (patchWorkflowConfigsApiConfigsWorkflowPatchResponse200) & {
-  headers: Headers;
-};
-export type patchWorkflowConfigsApiConfigsWorkflowPatchResponseError = (patchWorkflowConfigsApiConfigsWorkflowPatchResponse422) & {
-  headers: Headers;
-};
-
-export type patchWorkflowConfigsApiConfigsWorkflowPatchResponse = (patchWorkflowConfigsApiConfigsWorkflowPatchResponseSuccess | patchWorkflowConfigsApiConfigsWorkflowPatchResponseError)
-
 export const getPatchWorkflowConfigsApiConfigsWorkflowPatchUrl = () => {
 
 
@@ -2783,9 +2768,9 @@ export const getPatchWorkflowConfigsApiConfigsWorkflowPatchUrl = () => {
   return `/api/configs/workflow`
 }
 
-export const patchWorkflowConfigsApiConfigsWorkflowPatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<patchWorkflowConfigsApiConfigsWorkflowPatchResponse> => {
+export const patchWorkflowConfigsApiConfigsWorkflowPatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<PatchWorkflowConfigsApiConfigsWorkflowPatch200> => {
   
-  return customFetch<patchWorkflowConfigsApiConfigsWorkflowPatchResponse>(getPatchWorkflowConfigsApiConfigsWorkflowPatchUrl(),
+  return customFetch<PatchWorkflowConfigsApiConfigsWorkflowPatch200>(getPatchWorkflowConfigsApiConfigsWorkflowPatchUrl(),
   {      
     ...options,
     method: 'PATCH',
@@ -2847,18 +2832,6 @@ export const usePatchWorkflowConfigsApiConfigsWorkflowPatch = <TError = HTTPVali
  * Read all the dataset configurations
  * @summary Read Dataset Configs
  */
-export type readDatasetConfigsApiConfigsDatasetGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readDatasetConfigsApiConfigsDatasetGetResponseSuccess = (readDatasetConfigsApiConfigsDatasetGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type readDatasetConfigsApiConfigsDatasetGetResponse = (readDatasetConfigsApiConfigsDatasetGetResponseSuccess)
-
 export const getReadDatasetConfigsApiConfigsDatasetGetUrl = () => {
 
 
@@ -2867,9 +2840,9 @@ export const getReadDatasetConfigsApiConfigsDatasetGetUrl = () => {
   return `/api/configs/dataset`
 }
 
-export const readDatasetConfigsApiConfigsDatasetGet = async ( options?: RequestInit): Promise<readDatasetConfigsApiConfigsDatasetGetResponse> => {
+export const readDatasetConfigsApiConfigsDatasetGet = async ( options?: RequestInit): Promise<DatasetConfig> => {
   
-  return customFetch<readDatasetConfigsApiConfigsDatasetGetResponse>(getReadDatasetConfigsApiConfigsDatasetGetUrl(),
+  return customFetch<DatasetConfig>(getReadDatasetConfigsApiConfigsDatasetGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -2952,6 +2925,17 @@ export function useReadDatasetConfigsApiConfigsDatasetGet<TData = Awaited<Return
 }
 
 
+/**
+ * @summary Read Dataset Configs
+ */
+export const invalidateReadDatasetConfigsApiConfigsDatasetGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadDatasetConfigsApiConfigsDatasetGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -2959,25 +2943,6 @@ export function useReadDatasetConfigsApiConfigsDatasetGet<TData = Awaited<Return
  * Put dataset configurations
  * @summary Put Dataset Configs
  */
-export type putDatasetConfigsApiConfigsDatasetPutResponse200 = {
-  data: PutDatasetConfigsApiConfigsDatasetPut200
-  status: 200
-}
-
-export type putDatasetConfigsApiConfigsDatasetPutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putDatasetConfigsApiConfigsDatasetPutResponseSuccess = (putDatasetConfigsApiConfigsDatasetPutResponse200) & {
-  headers: Headers;
-};
-export type putDatasetConfigsApiConfigsDatasetPutResponseError = (putDatasetConfigsApiConfigsDatasetPutResponse422) & {
-  headers: Headers;
-};
-
-export type putDatasetConfigsApiConfigsDatasetPutResponse = (putDatasetConfigsApiConfigsDatasetPutResponseSuccess | putDatasetConfigsApiConfigsDatasetPutResponseError)
-
 export const getPutDatasetConfigsApiConfigsDatasetPutUrl = () => {
 
 
@@ -2986,9 +2951,9 @@ export const getPutDatasetConfigsApiConfigsDatasetPutUrl = () => {
   return `/api/configs/dataset`
 }
 
-export const putDatasetConfigsApiConfigsDatasetPut = async (putDatasetRequest: PutDatasetRequest, options?: RequestInit): Promise<putDatasetConfigsApiConfigsDatasetPutResponse> => {
+export const putDatasetConfigsApiConfigsDatasetPut = async (putDatasetRequest: PutDatasetRequest, options?: RequestInit): Promise<PutDatasetConfigsApiConfigsDatasetPut200> => {
   
-  return customFetch<putDatasetConfigsApiConfigsDatasetPutResponse>(getPutDatasetConfigsApiConfigsDatasetPutUrl(),
+  return customFetch<PutDatasetConfigsApiConfigsDatasetPut200>(getPutDatasetConfigsApiConfigsDatasetPutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -3050,25 +3015,6 @@ export const usePutDatasetConfigsApiConfigsDatasetPut = <TError = HTTPValidation
  * Patch dataset configurations
  * @summary Patch Dataset Configs
  */
-export type patchDatasetConfigsApiConfigsDatasetPatchResponse200 = {
-  data: PatchDatasetConfigsApiConfigsDatasetPatch200
-  status: 200
-}
-
-export type patchDatasetConfigsApiConfigsDatasetPatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type patchDatasetConfigsApiConfigsDatasetPatchResponseSuccess = (patchDatasetConfigsApiConfigsDatasetPatchResponse200) & {
-  headers: Headers;
-};
-export type patchDatasetConfigsApiConfigsDatasetPatchResponseError = (patchDatasetConfigsApiConfigsDatasetPatchResponse422) & {
-  headers: Headers;
-};
-
-export type patchDatasetConfigsApiConfigsDatasetPatchResponse = (patchDatasetConfigsApiConfigsDatasetPatchResponseSuccess | patchDatasetConfigsApiConfigsDatasetPatchResponseError)
-
 export const getPatchDatasetConfigsApiConfigsDatasetPatchUrl = () => {
 
 
@@ -3077,9 +3023,9 @@ export const getPatchDatasetConfigsApiConfigsDatasetPatchUrl = () => {
   return `/api/configs/dataset`
 }
 
-export const patchDatasetConfigsApiConfigsDatasetPatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<patchDatasetConfigsApiConfigsDatasetPatchResponse> => {
+export const patchDatasetConfigsApiConfigsDatasetPatch = async (patchConfigRequest: PatchConfigRequest, options?: RequestInit): Promise<PatchDatasetConfigsApiConfigsDatasetPatch200> => {
   
-  return customFetch<patchDatasetConfigsApiConfigsDatasetPatchResponse>(getPatchDatasetConfigsApiConfigsDatasetPatchUrl(),
+  return customFetch<PatchDatasetConfigsApiConfigsDatasetPatch200>(getPatchDatasetConfigsApiConfigsDatasetPatchUrl(),
   {      
     ...options,
     method: 'PATCH',
@@ -3141,25 +3087,6 @@ export const usePatchDatasetConfigsApiConfigsDatasetPatch = <TError = HTTPValida
  * Delete dataset configuration for a specific bucket
  * @summary Delete Dataset
  */
-export type deleteDatasetApiConfigsDatasetNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteDatasetApiConfigsDatasetNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteDatasetApiConfigsDatasetNameDeleteResponseSuccess = (deleteDatasetApiConfigsDatasetNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteDatasetApiConfigsDatasetNameDeleteResponseError = (deleteDatasetApiConfigsDatasetNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteDatasetApiConfigsDatasetNameDeleteResponse = (deleteDatasetApiConfigsDatasetNameDeleteResponseSuccess | deleteDatasetApiConfigsDatasetNameDeleteResponseError)
-
 export const getDeleteDatasetApiConfigsDatasetNameDeleteUrl = (name: string,) => {
 
 
@@ -3169,9 +3096,9 @@ export const getDeleteDatasetApiConfigsDatasetNameDeleteUrl = (name: string,) =>
 }
 
 export const deleteDatasetApiConfigsDatasetNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deleteDatasetApiConfigsDatasetNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteDatasetApiConfigsDatasetNameDeleteResponse>(getDeleteDatasetApiConfigsDatasetNameDeleteUrl(name),
+  return customFetch<unknown>(getDeleteDatasetApiConfigsDatasetNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -3233,25 +3160,6 @@ export const useDeleteDatasetApiConfigsDatasetNameDelete = <TError = HTTPValidat
  * Patch dataset configuration for a specific bucket
  * @summary Patch Dataset
  */
-export type patchDatasetApiConfigsDatasetNamePatchResponse200 = {
-  data: PatchDatasetApiConfigsDatasetNamePatch200
-  status: 200
-}
-
-export type patchDatasetApiConfigsDatasetNamePatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type patchDatasetApiConfigsDatasetNamePatchResponseSuccess = (patchDatasetApiConfigsDatasetNamePatchResponse200) & {
-  headers: Headers;
-};
-export type patchDatasetApiConfigsDatasetNamePatchResponseError = (patchDatasetApiConfigsDatasetNamePatchResponse422) & {
-  headers: Headers;
-};
-
-export type patchDatasetApiConfigsDatasetNamePatchResponse = (patchDatasetApiConfigsDatasetNamePatchResponseSuccess | patchDatasetApiConfigsDatasetNamePatchResponseError)
-
 export const getPatchDatasetApiConfigsDatasetNamePatchUrl = (name: string,) => {
 
 
@@ -3261,9 +3169,9 @@ export const getPatchDatasetApiConfigsDatasetNamePatchUrl = (name: string,) => {
 }
 
 export const patchDatasetApiConfigsDatasetNamePatch = async (name: string,
-    patchDatasetRequest: PatchDatasetRequest, options?: RequestInit): Promise<patchDatasetApiConfigsDatasetNamePatchResponse> => {
+    patchDatasetRequest: PatchDatasetRequest, options?: RequestInit): Promise<PatchDatasetApiConfigsDatasetNamePatch200> => {
   
-  return customFetch<patchDatasetApiConfigsDatasetNamePatchResponse>(getPatchDatasetApiConfigsDatasetNamePatchUrl(name),
+  return customFetch<PatchDatasetApiConfigsDatasetNamePatch200>(getPatchDatasetApiConfigsDatasetNamePatchUrl(name),
   {      
     ...options,
     method: 'PATCH',
@@ -3325,18 +3233,6 @@ export const usePatchDatasetApiConfigsDatasetNamePatch = <TError = HTTPValidatio
  * List all backends.
  * @summary List Backends
  */
-export type listBackendsApiConfigsBackendGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listBackendsApiConfigsBackendGetResponseSuccess = (listBackendsApiConfigsBackendGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type listBackendsApiConfigsBackendGetResponse = (listBackendsApiConfigsBackendGetResponseSuccess)
-
 export const getListBackendsApiConfigsBackendGetUrl = () => {
 
 
@@ -3345,9 +3241,9 @@ export const getListBackendsApiConfigsBackendGetUrl = () => {
   return `/api/configs/backend`
 }
 
-export const listBackendsApiConfigsBackendGet = async ( options?: RequestInit): Promise<listBackendsApiConfigsBackendGetResponse> => {
+export const listBackendsApiConfigsBackendGet = async ( options?: RequestInit): Promise<ListBackendsResponse> => {
   
-  return customFetch<listBackendsApiConfigsBackendGetResponse>(getListBackendsApiConfigsBackendGetUrl(),
+  return customFetch<ListBackendsResponse>(getListBackendsApiConfigsBackendGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -3430,6 +3326,17 @@ export function useListBackendsApiConfigsBackendGet<TData = Awaited<ReturnType<t
 }
 
 
+/**
+ * @summary List Backends
+ */
+export const invalidateListBackendsApiConfigsBackendGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListBackendsApiConfigsBackendGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -3437,25 +3344,6 @@ export function useListBackendsApiConfigsBackendGet<TData = Awaited<ReturnType<t
  * Get info for a specific backend.
  * @summary Get Backend
  */
-export type getBackendApiConfigsBackendNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getBackendApiConfigsBackendNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getBackendApiConfigsBackendNameGetResponseSuccess = (getBackendApiConfigsBackendNameGetResponse200) & {
-  headers: Headers;
-};
-export type getBackendApiConfigsBackendNameGetResponseError = (getBackendApiConfigsBackendNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type getBackendApiConfigsBackendNameGetResponse = (getBackendApiConfigsBackendNameGetResponseSuccess | getBackendApiConfigsBackendNameGetResponseError)
-
 export const getGetBackendApiConfigsBackendNameGetUrl = (name: string,) => {
 
 
@@ -3464,9 +3352,9 @@ export const getGetBackendApiConfigsBackendNameGetUrl = (name: string,) => {
   return `/api/configs/backend/${name}`
 }
 
-export const getBackendApiConfigsBackendNameGet = async (name: string, options?: RequestInit): Promise<getBackendApiConfigsBackendNameGetResponse> => {
+export const getBackendApiConfigsBackendNameGet = async (name: string, options?: RequestInit): Promise<Backend> => {
   
-  return customFetch<getBackendApiConfigsBackendNameGetResponse>(getGetBackendApiConfigsBackendNameGetUrl(name),
+  return customFetch<Backend>(getGetBackendApiConfigsBackendNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -3549,6 +3437,17 @@ export function useGetBackendApiConfigsBackendNameGet<TData = Awaited<ReturnType
 }
 
 
+/**
+ * @summary Get Backend
+ */
+export const invalidateGetBackendApiConfigsBackendNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetBackendApiConfigsBackendNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -3556,25 +3455,6 @@ export function useGetBackendApiConfigsBackendNameGet<TData = Awaited<ReturnType
  * Override the config for a specific backend.
  * @summary Update Backend
  */
-export type updateBackendApiConfigsBackendNamePostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type updateBackendApiConfigsBackendNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type updateBackendApiConfigsBackendNamePostResponseSuccess = (updateBackendApiConfigsBackendNamePostResponse200) & {
-  headers: Headers;
-};
-export type updateBackendApiConfigsBackendNamePostResponseError = (updateBackendApiConfigsBackendNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type updateBackendApiConfigsBackendNamePostResponse = (updateBackendApiConfigsBackendNamePostResponseSuccess | updateBackendApiConfigsBackendNamePostResponseError)
-
 export const getUpdateBackendApiConfigsBackendNamePostUrl = (name: string,) => {
 
 
@@ -3584,9 +3464,9 @@ export const getUpdateBackendApiConfigsBackendNamePostUrl = (name: string,) => {
 }
 
 export const updateBackendApiConfigsBackendNamePost = async (name: string,
-    postBackendRequest: PostBackendRequest, options?: RequestInit): Promise<updateBackendApiConfigsBackendNamePostResponse> => {
+    postBackendRequest: PostBackendRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<updateBackendApiConfigsBackendNamePostResponse>(getUpdateBackendApiConfigsBackendNamePostUrl(name),
+  return customFetch<unknown>(getUpdateBackendApiConfigsBackendNamePostUrl(name),
   {      
     ...options,
     method: 'POST',
@@ -3648,25 +3528,6 @@ export const useUpdateBackendApiConfigsBackendNamePost = <TError = HTTPValidatio
  * Remove a backend.
  * @summary Delete Backend
  */
-export type deleteBackendApiConfigsBackendNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteBackendApiConfigsBackendNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteBackendApiConfigsBackendNameDeleteResponseSuccess = (deleteBackendApiConfigsBackendNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteBackendApiConfigsBackendNameDeleteResponseError = (deleteBackendApiConfigsBackendNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteBackendApiConfigsBackendNameDeleteResponse = (deleteBackendApiConfigsBackendNameDeleteResponseSuccess | deleteBackendApiConfigsBackendNameDeleteResponseError)
-
 export const getDeleteBackendApiConfigsBackendNameDeleteUrl = (name: string,) => {
 
 
@@ -3676,9 +3537,9 @@ export const getDeleteBackendApiConfigsBackendNameDeleteUrl = (name: string,) =>
 }
 
 export const deleteBackendApiConfigsBackendNameDelete = async (name: string,
-    deleteBackendRequest: DeleteBackendRequest, options?: RequestInit): Promise<deleteBackendApiConfigsBackendNameDeleteResponse> => {
+    deleteBackendRequest: DeleteBackendRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteBackendApiConfigsBackendNameDeleteResponse>(getDeleteBackendApiConfigsBackendNameDeleteUrl(name),
+  return customFetch<unknown>(getDeleteBackendApiConfigsBackendNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -3740,25 +3601,6 @@ export const useDeleteBackendApiConfigsBackendNameDelete = <TError = HTTPValidat
  * List all Pools
  * @summary List Pools
  */
-export type listPoolsApiConfigsPoolGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listPoolsApiConfigsPoolGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listPoolsApiConfigsPoolGetResponseSuccess = (listPoolsApiConfigsPoolGetResponse200) & {
-  headers: Headers;
-};
-export type listPoolsApiConfigsPoolGetResponseError = (listPoolsApiConfigsPoolGetResponse422) & {
-  headers: Headers;
-};
-
-export type listPoolsApiConfigsPoolGetResponse = (listPoolsApiConfigsPoolGetResponseSuccess | listPoolsApiConfigsPoolGetResponseError)
-
 export const getListPoolsApiConfigsPoolGetUrl = (params?: ListPoolsApiConfigsPoolGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -3774,9 +3616,9 @@ export const getListPoolsApiConfigsPoolGetUrl = (params?: ListPoolsApiConfigsPoo
   return stringifiedParams.length > 0 ? `/api/configs/pool?${stringifiedParams}` : `/api/configs/pool`
 }
 
-export const listPoolsApiConfigsPoolGet = async (params?: ListPoolsApiConfigsPoolGetParams, options?: RequestInit): Promise<listPoolsApiConfigsPoolGetResponse> => {
+export const listPoolsApiConfigsPoolGet = async (params?: ListPoolsApiConfigsPoolGetParams, options?: RequestInit): Promise<VerbosePoolConfig | EditablePoolConfig> => {
   
-  return customFetch<listPoolsApiConfigsPoolGetResponse>(getListPoolsApiConfigsPoolGetUrl(params),
+  return customFetch<VerbosePoolConfig | EditablePoolConfig>(getListPoolsApiConfigsPoolGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -3859,6 +3701,17 @@ export function useListPoolsApiConfigsPoolGet<TData = Awaited<ReturnType<typeof 
 }
 
 
+/**
+ * @summary List Pools
+ */
+export const invalidateListPoolsApiConfigsPoolGet = async (
+ queryClient: QueryClient, params?: ListPoolsApiConfigsPoolGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListPoolsApiConfigsPoolGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -3866,25 +3719,6 @@ export function useListPoolsApiConfigsPoolGet<TData = Awaited<ReturnType<typeof 
  * Put Pool configurations
  * @summary Put Pools
  */
-export type putPoolsApiConfigsPoolPutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putPoolsApiConfigsPoolPutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putPoolsApiConfigsPoolPutResponseSuccess = (putPoolsApiConfigsPoolPutResponse200) & {
-  headers: Headers;
-};
-export type putPoolsApiConfigsPoolPutResponseError = (putPoolsApiConfigsPoolPutResponse422) & {
-  headers: Headers;
-};
-
-export type putPoolsApiConfigsPoolPutResponse = (putPoolsApiConfigsPoolPutResponseSuccess | putPoolsApiConfigsPoolPutResponseError)
-
 export const getPutPoolsApiConfigsPoolPutUrl = () => {
 
 
@@ -3893,9 +3727,9 @@ export const getPutPoolsApiConfigsPoolPutUrl = () => {
   return `/api/configs/pool`
 }
 
-export const putPoolsApiConfigsPoolPut = async (putPoolsRequest: PutPoolsRequest, options?: RequestInit): Promise<putPoolsApiConfigsPoolPutResponse> => {
+export const putPoolsApiConfigsPoolPut = async (putPoolsRequest: PutPoolsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putPoolsApiConfigsPoolPutResponse>(getPutPoolsApiConfigsPoolPutUrl(),
+  return customFetch<unknown>(getPutPoolsApiConfigsPoolPutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -3960,25 +3794,6 @@ Return type Any to prevent unwanted artifacts between Pool and PoolEditable outp
 Should return Pool or PoolEditable objects
  * @summary Read Pool
  */
-export type readPoolApiConfigsPoolNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readPoolApiConfigsPoolNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readPoolApiConfigsPoolNameGetResponseSuccess = (readPoolApiConfigsPoolNameGetResponse200) & {
-  headers: Headers;
-};
-export type readPoolApiConfigsPoolNameGetResponseError = (readPoolApiConfigsPoolNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readPoolApiConfigsPoolNameGetResponse = (readPoolApiConfigsPoolNameGetResponseSuccess | readPoolApiConfigsPoolNameGetResponseError)
-
 export const getReadPoolApiConfigsPoolNameGetUrl = (name: string,
     params?: ReadPoolApiConfigsPoolNameGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -3996,9 +3811,9 @@ export const getReadPoolApiConfigsPoolNameGetUrl = (name: string,
 }
 
 export const readPoolApiConfigsPoolNameGet = async (name: string,
-    params?: ReadPoolApiConfigsPoolNameGetParams, options?: RequestInit): Promise<readPoolApiConfigsPoolNameGetResponse> => {
+    params?: ReadPoolApiConfigsPoolNameGetParams, options?: RequestInit): Promise<Pool | PoolEditable> => {
   
-  return customFetch<readPoolApiConfigsPoolNameGetResponse>(getReadPoolApiConfigsPoolNameGetUrl(name,params),
+  return customFetch<Pool | PoolEditable>(getReadPoolApiConfigsPoolNameGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -4087,6 +3902,18 @@ export function useReadPoolApiConfigsPoolNameGet<TData = Awaited<ReturnType<type
 }
 
 
+/**
+ * @summary Read Pool
+ */
+export const invalidateReadPoolApiConfigsPoolNameGet = async (
+ queryClient: QueryClient, name: string,
+    params?: ReadPoolApiConfigsPoolNameGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadPoolApiConfigsPoolNameGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -4094,25 +3921,6 @@ export function useReadPoolApiConfigsPoolNameGet<TData = Awaited<ReturnType<type
  * Put Pool configurations
  * @summary Put Pool
  */
-export type putPoolApiConfigsPoolNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putPoolApiConfigsPoolNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putPoolApiConfigsPoolNamePutResponseSuccess = (putPoolApiConfigsPoolNamePutResponse200) & {
-  headers: Headers;
-};
-export type putPoolApiConfigsPoolNamePutResponseError = (putPoolApiConfigsPoolNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putPoolApiConfigsPoolNamePutResponse = (putPoolApiConfigsPoolNamePutResponseSuccess | putPoolApiConfigsPoolNamePutResponseError)
-
 export const getPutPoolApiConfigsPoolNamePutUrl = (name: string,) => {
 
 
@@ -4122,9 +3930,9 @@ export const getPutPoolApiConfigsPoolNamePutUrl = (name: string,) => {
 }
 
 export const putPoolApiConfigsPoolNamePut = async (name: string,
-    putPoolRequest: PutPoolRequest, options?: RequestInit): Promise<putPoolApiConfigsPoolNamePutResponse> => {
+    putPoolRequest: PutPoolRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putPoolApiConfigsPoolNamePutResponse>(getPutPoolApiConfigsPoolNamePutUrl(name),
+  return customFetch<unknown>(getPutPoolApiConfigsPoolNamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -4186,25 +3994,6 @@ export const usePutPoolApiConfigsPoolNamePut = <TError = HTTPValidationError,
  * Delete Pool configurations
  * @summary Delete Pool
  */
-export type deletePoolApiConfigsPoolNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deletePoolApiConfigsPoolNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deletePoolApiConfigsPoolNameDeleteResponseSuccess = (deletePoolApiConfigsPoolNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deletePoolApiConfigsPoolNameDeleteResponseError = (deletePoolApiConfigsPoolNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deletePoolApiConfigsPoolNameDeleteResponse = (deletePoolApiConfigsPoolNameDeleteResponseSuccess | deletePoolApiConfigsPoolNameDeleteResponseError)
-
 export const getDeletePoolApiConfigsPoolNameDeleteUrl = (name: string,) => {
 
 
@@ -4214,9 +4003,9 @@ export const getDeletePoolApiConfigsPoolNameDeleteUrl = (name: string,) => {
 }
 
 export const deletePoolApiConfigsPoolNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deletePoolApiConfigsPoolNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deletePoolApiConfigsPoolNameDeleteResponse>(getDeletePoolApiConfigsPoolNameDeleteUrl(name),
+  return customFetch<unknown>(getDeletePoolApiConfigsPoolNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -4278,25 +4067,6 @@ export const useDeletePoolApiConfigsPoolNameDelete = <TError = HTTPValidationErr
  * Patch Pool configurations
  * @summary Patch Pool
  */
-export type patchPoolApiConfigsPoolNamePatchResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type patchPoolApiConfigsPoolNamePatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type patchPoolApiConfigsPoolNamePatchResponseSuccess = (patchPoolApiConfigsPoolNamePatchResponse200) & {
-  headers: Headers;
-};
-export type patchPoolApiConfigsPoolNamePatchResponseError = (patchPoolApiConfigsPoolNamePatchResponse422) & {
-  headers: Headers;
-};
-
-export type patchPoolApiConfigsPoolNamePatchResponse = (patchPoolApiConfigsPoolNamePatchResponseSuccess | patchPoolApiConfigsPoolNamePatchResponseError)
-
 export const getPatchPoolApiConfigsPoolNamePatchUrl = (name: string,) => {
 
 
@@ -4306,9 +4076,9 @@ export const getPatchPoolApiConfigsPoolNamePatchUrl = (name: string,) => {
 }
 
 export const patchPoolApiConfigsPoolNamePatch = async (name: string,
-    patchPoolRequest: PatchPoolRequest, options?: RequestInit): Promise<patchPoolApiConfigsPoolNamePatchResponse> => {
+    patchPoolRequest: PatchPoolRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<patchPoolApiConfigsPoolNamePatchResponse>(getPatchPoolApiConfigsPoolNamePatchUrl(name),
+  return customFetch<unknown>(getPatchPoolApiConfigsPoolNamePatchUrl(name),
   {      
     ...options,
     method: 'PATCH',
@@ -4370,25 +4140,6 @@ export const usePatchPoolApiConfigsPoolNamePatch = <TError = HTTPValidationError
  * Rename Pool
  * @summary Rename Pool
  */
-export type renamePoolApiConfigsPoolNameRenamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type renamePoolApiConfigsPoolNameRenamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type renamePoolApiConfigsPoolNameRenamePutResponseSuccess = (renamePoolApiConfigsPoolNameRenamePutResponse200) & {
-  headers: Headers;
-};
-export type renamePoolApiConfigsPoolNameRenamePutResponseError = (renamePoolApiConfigsPoolNameRenamePutResponse422) & {
-  headers: Headers;
-};
-
-export type renamePoolApiConfigsPoolNameRenamePutResponse = (renamePoolApiConfigsPoolNameRenamePutResponseSuccess | renamePoolApiConfigsPoolNameRenamePutResponseError)
-
 export const getRenamePoolApiConfigsPoolNameRenamePutUrl = (name: string,) => {
 
 
@@ -4398,9 +4149,9 @@ export const getRenamePoolApiConfigsPoolNameRenamePutUrl = (name: string,) => {
 }
 
 export const renamePoolApiConfigsPoolNameRenamePut = async (name: string,
-    renamePoolRequest: RenamePoolRequest, options?: RequestInit): Promise<renamePoolApiConfigsPoolNameRenamePutResponse> => {
+    renamePoolRequest: RenamePoolRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<renamePoolApiConfigsPoolNameRenamePutResponse>(getRenamePoolApiConfigsPoolNameRenamePutUrl(name),
+  return customFetch<unknown>(getRenamePoolApiConfigsPoolNameRenamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -4462,28 +4213,10 @@ export const useRenamePoolApiConfigsPoolNameRenamePut = <TError = HTTPValidation
  * List all Platforms
 
 Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Dict[str, Platform] or Dict[str, PlatformEditable] objects
+Should return Mapping[str, connectors.Platform | connectors.PlatformEditable |
+connectors.PlatformMinimal] objects
  * @summary List Platforms In Pool
  */
-export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponseSuccess = (listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse200) & {
-  headers: Headers;
-};
-export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponseError = (listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse422) & {
-  headers: Headers;
-};
-
-export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse = (listPlatformsInPoolApiConfigsPoolNamePlatformGetResponseSuccess | listPlatformsInPoolApiConfigsPoolNamePlatformGetResponseError)
-
 export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl = (name: string,
     params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -4501,9 +4234,9 @@ export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl = (name: str
 }
 
 export const listPlatformsInPoolApiConfigsPoolNamePlatformGet = async (name: string,
-    params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams, options?: RequestInit): Promise<listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse> => {
+    params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams, options?: RequestInit): Promise<ListPlatformsInPoolApiConfigsPoolNamePlatformGet200> => {
   
-  return customFetch<listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse>(getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl(name,params),
+  return customFetch<ListPlatformsInPoolApiConfigsPoolNamePlatformGet200>(getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -4592,6 +4325,18 @@ export function useListPlatformsInPoolApiConfigsPoolNamePlatformGet<TData = Awai
 }
 
 
+/**
+ * @summary List Platforms In Pool
+ */
+export const invalidateListPlatformsInPoolApiConfigsPoolNamePlatformGet = async (
+ queryClient: QueryClient, name: string,
+    params?: ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListPlatformsInPoolApiConfigsPoolNamePlatformGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -4599,28 +4344,9 @@ export function useListPlatformsInPoolApiConfigsPoolNamePlatformGet<TData = Awai
  * Read Platform
 
 Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Platform or PlatformEditable objects
+Should return Platform or PlatformEditable or PlatformMinimal objects
  * @summary Read Platform In Pool
  */
-export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseSuccess = (readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse200) & {
-  headers: Headers;
-};
-export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseError = (readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse = (readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseSuccess | readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseError)
-
 export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl = (name: string,
     platformName: string,
     params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams,) => {
@@ -4640,9 +4366,9 @@ export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl =
 
 export const readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet = async (name: string,
     platformName: string,
-    params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: RequestInit): Promise<readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse> => {
+    params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: RequestInit): Promise<Platform | PlatformEditable | PlatformMinimal> => {
   
-  return customFetch<readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse>(getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl(name,platformName,params),
+  return customFetch<Platform | PlatformEditable | PlatformMinimal>(getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl(name,platformName,params),
   {      
     ...options,
     method: 'GET'
@@ -4737,6 +4463,19 @@ export function useReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet<T
 }
 
 
+/**
+ * @summary Read Platform In Pool
+ */
+export const invalidateReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet = async (
+ queryClient: QueryClient, name: string,
+    platformName: string,
+    params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetQueryKey(name,platformName,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -4744,25 +4483,6 @@ export function useReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet<T
  * Put Platform configurations
  * @summary Put Platform In Pool
  */
-export type putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponseSuccess = (putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse200) & {
-  headers: Headers;
-};
-export type putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponseError = (putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse = (putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponseSuccess | putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponseError)
-
 export const getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl = (name: string,
     platformName: string,) => {
 
@@ -4774,9 +4494,9 @@ export const getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl = 
 
 export const putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePut = async (name: string,
     platformName: string,
-    putPoolPlatformRequest: PutPoolPlatformRequest, options?: RequestInit): Promise<putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse> => {
+    putPoolPlatformRequest: PutPoolPlatformRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutResponse>(getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl(name,platformName),
+  return customFetch<unknown>(getPutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePutUrl(name,platformName),
   {      
     ...options,
     method: 'PUT',
@@ -4838,25 +4558,6 @@ export const usePutPlatformInPoolApiConfigsPoolNamePlatformPlatformNamePut = <TE
  * Rename Platform
  * @summary Rename Platform In Pool
  */
-export type renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponseSuccess = (renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse200) & {
-  headers: Headers;
-};
-export type renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponseError = (renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse422) & {
-  headers: Headers;
-};
-
-export type renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse = (renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponseSuccess | renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponseError)
-
 export const getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutUrl = (name: string,
     platformName: string,) => {
 
@@ -4868,9 +4569,9 @@ export const getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
 
 export const renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePut = async (name: string,
     platformName: string,
-    renamePoolPlatformRequest: RenamePoolPlatformRequest, options?: RequestInit): Promise<renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse> => {
+    renamePoolPlatformRequest: RenamePoolPlatformRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<renamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutResponse>(getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutUrl(name,platformName),
+  return customFetch<unknown>(getRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRenamePutUrl(name,platformName),
   {      
     ...options,
     method: 'PUT',
@@ -4932,18 +4633,6 @@ export const useRenamePlatformInPoolApiConfigsPoolNamePlatformPlatformNameRename
  * List all Pod Template configurations
  * @summary List Pod Templates
  */
-export type listPodTemplatesApiConfigsPodTemplateGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listPodTemplatesApiConfigsPodTemplateGetResponseSuccess = (listPodTemplatesApiConfigsPodTemplateGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type listPodTemplatesApiConfigsPodTemplateGetResponse = (listPodTemplatesApiConfigsPodTemplateGetResponseSuccess)
-
 export const getListPodTemplatesApiConfigsPodTemplateGetUrl = () => {
 
 
@@ -4952,9 +4641,9 @@ export const getListPodTemplatesApiConfigsPodTemplateGetUrl = () => {
   return `/api/configs/pod_template`
 }
 
-export const listPodTemplatesApiConfigsPodTemplateGet = async ( options?: RequestInit): Promise<listPodTemplatesApiConfigsPodTemplateGetResponse> => {
+export const listPodTemplatesApiConfigsPodTemplateGet = async ( options?: RequestInit): Promise<ListPodTemplatesApiConfigsPodTemplateGet200> => {
   
-  return customFetch<listPodTemplatesApiConfigsPodTemplateGetResponse>(getListPodTemplatesApiConfigsPodTemplateGetUrl(),
+  return customFetch<ListPodTemplatesApiConfigsPodTemplateGet200>(getListPodTemplatesApiConfigsPodTemplateGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -5037,6 +4726,17 @@ export function useListPodTemplatesApiConfigsPodTemplateGet<TData = Awaited<Retu
 }
 
 
+/**
+ * @summary List Pod Templates
+ */
+export const invalidateListPodTemplatesApiConfigsPodTemplateGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListPodTemplatesApiConfigsPodTemplateGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -5044,25 +4744,6 @@ export function useListPodTemplatesApiConfigsPodTemplateGet<TData = Awaited<Retu
  * Set Dict of Pod Templates configurations
  * @summary Put Pod Templates
  */
-export type putPodTemplatesApiConfigsPodTemplatePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putPodTemplatesApiConfigsPodTemplatePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putPodTemplatesApiConfigsPodTemplatePutResponseSuccess = (putPodTemplatesApiConfigsPodTemplatePutResponse200) & {
-  headers: Headers;
-};
-export type putPodTemplatesApiConfigsPodTemplatePutResponseError = (putPodTemplatesApiConfigsPodTemplatePutResponse422) & {
-  headers: Headers;
-};
-
-export type putPodTemplatesApiConfigsPodTemplatePutResponse = (putPodTemplatesApiConfigsPodTemplatePutResponseSuccess | putPodTemplatesApiConfigsPodTemplatePutResponseError)
-
 export const getPutPodTemplatesApiConfigsPodTemplatePutUrl = () => {
 
 
@@ -5071,9 +4752,9 @@ export const getPutPodTemplatesApiConfigsPodTemplatePutUrl = () => {
   return `/api/configs/pod_template`
 }
 
-export const putPodTemplatesApiConfigsPodTemplatePut = async (putPodTemplatesRequest: PutPodTemplatesRequest, options?: RequestInit): Promise<putPodTemplatesApiConfigsPodTemplatePutResponse> => {
+export const putPodTemplatesApiConfigsPodTemplatePut = async (putPodTemplatesRequest: PutPodTemplatesRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putPodTemplatesApiConfigsPodTemplatePutResponse>(getPutPodTemplatesApiConfigsPodTemplatePutUrl(),
+  return customFetch<unknown>(getPutPodTemplatesApiConfigsPodTemplatePutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -5135,25 +4816,6 @@ export const usePutPodTemplatesApiConfigsPodTemplatePut = <TError = HTTPValidati
  * Read Pod Template configurations
  * @summary Read Pod Template
  */
-export type readPodTemplateApiConfigsPodTemplateNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readPodTemplateApiConfigsPodTemplateNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readPodTemplateApiConfigsPodTemplateNameGetResponseSuccess = (readPodTemplateApiConfigsPodTemplateNameGetResponse200) & {
-  headers: Headers;
-};
-export type readPodTemplateApiConfigsPodTemplateNameGetResponseError = (readPodTemplateApiConfigsPodTemplateNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readPodTemplateApiConfigsPodTemplateNameGetResponse = (readPodTemplateApiConfigsPodTemplateNameGetResponseSuccess | readPodTemplateApiConfigsPodTemplateNameGetResponseError)
-
 export const getReadPodTemplateApiConfigsPodTemplateNameGetUrl = (name: string,) => {
 
 
@@ -5162,9 +4824,9 @@ export const getReadPodTemplateApiConfigsPodTemplateNameGetUrl = (name: string,)
   return `/api/configs/pod_template/${name}`
 }
 
-export const readPodTemplateApiConfigsPodTemplateNameGet = async (name: string, options?: RequestInit): Promise<readPodTemplateApiConfigsPodTemplateNameGetResponse> => {
+export const readPodTemplateApiConfigsPodTemplateNameGet = async (name: string, options?: RequestInit): Promise<ReadPodTemplateApiConfigsPodTemplateNameGet200> => {
   
-  return customFetch<readPodTemplateApiConfigsPodTemplateNameGetResponse>(getReadPodTemplateApiConfigsPodTemplateNameGetUrl(name),
+  return customFetch<ReadPodTemplateApiConfigsPodTemplateNameGet200>(getReadPodTemplateApiConfigsPodTemplateNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -5247,6 +4909,17 @@ export function useReadPodTemplateApiConfigsPodTemplateNameGet<TData = Awaited<R
 }
 
 
+/**
+ * @summary Read Pod Template
+ */
+export const invalidateReadPodTemplateApiConfigsPodTemplateNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadPodTemplateApiConfigsPodTemplateNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -5254,25 +4927,6 @@ export function useReadPodTemplateApiConfigsPodTemplateNameGet<TData = Awaited<R
  * Put Pod Template configurations
  * @summary Put Pod Template
  */
-export type putPodTemplateApiConfigsPodTemplateNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putPodTemplateApiConfigsPodTemplateNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putPodTemplateApiConfigsPodTemplateNamePutResponseSuccess = (putPodTemplateApiConfigsPodTemplateNamePutResponse200) & {
-  headers: Headers;
-};
-export type putPodTemplateApiConfigsPodTemplateNamePutResponseError = (putPodTemplateApiConfigsPodTemplateNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putPodTemplateApiConfigsPodTemplateNamePutResponse = (putPodTemplateApiConfigsPodTemplateNamePutResponseSuccess | putPodTemplateApiConfigsPodTemplateNamePutResponseError)
-
 export const getPutPodTemplateApiConfigsPodTemplateNamePutUrl = (name: string,) => {
 
 
@@ -5282,9 +4936,9 @@ export const getPutPodTemplateApiConfigsPodTemplateNamePutUrl = (name: string,) 
 }
 
 export const putPodTemplateApiConfigsPodTemplateNamePut = async (name: string,
-    putPodTemplateRequest: PutPodTemplateRequest, options?: RequestInit): Promise<putPodTemplateApiConfigsPodTemplateNamePutResponse> => {
+    putPodTemplateRequest: PutPodTemplateRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putPodTemplateApiConfigsPodTemplateNamePutResponse>(getPutPodTemplateApiConfigsPodTemplateNamePutUrl(name),
+  return customFetch<unknown>(getPutPodTemplateApiConfigsPodTemplateNamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -5346,25 +5000,6 @@ export const usePutPodTemplateApiConfigsPodTemplateNamePut = <TError = HTTPValid
  * Delete Pod Template configurations
  * @summary Delete Pod Template
  */
-export type deletePodTemplateApiConfigsPodTemplateNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deletePodTemplateApiConfigsPodTemplateNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deletePodTemplateApiConfigsPodTemplateNameDeleteResponseSuccess = (deletePodTemplateApiConfigsPodTemplateNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deletePodTemplateApiConfigsPodTemplateNameDeleteResponseError = (deletePodTemplateApiConfigsPodTemplateNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deletePodTemplateApiConfigsPodTemplateNameDeleteResponse = (deletePodTemplateApiConfigsPodTemplateNameDeleteResponseSuccess | deletePodTemplateApiConfigsPodTemplateNameDeleteResponseError)
-
 export const getDeletePodTemplateApiConfigsPodTemplateNameDeleteUrl = (name: string,) => {
 
 
@@ -5374,9 +5009,9 @@ export const getDeletePodTemplateApiConfigsPodTemplateNameDeleteUrl = (name: str
 }
 
 export const deletePodTemplateApiConfigsPodTemplateNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deletePodTemplateApiConfigsPodTemplateNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deletePodTemplateApiConfigsPodTemplateNameDeleteResponse>(getDeletePodTemplateApiConfigsPodTemplateNameDeleteUrl(name),
+  return customFetch<unknown>(getDeletePodTemplateApiConfigsPodTemplateNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -5438,18 +5073,6 @@ export const useDeletePodTemplateApiConfigsPodTemplateNameDelete = <TError = HTT
  * List all Group Template configurations
  * @summary List Group Templates
  */
-export type listGroupTemplatesApiConfigsGroupTemplateGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listGroupTemplatesApiConfigsGroupTemplateGetResponseSuccess = (listGroupTemplatesApiConfigsGroupTemplateGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type listGroupTemplatesApiConfigsGroupTemplateGetResponse = (listGroupTemplatesApiConfigsGroupTemplateGetResponseSuccess)
-
 export const getListGroupTemplatesApiConfigsGroupTemplateGetUrl = () => {
 
 
@@ -5458,9 +5081,9 @@ export const getListGroupTemplatesApiConfigsGroupTemplateGetUrl = () => {
   return `/api/configs/group_template`
 }
 
-export const listGroupTemplatesApiConfigsGroupTemplateGet = async ( options?: RequestInit): Promise<listGroupTemplatesApiConfigsGroupTemplateGetResponse> => {
+export const listGroupTemplatesApiConfigsGroupTemplateGet = async ( options?: RequestInit): Promise<ListGroupTemplatesApiConfigsGroupTemplateGet200> => {
   
-  return customFetch<listGroupTemplatesApiConfigsGroupTemplateGetResponse>(getListGroupTemplatesApiConfigsGroupTemplateGetUrl(),
+  return customFetch<ListGroupTemplatesApiConfigsGroupTemplateGet200>(getListGroupTemplatesApiConfigsGroupTemplateGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -5543,6 +5166,17 @@ export function useListGroupTemplatesApiConfigsGroupTemplateGet<TData = Awaited<
 }
 
 
+/**
+ * @summary List Group Templates
+ */
+export const invalidateListGroupTemplatesApiConfigsGroupTemplateGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListGroupTemplatesApiConfigsGroupTemplateGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -5550,25 +5184,6 @@ export function useListGroupTemplatesApiConfigsGroupTemplateGet<TData = Awaited<
  * Set Dict of Group Templates configurations
  * @summary Put Group Templates
  */
-export type putGroupTemplatesApiConfigsGroupTemplatePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putGroupTemplatesApiConfigsGroupTemplatePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putGroupTemplatesApiConfigsGroupTemplatePutResponseSuccess = (putGroupTemplatesApiConfigsGroupTemplatePutResponse200) & {
-  headers: Headers;
-};
-export type putGroupTemplatesApiConfigsGroupTemplatePutResponseError = (putGroupTemplatesApiConfigsGroupTemplatePutResponse422) & {
-  headers: Headers;
-};
-
-export type putGroupTemplatesApiConfigsGroupTemplatePutResponse = (putGroupTemplatesApiConfigsGroupTemplatePutResponseSuccess | putGroupTemplatesApiConfigsGroupTemplatePutResponseError)
-
 export const getPutGroupTemplatesApiConfigsGroupTemplatePutUrl = () => {
 
 
@@ -5577,9 +5192,9 @@ export const getPutGroupTemplatesApiConfigsGroupTemplatePutUrl = () => {
   return `/api/configs/group_template`
 }
 
-export const putGroupTemplatesApiConfigsGroupTemplatePut = async (putGroupTemplatesRequest: PutGroupTemplatesRequest, options?: RequestInit): Promise<putGroupTemplatesApiConfigsGroupTemplatePutResponse> => {
+export const putGroupTemplatesApiConfigsGroupTemplatePut = async (putGroupTemplatesRequest: PutGroupTemplatesRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putGroupTemplatesApiConfigsGroupTemplatePutResponse>(getPutGroupTemplatesApiConfigsGroupTemplatePutUrl(),
+  return customFetch<unknown>(getPutGroupTemplatesApiConfigsGroupTemplatePutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -5641,25 +5256,6 @@ export const usePutGroupTemplatesApiConfigsGroupTemplatePut = <TError = HTTPVali
  * Read Group Template configurations
  * @summary Read Group Template
  */
-export type readGroupTemplateApiConfigsGroupTemplateNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readGroupTemplateApiConfigsGroupTemplateNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readGroupTemplateApiConfigsGroupTemplateNameGetResponseSuccess = (readGroupTemplateApiConfigsGroupTemplateNameGetResponse200) & {
-  headers: Headers;
-};
-export type readGroupTemplateApiConfigsGroupTemplateNameGetResponseError = (readGroupTemplateApiConfigsGroupTemplateNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readGroupTemplateApiConfigsGroupTemplateNameGetResponse = (readGroupTemplateApiConfigsGroupTemplateNameGetResponseSuccess | readGroupTemplateApiConfigsGroupTemplateNameGetResponseError)
-
 export const getReadGroupTemplateApiConfigsGroupTemplateNameGetUrl = (name: string,) => {
 
 
@@ -5668,9 +5264,9 @@ export const getReadGroupTemplateApiConfigsGroupTemplateNameGetUrl = (name: stri
   return `/api/configs/group_template/${name}`
 }
 
-export const readGroupTemplateApiConfigsGroupTemplateNameGet = async (name: string, options?: RequestInit): Promise<readGroupTemplateApiConfigsGroupTemplateNameGetResponse> => {
+export const readGroupTemplateApiConfigsGroupTemplateNameGet = async (name: string, options?: RequestInit): Promise<ReadGroupTemplateApiConfigsGroupTemplateNameGet200> => {
   
-  return customFetch<readGroupTemplateApiConfigsGroupTemplateNameGetResponse>(getReadGroupTemplateApiConfigsGroupTemplateNameGetUrl(name),
+  return customFetch<ReadGroupTemplateApiConfigsGroupTemplateNameGet200>(getReadGroupTemplateApiConfigsGroupTemplateNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -5753,6 +5349,17 @@ export function useReadGroupTemplateApiConfigsGroupTemplateNameGet<TData = Await
 }
 
 
+/**
+ * @summary Read Group Template
+ */
+export const invalidateReadGroupTemplateApiConfigsGroupTemplateNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadGroupTemplateApiConfigsGroupTemplateNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -5760,25 +5367,6 @@ export function useReadGroupTemplateApiConfigsGroupTemplateNameGet<TData = Await
  * Put Group Template configurations
  * @summary Put Group Template
  */
-export type putGroupTemplateApiConfigsGroupTemplateNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putGroupTemplateApiConfigsGroupTemplateNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putGroupTemplateApiConfigsGroupTemplateNamePutResponseSuccess = (putGroupTemplateApiConfigsGroupTemplateNamePutResponse200) & {
-  headers: Headers;
-};
-export type putGroupTemplateApiConfigsGroupTemplateNamePutResponseError = (putGroupTemplateApiConfigsGroupTemplateNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putGroupTemplateApiConfigsGroupTemplateNamePutResponse = (putGroupTemplateApiConfigsGroupTemplateNamePutResponseSuccess | putGroupTemplateApiConfigsGroupTemplateNamePutResponseError)
-
 export const getPutGroupTemplateApiConfigsGroupTemplateNamePutUrl = (name: string,) => {
 
 
@@ -5788,9 +5376,9 @@ export const getPutGroupTemplateApiConfigsGroupTemplateNamePutUrl = (name: strin
 }
 
 export const putGroupTemplateApiConfigsGroupTemplateNamePut = async (name: string,
-    putGroupTemplateRequest: PutGroupTemplateRequest, options?: RequestInit): Promise<putGroupTemplateApiConfigsGroupTemplateNamePutResponse> => {
+    putGroupTemplateRequest: PutGroupTemplateRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putGroupTemplateApiConfigsGroupTemplateNamePutResponse>(getPutGroupTemplateApiConfigsGroupTemplateNamePutUrl(name),
+  return customFetch<unknown>(getPutGroupTemplateApiConfigsGroupTemplateNamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -5852,25 +5440,6 @@ export const usePutGroupTemplateApiConfigsGroupTemplateNamePut = <TError = HTTPV
  * Delete Group Template configurations
  * @summary Delete Group Template
  */
-export type deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponseSuccess = (deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponseError = (deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse = (deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponseSuccess | deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponseError)
-
 export const getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteUrl = (name: string,) => {
 
 
@@ -5880,9 +5449,9 @@ export const getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteUrl = (name:
 }
 
 export const deleteGroupTemplateApiConfigsGroupTemplateNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteGroupTemplateApiConfigsGroupTemplateNameDeleteResponse>(getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteUrl(name),
+  return customFetch<unknown>(getDeleteGroupTemplateApiConfigsGroupTemplateNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -5944,18 +5513,6 @@ export const useDeleteGroupTemplateApiConfigsGroupTemplateNameDelete = <TError =
  * List all Resource Validation configurations
  * @summary List Resource Validations
  */
-export type listResourceValidationsApiConfigsResourceValidationGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listResourceValidationsApiConfigsResourceValidationGetResponseSuccess = (listResourceValidationsApiConfigsResourceValidationGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type listResourceValidationsApiConfigsResourceValidationGetResponse = (listResourceValidationsApiConfigsResourceValidationGetResponseSuccess)
-
 export const getListResourceValidationsApiConfigsResourceValidationGetUrl = () => {
 
 
@@ -5964,9 +5521,9 @@ export const getListResourceValidationsApiConfigsResourceValidationGetUrl = () =
   return `/api/configs/resource_validation`
 }
 
-export const listResourceValidationsApiConfigsResourceValidationGet = async ( options?: RequestInit): Promise<listResourceValidationsApiConfigsResourceValidationGetResponse> => {
+export const listResourceValidationsApiConfigsResourceValidationGet = async ( options?: RequestInit): Promise<ListResourceValidationsApiConfigsResourceValidationGet200> => {
   
-  return customFetch<listResourceValidationsApiConfigsResourceValidationGetResponse>(getListResourceValidationsApiConfigsResourceValidationGetUrl(),
+  return customFetch<ListResourceValidationsApiConfigsResourceValidationGet200>(getListResourceValidationsApiConfigsResourceValidationGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6049,6 +5606,17 @@ export function useListResourceValidationsApiConfigsResourceValidationGet<TData 
 }
 
 
+/**
+ * @summary List Resource Validations
+ */
+export const invalidateListResourceValidationsApiConfigsResourceValidationGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListResourceValidationsApiConfigsResourceValidationGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -6056,25 +5624,6 @@ export function useListResourceValidationsApiConfigsResourceValidationGet<TData 
  * Put Resource Validation configurations
  * @summary Put Resource Validations
  */
-export type putResourceValidationsApiConfigsResourceValidationPutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putResourceValidationsApiConfigsResourceValidationPutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putResourceValidationsApiConfigsResourceValidationPutResponseSuccess = (putResourceValidationsApiConfigsResourceValidationPutResponse200) & {
-  headers: Headers;
-};
-export type putResourceValidationsApiConfigsResourceValidationPutResponseError = (putResourceValidationsApiConfigsResourceValidationPutResponse422) & {
-  headers: Headers;
-};
-
-export type putResourceValidationsApiConfigsResourceValidationPutResponse = (putResourceValidationsApiConfigsResourceValidationPutResponseSuccess | putResourceValidationsApiConfigsResourceValidationPutResponseError)
-
 export const getPutResourceValidationsApiConfigsResourceValidationPutUrl = () => {
 
 
@@ -6083,9 +5632,9 @@ export const getPutResourceValidationsApiConfigsResourceValidationPutUrl = () =>
   return `/api/configs/resource_validation`
 }
 
-export const putResourceValidationsApiConfigsResourceValidationPut = async (putResourceValidationsRequest: PutResourceValidationsRequest, options?: RequestInit): Promise<putResourceValidationsApiConfigsResourceValidationPutResponse> => {
+export const putResourceValidationsApiConfigsResourceValidationPut = async (putResourceValidationsRequest: PutResourceValidationsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putResourceValidationsApiConfigsResourceValidationPutResponse>(getPutResourceValidationsApiConfigsResourceValidationPutUrl(),
+  return customFetch<unknown>(getPutResourceValidationsApiConfigsResourceValidationPutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -6147,25 +5696,6 @@ export const usePutResourceValidationsApiConfigsResourceValidationPut = <TError 
  * Read Resource Validation configurations
  * @summary Read Resource Validation
  */
-export type readResourceValidationApiConfigsResourceValidationNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readResourceValidationApiConfigsResourceValidationNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readResourceValidationApiConfigsResourceValidationNameGetResponseSuccess = (readResourceValidationApiConfigsResourceValidationNameGetResponse200) & {
-  headers: Headers;
-};
-export type readResourceValidationApiConfigsResourceValidationNameGetResponseError = (readResourceValidationApiConfigsResourceValidationNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readResourceValidationApiConfigsResourceValidationNameGetResponse = (readResourceValidationApiConfigsResourceValidationNameGetResponseSuccess | readResourceValidationApiConfigsResourceValidationNameGetResponseError)
-
 export const getReadResourceValidationApiConfigsResourceValidationNameGetUrl = (name: string,) => {
 
 
@@ -6174,9 +5704,9 @@ export const getReadResourceValidationApiConfigsResourceValidationNameGetUrl = (
   return `/api/configs/resource_validation/${name}`
 }
 
-export const readResourceValidationApiConfigsResourceValidationNameGet = async (name: string, options?: RequestInit): Promise<readResourceValidationApiConfigsResourceValidationNameGetResponse> => {
+export const readResourceValidationApiConfigsResourceValidationNameGet = async (name: string, options?: RequestInit): Promise<ResourceAssertion[]> => {
   
-  return customFetch<readResourceValidationApiConfigsResourceValidationNameGetResponse>(getReadResourceValidationApiConfigsResourceValidationNameGetUrl(name),
+  return customFetch<ResourceAssertion[]>(getReadResourceValidationApiConfigsResourceValidationNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -6259,6 +5789,17 @@ export function useReadResourceValidationApiConfigsResourceValidationNameGet<TDa
 }
 
 
+/**
+ * @summary Read Resource Validation
+ */
+export const invalidateReadResourceValidationApiConfigsResourceValidationNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadResourceValidationApiConfigsResourceValidationNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -6266,25 +5807,6 @@ export function useReadResourceValidationApiConfigsResourceValidationNameGet<TDa
  * Put Resource Validation configurations
  * @summary Put Resource Validation
  */
-export type putResourceValidationApiConfigsResourceValidationNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putResourceValidationApiConfigsResourceValidationNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putResourceValidationApiConfigsResourceValidationNamePutResponseSuccess = (putResourceValidationApiConfigsResourceValidationNamePutResponse200) & {
-  headers: Headers;
-};
-export type putResourceValidationApiConfigsResourceValidationNamePutResponseError = (putResourceValidationApiConfigsResourceValidationNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putResourceValidationApiConfigsResourceValidationNamePutResponse = (putResourceValidationApiConfigsResourceValidationNamePutResponseSuccess | putResourceValidationApiConfigsResourceValidationNamePutResponseError)
-
 export const getPutResourceValidationApiConfigsResourceValidationNamePutUrl = (name: string,) => {
 
 
@@ -6294,9 +5816,9 @@ export const getPutResourceValidationApiConfigsResourceValidationNamePutUrl = (n
 }
 
 export const putResourceValidationApiConfigsResourceValidationNamePut = async (name: string,
-    putResourceValidationRequest: PutResourceValidationRequest, options?: RequestInit): Promise<putResourceValidationApiConfigsResourceValidationNamePutResponse> => {
+    putResourceValidationRequest: PutResourceValidationRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putResourceValidationApiConfigsResourceValidationNamePutResponse>(getPutResourceValidationApiConfigsResourceValidationNamePutUrl(name),
+  return customFetch<unknown>(getPutResourceValidationApiConfigsResourceValidationNamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -6358,25 +5880,6 @@ export const usePutResourceValidationApiConfigsResourceValidationNamePut = <TErr
  * Delete Resource Validation configurations
  * @summary Delete Resource Validation
  */
-export type deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteResourceValidationApiConfigsResourceValidationNameDeleteResponseSuccess = (deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteResourceValidationApiConfigsResourceValidationNameDeleteResponseError = (deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse = (deleteResourceValidationApiConfigsResourceValidationNameDeleteResponseSuccess | deleteResourceValidationApiConfigsResourceValidationNameDeleteResponseError)
-
 export const getDeleteResourceValidationApiConfigsResourceValidationNameDeleteUrl = (name: string,) => {
 
 
@@ -6386,9 +5889,9 @@ export const getDeleteResourceValidationApiConfigsResourceValidationNameDeleteUr
 }
 
 export const deleteResourceValidationApiConfigsResourceValidationNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteResourceValidationApiConfigsResourceValidationNameDeleteResponse>(getDeleteResourceValidationApiConfigsResourceValidationNameDeleteUrl(name),
+  return customFetch<unknown>(getDeleteResourceValidationApiConfigsResourceValidationNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -6450,18 +5953,6 @@ export const useDeleteResourceValidationApiConfigsResourceValidationNameDelete =
  * List all Roles
  * @summary List Roles
  */
-export type listRolesApiConfigsRoleGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listRolesApiConfigsRoleGetResponseSuccess = (listRolesApiConfigsRoleGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type listRolesApiConfigsRoleGetResponse = (listRolesApiConfigsRoleGetResponseSuccess)
-
 export const getListRolesApiConfigsRoleGetUrl = () => {
 
 
@@ -6470,9 +5961,9 @@ export const getListRolesApiConfigsRoleGetUrl = () => {
   return `/api/configs/role`
 }
 
-export const listRolesApiConfigsRoleGet = async ( options?: RequestInit): Promise<listRolesApiConfigsRoleGetResponse> => {
+export const listRolesApiConfigsRoleGet = async ( options?: RequestInit): Promise<Role[]> => {
   
-  return customFetch<listRolesApiConfigsRoleGetResponse>(getListRolesApiConfigsRoleGetUrl(),
+  return customFetch<Role[]>(getListRolesApiConfigsRoleGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -6555,6 +6046,17 @@ export function useListRolesApiConfigsRoleGet<TData = Awaited<ReturnType<typeof 
 }
 
 
+/**
+ * @summary List Roles
+ */
+export const invalidateListRolesApiConfigsRoleGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListRolesApiConfigsRoleGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -6562,25 +6064,6 @@ export function useListRolesApiConfigsRoleGet<TData = Awaited<ReturnType<typeof 
  * Put Roles
  * @summary Put Roles
  */
-export type putRolesApiConfigsRolePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putRolesApiConfigsRolePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putRolesApiConfigsRolePutResponseSuccess = (putRolesApiConfigsRolePutResponse200) & {
-  headers: Headers;
-};
-export type putRolesApiConfigsRolePutResponseError = (putRolesApiConfigsRolePutResponse422) & {
-  headers: Headers;
-};
-
-export type putRolesApiConfigsRolePutResponse = (putRolesApiConfigsRolePutResponseSuccess | putRolesApiConfigsRolePutResponseError)
-
 export const getPutRolesApiConfigsRolePutUrl = () => {
 
 
@@ -6589,9 +6072,9 @@ export const getPutRolesApiConfigsRolePutUrl = () => {
   return `/api/configs/role`
 }
 
-export const putRolesApiConfigsRolePut = async (putRolesRequest: PutRolesRequest, options?: RequestInit): Promise<putRolesApiConfigsRolePutResponse> => {
+export const putRolesApiConfigsRolePut = async (putRolesRequest: PutRolesRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putRolesApiConfigsRolePutResponse>(getPutRolesApiConfigsRolePutUrl(),
+  return customFetch<unknown>(getPutRolesApiConfigsRolePutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -6653,25 +6136,6 @@ export const usePutRolesApiConfigsRolePut = <TError = HTTPValidationError,
  * Read Role
  * @summary Read Role
  */
-export type readRoleApiConfigsRoleNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readRoleApiConfigsRoleNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readRoleApiConfigsRoleNameGetResponseSuccess = (readRoleApiConfigsRoleNameGetResponse200) & {
-  headers: Headers;
-};
-export type readRoleApiConfigsRoleNameGetResponseError = (readRoleApiConfigsRoleNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readRoleApiConfigsRoleNameGetResponse = (readRoleApiConfigsRoleNameGetResponseSuccess | readRoleApiConfigsRoleNameGetResponseError)
-
 export const getReadRoleApiConfigsRoleNameGetUrl = (name: string,) => {
 
 
@@ -6680,9 +6144,9 @@ export const getReadRoleApiConfigsRoleNameGetUrl = (name: string,) => {
   return `/api/configs/role/${name}`
 }
 
-export const readRoleApiConfigsRoleNameGet = async (name: string, options?: RequestInit): Promise<readRoleApiConfigsRoleNameGetResponse> => {
+export const readRoleApiConfigsRoleNameGet = async (name: string, options?: RequestInit): Promise<Role> => {
   
-  return customFetch<readRoleApiConfigsRoleNameGetResponse>(getReadRoleApiConfigsRoleNameGetUrl(name),
+  return customFetch<Role>(getReadRoleApiConfigsRoleNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -6765,6 +6229,17 @@ export function useReadRoleApiConfigsRoleNameGet<TData = Awaited<ReturnType<type
 }
 
 
+/**
+ * @summary Read Role
+ */
+export const invalidateReadRoleApiConfigsRoleNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadRoleApiConfigsRoleNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -6772,25 +6247,6 @@ export function useReadRoleApiConfigsRoleNameGet<TData = Awaited<ReturnType<type
  * Patch Role configurations
  * @summary Put Role
  */
-export type putRoleApiConfigsRoleNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putRoleApiConfigsRoleNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putRoleApiConfigsRoleNamePutResponseSuccess = (putRoleApiConfigsRoleNamePutResponse200) & {
-  headers: Headers;
-};
-export type putRoleApiConfigsRoleNamePutResponseError = (putRoleApiConfigsRoleNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putRoleApiConfigsRoleNamePutResponse = (putRoleApiConfigsRoleNamePutResponseSuccess | putRoleApiConfigsRoleNamePutResponseError)
-
 export const getPutRoleApiConfigsRoleNamePutUrl = (name: string,) => {
 
 
@@ -6800,9 +6256,9 @@ export const getPutRoleApiConfigsRoleNamePutUrl = (name: string,) => {
 }
 
 export const putRoleApiConfigsRoleNamePut = async (name: string,
-    putRoleRequest: PutRoleRequest, options?: RequestInit): Promise<putRoleApiConfigsRoleNamePutResponse> => {
+    putRoleRequest: PutRoleRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putRoleApiConfigsRoleNamePutResponse>(getPutRoleApiConfigsRoleNamePutUrl(name),
+  return customFetch<unknown>(getPutRoleApiConfigsRoleNamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -6864,25 +6320,6 @@ export const usePutRoleApiConfigsRoleNamePut = <TError = HTTPValidationError,
  * Delete Role
  * @summary Delete Role
  */
-export type deleteRoleApiConfigsRoleNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteRoleApiConfigsRoleNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteRoleApiConfigsRoleNameDeleteResponseSuccess = (deleteRoleApiConfigsRoleNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteRoleApiConfigsRoleNameDeleteResponseError = (deleteRoleApiConfigsRoleNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteRoleApiConfigsRoleNameDeleteResponse = (deleteRoleApiConfigsRoleNameDeleteResponseSuccess | deleteRoleApiConfigsRoleNameDeleteResponseError)
-
 export const getDeleteRoleApiConfigsRoleNameDeleteUrl = (name: string,) => {
 
 
@@ -6892,9 +6329,9 @@ export const getDeleteRoleApiConfigsRoleNameDeleteUrl = (name: string,) => {
 }
 
 export const deleteRoleApiConfigsRoleNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deleteRoleApiConfigsRoleNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteRoleApiConfigsRoleNameDeleteResponse>(getDeleteRoleApiConfigsRoleNameDeleteUrl(name),
+  return customFetch<unknown>(getDeleteRoleApiConfigsRoleNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -6956,18 +6393,6 @@ export const useDeleteRoleApiConfigsRoleNameDelete = <TError = HTTPValidationErr
  * List all backend test configurations
  * @summary List Backend Tests
  */
-export type listBackendTestsApiConfigsBackendTestGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listBackendTestsApiConfigsBackendTestGetResponseSuccess = (listBackendTestsApiConfigsBackendTestGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type listBackendTestsApiConfigsBackendTestGetResponse = (listBackendTestsApiConfigsBackendTestGetResponseSuccess)
-
 export const getListBackendTestsApiConfigsBackendTestGetUrl = () => {
 
 
@@ -6976,9 +6401,9 @@ export const getListBackendTestsApiConfigsBackendTestGetUrl = () => {
   return `/api/configs/backend_test`
 }
 
-export const listBackendTestsApiConfigsBackendTestGet = async ( options?: RequestInit): Promise<listBackendTestsApiConfigsBackendTestGetResponse> => {
+export const listBackendTestsApiConfigsBackendTestGet = async ( options?: RequestInit): Promise<ListBackendTestsApiConfigsBackendTestGet200> => {
   
-  return customFetch<listBackendTestsApiConfigsBackendTestGetResponse>(getListBackendTestsApiConfigsBackendTestGetUrl(),
+  return customFetch<ListBackendTestsApiConfigsBackendTestGet200>(getListBackendTestsApiConfigsBackendTestGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -7061,6 +6486,17 @@ export function useListBackendTestsApiConfigsBackendTestGet<TData = Awaited<Retu
 }
 
 
+/**
+ * @summary List Backend Tests
+ */
+export const invalidateListBackendTestsApiConfigsBackendTestGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListBackendTestsApiConfigsBackendTestGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -7068,25 +6504,6 @@ export function useListBackendTestsApiConfigsBackendTestGet<TData = Awaited<Retu
  * Put backend test configurations
  * @summary Put Backend Tests
  */
-export type putBackendTestsApiConfigsBackendTestPutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putBackendTestsApiConfigsBackendTestPutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putBackendTestsApiConfigsBackendTestPutResponseSuccess = (putBackendTestsApiConfigsBackendTestPutResponse200) & {
-  headers: Headers;
-};
-export type putBackendTestsApiConfigsBackendTestPutResponseError = (putBackendTestsApiConfigsBackendTestPutResponse422) & {
-  headers: Headers;
-};
-
-export type putBackendTestsApiConfigsBackendTestPutResponse = (putBackendTestsApiConfigsBackendTestPutResponseSuccess | putBackendTestsApiConfigsBackendTestPutResponseError)
-
 export const getPutBackendTestsApiConfigsBackendTestPutUrl = () => {
 
 
@@ -7095,9 +6512,9 @@ export const getPutBackendTestsApiConfigsBackendTestPutUrl = () => {
   return `/api/configs/backend_test`
 }
 
-export const putBackendTestsApiConfigsBackendTestPut = async (putBackendTestsRequest: PutBackendTestsRequest, options?: RequestInit): Promise<putBackendTestsApiConfigsBackendTestPutResponse> => {
+export const putBackendTestsApiConfigsBackendTestPut = async (putBackendTestsRequest: PutBackendTestsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putBackendTestsApiConfigsBackendTestPutResponse>(getPutBackendTestsApiConfigsBackendTestPutUrl(),
+  return customFetch<unknown>(getPutBackendTestsApiConfigsBackendTestPutUrl(),
   {      
     ...options,
     method: 'PUT',
@@ -7159,25 +6576,6 @@ export const usePutBackendTestsApiConfigsBackendTestPut = <TError = HTTPValidati
  * Read backend test configuration
  * @summary Read Backend Test
  */
-export type readBackendTestApiConfigsBackendTestNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type readBackendTestApiConfigsBackendTestNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type readBackendTestApiConfigsBackendTestNameGetResponseSuccess = (readBackendTestApiConfigsBackendTestNameGetResponse200) & {
-  headers: Headers;
-};
-export type readBackendTestApiConfigsBackendTestNameGetResponseError = (readBackendTestApiConfigsBackendTestNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type readBackendTestApiConfigsBackendTestNameGetResponse = (readBackendTestApiConfigsBackendTestNameGetResponseSuccess | readBackendTestApiConfigsBackendTestNameGetResponseError)
-
 export const getReadBackendTestApiConfigsBackendTestNameGetUrl = (name: string,) => {
 
 
@@ -7186,9 +6584,9 @@ export const getReadBackendTestApiConfigsBackendTestNameGetUrl = (name: string,)
   return `/api/configs/backend_test/${name}`
 }
 
-export const readBackendTestApiConfigsBackendTestNameGet = async (name: string, options?: RequestInit): Promise<readBackendTestApiConfigsBackendTestNameGetResponse> => {
+export const readBackendTestApiConfigsBackendTestNameGet = async (name: string, options?: RequestInit): Promise<BackendTests> => {
   
-  return customFetch<readBackendTestApiConfigsBackendTestNameGetResponse>(getReadBackendTestApiConfigsBackendTestNameGetUrl(name),
+  return customFetch<BackendTests>(getReadBackendTestApiConfigsBackendTestNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -7271,6 +6669,17 @@ export function useReadBackendTestApiConfigsBackendTestNameGet<TData = Awaited<R
 }
 
 
+/**
+ * @summary Read Backend Test
+ */
+export const invalidateReadBackendTestApiConfigsBackendTestNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getReadBackendTestApiConfigsBackendTestNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -7278,25 +6687,6 @@ export function useReadBackendTestApiConfigsBackendTestNameGet<TData = Awaited<R
  * Put backend test configuration
  * @summary Put Backend Test
  */
-export type putBackendTestApiConfigsBackendTestNamePutResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type putBackendTestApiConfigsBackendTestNamePutResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type putBackendTestApiConfigsBackendTestNamePutResponseSuccess = (putBackendTestApiConfigsBackendTestNamePutResponse200) & {
-  headers: Headers;
-};
-export type putBackendTestApiConfigsBackendTestNamePutResponseError = (putBackendTestApiConfigsBackendTestNamePutResponse422) & {
-  headers: Headers;
-};
-
-export type putBackendTestApiConfigsBackendTestNamePutResponse = (putBackendTestApiConfigsBackendTestNamePutResponseSuccess | putBackendTestApiConfigsBackendTestNamePutResponseError)
-
 export const getPutBackendTestApiConfigsBackendTestNamePutUrl = (name: string,) => {
 
 
@@ -7306,9 +6696,9 @@ export const getPutBackendTestApiConfigsBackendTestNamePutUrl = (name: string,) 
 }
 
 export const putBackendTestApiConfigsBackendTestNamePut = async (name: string,
-    putBackendTestRequest: PutBackendTestRequest, options?: RequestInit): Promise<putBackendTestApiConfigsBackendTestNamePutResponse> => {
+    putBackendTestRequest: PutBackendTestRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<putBackendTestApiConfigsBackendTestNamePutResponse>(getPutBackendTestApiConfigsBackendTestNamePutUrl(name),
+  return customFetch<unknown>(getPutBackendTestApiConfigsBackendTestNamePutUrl(name),
   {      
     ...options,
     method: 'PUT',
@@ -7370,25 +6760,6 @@ export const usePutBackendTestApiConfigsBackendTestNamePut = <TError = HTTPValid
  * Delete test configuration
  * @summary Delete Backend Test
  */
-export type deleteBackendTestApiConfigsBackendTestNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteBackendTestApiConfigsBackendTestNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteBackendTestApiConfigsBackendTestNameDeleteResponseSuccess = (deleteBackendTestApiConfigsBackendTestNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteBackendTestApiConfigsBackendTestNameDeleteResponseError = (deleteBackendTestApiConfigsBackendTestNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteBackendTestApiConfigsBackendTestNameDeleteResponse = (deleteBackendTestApiConfigsBackendTestNameDeleteResponseSuccess | deleteBackendTestApiConfigsBackendTestNameDeleteResponseError)
-
 export const getDeleteBackendTestApiConfigsBackendTestNameDeleteUrl = (name: string,) => {
 
 
@@ -7398,9 +6769,9 @@ export const getDeleteBackendTestApiConfigsBackendTestNameDeleteUrl = (name: str
 }
 
 export const deleteBackendTestApiConfigsBackendTestNameDelete = async (name: string,
-    configsRequest: ConfigsRequest, options?: RequestInit): Promise<deleteBackendTestApiConfigsBackendTestNameDeleteResponse> => {
+    configsRequest: ConfigsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteBackendTestApiConfigsBackendTestNameDeleteResponse>(getDeleteBackendTestApiConfigsBackendTestNameDeleteUrl(name),
+  return customFetch<unknown>(getDeleteBackendTestApiConfigsBackendTestNameDeleteUrl(name),
   {      
     ...options,
     method: 'DELETE',
@@ -7462,25 +6833,6 @@ export const useDeleteBackendTestApiConfigsBackendTestNameDelete = <TError = HTT
  * Patch backend test configuration
  * @summary Patch Backend Test
  */
-export type patchBackendTestApiConfigsBackendTestNamePatchResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type patchBackendTestApiConfigsBackendTestNamePatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type patchBackendTestApiConfigsBackendTestNamePatchResponseSuccess = (patchBackendTestApiConfigsBackendTestNamePatchResponse200) & {
-  headers: Headers;
-};
-export type patchBackendTestApiConfigsBackendTestNamePatchResponseError = (patchBackendTestApiConfigsBackendTestNamePatchResponse422) & {
-  headers: Headers;
-};
-
-export type patchBackendTestApiConfigsBackendTestNamePatchResponse = (patchBackendTestApiConfigsBackendTestNamePatchResponseSuccess | patchBackendTestApiConfigsBackendTestNamePatchResponseError)
-
 export const getPatchBackendTestApiConfigsBackendTestNamePatchUrl = (name: string,) => {
 
 
@@ -7490,9 +6842,9 @@ export const getPatchBackendTestApiConfigsBackendTestNamePatchUrl = (name: strin
 }
 
 export const patchBackendTestApiConfigsBackendTestNamePatch = async (name: string,
-    patchBackendTestRequest: PatchBackendTestRequest, options?: RequestInit): Promise<patchBackendTestApiConfigsBackendTestNamePatchResponse> => {
+    patchBackendTestRequest: PatchBackendTestRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<patchBackendTestApiConfigsBackendTestNamePatchResponse>(getPatchBackendTestApiConfigsBackendTestNamePatchUrl(name),
+  return customFetch<unknown>(getPatchBackendTestApiConfigsBackendTestNamePatchUrl(name),
   {      
     ...options,
     method: 'PATCH',
@@ -7554,25 +6906,6 @@ export const usePatchBackendTestApiConfigsBackendTestNamePatch = <TError = HTTPV
  * List history of all configs
  * @summary Get Configs History
  */
-export type getConfigsHistoryApiConfigsHistoryGetResponse200 = {
-  data: GetConfigsHistoryResponse
-  status: 200
-}
-
-export type getConfigsHistoryApiConfigsHistoryGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getConfigsHistoryApiConfigsHistoryGetResponseSuccess = (getConfigsHistoryApiConfigsHistoryGetResponse200) & {
-  headers: Headers;
-};
-export type getConfigsHistoryApiConfigsHistoryGetResponseError = (getConfigsHistoryApiConfigsHistoryGetResponse422) & {
-  headers: Headers;
-};
-
-export type getConfigsHistoryApiConfigsHistoryGetResponse = (getConfigsHistoryApiConfigsHistoryGetResponseSuccess | getConfigsHistoryApiConfigsHistoryGetResponseError)
-
 export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsHistoryApiConfigsHistoryGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -7596,9 +6929,9 @@ export const getGetConfigsHistoryApiConfigsHistoryGetUrl = (params?: GetConfigsH
   return stringifiedParams.length > 0 ? `/api/configs/history?${stringifiedParams}` : `/api/configs/history`
 }
 
-export const getConfigsHistoryApiConfigsHistoryGet = async (params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: RequestInit): Promise<getConfigsHistoryApiConfigsHistoryGetResponse> => {
+export const getConfigsHistoryApiConfigsHistoryGet = async (params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: RequestInit): Promise<GetConfigsHistoryResponse> => {
   
-  return customFetch<getConfigsHistoryApiConfigsHistoryGetResponse>(getGetConfigsHistoryApiConfigsHistoryGetUrl(params),
+  return customFetch<GetConfigsHistoryResponse>(getGetConfigsHistoryApiConfigsHistoryGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -7681,6 +7014,17 @@ export function useGetConfigsHistoryApiConfigsHistoryGet<TData = Awaited<ReturnT
 }
 
 
+/**
+ * @summary Get Configs History
+ */
+export const invalidateGetConfigsHistoryApiConfigsHistoryGet = async (
+ queryClient: QueryClient, params?: GetConfigsHistoryApiConfigsHistoryGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetConfigsHistoryApiConfigsHistoryGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -7688,25 +7032,6 @@ export function useGetConfigsHistoryApiConfigsHistoryGet<TData = Awaited<ReturnT
  * Roll back a config to a particular revision.
  * @summary Rollback Config
  */
-export type rollbackConfigApiConfigsHistoryRollbackPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type rollbackConfigApiConfigsHistoryRollbackPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type rollbackConfigApiConfigsHistoryRollbackPostResponseSuccess = (rollbackConfigApiConfigsHistoryRollbackPostResponse200) & {
-  headers: Headers;
-};
-export type rollbackConfigApiConfigsHistoryRollbackPostResponseError = (rollbackConfigApiConfigsHistoryRollbackPostResponse422) & {
-  headers: Headers;
-};
-
-export type rollbackConfigApiConfigsHistoryRollbackPostResponse = (rollbackConfigApiConfigsHistoryRollbackPostResponseSuccess | rollbackConfigApiConfigsHistoryRollbackPostResponseError)
-
 export const getRollbackConfigApiConfigsHistoryRollbackPostUrl = () => {
 
 
@@ -7715,9 +7040,9 @@ export const getRollbackConfigApiConfigsHistoryRollbackPostUrl = () => {
   return `/api/configs/history/rollback`
 }
 
-export const rollbackConfigApiConfigsHistoryRollbackPost = async (rollbackConfigRequest: RollbackConfigRequest, options?: RequestInit): Promise<rollbackConfigApiConfigsHistoryRollbackPostResponse> => {
+export const rollbackConfigApiConfigsHistoryRollbackPost = async (rollbackConfigRequest: RollbackConfigRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<rollbackConfigApiConfigsHistoryRollbackPostResponse>(getRollbackConfigApiConfigsHistoryRollbackPostUrl(),
+  return customFetch<unknown>(getRollbackConfigApiConfigsHistoryRollbackPostUrl(),
   {      
     ...options,
     method: 'POST',
@@ -7787,25 +7112,6 @@ Raises:
     OSMOUserError: If the revision doesn't exist or is the current revision
  * @summary Delete Config History Revision
  */
-export type deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponseSuccess = (deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponseError = (deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse = (deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponseSuccess | deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponseError)
-
 export const getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteUrl = (configType: string,
     revision: number,) => {
 
@@ -7816,9 +7122,9 @@ export const getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRe
 }
 
 export const deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDelete = async (configType: string,
-    revision: number, options?: RequestInit): Promise<deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse> => {
+    revision: number, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteResponse>(getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteUrl(configType,revision),
+  return customFetch<unknown>(getDeleteConfigHistoryRevisionApiConfigsHistoryConfigTypeRevisionRevisionDeleteUrl(configType,revision),
   {      
     ...options,
     method: 'DELETE'
@@ -7888,25 +7194,6 @@ Raises:
     OSMOUserError: If the revision doesn't exist or is invalid
  * @summary Update Config History Tags
  */
-export type updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponseSuccess = (updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse200) & {
-  headers: Headers;
-};
-export type updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponseError = (updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse422) & {
-  headers: Headers;
-};
-
-export type updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse = (updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponseSuccess | updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponseError)
-
 export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostUrl = (configType: string,
     revision: number,) => {
 
@@ -7918,9 +7205,9 @@ export const getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisi
 
 export const updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPost = async (configType: string,
     revision: number,
-    updateConfigTagsRequest: UpdateConfigTagsRequest, options?: RequestInit): Promise<updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse> => {
+    updateConfigTagsRequest: UpdateConfigTagsRequest, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<updateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostResponse>(getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostUrl(configType,revision),
+  return customFetch<unknown>(getUpdateConfigHistoryTagsApiConfigsHistoryConfigTypeRevisionRevisionTagsPostUrl(configType,revision),
   {      
     ...options,
     method: 'POST',
@@ -7993,25 +7280,6 @@ Raises:
     OSMOUserError: If either revision doesn't exist or is invalid
  * @summary Get Config Diff
  */
-export type getConfigDiffApiConfigsDiffGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getConfigDiffApiConfigsDiffGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getConfigDiffApiConfigsDiffGetResponseSuccess = (getConfigDiffApiConfigsDiffGetResponse200) & {
-  headers: Headers;
-};
-export type getConfigDiffApiConfigsDiffGetResponseError = (getConfigDiffApiConfigsDiffGetResponse422) & {
-  headers: Headers;
-};
-
-export type getConfigDiffApiConfigsDiffGetResponse = (getConfigDiffApiConfigsDiffGetResponseSuccess | getConfigDiffApiConfigsDiffGetResponseError)
-
 export const getGetConfigDiffApiConfigsDiffGetUrl = (params: GetConfigDiffApiConfigsDiffGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8027,9 +7295,9 @@ export const getGetConfigDiffApiConfigsDiffGetUrl = (params: GetConfigDiffApiCon
   return stringifiedParams.length > 0 ? `/api/configs/diff?${stringifiedParams}` : `/api/configs/diff`
 }
 
-export const getConfigDiffApiConfigsDiffGet = async (params: GetConfigDiffApiConfigsDiffGetParams, options?: RequestInit): Promise<getConfigDiffApiConfigsDiffGetResponse> => {
+export const getConfigDiffApiConfigsDiffGet = async (params: GetConfigDiffApiConfigsDiffGetParams, options?: RequestInit): Promise<ConfigDiffResponse> => {
   
-  return customFetch<getConfigDiffApiConfigsDiffGetResponse>(getGetConfigDiffApiConfigsDiffGetUrl(params),
+  return customFetch<ConfigDiffResponse>(getGetConfigDiffApiConfigsDiffGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -8112,6 +7380,17 @@ export function useGetConfigDiffApiConfigsDiffGet<TData = Awaited<ReturnType<typ
 }
 
 
+/**
+ * @summary Get Config Diff
+ */
+export const invalidateGetConfigDiffApiConfigsDiffGet = async (
+ queryClient: QueryClient, params: GetConfigDiffApiConfigsDiffGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetConfigDiffApiConfigsDiffGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -8121,25 +7400,6 @@ export function useGetConfigDiffApiConfigsDiffGet<TData = Awaited<ReturnType<typ
 Deprecated: Use POST /api/auth/jwt/refresh_token instead.
  * @summary Get New Jwt Token
  */
-export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponseSuccess = (getNewJwtTokenApiAuthJwtRefreshTokenGetResponse200) & {
-  headers: Headers;
-};
-export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponseError = (getNewJwtTokenApiAuthJwtRefreshTokenGetResponse422) & {
-  headers: Headers;
-};
-
-export type getNewJwtTokenApiAuthJwtRefreshTokenGetResponse = (getNewJwtTokenApiAuthJwtRefreshTokenGetResponseSuccess | getNewJwtTokenApiAuthJwtRefreshTokenGetResponseError)
-
 export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl = (params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8155,9 +7415,9 @@ export const getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl = (params: GetNewJwtT
   return stringifiedParams.length > 0 ? `/api/auth/jwt/refresh_token?${stringifiedParams}` : `/api/auth/jwt/refresh_token`
 }
 
-export const getNewJwtTokenApiAuthJwtRefreshTokenGet = async (params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams, options?: RequestInit): Promise<getNewJwtTokenApiAuthJwtRefreshTokenGetResponse> => {
+export const getNewJwtTokenApiAuthJwtRefreshTokenGet = async (params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams, options?: RequestInit): Promise<JwtTokenResponse> => {
   
-  return customFetch<getNewJwtTokenApiAuthJwtRefreshTokenGetResponse>(getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl(params),
+  return customFetch<JwtTokenResponse>(getGetNewJwtTokenApiAuthJwtRefreshTokenGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -8240,6 +7500,17 @@ export function useGetNewJwtTokenApiAuthJwtRefreshTokenGet<TData = Awaited<Retur
 }
 
 
+/**
+ * @summary Get New Jwt Token
+ */
+export const invalidateGetNewJwtTokenApiAuthJwtRefreshTokenGet = async (
+ queryClient: QueryClient, params: GetNewJwtTokenApiAuthJwtRefreshTokenGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetNewJwtTokenApiAuthJwtRefreshTokenGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -8247,25 +7518,6 @@ export function useGetNewJwtTokenApiAuthJwtRefreshTokenGet<TData = Awaited<Retur
  * API to fetch for a new access token using a refresh token.
  * @summary Post New Jwt Token
  */
-export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponseSuccess = (postNewJwtTokenApiAuthJwtRefreshTokenPostResponse200) & {
-  headers: Headers;
-};
-export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponseError = (postNewJwtTokenApiAuthJwtRefreshTokenPostResponse422) & {
-  headers: Headers;
-};
-
-export type postNewJwtTokenApiAuthJwtRefreshTokenPostResponse = (postNewJwtTokenApiAuthJwtRefreshTokenPostResponseSuccess | postNewJwtTokenApiAuthJwtRefreshTokenPostResponseError)
-
 export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl = (params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8282,9 +7534,9 @@ export const getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl = (params: PostNewJ
 }
 
 export const postNewJwtTokenApiAuthJwtRefreshTokenPost = async (tokenRequest: TokenRequest,
-    params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams, options?: RequestInit): Promise<postNewJwtTokenApiAuthJwtRefreshTokenPostResponse> => {
+    params: PostNewJwtTokenApiAuthJwtRefreshTokenPostParams, options?: RequestInit): Promise<JwtTokenResponse> => {
   
-  return customFetch<postNewJwtTokenApiAuthJwtRefreshTokenPostResponse>(getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl(params),
+  return customFetch<JwtTokenResponse>(getPostNewJwtTokenApiAuthJwtRefreshTokenPostUrl(params),
   {      
     ...options,
     method: 'POST',
@@ -8348,25 +7600,6 @@ export const usePostNewJwtTokenApiAuthJwtRefreshTokenPost = <TError = HTTPValida
 Deprecated: Use POST /api/auth/jwt/access_token instead.
  * @summary Get Jwt Token From Access Token
  */
-export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponseSuccess = (getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse200) & {
-  headers: Headers;
-};
-export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponseError = (getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse422) & {
-  headers: Headers;
-};
-
-export type getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse = (getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponseSuccess | getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponseError)
-
 export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl = (params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -8382,9 +7615,9 @@ export const getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl = (params:
   return stringifiedParams.length > 0 ? `/api/auth/jwt/access_token?${stringifiedParams}` : `/api/auth/jwt/access_token`
 }
 
-export const getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet = async (params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams, options?: RequestInit): Promise<getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse> => {
+export const getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet = async (params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams, options?: RequestInit): Promise<JwtTokenResponse> => {
   
-  return customFetch<getJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetResponse>(getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl(params),
+  return customFetch<JwtTokenResponse>(getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -8467,6 +7700,17 @@ export function useGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet<TData = Aw
 }
 
 
+/**
+ * @summary Get Jwt Token From Access Token
+ */
+export const invalidateGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet = async (
+ queryClient: QueryClient, params: GetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -8474,25 +7718,6 @@ export function useGetJwtTokenFromAccessTokenApiAuthJwtAccessTokenGet<TData = Aw
  * API to create a new jwt token from an access token.
  * @summary Post Jwt Token From Access Token
  */
-export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseSuccess = (postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse200) & {
-  headers: Headers;
-};
-export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseError = (postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse422) & {
-  headers: Headers;
-};
-
-export type postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse = (postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseSuccess | postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponseError)
-
 export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl = () => {
 
 
@@ -8501,9 +7726,9 @@ export const getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl = () => 
   return `/api/auth/jwt/access_token`
 }
 
-export const postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = async (tokenRequest: TokenRequest, options?: RequestInit): Promise<postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse> => {
+export const postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPost = async (tokenRequest: TokenRequest, options?: RequestInit): Promise<JwtTokenResponse> => {
   
-  return customFetch<postJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostResponse>(getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl(),
+  return customFetch<JwtTokenResponse>(getPostJwtTokenFromAccessTokenApiAuthJwtAccessTokenPostUrl(),
   {      
     ...options,
     method: 'POST',
@@ -8570,25 +7795,6 @@ is created. If no roles are specified, the access token inherits all of the user
 current roles from the user_roles table.
  * @summary Create Access Token
  */
-export type createAccessTokenApiAuthAccessTokenTokenNamePostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type createAccessTokenApiAuthAccessTokenTokenNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createAccessTokenApiAuthAccessTokenTokenNamePostResponseSuccess = (createAccessTokenApiAuthAccessTokenTokenNamePostResponse200) & {
-  headers: Headers;
-};
-export type createAccessTokenApiAuthAccessTokenTokenNamePostResponseError = (createAccessTokenApiAuthAccessTokenTokenNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type createAccessTokenApiAuthAccessTokenTokenNamePostResponse = (createAccessTokenApiAuthAccessTokenTokenNamePostResponseSuccess | createAccessTokenApiAuthAccessTokenTokenNamePostResponseError)
-
 export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl = (tokenName: string,
     params: CreateAccessTokenApiAuthAccessTokenTokenNamePostParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -8614,9 +7820,9 @@ export const getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl = (tokenName
 }
 
 export const createAccessTokenApiAuthAccessTokenTokenNamePost = async (tokenName: string,
-    params: CreateAccessTokenApiAuthAccessTokenTokenNamePostParams, options?: RequestInit): Promise<createAccessTokenApiAuthAccessTokenTokenNamePostResponse> => {
+    params: CreateAccessTokenApiAuthAccessTokenTokenNamePostParams, options?: RequestInit): Promise<string> => {
   
-  return customFetch<createAccessTokenApiAuthAccessTokenTokenNamePostResponse>(getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl(tokenName,params),
+  return customFetch<string>(getCreateAccessTokenApiAuthAccessTokenTokenNamePostUrl(tokenName,params),
   {      
     ...options,
     method: 'POST'
@@ -8677,25 +7883,6 @@ export const useCreateAccessTokenApiAuthAccessTokenTokenNamePost = <TError = HTT
  * API to delete an access token.
  * @summary Delete Access Token
  */
-export type deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponseSuccess = (deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponseError = (deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse = (deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponseSuccess | deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponseError)
-
 export const getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteUrl = (tokenName: string,) => {
 
 
@@ -8704,9 +7891,9 @@ export const getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteUrl = (tokenNa
   return `/api/auth/access_token/${tokenName}`
 }
 
-export const deleteAccessTokenApiAuthAccessTokenTokenNameDelete = async (tokenName: string, options?: RequestInit): Promise<deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse> => {
+export const deleteAccessTokenApiAuthAccessTokenTokenNameDelete = async (tokenName: string, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteAccessTokenApiAuthAccessTokenTokenNameDeleteResponse>(getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteUrl(tokenName),
+  return customFetch<unknown>(getDeleteAccessTokenApiAuthAccessTokenTokenNameDeleteUrl(tokenName),
   {      
     ...options,
     method: 'DELETE'
@@ -8774,25 +7961,6 @@ Returns:
     AccessTokenRolesResponse with list of role assignments
  * @summary List Access Token Roles
  */
-export type listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse200 = {
-  data: AccessTokenRolesResponse
-  status: 200
-}
-
-export type listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponseSuccess = (listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse200) & {
-  headers: Headers;
-};
-export type listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponseError = (listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse422) & {
-  headers: Headers;
-};
-
-export type listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse = (listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponseSuccess | listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponseError)
-
 export const getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetUrl = (tokenName: string,) => {
 
 
@@ -8801,9 +7969,9 @@ export const getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetUrl = (to
   return `/api/auth/access_token/${tokenName}/roles`
 }
 
-export const listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet = async (tokenName: string, options?: RequestInit): Promise<listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse> => {
+export const listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet = async (tokenName: string, options?: RequestInit): Promise<AccessTokenRolesResponse> => {
   
-  return customFetch<listAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetResponse>(getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetUrl(tokenName),
+  return customFetch<AccessTokenRolesResponse>(getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetUrl(tokenName),
   {      
     ...options,
     method: 'GET'
@@ -8886,6 +8054,17 @@ export function useListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet<TData
 }
 
 
+/**
+ * @summary List Access Token Roles
+ */
+export const invalidateListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet = async (
+ queryClient: QueryClient, tokenName: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGetQueryKey(tokenName) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -8893,25 +8072,6 @@ export function useListAccessTokenRolesApiAuthAccessTokenTokenNameRolesGet<TData
  * API to list all access tokens for a user, including their assigned roles.
  * @summary List Access Tokens
  */
-export type listAccessTokensApiAuthAccessTokenGetResponse200 = {
-  data: AccessTokenWithRoles[]
-  status: 200
-}
-
-export type listAccessTokensApiAuthAccessTokenGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listAccessTokensApiAuthAccessTokenGetResponseSuccess = (listAccessTokensApiAuthAccessTokenGetResponse200) & {
-  headers: Headers;
-};
-export type listAccessTokensApiAuthAccessTokenGetResponseError = (listAccessTokensApiAuthAccessTokenGetResponse422) & {
-  headers: Headers;
-};
-
-export type listAccessTokensApiAuthAccessTokenGetResponse = (listAccessTokensApiAuthAccessTokenGetResponseSuccess | listAccessTokensApiAuthAccessTokenGetResponseError)
-
 export const getListAccessTokensApiAuthAccessTokenGetUrl = () => {
 
 
@@ -8920,9 +8080,9 @@ export const getListAccessTokensApiAuthAccessTokenGetUrl = () => {
   return `/api/auth/access_token`
 }
 
-export const listAccessTokensApiAuthAccessTokenGet = async ( options?: RequestInit): Promise<listAccessTokensApiAuthAccessTokenGetResponse> => {
+export const listAccessTokensApiAuthAccessTokenGet = async ( options?: RequestInit): Promise<AccessTokenWithRoles[]> => {
   
-  return customFetch<listAccessTokensApiAuthAccessTokenGetResponse>(getListAccessTokensApiAuthAccessTokenGetUrl(),
+  return customFetch<AccessTokenWithRoles[]>(getListAccessTokensApiAuthAccessTokenGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -9005,6 +8165,17 @@ export function useListAccessTokensApiAuthAccessTokenGet<TData = Awaited<ReturnT
 }
 
 
+/**
+ * @summary List Access Tokens
+ */
+export const invalidateListAccessTokensApiAuthAccessTokenGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListAccessTokensApiAuthAccessTokenGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -9031,25 +8202,6 @@ Returns:
     The generated access token string
  * @summary Admin Create Access Token
  */
-export type adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponseSuccess = (adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse200) & {
-  headers: Headers;
-};
-export type adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponseError = (adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse = (adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponseSuccess | adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponseError)
-
 export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostUrl = (userId: string,
     tokenName: string,
     params: AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostParams,) => {
@@ -9077,9 +8229,9 @@ export const getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostU
 
 export const adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePost = async (userId: string,
     tokenName: string,
-    params: AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostParams, options?: RequestInit): Promise<adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse> => {
+    params: AdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostParams, options?: RequestInit): Promise<string> => {
   
-  return customFetch<adminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostResponse>(getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostUrl(userId,tokenName,params),
+  return customFetch<string>(getAdminCreateAccessTokenApiAuthUserUserIdAccessTokenTokenNamePostUrl(userId,tokenName,params),
   {      
     ...options,
     method: 'POST'
@@ -9144,25 +8296,6 @@ Args:
     token_name: Name of the token to delete
  * @summary Admin Delete Access Token
  */
-export type adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponseSuccess = (adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponseError = (adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse = (adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponseSuccess | adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponseError)
-
 export const getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteUrl = (userId: string,
     tokenName: string,) => {
 
@@ -9173,9 +8306,9 @@ export const getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelet
 }
 
 export const adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDelete = async (userId: string,
-    tokenName: string, options?: RequestInit): Promise<adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse> => {
+    tokenName: string, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<adminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteResponse>(getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteUrl(userId,tokenName),
+  return customFetch<unknown>(getAdminDeleteAccessTokenApiAuthUserUserIdAccessTokenTokenNameDeleteUrl(userId,tokenName),
   {      
     ...options,
     method: 'DELETE'
@@ -9242,25 +8375,6 @@ Returns:
     List of AccessTokenWithRoles objects
  * @summary Admin List Access Tokens
  */
-export type adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse200 = {
-  data: AccessTokenWithRoles[]
-  status: 200
-}
-
-export type adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponseSuccess = (adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse200) & {
-  headers: Headers;
-};
-export type adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponseError = (adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse422) & {
-  headers: Headers;
-};
-
-export type adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse = (adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponseSuccess | adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponseError)
-
 export const getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetUrl = (userId: string,) => {
 
 
@@ -9269,9 +8383,9 @@ export const getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetUrl = (userI
   return `/api/auth/user/${userId}/access_token`
 }
 
-export const adminListAccessTokensApiAuthUserUserIdAccessTokenGet = async (userId: string, options?: RequestInit): Promise<adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse> => {
+export const adminListAccessTokensApiAuthUserUserIdAccessTokenGet = async (userId: string, options?: RequestInit): Promise<AccessTokenWithRoles[]> => {
   
-  return customFetch<adminListAccessTokensApiAuthUserUserIdAccessTokenGetResponse>(getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetUrl(userId),
+  return customFetch<AccessTokenWithRoles[]>(getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetUrl(userId),
   {      
     ...options,
     method: 'GET'
@@ -9354,6 +8468,17 @@ export function useAdminListAccessTokensApiAuthUserUserIdAccessTokenGet<TData = 
 }
 
 
+/**
+ * @summary Admin List Access Tokens
+ */
+export const invalidateAdminListAccessTokensApiAuthUserUserIdAccessTokenGet = async (
+ queryClient: QueryClient, userId: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getAdminListAccessTokensApiAuthUserUserIdAccessTokenGetQueryKey(userId) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -9371,25 +8496,6 @@ Returns:
     UserListResponse with paginated user list
  * @summary List Users
  */
-export type listUsersApiAuthUserGetResponse200 = {
-  data: UserListResponse
-  status: 200
-}
-
-export type listUsersApiAuthUserGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listUsersApiAuthUserGetResponseSuccess = (listUsersApiAuthUserGetResponse200) & {
-  headers: Headers;
-};
-export type listUsersApiAuthUserGetResponseError = (listUsersApiAuthUserGetResponse422) & {
-  headers: Headers;
-};
-
-export type listUsersApiAuthUserGetResponse = (listUsersApiAuthUserGetResponseSuccess | listUsersApiAuthUserGetResponseError)
-
 export const getListUsersApiAuthUserGetUrl = (params?: ListUsersApiAuthUserGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -9413,9 +8519,9 @@ export const getListUsersApiAuthUserGetUrl = (params?: ListUsersApiAuthUserGetPa
   return stringifiedParams.length > 0 ? `/api/auth/user?${stringifiedParams}` : `/api/auth/user`
 }
 
-export const listUsersApiAuthUserGet = async (params?: ListUsersApiAuthUserGetParams, options?: RequestInit): Promise<listUsersApiAuthUserGetResponse> => {
+export const listUsersApiAuthUserGet = async (params?: ListUsersApiAuthUserGetParams, options?: RequestInit): Promise<UserListResponse> => {
   
-  return customFetch<listUsersApiAuthUserGetResponse>(getListUsersApiAuthUserGetUrl(params),
+  return customFetch<UserListResponse>(getListUsersApiAuthUserGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -9498,6 +8604,17 @@ export function useListUsersApiAuthUserGet<TData = Awaited<ReturnType<typeof lis
 }
 
 
+/**
+ * @summary List Users
+ */
+export const invalidateListUsersApiAuthUserGet = async (
+ queryClient: QueryClient, params?: ListUsersApiAuthUserGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListUsersApiAuthUserGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -9512,25 +8629,6 @@ Returns:
     Created User object
  * @summary Create User
  */
-export type createUserApiAuthUserPostResponse200 = {
-  data: User
-  status: 200
-}
-
-export type createUserApiAuthUserPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createUserApiAuthUserPostResponseSuccess = (createUserApiAuthUserPostResponse200) & {
-  headers: Headers;
-};
-export type createUserApiAuthUserPostResponseError = (createUserApiAuthUserPostResponse422) & {
-  headers: Headers;
-};
-
-export type createUserApiAuthUserPostResponse = (createUserApiAuthUserPostResponseSuccess | createUserApiAuthUserPostResponseError)
-
 export const getCreateUserApiAuthUserPostUrl = () => {
 
 
@@ -9539,9 +8637,9 @@ export const getCreateUserApiAuthUserPostUrl = () => {
   return `/api/auth/user`
 }
 
-export const createUserApiAuthUserPost = async (createUserRequest: CreateUserRequest, options?: RequestInit): Promise<createUserApiAuthUserPostResponse> => {
+export const createUserApiAuthUserPost = async (createUserRequest: CreateUserRequest, options?: RequestInit): Promise<User> => {
   
-  return customFetch<createUserApiAuthUserPostResponse>(getCreateUserApiAuthUserPostUrl(),
+  return customFetch<User>(getCreateUserApiAuthUserPostUrl(),
   {      
     ...options,
     method: 'POST',
@@ -9609,25 +8707,6 @@ Returns:
     UserWithRoles object
  * @summary Get User
  */
-export type getUserApiAuthUserUserIdGetResponse200 = {
-  data: UserWithRoles
-  status: 200
-}
-
-export type getUserApiAuthUserUserIdGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserApiAuthUserUserIdGetResponseSuccess = (getUserApiAuthUserUserIdGetResponse200) & {
-  headers: Headers;
-};
-export type getUserApiAuthUserUserIdGetResponseError = (getUserApiAuthUserUserIdGetResponse422) & {
-  headers: Headers;
-};
-
-export type getUserApiAuthUserUserIdGetResponse = (getUserApiAuthUserUserIdGetResponseSuccess | getUserApiAuthUserUserIdGetResponseError)
-
 export const getGetUserApiAuthUserUserIdGetUrl = (userId: string,) => {
 
 
@@ -9636,9 +8715,9 @@ export const getGetUserApiAuthUserUserIdGetUrl = (userId: string,) => {
   return `/api/auth/user/${userId}`
 }
 
-export const getUserApiAuthUserUserIdGet = async (userId: string, options?: RequestInit): Promise<getUserApiAuthUserUserIdGetResponse> => {
+export const getUserApiAuthUserUserIdGet = async (userId: string, options?: RequestInit): Promise<UserWithRoles> => {
   
-  return customFetch<getUserApiAuthUserUserIdGetResponse>(getGetUserApiAuthUserUserIdGetUrl(userId),
+  return customFetch<UserWithRoles>(getGetUserApiAuthUserUserIdGetUrl(userId),
   {      
     ...options,
     method: 'GET'
@@ -9721,6 +8800,17 @@ export function useGetUserApiAuthUserUserIdGet<TData = Awaited<ReturnType<typeof
 }
 
 
+/**
+ * @summary Get User
+ */
+export const invalidateGetUserApiAuthUserUserIdGet = async (
+ queryClient: QueryClient, userId: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetUserApiAuthUserUserIdGetQueryKey(userId) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -9731,25 +8821,6 @@ Args:
     user_id: The user ID to delete
  * @summary Delete User
  */
-export type deleteUserApiAuthUserUserIdDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteUserApiAuthUserUserIdDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteUserApiAuthUserUserIdDeleteResponseSuccess = (deleteUserApiAuthUserUserIdDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteUserApiAuthUserUserIdDeleteResponseError = (deleteUserApiAuthUserUserIdDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteUserApiAuthUserUserIdDeleteResponse = (deleteUserApiAuthUserUserIdDeleteResponseSuccess | deleteUserApiAuthUserUserIdDeleteResponseError)
-
 export const getDeleteUserApiAuthUserUserIdDeleteUrl = (userId: string,) => {
 
 
@@ -9758,9 +8829,9 @@ export const getDeleteUserApiAuthUserUserIdDeleteUrl = (userId: string,) => {
   return `/api/auth/user/${userId}`
 }
 
-export const deleteUserApiAuthUserUserIdDelete = async (userId: string, options?: RequestInit): Promise<deleteUserApiAuthUserUserIdDeleteResponse> => {
+export const deleteUserApiAuthUserUserIdDelete = async (userId: string, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<deleteUserApiAuthUserUserIdDeleteResponse>(getDeleteUserApiAuthUserUserIdDeleteUrl(userId),
+  return customFetch<unknown>(getDeleteUserApiAuthUserUserIdDeleteUrl(userId),
   {      
     ...options,
     method: 'DELETE'
@@ -9827,25 +8898,6 @@ Returns:
     UserRolesResponse with list of role assignments
  * @summary List User Roles
  */
-export type listUserRolesApiAuthUserUserIdRolesGetResponse200 = {
-  data: UserRolesResponse
-  status: 200
-}
-
-export type listUserRolesApiAuthUserUserIdRolesGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listUserRolesApiAuthUserUserIdRolesGetResponseSuccess = (listUserRolesApiAuthUserUserIdRolesGetResponse200) & {
-  headers: Headers;
-};
-export type listUserRolesApiAuthUserUserIdRolesGetResponseError = (listUserRolesApiAuthUserUserIdRolesGetResponse422) & {
-  headers: Headers;
-};
-
-export type listUserRolesApiAuthUserUserIdRolesGetResponse = (listUserRolesApiAuthUserUserIdRolesGetResponseSuccess | listUserRolesApiAuthUserUserIdRolesGetResponseError)
-
 export const getListUserRolesApiAuthUserUserIdRolesGetUrl = (userId: string,) => {
 
 
@@ -9854,9 +8906,9 @@ export const getListUserRolesApiAuthUserUserIdRolesGetUrl = (userId: string,) =>
   return `/api/auth/user/${userId}/roles`
 }
 
-export const listUserRolesApiAuthUserUserIdRolesGet = async (userId: string, options?: RequestInit): Promise<listUserRolesApiAuthUserUserIdRolesGetResponse> => {
+export const listUserRolesApiAuthUserUserIdRolesGet = async (userId: string, options?: RequestInit): Promise<UserRolesResponse> => {
   
-  return customFetch<listUserRolesApiAuthUserUserIdRolesGetResponse>(getListUserRolesApiAuthUserUserIdRolesGetUrl(userId),
+  return customFetch<UserRolesResponse>(getListUserRolesApiAuthUserUserIdRolesGetUrl(userId),
   {      
     ...options,
     method: 'GET'
@@ -9939,6 +8991,17 @@ export function useListUserRolesApiAuthUserUserIdRolesGet<TData = Awaited<Return
 }
 
 
+/**
+ * @summary List User Roles
+ */
+export const invalidateListUserRolesApiAuthUserUserIdRolesGet = async (
+ queryClient: QueryClient, userId: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListUserRolesApiAuthUserUserIdRolesGetQueryKey(userId) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -9954,25 +9017,6 @@ Returns:
     UserRoleAssignment with assignment details
  * @summary Assign Role To User
  */
-export type assignRoleToUserApiAuthUserUserIdRolesPostResponse200 = {
-  data: UserRoleAssignment
-  status: 200
-}
-
-export type assignRoleToUserApiAuthUserUserIdRolesPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type assignRoleToUserApiAuthUserUserIdRolesPostResponseSuccess = (assignRoleToUserApiAuthUserUserIdRolesPostResponse200) & {
-  headers: Headers;
-};
-export type assignRoleToUserApiAuthUserUserIdRolesPostResponseError = (assignRoleToUserApiAuthUserUserIdRolesPostResponse422) & {
-  headers: Headers;
-};
-
-export type assignRoleToUserApiAuthUserUserIdRolesPostResponse = (assignRoleToUserApiAuthUserUserIdRolesPostResponseSuccess | assignRoleToUserApiAuthUserUserIdRolesPostResponseError)
-
 export const getAssignRoleToUserApiAuthUserUserIdRolesPostUrl = (userId: string,) => {
 
 
@@ -9982,9 +9026,9 @@ export const getAssignRoleToUserApiAuthUserUserIdRolesPostUrl = (userId: string,
 }
 
 export const assignRoleToUserApiAuthUserUserIdRolesPost = async (userId: string,
-    assignRoleRequest: AssignRoleRequest, options?: RequestInit): Promise<assignRoleToUserApiAuthUserUserIdRolesPostResponse> => {
+    assignRoleRequest: AssignRoleRequest, options?: RequestInit): Promise<UserRoleAssignment> => {
   
-  return customFetch<assignRoleToUserApiAuthUserUserIdRolesPostResponse>(getAssignRoleToUserApiAuthUserUserIdRolesPostUrl(userId),
+  return customFetch<UserRoleAssignment>(getAssignRoleToUserApiAuthUserUserIdRolesPostUrl(userId),
   {      
     ...options,
     method: 'POST',
@@ -10053,25 +9097,6 @@ Args:
     role_name: The role to remove
  * @summary Remove Role From User
  */
-export type removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponseSuccess = (removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponseError = (removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse = (removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponseSuccess | removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponseError)
-
 export const getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteUrl = (userId: string,
     roleName: string,) => {
 
@@ -10082,9 +9107,9 @@ export const getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteUrl = (use
 }
 
 export const removeRoleFromUserApiAuthUserUserIdRolesRoleNameDelete = async (userId: string,
-    roleName: string, options?: RequestInit): Promise<removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse> => {
+    roleName: string, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<removeRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteResponse>(getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteUrl(userId,roleName),
+  return customFetch<unknown>(getRemoveRoleFromUserApiAuthUserUserIdRolesRoleNameDeleteUrl(userId,roleName),
   {      
     ...options,
     method: 'DELETE'
@@ -10151,25 +9176,6 @@ Returns:
     RoleUsersResponse with list of users
  * @summary List Users With Role
  */
-export type listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse200 = {
-  data: RoleUsersResponse
-  status: 200
-}
-
-export type listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listUsersWithRoleApiAuthRolesRoleNameUsersGetResponseSuccess = (listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse200) & {
-  headers: Headers;
-};
-export type listUsersWithRoleApiAuthRolesRoleNameUsersGetResponseError = (listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse422) & {
-  headers: Headers;
-};
-
-export type listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse = (listUsersWithRoleApiAuthRolesRoleNameUsersGetResponseSuccess | listUsersWithRoleApiAuthRolesRoleNameUsersGetResponseError)
-
 export const getListUsersWithRoleApiAuthRolesRoleNameUsersGetUrl = (roleName: string,) => {
 
 
@@ -10178,9 +9184,9 @@ export const getListUsersWithRoleApiAuthRolesRoleNameUsersGetUrl = (roleName: st
   return `/api/auth/roles/${roleName}/users`
 }
 
-export const listUsersWithRoleApiAuthRolesRoleNameUsersGet = async (roleName: string, options?: RequestInit): Promise<listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse> => {
+export const listUsersWithRoleApiAuthRolesRoleNameUsersGet = async (roleName: string, options?: RequestInit): Promise<RoleUsersResponse> => {
   
-  return customFetch<listUsersWithRoleApiAuthRolesRoleNameUsersGetResponse>(getListUsersWithRoleApiAuthRolesRoleNameUsersGetUrl(roleName),
+  return customFetch<RoleUsersResponse>(getListUsersWithRoleApiAuthRolesRoleNameUsersGetUrl(roleName),
   {      
     ...options,
     method: 'GET'
@@ -10263,6 +9269,17 @@ export function useListUsersWithRoleApiAuthRolesRoleNameUsersGet<TData = Awaited
 }
 
 
+/**
+ * @summary List Users With Role
+ */
+export const invalidateListUsersWithRoleApiAuthRolesRoleNameUsersGet = async (
+ queryClient: QueryClient, roleName: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListUsersWithRoleApiAuthRolesRoleNameUsersGetQueryKey(roleName) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -10278,25 +9295,6 @@ Returns:
     BulkAssignResponse with results
  * @summary Bulk Assign Role
  */
-export type bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse200 = {
-  data: BulkAssignResponse
-  status: 200
-}
-
-export type bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type bulkAssignRoleApiAuthRolesRoleNameUsersPostResponseSuccess = (bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse200) & {
-  headers: Headers;
-};
-export type bulkAssignRoleApiAuthRolesRoleNameUsersPostResponseError = (bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse422) & {
-  headers: Headers;
-};
-
-export type bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse = (bulkAssignRoleApiAuthRolesRoleNameUsersPostResponseSuccess | bulkAssignRoleApiAuthRolesRoleNameUsersPostResponseError)
-
 export const getBulkAssignRoleApiAuthRolesRoleNameUsersPostUrl = (roleName: string,) => {
 
 
@@ -10306,9 +9304,9 @@ export const getBulkAssignRoleApiAuthRolesRoleNameUsersPostUrl = (roleName: stri
 }
 
 export const bulkAssignRoleApiAuthRolesRoleNameUsersPost = async (roleName: string,
-    bulkAssignRequest: BulkAssignRequest, options?: RequestInit): Promise<bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse> => {
+    bulkAssignRequest: BulkAssignRequest, options?: RequestInit): Promise<BulkAssignResponse> => {
   
-  return customFetch<bulkAssignRoleApiAuthRolesRoleNameUsersPostResponse>(getBulkAssignRoleApiAuthRolesRoleNameUsersPostUrl(roleName),
+  return customFetch<BulkAssignResponse>(getBulkAssignRoleApiAuthRolesRoleNameUsersPostUrl(roleName),
   {      
     ...options,
     method: 'POST',
@@ -10369,25 +9367,6 @@ export const useBulkAssignRoleApiAuthRolesRoleNameUsersPost = <TError = HTTPVali
 /**
  * @summary List Apps
  */
-export type listAppsApiAppGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listAppsApiAppGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listAppsApiAppGetResponseSuccess = (listAppsApiAppGetResponse200) & {
-  headers: Headers;
-};
-export type listAppsApiAppGetResponseError = (listAppsApiAppGetResponse422) & {
-  headers: Headers;
-};
-
-export type listAppsApiAppGetResponse = (listAppsApiAppGetResponseSuccess | listAppsApiAppGetResponseError)
-
 export const getListAppsApiAppGetUrl = (params?: ListAppsApiAppGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -10411,9 +9390,9 @@ export const getListAppsApiAppGetUrl = (params?: ListAppsApiAppGetParams,) => {
   return stringifiedParams.length > 0 ? `/api/app?${stringifiedParams}` : `/api/app`
 }
 
-export const listAppsApiAppGet = async (params?: ListAppsApiAppGetParams, options?: RequestInit): Promise<listAppsApiAppGetResponse> => {
+export const listAppsApiAppGet = async (params?: ListAppsApiAppGetParams, options?: RequestInit): Promise<SrcServiceCoreAppObjectsListResponse> => {
   
-  return customFetch<listAppsApiAppGetResponse>(getListAppsApiAppGetUrl(params),
+  return customFetch<SrcServiceCoreAppObjectsListResponse>(getListAppsApiAppGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -10496,31 +9475,23 @@ export function useListAppsApiAppGet<TData = Awaited<ReturnType<typeof listAppsA
 }
 
 
+/**
+ * @summary List Apps
+ */
+export const invalidateListAppsApiAppGet = async (
+ queryClient: QueryClient, params?: ListAppsApiAppGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListAppsApiAppGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Get App
  */
-export type getAppApiAppUserNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getAppApiAppUserNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAppApiAppUserNameGetResponseSuccess = (getAppApiAppUserNameGetResponse200) & {
-  headers: Headers;
-};
-export type getAppApiAppUserNameGetResponseError = (getAppApiAppUserNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type getAppApiAppUserNameGetResponse = (getAppApiAppUserNameGetResponseSuccess | getAppApiAppUserNameGetResponseError)
-
 export const getGetAppApiAppUserNameGetUrl = (name: string,
     params?: GetAppApiAppUserNameGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -10538,9 +9509,9 @@ export const getGetAppApiAppUserNameGetUrl = (name: string,
 }
 
 export const getAppApiAppUserNameGet = async (name: string,
-    params?: GetAppApiAppUserNameGetParams, options?: RequestInit): Promise<getAppApiAppUserNameGetResponse> => {
+    params?: GetAppApiAppUserNameGetParams, options?: RequestInit): Promise<GetAppResponse> => {
   
-  return customFetch<getAppApiAppUserNameGetResponse>(getGetAppApiAppUserNameGetUrl(name,params),
+  return customFetch<GetAppResponse>(getGetAppApiAppUserNameGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -10629,31 +9600,24 @@ export function useGetAppApiAppUserNameGet<TData = Awaited<ReturnType<typeof get
 }
 
 
+/**
+ * @summary Get App
+ */
+export const invalidateGetAppApiAppUserNameGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetAppApiAppUserNameGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetAppApiAppUserNameGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Create App
  */
-export type createAppApiAppUserNamePostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type createAppApiAppUserNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createAppApiAppUserNamePostResponseSuccess = (createAppApiAppUserNamePostResponse200) & {
-  headers: Headers;
-};
-export type createAppApiAppUserNamePostResponseError = (createAppApiAppUserNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type createAppApiAppUserNamePostResponse = (createAppApiAppUserNamePostResponseSuccess | createAppApiAppUserNamePostResponseError)
-
 export const getCreateAppApiAppUserNamePostUrl = (name: string,
     params: CreateAppApiAppUserNamePostParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -10672,9 +9636,9 @@ export const getCreateAppApiAppUserNamePostUrl = (name: string,
 
 export const createAppApiAppUserNamePost = async (name: string,
     createAppApiAppUserNamePostBody: string,
-    params: CreateAppApiAppUserNamePostParams, options?: RequestInit): Promise<createAppApiAppUserNamePostResponse> => {
+    params: CreateAppApiAppUserNamePostParams, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<createAppApiAppUserNamePostResponse>(getCreateAppApiAppUserNamePostUrl(name,params),
+  return customFetch<unknown>(getCreateAppApiAppUserNamePostUrl(name,params),
   {      
     ...options,
     method: 'POST',
@@ -10735,25 +9699,6 @@ export const useCreateAppApiAppUserNamePost = <TError = HTTPValidationError,
 /**
  * @summary Delete App
  */
-export type deleteAppApiAppUserNameDeleteResponse200 = {
-  data: DeleteAppApiAppUserNameDelete200
-  status: 200
-}
-
-export type deleteAppApiAppUserNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteAppApiAppUserNameDeleteResponseSuccess = (deleteAppApiAppUserNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteAppApiAppUserNameDeleteResponseError = (deleteAppApiAppUserNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteAppApiAppUserNameDeleteResponse = (deleteAppApiAppUserNameDeleteResponseSuccess | deleteAppApiAppUserNameDeleteResponseError)
-
 export const getDeleteAppApiAppUserNameDeleteUrl = (name: string,
     params?: DeleteAppApiAppUserNameDeleteParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -10771,9 +9716,9 @@ export const getDeleteAppApiAppUserNameDeleteUrl = (name: string,
 }
 
 export const deleteAppApiAppUserNameDelete = async (name: string,
-    params?: DeleteAppApiAppUserNameDeleteParams, options?: RequestInit): Promise<deleteAppApiAppUserNameDeleteResponse> => {
+    params?: DeleteAppApiAppUserNameDeleteParams, options?: RequestInit): Promise<DeleteAppApiAppUserNameDelete200> => {
   
-  return customFetch<deleteAppApiAppUserNameDeleteResponse>(getDeleteAppApiAppUserNameDeleteUrl(name,params),
+  return customFetch<DeleteAppApiAppUserNameDelete200>(getDeleteAppApiAppUserNameDeleteUrl(name,params),
   {      
     ...options,
     method: 'DELETE'
@@ -10833,25 +9778,6 @@ export const useDeleteAppApiAppUserNameDelete = <TError = HTTPValidationError,
 /**
  * @summary Update App
  */
-export type updateAppApiAppUserNamePatchResponse200 = {
-  data: EditResponse
-  status: 200
-}
-
-export type updateAppApiAppUserNamePatchResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type updateAppApiAppUserNamePatchResponseSuccess = (updateAppApiAppUserNamePatchResponse200) & {
-  headers: Headers;
-};
-export type updateAppApiAppUserNamePatchResponseError = (updateAppApiAppUserNamePatchResponse422) & {
-  headers: Headers;
-};
-
-export type updateAppApiAppUserNamePatchResponse = (updateAppApiAppUserNamePatchResponseSuccess | updateAppApiAppUserNamePatchResponseError)
-
 export const getUpdateAppApiAppUserNamePatchUrl = (name: string,) => {
 
 
@@ -10861,9 +9787,9 @@ export const getUpdateAppApiAppUserNamePatchUrl = (name: string,) => {
 }
 
 export const updateAppApiAppUserNamePatch = async (name: string,
-    updateAppApiAppUserNamePatchBody: string, options?: RequestInit): Promise<updateAppApiAppUserNamePatchResponse> => {
+    updateAppApiAppUserNamePatchBody: string, options?: RequestInit): Promise<EditResponse> => {
   
-  return customFetch<updateAppApiAppUserNamePatchResponse>(getUpdateAppApiAppUserNamePatchUrl(name),
+  return customFetch<EditResponse>(getUpdateAppApiAppUserNamePatchUrl(name),
   {      
     ...options,
     method: 'PATCH',
@@ -10924,25 +9850,6 @@ export const useUpdateAppApiAppUserNamePatch = <TError = HTTPValidationError,
 /**
  * @summary Get App Content
  */
-export type getAppContentApiAppUserNameSpecGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getAppContentApiAppUserNameSpecGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getAppContentApiAppUserNameSpecGetResponseSuccess = (getAppContentApiAppUserNameSpecGetResponse200) & {
-  headers: Headers;
-};
-export type getAppContentApiAppUserNameSpecGetResponseError = (getAppContentApiAppUserNameSpecGetResponse422) & {
-  headers: Headers;
-};
-
-export type getAppContentApiAppUserNameSpecGetResponse = (getAppContentApiAppUserNameSpecGetResponseSuccess | getAppContentApiAppUserNameSpecGetResponseError)
-
 export const getGetAppContentApiAppUserNameSpecGetUrl = (name: string,
     params?: GetAppContentApiAppUserNameSpecGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -10960,9 +9867,9 @@ export const getGetAppContentApiAppUserNameSpecGetUrl = (name: string,
 }
 
 export const getAppContentApiAppUserNameSpecGet = async (name: string,
-    params?: GetAppContentApiAppUserNameSpecGetParams, options?: RequestInit): Promise<getAppContentApiAppUserNameSpecGetResponse> => {
+    params?: GetAppContentApiAppUserNameSpecGetParams, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<getAppContentApiAppUserNameSpecGetResponse>(getGetAppContentApiAppUserNameSpecGetUrl(name,params),
+  return customFetch<unknown>(getGetAppContentApiAppUserNameSpecGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -11051,31 +9958,24 @@ export function useGetAppContentApiAppUserNameSpecGet<TData = Awaited<ReturnType
 }
 
 
+/**
+ * @summary Get App Content
+ */
+export const invalidateGetAppContentApiAppUserNameSpecGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetAppContentApiAppUserNameSpecGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetAppContentApiAppUserNameSpecGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Rename App
  */
-export type renameAppApiAppUserNameRenamePostResponse200 = {
-  data: string
-  status: 200
-}
-
-export type renameAppApiAppUserNameRenamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type renameAppApiAppUserNameRenamePostResponseSuccess = (renameAppApiAppUserNameRenamePostResponse200) & {
-  headers: Headers;
-};
-export type renameAppApiAppUserNameRenamePostResponseError = (renameAppApiAppUserNameRenamePostResponse422) & {
-  headers: Headers;
-};
-
-export type renameAppApiAppUserNameRenamePostResponse = (renameAppApiAppUserNameRenamePostResponseSuccess | renameAppApiAppUserNameRenamePostResponseError)
-
 export const getRenameAppApiAppUserNameRenamePostUrl = (name: string,) => {
 
 
@@ -11085,9 +9985,9 @@ export const getRenameAppApiAppUserNameRenamePostUrl = (name: string,) => {
 }
 
 export const renameAppApiAppUserNameRenamePost = async (name: string,
-    renameAppApiAppUserNameRenamePostBody: string, options?: RequestInit): Promise<renameAppApiAppUserNameRenamePostResponse> => {
+    renameAppApiAppUserNameRenamePostBody: string, options?: RequestInit): Promise<string> => {
   
-  return customFetch<renameAppApiAppUserNameRenamePostResponse>(getRenameAppApiAppUserNameRenamePostUrl(name),
+  return customFetch<string>(getRenameAppApiAppUserNameRenamePostUrl(name),
   {      
     ...options,
     method: 'POST',
@@ -11149,25 +10049,6 @@ export const useRenameAppApiAppUserNameRenamePost = <TError = HTTPValidationErro
  * Cancels the workflow.
  * @summary Cancel Workflow
  */
-export type cancelWorkflowApiWorkflowNameCancelPostResponse200 = {
-  data: CancelResponse
-  status: 200
-}
-
-export type cancelWorkflowApiWorkflowNameCancelPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type cancelWorkflowApiWorkflowNameCancelPostResponseSuccess = (cancelWorkflowApiWorkflowNameCancelPostResponse200) & {
-  headers: Headers;
-};
-export type cancelWorkflowApiWorkflowNameCancelPostResponseError = (cancelWorkflowApiWorkflowNameCancelPostResponse422) & {
-  headers: Headers;
-};
-
-export type cancelWorkflowApiWorkflowNameCancelPostResponse = (cancelWorkflowApiWorkflowNameCancelPostResponseSuccess | cancelWorkflowApiWorkflowNameCancelPostResponseError)
-
 export const getCancelWorkflowApiWorkflowNameCancelPostUrl = (name: string,
     params?: CancelWorkflowApiWorkflowNameCancelPostParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -11185,9 +10066,9 @@ export const getCancelWorkflowApiWorkflowNameCancelPostUrl = (name: string,
 }
 
 export const cancelWorkflowApiWorkflowNameCancelPost = async (name: string,
-    params?: CancelWorkflowApiWorkflowNameCancelPostParams, options?: RequestInit): Promise<cancelWorkflowApiWorkflowNameCancelPostResponse> => {
+    params?: CancelWorkflowApiWorkflowNameCancelPostParams, options?: RequestInit): Promise<CancelResponse> => {
   
-  return customFetch<cancelWorkflowApiWorkflowNameCancelPostResponse>(getCancelWorkflowApiWorkflowNameCancelPostUrl(name,params),
+  return customFetch<CancelResponse>(getCancelWorkflowApiWorkflowNameCancelPostUrl(name,params),
   {      
     ...options,
     method: 'POST'
@@ -11247,25 +10128,6 @@ export const useCancelWorkflowApiWorkflowNameCancelPost = <TError = HTTPValidati
 /**
  * @summary List Workflow
  */
-export type listWorkflowApiWorkflowGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listWorkflowApiWorkflowGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listWorkflowApiWorkflowGetResponseSuccess = (listWorkflowApiWorkflowGetResponse200) & {
-  headers: Headers;
-};
-export type listWorkflowApiWorkflowGetResponseError = (listWorkflowApiWorkflowGetResponse422) & {
-  headers: Headers;
-};
-
-export type listWorkflowApiWorkflowGetResponse = (listWorkflowApiWorkflowGetResponseSuccess | listWorkflowApiWorkflowGetResponseError)
-
 export const getListWorkflowApiWorkflowGetUrl = (params?: ListWorkflowApiWorkflowGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11289,9 +10151,9 @@ export const getListWorkflowApiWorkflowGetUrl = (params?: ListWorkflowApiWorkflo
   return stringifiedParams.length > 0 ? `/api/workflow?${stringifiedParams}` : `/api/workflow`
 }
 
-export const listWorkflowApiWorkflowGet = async (params?: ListWorkflowApiWorkflowGetParams, options?: RequestInit): Promise<listWorkflowApiWorkflowGetResponse> => {
+export const listWorkflowApiWorkflowGet = async (params?: ListWorkflowApiWorkflowGetParams, options?: RequestInit): Promise<SrcServiceCoreWorkflowObjectsListResponse> => {
   
-  return customFetch<listWorkflowApiWorkflowGetResponse>(getListWorkflowApiWorkflowGetUrl(params),
+  return customFetch<SrcServiceCoreWorkflowObjectsListResponse>(getListWorkflowApiWorkflowGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -11374,6 +10236,17 @@ export function useListWorkflowApiWorkflowGet<TData = Awaited<ReturnType<typeof 
 }
 
 
+/**
+ * @summary List Workflow
+ */
+export const invalidateListWorkflowApiWorkflowGet = async (
+ queryClient: QueryClient, params?: ListWorkflowApiWorkflowGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListWorkflowApiWorkflowGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -11381,25 +10254,6 @@ export function useListWorkflowApiWorkflowGet<TData = Awaited<ReturnType<typeof 
  * Returns the task (with the latest retry_id) with the given name in the workflow.
  * @summary Get Workflow Task
  */
-export type getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponseSuccess = (getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse200) & {
-  headers: Headers;
-};
-export type getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponseError = (getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse = (getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponseSuccess | getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponseError)
-
 export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetUrl = (name: string,
     taskName: string,) => {
 
@@ -11410,9 +10264,9 @@ export const getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetUrl = (name: string
 }
 
 export const getWorkflowTaskApiWorkflowNameTaskTaskNameGet = async (name: string,
-    taskName: string, options?: RequestInit): Promise<getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse> => {
+    taskName: string, options?: RequestInit): Promise<TaskEntry> => {
   
-  return customFetch<getWorkflowTaskApiWorkflowNameTaskTaskNameGetResponse>(getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetUrl(name,taskName),
+  return customFetch<TaskEntry>(getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetUrl(name,taskName),
   {      
     ...options,
     method: 'GET'
@@ -11501,31 +10355,24 @@ export function useGetWorkflowTaskApiWorkflowNameTaskTaskNameGet<TData = Awaited
 }
 
 
+/**
+ * @summary Get Workflow Task
+ */
+export const invalidateGetWorkflowTaskApiWorkflowNameTaskTaskNameGet = async (
+ queryClient: QueryClient, name: string,
+    taskName: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowTaskApiWorkflowNameTaskTaskNameGetQueryKey(name,taskName) }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary List Task
  */
-export type listTaskApiTaskGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type listTaskApiTaskGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listTaskApiTaskGetResponseSuccess = (listTaskApiTaskGetResponse200) & {
-  headers: Headers;
-};
-export type listTaskApiTaskGetResponseError = (listTaskApiTaskGetResponse422) & {
-  headers: Headers;
-};
-
-export type listTaskApiTaskGetResponse = (listTaskApiTaskGetResponseSuccess | listTaskApiTaskGetResponseError)
-
 export const getListTaskApiTaskGetUrl = (params?: ListTaskApiTaskGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -11549,9 +10396,9 @@ export const getListTaskApiTaskGetUrl = (params?: ListTaskApiTaskGetParams,) => 
   return stringifiedParams.length > 0 ? `/api/task?${stringifiedParams}` : `/api/task`
 }
 
-export const listTaskApiTaskGet = async (params?: ListTaskApiTaskGetParams, options?: RequestInit): Promise<listTaskApiTaskGetResponse> => {
+export const listTaskApiTaskGet = async (params?: ListTaskApiTaskGetParams, options?: RequestInit): Promise<ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse> => {
   
-  return customFetch<listTaskApiTaskGetResponse>(getListTaskApiTaskGetUrl(params),
+  return customFetch<ListTaskSummaryResponse | ListTaskResponse | ListTaskAggregatedResponse>(getListTaskApiTaskGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -11634,6 +10481,17 @@ export function useListTaskApiTaskGet<TData = Awaited<ReturnType<typeof listTask
 }
 
 
+/**
+ * @summary List Task
+ */
+export const invalidateListTaskApiTaskGet = async (
+ queryClient: QueryClient, params?: ListTaskApiTaskGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListTaskApiTaskGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -11641,25 +10499,6 @@ export function useListTaskApiTaskGet<TData = Awaited<ReturnType<typeof listTask
  * Returns the workflow with the given name in the database.
  * @summary Get Workflow
  */
-export type getWorkflowApiWorkflowNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowApiWorkflowNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getWorkflowApiWorkflowNameGetResponseSuccess = (getWorkflowApiWorkflowNameGetResponse200) & {
-  headers: Headers;
-};
-export type getWorkflowApiWorkflowNameGetResponseError = (getWorkflowApiWorkflowNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type getWorkflowApiWorkflowNameGetResponse = (getWorkflowApiWorkflowNameGetResponseSuccess | getWorkflowApiWorkflowNameGetResponseError)
-
 export const getGetWorkflowApiWorkflowNameGetUrl = (name: string,
     params?: GetWorkflowApiWorkflowNameGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -11677,9 +10516,9 @@ export const getGetWorkflowApiWorkflowNameGetUrl = (name: string,
 }
 
 export const getWorkflowApiWorkflowNameGet = async (name: string,
-    params?: GetWorkflowApiWorkflowNameGetParams, options?: RequestInit): Promise<getWorkflowApiWorkflowNameGetResponse> => {
+    params?: GetWorkflowApiWorkflowNameGetParams, options?: RequestInit): Promise<WorkflowQueryResponse> => {
   
-  return customFetch<getWorkflowApiWorkflowNameGetResponse>(getGetWorkflowApiWorkflowNameGetUrl(name,params),
+  return customFetch<WorkflowQueryResponse>(getGetWorkflowApiWorkflowNameGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -11768,6 +10607,18 @@ export function useGetWorkflowApiWorkflowNameGet<TData = Awaited<ReturnType<type
 }
 
 
+/**
+ * @summary Get Workflow
+ */
+export const invalidateGetWorkflowApiWorkflowNameGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetWorkflowApiWorkflowNameGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowApiWorkflowNameGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -11775,25 +10626,6 @@ export function useGetWorkflowApiWorkflowNameGet<TData = Awaited<ReturnType<type
  * Returns the workflow logs.
  * @summary Get Workflow Logs
  */
-export type getWorkflowLogsApiWorkflowNameLogsGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowLogsApiWorkflowNameLogsGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getWorkflowLogsApiWorkflowNameLogsGetResponseSuccess = (getWorkflowLogsApiWorkflowNameLogsGetResponse200) & {
-  headers: Headers;
-};
-export type getWorkflowLogsApiWorkflowNameLogsGetResponseError = (getWorkflowLogsApiWorkflowNameLogsGetResponse422) & {
-  headers: Headers;
-};
-
-export type getWorkflowLogsApiWorkflowNameLogsGetResponse = (getWorkflowLogsApiWorkflowNameLogsGetResponseSuccess | getWorkflowLogsApiWorkflowNameLogsGetResponseError)
-
 export const getGetWorkflowLogsApiWorkflowNameLogsGetUrl = (name: string,
     params?: GetWorkflowLogsApiWorkflowNameLogsGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -11811,9 +10643,9 @@ export const getGetWorkflowLogsApiWorkflowNameLogsGetUrl = (name: string,
 }
 
 export const getWorkflowLogsApiWorkflowNameLogsGet = async (name: string,
-    params?: GetWorkflowLogsApiWorkflowNameLogsGetParams, options?: RequestInit): Promise<getWorkflowLogsApiWorkflowNameLogsGetResponse> => {
+    params?: GetWorkflowLogsApiWorkflowNameLogsGetParams, options?: RequestInit): Promise<string> => {
   
-  return customFetch<getWorkflowLogsApiWorkflowNameLogsGetResponse>(getGetWorkflowLogsApiWorkflowNameLogsGetUrl(name,params),
+  return customFetch<string>(getGetWorkflowLogsApiWorkflowNameLogsGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -11902,6 +10734,18 @@ export function useGetWorkflowLogsApiWorkflowNameLogsGet<TData = Awaited<ReturnT
 }
 
 
+/**
+ * @summary Get Workflow Logs
+ */
+export const invalidateGetWorkflowLogsApiWorkflowNameLogsGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetWorkflowLogsApiWorkflowNameLogsGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowLogsApiWorkflowNameLogsGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -11909,25 +10753,6 @@ export function useGetWorkflowLogsApiWorkflowNameLogsGet<TData = Awaited<ReturnT
  * Returns the workflow pod conditions.
  * @summary Get Workflow Pod Conditions
  */
-export type getWorkflowPodConditionsApiWorkflowNameEventsGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowPodConditionsApiWorkflowNameEventsGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getWorkflowPodConditionsApiWorkflowNameEventsGetResponseSuccess = (getWorkflowPodConditionsApiWorkflowNameEventsGetResponse200) & {
-  headers: Headers;
-};
-export type getWorkflowPodConditionsApiWorkflowNameEventsGetResponseError = (getWorkflowPodConditionsApiWorkflowNameEventsGetResponse422) & {
-  headers: Headers;
-};
-
-export type getWorkflowPodConditionsApiWorkflowNameEventsGetResponse = (getWorkflowPodConditionsApiWorkflowNameEventsGetResponseSuccess | getWorkflowPodConditionsApiWorkflowNameEventsGetResponseError)
-
 export const getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl = (name: string,
     params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -11945,9 +10770,9 @@ export const getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl = (name: str
 }
 
 export const getWorkflowPodConditionsApiWorkflowNameEventsGet = async (name: string,
-    params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams, options?: RequestInit): Promise<getWorkflowPodConditionsApiWorkflowNameEventsGetResponse> => {
+    params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams, options?: RequestInit): Promise<string> => {
   
-  return customFetch<getWorkflowPodConditionsApiWorkflowNameEventsGetResponse>(getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl(name,params),
+  return customFetch<string>(getGetWorkflowPodConditionsApiWorkflowNameEventsGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -12036,6 +10861,18 @@ export function useGetWorkflowPodConditionsApiWorkflowNameEventsGet<TData = Awai
 }
 
 
+/**
+ * @summary Get Workflow Pod Conditions
+ */
+export const invalidateGetWorkflowPodConditionsApiWorkflowNameEventsGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetWorkflowPodConditionsApiWorkflowNameEventsGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowPodConditionsApiWorkflowNameEventsGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -12043,25 +10880,6 @@ export function useGetWorkflowPodConditionsApiWorkflowNameEventsGet<TData = Awai
  * Returns the workflow error logs.
  * @summary Get Workflow Error Logs
  */
-export type getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponseSuccess = (getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse200) & {
-  headers: Headers;
-};
-export type getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponseError = (getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse422) & {
-  headers: Headers;
-};
-
-export type getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse = (getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponseSuccess | getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponseError)
-
 export const getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl = (name: string,
     params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -12079,9 +10897,9 @@ export const getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl = (name: stri
 }
 
 export const getWorkflowErrorLogsApiWorkflowNameErrorLogsGet = async (name: string,
-    params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams, options?: RequestInit): Promise<getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse> => {
+    params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams, options?: RequestInit): Promise<string> => {
   
-  return customFetch<getWorkflowErrorLogsApiWorkflowNameErrorLogsGetResponse>(getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl(name,params),
+  return customFetch<string>(getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -12170,6 +10988,18 @@ export function useGetWorkflowErrorLogsApiWorkflowNameErrorLogsGet<TData = Await
 }
 
 
+/**
+ * @summary Get Workflow Error Logs
+ */
+export const invalidateGetWorkflowErrorLogsApiWorkflowNameErrorLogsGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetWorkflowErrorLogsApiWorkflowNameErrorLogsGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowErrorLogsApiWorkflowNameErrorLogsGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -12177,25 +11007,6 @@ export function useGetWorkflowErrorLogsApiWorkflowNameErrorLogsGet<TData = Await
  * Returns the workflow spec.
  * @summary Get Workflow Spec
  */
-export type getWorkflowSpecApiWorkflowNameSpecGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowSpecApiWorkflowNameSpecGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getWorkflowSpecApiWorkflowNameSpecGetResponseSuccess = (getWorkflowSpecApiWorkflowNameSpecGetResponse200) & {
-  headers: Headers;
-};
-export type getWorkflowSpecApiWorkflowNameSpecGetResponseError = (getWorkflowSpecApiWorkflowNameSpecGetResponse422) & {
-  headers: Headers;
-};
-
-export type getWorkflowSpecApiWorkflowNameSpecGetResponse = (getWorkflowSpecApiWorkflowNameSpecGetResponseSuccess | getWorkflowSpecApiWorkflowNameSpecGetResponseError)
-
 export const getGetWorkflowSpecApiWorkflowNameSpecGetUrl = (name: string,
     params?: GetWorkflowSpecApiWorkflowNameSpecGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -12213,9 +11024,9 @@ export const getGetWorkflowSpecApiWorkflowNameSpecGetUrl = (name: string,
 }
 
 export const getWorkflowSpecApiWorkflowNameSpecGet = async (name: string,
-    params?: GetWorkflowSpecApiWorkflowNameSpecGetParams, options?: RequestInit): Promise<getWorkflowSpecApiWorkflowNameSpecGetResponse> => {
+    params?: GetWorkflowSpecApiWorkflowNameSpecGetParams, options?: RequestInit): Promise<string> => {
   
-  return customFetch<getWorkflowSpecApiWorkflowNameSpecGetResponse>(getGetWorkflowSpecApiWorkflowNameSpecGetUrl(name,params),
+  return customFetch<string>(getGetWorkflowSpecApiWorkflowNameSpecGetUrl(name,params),
   {      
     ...options,
     method: 'GET'
@@ -12304,6 +11115,18 @@ export function useGetWorkflowSpecApiWorkflowNameSpecGet<TData = Awaited<ReturnT
 }
 
 
+/**
+ * @summary Get Workflow Spec
+ */
+export const invalidateGetWorkflowSpecApiWorkflowNameSpecGet = async (
+ queryClient: QueryClient, name: string,
+    params?: GetWorkflowSpecApiWorkflowNameSpecGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowSpecApiWorkflowNameSpecGetQueryKey(name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -12311,25 +11134,6 @@ export function useGetWorkflowSpecApiWorkflowNameSpecGet<TData = Awaited<ReturnT
  * Returns the workflow spec.
  * @summary Tag Workflow
  */
-export type tagWorkflowApiWorkflowNameTagPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type tagWorkflowApiWorkflowNameTagPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type tagWorkflowApiWorkflowNameTagPostResponseSuccess = (tagWorkflowApiWorkflowNameTagPostResponse200) & {
-  headers: Headers;
-};
-export type tagWorkflowApiWorkflowNameTagPostResponseError = (tagWorkflowApiWorkflowNameTagPostResponse422) & {
-  headers: Headers;
-};
-
-export type tagWorkflowApiWorkflowNameTagPostResponse = (tagWorkflowApiWorkflowNameTagPostResponseSuccess | tagWorkflowApiWorkflowNameTagPostResponseError)
-
 export const getTagWorkflowApiWorkflowNameTagPostUrl = (name: string,
     params?: TagWorkflowApiWorkflowNameTagPostParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -12355,9 +11159,9 @@ export const getTagWorkflowApiWorkflowNameTagPostUrl = (name: string,
 }
 
 export const tagWorkflowApiWorkflowNameTagPost = async (name: string,
-    params?: TagWorkflowApiWorkflowNameTagPostParams, options?: RequestInit): Promise<tagWorkflowApiWorkflowNameTagPostResponse> => {
+    params?: TagWorkflowApiWorkflowNameTagPostParams, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<tagWorkflowApiWorkflowNameTagPostResponse>(getTagWorkflowApiWorkflowNameTagPostUrl(name,params),
+  return customFetch<unknown>(getTagWorkflowApiWorkflowNameTagPostUrl(name,params),
   {      
     ...options,
     method: 'POST'
@@ -12418,25 +11222,6 @@ export const useTagWorkflowApiWorkflowNameTagPost = <TError = HTTPValidationErro
  * Send command to all tasks in a group.
  * @summary Exec Into Group
  */
-export type execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse200 = {
-  data: ExecIntoGroupApiWorkflowNameExecGroupGroupNamePost200
-  status: 200
-}
-
-export type execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponseSuccess = (execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse200) & {
-  headers: Headers;
-};
-export type execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponseError = (execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse = (execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponseSuccess | execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponseError)
-
 export const getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl = (name: string,
     groupName: string,
     params: ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostParams,) => {
@@ -12456,9 +11241,9 @@ export const getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl = (name: s
 
 export const execIntoGroupApiWorkflowNameExecGroupGroupNamePost = async (name: string,
     groupName: string,
-    params: ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostParams, options?: RequestInit): Promise<execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse> => {
+    params: ExecIntoGroupApiWorkflowNameExecGroupGroupNamePostParams, options?: RequestInit): Promise<ExecIntoGroupApiWorkflowNameExecGroupGroupNamePost200> => {
   
-  return customFetch<execIntoGroupApiWorkflowNameExecGroupGroupNamePostResponse>(getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl(name,groupName,params),
+  return customFetch<ExecIntoGroupApiWorkflowNameExecGroupGroupNamePost200>(getExecIntoGroupApiWorkflowNameExecGroupGroupNamePostUrl(name,groupName,params),
   {      
     ...options,
     method: 'POST'
@@ -12519,25 +11304,6 @@ export const useExecIntoGroupApiWorkflowNameExecGroupGroupNamePost = <TError = H
  * Exec into a task container.
  * @summary Exec Into Task
  */
-export type execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse200 = {
-  data: RouterResponse
-  status: 200
-}
-
-export type execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponseSuccess = (execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse200) & {
-  headers: Headers;
-};
-export type execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponseError = (execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse = (execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponseSuccess | execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponseError)
-
 export const getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl = (name: string,
     taskName: string,
     params: ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostParams,) => {
@@ -12557,9 +11323,9 @@ export const getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl = (name: stri
 
 export const execIntoTaskApiWorkflowNameExecTaskTaskNamePost = async (name: string,
     taskName: string,
-    params: ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostParams, options?: RequestInit): Promise<execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse> => {
+    params: ExecIntoTaskApiWorkflowNameExecTaskTaskNamePostParams, options?: RequestInit): Promise<RouterResponse> => {
   
-  return customFetch<execIntoTaskApiWorkflowNameExecTaskTaskNamePostResponse>(getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl(name,taskName,params),
+  return customFetch<RouterResponse>(getExecIntoTaskApiWorkflowNameExecTaskTaskNamePostUrl(name,taskName,params),
   {      
     ...options,
     method: 'POST'
@@ -12620,25 +11386,6 @@ export const useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost = <TError = HTTP
  * Portforward into a task container.
  * @summary Port Forward Task
  */
-export type portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse200 = {
-  data: RouterResponse[] | RouterResponse
-  status: 200
-}
-
-export type portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponseSuccess = (portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse200) & {
-  headers: Headers;
-};
-export type portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponseError = (portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse = (portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponseSuccess | portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponseError)
-
 export const getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl = (name: string,
     taskName: string,
     params?: PortForwardTaskApiWorkflowNamePortforwardTaskNamePostParams,) => {
@@ -12666,9 +11413,9 @@ export const getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl = (name
 
 export const portForwardTaskApiWorkflowNamePortforwardTaskNamePost = async (name: string,
     taskName: string,
-    params?: PortForwardTaskApiWorkflowNamePortforwardTaskNamePostParams, options?: RequestInit): Promise<portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse> => {
+    params?: PortForwardTaskApiWorkflowNamePortforwardTaskNamePostParams, options?: RequestInit): Promise<RouterResponse[] | RouterResponse> => {
   
-  return customFetch<portForwardTaskApiWorkflowNamePortforwardTaskNamePostResponse>(getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl(name,taskName,params),
+  return customFetch<RouterResponse[] | RouterResponse>(getPortForwardTaskApiWorkflowNamePortforwardTaskNamePostUrl(name,taskName,params),
   {      
     ...options,
     method: 'POST'
@@ -12729,25 +11476,6 @@ export const usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost = <TError 
  * Hold a webserver connection to a task container.
  * @summary Port Forward Webserver
  */
-export type portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse200 = {
-  data: RouterResponse
-  status: 200
-}
-
-export type portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponseSuccess = (portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse200) & {
-  headers: Headers;
-};
-export type portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponseError = (portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse = (portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponseSuccess | portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponseError)
-
 export const getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl = (name: string,
     taskName: string,
     params: PortForwardWebserverApiWorkflowNameWebserverTaskNamePostParams,) => {
@@ -12767,9 +11495,9 @@ export const getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl = (n
 
 export const portForwardWebserverApiWorkflowNameWebserverTaskNamePost = async (name: string,
     taskName: string,
-    params: PortForwardWebserverApiWorkflowNameWebserverTaskNamePostParams, options?: RequestInit): Promise<portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse> => {
+    params: PortForwardWebserverApiWorkflowNameWebserverTaskNamePostParams, options?: RequestInit): Promise<RouterResponse> => {
   
-  return customFetch<portForwardWebserverApiWorkflowNameWebserverTaskNamePostResponse>(getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl(name,taskName,params),
+  return customFetch<RouterResponse>(getPortForwardWebserverApiWorkflowNameWebserverTaskNamePostUrl(name,taskName,params),
   {      
     ...options,
     method: 'POST'
@@ -12830,25 +11558,6 @@ export const usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost = <TErr
  * Rsync into a task container.
  * @summary Rsync Task
  */
-export type rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse200 = {
-  data: RouterResponse
-  status: 200
-}
-
-export type rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponseSuccess = (rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse200) & {
-  headers: Headers;
-};
-export type rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponseError = (rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse = (rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponseSuccess | rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponseError)
-
 export const getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostUrl = (name: string,
     taskName: string,) => {
 
@@ -12859,9 +11568,9 @@ export const getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostUrl = (name: string
 }
 
 export const rsyncTaskApiWorkflowNameRsyncTaskTaskNamePost = async (name: string,
-    taskName: string, options?: RequestInit): Promise<rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse> => {
+    taskName: string, options?: RequestInit): Promise<RouterResponse> => {
   
-  return customFetch<rsyncTaskApiWorkflowNameRsyncTaskTaskNamePostResponse>(getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostUrl(name,taskName),
+  return customFetch<RouterResponse>(getRsyncTaskApiWorkflowNameRsyncTaskTaskNamePostUrl(name,taskName),
   {      
     ...options,
     method: 'POST'
@@ -12922,25 +11631,6 @@ export const useRsyncTaskApiWorkflowNameRsyncTaskTaskNamePost = <TError = HTTPVa
  * Get default/all user credentials
  * @summary Get User Credential
  */
-export type getUserCredentialApiCredentialsGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getUserCredentialApiCredentialsGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getUserCredentialApiCredentialsGetResponseSuccess = (getUserCredentialApiCredentialsGetResponse200) & {
-  headers: Headers;
-};
-export type getUserCredentialApiCredentialsGetResponseError = (getUserCredentialApiCredentialsGetResponse422) & {
-  headers: Headers;
-};
-
-export type getUserCredentialApiCredentialsGetResponse = (getUserCredentialApiCredentialsGetResponseSuccess | getUserCredentialApiCredentialsGetResponseError)
-
 export const getGetUserCredentialApiCredentialsGetUrl = () => {
 
 
@@ -12949,9 +11639,9 @@ export const getGetUserCredentialApiCredentialsGetUrl = () => {
   return `/api/credentials`
 }
 
-export const getUserCredentialApiCredentialsGet = async ( options?: RequestInit): Promise<getUserCredentialApiCredentialsGetResponse> => {
+export const getUserCredentialApiCredentialsGet = async ( options?: RequestInit): Promise<CredentialGetResponse> => {
   
-  return customFetch<getUserCredentialApiCredentialsGetResponse>(getGetUserCredentialApiCredentialsGetUrl(),
+  return customFetch<CredentialGetResponse>(getGetUserCredentialApiCredentialsGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -13034,6 +11724,17 @@ export function useGetUserCredentialApiCredentialsGet<TData = Awaited<ReturnType
 }
 
 
+/**
+ * @summary Get User Credential
+ */
+export const invalidateGetUserCredentialApiCredentialsGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetUserCredentialApiCredentialsGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -13041,25 +11742,6 @@ export function useGetUserCredentialApiCredentialsGet<TData = Awaited<ReturnType
  * Post/Update user credentials
  * @summary Set User Credential
  */
-export type setUserCredentialApiCredentialsCredNamePostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type setUserCredentialApiCredentialsCredNamePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setUserCredentialApiCredentialsCredNamePostResponseSuccess = (setUserCredentialApiCredentialsCredNamePostResponse200) & {
-  headers: Headers;
-};
-export type setUserCredentialApiCredentialsCredNamePostResponseError = (setUserCredentialApiCredentialsCredNamePostResponse422) & {
-  headers: Headers;
-};
-
-export type setUserCredentialApiCredentialsCredNamePostResponse = (setUserCredentialApiCredentialsCredNamePostResponseSuccess | setUserCredentialApiCredentialsCredNamePostResponseError)
-
 export const getSetUserCredentialApiCredentialsCredNamePostUrl = (credName: string,) => {
 
 
@@ -13069,9 +11751,9 @@ export const getSetUserCredentialApiCredentialsCredNamePostUrl = (credName: stri
 }
 
 export const setUserCredentialApiCredentialsCredNamePost = async (credName: string,
-    credentialOptions: CredentialOptions, options?: RequestInit): Promise<setUserCredentialApiCredentialsCredNamePostResponse> => {
+    credentialOptions: CredentialOptions, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<setUserCredentialApiCredentialsCredNamePostResponse>(getSetUserCredentialApiCredentialsCredNamePostUrl(credName),
+  return customFetch<unknown>(getSetUserCredentialApiCredentialsCredNamePostUrl(credName),
   {      
     ...options,
     method: 'POST',
@@ -13133,25 +11815,6 @@ export const useSetUserCredentialApiCredentialsCredNamePost = <TError = HTTPVali
  * Delete user credentials given the secret_id
  * @summary Delete Users Credential
  */
-export type deleteUsersCredentialApiCredentialsCredNameDeleteResponse200 = {
-  data: CredentialGetResponse
-  status: 200
-}
-
-export type deleteUsersCredentialApiCredentialsCredNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteUsersCredentialApiCredentialsCredNameDeleteResponseSuccess = (deleteUsersCredentialApiCredentialsCredNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteUsersCredentialApiCredentialsCredNameDeleteResponseError = (deleteUsersCredentialApiCredentialsCredNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteUsersCredentialApiCredentialsCredNameDeleteResponse = (deleteUsersCredentialApiCredentialsCredNameDeleteResponseSuccess | deleteUsersCredentialApiCredentialsCredNameDeleteResponseError)
-
 export const getDeleteUsersCredentialApiCredentialsCredNameDeleteUrl = (credName: string,) => {
 
 
@@ -13160,9 +11823,9 @@ export const getDeleteUsersCredentialApiCredentialsCredNameDeleteUrl = (credName
   return `/api/credentials/${credName}`
 }
 
-export const deleteUsersCredentialApiCredentialsCredNameDelete = async (credName: string, options?: RequestInit): Promise<deleteUsersCredentialApiCredentialsCredNameDeleteResponse> => {
+export const deleteUsersCredentialApiCredentialsCredNameDelete = async (credName: string, options?: RequestInit): Promise<CredentialGetResponse> => {
   
-  return customFetch<deleteUsersCredentialApiCredentialsCredNameDeleteResponse>(getDeleteUsersCredentialApiCredentialsCredNameDeleteUrl(credName),
+  return customFetch<CredentialGetResponse>(getDeleteUsersCredentialApiCredentialsCredNameDeleteUrl(credName),
   {      
     ...options,
     method: 'DELETE'
@@ -13223,25 +11886,6 @@ export const useDeleteUsersCredentialApiCredentialsCredNameDelete = <TError = HT
  * Returns the information of resources available in different pools.
  * @summary Get Resources
  */
-export type getResourcesApiResourcesGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getResourcesApiResourcesGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getResourcesApiResourcesGetResponseSuccess = (getResourcesApiResourcesGetResponse200) & {
-  headers: Headers;
-};
-export type getResourcesApiResourcesGetResponseError = (getResourcesApiResourcesGetResponse422) & {
-  headers: Headers;
-};
-
-export type getResourcesApiResourcesGetResponse = (getResourcesApiResourcesGetResponseSuccess | getResourcesApiResourcesGetResponseError)
-
 export const getGetResourcesApiResourcesGetUrl = (params?: GetResourcesApiResourcesGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -13265,9 +11909,9 @@ export const getGetResourcesApiResourcesGetUrl = (params?: GetResourcesApiResour
   return stringifiedParams.length > 0 ? `/api/resources?${stringifiedParams}` : `/api/resources`
 }
 
-export const getResourcesApiResourcesGet = async (params?: GetResourcesApiResourcesGetParams, options?: RequestInit): Promise<getResourcesApiResourcesGetResponse> => {
+export const getResourcesApiResourcesGet = async (params?: GetResourcesApiResourcesGetParams, options?: RequestInit): Promise<ResourcesResponse | PoolResourcesResponse> => {
   
-  return customFetch<getResourcesApiResourcesGetResponse>(getGetResourcesApiResourcesGetUrl(params),
+  return customFetch<ResourcesResponse | PoolResourcesResponse>(getGetResourcesApiResourcesGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -13350,6 +11994,17 @@ export function useGetResourcesApiResourcesGet<TData = Awaited<ReturnType<typeof
 }
 
 
+/**
+ * @summary Get Resources
+ */
+export const invalidateGetResourcesApiResourcesGet = async (
+ queryClient: QueryClient, params?: GetResourcesApiResourcesGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetResourcesApiResourcesGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -13357,25 +12012,6 @@ export function useGetResourcesApiResourcesGet<TData = Awaited<ReturnType<typeof
  * Returns the request resource's information.
  * @summary Get One Resource
  */
-export type getOneResourceApiResourcesNameGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getOneResourceApiResourcesNameGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getOneResourceApiResourcesNameGetResponseSuccess = (getOneResourceApiResourcesNameGetResponse200) & {
-  headers: Headers;
-};
-export type getOneResourceApiResourcesNameGetResponseError = (getOneResourceApiResourcesNameGetResponse422) & {
-  headers: Headers;
-};
-
-export type getOneResourceApiResourcesNameGetResponse = (getOneResourceApiResourcesNameGetResponseSuccess | getOneResourceApiResourcesNameGetResponseError)
-
 export const getGetOneResourceApiResourcesNameGetUrl = (name: string,) => {
 
 
@@ -13384,9 +12020,9 @@ export const getGetOneResourceApiResourcesNameGetUrl = (name: string,) => {
   return `/api/resources/${name}`
 }
 
-export const getOneResourceApiResourcesNameGet = async (name: string, options?: RequestInit): Promise<getOneResourceApiResourcesNameGetResponse> => {
+export const getOneResourceApiResourcesNameGet = async (name: string, options?: RequestInit): Promise<ResourcesResponse> => {
   
-  return customFetch<getOneResourceApiResourcesNameGetResponse>(getGetOneResourceApiResourcesNameGetUrl(name),
+  return customFetch<ResourcesResponse>(getGetOneResourceApiResourcesNameGetUrl(name),
   {      
     ...options,
     method: 'GET'
@@ -13469,6 +12105,17 @@ export function useGetOneResourceApiResourcesNameGet<TData = Awaited<ReturnType<
 }
 
 
+/**
+ * @summary Get One Resource
+ */
+export const invalidateGetOneResourceApiResourcesNameGet = async (
+ queryClient: QueryClient, name: string, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetOneResourceApiResourcesNameGetQueryKey(name) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -13480,25 +12127,6 @@ Otherwise, only information from pools that the user has access to will be retur
 in the response.
  * @summary Get Pools
  */
-export type getPoolsApiPoolGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getPoolsApiPoolGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getPoolsApiPoolGetResponseSuccess = (getPoolsApiPoolGetResponse200) & {
-  headers: Headers;
-};
-export type getPoolsApiPoolGetResponseError = (getPoolsApiPoolGetResponse422) & {
-  headers: Headers;
-};
-
-export type getPoolsApiPoolGetResponse = (getPoolsApiPoolGetResponseSuccess | getPoolsApiPoolGetResponseError)
-
 export const getGetPoolsApiPoolGetUrl = (params?: GetPoolsApiPoolGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -13522,9 +12150,9 @@ export const getGetPoolsApiPoolGetUrl = (params?: GetPoolsApiPoolGetParams,) => 
   return stringifiedParams.length > 0 ? `/api/pool?${stringifiedParams}` : `/api/pool`
 }
 
-export const getPoolsApiPoolGet = async (params?: GetPoolsApiPoolGetParams, options?: RequestInit): Promise<getPoolsApiPoolGetResponse> => {
+export const getPoolsApiPoolGet = async (params?: GetPoolsApiPoolGetParams, options?: RequestInit): Promise<MinimalPoolConfig> => {
   
-  return customFetch<getPoolsApiPoolGetResponse>(getGetPoolsApiPoolGetUrl(params),
+  return customFetch<MinimalPoolConfig>(getGetPoolsApiPoolGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -13607,31 +12235,23 @@ export function useGetPoolsApiPoolGet<TData = Awaited<ReturnType<typeof getPools
 }
 
 
+/**
+ * @summary Get Pools
+ */
+export const invalidateGetPoolsApiPoolGet = async (
+ queryClient: QueryClient, params?: GetPoolsApiPoolGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetPoolsApiPoolGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Get Pool Quotas
  */
-export type getPoolQuotasApiPoolQuotaGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getPoolQuotasApiPoolQuotaGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getPoolQuotasApiPoolQuotaGetResponseSuccess = (getPoolQuotasApiPoolQuotaGetResponse200) & {
-  headers: Headers;
-};
-export type getPoolQuotasApiPoolQuotaGetResponseError = (getPoolQuotasApiPoolQuotaGetResponse422) & {
-  headers: Headers;
-};
-
-export type getPoolQuotasApiPoolQuotaGetResponse = (getPoolQuotasApiPoolQuotaGetResponseSuccess | getPoolQuotasApiPoolQuotaGetResponseError)
-
 export const getGetPoolQuotasApiPoolQuotaGetUrl = (params?: GetPoolQuotasApiPoolQuotaGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -13655,9 +12275,9 @@ export const getGetPoolQuotasApiPoolQuotaGetUrl = (params?: GetPoolQuotasApiPool
   return stringifiedParams.length > 0 ? `/api/pool_quota?${stringifiedParams}` : `/api/pool_quota`
 }
 
-export const getPoolQuotasApiPoolQuotaGet = async (params?: GetPoolQuotasApiPoolQuotaGetParams, options?: RequestInit): Promise<getPoolQuotasApiPoolQuotaGetResponse> => {
+export const getPoolQuotasApiPoolQuotaGet = async (params?: GetPoolQuotasApiPoolQuotaGetParams, options?: RequestInit): Promise<PoolResponse> => {
   
-  return customFetch<getPoolQuotasApiPoolQuotaGetResponse>(getGetPoolQuotasApiPoolQuotaGetUrl(params),
+  return customFetch<PoolResponse>(getGetPoolQuotasApiPoolQuotaGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -13740,6 +12360,17 @@ export function useGetPoolQuotasApiPoolQuotaGet<TData = Awaited<ReturnType<typeo
 }
 
 
+/**
+ * @summary Get Pool Quotas
+ */
+export const invalidateGetPoolQuotasApiPoolQuotaGet = async (
+ queryClient: QueryClient, params?: GetPoolQuotasApiPoolQuotaGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetPoolQuotasApiPoolQuotaGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -13747,25 +12378,6 @@ export function useGetPoolQuotasApiPoolQuotaGet<TData = Awaited<ReturnType<typeo
  * This api validates that a workflow is well formed and valid and then submits it.
  * @summary Submit Workflow
  */
-export type submitWorkflowApiPoolPoolNameWorkflowPostResponse200 = {
-  data: SubmitResponse
-  status: 200
-}
-
-export type submitWorkflowApiPoolPoolNameWorkflowPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type submitWorkflowApiPoolPoolNameWorkflowPostResponseSuccess = (submitWorkflowApiPoolPoolNameWorkflowPostResponse200) & {
-  headers: Headers;
-};
-export type submitWorkflowApiPoolPoolNameWorkflowPostResponseError = (submitWorkflowApiPoolPoolNameWorkflowPostResponse422) & {
-  headers: Headers;
-};
-
-export type submitWorkflowApiPoolPoolNameWorkflowPostResponse = (submitWorkflowApiPoolPoolNameWorkflowPostResponseSuccess | submitWorkflowApiPoolPoolNameWorkflowPostResponseError)
-
 export const getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl = (poolName: string,
     params?: SubmitWorkflowApiPoolPoolNameWorkflowPostParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -13792,9 +12404,9 @@ export const getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl = (poolName: string
 
 export const submitWorkflowApiPoolPoolNameWorkflowPost = async (poolName: string,
     templateSpec: TemplateSpec,
-    params?: SubmitWorkflowApiPoolPoolNameWorkflowPostParams, options?: RequestInit): Promise<submitWorkflowApiPoolPoolNameWorkflowPostResponse> => {
+    params?: SubmitWorkflowApiPoolPoolNameWorkflowPostParams, options?: RequestInit): Promise<SubmitResponse> => {
   
-  return customFetch<submitWorkflowApiPoolPoolNameWorkflowPostResponse>(getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl(poolName,params),
+  return customFetch<SubmitResponse>(getSubmitWorkflowApiPoolPoolNameWorkflowPostUrl(poolName,params),
   {      
     ...options,
     method: 'POST',
@@ -13856,25 +12468,6 @@ export const useSubmitWorkflowApiPoolPoolNameWorkflowPost = <TError = HTTPValida
  * This api restarts a failed workflow and then submits it.
  * @summary Restart Workflow
  */
-export type restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse200 = {
-  data: SubmitResponse
-  status: 200
-}
-
-export type restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponseSuccess = (restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse200) & {
-  headers: Headers;
-};
-export type restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponseError = (restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse422) & {
-  headers: Headers;
-};
-
-export type restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse = (restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponseSuccess | restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponseError)
-
 export const getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostUrl = (poolName: string,
     workflowId: string,) => {
 
@@ -13885,9 +12478,9 @@ export const getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostUrl =
 }
 
 export const restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPost = async (poolName: string,
-    workflowId: string, options?: RequestInit): Promise<restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse> => {
+    workflowId: string, options?: RequestInit): Promise<SubmitResponse> => {
   
-  return customFetch<restartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostResponse>(getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostUrl(poolName,workflowId),
+  return customFetch<SubmitResponse>(getRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPostUrl(poolName,workflowId),
   {      
     ...options,
     method: 'POST'
@@ -13948,25 +12541,6 @@ export const useRestartWorkflowApiPoolPoolNameWorkflowWorkflowIdRestartPost = <T
  * This api allows users to fetch the default bucket and the list of available buckets.
  * @summary Get Bucket Info
  */
-export type getBucketInfoApiBucketGetResponse200 = {
-  data: BucketInfoResponse
-  status: 200
-}
-
-export type getBucketInfoApiBucketGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getBucketInfoApiBucketGetResponseSuccess = (getBucketInfoApiBucketGetResponse200) & {
-  headers: Headers;
-};
-export type getBucketInfoApiBucketGetResponseError = (getBucketInfoApiBucketGetResponse422) & {
-  headers: Headers;
-};
-
-export type getBucketInfoApiBucketGetResponse = (getBucketInfoApiBucketGetResponseSuccess | getBucketInfoApiBucketGetResponseError)
-
 export const getGetBucketInfoApiBucketGetUrl = (params?: GetBucketInfoApiBucketGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -13982,9 +12556,9 @@ export const getGetBucketInfoApiBucketGetUrl = (params?: GetBucketInfoApiBucketG
   return stringifiedParams.length > 0 ? `/api/bucket?${stringifiedParams}` : `/api/bucket`
 }
 
-export const getBucketInfoApiBucketGet = async (params?: GetBucketInfoApiBucketGetParams, options?: RequestInit): Promise<getBucketInfoApiBucketGetResponse> => {
+export const getBucketInfoApiBucketGet = async (params?: GetBucketInfoApiBucketGetParams, options?: RequestInit): Promise<BucketInfoResponse> => {
   
-  return customFetch<getBucketInfoApiBucketGetResponse>(getGetBucketInfoApiBucketGetUrl(params),
+  return customFetch<BucketInfoResponse>(getGetBucketInfoApiBucketGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -14067,6 +12641,17 @@ export function useGetBucketInfoApiBucketGet<TData = Awaited<ReturnType<typeof g
 }
 
 
+/**
+ * @summary Get Bucket Info
+ */
+export const invalidateGetBucketInfoApiBucketGet = async (
+ queryClient: QueryClient, params?: GetBucketInfoApiBucketGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetBucketInfoApiBucketGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -14074,25 +12659,6 @@ export function useGetBucketInfoApiBucketGet<TData = Awaited<ReturnType<typeof g
  * This api deletes a Dataset.
  * @summary Delete Dataset
  */
-export type deleteDatasetApiBucketBucketDatasetNameDeleteResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type deleteDatasetApiBucketBucketDatasetNameDeleteResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type deleteDatasetApiBucketBucketDatasetNameDeleteResponseSuccess = (deleteDatasetApiBucketBucketDatasetNameDeleteResponse200) & {
-  headers: Headers;
-};
-export type deleteDatasetApiBucketBucketDatasetNameDeleteResponseError = (deleteDatasetApiBucketBucketDatasetNameDeleteResponse422) & {
-  headers: Headers;
-};
-
-export type deleteDatasetApiBucketBucketDatasetNameDeleteResponse = (deleteDatasetApiBucketBucketDatasetNameDeleteResponseSuccess | deleteDatasetApiBucketBucketDatasetNameDeleteResponseError)
-
 export const getDeleteDatasetApiBucketBucketDatasetNameDeleteUrl = (bucket: string,
     name: string,
     params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams,) => {
@@ -14112,9 +12678,9 @@ export const getDeleteDatasetApiBucketBucketDatasetNameDeleteUrl = (bucket: stri
 
 export const deleteDatasetApiBucketBucketDatasetNameDelete = async (bucket: string,
     name: string,
-    params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams, options?: RequestInit): Promise<deleteDatasetApiBucketBucketDatasetNameDeleteResponse> => {
+    params?: DeleteDatasetApiBucketBucketDatasetNameDeleteParams, options?: RequestInit): Promise<DataDeleteResponse> => {
   
-  return customFetch<deleteDatasetApiBucketBucketDatasetNameDeleteResponse>(getDeleteDatasetApiBucketBucketDatasetNameDeleteUrl(bucket,name,params),
+  return customFetch<DataDeleteResponse>(getDeleteDatasetApiBucketBucketDatasetNameDeleteUrl(bucket,name,params),
   {      
     ...options,
     method: 'DELETE'
@@ -14176,25 +12742,6 @@ export const useDeleteDatasetApiBucketBucketDatasetNameDelete = <TError = HTTPVa
 If tag is not given, latest tag is selected
  * @summary Change Name Tag Label Metadata
  */
-export type changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse200 = {
-  data: DataAttributeResponse
-  status: 200
-}
-
-export type changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponseSuccess = (changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse200) & {
-  headers: Headers;
-};
-export type changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponseError = (changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse422) & {
-  headers: Headers;
-};
-
-export type changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse = (changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponseSuccess | changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponseError)
-
 export const getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostUrl = (bucket: string,
     name: string,
     params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams,) => {
@@ -14223,9 +12770,9 @@ export const getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePos
 export const changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost = async (bucket: string,
     name: string,
     bodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost: BodyChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePost,
-    params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams, options?: RequestInit): Promise<changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse> => {
+    params?: ChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostParams, options?: RequestInit): Promise<DataAttributeResponse> => {
   
-  return customFetch<changeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostResponse>(getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostUrl(bucket,name,params),
+  return customFetch<DataAttributeResponse>(getChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePostUrl(bucket,name,params),
   {      
     ...options,
     method: 'POST',
@@ -14287,25 +12834,6 @@ export const useChangeNameTagLabelMetadataApiBucketBucketDatasetNameAttributePos
  * This api gives info about the Dataset or Dataset Version.
  * @summary Get Info
  */
-export type getInfoApiBucketBucketDatasetNameInfoGetResponse200 = {
-  data: DataInfoResponse
-  status: 200
-}
-
-export type getInfoApiBucketBucketDatasetNameInfoGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getInfoApiBucketBucketDatasetNameInfoGetResponseSuccess = (getInfoApiBucketBucketDatasetNameInfoGetResponse200) & {
-  headers: Headers;
-};
-export type getInfoApiBucketBucketDatasetNameInfoGetResponseError = (getInfoApiBucketBucketDatasetNameInfoGetResponse422) & {
-  headers: Headers;
-};
-
-export type getInfoApiBucketBucketDatasetNameInfoGetResponse = (getInfoApiBucketBucketDatasetNameInfoGetResponseSuccess | getInfoApiBucketBucketDatasetNameInfoGetResponseError)
-
 export const getGetInfoApiBucketBucketDatasetNameInfoGetUrl = (bucket: string,
     name: string,
     params?: GetInfoApiBucketBucketDatasetNameInfoGetParams,) => {
@@ -14325,9 +12853,9 @@ export const getGetInfoApiBucketBucketDatasetNameInfoGetUrl = (bucket: string,
 
 export const getInfoApiBucketBucketDatasetNameInfoGet = async (bucket: string,
     name: string,
-    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: RequestInit): Promise<getInfoApiBucketBucketDatasetNameInfoGetResponse> => {
+    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: RequestInit): Promise<DataInfoResponse> => {
   
-  return customFetch<getInfoApiBucketBucketDatasetNameInfoGetResponse>(getGetInfoApiBucketBucketDatasetNameInfoGetUrl(bucket,name,params),
+  return customFetch<DataInfoResponse>(getGetInfoApiBucketBucketDatasetNameInfoGetUrl(bucket,name,params),
   {      
     ...options,
     method: 'GET'
@@ -14422,6 +12950,19 @@ export function useGetInfoApiBucketBucketDatasetNameInfoGet<TData = Awaited<Retu
 }
 
 
+/**
+ * @summary Get Info
+ */
+export const invalidateGetInfoApiBucketBucketDatasetNameInfoGet = async (
+ queryClient: QueryClient, bucket: string,
+    name: string,
+    params?: GetInfoApiBucketBucketDatasetNameInfoGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetInfoApiBucketBucketDatasetNameInfoGetQueryKey(bucket,name,params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -14429,25 +12970,6 @@ export function useGetInfoApiBucketBucketDatasetNameInfoGet<TData = Awaited<Retu
  * This api returns the list of datasets/colections.
  * @summary List Dataset From Bucket
  */
-export type listDatasetFromBucketApiBucketListDatasetGetResponse200 = {
-  data: DataListResponse
-  status: 200
-}
-
-export type listDatasetFromBucketApiBucketListDatasetGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type listDatasetFromBucketApiBucketListDatasetGetResponseSuccess = (listDatasetFromBucketApiBucketListDatasetGetResponse200) & {
-  headers: Headers;
-};
-export type listDatasetFromBucketApiBucketListDatasetGetResponseError = (listDatasetFromBucketApiBucketListDatasetGetResponse422) & {
-  headers: Headers;
-};
-
-export type listDatasetFromBucketApiBucketListDatasetGetResponse = (listDatasetFromBucketApiBucketListDatasetGetResponseSuccess | listDatasetFromBucketApiBucketListDatasetGetResponseError)
-
 export const getListDatasetFromBucketApiBucketListDatasetGetUrl = (params?: ListDatasetFromBucketApiBucketListDatasetGetParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -14471,9 +12993,9 @@ export const getListDatasetFromBucketApiBucketListDatasetGetUrl = (params?: List
   return stringifiedParams.length > 0 ? `/api/bucket/list_dataset?${stringifiedParams}` : `/api/bucket/list_dataset`
 }
 
-export const listDatasetFromBucketApiBucketListDatasetGet = async (params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: RequestInit): Promise<listDatasetFromBucketApiBucketListDatasetGetResponse> => {
+export const listDatasetFromBucketApiBucketListDatasetGet = async (params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: RequestInit): Promise<DataListResponse> => {
   
-  return customFetch<listDatasetFromBucketApiBucketListDatasetGetResponse>(getListDatasetFromBucketApiBucketListDatasetGetUrl(params),
+  return customFetch<DataListResponse>(getListDatasetFromBucketApiBucketListDatasetGetUrl(params),
   {      
     ...options,
     method: 'GET'
@@ -14556,6 +13078,17 @@ export function useListDatasetFromBucketApiBucketListDatasetGet<TData = Awaited<
 }
 
 
+/**
+ * @summary List Dataset From Bucket
+ */
+export const invalidateListDatasetFromBucketApiBucketListDatasetGet = async (
+ queryClient: QueryClient, params?: ListDatasetFromBucketApiBucketListDatasetGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getListDatasetFromBucketApiBucketListDatasetGetQueryKey(params) }, options);
+
+  return queryClient;
+}
 
 
 
@@ -14563,25 +13096,6 @@ export function useListDatasetFromBucketApiBucketListDatasetGet<TData = Awaited<
  * This api creates a collection from datasets.
  * @summary Create Collection
  */
-export type createCollectionApiBucketBucketDatasetNameCollectPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type createCollectionApiBucketBucketDatasetNameCollectPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type createCollectionApiBucketBucketDatasetNameCollectPostResponseSuccess = (createCollectionApiBucketBucketDatasetNameCollectPostResponse200) & {
-  headers: Headers;
-};
-export type createCollectionApiBucketBucketDatasetNameCollectPostResponseError = (createCollectionApiBucketBucketDatasetNameCollectPostResponse422) & {
-  headers: Headers;
-};
-
-export type createCollectionApiBucketBucketDatasetNameCollectPostResponse = (createCollectionApiBucketBucketDatasetNameCollectPostResponseSuccess | createCollectionApiBucketBucketDatasetNameCollectPostResponseError)
-
 export const getCreateCollectionApiBucketBucketDatasetNameCollectPostUrl = (bucket: string,
     name: string,) => {
 
@@ -14593,9 +13107,9 @@ export const getCreateCollectionApiBucketBucketDatasetNameCollectPostUrl = (buck
 
 export const createCollectionApiBucketBucketDatasetNameCollectPost = async (bucket: string,
     name: string,
-    bodyCreateCollectionApiBucketBucketDatasetNameCollectPost: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost, options?: RequestInit): Promise<createCollectionApiBucketBucketDatasetNameCollectPostResponse> => {
+    bodyCreateCollectionApiBucketBucketDatasetNameCollectPost: BodyCreateCollectionApiBucketBucketDatasetNameCollectPost, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<createCollectionApiBucketBucketDatasetNameCollectPostResponse>(getCreateCollectionApiBucketBucketDatasetNameCollectPostUrl(bucket,name),
+  return customFetch<unknown>(getCreateCollectionApiBucketBucketDatasetNameCollectPostUrl(bucket,name),
   {      
     ...options,
     method: 'POST',
@@ -14657,25 +13171,6 @@ export const useCreateCollectionApiBucketBucketDatasetNameCollectPost = <TError 
  * This api queries dataset.
  * @summary Query Dataset
  */
-export type queryDatasetApiBucketBucketQueryGetResponse200 = {
-  data: DataQueryResponse
-  status: 200
-}
-
-export type queryDatasetApiBucketBucketQueryGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type queryDatasetApiBucketBucketQueryGetResponseSuccess = (queryDatasetApiBucketBucketQueryGetResponse200) & {
-  headers: Headers;
-};
-export type queryDatasetApiBucketBucketQueryGetResponseError = (queryDatasetApiBucketBucketQueryGetResponse422) & {
-  headers: Headers;
-};
-
-export type queryDatasetApiBucketBucketQueryGetResponse = (queryDatasetApiBucketBucketQueryGetResponseSuccess | queryDatasetApiBucketBucketQueryGetResponseError)
-
 export const getQueryDatasetApiBucketBucketQueryGetUrl = (bucket: string,
     params?: QueryDatasetApiBucketBucketQueryGetParams,) => {
   const normalizedParams = new URLSearchParams();
@@ -14693,9 +13188,9 @@ export const getQueryDatasetApiBucketBucketQueryGetUrl = (bucket: string,
 }
 
 export const queryDatasetApiBucketBucketQueryGet = async (bucket: string,
-    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: RequestInit): Promise<queryDatasetApiBucketBucketQueryGetResponse> => {
+    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: RequestInit): Promise<DataQueryResponse> => {
   
-  return customFetch<queryDatasetApiBucketBucketQueryGetResponse>(getQueryDatasetApiBucketBucketQueryGetUrl(bucket,params),
+  return customFetch<DataQueryResponse>(getQueryDatasetApiBucketBucketQueryGetUrl(bucket,params),
   {      
     ...options,
     method: 'GET'
@@ -14784,31 +13279,24 @@ export function useQueryDatasetApiBucketBucketQueryGet<TData = Awaited<ReturnTyp
 }
 
 
+/**
+ * @summary Query Dataset
+ */
+export const invalidateQueryDatasetApiBucketBucketQueryGet = async (
+ queryClient: QueryClient, bucket: string,
+    params?: QueryDatasetApiBucketBucketQueryGetParams, options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getQueryDatasetApiBucketBucketQueryGetQueryKey(bucket,params) }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Get Notification Settings
  */
-export type getNotificationSettingsApiProfileSettingsGetResponse200 = {
-  data: ProfileResponse
-  status: 200
-}
-
-export type getNotificationSettingsApiProfileSettingsGetResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type getNotificationSettingsApiProfileSettingsGetResponseSuccess = (getNotificationSettingsApiProfileSettingsGetResponse200) & {
-  headers: Headers;
-};
-export type getNotificationSettingsApiProfileSettingsGetResponseError = (getNotificationSettingsApiProfileSettingsGetResponse422) & {
-  headers: Headers;
-};
-
-export type getNotificationSettingsApiProfileSettingsGetResponse = (getNotificationSettingsApiProfileSettingsGetResponseSuccess | getNotificationSettingsApiProfileSettingsGetResponseError)
-
 export const getGetNotificationSettingsApiProfileSettingsGetUrl = () => {
 
 
@@ -14817,9 +13305,9 @@ export const getGetNotificationSettingsApiProfileSettingsGetUrl = () => {
   return `/api/profile/settings`
 }
 
-export const getNotificationSettingsApiProfileSettingsGet = async ( options?: RequestInit): Promise<getNotificationSettingsApiProfileSettingsGetResponse> => {
+export const getNotificationSettingsApiProfileSettingsGet = async ( options?: RequestInit): Promise<ProfileResponse> => {
   
-  return customFetch<getNotificationSettingsApiProfileSettingsGetResponse>(getGetNotificationSettingsApiProfileSettingsGetUrl(),
+  return customFetch<ProfileResponse>(getGetNotificationSettingsApiProfileSettingsGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -14902,31 +13390,23 @@ export function useGetNotificationSettingsApiProfileSettingsGet<TData = Awaited<
 }
 
 
+/**
+ * @summary Get Notification Settings
+ */
+export const invalidateGetNotificationSettingsApiProfileSettingsGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetNotificationSettingsApiProfileSettingsGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Set Notification Settings
  */
-export type setNotificationSettingsApiProfileSettingsPostResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type setNotificationSettingsApiProfileSettingsPostResponse422 = {
-  data: HTTPValidationError
-  status: 422
-}
-
-export type setNotificationSettingsApiProfileSettingsPostResponseSuccess = (setNotificationSettingsApiProfileSettingsPostResponse200) & {
-  headers: Headers;
-};
-export type setNotificationSettingsApiProfileSettingsPostResponseError = (setNotificationSettingsApiProfileSettingsPostResponse422) & {
-  headers: Headers;
-};
-
-export type setNotificationSettingsApiProfileSettingsPostResponse = (setNotificationSettingsApiProfileSettingsPostResponseSuccess | setNotificationSettingsApiProfileSettingsPostResponseError)
-
 export const getSetNotificationSettingsApiProfileSettingsPostUrl = (params?: SetNotificationSettingsApiProfileSettingsPostParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -14943,9 +13423,9 @@ export const getSetNotificationSettingsApiProfileSettingsPostUrl = (params?: Set
 }
 
 export const setNotificationSettingsApiProfileSettingsPost = async (userProfile: UserProfile,
-    params?: SetNotificationSettingsApiProfileSettingsPostParams, options?: RequestInit): Promise<setNotificationSettingsApiProfileSettingsPostResponse> => {
+    params?: SetNotificationSettingsApiProfileSettingsPostParams, options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<setNotificationSettingsApiProfileSettingsPostResponse>(getSetNotificationSettingsApiProfileSettingsPostUrl(params),
+  return customFetch<unknown>(getSetNotificationSettingsApiProfileSettingsPostUrl(params),
   {      
     ...options,
     method: 'POST',
@@ -15006,18 +13486,6 @@ export const useSetNotificationSettingsApiProfileSettingsPost = <TError = HTTPVa
 /**
  * @summary Get Osmo Client Version
  */
-export type getOsmoClientVersionClientVersionGetResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type getOsmoClientVersionClientVersionGetResponseSuccess = (getOsmoClientVersionClientVersionGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getOsmoClientVersionClientVersionGetResponse = (getOsmoClientVersionClientVersionGetResponseSuccess)
-
 export const getGetOsmoClientVersionClientVersionGetUrl = () => {
 
 
@@ -15026,9 +13494,9 @@ export const getGetOsmoClientVersionClientVersionGetUrl = () => {
   return `/client/version`
 }
 
-export const getOsmoClientVersionClientVersionGet = async ( options?: RequestInit): Promise<getOsmoClientVersionClientVersionGetResponse> => {
+export const getOsmoClientVersionClientVersionGet = async ( options?: RequestInit): Promise<unknown> => {
   
-  return customFetch<getOsmoClientVersionClientVersionGetResponse>(getGetOsmoClientVersionClientVersionGetUrl(),
+  return customFetch<unknown>(getGetOsmoClientVersionClientVersionGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -15111,6 +13579,17 @@ export function useGetOsmoClientVersionClientVersionGet<TData = Awaited<ReturnTy
 }
 
 
+/**
+ * @summary Get Osmo Client Version
+ */
+export const invalidateGetOsmoClientVersionClientVersionGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetOsmoClientVersionClientVersionGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -15119,18 +13598,6 @@ export function useGetOsmoClientVersionClientVersionGet<TData = Awaited<ReturnTy
 slow, no new traffic gets routed, instead of killing the service.
  * @summary Health
  */
-export type healthHealthGetResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type healthHealthGetResponseSuccess = (healthHealthGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type healthHealthGetResponse = (healthHealthGetResponseSuccess)
-
 export const getHealthHealthGetUrl = () => {
 
 
@@ -15139,9 +13606,9 @@ export const getHealthHealthGetUrl = () => {
   return `/health`
 }
 
-export const healthHealthGet = async ( options?: RequestInit): Promise<healthHealthGetResponse> => {
+export const healthHealthGet = async ( options?: RequestInit): Promise<HealthHealthGet200> => {
   
-  return customFetch<healthHealthGetResponse>(getHealthHealthGetUrl(),
+  return customFetch<HealthHealthGet200>(getHealthHealthGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -15224,24 +13691,23 @@ export function useHealthHealthGet<TData = Awaited<ReturnType<typeof healthHealt
 }
 
 
+/**
+ * @summary Health
+ */
+export const invalidateHealthHealthGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getHealthHealthGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
 /**
  * @summary Get Version
  */
-export type getVersionApiVersionGetResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type getVersionApiVersionGetResponseSuccess = (getVersionApiVersionGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getVersionApiVersionGetResponse = (getVersionApiVersionGetResponseSuccess)
-
 export const getGetVersionApiVersionGetUrl = () => {
 
 
@@ -15250,9 +13716,9 @@ export const getGetVersionApiVersionGetUrl = () => {
   return `/api/version`
 }
 
-export const getVersionApiVersionGet = async ( options?: RequestInit): Promise<getVersionApiVersionGetResponse> => {
+export const getVersionApiVersionGet = async ( options?: RequestInit): Promise<Version> => {
   
-  return customFetch<getVersionApiVersionGetResponse>(getGetVersionApiVersionGetUrl(),
+  return customFetch<Version>(getGetVersionApiVersionGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -15335,6 +13801,17 @@ export function useGetVersionApiVersionGet<TData = Awaited<ReturnType<typeof get
 }
 
 
+/**
+ * @summary Get Version
+ */
+export const invalidateGetVersionApiVersionGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetVersionApiVersionGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -15342,18 +13819,6 @@ export function useGetVersionApiVersionGet<TData = Awaited<ReturnType<typeof get
  * Returns the values of all users who have submitted a workflow.
  * @summary Get Users
  */
-export type getUsersApiUsersGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getUsersApiUsersGetResponseSuccess = (getUsersApiUsersGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getUsersApiUsersGetResponse = (getUsersApiUsersGetResponseSuccess)
-
 export const getGetUsersApiUsersGetUrl = () => {
 
 
@@ -15362,9 +13827,9 @@ export const getGetUsersApiUsersGetUrl = () => {
   return `/api/users`
 }
 
-export const getUsersApiUsersGet = async ( options?: RequestInit): Promise<getUsersApiUsersGetResponse> => {
+export const getUsersApiUsersGet = async ( options?: RequestInit): Promise<string[]> => {
   
-  return customFetch<getUsersApiUsersGetResponse>(getGetUsersApiUsersGetUrl(),
+  return customFetch<string[]>(getGetUsersApiUsersGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -15447,6 +13912,17 @@ export function useGetUsersApiUsersGet<TData = Awaited<ReturnType<typeof getUser
 }
 
 
+/**
+ * @summary Get Users
+ */
+export const invalidateGetUsersApiUsersGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetUsersApiUsersGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -15454,18 +13930,6 @@ export function useGetUsersApiUsersGet<TData = Awaited<ReturnType<typeof getUser
  * Returns all workflow tags.
  * @summary Get Available Workflow Tags
  */
-export type getAvailableWorkflowTagsApiTagGetResponse200 = {
-  data: unknown
-  status: 200
-}
-
-export type getAvailableWorkflowTagsApiTagGetResponseSuccess = (getAvailableWorkflowTagsApiTagGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getAvailableWorkflowTagsApiTagGetResponse = (getAvailableWorkflowTagsApiTagGetResponseSuccess)
-
 export const getGetAvailableWorkflowTagsApiTagGetUrl = () => {
 
 
@@ -15474,9 +13938,9 @@ export const getGetAvailableWorkflowTagsApiTagGetUrl = () => {
   return `/api/tag`
 }
 
-export const getAvailableWorkflowTagsApiTagGet = async ( options?: RequestInit): Promise<getAvailableWorkflowTagsApiTagGetResponse> => {
+export const getAvailableWorkflowTagsApiTagGet = async ( options?: RequestInit): Promise<GetAvailableWorkflowTagsApiTagGet200> => {
   
-  return customFetch<getAvailableWorkflowTagsApiTagGetResponse>(getGetAvailableWorkflowTagsApiTagGetUrl(),
+  return customFetch<GetAvailableWorkflowTagsApiTagGet200>(getGetAvailableWorkflowTagsApiTagGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -15559,6 +14023,17 @@ export function useGetAvailableWorkflowTagsApiTagGet<TData = Awaited<ReturnType<
 }
 
 
+/**
+ * @summary Get Available Workflow Tags
+ */
+export const invalidateGetAvailableWorkflowTagsApiTagGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetAvailableWorkflowTagsApiTagGetQueryKey() }, options);
+
+  return queryClient;
+}
 
 
 
@@ -15566,18 +14041,6 @@ export function useGetAvailableWorkflowTagsApiTagGet<TData = Awaited<ReturnType<
  * Get all the workflow plugins configurations
  * @summary Get Workflow Plugins Configs
  */
-export type getWorkflowPluginsConfigsApiPluginsConfigsGetResponse200 = {
-  data: string
-  status: 200
-}
-
-export type getWorkflowPluginsConfigsApiPluginsConfigsGetResponseSuccess = (getWorkflowPluginsConfigsApiPluginsConfigsGetResponse200) & {
-  headers: Headers;
-};
-;
-
-export type getWorkflowPluginsConfigsApiPluginsConfigsGetResponse = (getWorkflowPluginsConfigsApiPluginsConfigsGetResponseSuccess)
-
 export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetUrl = () => {
 
 
@@ -15586,9 +14049,9 @@ export const getGetWorkflowPluginsConfigsApiPluginsConfigsGetUrl = () => {
   return `/api/plugins/configs`
 }
 
-export const getWorkflowPluginsConfigsApiPluginsConfigsGet = async ( options?: RequestInit): Promise<getWorkflowPluginsConfigsApiPluginsConfigsGetResponse> => {
+export const getWorkflowPluginsConfigsApiPluginsConfigsGet = async ( options?: RequestInit): Promise<PluginsConfig> => {
   
-  return customFetch<getWorkflowPluginsConfigsApiPluginsConfigsGetResponse>(getGetWorkflowPluginsConfigsApiPluginsConfigsGetUrl(),
+  return customFetch<PluginsConfig>(getGetWorkflowPluginsConfigsApiPluginsConfigsGetUrl(),
   {      
     ...options,
     method: 'GET'
@@ -15668,4 +14131,17 @@ export function useGetWorkflowPluginsConfigsApiPluginsConfigsGet<TData = Awaited
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
   return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+/**
+ * @summary Get Workflow Plugins Configs
+ */
+export const invalidateGetWorkflowPluginsConfigsApiPluginsConfigsGet = async (
+ queryClient: QueryClient,  options?: InvalidateOptions
+  ): Promise<QueryClient> => {
+
+  await queryClient.invalidateQueries({ queryKey: getGetWorkflowPluginsConfigsApiPluginsConfigsGetQueryKey() }, options);
+
+  return queryClient;
 }

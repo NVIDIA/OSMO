@@ -141,13 +141,9 @@ export const customFetch = async <T>(url: string, init?: RequestInit): Promise<T
   }
 
   const text = await response.text();
-  let data: unknown;
   if (!text) {
-    data = {};
-  } else {
-    const contentType = response.headers.get("content-type");
-    data = contentType?.includes("text/plain") ? text : JSON.parse(text);
+    return {} as T;
   }
-
-  return { data, status: response.status, headers: response.headers } as T;
+  const contentType = response.headers.get("content-type");
+  return (contentType?.includes("text/plain") ? text : JSON.parse(text)) as T;
 };

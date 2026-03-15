@@ -30,6 +30,16 @@ export default defineConfig({
           path: './src/lib/api/fetcher.ts',
           name: 'customFetch',
         },
+        fetch: {
+          includeHttpResponseReturnType: false,
+        },
+        query: {
+          // TODO: Consider enabling useSuspenseQuery once adapter hooks are refactored to use
+          // Suspense boundaries. This would eliminate isLoading/null-coalescing patterns across
+          // all adapter hooks, but requires updating every consumer to use <Suspense> wrappers.
+          useInfinite: false,
+          useInvalidate: true,
+        },
       },
     },
   },

@@ -19,7 +19,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ServiceConfig"
                 }
               }
             }
@@ -145,7 +145,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/WorkflowConfig"
                 }
               }
             }
@@ -271,7 +271,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/DatasetConfig"
                 }
               }
             }
@@ -518,7 +518,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ListBackendsResponse"
                 }
               }
             }
@@ -551,7 +551,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Backend"
                 }
               }
             }
@@ -720,7 +720,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/VerbosePoolConfig"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EditablePoolConfig"
+                    }
+                  ],
+                  "title": "Response List Pools Api Configs Pool Get"
                 }
               }
             }
@@ -822,7 +830,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Pool"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PoolEditable"
+                    }
+                  ],
+                  "title": "Response Read Pool Api Configs Pool  Name  Get"
                 }
               }
             }
@@ -1080,7 +1096,7 @@
           "Config API"
         ],
         "summary": "List Platforms In Pool",
-        "description": "List all Platforms\n\nReturn type Any to prevent unwanted artifacts between verbose and editable outputs\nShould return Dict[str, Platform] or Dict[str, PlatformEditable] objects",
+        "description": "List all Platforms\n\nReturn type Any to prevent unwanted artifacts between verbose and editable outputs\nShould return Mapping[str, connectors.Platform | connectors.PlatformEditable |\nconnectors.PlatformMinimal] objects",
         "operationId": "list_platforms_in_pool_api_configs_pool__name__platform_get",
         "parameters": [
           {
@@ -1109,7 +1125,21 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/Platform"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PlatformEditable"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PlatformMinimal"
+                      }
+                    ]
+                  },
+                  "type": "object",
+                  "title": "Response List Platforms In Pool Api Configs Pool  Name  Platform Get"
                 }
               }
             }
@@ -1133,7 +1163,7 @@
           "Config API"
         ],
         "summary": "Read Platform In Pool",
-        "description": "Read Platform\n\nReturn type Any to prevent unwanted artifacts between verbose and editable outputs\nShould return Platform or PlatformEditable objects",
+        "description": "Read Platform\n\nReturn type Any to prevent unwanted artifacts between verbose and editable outputs\nShould return Platform or PlatformEditable or PlatformMinimal objects",
         "operationId": "read_platform_in_pool_api_configs_pool__name__platform__platform_name__get",
         "parameters": [
           {
@@ -1171,7 +1201,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/Platform"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlatformEditable"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PlatformMinimal"
+                    }
+                  ],
+                  "title": "Response Read Platform In Pool Api Configs Pool  Name  Platform  Platform Name  Get"
                 }
               }
             }
@@ -1339,7 +1380,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "object",
+                  "title": "Response List Pod Templates Api Configs Pod Template Get"
                 }
               }
             }
@@ -1421,7 +1463,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "object",
+                  "title": "Response Read Pod Template Api Configs Pod Template  Name  Get"
                 }
               }
             }
@@ -1569,7 +1612,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "additionalProperties": {
+                    "type": "object"
+                  },
+                  "type": "object",
+                  "title": "Response List Group Templates Api Configs Group Template Get"
                 }
               }
             }
@@ -1651,7 +1698,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "type": "object",
+                  "title": "Response Read Group Template Api Configs Group Template  Name  Get"
                 }
               }
             }
@@ -1799,7 +1847,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "additionalProperties": {
+                    "items": {
+                      "$ref": "#/components/schemas/ResourceAssertion"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object",
+                  "title": "Response List Resource Validations Api Configs Resource Validation Get"
                 }
               }
             }
@@ -1881,7 +1936,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceAssertion"
+                  },
+                  "type": "array",
+                  "title": "Response Read Resource Validation Api Configs Resource Validation  Name  Get"
                 }
               }
             }
@@ -2029,7 +2088,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "items": {
+                    "$ref": "#/components/schemas/Role"
+                  },
+                  "type": "array",
+                  "title": "Response List Roles Api Configs Role Get"
                 }
               }
             }
@@ -2111,7 +2174,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Role"
                 }
               }
             }
@@ -2259,7 +2322,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/BackendTests"
+                  },
+                  "type": "object",
+                  "title": "Response List Backend Tests Api Configs Backend Test Get"
                 }
               }
             }
@@ -2341,7 +2408,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/BackendTests"
                 }
               }
             }
@@ -2929,7 +2996,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ConfigDiffResponse"
                 }
               }
             }
@@ -3008,7 +3075,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JwtTokenResponse"
+                }
               }
             }
           },
@@ -3085,7 +3154,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JwtTokenResponse"
+                }
               }
             }
           },
@@ -3126,7 +3197,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JwtTokenResponse"
+                }
               }
             }
           },
@@ -3164,7 +3237,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/JwtTokenResponse"
+                }
               }
             }
           },
@@ -3246,7 +3321,10 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "string",
+                  "title": "Response Create Access Token Api Auth Access Token  Token Name  Post"
+                }
               }
             }
           },
@@ -3484,7 +3562,10 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "string",
+                  "title": "Response Admin Create Access Token Api Auth User  User Id  Access Token  Token Name  Post"
+                }
               }
             }
           },
@@ -4150,7 +4231,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/src__service__core__app__objects__ListResponse"
                 }
               }
             }
@@ -4224,7 +4305,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/GetAppResponse"
                 }
               }
             }
@@ -4476,9 +4557,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "string"
-                }
+                "schema": {}
               }
             }
           },
@@ -4807,7 +4886,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/src__service__core__workflow__objects__ListResponse"
                 }
               }
             }
@@ -4859,7 +4938,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/TaskEntry"
                 }
               }
             }
@@ -5066,7 +5145,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ListTaskSummaryResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ListTaskResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ListTaskAggregatedResponse"
+                    }
+                  ],
+                  "title": "Response List Task Api Task Get"
                 }
               }
             }
@@ -5129,7 +5219,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/WorkflowQueryResponse"
                 }
               }
             }
@@ -5836,7 +5926,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/CredentialGetResponse"
                 }
               }
             }
@@ -6035,7 +6125,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ResourcesResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PoolResourcesResponse"
+                    }
+                  ],
+                  "title": "Response Get Resources Api Resources Get"
                 }
               }
             }
@@ -6078,7 +6176,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ResourcesResponse"
                 }
               }
             }
@@ -6135,7 +6233,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/MinimalPoolConfig"
                 }
               }
             }
@@ -6191,7 +6289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/PoolResponse"
                 }
               }
             }
@@ -6538,7 +6636,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/DataDeleteResponse"
+                }
               }
             }
           },
@@ -7205,7 +7305,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
               }
             }
           }
@@ -7224,7 +7330,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                }
               }
             }
           }
@@ -7245,7 +7353,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Get Users Api Users Get"
                 }
               }
             }
@@ -7266,7 +7378,16 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object",
+                  "title": "Response Get Available Workflow Tags Api Tag Get"
+                }
               }
             }
           }
@@ -7287,7 +7408,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/PluginsConfig"
                 }
               }
             }
@@ -8160,6 +8281,35 @@
         "title": "DataConfig",
         "description": "Config for storing information about data. "
       },
+      "DataDeleteResponse": {
+        "properties": {
+          "versions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Versions",
+            "default": []
+          },
+          "delete_locations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Delete Locations",
+            "default": []
+          },
+          "cleaned_size": {
+            "type": "integer",
+            "title": "Cleaned Size",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DataDeleteResponse",
+        "description": "Object storing Download Response. "
+      },
       "DataInfoCollectionEntry": {
         "properties": {
           "name": {
@@ -8633,6 +8783,49 @@
         "title": "EditablePoolConfig",
         "description": "Stores editable pool configs."
       },
+      "GetAppResponse": {
+        "properties": {
+          "uuid": {
+            "type": "string",
+            "title": "Uuid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "created_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created Date"
+          },
+          "owner": {
+            "type": "string",
+            "title": "Owner"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/GetVersionEntry"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "uuid",
+          "name",
+          "description",
+          "created_date",
+          "owner",
+          "versions"
+        ],
+        "title": "GetAppResponse"
+      },
       "GetConfigsHistoryResponse": {
         "properties": {
           "configs": {
@@ -8649,6 +8842,35 @@
         ],
         "title": "GetConfigsHistoryResponse",
         "description": "Response body for config history endpoint."
+      },
+      "GetVersionEntry": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created Date"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "created_by",
+          "created_date",
+          "status"
+        ],
+        "title": "GetVersionEntry"
       },
       "GroupQueryResponse": {
         "properties": {
@@ -8734,6 +8956,25 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "JwtTokenResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At"
+          },
+          "error": {
+            "type": "string",
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "title": "JwtTokenResponse",
+        "description": "Response for JWT token creation endpoints."
       },
       "ListBackendsResponse": {
         "properties": {
@@ -11841,6 +12082,35 @@
         "type": "object",
         "title": "VerbosePoolConfig",
         "description": "Stores verbose pool configs."
+      },
+      "Version": {
+        "properties": {
+          "major": {
+            "type": "string",
+            "title": "Major"
+          },
+          "minor": {
+            "type": "string",
+            "title": "Minor",
+            "default": "0"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision",
+            "default": "0"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "major"
+        ],
+        "title": "Version",
+        "description": "A class to maintain version information. "
       },
       "WorkflowConfig": {
         "properties": {
