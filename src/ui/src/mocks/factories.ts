@@ -24,6 +24,9 @@
  * 1. Run `pnpm generate-api`
  * 2. TypeScript will show errors if factories are out of sync
  * 3. Fix the factories to match new types
+ *
+ * Importable from anywhere via @/mocks/factories — works in Vitest unit tests,
+ * the MSW dev server, and Playwright E2E tests.
  */
 
 import {
@@ -73,7 +76,7 @@ function createResourceUsage(partial: Partial<ResourceUsage> = {}): ResourceUsag
  * Note: auth_enabled is added by our backend, not in base OpenAPI spec.
  */
 export function createLoginInfo(
-  overrides: Partial<LoginInfo & { auth_enabled?: boolean }> = {}
+  overrides: Partial<LoginInfo & { auth_enabled?: boolean }> = {},
 ): LoginInfo & { auth_enabled: boolean } {
   return {
     auth_enabled: false,
@@ -112,9 +115,7 @@ export function createVersion(overrides: Partial<Version> = {}): Version {
  * Create a type-safe pool resource usage object.
  * Uses PoolStatus enum from generated code.
  */
-export function createPoolResourceUsage(
-  overrides: Partial<PoolResourceUsage> = {}
-): PoolResourceUsage {
+export function createPoolResourceUsage(overrides: Partial<PoolResourceUsage> = {}): PoolResourceUsage {
   const defaults: PoolResourceUsage = {
     name: "test-pool",
     description: "Test pool for E2E testing",
@@ -144,16 +145,15 @@ export function createPoolResourceUsage(
  * Create a complete pool response with multiple pools.
  * Uses PoolStatus enum from generated code.
  */
-export function createPoolResponse(
-  pools: Partial<PoolResourceUsage>[] = []
-): PoolResponse {
-  const defaultPools = pools.length > 0
-    ? pools.map((p, i) => createPoolResourceUsage({ name: `pool-${i + 1}`, ...p }))
-    : [
-        createPoolResourceUsage({ name: "production", status: PoolStatus.ONLINE }),
-        createPoolResourceUsage({ name: "development", status: PoolStatus.ONLINE }),
-        createPoolResourceUsage({ name: "staging", status: PoolStatus.OFFLINE }),
-      ];
+export function createPoolResponse(pools: Partial<PoolResourceUsage>[] = []): PoolResponse {
+  const defaultPools =
+    pools.length > 0
+      ? pools.map((p, i) => createPoolResourceUsage({ name: `pool-${i + 1}`, ...p }))
+      : [
+          createPoolResourceUsage({ name: "production", status: PoolStatus.ONLINE }),
+          createPoolResourceUsage({ name: "development", status: PoolStatus.ONLINE }),
+          createPoolResourceUsage({ name: "staging", status: PoolStatus.OFFLINE }),
+        ];
 
   // Calculate aggregate resource_sum
   const resourceSum = createResourceUsage({
@@ -179,9 +179,7 @@ export function createPoolResponse(
  * Create a type-safe resource entry.
  * Uses BackendResourceType enum from generated code.
  */
-export function createResourceEntry(
-  overrides: Partial<ResourcesEntry> = {}
-): ResourcesEntry {
+export function createResourceEntry(overrides: Partial<ResourcesEntry> = {}): ResourcesEntry {
   const nodeName = overrides.hostname?.split(".")[0] || "test-node-001";
 
   const defaults: ResourcesEntry = {
@@ -219,19 +217,20 @@ export function createResourceEntry(
  * Create a complete resources response with multiple resources.
  * Uses BackendResourceType enum from generated code.
  */
-export function createResourcesResponse(
-  resources: Partial<ResourcesEntry>[] = []
-): ResourcesResponse {
-  const defaultResources = resources.length > 0
-    ? resources.map((r, i) => createResourceEntry({
-        hostname: `node-${String(i + 1).padStart(3, "0")}.cluster.local`,
-        ...r,
-      }))
-    : [
-        createResourceEntry({ hostname: "dgx-001.cluster.local", resource_type: BackendResourceType.SHARED }),
-        createResourceEntry({ hostname: "dgx-002.cluster.local", resource_type: BackendResourceType.RESERVED }),
-        createResourceEntry({ hostname: "dgx-003.cluster.local", resource_type: BackendResourceType.SHARED }),
-      ];
+export function createResourcesResponse(resources: Partial<ResourcesEntry>[] = []): ResourcesResponse {
+  const defaultResources =
+    resources.length > 0
+      ? resources.map((r, i) =>
+          createResourceEntry({
+            hostname: `node-${String(i + 1).padStart(3, "0")}.cluster.local`,
+            ...r,
+          }),
+        )
+      : [
+          createResourceEntry({ hostname: "dgx-001.cluster.local", resource_type: BackendResourceType.SHARED }),
+          createResourceEntry({ hostname: "dgx-002.cluster.local", resource_type: BackendResourceType.RESERVED }),
+          createResourceEntry({ hostname: "dgx-003.cluster.local", resource_type: BackendResourceType.SHARED }),
+        ];
 
   return { resources: defaultResources };
 }
@@ -285,7 +284,7 @@ export function createProductionScenario() {
       {
         name: "maintenance",
         description: "Under maintenance",
-        status: PoolStatus.MAINTENANCE, // Use MAINTENANCE status
+        status: PoolStatus.MAINTENANCE,
         resource_usage: {
           quota_used: "0",
           quota_free: "0",
@@ -424,6 +423,94 @@ export function createHighUtilizationScenario() {
     loginInfo: createLoginInfo({ auth_enabled: false }),
   };
 }
+
+// =============================================================================
+// Auth Mock Data (static constants for E2E and unit tests)
+// =============================================================================
+
+/** Login info with auth disabled. */
+export const mockLoginInfoAuthDisabled = createLoginInfo({ auth_enabled: false });
+
+/** Login info with auth enabled. */
+export const mockLoginInfoAuthEnabled = createLoginInfo({
+  auth_enabled: true,
+  device_endpoint: "http://localhost:8080/device",
+  device_client_id: "osmo-device-flow",
+  browser_endpoint: "http://localhost:8080/auth",
+  browser_client_id: "osmo-browser-flow",
+  token_endpoint: "http://localhost:8080/token",
+  logout_endpoint: "http://localhost:8080/logout",
+});
+
+// =============================================================================
+// Mock Tokens
+// =============================================================================
+
+/**
+ * Mock JWT ID token - VALID (expires year 2099).
+ * Structure matches real JWT: header.payload.signature
+ */
+export const mockIdToken = [
+  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+  "eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdHVzZXJAZXhhbXBsZS5jb20iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0ZXN0dXNlciIsImV4cCI6NDEwMjQ0NDgwMH0",
+  "fake-signature",
+].join(".");
+
+/**
+ * Mock JWT ID token - EXPIRED (expired year 2020).
+ */
+export const mockExpiredIdToken = [
+  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
+  "eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdHVzZXJAZXhhbXBsZS5jb20iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0ZXN0dXNlciIsImV4cCI6MTU3NzgzNjgwMH0",
+  "fake-signature",
+].join(".");
+
+/** Mock refresh tokens. */
+export const mockRefreshToken = "mock-refresh-token-valid";
+export const mockInvalidRefreshToken = "mock-refresh-token-invalid";
+
+// =============================================================================
+// Auth API Response Mocks
+// =============================================================================
+
+export const mockTokenRefreshSuccess = {
+  isFailure: false,
+  id_token: mockIdToken,
+  refresh_token: mockRefreshToken,
+};
+
+export const mockTokenRefreshFailureInvalid = {
+  isFailure: true,
+  error: "invalid_grant",
+  authError: "invalid_grant",
+};
+
+export const mockTokenRefreshFailureServer = {
+  isFailure: true,
+  error: "Failed to reach auth server",
+};
+
+// =============================================================================
+// API Error Responses
+// =============================================================================
+
+export const mockApiUnauthorized = {
+  error: "Unauthorized",
+  message: "Authentication required",
+  statusCode: 401,
+};
+
+export const mockApiForbidden = {
+  error: "Forbidden",
+  message: "You do not have permission to access this resource",
+  statusCode: 403,
+};
+
+export const mockApiServerError = {
+  error: "Internal Server Error",
+  message: "An unexpected error occurred",
+  statusCode: 500,
+};
 
 // =============================================================================
 // Re-export generated enums for test files to use

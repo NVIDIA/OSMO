@@ -19,9 +19,8 @@ import type { PoolResponse, ResourcesResponse } from "@/lib/api/generated";
 
 // Default data for when tests don't specify their own
 import {
-  mockPools,
-  mockResources,
-  mockVersion,
+  createProductionScenario,
+  createVersion,
   mockLoginInfoAuthDisabled,
   mockLoginInfoAuthEnabled,
   mockIdToken,
@@ -30,7 +29,10 @@ import {
   mockTokenRefreshFailureInvalid,
   mockApiUnauthorized,
   mockApiForbidden,
-} from "./mocks/data";
+} from "@/mocks/factories";
+
+const { pools: mockPools, resources: mockResources } = createProductionScenario();
+const mockVersion = createVersion();
 
 // =============================================================================
 // Types for test scenario data
@@ -329,7 +331,7 @@ export {
   // Generated enums - use these instead of string literals in tests
   BackendResourceType,
   PoolStatus,
-} from "./mocks/factories";
-
-// Re-export tokens for auth scenarios
-export { mockIdToken, mockRefreshToken } from "./mocks/data";
+  // Auth tokens for auth scenarios
+  mockIdToken,
+  mockRefreshToken,
+} from "@/mocks/factories";

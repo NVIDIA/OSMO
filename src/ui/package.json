@@ -113,7 +113,7 @@
     "eslint-config-next": "^16.1.0",
     "jsdom": "^27.3.0",
     "msw": "^2.12.4",
-    "orval": "^8.4.2",
+    "orval": "^8.5.3",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.6.10",
     "stylelint": "^17.4.0",

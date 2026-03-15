@@ -24,6 +24,7 @@
  */
 
 import { http, HttpResponse, delay, passthrough } from "msw";
+import { getFastAPIMock } from "@/mocks/generated-mocks";
 import { faker } from "@faker-js/faker";
 import { workflowGenerator } from "@/mocks/generators/workflow-generator";
 import { poolGenerator } from "@/mocks/generators/pool-generator";
@@ -1640,6 +1641,15 @@ export const handlers = [
 
     return HttpResponse.json({ summaries });
   }),
+
+  // ==========================================================================
+  // Generated Handlers (fallback for all other API endpoints)
+  // ==========================================================================
+  // Orval-generated faker handlers cover every endpoint in the OpenAPI spec.
+  // Custom handlers above take priority (MSW first-match wins); these fire
+  // only for endpoints not explicitly handled above (e.g. config, users,
+  // access tokens, apps, health).
+  ...getFastAPIMock(),
 
   // ==========================================================================
   // Catch-All Handler (HMR Recursion Guard)

@@ -26,7 +26,7 @@
  */
 
 import { test, expect } from "../fixtures";
-import { createPoolResponse, createResourcesResponse, PoolStatus } from "../mocks/factories";
+import { createPoolResponse, createResourcesResponse, PoolStatus } from "@/mocks/factories";
 
 // =============================================================================
 // API Errors - Inline error display via <ApiError />
