@@ -161,7 +161,7 @@ export async function fetchOccupancySummary(params: OccupancyQueryParams): Promi
   });
 
   // customFetch throws on 4xx/5xx — we only reach here on 200
-  const responseData = response.data as unknown as ListTaskSummaryResponse;
+  const responseData = response as unknown as ListTaskSummaryResponse;
   const summaries = responseData?.summaries ?? [];
   const truncated = summaries.length >= MAX_SUMMARY_ROWS;
 

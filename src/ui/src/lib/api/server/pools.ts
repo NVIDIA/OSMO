@@ -89,7 +89,7 @@ export const fetchPoolByName = cache(async (poolName: string): Promise<Pool | nu
       pools: [poolName],
       all_pools: false,
     });
-    return transformPoolDetail(response.data, poolName);
+    return transformPoolDetail(response, poolName);
   } catch (_error) {
     // 404 or other errors - return null
     return null;

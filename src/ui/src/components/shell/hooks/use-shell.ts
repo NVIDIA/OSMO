@@ -345,15 +345,8 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         params: { entry_command: shellRef.current },
       });
 
-      if (response.status !== 200) {
-        dispatch({ type: "API_ERROR", error: "Exec request failed" });
-        _updateSession(sessionKey, { isConnecting: false });
-        return;
-      }
-
-      const execData = response.data;
-      if (execData.cookie) {
-        updateALBCookies(execData.cookie);
+      if (response.cookie) {
+        updateALBCookies(response.cookie);
       }
 
       const currentSession = _getSession(sessionKey);

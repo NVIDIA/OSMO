@@ -62,6 +62,7 @@ import type { Resource } from "@/lib/api/adapter/types";
 import { transformAllResourcesResponse } from "@/lib/api/adapter/transforms";
 import { computeAggregates, type ResourceAggregates } from "@/lib/resource-aggregates";
 import type { SearchChip } from "@/stores/types";
+import type { ResourcesResponse } from "@/lib/api/generated";
 
 /**
  * Cache structure for client-side pagination shim.
@@ -213,7 +214,7 @@ function applyClientSideFilters(resources: Resource[], params: ResourceFilterPar
  */
 export async function fetchPaginatedResources(
   params: ResourceFilterParams & PaginationParams,
-  fetchFn: () => Promise<unknown>,
+  fetchFn: () => Promise<ResourcesResponse>,
 ): Promise<PaginatedResourcesResult> {
   // SHIM: Use cache for ALL requests (including filter changes)
   // This prevents refetching when filters change within the cache TTL.

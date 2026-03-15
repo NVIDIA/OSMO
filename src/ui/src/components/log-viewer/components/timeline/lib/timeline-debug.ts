@@ -14,6 +14,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+declare global {
+  interface Window {
+    timelineDebug?: () => void;
+    timelineDebugClear?: () => void;
+  }
+}
+
 /**
  * Timeline Debug Module
  *
@@ -106,7 +113,7 @@ export function initTimelineDebug(): void {
     );
 
     // Expose debug function globally
-    (window as unknown as Record<string, () => void>).timelineDebug = () => {
+    window.timelineDebug = () => {
       console.table(
         wheelDebugLog.map((e) => ({
           time: new Date(e.timestamp).toLocaleTimeString(),
@@ -121,7 +128,7 @@ export function initTimelineDebug(): void {
       console.log("\nTo copy:", JSON.stringify(wheelDebugLog, null, 2));
     };
 
-    (window as unknown as Record<string, () => void>).timelineDebugClear = () => {
+    window.timelineDebugClear = () => {
       wheelDebugLog.length = 0;
       console.log("[Timeline Debug] Logs cleared");
     };

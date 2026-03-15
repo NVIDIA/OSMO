@@ -22,7 +22,13 @@ import {
   transformAllResourcesResponse,
   transformVersionResponse,
 } from "@/lib/api/adapter/transforms";
-import { PoolStatus, BackendResourceType } from "@/lib/api/generated";
+import {
+  PoolStatus,
+  BackendResourceType,
+  type Version as BackendVersion,
+  type ResourcesResponse,
+  type PoolResponse,
+} from "@/lib/api/generated";
 import { EMPTY_QUOTA } from "@/lib/api/adapter/types";
 
 // =============================================================================
@@ -36,7 +42,7 @@ const mockPoolResponse = {
         {
           name: "pool-alpha",
           description: "Alpha pool",
-          status: "ONLINE",
+          status: PoolStatus.ONLINE,
           resource_usage: {
             quota_used: "10",
             quota_free: "90",
@@ -68,7 +74,7 @@ const mockPoolResponse = {
         {
           name: "pool-beta",
           description: "Beta pool",
-          status: "OFFLINE",
+          status: PoolStatus.OFFLINE,
           resource_usage: {
             quota_used: 5,
             quota_free: 15,
@@ -88,7 +94,7 @@ const mockPoolResponse = {
     total_capacity: "200",
     total_free: "175",
   },
-};
+} as unknown as PoolResponse;
 
 const mockResourceResponse = {
   resources: [
@@ -139,7 +145,7 @@ const mockResourceResponse = {
       },
     },
   ],
-};
+} as unknown as ResourcesResponse;
 
 const mockAllResourcesResponse = {
   resources: [
@@ -170,7 +176,7 @@ const mockAllResourcesResponse = {
       pool_platform_labels: {},
     },
   ],
-};
+} as unknown as ResourcesResponse;
 
 // =============================================================================
 // Pool Transform Tests
@@ -178,9 +184,18 @@ const mockAllResourcesResponse = {
 
 describe("transformPoolsResponse", () => {
   it("transforms empty response", () => {
-    expect(transformPoolsResponse(null)).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
-    expect(transformPoolsResponse(undefined)).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
-    expect(transformPoolsResponse({})).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
+    const emptyResponse: PoolResponse = {
+      node_sets: [],
+      resource_sum: {
+        quota_used: "0",
+        quota_free: "0",
+        quota_limit: "0",
+        total_usage: "0",
+        total_capacity: "0",
+        total_free: "0",
+      },
+    };
+    expect(transformPoolsResponse(emptyResponse)).toEqual({ pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA });
   });
 
   it("transforms pools from node_sets", () => {
@@ -295,7 +310,7 @@ describe("transformPoolDetail", () => {
 
 describe("transformResourcesResponse", () => {
   it("transforms empty response", () => {
-    expect(transformResourcesResponse(null, "pool-alpha")).toEqual({
+    expect(transformResourcesResponse({ resources: [] }, "pool-alpha")).toEqual({
       resources: [],
       platforms: [],
     });
@@ -368,7 +383,7 @@ describe("transformResourcesResponse", () => {
 
 describe("transformAllResourcesResponse", () => {
   it("transforms empty response", () => {
-    expect(transformAllResourcesResponse(null)).toEqual({
+    expect(transformAllResourcesResponse({ resources: [] })).toEqual({
       resources: [],
       pools: [],
       platforms: [],
@@ -418,7 +433,7 @@ describe("transformAllResourcesResponse", () => {
         },
       ],
     };
-    const result = transformAllResourcesResponse(responseWithOrphan);
+    const result = transformAllResourcesResponse(responseWithOrphan as unknown as ResourcesResponse);
     expect(result.resources).toHaveLength(2); // Orphan excluded
   });
 });
@@ -428,16 +443,11 @@ describe("transformAllResourcesResponse", () => {
 // =============================================================================
 
 describe("transformVersionResponse", () => {
-  it("transforms null to null", () => {
-    expect(transformVersionResponse(null)).toBeNull();
-    expect(transformVersionResponse(undefined)).toBeNull();
-  });
-
   it("transforms version object", () => {
     const result = transformVersionResponse({
-      major: 1,
-      minor: 2,
-      revision: 3,
+      major: "1",
+      minor: "2",
+      revision: "3",
       hash: "abc123def456",
     });
     expect(result).toEqual({
@@ -450,15 +460,15 @@ describe("transformVersionResponse", () => {
 
   it("handles missing hash", () => {
     const result = transformVersionResponse({
-      major: 1,
-      minor: 0,
-      revision: 0,
+      major: "1",
+      minor: "0",
+      revision: "0",
     });
     expect(result?.hash).toBeUndefined();
   });
 
   it("defaults missing fields to '0'", () => {
-    const result = transformVersionResponse({});
+    const result = transformVersionResponse({} as BackendVersion);
     expect(result).toEqual({
       major: "0",
       minor: "0",
@@ -473,20 +483,37 @@ describe("transformVersionResponse", () => {
 // =============================================================================
 
 describe("edge cases", () => {
-  it("handles missing fields gracefully", () => {
+  it("handles missing optional fields gracefully", () => {
     const minimalPool = {
       node_sets: [
         {
           pools: [
             {
-              // Only name, everything else missing
+              // Only required fields; all optional fields missing
               name: "minimal-pool",
+              backend: "",
+              resource_usage: {
+                quota_used: "0",
+                quota_free: "0",
+                quota_limit: "0",
+                total_usage: "0",
+                total_capacity: "0",
+                total_free: "0",
+              },
             },
           ],
         },
       ],
+      resource_sum: {
+        quota_used: "0",
+        quota_free: "0",
+        quota_limit: "0",
+        total_usage: "0",
+        total_capacity: "0",
+        total_free: "0",
+      },
     };
-    const result = transformPoolsResponse(minimalPool);
+    const result = transformPoolsResponse(minimalPool as unknown as PoolResponse);
     expect(result.pools[0].name).toBe("minimal-pool");
     expect(result.pools[0].description).toBe("");
     expect(result.pools[0].status).toBe(PoolStatus.ONLINE); // Default
@@ -500,6 +527,7 @@ describe("edge cases", () => {
           pools: [
             {
               name: "bad-quota-pool",
+              backend: "",
               resource_usage: {
                 quota_used: "not-a-number",
                 quota_free: "",
@@ -509,8 +537,16 @@ describe("edge cases", () => {
           ],
         },
       ],
+      resource_sum: {
+        quota_used: "0",
+        quota_free: "0",
+        quota_limit: "0",
+        total_usage: "0",
+        total_capacity: "0",
+        total_free: "0",
+      },
     };
-    const result = transformPoolsResponse(poolWithBadQuota);
+    const result = transformPoolsResponse(poolWithBadQuota as unknown as PoolResponse);
     expect(result.pools[0].quota.used).toBe(0);
     expect(result.pools[0].quota.free).toBe(0);
     expect(result.pools[0].quota.limit).toBe(0);
@@ -537,7 +573,7 @@ describe("edge cases", () => {
         },
       ],
     };
-    const result = transformResourcesResponse(resourceWithZeros, "pool");
+    const result = transformResourcesResponse(resourceWithZeros as unknown as ResourcesResponse, "pool");
     expect(result.resources[0].memory.total).toBe(0);
     expect(result.resources[0].storage.total).toBe(0);
   });

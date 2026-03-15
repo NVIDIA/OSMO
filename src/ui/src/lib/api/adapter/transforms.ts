@@ -30,6 +30,13 @@
  * - Link to backend_todo.md issue
  *
  * When backend is fixed, these transforms can be simplified or removed.
+ *
+ * ✅ Resolved Issues (no longer workarounds here):
+ * - Issue #1: Response types for Pool/Resource/Workflow/Dataset/Credential/Profile APIs
+ *   now use proper $ref schemas via response_model= annotations on FastAPI endpoints.
+ * - Issue #4: Version endpoint now has response_model=Version; no runtime type checks needed.
+ *
+ * Active issues still requiring workarounds: #2, #5, #6, #7, #16
  */
 
 import {
@@ -39,10 +46,13 @@ import {
   type PoolResourceUsage,
   type ResourcesResponse,
   type ResourcesEntry,
+  type Version as BackendVersion,
+  type UserProfile as GeneratedUserProfile,
+  type CredentialGetResponse,
+  type CredentialGetResponseCredentialsItem,
 } from "@/lib/api/generated";
 
 import {
-  EMPTY_QUOTA,
   type Pool,
   type PoolsResponse,
   type Quota,
@@ -122,14 +132,14 @@ function bytesToGiB(bytes: number): number {
  * WORKAROUND: Backend returns all quota values as strings.
  * Issue: backend_todo.md#2-resourceusage-fields-are-strings-instead-of-numbers
  */
-function transformQuota(usage: PoolResourceUsage["resource_usage"] | undefined): Quota {
+function transformQuota(usage: PoolResourceUsage["resource_usage"]): Quota {
   return {
-    used: parseNumber(usage?.quota_used),
-    free: parseNumber(usage?.quota_free),
-    limit: parseNumber(usage?.quota_limit),
-    totalUsage: parseNumber(usage?.total_usage),
-    totalCapacity: parseNumber(usage?.total_capacity),
-    totalFree: parseNumber(usage?.total_free),
+    used: parseNumber(usage.quota_used),
+    free: parseNumber(usage.quota_free),
+    limit: parseNumber(usage.quota_limit),
+    totalUsage: parseNumber(usage.total_usage),
+    totalCapacity: parseNumber(usage.total_capacity),
+    totalFree: parseNumber(usage.total_free),
   };
 }
 
@@ -210,22 +220,10 @@ function transformPool(backendPool: PoolResourceUsage): Pool {
 /**
  * Transform backend PoolResponse to ideal PoolsResponse.
  *
- * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
- * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
- *
  * Also extracts sharing groups: pools in the same node_set share physical
  * GPU capacity (totalCapacity, totalFree).
- *
- * @param rawResponse - The raw API response (typed as unknown by orval)
  */
-export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
-  // Cast to actual type (backend returns this, but OpenAPI types it wrong)
-  const response = rawResponse as PoolResponse | undefined;
-
-  if (!response?.node_sets) {
-    return { pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA };
-  }
-
+export function transformPoolsResponse(response: PoolResponse): PoolsResponse {
   const pools: Pool[] = [];
   const sharingGroups: string[][] = [];
 
@@ -262,11 +260,7 @@ export function getSharingInfo(poolName: string, sharingGroups: string[][]): str
 /**
  * Extract a single pool from the response.
  */
-export function transformPoolDetail(rawResponse: unknown, poolName: string): Pool | null {
-  const response = rawResponse as PoolResponse | undefined;
-
-  if (!response?.node_sets) return null;
-
+export function transformPoolDetail(response: PoolResponse, poolName: string): Pool | null {
   for (const nodeSet of response.node_sets) {
     const found = nodeSet.pools?.find((p) => p.name === poolName);
     if (found) {
@@ -351,18 +345,8 @@ function transformResource(backendResource: ResourcesEntry, resourceName: string
 
 /**
  * Transform backend ResourcesResponse to ideal PoolResourcesResponse.
- *
- * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
- * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
  */
-export function transformResourcesResponse(rawResponse: unknown, poolName: string): PoolResourcesResponse {
-  // Cast to actual type (backend returns this, but OpenAPI types it wrong)
-  const response = rawResponse as ResourcesResponse | undefined;
-
-  if (!response?.resources) {
-    return { resources: [], platforms: [] };
-  }
-
+export function transformResourcesResponse(response: ResourcesResponse, poolName: string): PoolResourcesResponse {
   const platformSet = new Set<string>();
   const resources: Resource[] = [];
 
@@ -394,20 +378,14 @@ export function transformResourcesResponse(rawResponse: unknown, poolName: strin
 
 /**
  * Transform backend version response to ideal Version type.
- *
- * WORKAROUND: Backend has no response type for version endpoint.
- * Issue: backend_todo.md#4-version-endpoint-returns-unknown-type
+ * Provides required defaults for the optional minor/revision fields.
  */
-export function transformVersionResponse(rawResponse: unknown): Version | null {
-  if (!rawResponse || typeof rawResponse !== "object") return null;
-
-  const response = rawResponse as Record<string, unknown>;
-
+export function transformVersionResponse(response: BackendVersion): Version {
   return {
-    major: String(response.major ?? "0"),
-    minor: String(response.minor ?? "0"),
-    revision: String(response.revision ?? "0"),
-    hash: response.hash ? String(response.hash) : undefined,
+    major: response.major ?? "0",
+    minor: response.minor ?? "0",
+    revision: response.revision ?? "0",
+    hash: response.hash,
   };
 }
 
@@ -416,18 +394,8 @@ export function transformVersionResponse(rawResponse: unknown): Version | null {
  *
  * Unlike pool-specific transform, this returns resources for ALL pools,
  * with one entry per resource (not per pool-platform combination).
- *
- * WORKAROUND: Backend response is typed as `unknown` in OpenAPI.
- * Issue: backend_todo.md#1-incorrect-response-types-for-poolresource-apis
  */
-export function transformAllResourcesResponse(rawResponse: unknown): AllResourcesResponse {
-  // Cast to actual type (backend returns this, but OpenAPI types it wrong)
-  const response = rawResponse as ResourcesResponse | undefined;
-
-  if (!response?.resources) {
-    return { resources: [], pools: [], platforms: [] };
-  }
-
+export function transformAllResourcesResponse(response: ResourcesResponse): AllResourcesResponse {
   const poolSet = new Set<string>();
   const platformSet = new Set<string>();
   const resources: Resource[] = [];
@@ -472,109 +440,57 @@ export function transformAllResourcesResponse(rawResponse: unknown): AllResource
 // =============================================================================
 
 /**
- * Transform backend user profile response to ideal UserProfile type.
+ * Transform backend UserProfile to ideal UserProfile type.
  *
- * WORKAROUND: Backend may return numeric IDs as strings.
- * Ensures all fields have proper defaults and types.
+ * Note: User's name and email come from JWT token via useUser() hook, not from profile settings.
+ * Accessible bucket/pool lists come from ProfileResponse.pools at the parent level.
  *
- * @param data - The raw API response from GET /api/profile
+ * @param data - The raw UserProfile from GET /api/profile/settings
  */
-export function transformUserProfile(data: unknown): UserProfile {
-  if (!data || typeof data !== "object") {
-    return {
-      notifications: { email: true, slack: false },
-      bucket: { default: "", accessible: [] },
-      pool: { default: "", accessible: [] },
-    };
-  }
-
-  const raw = data as Record<string, unknown>;
-
-  // Backend structure:
-  // {
-  //   username?: string;           (contains email, but unused - get from JWT via useUser() instead)
-  //   email_notification?: boolean;
-  //   slack_notification?: boolean;
-  //   bucket?: string;             (just a string, not an object)
-  //   pool?: string;               (just a string, not an object)
-  // }
-  //
-  // Note: User's name and email come from JWT token via useUser() hook, not from profile settings.
-  // Accessible bucket/pool lists come from ProfileResponse.pools at the parent level.
-
+export function transformUserProfile(data: GeneratedUserProfile): UserProfile {
   return {
     notifications: {
-      email: Boolean(raw.email_notification ?? true),
-      slack: Boolean(raw.slack_notification ?? false),
+      email: Boolean(data.email_notification ?? true),
+      slack: Boolean(data.slack_notification ?? false),
     },
     bucket: {
-      default: String(raw.bucket || ""),
+      default: String(data.bucket || ""),
       accessible: [], // Populated separately from ProfileResponse
     },
     pool: {
-      default: String(raw.pool || ""),
+      default: String(data.pool || ""),
       accessible: [], // Populated separately from ProfileResponse.pools
     },
   };
 }
 
 /**
- * Transform backend credential response to ideal Credential type.
+ * Transform backend credential item to ideal Credential type.
  *
  * WORKAROUND: Backend returns inconsistent field names.
  * Production: { cred_name, cred_type, profile }
  * Expected: { name, type, registry/data/generic }
  *
- * @param data - The raw API response for a single credential
+ * @param data - A single credential item from CredentialGetResponse.credentials
  */
-export function transformCredential(data: unknown): Credential {
-  if (!data || typeof data !== "object") {
-    return {
-      cred_name: "",
-      cred_type: "GENERIC",
-      profile: null,
-    };
-  }
-
-  const raw = data as Record<string, unknown>;
-
+export function transformCredential(data: CredentialGetResponseCredentialsItem): Credential {
   // Normalize cred_type to uppercase to handle any case variations
-  const rawType = String(raw.cred_type || "GENERIC").toUpperCase();
+  const rawType = String(data.cred_type || "GENERIC").toUpperCase();
   const cred_type: Credential["cred_type"] =
     rawType === "REGISTRY" || rawType === "DATA" || rawType === "GENERIC" ? rawType : "GENERIC";
 
   return {
-    cred_name: String(raw.cred_name || ""),
+    cred_name: String(data.cred_name || ""),
     cred_type,
-    profile: raw.profile ? String(raw.profile) : null,
+    profile: data.profile ? String(data.profile) : null,
   };
 }
 
 /**
  * Transform backend credentials list response to array of Credentials.
  *
- * WORKAROUND: Backend may return various formats:
- * - Production: { json: [...] }
- * - Mock: direct array [...]
- * - Alternative: { credentials: [...] } or { items: [...] }
- *
- * @param data - The raw API response from GET /api/credentials
+ * @param data - The CredentialGetResponse from GET /api/credentials
  */
-export function transformCredentialList(data: unknown): Credential[] {
-  if (!data) return [];
-
-  if (Array.isArray(data)) {
-    return data.map(transformCredential);
-  }
-
-  if (typeof data === "object") {
-    const raw = data as Record<string, unknown>;
-    // Production returns { json: [...] }
-    const credArray = raw.json || raw.credentials || raw.items;
-    if (Array.isArray(credArray)) {
-      return credArray.map(transformCredential);
-    }
-  }
-
-  return [];
+export function transformCredentialList(data: CredentialGetResponse): Credential[] {
+  return data.credentials.map(transformCredential);
 }
