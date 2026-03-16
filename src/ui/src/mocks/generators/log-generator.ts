@@ -14,19 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Log Generator
- *
- * Generates realistic training/ML logs for workflows and tasks.
- * Supports scenario-based generation for different testing needs.
- *
- * Log format matches real backend from `external/src/utils/connectors/redis.py`:
- * - {YYYY/MM/DD HH:mm:ss} [{task_name}] {message}                    # Normal stdout
- * - {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}] {message}          # Retry stdout
- * - {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}              # OSMO control
- * - {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}][osmo] {message}    # Retry OSMO
- */
-
 import { faker } from "@faker-js/faker";
 import { HttpResponse, delay } from "msw";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
@@ -67,27 +54,14 @@ export interface LogTaskInput {
 
 const BASE_SEED = 11111;
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-/**
- * Reference date for mock data generation (rounded to the hour).
- * Ensures logs align with user-selected time ranges without drifting
- * within the same hour.
- */
+// Reference date rounded to the hour for stable log timestamps within the same hour.
 function getMockReferenceDate(): Date {
   const now = new Date();
-  // Round down to the current hour for stability
   now.setMinutes(0, 0, 0);
   return now;
 }
 
 const MOCK_REFERENCE_DATE = getMockReferenceDate();
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface GeneratedLogLine {
   timestamp: string;
@@ -104,10 +78,6 @@ interface TaskContext {
   retryAttempt?: number;
 }
 
-// ============================================================================
-// ANSI Code Patterns
-// ============================================================================
-
 const ANSI_COLORS = {
   reset: "\x1b[0m",
   bold: "\x1b[1m",
@@ -123,10 +93,6 @@ const ANSI_COLORS = {
   bgGreen: "\x1b[42m",
   bgYellow: "\x1b[43m",
 } as const;
-
-// ============================================================================
-// Multi-line Content Templates
-// ============================================================================
 
 const STACK_TRACES = [
   `Traceback (most recent call last):
@@ -172,15 +138,7 @@ const JSON_BLOBS = [
 }`,
 ];
 
-// ============================================================================
-// Generator Class
-// ============================================================================
-
 export class LogGenerator {
-  /**
-   * Generate logs for a workflow using its embedded log configuration.
-   * This is the primary entry point for workflow log generation.
-   */
   generateForWorkflow(options: {
     workflowName: string;
     taskNames?: string[];
@@ -190,7 +148,6 @@ export class LogGenerator {
     const { workflowName, taskNames, startTime: requestedStartTime, endTime: requestedEndTime } = options;
     const config = getWorkflowLogConfig(workflowName);
 
-    // Handle empty config
     if (config.volume.max === 0) {
       return "";
     }
@@ -202,46 +159,34 @@ export class LogGenerator {
       max: config.volume.max,
     });
 
-    // Generate task names if not provided
     const tasks = taskNames ?? this.generateTaskNames(config.features.taskCount ?? 3);
 
-    // Build task contexts with optional retry info
     const taskContexts = this.buildTaskContexts(tasks, config);
 
-    // Generate log lines
     const lines: GeneratedLogLine[] = [];
-
-    // Determine time range for log distribution
     let startTime: Date;
     let endTime: Date;
 
     if (requestedStartTime && requestedEndTime) {
-      // Use requested range
       startTime = new Date(requestedStartTime);
       endTime = new Date(requestedEndTime);
     } else if (requestedStartTime) {
-      // Start time provided, end is now
-      // CRITICAL: Use Date.now() not MOCK_REFERENCE_DATE for running workflows
-      // MOCK_REFERENCE_DATE is rounded to the hour and may be BEFORE the workflow started
       startTime = new Date(requestedStartTime);
+      // Use Date.now() not MOCK_REFERENCE_DATE — the reference date is rounded to the
+      // hour and may be BEFORE the workflow started, producing negative durations.
       endTime = new Date();
     } else if (requestedEndTime) {
-      // End time provided, start is 24h before
       endTime = new Date(requestedEndTime);
       startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
     } else {
-      // No range specified - use last 24 hours for better distribution
       endTime = new Date(MOCK_REFERENCE_DATE);
       startTime = new Date(endTime.getTime() - 24 * 60 * 60 * 1000);
     }
 
     const durationMs = endTime.getTime() - startTime.getTime();
 
-    // Create interesting time distribution instead of linear
-    // Use a mix of bursts (dense activity) and gaps (quiet periods)
+    // Non-linear time distribution: sine wave creates natural activity bursts
     for (let i = 0; i < numLines; i++) {
-      // Create non-linear time progression with activity bursts
-      // Use sine wave to create natural-looking activity patterns
       const normalizedProgress = i / Math.max(1, numLines - 1); // 0 to 1
       const burstPattern = 0.5 + 0.3 * Math.sin(normalizedProgress * Math.PI * 3); // 3 bursts across timeline
       const jitter = faker.number.float({ min: -0.1, max: 0.1 }); // Random variance
@@ -254,16 +199,13 @@ export class LogGenerator {
 
       let message = this.generateMessage(level, ioType, i, numLines);
 
-      // Optionally add ANSI codes
       if (config.features.ansiCodes) {
         message = this.addAnsiCodes(message, level);
       }
 
-      // Optionally make it multiline - format each line as a separate log entry
       if (config.features.multiLine && faker.number.float() < 0.1) {
         const contentLines = this.generateMultilineContentLines(level);
 
-        // Format each line as a separate log entry with same timestamp
         for (const lineMessage of contentLines) {
           const formattedLine = this.formatLogLineV2(timestamp, taskCtx, ioType, lineMessage);
 
@@ -280,7 +222,6 @@ export class LogGenerator {
         continue; // Skip the normal single-line push below
       }
 
-      // Normal single-line entry
       const line = this.formatLogLineV2(timestamp, taskCtx, ioType, message);
       lines.push({
         timestamp: this.formatTimestamp(timestamp),
@@ -293,22 +234,11 @@ export class LogGenerator {
       });
     }
 
-    // Sort by timestamp (already in order, but ensures consistency)
     lines.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
     return lines.map((l) => l.raw).join("\n");
   }
 
-  /**
-   * Create an async generator for streaming log generation.
-   * Yields log lines with configurable delay for tailing simulation.
-   *
-   * @param options.workflowName - Workflow name for seeding
-   * @param options.taskNames - Optional task names to use
-   * @param options.continueFrom - Timestamp to continue from (for chronological streaming)
-   * @param options.streamDelayMs - Delay between stream entries in milliseconds (optional, uses workflow config default)
-   * @param options.signal - AbortSignal to stop generation when the consumer disconnects
-   */
   async *createStream(options: {
     workflowName: string;
     taskNames?: string[];
@@ -319,7 +249,6 @@ export class LogGenerator {
     const { workflowName, taskNames, continueFrom, streamDelayMs, signal } = options;
     const config = getWorkflowLogConfig(workflowName);
 
-    // Use provided streamDelayMs or workflow config default
     const delay = streamDelayMs ?? config.features.streamDelayMs ?? 200;
 
     faker.seed(BASE_SEED + hashString(workflowName));
@@ -327,11 +256,8 @@ export class LogGenerator {
     const tasks = taskNames ?? this.generateTaskNames(config.features.taskCount ?? 3);
     const taskContexts = this.buildTaskContexts(tasks, config);
 
-    // Start from continueFrom timestamp if provided, otherwise use reference date
-    // Using reference date ensures chronological continuity with static logs
     let currentTime = continueFrom ? new Date(continueFrom.getTime()) : new Date(MOCK_REFERENCE_DATE);
 
-    // For infinite streaming, loop forever. Otherwise use configured volume.
     const isInfinite = config.features.infinite === true;
     const numLines = isInfinite
       ? Infinity
@@ -341,21 +267,14 @@ export class LogGenerator {
         });
 
     for (let i = 0; i < numLines; i++) {
-      // Stop immediately when the consumer signals abort (stream cancelled,
-      // client disconnected, or HMR teardown). Without this check, the
-      // generator's setTimeout keeps its promise chain alive indefinitely
-      // for infinite streams, preventing cleanup of MockHttpSocket listeners.
       if (signal?.aborted) return;
 
-      // Advance time by configured delay with millisecond jitter to prevent collisions
-      // IMPORTANT: Add millisecond jitter to prevent timestamp collisions
+      // Jitter prevents timestamp collisions between consecutive lines
       const jitter = faker.number.int({ min: 0, max: 50 }); // 0-50ms variance
       currentTime = new Date(currentTime.getTime() + delay + jitter);
 
-      // Pick task context (varies tasks and retries)
       const taskCtx = faker.helpers.arrayElement(taskContexts);
 
-      // Use config distributions (not hardcoded patterns)
       const level = this.pickLevel(config.levelDistribution);
       const ioType = this.pickIOType(config.ioTypeDistribution);
 
@@ -365,23 +284,19 @@ export class LogGenerator {
         message = this.addAnsiCodes(message, level);
       }
 
-      // Optionally make it multiline - format each line as a separate log entry
       if (config.features.multiLine && faker.number.float() < 0.1) {
         const contentLines = this.generateMultilineContentLines(level);
 
-        // Yield each line as a separate log entry with same timestamp
         for (const lineMessage of contentLines) {
           if (signal?.aborted) return;
           const formattedLine = this.formatLogLineV2(currentTime, taskCtx, ioType, lineMessage);
           yield formattedLine + "\n";
         }
 
-        // Abort-aware delay: reject the promise immediately if signal fires
         await abortableDelay(delay, signal);
         continue; // Skip the normal single-line yield below
       }
 
-      // Normal single-line entry
       const line = this.formatLogLineV2(currentTime, taskCtx, ioType, message);
       yield line + "\n";
 
@@ -390,14 +305,6 @@ export class LogGenerator {
     }
   }
 
-  // ==========================================================================
-  // MSW Handler Methods
-  // ==========================================================================
-
-  /**
-   * Handles GET /api/workflow/:name/logs
-   * Workflow is pre-resolved by handlers.ts (checks mock-workflows first, then generated).
-   */
   handleWorkflowLogs = async (request: Request, name: string, workflow: LogWorkflowInput): Promise<Response> => {
     const url = new URL(request.url);
     const taskFilter = url.searchParams.get("task_name");
@@ -441,10 +348,6 @@ export class LogGenerator {
     });
   };
 
-  /**
-   * Handles GET /api/workflow/:name/task/:taskName/logs
-   * Task is pre-resolved by handlers.ts (may be undefined for unknown workflows).
-   */
   handleTaskLogs = async (
     request: Request,
     workflowName: string,
@@ -486,10 +389,6 @@ export class LogGenerator {
     return HttpResponse.text(logs, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   };
 
-  // ==========================================================================
-  // Private Helpers
-  // ==========================================================================
-
   private generateTaskNames(count: number): string[] {
     const taskTypes = ["train", "preprocess", "eval", "export", "validate", "infer", "download", "upload"];
     const names: string[] = [];
@@ -505,7 +404,6 @@ export class LogGenerator {
 
     for (const name of taskNames) {
       if (config.features.retries) {
-        // Add base task and retry attempts
         contexts.push({ name });
         const maxRetry = config.features.maxRetryAttempt ?? 2;
         for (let r = 1; r <= faker.number.int({ min: 1, max: maxRetry }); r++) {
@@ -528,7 +426,6 @@ export class LogGenerator {
   }
 
   private generateMessage(level: LogLevel, ioType: LogIOType, index: number, total: number): string {
-    // IO type specific messages
     if (ioType === "osmo_ctrl") {
       return this.generateOsmoMessage(index, total);
     }
@@ -542,7 +439,6 @@ export class LogGenerator {
       return this.generateDumpMessage(index, total);
     }
 
-    // Level-specific messages
     switch (level) {
       case "error":
       case "fatal":
@@ -556,13 +452,6 @@ export class LogGenerator {
     }
   }
 
-  /**
-   * Generate DUMP messages - raw output without timestamp/prefix.
-   * Used for progress bars, tqdm output, etc.
-   *
-   * NOTE: Currently DISABLED in scenarios (dump: 0) until we have proper UI
-   * visualization for progress bars. This method is preserved for future use.
-   */
   private generateDumpMessage(index: number, total: number): string {
     const progress = Math.floor((index / total) * 100);
     const filled = Math.floor(progress / 2);
@@ -623,7 +512,6 @@ export class LogGenerator {
   }
 
   private generateErrorMessage(): string {
-    // Prefix with ERROR: so the parser can detect the level
     const errors = [
       "ERROR: CUDA out of memory. Tried to allocate 2.00 GiB",
       "ERROR: Connection timeout: Failed to reach storage endpoint",
@@ -640,7 +528,6 @@ export class LogGenerator {
   }
 
   private generateWarningMessage(): string {
-    // Prefix with WARNING: so the parser can detect the level
     const warnings = [
       "WARNING: Learning rate scheduler: reducing LR to 1e-6",
       "WARNING: GPU memory usage at 95%",
@@ -657,7 +544,6 @@ export class LogGenerator {
   }
 
   private generateDebugMessage(): string {
-    // Prefix with DEBUG: so the parser can detect the level
     const debug = [
       `DEBUG: Memory allocated: ${faker.number.int({ min: 10, max: 80 })}GB`,
       `DEBUG: Tensor shape: [${faker.number.int({ min: 1, max: 32 })}, ${faker.number.int({ min: 128, max: 4096 })}, ${faker.number.int({ min: 128, max: 4096 })}]`,
@@ -709,13 +595,6 @@ export class LogGenerator {
     }
   }
 
-  /**
-   * Generates multi-line content template as separate lines.
-   * Each line will be formatted as a separate log entry with timestamp/task prefix.
-   *
-   * @param level - Log level to determine content type
-   * @returns Array of lines (without log prefixes - caller adds them)
-   */
   private generateMultilineContentLines(level: LogLevel): string[] {
     const template =
       level === "error" || level === "fatal"
@@ -725,20 +604,9 @@ export class LogGenerator {
     return template.split("\n");
   }
 
-  /**
-   * Format log line using real backend format from redis.py:redis_log_formatter.
-   *
-   * Format matches backend exactly:
-   * - Regular: {YYYY/MM/DD HH:mm:ss} [{task_name}] {message}
-   * - With retry: {YYYY/MM/DD HH:mm:ss} [{task_name} retry-{N}] {message}
-   * - Control logs: {YYYY/MM/DD HH:mm:ss} [{task_name}][osmo] {message}
-   * - DUMP: {message} (no timestamp or prefix - raw output)
-   *
-   * Control logs (ctrl_logs() in backend) include: OSMO_CTRL, DOWNLOAD, UPLOAD
-   * These all get the [osmo] suffix as per redis.py line 146.
-   */
+  // Format matches backend redis.py:redis_log_formatter exactly.
+  // DUMP type outputs raw message; ctrl logs (OSMO_CTRL, DOWNLOAD, UPLOAD) get [osmo] suffix.
   private formatLogLineV2(time: Date, task: TaskContext, ioType: LogIOType, message: string): string {
-    // DUMP type outputs raw message without any formatting (per redis.py line 222-223)
     if (ioType === "dump") {
       return message;
     }
@@ -750,7 +618,6 @@ export class LogGenerator {
       taskPart = `${task.name} retry-${task.retryAttempt}`;
     }
 
-    // Match backend ctrl_logs() - OSMO_CTRL, DOWNLOAD, UPLOAD all get [osmo] suffix
     const isCtrlLog = ioType === "osmo_ctrl" || ioType === "download" || ioType === "upload";
     const ioSuffix = isCtrlLog ? "[osmo]" : "";
 
@@ -758,8 +625,6 @@ export class LogGenerator {
   }
 
   private formatTimestamp(date: Date): string {
-    // Format in UTC to match backend behavior
-    // Parser interprets these timestamps as UTC via Date.UTC()
     const y = date.getUTCFullYear();
     const m = (date.getUTCMonth() + 1).toString().padStart(2, "0");
     const d = date.getUTCDate().toString().padStart(2, "0");
@@ -769,9 +634,5 @@ export class LogGenerator {
     return `${y}/${m}/${d} ${h}:${min}:${s}`;
   }
 }
-
-// ============================================================================
-// Singleton instance
-// ============================================================================
 
 export const logGenerator = new LogGenerator();

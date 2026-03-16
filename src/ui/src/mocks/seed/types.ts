@@ -14,38 +14,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Mock Data Configuration
- *
- * Defines patterns and distributions for generating realistic synthetic data.
- * All data is procedurally generated - no scraping required.
- */
-
-// ============================================================================
-// Volume Configuration - Controls how much data to generate
-// ============================================================================
-
 export interface MockVolume {
-  /** Total workflows to generate (default: 10,000 for pagination testing) */
   workflows: number;
-  /** Pools to generate */
   pools: number;
-  /** Resources (nodes) per pool */
   resourcesPerPool: number;
-  /** Tasks per workflow (varies by workflow complexity) */
   tasksPerWorkflow: { min: number; max: number };
-  /** Log lines per task */
   logsPerTask: { min: number; max: number };
-  /** Events per workflow */
   eventsPerWorkflow: { min: number; max: number };
 }
 
-// Use smaller defaults in development for fast iteration
-// Use HIGH_VOLUME for stress testing pagination
 const isDev = process.env.NODE_ENV === "development";
 
 export const DEFAULT_VOLUME: MockVolume = {
-  workflows: isDev ? 100 : 10_000, // 100 in dev, 10k for production/stress testing
+  workflows: isDev ? 100 : 10_000,
   pools: isDev ? 6 : 8,
   resourcesPerPool: isDev ? 20 : 50,
   tasksPerWorkflow: { min: 1, max: isDev ? 4 : 16 },
@@ -53,58 +34,22 @@ export const DEFAULT_VOLUME: MockVolume = {
   eventsPerWorkflow: { min: 3, max: isDev ? 8 : 20 },
 };
 
-// High volume for stress testing
-export const HIGH_VOLUME: MockVolume = {
-  workflows: 100_000,
-  pools: 20,
-  resourcesPerPool: 200,
-  tasksPerWorkflow: { min: 1, max: 32 },
-  logsPerTask: { min: 100, max: 1000 },
-  eventsPerWorkflow: { min: 10, max: 50 },
-};
-
-// Low volume for quick iteration
-export const LOW_VOLUME: MockVolume = {
-  workflows: 100,
-  pools: 3,
-  resourcesPerPool: 10,
-  tasksPerWorkflow: { min: 1, max: 4 },
-  logsPerTask: { min: 10, max: 50 },
-  eventsPerWorkflow: { min: 3, max: 10 },
-};
-
-// ============================================================================
-// Workflow Patterns
-// ============================================================================
-
 export interface WorkflowPatterns {
-  /** Status distribution: status → probability (0-1) */
   statusDistribution: Record<string, number>;
-  /** Priority distribution */
   priorityDistribution: Record<string, number>;
-  /** Pool names */
   pools: string[];
-  /** User names */
   users: string[];
-  /** Tags for categorization */
   tags: string[];
-  /** Name generation patterns */
-  namePatterns: {
-    prefixes: string[];
-    suffixes: string[];
-  };
-  /** Group/DAG patterns */
+  namePatterns: { prefixes: string[]; suffixes: string[] };
   groupPatterns: {
     names: string[];
     tasksPerGroup: { min: number; max: number };
     groupsPerWorkflow: { min: number; max: number };
   };
-  /** Timing in seconds */
   timing: {
     queueTime: { min: number; max: number; p50: number; p90: number };
     duration: { min: number; max: number; p50: number; p90: number };
   };
-  /** Failure patterns */
   failures: {
     typeDistribution: Record<string, number>;
     messages: Record<string, string[]>;
@@ -112,14 +57,11 @@ export interface WorkflowPatterns {
 }
 
 export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
-  // All 16 WorkflowStatus values (not TaskGroupStatus)
   statusDistribution: {
-    // Active states
     RUNNING: 0.2,
     COMPLETED: 0.35,
     WAITING: 0.08,
     PENDING: 0.07,
-    // Failed states (all 12 failure types)
     FAILED: 0.06,
     FAILED_SUBMISSION: 0.02,
     FAILED_SERVER_ERROR: 0.02,
@@ -234,7 +176,6 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
     duration: { min: 60, max: 172800, p50: 3600, p90: 28800 },
   },
   failures: {
-    // WorkflowStatus failure values only (FAILED_UPSTREAM is TaskGroupStatus only)
     typeDistribution: {
       FAILED: 0.35,
       FAILED_EXEC_TIMEOUT: 0.15,
@@ -245,7 +186,6 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
       FAILED_CANCELED: 0.05,
       FAILED_SUBMISSION: 0.05,
     },
-    // Messages for all 12 failure types
     messages: {
       FAILED: [
         "Process exited with code 1",
@@ -281,20 +221,11 @@ export const DEFAULT_WORKFLOW_PATTERNS: WorkflowPatterns = {
   },
 };
 
-// ============================================================================
-// Pool Patterns
-// ============================================================================
-
 export interface PoolPatterns {
-  /** Pool names (will be used directly) */
   names: string[];
-  /** Platform types */
   platforms: string[];
-  /** Cloud regions */
   regions: string[];
-  /** GPU types available */
   gpuTypes: string[];
-  /** Quota patterns */
   quota: {
     gpuCounts: number[];
     utilizationRange: { min: number; max: number };
@@ -319,25 +250,12 @@ export const DEFAULT_POOL_PATTERNS: PoolPatterns = {
   },
 };
 
-// ============================================================================
-// Resource (Node) Patterns
-// ============================================================================
-
 export interface ResourcePatterns {
-  /** GPU types (cross-ref with pools) */
   gpuTypes: string[];
-  /** Node naming */
-  nodePatterns: {
-    prefixes: string[];
-    formats: string[];
-  };
-  /** GPUs per node options */
+  nodePatterns: { prefixes: string[]; formats: string[] };
   gpusPerNode: number[];
-  /** CPU to GPU ratio */
   cpuPerGpu: { min: number; max: number };
-  /** Memory per GPU in GB */
   memoryPerGpu: { min: number; max: number };
-  /** Status distribution */
   statusDistribution: Record<string, number>;
 }
 
@@ -359,28 +277,12 @@ export const DEFAULT_RESOURCE_PATTERNS: ResourcePatterns = {
   },
 };
 
-// ============================================================================
-// Task Patterns
-// ============================================================================
-
 export interface TaskPatterns {
-  /** Status distribution */
   statusDistribution: Record<string, number>;
-  /** Task naming */
-  namePatterns: {
-    prefixes: string[];
-    indexed: boolean;
-  };
-  /** GPU count options */
+  namePatterns: { prefixes: string[]; indexed: boolean };
   gpuCounts: number[];
-  /** Common exit codes for failures */
   exitCodes: number[];
-  /** Command patterns */
-  commands: {
-    prefixes: string[];
-    examples: string[][];
-  };
-  /** Timing in seconds */
+  commands: { prefixes: string[]; examples: string[][] };
   timing: {
     scheduleLatency: { min: number; max: number };
     initTime: { min: number; max: number };
@@ -424,30 +326,15 @@ export const DEFAULT_TASK_PATTERNS: TaskPatterns = {
   },
 };
 
-// ============================================================================
-// Log Patterns
-// ============================================================================
-
 export interface LogPatterns {
-  /** Log formats */
-  formats: {
-    timestamp: string;
-    levels: string[];
-    prefixes: string[];
-  };
-  /** Message templates by category */
+  formats: { timestamp: string; levels: string[]; prefixes: string[] };
   messages: {
     osmo: string[];
     training: string[];
     progress: string[];
     errors: Record<string, string[]>;
   };
-  /** Metrics patterns */
-  metrics: {
-    loss: string[];
-    accuracy: string[];
-    gpu: string[];
-  };
+  metrics: { loss: string[]; accuracy: string[]; gpu: string[] };
 }
 
 export const DEFAULT_LOG_PATTERNS: LogPatterns = {
@@ -499,26 +386,16 @@ export const DEFAULT_LOG_PATTERNS: LogPatterns = {
   },
 };
 
-// ============================================================================
-// Event Patterns (Kubernetes-style)
-// ============================================================================
-
 export interface EventPatterns {
-  /** Event types */
   types: string[];
-  /** Reasons by lifecycle phase */
   reasons: {
     scheduling: string[];
     execution: string[];
     completion: string[];
     failure: string[];
   };
-  /** Message templates by reason */
   messages: Record<string, string[]>;
-  /** Event sources */
-  sources: {
-    components: string[];
-  };
+  sources: { components: string[] };
 }
 
 export const DEFAULT_EVENT_PATTERNS: EventPatterns = {
@@ -549,10 +426,6 @@ export const DEFAULT_EVENT_PATTERNS: EventPatterns = {
   },
 };
 
-// ============================================================================
-// Container Image Patterns
-// ============================================================================
-
 export interface ImagePatterns {
   registries: string[];
   repositories: string[];
@@ -571,20 +444,12 @@ export const DEFAULT_IMAGE_PATTERNS: ImagePatterns = {
   tags: ["24.08-py3", "24.07-py3", "24.06-py3", "24.05-py3", "12.4.0-devel-ubuntu22.04", "latest"],
 };
 
-// ============================================================================
-// Shared Pool Configuration
-// ============================================================================
-// Two pools that share all their resources under a common platform.
-// The "alpha" pool additionally has a second platform covering half the resources.
-
+// Shared pool configuration: alpha and beta share resources under SHARED_PLATFORM.
+// Alpha additionally has ALPHA_EXTRA_PLATFORM covering half the resources.
 export const SHARED_POOL_ALPHA = "shared-pool-alpha";
 export const SHARED_POOL_BETA = "shared-pool-beta";
 export const SHARED_PLATFORM = "dgx-cloud";
 export const ALPHA_EXTRA_PLATFORM = "on-prem";
-
-// ============================================================================
-// Export all defaults
-// ============================================================================
 
 export const MOCK_CONFIG = {
   volume: DEFAULT_VOLUME,

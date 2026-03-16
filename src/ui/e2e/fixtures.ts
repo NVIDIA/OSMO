@@ -17,22 +17,100 @@
 import { test as base, expect as baseExpect, type Page } from "@playwright/test";
 import type { PoolResponse, ResourcesResponse } from "@/lib/api/generated";
 
-// Default data for when tests don't specify their own
 import {
-  createProductionScenario,
+  createLoginInfo,
   createVersion,
-  mockLoginInfoAuthDisabled,
-  mockLoginInfoAuthEnabled,
+  createPoolResponse,
+  createResourcesResponse,
   mockIdToken,
   mockRefreshToken,
-  mockTokenRefreshSuccess,
-  mockTokenRefreshFailureInvalid,
-  mockApiUnauthorized,
-  mockApiForbidden,
+  BackendResourceType,
+  PoolStatus,
 } from "@/mocks/factories";
 
-const { pools: mockPools, resources: mockResources } = createProductionScenario();
+const GiB_IN_KiB = 1024 * 1024;
+const TiB_IN_BYTES = 1024 * 1024 * 1024 * 1024;
+
+const mockLoginInfoAuthDisabled = createLoginInfo({ auth_enabled: false });
+const mockLoginInfoAuthEnabled = createLoginInfo({ auth_enabled: true });
+
+const mockPools = createPoolResponse([
+  {
+    name: "production",
+    description: "Production GPU cluster",
+    status: PoolStatus.ONLINE,
+    resource_usage: { quota_used: "45", quota_free: "55", quota_limit: "100", total_usage: "128", total_capacity: "256", total_free: "128" },
+    platforms: {
+      dgx: { description: "DGX A100 nodes", host_network_allowed: true },
+      dgx_h100: { description: "DGX H100 nodes", host_network_allowed: true },
+    },
+  },
+  {
+    name: "development",
+    description: "Development environment",
+    status: PoolStatus.ONLINE,
+    resource_usage: { quota_used: "12", quota_free: "38", quota_limit: "50", total_usage: "24", total_capacity: "64", total_free: "40" },
+    platforms: { base: { description: "Standard nodes" }, gpu: { description: "GPU nodes" } },
+  },
+  {
+    name: "maintenance",
+    description: "Under maintenance",
+    status: PoolStatus.MAINTENANCE,
+    resource_usage: { quota_used: "0", quota_free: "0", quota_limit: "20", total_usage: "0", total_capacity: "0", total_free: "0" },
+    platforms: {},
+  },
+]);
+
+const mockResources = createResourcesResponse([
+  {
+    hostname: "gpu-node-001.prod.example.com",
+    resource_type: BackendResourceType.SHARED,
+    exposed_fields: { node: "dgx-a100-001", "pool/platform": ["production/dgx", "development/gpu"] },
+    allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * GiB_IN_KiB, storage: 2 * TiB_IN_BYTES },
+    usage_fields: { gpu: 6, cpu: 96, memory: 384 * GiB_IN_KiB, storage: 1.2 * TiB_IN_BYTES },
+    pool_platform_labels: { production: ["dgx"], development: ["gpu"] },
+  },
+  {
+    hostname: "gpu-node-002.prod.example.com",
+    resource_type: BackendResourceType.RESERVED,
+    exposed_fields: { node: "dgx-a100-002", "pool/platform": ["production/dgx"] },
+    allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * GiB_IN_KiB, storage: 2 * TiB_IN_BYTES },
+    usage_fields: { gpu: 8, cpu: 128, memory: 480 * GiB_IN_KiB, storage: 1.8 * TiB_IN_BYTES },
+    pool_platform_labels: { production: ["dgx"] },
+  },
+  {
+    hostname: "gpu-node-003.prod.example.com",
+    resource_type: BackendResourceType.RESERVED,
+    exposed_fields: { node: "dgx-h100-001", "pool/platform": ["production/dgx_h100"] },
+    allocatable_fields: { gpu: 8, cpu: 256, memory: 1024 * GiB_IN_KiB, storage: 4 * TiB_IN_BYTES },
+    usage_fields: { gpu: 8, cpu: 256, memory: 1000 * GiB_IN_KiB, storage: 3.5 * TiB_IN_BYTES },
+    pool_platform_labels: { production: ["dgx_h100"] },
+  },
+  {
+    hostname: "gpu-node-004.dev.example.com",
+    resource_type: BackendResourceType.SHARED,
+    exposed_fields: { node: "dev-gpu-001", "pool/platform": ["development/gpu", "development/base"] },
+    allocatable_fields: { gpu: 4, cpu: 64, memory: 256 * GiB_IN_KiB, storage: 1 * TiB_IN_BYTES },
+    usage_fields: { gpu: 2, cpu: 32, memory: 128 * GiB_IN_KiB, storage: 0.3 * TiB_IN_BYTES },
+    pool_platform_labels: { development: ["gpu", "base"] },
+  },
+  {
+    hostname: "gpu-node-005.prod.example.com",
+    resource_type: BackendResourceType.SHARED,
+    conditions: ["Ready", "SchedulingDisabled", "MemoryPressure"],
+    exposed_fields: { node: "dgx-a100-003", "pool/platform": ["production/dgx"] },
+    allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * GiB_IN_KiB, storage: 2 * TiB_IN_BYTES },
+    usage_fields: { gpu: 8, cpu: 128, memory: 510 * GiB_IN_KiB, storage: 1.9 * TiB_IN_BYTES },
+    pool_platform_labels: { production: ["dgx"] },
+  },
+]);
+
 const mockVersion = createVersion();
+
+const mockTokenRefreshSuccess = { isFailure: false, id_token: mockIdToken, refresh_token: mockRefreshToken };
+const mockTokenRefreshFailureInvalid = { isFailure: true, error: "invalid_grant", authError: "invalid_grant" };
+const mockApiUnauthorized = { error: "Unauthorized", message: "Authentication required", statusCode: 401 };
+const mockApiForbidden = { error: "Forbidden", message: "You do not have permission to access this resource", statusCode: 403 };
 
 // =============================================================================
 // Types for test scenario data
@@ -317,7 +395,6 @@ export async function completeOAuthLogin(page: Page, returnUrl = "/") {
 
 export { expect } from "@playwright/test";
 
-// Re-export factories for inline test data creation
 export {
   createPoolResourceUsage,
   createPoolResponse,
@@ -325,13 +402,8 @@ export {
   createResourcesResponse,
   createLoginInfo,
   createVersion,
-  createProductionScenario,
-  createEmptyScenario,
-  createHighUtilizationScenario,
-  // Generated enums - use these instead of string literals in tests
   BackendResourceType,
   PoolStatus,
-  // Auth tokens for auth scenarios
   mockIdToken,
   mockRefreshToken,
 } from "@/mocks/factories";

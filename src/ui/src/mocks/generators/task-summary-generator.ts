@@ -14,43 +14,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Task Summary Generator
- *
- * Generates realistic ListTaskSummaryEntry[] for the occupancy page mock.
- * Each entry is one (user, pool, priority) bucket of aggregated resource usage
- * matching the shape returned by GET /api/task?summary=true.
- *
- * Coverage:
- *   - 10 users with distinct workload profiles
- *   - 12 pools (cloud, on-prem, shared, specialised tiers)
- *   - All three priorities across realistic user/pool combinations
- *   - Edge cases: GPU=0 CPU-only tasks, single-priority users, users spanning
- *     many pools, pools with a single user, heavy vs light users, automated users
- *   - Filter support: users[], pools[], priorities[], limit
- *   - Fully deterministic — seeded so data is stable across hot-reloads
- */
-
 import { faker } from "@faker-js/faker";
 import { delay, HttpResponse, passthrough } from "msw";
 import type { ListTaskSummaryEntry, ListTaskSummaryResponse } from "@/lib/api/generated";
 import { getMockDelay, hashString } from "@/mocks/utils";
 
-// ============================================================================
-// Deterministic seeding helpers
-// ============================================================================
-
 const BASE_SEED = 0xdeadbeef;
 
-/** Deterministic integer in [min, max] keyed by an arbitrary string. */
 function rng(key: string, min: number, max: number): number {
   faker.seed(BASE_SEED ^ hashString(key));
   return faker.number.int({ min, max });
 }
-
-// ============================================================================
-// Resource range presets
-// ============================================================================
 
 interface ResourceRange {
   gpu: [number, number];
@@ -67,10 +41,6 @@ const GPU_MINIMAL: ResourceRange = { gpu: [0, 1], cpu: [4, 16], memory: [16, 64]
 const CPU_ONLY: ResourceRange = { gpu: [0, 0], cpu: [8, 64], memory: [32, 256], storage: [0, 1000] };
 const INFERENCE: ResourceRange = { gpu: [1, 8], cpu: [8, 32], memory: [64, 512], storage: [0, 200] };
 const BENCH: ResourceRange = { gpu: [4, 16], cpu: [32, 128], memory: [256, 1024], storage: [0, 100] };
-
-// ============================================================================
-// User profiles
-// ============================================================================
 
 type Priority = "HIGH" | "NORMAL" | "LOW";
 
@@ -90,9 +60,6 @@ interface UserProfile {
 }
 
 const USER_PROFILES: UserProfile[] = [
-  // -------------------------------------------------------------------------
-  // alice.chen — ML researcher, heavy GPU LLM training, cloud + dedicated pools
-  // -------------------------------------------------------------------------
   {
     user: "alice.chen",
     pools: [
@@ -114,9 +81,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // bob.smith — Data engineer, CPU preprocessing + minimal GPU eval
-  // -------------------------------------------------------------------------
   {
     user: "bob.smith",
     pools: [
@@ -138,9 +102,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // carol.jones — Fine-tuning specialist, HIGH priority GPU work across regions
-  // -------------------------------------------------------------------------
   {
     user: "carol.jones",
     pools: [
@@ -165,9 +126,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // david.kim — Platform engineer, runs jobs on many pools across all priorities
-  // -------------------------------------------------------------------------
   {
     user: "david.kim",
     pools: [
@@ -186,9 +144,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // eve.wilson — Inference specialist, low-priority serving workloads
-  // -------------------------------------------------------------------------
   {
     user: "eve.wilson",
     pools: [
@@ -206,9 +161,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // frank.zhang — Benchmarking lead, HIGH priority short-burst GPU jobs
-  // -------------------------------------------------------------------------
   {
     user: "frank.zhang",
     pools: [
@@ -230,9 +182,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // grace.lee — Research team lead, moderate GPU, research + training clusters
-  // -------------------------------------------------------------------------
   {
     user: "grace.lee",
     pools: [
@@ -257,9 +206,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // henry.patel — Experimenter, minimal GPU, dev cluster only (single pool)
-  // -------------------------------------------------------------------------
   {
     user: "henry.patel",
     pools: [
@@ -273,9 +219,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // system-scheduler — Automated orchestration, NORMAL priority, spans all pools
-  // -------------------------------------------------------------------------
   {
     user: "system-scheduler",
     pools: [
@@ -290,9 +233,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // ci-pipeline — CI/CD, LOW priority, CPU-only on shared + dev pools
-  // -------------------------------------------------------------------------
   {
     user: "ci-pipeline",
     pools: [
@@ -308,10 +248,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 ];
-
-// ============================================================================
-// Build the flat entry list once at module load (deterministic)
-// ============================================================================
 
 function buildEntries(): ListTaskSummaryEntry[] {
   const entries: ListTaskSummaryEntry[] = [];
@@ -340,10 +276,6 @@ function buildEntries(): ListTaskSummaryEntry[] {
 
 const ALL_ENTRIES: ListTaskSummaryEntry[] = buildEntries();
 
-// ============================================================================
-// Generator class
-// ============================================================================
-
 interface TaskSummaryFilters {
   users?: string[];
   pools?: string[];
@@ -352,10 +284,6 @@ interface TaskSummaryFilters {
 }
 
 export class TaskSummaryGenerator {
-  /**
-   * Return summary entries, optionally filtered.
-   * Mirrors the behaviour of GET /api/task?summary=true.
-   */
   getSummaries(filters: TaskSummaryFilters = {}): ListTaskSummaryEntry[] {
     let result = ALL_ENTRIES;
 
@@ -381,15 +309,10 @@ export class TaskSummaryGenerator {
     return result;
   }
 
-  // ============================================================================
-  // MSW handler methods — passed directly to http.get()
-  // ============================================================================
-
   handleGetTaskSummary = async ({ request }: { request: Request }): Promise<Response> => {
     await delay(getMockDelay());
     const url = new URL(request.url);
 
-    // Only intercept summary requests; let other /api/task calls pass through.
     if (url.searchParams.get("summary") !== "true") return passthrough();
 
     const users = url.searchParams.getAll("users");

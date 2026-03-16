@@ -14,18 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Port Forward Generator
- *
- * Generates port forwarding session data for remote access features.
- */
-
 import { faker } from "@faker-js/faker";
 import { hashString } from "@/mocks/utils";
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface GeneratedPortForwardResponse {
   success: boolean;
@@ -34,10 +24,6 @@ export interface GeneratedPortForwardResponse {
   access_url?: string;
   error?: string;
 }
-
-// ============================================================================
-// Configuration
-// ============================================================================
 
 const PORT_FORWARD_PATTERNS = {
   commonPorts: [
@@ -51,10 +37,6 @@ const PORT_FORWARD_PATTERNS = {
   ],
   routerDomains: ["pf.osmo.example.com", "tunnel.osmo.example.com", "access.osmo.example.com"],
 };
-
-// ============================================================================
-// Generator Class
-// ============================================================================
 
 export class PortForwardGenerator {
   private baseSeed: number;
@@ -90,9 +72,5 @@ export class PortForwardGenerator {
     };
   }
 }
-
-// ============================================================================
-// Singleton instance
-// ============================================================================
 
 export const portForwardGenerator = new PortForwardGenerator();

@@ -830,12 +830,6 @@ export function getMockWorkflow(name: string): MockWorkflowResponse | null {
   return MOCK_WORKFLOWS[name] ?? null;
 }
 
-export const MOCK_WORKFLOW_IDS = Object.keys(MOCK_WORKFLOWS);
-
-/**
- * Get log configuration for a workflow.
- * Returns default config if workflow not found or no config embedded.
- */
 export function getWorkflowLogConfig(workflowName: string): WorkflowLogConfig {
   const workflow = getMockWorkflow(workflowName);
   if (workflow?._logConfig) {

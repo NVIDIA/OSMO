@@ -206,10 +206,6 @@ export class PoolGenerator {
       : `${baseName}-${Math.floor(index / MOCK_CONFIG.pools.names.length)}`;
   }
 
-  // ============================================================================
-  // MSW handler methods — passed directly to http.get() / generated factories
-  // ============================================================================
-
   handleGetPoolQuota = async ({ request }: { request: Request }): Promise<PoolResponse> => {
     await delay(getMockDelay());
     const url = new URL(request.url);

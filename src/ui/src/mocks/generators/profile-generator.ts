@@ -24,7 +24,6 @@ import type { ProfileResponse, CredentialGetResponse } from "@/lib/api/generated
 const BASE_SEED = 66666;
 
 export class ProfileGenerator {
-  // Persists changes across requests within a session
   private settings: {
     email_notification?: boolean;
     slack_notification?: boolean;
@@ -33,10 +32,6 @@ export class ProfileGenerator {
   } = {};
 
   private credentials = new Map<string, Record<string, string>>();
-
-  // ============================================================================
-  // Data generators
-  // ============================================================================
 
   generateProfile(username?: string) {
     faker.seed(BASE_SEED + (username ? hashString(username) : 0));
@@ -131,10 +126,6 @@ export class ProfileGenerator {
     });
   }
 
-  // ============================================================================
-  // MSW handler methods — passed directly to generated handler factories
-  // ============================================================================
-
   handleGetSettings = async (): Promise<ProfileResponse> => {
     await delay(getMockDelay());
 
@@ -147,7 +138,6 @@ export class ProfileGenerator {
     const defaultBucket = this.settings.bucket ?? settings.default_bucket;
     const defaultPool = this.settings.pool ?? settings.default_pool;
 
-    // Ensure the default pool is included in the accessible list
     const accessiblePools = pools.includes(defaultPool) ? pools : [defaultPool, ...pools];
 
     return {
