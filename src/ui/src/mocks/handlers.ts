@@ -30,6 +30,7 @@ import {
   getListDatasetFromBucketApiBucketListDatasetGetMockHandler,
   getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler,
   getGetPoolQuotasApiPoolQuotaGetMockHandler,
+  getGetResourcesApiResourcesGetMockHandler,
   getGetNotificationSettingsApiProfileSettingsGetMockHandler,
   getGetUserCredentialApiCredentialsGetMockHandler,
   getDeleteUsersCredentialApiCredentialsCredNameDeleteMockHandler,
@@ -48,7 +49,7 @@ import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
 import { getMockWorkflow } from "@/mocks/mock-workflows";
-import { MOCK_CONFIG, SHARED_POOL_ALPHA, SHARED_POOL_BETA } from "@/mocks/seed/types";
+import { MOCK_CONFIG } from "@/mocks/seed/types";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -817,54 +818,14 @@ export const handlers = [
   // List pools — returns pool names as plain text (matches backend behavior)
   http.get("*/api/pool", poolGenerator.handleListPools),
 
-  // NOTE: /api/pool/:name was removed - not a real backend endpoint
-  // Use /api/pool_quota?pools=X instead
-
-  // NOTE: /api/pool/:name/resources was removed - not a real backend endpoint
-  // Use /api/resources?pools=X instead
-
   // ==========================================================================
   // Resources (matches ResourcesResponse: { resources: ResourcesEntry[] })
   // ==========================================================================
 
-  // List all resources
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/resources", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const poolsParam = url.searchParams.get("pools");
-    const allPools = url.searchParams.get("all_pools") === "true";
-
-    const poolNames = poolGenerator.getPoolNames();
-
-    if (allPools) {
-      // Return all resources across all pools (uses configured totalGlobal)
-      const { resources } = resourceGenerator.generateGlobalPage(poolNames, 0, resourceGenerator.totalGlobal);
-      return HttpResponse.json({ resources });
-    }
-
-    if (poolsParam) {
-      // Filter to specific pools
-      const requestedPools = poolsParam.split(",").map((p) => p.trim());
-
-      // Shared pools produce identical resources — skip the second to avoid duplicates
-      const sharedPools = [SHARED_POOL_ALPHA, SHARED_POOL_BETA];
-      const hasMultipleShared = sharedPools.filter((sp) => requestedPools.includes(sp)).length > 1;
-      const poolsToQuery = hasMultipleShared ? requestedPools.filter((p) => p !== SHARED_POOL_BETA) : requestedPools;
-
-      const allResources: import("@/lib/api/generated").ResourcesEntry[] = [];
-      for (const pool of poolsToQuery) {
-        const { resources } = resourceGenerator.generatePage(pool, 0, 100);
-        allResources.push(...resources);
-      }
-      return HttpResponse.json({ resources: allResources });
-    }
-
-    // Default: return first 100 resources from first pool
-    const { resources } = resourceGenerator.generatePage(poolNames[0] || "default-pool", 0, 100);
-    return HttpResponse.json({ resources });
-  }),
+  // List all resources — generated factory with generator callback
+  getGetResourcesApiResourcesGetMockHandler(async ({ request }) =>
+    resourceGenerator.handleListResources(request, poolGenerator.getPoolNames()),
+  ),
 
   // ==========================================================================
   // Buckets
@@ -983,31 +944,8 @@ export const handlers = [
   // ==========================================================================
   // Handles the occupancy page data source. When summary=true the endpoint
   // returns aggregated (user, pool, priority) resource-usage rows rather than
-  // individual task records.
-  http.get("*/api/task", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-
-    // Only intercept summary requests; let other /api/task calls pass through.
-    if (url.searchParams.get("summary") !== "true") {
-      return passthrough();
-    }
-
-    const users = url.searchParams.getAll("users");
-    const pools = url.searchParams.getAll("pools");
-    const priorities = url.searchParams.getAll("priority");
-    const limit = parseInt(url.searchParams.get("limit") ?? "10000", 10);
-
-    const summaries = taskSummaryGenerator.getSummaries({
-      users: users.length > 0 ? users : undefined,
-      pools: pools.length > 0 ? pools : undefined,
-      priorities: priorities.length > 0 ? priorities : undefined,
-      limit: isNaN(limit) ? undefined : limit,
-    });
-
-    return HttpResponse.json({ summaries });
-  }),
+  // individual task records. Non-summary requests are passed through.
+  http.get("*/api/task", taskSummaryGenerator.handleGetTaskSummary),
 
   // ==========================================================================
   // Generated Handlers (fallback for all other API endpoints)

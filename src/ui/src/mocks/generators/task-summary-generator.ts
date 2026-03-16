@@ -32,7 +32,9 @@
  */
 
 import { faker } from "@faker-js/faker";
-import type { ListTaskSummaryEntry } from "@/lib/api/generated";
+import { delay, HttpResponse, passthrough } from "msw";
+import type { ListTaskSummaryEntry, ListTaskSummaryResponse } from "@/lib/api/generated";
+import { getMockDelay } from "@/mocks/utils";
 
 // ============================================================================
 // Deterministic seeding helpers
@@ -351,7 +353,7 @@ const ALL_ENTRIES: ListTaskSummaryEntry[] = buildEntries();
 // Generator class
 // ============================================================================
 
-export interface TaskSummaryFilters {
+interface TaskSummaryFilters {
   users?: string[];
   pools?: string[];
   priorities?: string[];
@@ -388,6 +390,31 @@ export class TaskSummaryGenerator {
     return result;
   }
 
+  // ============================================================================
+  // MSW handler methods — passed directly to http.get()
+  // ============================================================================
+
+  handleGetTaskSummary = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+
+    // Only intercept summary requests; let other /api/task calls pass through.
+    if (url.searchParams.get("summary") !== "true") return passthrough();
+
+    const users = url.searchParams.getAll("users");
+    const pools = url.searchParams.getAll("pools");
+    const priorities = url.searchParams.getAll("priority");
+    const limit = parseInt(url.searchParams.get("limit") ?? "10000", 10);
+
+    const summaries = this.getSummaries({
+      users: users.length > 0 ? users : undefined,
+      pools: pools.length > 0 ? pools : undefined,
+      priorities: priorities.length > 0 ? priorities : undefined,
+      limit: isNaN(limit) ? undefined : limit,
+    });
+
+    return HttpResponse.json<ListTaskSummaryResponse>({ summaries });
+  };
 }
 
 export const taskSummaryGenerator = new TaskSummaryGenerator();

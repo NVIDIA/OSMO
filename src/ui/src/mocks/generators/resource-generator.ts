@@ -24,49 +24,25 @@
  */
 
 import { faker } from "@faker-js/faker";
-import { BackendResourceType, type ResourcesEntry } from "@/lib/api/generated";
+import { delay } from "msw";
+import { BackendResourceType, type ResourcesEntry, type ResourcesResponse } from "@/lib/api/generated";
 import {
   MOCK_CONFIG,
-  type ResourcePatterns,
   SHARED_POOL_ALPHA,
   SHARED_POOL_BETA,
   SHARED_PLATFORM,
   ALPHA_EXTRA_PLATFORM,
 } from "@/mocks/seed/types";
-import { hashString } from "@/mocks/utils";
+import { hashString, getMockDelay } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 
-// ============================================================================
-// Generator Configuration
-// ============================================================================
-
-interface GeneratorConfig {
-  /** Resources per pool */
-  perPool: number;
-  /** Total resources across all pools (for global listing) */
-  totalGlobal: number;
-  baseSeed: number;
-  patterns: ResourcePatterns;
-}
-
-const DEFAULT_CONFIG: GeneratorConfig = {
-  perPool: MOCK_CONFIG.volume.resourcesPerPool,
-  totalGlobal: MOCK_CONFIG.volume.pools * MOCK_CONFIG.volume.resourcesPerPool,
-  baseSeed: 67890,
-  patterns: MOCK_CONFIG.resources,
-};
+const BASE_SEED = 67890;
 
 // ============================================================================
 // Generator Class
 // ============================================================================
 
 export class ResourceGenerator {
-  private config: GeneratorConfig;
-
-  constructor(config: Partial<GeneratorConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
-  }
-
   get perPool(): number {
     return getGlobalMockConfig().resourcesPerPool;
   }
@@ -91,10 +67,10 @@ export class ResourceGenerator {
     // Shared pools use the same seed so they produce identical resources
     const isSharedPool = poolName === SHARED_POOL_ALPHA || poolName === SHARED_POOL_BETA;
     const seedPoolName = isSharedPool ? SHARED_POOL_ALPHA : poolName;
-    faker.seed(this.config.baseSeed + hashString(seedPoolName) + index);
+    faker.seed(BASE_SEED + hashString(seedPoolName) + index);
 
-    const gpuType = faker.helpers.arrayElement(this.config.patterns.gpuTypes);
-    const gpuTotal = faker.helpers.arrayElement(this.config.patterns.gpusPerNode);
+    const gpuType = faker.helpers.arrayElement(MOCK_CONFIG.resources.gpuTypes);
+    const gpuTotal = faker.helpers.arrayElement(MOCK_CONFIG.resources.gpusPerNode);
     const statusKey = this.pickStatus();
 
     // Resource usage based on status
@@ -104,15 +80,15 @@ export class ResourceGenerator {
     const gpuAvailable = gpuTotal - gpuUsed;
 
     // CPU/Memory based on GPU count
-    const cpuPerGpu = faker.number.int(this.config.patterns.cpuPerGpu);
-    const memPerGpu = faker.number.int(this.config.patterns.memoryPerGpu);
+    const cpuPerGpu = faker.number.int(MOCK_CONFIG.resources.cpuPerGpu);
+    const memPerGpu = faker.number.int(MOCK_CONFIG.resources.memoryPerGpu);
     const cpuTotal = gpuTotal * cpuPerGpu;
     const cpuUsed = Math.floor(cpuTotal * (gpuUsed / gpuTotal));
     const memTotal = gpuTotal * memPerGpu;
     const memUsed = Math.floor(memTotal * (gpuUsed / gpuTotal));
 
     // Generate hostname - use pool identifier + random suffix to ensure uniqueness
-    const prefix = faker.helpers.arrayElement(this.config.patterns.nodePatterns.prefixes);
+    const prefix = faker.helpers.arrayElement(MOCK_CONFIG.resources.nodePatterns.prefixes);
     const gpuShort = gpuType.toLowerCase().includes("h100")
       ? "h100"
       : gpuType.toLowerCase().includes("a100")
@@ -298,7 +274,7 @@ export class ResourceGenerator {
   // --------------------------------------------------------------------------
 
   private pickStatus(): string {
-    const distribution = this.config.patterns.statusDistribution;
+    const distribution = MOCK_CONFIG.resources.statusDistribution;
     const rand = faker.number.float({ min: 0, max: 1 });
     let cumulative = 0;
 
@@ -311,6 +287,38 @@ export class ResourceGenerator {
 
     return "AVAILABLE";
   }
+
+  // ============================================================================
+  // MSW handler methods — passed directly to generated factory callbacks
+  // ============================================================================
+
+  handleListResources = async (request: Request, poolNames: string[]): Promise<ResourcesResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const poolsParam = url.searchParams.get("pools");
+    const allPools = url.searchParams.get("all_pools") === "true";
+
+    if (allPools) {
+      const { resources } = this.generateGlobalPage(poolNames, 0, this.totalGlobal);
+      return { resources };
+    }
+
+    if (poolsParam) {
+      const requestedPools = poolsParam.split(",").map((p) => p.trim());
+      const sharedPools = [SHARED_POOL_ALPHA, SHARED_POOL_BETA];
+      const hasMultipleShared = sharedPools.filter((sp) => requestedPools.includes(sp)).length > 1;
+      const poolsToQuery = hasMultipleShared ? requestedPools.filter((p) => p !== SHARED_POOL_BETA) : requestedPools;
+      const allResources: ResourcesEntry[] = [];
+      for (const pool of poolsToQuery) {
+        const { resources } = this.generatePage(pool, 0, 100);
+        allResources.push(...resources);
+      }
+      return { resources: allResources };
+    }
+
+    const { resources } = this.generatePage(poolNames[0] || "default-pool", 0, 100);
+    return { resources };
+  };
 
   private generateConditions(status: string): string[] {
     const conditions = [
