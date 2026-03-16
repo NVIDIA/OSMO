@@ -70,7 +70,7 @@ rules:
   verbs: ["list", "delete", "create"]
 - apiGroups: ["kai.scheduler"]
   resources: ["topologies"]
-  verbs: ["list", "delete", "create"]
+  verbs: ["list", "delete", "create", "update", "get"]
 {{- with (((.Values.services).backendWorker).extraRBACRules) }}
 {{ toYaml . }}
 {{- end }}
