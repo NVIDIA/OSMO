@@ -72,6 +72,7 @@ import {
   type SrcServiceCoreWorkflowObjectsListEntry,
   type SrcServiceCoreWorkflowObjectsListResponse,
   type WorkflowQueryResponse,
+  type TaskQueryResponse,
   type SubmitResponse,
 } from "@/lib/api/generated";
 
@@ -1542,6 +1543,44 @@ export class WorkflowGenerator {
       workflows: filtered.map((w) => this.toListEntry(w)),
       more_entries: hasActiveFilters(filters) ? false : offset + limit < total,
     };
+  };
+
+  handleGetTask = async ({ params }: { params: Record<string, string | readonly string[] | undefined> }): Promise<Response> => {
+    await delay(getMockDelay());
+    const workflowName = params.name as string;
+    const taskName = params.taskName as string;
+    const workflow = this.getByName(workflowName);
+    for (const group of workflow.groups) {
+      const task = group.tasks.find((t) => t.name === taskName);
+      if (task) {
+        const response: TaskQueryResponse = {
+          name: task.name,
+          retry_id: task.retry_id,
+          status: task.status,
+          lead: task.lead,
+          task_uuid: task.task_uuid,
+          pod_name: task.pod_name,
+          pod_ip: task.pod_ip,
+          node_name: task.node_name,
+          scheduling_start_time: task.scheduling_start_time,
+          initializing_start_time: task.initializing_start_time,
+          input_download_start_time: task.input_download_start_time,
+          input_download_end_time: task.input_download_end_time,
+          processing_start_time: task.processing_start_time,
+          start_time: task.start_time,
+          output_upload_start_time: task.output_upload_start_time,
+          end_time: task.end_time,
+          exit_code: task.exit_code,
+          failure_message: task.failure_message,
+          logs: task.logs,
+          error_logs: task.error_logs,
+          events: task.events,
+          dashboard_url: task.dashboard_url,
+        };
+        return HttpResponse.json(response);
+      }
+    }
+    return new HttpResponse(null, { status: 404 });
   };
 
   handleSubmitWorkflow = async ({ request }: { params: Record<string, string | readonly string[] | undefined>; request: Request }): Promise<SubmitResponse> => {

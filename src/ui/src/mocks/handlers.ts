@@ -38,6 +38,7 @@ import {
   getGetNotificationSettingsApiProfileSettingsGetMockHandler,
   getGetUserCredentialApiCredentialsGetMockHandler,
   getDeleteUsersCredentialApiCredentialsCredNameDeleteMockHandler,
+  getGetVersionApiVersionGetMockHandler,
 } from "@/mocks/generated-mocks";
 import { faker } from "@faker-js/faker";
 import { workflowGenerator } from "@/mocks/generators/workflow-generator";
@@ -51,7 +52,7 @@ import { datasetGenerator } from "@/mocks/generators/dataset-generator";
 import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
-import { getMockDelay, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
+import { getMockDelay } from "@/mocks/utils";
 import { getMockWorkflow } from "@/mocks/mock-workflows";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
@@ -149,128 +150,13 @@ export const handlers = [
   // ==========================================================================
 
   // Workflow logs (with streaming support)
-  // Matches real backend: /api/workflow/{name}/logs from workflow_service.py:711-749
-  //
-  // Real backend params:
-  //   - last_n_lines: int - limit to last N lines
-  //   - task_name: str - filter to specific task
-  //   - retry_id: int - filter to specific retry
-  //   - query: str - regex filter pattern
-  //   - tail: bool - enable streaming mode
-  //
-  // Scenario detection: Based on workflow ID pattern
-  //   - Embedded in mock-workflows.ts _logConfig
-  //   - getWorkflowLogConfig(workflowName) returns scenario config
-  //
   // Uses RegExp for reliable matching of both relative paths and absolute URLs
-  // This ensures server-side fetch (Next.js API routes) is properly intercepted
   http.get(WORKFLOW_LOGS_PATTERN, async ({ request }) => {
-    // Extract workflow name from URL using pathname
     const url = new URL(request.url);
     const pathMatch = url.pathname.match(/\/api\/workflow\/([^/]+)\/logs$/);
     const name = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
-
-    // Abort any existing stream for this workflow to prevent concurrent streams
-    // This prevents MaxListenersExceededWarning during HMR or rapid navigation
-    const streamKey = `workflow:${name}`;
-    abortExistingStream(streamKey);
-
-    // Real backend params
-    const taskFilter = url.searchParams.get("task_name");
-    const taskId = url.searchParams.get("task_id");
-    const groupId = url.searchParams.get("group_id");
-
-    // Get workflow metadata (check mock workflows first, then generated workflows)
-    const mockWorkflow = getMockWorkflow(name);
-    const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
-
-    // Determine which tasks to include in logs
-    let taskNames: string[];
-    if (taskId) {
-      // Task-scoped: find task by UUID and use its name
-      const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.task_uuid === taskId);
-      taskNames = task ? [task.name] : [];
-    } else if (groupId) {
-      // Group-scoped: include all tasks in the group
-      const group = workflow?.groups.find((g) => g.name === groupId);
-      taskNames = group?.tasks?.map((t) => t.name) ?? [];
-    } else if (taskFilter) {
-      // Legacy task_name filter
-      taskNames = [taskFilter];
-    } else {
-      // Workflow-scoped: include all tasks
-      taskNames = workflow?.groups.flatMap((g) => g.tasks?.map((t) => t.name) ?? []) ?? ["main"];
-    }
-
-    // Extract time range from workflow metadata for realistic log timestamps
-    const workflowStartTime = workflow?.start_time ? new Date(workflow.start_time) : undefined;
-
-    // ALL workflows now stream (matches new unified architecture)
-    // - Completed workflows (end_time exists): Generate all logs upfront, stream in chunks (object storage)
-    // - Running workflows (end_time undefined): Stream infinitely with realistic delays (real-time)
-    const isCompleted = workflow?.end_time !== undefined;
-
-    let stream: ReadableStream<Uint8Array>;
-
-    if (isCompleted) {
-      // Completed workflows: Generate all logs synchronously and stream in chunks
-      // This simulates reading from object storage (fast, no line-by-line delays)
-      const allLogs = logGenerator.generateForWorkflow({
-        workflowName: name,
-        taskNames,
-        startTime: workflowStartTime,
-        endTime: workflow?.end_time ? new Date(workflow.end_time) : undefined,
-      });
-      stream = buildChunkedStream(allLogs);
-    } else {
-      // Running workflows: Stream with delays to simulate real-time log generation
-      const encoder = new TextEncoder();
-      const abortController = new AbortController();
-
-      // Register this controller so concurrent requests can abort it
-      activeStreams.set(streamKey, abortController);
-
-      const streamGen = logGenerator.createStream({
-        workflowName: name,
-        taskNames,
-        continueFrom: workflowStartTime,
-        signal: abortController.signal,
-      });
-
-      stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          try {
-            for await (const line of streamGen) {
-              controller.enqueue(encoder.encode(line));
-            }
-          } catch {
-            // Stream closed, aborted, or error occurred
-          } finally {
-            // Clean up the active stream tracker
-            activeStreams.delete(streamKey);
-            try {
-              controller.close();
-            } catch {
-              // Already closed
-            }
-          }
-        },
-        cancel() {
-          // Signal the async generator to stop yielding immediately
-          abortController.abort();
-          // Clean up immediately on cancel
-          activeStreams.delete(streamKey);
-        },
-      });
-    }
-
-    return new HttpResponse(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=us-ascii",
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "no-cache",
-      },
-    });
+    const workflow = getMockWorkflow(name) ?? workflowGenerator.getByName(name);
+    return logGenerator.handleWorkflowLogs(request, name, workflow);
   }),
 
   // NOTE: /api/workflow/:name/logs/stream was removed - not a real backend endpoint
@@ -278,55 +164,17 @@ export const handlers = [
 
   // Workflow events
   http.get("*/api/workflow/:name/events", async ({ params, request }) => {
-    await delay(MOCK_DELAY);
-
     const name = params.name as string;
-    const url = new URL(request.url);
-    const taskName = url.searchParams.get("task_name");
-
     const workflow = getMockWorkflow(name) ?? workflowGenerator.getByName(name);
-    if (!workflow) return HttpResponse.text("", { status: 404 });
+    return eventGenerator.handleWorkflowEvents(request, name, workflow);
+  }),
 
-    const streamKey = `events:${name}`;
-    abortExistingStream(streamKey);
-
-    const events = eventGenerator.generateEventsForWorkflow(workflow, taskName ?? undefined);
-    const lines = eventGenerator.formatEventLines(events);
-
-    const EVENT_HEADERS = {
-      "Content-Type": "text/plain; charset=us-ascii",
-      "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "no-cache",
-    };
-
-    if (workflow.end_time !== undefined) {
-      return new HttpResponse(buildChunkedStream(lines.join("\n")), { headers: EVENT_HEADERS });
-    }
-
-    const encoder = new TextEncoder();
-    const abortController = new AbortController();
-    activeStreams.set(streamKey, abortController);
-    const streamGen = eventGenerator.createStream({ workflow, taskNameFilter: taskName ?? undefined, signal: abortController.signal });
-
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          for (const line of lines) controller.enqueue(encoder.encode(line + "\n"));
-          for await (const line of streamGen) controller.enqueue(encoder.encode(line));
-        } catch {
-          // Stream closed or aborted
-        } finally {
-          activeStreams.delete(streamKey);
-          try { controller.close(); } catch { /* already closed */ }
-        }
-      },
-      cancel() {
-        abortController.abort();
-        activeStreams.delete(streamKey);
-      },
-    });
-
-    return new HttpResponse(stream, { headers: EVENT_HEADERS });
+  // Task-scoped events (task name comes from path, not query param)
+  http.get("*/api/workflow/:name/task/:taskName/events", async ({ params, request }) => {
+    const name = params.name as string;
+    const taskName = params.taskName as string;
+    const workflow = getMockWorkflow(name) ?? workflowGenerator.getByName(name);
+    return eventGenerator.handleWorkflowEvents(request, name, workflow, taskName);
   }),
 
   // Workflow spec (resolved YAML)
@@ -367,144 +215,19 @@ export const handlers = [
   // Tasks
   // ==========================================================================
 
-  // Get task details
-  // SINGLE SOURCE OF TRUTH: Task data comes from the workflow, not a separate generator
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/workflow/:name/task/:taskName", async ({ params }) => {
-    await delay(MOCK_DELAY);
+  // Get task details — SINGLE SOURCE OF TRUTH: task data comes from the workflow generator
+  http.get("*/api/workflow/:name/task/:taskName", workflowGenerator.handleGetTask),
 
-    const workflowName = params.name as string;
-    const taskName = params.taskName as string;
-
-    const workflow = workflowGenerator.getByName(workflowName);
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    // Find the task in the workflow's groups
-    for (const group of workflow.groups) {
-      const task = group.tasks.find((t) => t.name === taskName);
-      if (task) {
-        return HttpResponse.json({
-          name: task.name,
-          workflow_name: workflowName,
-          group_name: group.name,
-          status: task.status,
-          retry_id: task.retry_id,
-          lead: task.lead,
-          task_uuid: task.task_uuid,
-          pod_name: task.pod_name,
-          pod_ip: task.pod_ip,
-          node_name: task.node_name,
-          scheduling_start_time: task.scheduling_start_time,
-          initializing_start_time: task.initializing_start_time,
-          input_download_start_time: task.input_download_start_time,
-          input_download_end_time: task.input_download_end_time,
-          processing_start_time: task.processing_start_time,
-          start_time: task.start_time,
-          output_upload_start_time: task.output_upload_start_time,
-          end_time: task.end_time,
-          exit_code: task.exit_code,
-          failure_message: task.failure_message,
-          logs: task.logs,
-          error_logs: task.error_logs,
-          events: task.events,
-          dashboard_url: task.dashboard_url,
-          grafana_url: task.grafana_url,
-          gpu: task.gpu,
-          cpu: task.cpu,
-          memory: task.memory,
-          storage: task.storage,
-          image: task.image,
-        });
-      }
-    }
-
-    return new HttpResponse(null, { status: 404 });
-  }),
-
-  // Task logs (with scenario support)
-  // Query params:
-  //   - log_scenario: Scenario name (normal, error-heavy, high-volume, etc.)
-  //   - log_delay: Override streaming delay (ms)
+  // Task logs (with streaming support)
   // Uses RegExp for reliable matching of both relative paths and absolute URLs
   http.get(TASK_LOGS_PATTERN, async ({ request }) => {
     const url = new URL(request.url);
     const pathMatch = url.pathname.match(/\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/);
     const workflowName = pathMatch ? decodeURIComponent(pathMatch[1]) : "unknown";
     const taskName = pathMatch ? decodeURIComponent(pathMatch[2]) : "unknown";
-
-    // Parse params from URL (for dev testing)
-    const delayOverride = url.searchParams.get("log_delay");
-    const isTailing = url.searchParams.get("tail") === "true";
-
-    // Get workflow and task metadata (check mock workflows first)
-    const mockWorkflow = getMockWorkflow(workflowName);
-    const workflow = mockWorkflow ?? workflowGenerator.getByName(workflowName);
-    const task = workflow?.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
-
-    // Extract time range from task metadata for realistic log timestamps
-    const taskStartTime = task?.start_time ? new Date(task.start_time) : undefined;
-    const taskEndTime = task?.end_time ? new Date(task.end_time) : undefined;
-
-    // Task logs always stream (matches workflow logs unified architecture)
-    // - Completed tasks (end_time exists): stream to EOF (finite)
-    // - Running tasks (end_time undefined): stream infinitely
-    if (isTailing) {
-      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
-      const encoder = new TextEncoder();
-      const streamKey = `task:${workflowName}:${taskName}`;
-      abortExistingStream(streamKey);
-      const abortController = new AbortController();
-      activeStreams.set(streamKey, abortController);
-
-      const streamGen = logGenerator.createStream({
-        workflowName,
-        taskNames: [taskName],
-        continueFrom: taskStartTime,
-        streamDelayMs: streamDelay,
-        signal: abortController.signal,
-      });
-
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          try {
-            for await (const line of streamGen) controller.enqueue(encoder.encode(line));
-          } catch {
-            // Stream closed or aborted
-          } finally {
-            activeStreams.delete(streamKey);
-            try { controller.close(); } catch { /* already closed */ }
-          }
-        },
-        cancel() {
-          abortController.abort();
-          activeStreams.delete(streamKey);
-        },
-      });
-
-      return new HttpResponse(stream, {
-        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
-      });
-    }
-
-    // For non-streaming workflows, generate logs using workflow config
-    await delay(MOCK_DELAY);
-
-    // Generate logs using workflow's embedded configuration
-    // Use task's actual time range for realistic timestamps
-    const logs = logGenerator.generateForWorkflow({
-      workflowName,
-      taskNames: [taskName],
-      startTime: taskStartTime,
-      endTime: taskEndTime,
-    });
-
-    return HttpResponse.text(logs, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-      },
-    });
+    const workflow = getMockWorkflow(workflowName) ?? workflowGenerator.getByName(workflowName);
+    const task = workflow.groups.flatMap((g) => g.tasks ?? []).find((t) => t.name === taskName);
+    return logGenerator.handleTaskLogs(request, workflowName, taskName, task);
   }),
 
   // ==========================================================================
@@ -650,70 +373,10 @@ export const handlers = [
   getDeleteUsersCredentialApiCredentialsCredNameDeleteMockHandler(profileGenerator.handleDeleteCredential),
 
   // ==========================================================================
-  // Auth
-  // ==========================================================================
-  //
-  // In production, authentication is handled by Envoy sidecar:
-  // - Login: Envoy redirects to OAuth provider (Keycloak)
-  // - Callback: Envoy handles at /v2/getAToken
-  // - Token refresh: Envoy manages automatically
-  // - Logout: Envoy handles at /v2/logout
-  // - User info: OAuth2 Proxy injects x-auth-request-* headers and Envoy forwards Bearer token
-  //
-  // In mock mode (local dev), auth is disabled for simplicity.
-  // Custom OAuth routes (/auth/callback, /auth/initiate, /auth/refresh_token)
-  // have been removed - they are not needed with Envoy.
-  //
-  // See: src/lib/auth/README.md for details on Envoy auth integration
-  // ==========================================================================
-
-  // Backend auth endpoint - returns login configuration
-  // Called by getLoginInfo() in lib/auth/login-info.ts
-  http.get("*/api/auth/login", async () => {
-    await delay(MOCK_DELAY);
-
-    return HttpResponse.json({
-      auth_enabled: false, // Disabled in mock mode
-      device_endpoint: "",
-      device_client_id: "",
-      browser_endpoint: "",
-      browser_client_id: "mock-client",
-      token_endpoint: "",
-      logout_endpoint: "",
-    });
-  }),
-
-  // Next.js auth config endpoint
-  // Used by AuthBackend.getConfig() to check if auth is enabled
-  http.get("*/auth/login_info", async () => {
-    await delay(MOCK_DELAY);
-
-    return HttpResponse.json({
-      auth_enabled: false, // Disabled in mock mode
-      device_endpoint: "",
-      device_client_id: "",
-      browser_endpoint: "",
-      browser_client_id: "mock-client",
-      token_endpoint: "",
-      logout_endpoint: "",
-    });
-  }),
-
-  // ==========================================================================
   // Version
   // ==========================================================================
 
-  // Uses wildcard to match both relative and absolute URLs (for server-side proxy requests)
-  http.get("*/api/version", async () => {
-    await delay(MOCK_DELAY);
-
-    return HttpResponse.json({
-      major: "1",
-      minor: "0",
-      revision: "0",
-      hash: "mock-abc123",
-    });
-  }),
+  getGetVersionApiVersionGetMockHandler({ major: "1", minor: "0", revision: "0", hash: "mock-abc123" }),
 
   // ==========================================================================
   // Task Summary — GET /api/task?summary=true

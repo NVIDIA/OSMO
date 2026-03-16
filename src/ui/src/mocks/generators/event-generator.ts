@@ -15,8 +15,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { faker } from "@faker-js/faker";
-import { hashString, abortableDelay } from "@/mocks/utils";
+import { HttpResponse, delay } from "msw";
+import { hashString, abortableDelay, getMockDelay, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
 import { TaskGroupStatus } from "@/lib/api/generated";
+
+const EVENT_HEADERS = {
+  "Content-Type": "text/plain; charset=us-ascii",
+  "X-Content-Type-Options": "nosniff",
+  "Cache-Control": "no-cache",
+} as const;
 
 const BASE_SEED = 22222;
 
@@ -771,6 +778,56 @@ export class EventGenerator {
       },
     };
   }
+
+  // ==========================================================================
+  // MSW Handler Methods
+  // ==========================================================================
+
+  /**
+   * Handles GET /api/workflow/:name/events
+   * Workflow is pre-resolved by handlers.ts (checks mock-workflows first, then generated).
+   */
+  handleWorkflowEvents = async (request: Request, name: string, workflow: EventWorkflowInput, taskNameOverride?: string): Promise<Response> => {
+    await delay(getMockDelay());
+
+    const url = new URL(request.url);
+    const taskName = taskNameOverride ?? url.searchParams.get("task_name");
+
+    const streamKey = `events:${name}`;
+    abortExistingStream(streamKey);
+
+    const events = this.generateEventsForWorkflow(workflow, taskName ?? undefined);
+    const lines = this.formatEventLines(events);
+
+    if (workflow.end_time !== undefined) {
+      return new HttpResponse(buildChunkedStream(lines.join("\n")), { headers: EVENT_HEADERS });
+    }
+
+    const encoder = new TextEncoder();
+    const abortController = new AbortController();
+    activeStreams.set(streamKey, abortController);
+    const streamGen = this.createStream({ workflow, taskNameFilter: taskName ?? undefined, signal: abortController.signal });
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for (const line of lines) controller.enqueue(encoder.encode(line + "\n"));
+          for await (const line of streamGen) controller.enqueue(encoder.encode(line));
+        } catch {
+          // Stream closed or aborted
+        } finally {
+          activeStreams.delete(streamKey);
+          try { controller.close(); } catch { /* already closed */ }
+        }
+      },
+      cancel() {
+        abortController.abort();
+        activeStreams.delete(streamKey);
+      },
+    });
+
+    return new HttpResponse(stream, { headers: EVENT_HEADERS });
+  };
 
   formatEventLines(events: GeneratedEvent[]): string[] {
     return events.map((event) => {

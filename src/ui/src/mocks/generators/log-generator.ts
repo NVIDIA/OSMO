@@ -28,9 +28,34 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { HttpResponse, delay } from "msw";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 import { getWorkflowLogConfig, type WorkflowLogConfig } from "@/mocks/mock-workflows";
-import { hashString, abortableDelay } from "@/mocks/utils";
+import { hashString, abortableDelay, getMockDelay, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
+
+const LOG_RESPONSE_HEADERS = {
+  "Content-Type": "text/plain; charset=us-ascii",
+  "X-Content-Type-Options": "nosniff",
+  "Cache-Control": "no-cache",
+} as const;
+
+/** Minimal workflow shape needed by log handlers — satisfied by MockWorkflow and WorkflowQueryResponse. */
+export interface LogWorkflowInput {
+  name: string;
+  start_time?: string;
+  end_time?: string;
+  groups: Array<{
+    name: string;
+    tasks?: Array<{ name: string; task_uuid?: string }>;
+  }>;
+}
+
+/** Minimal task shape needed by handleTaskLogs. */
+export interface LogTaskInput {
+  name: string;
+  start_time?: string;
+  end_time?: string;
+}
 
 const BASE_SEED = 11111;
 
@@ -356,6 +381,140 @@ export class LogGenerator {
       await abortableDelay(delay, signal);
     }
   }
+
+  // ==========================================================================
+  // MSW Handler Methods
+  // ==========================================================================
+
+  /**
+   * Handles GET /api/workflow/:name/logs
+   * Workflow is pre-resolved by handlers.ts (checks mock-workflows first, then generated).
+   */
+  handleWorkflowLogs = async (request: Request, name: string, workflow: LogWorkflowInput): Promise<Response> => {
+    const url = new URL(request.url);
+    const taskFilter = url.searchParams.get("task_name");
+    const taskId = url.searchParams.get("task_id");
+    const groupId = url.searchParams.get("group_id");
+
+    const streamKey = `workflow:${name}`;
+    abortExistingStream(streamKey);
+
+    let taskNames: string[];
+    if (taskId) {
+      const task = workflow.groups.flatMap((g) => g.tasks ?? []).find((t) => t.task_uuid === taskId);
+      taskNames = task ? [task.name] : [];
+    } else if (groupId) {
+      const group = workflow.groups.find((g) => g.name === groupId);
+      taskNames = group?.tasks?.map((t) => t.name) ?? [];
+    } else if (taskFilter) {
+      taskNames = [taskFilter];
+    } else {
+      taskNames = workflow.groups.flatMap((g) => g.tasks?.map((t) => t.name) ?? []);
+      if (taskNames.length === 0) taskNames = ["main"];
+    }
+
+    const workflowStartTime = workflow.start_time ? new Date(workflow.start_time) : undefined;
+
+    if (workflow.end_time !== undefined) {
+      const allLogs = this.generateForWorkflow({
+        workflowName: name,
+        taskNames,
+        startTime: workflowStartTime,
+        endTime: new Date(workflow.end_time),
+      });
+      return new HttpResponse(buildChunkedStream(allLogs), { headers: LOG_RESPONSE_HEADERS });
+    }
+
+    const encoder = new TextEncoder();
+    const abortController = new AbortController();
+    activeStreams.set(streamKey, abortController);
+
+    const streamGen = this.createStream({
+      workflowName: name,
+      taskNames,
+      continueFrom: workflowStartTime,
+      signal: abortController.signal,
+    });
+
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const line of streamGen) controller.enqueue(encoder.encode(line));
+        } catch {
+          // Stream closed or aborted
+        } finally {
+          activeStreams.delete(streamKey);
+          try { controller.close(); } catch { /* already closed */ }
+        }
+      },
+      cancel() {
+        abortController.abort();
+        activeStreams.delete(streamKey);
+      },
+    });
+
+    return new HttpResponse(stream, { headers: LOG_RESPONSE_HEADERS });
+  };
+
+  /**
+   * Handles GET /api/workflow/:name/task/:taskName/logs
+   * Task is pre-resolved by handlers.ts (may be undefined for unknown workflows).
+   */
+  handleTaskLogs = async (request: Request, workflowName: string, taskName: string, task?: LogTaskInput): Promise<Response> => {
+    const url = new URL(request.url);
+    const delayOverride = url.searchParams.get("log_delay");
+    const isTailing = url.searchParams.get("tail") === "true";
+
+    const taskStartTime = task?.start_time ? new Date(task.start_time) : undefined;
+    const taskEndTime = task?.end_time ? new Date(task.end_time) : undefined;
+
+    if (isTailing) {
+      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
+      const streamKey = `task:${workflowName}:${taskName}`;
+      abortExistingStream(streamKey);
+      const abortController = new AbortController();
+      activeStreams.set(streamKey, abortController);
+      const encoder = new TextEncoder();
+
+      const streamGen = this.createStream({
+        workflowName,
+        taskNames: [taskName],
+        continueFrom: taskStartTime,
+        streamDelayMs: streamDelay,
+        signal: abortController.signal,
+      });
+
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            for await (const line of streamGen) controller.enqueue(encoder.encode(line));
+          } catch {
+            // Stream closed or aborted
+          } finally {
+            activeStreams.delete(streamKey);
+            try { controller.close(); } catch { /* already closed */ }
+          }
+        },
+        cancel() {
+          abortController.abort();
+          activeStreams.delete(streamKey);
+        },
+      });
+
+      return new HttpResponse(stream, {
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
+      });
+    }
+
+    await delay(getMockDelay());
+    const logs = this.generateForWorkflow({
+      workflowName,
+      taskNames: [taskName],
+      startTime: taskStartTime,
+      endTime: taskEndTime,
+    });
+    return HttpResponse.text(logs, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  };
 
   // ==========================================================================
   // Private Helpers
