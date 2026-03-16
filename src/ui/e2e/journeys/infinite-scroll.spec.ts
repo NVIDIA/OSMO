@@ -14,14 +14,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  test,
-  expect,
-  createPoolResponse,
-  createResourcesResponse,
-  PoolStatus,
-  BackendResourceType,
-} from "../fixtures";
+import { test, expect } from "@playwright/test";
+import { createPoolResponse, createResourcesResponse, PoolStatus, BackendResourceType } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupResources } from "../utils/mock-setup";
 
 /**
  * Infinite Scroll E2E Tests
@@ -54,15 +49,17 @@ function createManyResources(count: number) {
 }
 
 test.describe("Infinite Scroll - Resources Page", () => {
-  test("displays resources table with data", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "pool-1", status: PoolStatus.ONLINE },
-        { name: "pool-2", status: PoolStatus.ONLINE },
-        { name: "pool-3", status: PoolStatus.ONLINE },
-      ]),
-      resources: createManyResources(100),
-    });
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
+  test("displays resources table with data", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "pool-1", status: PoolStatus.ONLINE },
+      { name: "pool-2", status: PoolStatus.ONLINE },
+      { name: "pool-3", status: PoolStatus.ONLINE },
+    ]));
+    await setupResources(page, createManyResources(100));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -74,24 +71,19 @@ test.describe("Infinite Scroll - Resources Page", () => {
     await expect(page.getByText("node-0001")).toBeVisible();
   });
 
-  test("shows resource count information", async ({ page, withData }) => {
-    await withData({
-      resources: createManyResources(150),
-    });
+  test("shows resource count information", async ({ page }) => {
+    await setupResources(page, createManyResources(150));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
     // Should display count information in the header area
-    // The exact format depends on whether we're showing "X of Y" or just "X"
     const countText = page.locator('[aria-controls="filter-content"]');
     await expect(countText).toBeVisible();
   });
 
-  test("loads more data when scrolling to bottom", async ({ page, withData }) => {
-    await withData({
-      resources: createManyResources(200),
-    });
+  test("loads more data when scrolling to bottom", async ({ page }) => {
+    await setupResources(page, createManyResources(200));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -136,14 +128,12 @@ test.describe("Infinite Scroll - Resources Page", () => {
     console.log(`Node was initially hidden: ${isInitiallyHidden}`);
   });
 
-  test("filter changes reset scroll position", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "production", status: PoolStatus.ONLINE },
-        { name: "development", status: PoolStatus.ONLINE },
-      ]),
-      resources: createManyResources(100),
-    });
+  test("filter changes reset scroll position", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "production", status: PoolStatus.ONLINE },
+      { name: "development", status: PoolStatus.ONLINE },
+    ]));
+    await setupResources(page, createManyResources(100));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -161,26 +151,21 @@ test.describe("Infinite Scroll - Resources Page", () => {
     }
   });
 
-  test("handles empty results gracefully", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "empty-pool", status: PoolStatus.ONLINE },
-      ]),
-      resources: { resources: [] },
-    });
+  test("handles empty results gracefully", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "empty-pool", status: PoolStatus.ONLINE },
+    ]));
+    await setupResources(page, { resources: [] });
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
     // Should show empty state or "no resources" message
-    // The exact text depends on the UI implementation
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/resources/i);
   });
 
-  test("maintains scroll position on back navigation", async ({ page, withData }) => {
-    await withData({
-      resources: createManyResources(100),
-    });
+  test("maintains scroll position on back navigation", async ({ page }) => {
+    await setupResources(page, createManyResources(100));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -202,34 +187,36 @@ test.describe("Infinite Scroll - Resources Page", () => {
 });
 
 test.describe("Loading States", () => {
-  test("shows skeleton during initial load", async ({ page, withData }) => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
+  test("shows skeleton during initial load", async ({ page }) => {
     // Delay the response to see loading state
     await page.route("**/api/resources*", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 500));
       await route.fulfill({
         status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(createManyResources(50)),
+        json: createManyResources(50),
       });
     });
 
-    await withData({
-      pools: createPoolResponse([{ name: "test", status: PoolStatus.ONLINE }]),
-    });
+    await setupPools(page, createPoolResponse([{ name: "test", status: PoolStatus.ONLINE }]));
 
     await page.goto("/resources");
 
     // Should show loading indicator or skeleton
-    // This depends on the specific loading state implementation
     await page.waitForLoadState("networkidle");
   });
 });
 
 test.describe("Filter Integration", () => {
-  test("search works with paginated data", async ({ page, withData }) => {
-    await withData({
-      resources: createManyResources(100),
-    });
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
+  test("search works with paginated data", async ({ page }) => {
+    await setupResources(page, createManyResources(100));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -247,25 +234,23 @@ test.describe("Filter Integration", () => {
     }
   });
 
-  test("pool filter updates results", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "pool-1", status: PoolStatus.ONLINE },
-        { name: "pool-2", status: PoolStatus.ONLINE },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "pool1-node.cluster",
-          exposed_fields: { node: "pool1-node", "pool/platform": ["pool-1/dgx"] },
-          pool_platform_labels: { "pool-1": ["dgx"] },
-        },
-        {
-          hostname: "pool2-node.cluster",
-          exposed_fields: { node: "pool2-node", "pool/platform": ["pool-2/dgx"] },
-          pool_platform_labels: { "pool-2": ["dgx"] },
-        },
-      ]),
-    });
+  test("pool filter updates results", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "pool-1", status: PoolStatus.ONLINE },
+      { name: "pool-2", status: PoolStatus.ONLINE },
+    ]));
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "pool1-node.cluster",
+        exposed_fields: { node: "pool1-node", "pool/platform": ["pool-1/dgx"] },
+        pool_platform_labels: { "pool-1": ["dgx"] },
+      },
+      {
+        hostname: "pool2-node.cluster",
+        exposed_fields: { node: "pool2-node", "pool/platform": ["pool-2/dgx"] },
+        pool_platform_labels: { "pool-2": ["dgx"] },
+      },
+    ]));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");

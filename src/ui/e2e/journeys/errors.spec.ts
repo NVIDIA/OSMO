@@ -25,20 +25,21 @@
  *   pnpm test:e2e --ui
  */
 
-import { test, expect } from "../fixtures";
+import { test, expect } from "@playwright/test";
 import { createPoolResponse, createResourcesResponse, PoolStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupResources } from "../utils/mock-setup";
 
 // =============================================================================
 // API Errors - Inline error display via <ApiError />
-// Uses fixtures with poolsError/resourcesError scenarios
 // =============================================================================
 
 test.describe("API Errors (Inline)", () => {
-  test("pools page shows inline error when API fails", async ({ page, withData }) => {
-    // Configure pools API to return error (4xx = not retryable, fails fast)
-    await withData({
-      poolsError: { status: 400, detail: "Bad request: invalid pool query" },
-    });
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
+  test("pools page shows inline error when API fails", async ({ page }) => {
+    await setupPools(page, { status: 400, detail: "Bad request: invalid pool query" });
 
     await page.goto("/pools");
     await page.waitForLoadState("networkidle");
@@ -47,11 +48,8 @@ test.describe("API Errors (Inline)", () => {
     await expect(page.getByTestId("api-error")).toBeVisible({ timeout: 10000 });
   });
 
-  test("resources page shows inline error when API fails", async ({ page, withData }) => {
-    // Configure resources API to return error
-    await withData({
-      resourcesError: { status: 400, detail: "Bad request: invalid resource query" },
-    });
+  test("resources page shows inline error when API fails", async ({ page }) => {
+    await setupResources(page, { status: 400, detail: "Bad request: invalid resource query" });
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -61,12 +59,9 @@ test.describe("API Errors (Inline)", () => {
     await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 
-  test("pool detail page shows inline error when API fails", async ({ page, withData }) => {
-    // Configure both APIs to return errors (pool detail needs both)
-    await withData({
-      poolsError: { status: 404, detail: "Pool not found" },
-      resourcesError: { status: 404, detail: "Pool not found" },
-    });
+  test("pool detail page shows inline error when API fails", async ({ page }) => {
+    await setupPools(page, { status: 404, detail: "Pool not found" });
+    await setupResources(page, { status: 404, detail: "Pool not found" });
 
     await page.goto("/pools/test-pool");
     await page.waitForLoadState("networkidle");
@@ -77,17 +72,16 @@ test.describe("API Errors (Inline)", () => {
   });
 
   test("resource panel shows inline error when detail fetch fails", async ({ page }) => {
-    // This test needs manual routing with call counting:
+    // This test needs call counting:
     // - First calls succeed (page loads, resource table shows)
     // - Later calls fail (panel detail fetch fails)
     let poolQuotaCallCount = 0;
     let resourcesCallCount = 0;
 
-    // Clear fixture routes first to avoid conflicts
+    // Remove the default routes registered by setupDefaultMocks for these endpoints
     await page.unroute("**/api/pool_quota*");
     await page.unroute("**/api/resources*");
 
-    // Create properly structured mock data using factories
     const mockPoolData = createPoolResponse([
       {
         name: "test-pool",
@@ -108,42 +102,27 @@ test.describe("API Errors (Inline)", () => {
       },
     ]);
 
-    // Override pool_quota route - first call succeeds, subsequent fail
+    // First call succeeds, subsequent calls fail
     await page.route("**/api/pool_quota*", async (route) => {
       poolQuotaCallCount++;
       if (poolQuotaCallCount === 1) {
-        // First call succeeds (page load with pools=test-pool)
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockPoolData),
-        });
+        await route.fulfill({ status: 200, json: mockPoolData });
       } else {
-        // Second call fails (panel with all_pools=true)
         await route.fulfill({
           status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({ detail: "Failed to fetch pool configs" }),
+          json: { detail: "Failed to fetch pool configs" },
         });
       }
     });
 
-    // Override resources route - first call succeeds, subsequent fail
     await page.route("**/api/resources*", async (route) => {
       resourcesCallCount++;
       if (resourcesCallCount === 1) {
-        // First call succeeds (page load with pools=test-pool)
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockResourceData),
-        });
+        await route.fulfill({ status: 200, json: mockResourceData });
       } else {
-        // Second call fails (panel with all_pools=true)
         await route.fulfill({
           status: 400,
-          contentType: "application/json",
-          body: JSON.stringify({ detail: "Failed to fetch resource details" }),
+          json: { detail: "Failed to fetch resource details" },
         });
       }
     });
@@ -153,7 +132,6 @@ test.describe("API Errors (Inline)", () => {
     await page.waitForLoadState("networkidle");
 
     // Wait for resource table to load and show the resource
-    // The transform extracts the node name from exposed_fields.node
     const resourceRow = page.getByText("gpu-node-1");
     await expect(resourceRow).toBeVisible({ timeout: 15000 });
 
@@ -165,11 +143,8 @@ test.describe("API Errors (Inline)", () => {
     await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
   });
 
-  test("retry button is clickable", async ({ page, withData }) => {
-    // Configure resources API to always fail
-    await withData({
-      resourcesError: { status: 400, detail: "Permanent failure" },
-    });
+  test("retry button is clickable", async ({ page }) => {
+    await setupResources(page, { status: 400, detail: "Permanent failure" });
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
@@ -186,21 +161,22 @@ test.describe("API Errors (Inline)", () => {
 
 // =============================================================================
 // Render Errors - Caught by error.tsx boundaries
-// These use manual page.route to return malformed data that crashes transforms
+// These return malformed data that crashes transforms
 // =============================================================================
 
 test.describe("Render Errors (error.tsx)", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
   test("dashboard error: shows error UI when pools API returns malformed data", async ({ page }) => {
     // Override pool_quota to return malformed data that will cause transform to crash
-    // (page.route added after fixtures takes precedence)
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
+    await page.route("**/api/pool_quota*", (route) =>
+      route.fulfill({
         status: 200,
-        contentType: "application/json",
-        // node_sets should be an array, this will cause .flatMap() to fail
-        body: JSON.stringify({ node_sets: "this should be an array" }),
-      });
-    });
+        json: { node_sets: "this should be an array" },
+      }),
+    );
 
     await page.goto("/pools");
 
@@ -214,13 +190,9 @@ test.describe("Render Errors (error.tsx)", () => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
     // Return malformed data
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
+    await page.route("**/api/pool_quota*", (route) =>
+      route.fulfill({ status: 200, json: { node_sets: "invalid" } }),
+    );
 
     await page.goto("/pools");
 
@@ -242,14 +214,9 @@ test.describe("Render Errors (error.tsx)", () => {
   });
 
   test("pools error shows 'View all pools' navigation", async ({ page }) => {
-    // Return malformed data
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
+    await page.route("**/api/pool_quota*", (route) =>
+      route.fulfill({ status: 200, json: { node_sets: "invalid" } }),
+    );
 
     await page.goto("/pools");
 
@@ -263,15 +230,14 @@ test.describe("Render Errors (error.tsx)", () => {
 // =============================================================================
 
 test.describe("Error Recovery", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
   test("pools error 'View all pools' navigates correctly", async ({ page }) => {
-    // Return malformed data
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
+    await page.route("**/api/pool_quota*", (route) =>
+      route.fulfill({ status: 200, json: { node_sets: "invalid" } }),
+    );
 
     await page.goto("/pools");
 
@@ -286,14 +252,9 @@ test.describe("Error Recovery", () => {
   });
 
   test("'Try again' button is clickable on error boundary", async ({ page }) => {
-    // Return malformed data to trigger error boundary
-    await page.route("**/api/pool_quota*", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ node_sets: "invalid" }),
-      });
-    });
+    await page.route("**/api/pool_quota*", (route) =>
+      route.fulfill({ status: 200, json: { node_sets: "invalid" } }),
+    );
 
     await page.goto("/pools");
 

@@ -175,14 +175,5 @@ export function createResourcesResponse(resources: Partial<ResourcesEntry>[] = [
   return { resources: defaultResources };
 }
 
-// Valid JWT (expires year 2099): header.payload.signature
-export const mockIdToken = [
-  "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9",
-  "eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoidGVzdHVzZXJAZXhhbXBsZS5jb20iLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJ0ZXN0dXNlciIsImV4cCI6NDEwMjQ0NDgwMH0",
-  "fake-signature",
-].join(".");
-
-export const mockRefreshToken = "mock-refresh-token-valid";
-
 // Re-export generated enums so E2E tests can import from one place
 export { BackendResourceType, PoolStatus } from "@/lib/api/generated";

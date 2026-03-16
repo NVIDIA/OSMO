@@ -14,16 +14,21 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from "../fixtures";
+import { test, expect } from "@playwright/test";
+import { setupDefaultMocks } from "../utils/mock-setup";
 
 /**
  * Navigation Journey Tests
  *
  * Tests core navigation functionality.
- * Uses default mock data (auth disabled, standard pools/resources).
+ * Uses default mocks (auth disabled, no API data required for navigation).
  */
 
 test.describe("Main Navigation", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
   test("navigates to main sections via sidebar", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -59,6 +64,10 @@ test.describe("Main Navigation", () => {
 });
 
 test.describe("Accessibility", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
   test("skip link allows keyboard users to skip navigation", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -106,11 +115,15 @@ test.describe("Accessibility", () => {
     await page.keyboard.press("Enter");
 
     // Should have navigated
-    await expect(page.url()).not.toBe("about:blank");
+    expect(page.url()).not.toBe("about:blank");
   });
 });
 
 test.describe("Responsive Behavior", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
   test("navigation works on mobile viewport", async ({ page }) => {
     // Set mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
@@ -130,6 +143,10 @@ test.describe("Responsive Behavior", () => {
 });
 
 test.describe("Error Handling", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
   test("shows not found page for invalid routes", async ({ page }) => {
     await page.goto("/this-page-does-not-exist");
 
