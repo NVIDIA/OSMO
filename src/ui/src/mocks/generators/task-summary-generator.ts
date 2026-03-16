@@ -388,15 +388,6 @@ export class TaskSummaryGenerator {
     return result;
   }
 
-  /** All distinct pool names in the dataset. */
-  getPools(): string[] {
-    return [...new Set(ALL_ENTRIES.map((e) => e.pool).filter(Boolean) as string[])].sort();
-  }
-
-  /** All distinct user names in the dataset. */
-  getUsers(): string[] {
-    return [...new Set(ALL_ENTRIES.map((e) => e.user))].sort();
-  }
 }
 
 export const taskSummaryGenerator = new TaskSummaryGenerator();

@@ -10,7 +10,7 @@
 /**
  * Mock WebSocket Server for Terminal/PTY Simulation
  *
- * Run with: node scripts/mock-ws-server.mjs
+ * Run with: node scripts/mock-exec-server.mjs
  *
  * This server simulates the backend PTY WebSocket connection for development.
  * It runs on port 3001 and proxies through the Next.js dev server.

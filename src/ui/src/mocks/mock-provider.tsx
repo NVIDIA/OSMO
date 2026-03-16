@@ -32,7 +32,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import { setMockVolumes, getMockVolumes } from "@/mocks/actions/mock-config";
-import type { MockVolumes } from "@/mocks/actions/mock-config.types";
+import type { MockVolumes } from "@/mocks/global-config";
 
 interface MockProviderProps {
   children: ReactNode;

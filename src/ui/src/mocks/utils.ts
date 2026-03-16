@@ -128,3 +128,41 @@ export function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> 
     signal.addEventListener("abort", onAbort, { once: true });
   });
 }
+
+// ============================================================================
+// Stream Management
+// ============================================================================
+
+/**
+ * Tracks active streams to prevent concurrent streams for the same key.
+ * Prevents MaxListenersExceededWarning during HMR or rapid navigation.
+ */
+export const activeStreams = new Map<string, AbortController>();
+
+/**
+ * Abort and remove any existing stream registered under the given key.
+ */
+export function abortExistingStream(key: string): void {
+  const existing = activeStreams.get(key);
+  if (existing) {
+    existing.abort();
+    activeStreams.delete(key);
+  }
+}
+
+/**
+ * Wrap a text string in a ReadableStream that yields ~64KB chunks.
+ * Simulates reading completed workflow data from object storage.
+ */
+export function buildChunkedStream(text: string): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const CHUNK_SIZE = 65536;
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+        controller.enqueue(encoder.encode(text.slice(i, i + CHUNK_SIZE)));
+      }
+      controller.close();
+    },
+  });
+}

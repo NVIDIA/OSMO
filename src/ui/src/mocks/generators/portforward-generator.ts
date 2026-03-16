@@ -27,26 +27,6 @@ import { hashString } from "@/mocks/utils";
 // Types
 // ============================================================================
 
-export interface GeneratedPortForwardSession {
-  session_id: string;
-  workflow_name: string;
-  task_name: string;
-  local_port: number;
-  remote_port: number;
-  target_host: string;
-  router_address: string;
-  status: "CONNECTING" | "ACTIVE" | "DISCONNECTED" | "FAILED";
-  created_at: string;
-  expires_at: string;
-  access_url: string;
-}
-
-export interface GeneratedPortForwardRequest {
-  workflow_name: string;
-  task_name: string;
-  remote_port: number;
-}
-
 export interface GeneratedPortForwardResponse {
   success: boolean;
   session_id?: string;
@@ -78,19 +58,14 @@ const PORT_FORWARD_PATTERNS = {
 
 export class PortForwardGenerator {
   private baseSeed: number;
-  private activeSessions: Map<string, GeneratedPortForwardSession> = new Map();
 
   constructor(baseSeed: number = 77777) {
     this.baseSeed = baseSeed;
   }
 
-  /**
-   * Create a new port forward session
-   */
   createSession(workflowName: string, taskName: string, remotePort: number): GeneratedPortForwardResponse {
     faker.seed(this.baseSeed + hashString(workflowName + taskName + remotePort));
 
-    // Simulate occasional failures
     if (faker.datatype.boolean({ probability: 0.1 })) {
       return {
         success: false,
@@ -107,55 +82,12 @@ export class PortForwardGenerator {
     const routerDomain = faker.helpers.arrayElement(PORT_FORWARD_PATTERNS.routerDomains);
     const sessionPath = faker.string.alphanumeric(16).toLowerCase();
 
-    const session: GeneratedPortForwardSession = {
-      session_id: sessionId,
-      workflow_name: workflowName,
-      task_name: taskName,
-      local_port: faker.number.int({ min: 10000, max: 60000 }),
-      remote_port: remotePort,
-      target_host: `${workflowName}-${taskName}.default.svc.cluster.local`,
-      router_address: `${routerDomain}/${sessionPath}`,
-      status: "ACTIVE",
-      created_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-      access_url: `https://${routerDomain}/${sessionPath}`,
-    };
-
-    this.activeSessions.set(sessionId, session);
-
     return {
       success: true,
       session_id: sessionId,
-      router_address: session.router_address,
-      access_url: session.access_url,
+      router_address: `${routerDomain}/${sessionPath}`,
+      access_url: `https://${routerDomain}/${sessionPath}`,
     };
-  }
-
-  /**
-   * Get session by ID
-   */
-  getSession(sessionId: string): GeneratedPortForwardSession | null {
-    return this.activeSessions.get(sessionId) || null;
-  }
-
-  /**
-   * Get active sessions for a workflow
-   */
-  getWorkflowSessions(workflowName: string): GeneratedPortForwardSession[] {
-    return Array.from(this.activeSessions.values()).filter((s) => s.workflow_name === workflowName);
-  }
-
-  /**
-   * Close a session
-   */
-  closeSession(sessionId: string): boolean {
-    const session = this.activeSessions.get(sessionId);
-    if (session) {
-      session.status = "DISCONNECTED";
-      this.activeSessions.delete(sessionId);
-      return true;
-    }
-    return false;
   }
 }
 

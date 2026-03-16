@@ -41,7 +41,7 @@ For mock mode (no backend needed): `pnpm dev:mock`
 pnpm dev                    # Dev server (Turbopack)
 pnpm dev:local              # Dev server → localhost:8000
 pnpm dev:mock               # Dev with mock data (no backend needed)
-pnpm dev:mock-ws            # Mock WebSocket server
+pnpm dev:mock-exec          # Mock exec WebSocket server
 pnpm build                  # Production build (Turbopack + compression)
 pnpm start                  # Run production build
 pnpm clean                  # Remove .next and .turbo caches

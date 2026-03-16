@@ -335,22 +335,3 @@ export class ResourceGenerator {
 
 export const resourceGenerator = new ResourceGenerator();
 
-// ============================================================================
-// Configuration helpers
-// ============================================================================
-
-export function setResourcePerPool(total: number): void {
-  resourceGenerator.perPool = total;
-}
-
-export function getResourcePerPool(): number {
-  return resourceGenerator.perPool;
-}
-
-export function setResourceTotalGlobal(total: number): void {
-  resourceGenerator.totalGlobal = total;
-}
-
-export function getResourceTotalGlobal(): number {
-  return resourceGenerator.totalGlobal;
-}

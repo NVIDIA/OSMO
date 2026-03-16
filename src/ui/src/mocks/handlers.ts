@@ -24,7 +24,16 @@
  */
 
 import { http, HttpResponse, delay, passthrough } from "msw";
-import { getFastAPIMock } from "@/mocks/generated-mocks";
+import {
+  getFastAPIMock,
+  getGetBucketInfoApiBucketGetMockHandler,
+  getListDatasetFromBucketApiBucketListDatasetGetMockHandler,
+  getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler,
+  getGetPoolQuotasApiPoolQuotaGetMockHandler,
+  getGetNotificationSettingsApiProfileSettingsGetMockHandler,
+  getGetUserCredentialApiCredentialsGetMockHandler,
+  getDeleteUsersCredentialApiCredentialsCredNameDeleteMockHandler,
+} from "@/mocks/generated-mocks";
 import { faker } from "@faker-js/faker";
 import { workflowGenerator } from "@/mocks/generators/workflow-generator";
 import { poolGenerator } from "@/mocks/generators/pool-generator";
@@ -36,9 +45,8 @@ import { bucketGenerator } from "@/mocks/generators/bucket-generator";
 import { datasetGenerator } from "@/mocks/generators/dataset-generator";
 import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
-import { ptySimulator, type PTYScenario } from "@/mocks/generators/pty-simulator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
-import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString } from "@/mocks/utils";
+import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
 import { getMockWorkflow, getWorkflowLogConfig } from "@/mocks/mock-workflows";
 import { MOCK_CONFIG, SHARED_POOL_ALPHA, SHARED_POOL_BETA } from "@/mocks/seed/types";
 
@@ -49,17 +57,6 @@ const MOCK_DELAY = getMockDelay();
 // Stateful Mock Data (persists changes during session)
 // =============================================================================
 
-// Store profile settings that can be updated via POST
-const mockProfileSettings: {
-  email_notification?: boolean;
-  slack_notification?: boolean;
-  bucket?: string;
-  pool?: string;
-} = {};
-
-// Store credentials that can be created/updated/deleted
-// Maps credential name -> credential object
-const mockCredentials: Map<string, unknown> = new Map();
 
 // =============================================================================
 // URL Matching Patterns
@@ -76,13 +73,23 @@ const mockCredentials: Map<string, unknown> = new Map();
 const WORKFLOW_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/logs$/;
 const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
 
-// ============================================================================
-// Stream Management
-// ============================================================================
-
-// Track active streams to prevent concurrent streams for the same workflow
-// (Prevents MaxListenersExceededWarning during HMR or rapid navigation)
-const activeStreams = new Map<string, AbortController>();
+const EXT_TO_CONTENT_TYPE: Record<string, string> = {
+  json: "application/json",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  pdf: "application/pdf",
+  parquet: "application/octet-stream",
+  tfrecord: "application/octet-stream",
+};
 
 // ============================================================================
 // Handlers
@@ -407,11 +414,7 @@ export const handlers = [
     // Abort any existing stream for this workflow to prevent concurrent streams
     // This prevents MaxListenersExceededWarning during HMR or rapid navigation
     const streamKey = `workflow:${name}`;
-    const existingController = activeStreams.get(streamKey);
-    if (existingController) {
-      existingController.abort();
-      activeStreams.delete(streamKey);
-    }
+    abortExistingStream(streamKey);
 
     // Real backend params
     const taskFilter = url.searchParams.get("task_name");
@@ -446,7 +449,6 @@ export const handlers = [
     // ALL workflows now stream (matches new unified architecture)
     // - Completed workflows (end_time exists): Generate all logs upfront, stream in chunks (object storage)
     // - Running workflows (end_time undefined): Stream infinitely with realistic delays (real-time)
-    const encoder = new TextEncoder();
     const isCompleted = workflow?.end_time !== undefined;
 
     let stream: ReadableStream<Uint8Array>;
@@ -460,24 +462,10 @@ export const handlers = [
         startTime: workflowStartTime,
         endTime: workflow?.end_time ? new Date(workflow.end_time) : undefined,
       });
-
-      // Stream in chunks (~64KB each) to simulate network transfer
-      const CHUNK_SIZE = 64 * 1024; // 64KB chunks
-      const chunks: string[] = [];
-      for (let i = 0; i < allLogs.length; i += CHUNK_SIZE) {
-        chunks.push(allLogs.slice(i, i + CHUNK_SIZE));
-      }
-
-      stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const chunk of chunks) {
-            controller.enqueue(encoder.encode(chunk));
-          }
-          controller.close();
-        },
-      });
+      stream = buildChunkedStream(allLogs);
     } else {
       // Running workflows: Stream with delays to simulate real-time log generation
+      const encoder = new TextEncoder();
       const abortController = new AbortController();
 
       // Register this controller so concurrent requests can abort it
@@ -530,128 +518,56 @@ export const handlers = [
   // Streaming is handled via the regular /logs endpoint with Transfer-Encoding: chunked
 
   // Workflow events
-  // Backend returns PlainTextResponse (streaming text via Redis Streams), not JSON
-  // Query params: task_name, retry_id (optional - for task-specific filtering)
-  // Format: {ISO timestamp} [{entity}] {reason}: {message}
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  //
-  // Streaming behavior (mirrors log endpoint):
-  // - Terminal workflows (end_time exists): Generate all events upfront, stream as ~64KB chunks
-  // - Active workflows (end_time undefined): Stream existing events, then yield new events with delays
   http.get("*/api/workflow/:name/events", async ({ params, request }) => {
     await delay(MOCK_DELAY);
 
     const name = params.name as string;
     const url = new URL(request.url);
     const taskName = url.searchParams.get("task_name");
-    // retryId unused for now - could be used to filter specific retry attempts
-    // const retryId = url.searchParams.get("retry_id");
 
-    // Check mock workflows first (e.g. mock-streaming-running), then generated workflows
-    const mockWorkflow = getMockWorkflow(name);
-    const workflow = mockWorkflow ?? workflowGenerator.getByName(name);
-    if (!workflow) {
-      return HttpResponse.text("", { status: 404 });
-    }
+    const workflow = getMockWorkflow(name) ?? workflowGenerator.getByName(name);
+    if (!workflow) return HttpResponse.text("", { status: 404 });
 
-    // Abort any existing event stream for this workflow to prevent concurrent streams
-    // (Prevents MaxListenersExceededWarning during HMR or rapid navigation)
     const streamKey = `events:${name}`;
-    const existingController = activeStreams.get(streamKey);
-    if (existingController) {
-      existingController.abort();
-      activeStreams.delete(streamKey);
-    }
+    abortExistingStream(streamKey);
 
-    // ✅ Delegate event generation to generator (single source of truth)
     const events = eventGenerator.generateEventsForWorkflow(workflow, taskName ?? undefined);
+    const lines = eventGenerator.formatEventLines(events);
 
-    // Format to plain text lines (backend format)
-    // Backend format: "2026-02-09 05:15:08+00:00" (space-separated, +00:00 timezone)
-    const lines = events.map((event) => {
-      const timestamp = new Date(event.first_timestamp)
-        .toISOString()
-        .replace("T", " ")
-        .replace(/\.\d{3}Z$/, "+00:00");
-      return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
-    });
+    const EVENT_HEADERS = {
+      "Content-Type": "text/plain; charset=us-ascii",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-cache",
+    };
+
+    if (workflow.end_time !== undefined) {
+      return new HttpResponse(buildChunkedStream(lines.join("\n")), { headers: EVENT_HEADERS });
+    }
 
     const encoder = new TextEncoder();
-    const isCompleted = workflow.end_time !== undefined;
+    const abortController = new AbortController();
+    activeStreams.set(streamKey, abortController);
+    const streamGen = eventGenerator.createStream({ workflow, taskNameFilter: taskName ?? undefined, signal: abortController.signal });
 
-    let stream: ReadableStream<Uint8Array>;
-
-    if (isCompleted) {
-      // Completed workflows: Generate all events synchronously and stream in chunks
-      // This simulates reading from object storage (fast, no line-by-line delays)
-      const allText = lines.join("\n");
-      const CHUNK_SIZE = 64 * 1024; // 64KB chunks
-      const chunks: string[] = [];
-      for (let i = 0; i < allText.length; i += CHUNK_SIZE) {
-        chunks.push(allText.slice(i, i + CHUNK_SIZE));
-      }
-
-      stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          for (const chunk of chunks) {
-            controller.enqueue(encoder.encode(chunk));
-          }
-          controller.close();
-        },
-      });
-    } else {
-      // Running workflows: Stream existing events first (catch-up), then yield new events with delays
-      const abortController = new AbortController();
-
-      // Register this controller so concurrent requests can abort it
-      activeStreams.set(streamKey, abortController);
-
-      const streamGen = eventGenerator.createStream({
-        workflow,
-        taskNameFilter: taskName ?? undefined,
-        signal: abortController.signal,
-      });
-
-      stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          try {
-            // Phase 1: Catch-up — yield all existing events immediately
-            for (const line of lines) {
-              controller.enqueue(encoder.encode(line + "\n"));
-            }
-
-            // Phase 2: Live — yield new events from async generator with delays
-            for await (const line of streamGen) {
-              controller.enqueue(encoder.encode(line));
-            }
-          } catch {
-            // Stream closed, aborted, or error occurred
-          } finally {
-            // Clean up the active stream tracker
-            activeStreams.delete(streamKey);
-            try {
-              controller.close();
-            } catch {
-              // Already closed
-            }
-          }
-        },
-        cancel() {
-          // Signal the async generator to stop yielding immediately
-          abortController.abort();
-          // Clean up immediately on cancel
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for (const line of lines) controller.enqueue(encoder.encode(line + "\n"));
+          for await (const line of streamGen) controller.enqueue(encoder.encode(line));
+        } catch {
+          // Stream closed or aborted
+        } finally {
           activeStreams.delete(streamKey);
-        },
-      });
-    }
-
-    return new HttpResponse(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=us-ascii",
-        "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "no-cache",
+          try { controller.close(); } catch { /* already closed */ }
+        }
+      },
+      cancel() {
+        abortController.abort();
+        activeStreams.delete(streamKey);
       },
     });
+
+    return new HttpResponse(stream, { headers: EVENT_HEADERS });
   }),
 
   // Workflow spec (resolved YAML)
@@ -844,38 +760,6 @@ export const handlers = [
     });
   }),
 
-  // Task events (DEPRECATED - use /api/workflow/:name/events?task_name=X&retry_id=Y instead)
-  // Keeping for backward compatibility if any direct calls exist
-  http.get("*/api/workflow/:name/task/:taskName/events", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const workflowName = params.name as string;
-    const taskName = params.taskName as string;
-
-    // Check mock workflows first, then generated workflows
-    const mockWorkflow = getMockWorkflow(workflowName);
-    const workflow = mockWorkflow ?? workflowGenerator.getByName(workflowName);
-    if (!workflow) {
-      return HttpResponse.text("", { status: 404 });
-    }
-
-    // Generate events for the specific task
-    const events = eventGenerator.generateEventsForWorkflow(workflow, taskName);
-
-    // Format to plain text (backend format)
-    const lines = events.map((event) => {
-      const timestamp = new Date(event.first_timestamp)
-        .toISOString()
-        .replace("T", " ")
-        .replace(/\.\d{3}Z$/, "+00:00");
-      return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
-    });
-
-    return HttpResponse.text(lines.join("\n"), {
-      headers: { "Content-Type": "text/plain" },
-    });
-  }),
-
   // ==========================================================================
   // Terminal / Exec (PTY Sessions)
   // ==========================================================================
@@ -883,7 +767,7 @@ export const handlers = [
   // Create exec session - returns RouterResponse format
   // Query params: ?scenario=training|fast-output|nvidia-smi|colors|top|disconnect|normal
   // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.post("*/api/workflow/:name/exec/task/:taskName", async ({ params, request }) => {
+  http.post("*/api/workflow/:name/exec/task/:taskName", async ({ params }) => {
     await delay(MOCK_DELAY);
 
     const workflowName = params.name as string;
@@ -899,21 +783,7 @@ export const handlers = [
       return HttpResponse.json({ detail: "You don't have permission to exec into this task" }, { status: 403 });
     }
 
-    // Parse scenario from request body or query
-    const url = new URL(request.url);
-    const scenario = (url.searchParams.get("scenario") || "normal") as PTYScenario;
-
-    // Get shell from request body
-    let shell = "/bin/bash";
-    try {
-      const body = (await request.json()) as { entry_command?: string };
-      shell = body.entry_command || "/bin/bash";
-    } catch {
-      // No body, use default
-    }
-
-    // Create PTY session
-    const session = ptySimulator.createSession(workflowName, taskName, shell, scenario);
+    const sessionId = faker.string.uuid();
 
     // Return RouterResponse format (matches backend).
     // In mock mode the WS server runs on port 3001 (pnpm dev:mock-ws).
@@ -973,25 +843,14 @@ export const handlers = [
 
   // Get pool quotas (main endpoint for pools)
   // Returns PoolResponse: { node_sets: [{ pools: PoolResourceUsage[] }], resource_sum }
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/pool_quota", async ({ request }) => {
+  getGetPoolQuotasApiPoolQuotaGetMockHandler(async ({ request }) => {
     await delay(MOCK_DELAY);
-
     const url = new URL(request.url);
     const poolsParam = url.searchParams.get("pools");
-    const allPools = url.searchParams.get("all_pools") === "true";
-
-    if (allPools) {
-      return HttpResponse.json(poolGenerator.generatePoolResponse());
+    if (poolsParam && url.searchParams.get("all_pools") !== "true") {
+      return poolGenerator.generatePoolResponse(poolsParam.split(",").map((p) => p.trim()));
     }
-
-    if (poolsParam) {
-      const pools = poolsParam.split(",").map((p) => p.trim());
-      return HttpResponse.json(poolGenerator.generatePoolResponse(pools));
-    }
-
-    // Default: return all pools
-    return HttpResponse.json(poolGenerator.generatePoolResponse());
+    return poolGenerator.generatePoolResponse();
   }),
 
   // List pools - returns pool names as plain text (matches backend behavior)
@@ -1071,196 +930,14 @@ export const handlers = [
   // Buckets
   // ==========================================================================
 
-  // List buckets - returns BucketInfoResponse format
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/bucket", async ({ request }) => {
-    await delay(MOCK_DELAY);
+  // List buckets - generated factory with generator callback
+  getGetBucketInfoApiBucketGetMockHandler(bucketGenerator.handleListBuckets),
 
-    const url = new URL(request.url);
-    const { offset, limit } = parsePagination(url, { limit: 50 });
+  // List datasets - generated factory with generator callback
+  getListDatasetFromBucketApiBucketListDatasetGetMockHandler(datasetGenerator.handleListDatasets),
 
-    const { entries } = bucketGenerator.generateBucketPage(offset, limit);
-
-    // Convert to BucketInfoResponse format: { buckets: { [name]: BucketInfoEntry } }
-    const buckets: Record<string, { path: string; description: string; mode: string; default_cred: boolean }> = {};
-    for (const entry of entries) {
-      buckets[entry.name] = {
-        // Map mock fields to BucketInfoEntry fields
-        path: entry.endpoint || `s3://${entry.name}`,
-        description: `${entry.provider} bucket in ${entry.region}`,
-        mode: "rw",
-        default_cred: true,
-      };
-    }
-
-    return HttpResponse.json({ buckets });
-  }),
-
-  // Query bucket contents - matches /api/bucket/${bucket}/query
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/bucket/:bucket/query", async ({ params, request }) => {
-    await delay(MOCK_DELAY);
-
-    const bucketName = params.bucket as string;
-    const url = new URL(request.url);
-    const prefix = url.searchParams.get("prefix") || "";
-    const limit = parseInt(url.searchParams.get("limit") || "100", 10);
-
-    // Generate some artifacts for the prefix
-    const artifacts = bucketGenerator.generateWorkflowArtifacts(
-      bucketName,
-      prefix.replace("workflows/", "").replace("/", "") || "example-workflow",
-      limit,
-    );
-
-    return HttpResponse.json(artifacts);
-  }),
-
-  // NOTE: /api/bucket/:name and /api/bucket/:name/list were removed - not real backend endpoints
-  // Use /api/bucket for list and /api/bucket/${bucket}/query for contents
-
-  // ==========================================================================
-  // Datasets (infinite pagination)
-  // ==========================================================================
-
-  // List datasets
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  // NOTE: Client-side filtering approach - mock just returns requested count
-  // The adapter handles all filtering and pagination client-side
-  http.get("*/api/bucket/list_dataset", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    // Cap count at total to prevent generating 10,000 entries for the "fetch all" path
-    const requestedCount = parseInt(url.searchParams.get("count") || "50", 10);
-    const allUsers = url.searchParams.get("all_users") !== "false";
-    const datasetType = url.searchParams.get("dataset_type");
-    const mockCurrentUser = MOCK_CONFIG.workflows.users[0];
-
-    const allEntries: Array<{
-      name: string;
-      id: string;
-      bucket: string;
-      create_time: string;
-      last_created: string;
-      hash_location: string;
-      hash_location_size: number;
-      version_id: string;
-      type: string;
-    }> = [];
-
-    // Include datasets unless filtered to COLLECTION only
-    if (datasetType !== "COLLECTION") {
-      const count = Math.min(requestedCount, datasetGenerator.totalDatasets);
-      const { entries } = datasetGenerator.generatePage(0, count);
-      const filtered = allUsers ? entries : entries.filter((d) => d.user === mockCurrentUser);
-      for (const d of filtered) {
-        allEntries.push({
-          name: d.name,
-          id: d.name,
-          bucket: d.bucket,
-          create_time: d.created_at,
-          last_created: d.updated_at,
-          hash_location: d.path,
-          hash_location_size: d.size_bytes,
-          version_id: `v${d.version}`,
-          type: "DATASET",
-        });
-      }
-    }
-
-    // Include collections unless filtered to DATASET only
-    if (datasetType !== "DATASET") {
-      const collectionCount = Math.min(requestedCount, datasetGenerator.totalCollections);
-      for (let i = 0; i < collectionCount; i++) {
-        const c = datasetGenerator.generateCollection(i);
-        if (!allUsers && c.user !== mockCurrentUser) continue;
-        allEntries.push({
-          name: c.name,
-          id: c.name,
-          bucket: c.bucket,
-          create_time: c.created_at,
-          last_created: c.updated_at,
-          hash_location: c.path,
-          hash_location_size: c.size_bytes,
-          version_id: "",
-          type: "COLLECTION",
-        });
-      }
-    }
-
-    // DataListResponse expects 'datasets' array
-    return HttpResponse.json({
-      datasets: allEntries,
-    });
-  }),
-
-  // Get dataset or collection info
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/bucket/:bucket/dataset/:name/info", async ({ params, request }) => {
-    await delay(MOCK_DELAY);
-
-    const name = params.name as string;
-
-    // Check if this is a collection name first
-    const collection = datasetGenerator.getCollectionByName(name);
-    if (collection) {
-      const members = datasetGenerator.generateCollectionMembers(name);
-      const response = {
-        id: collection.name,
-        name: collection.name,
-        bucket: collection.bucket,
-        created_by: collection.user,
-        created_date: collection.created_at,
-        hash_location: collection.path,
-        hash_location_size: collection.size_bytes,
-        labels: collection.labels || {},
-        type: "COLLECTION",
-        versions: members,
-      };
-      return HttpResponse.json(response);
-    }
-
-    const dataset = datasetGenerator.getByName(name);
-
-    if (!dataset) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    const versions = datasetGenerator.generateVersions(name);
-
-    // Transform to backend API shape (DataInfoResponse)
-    const response = {
-      id: dataset.name, // Use name as id for mock
-      name: dataset.name,
-      bucket: dataset.bucket,
-      created_by: dataset.user,
-      created_date: dataset.created_at,
-      hash_location: dataset.path,
-      hash_location_size: dataset.size_bytes,
-      labels: dataset.labels || {},
-      type: "DATASET",
-      versions,
-    };
-
-    // Check if path parameter is provided for file listing
-    const url = new URL(request.url);
-    const path = url.searchParams.get("path");
-    // version param is accepted but ignored in mock — same file tree regardless of version
-    // (real backend would serve version-appropriate files)
-
-    // If path is provided, include files array in response
-    if (path !== null) {
-      const files = datasetGenerator.generateFileTree(name, path, dataset.bucket);
-      return HttpResponse.json({
-        ...response,
-        files,
-      });
-    }
-
-    // Default response without files
-    return HttpResponse.json(response);
-  }),
+  // Get dataset or collection info - generated factory with generator callback
+  getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler(datasetGenerator.handleGetDatasetInfo),
 
   // Dataset location files — returns a flat file manifest for a dataset version's location URL.
   // The location URL encodes the dataset name (e.g. s3://bucket/datasets/name/v1/).
@@ -1303,19 +980,7 @@ export const handlers = [
     const filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
-    const contentTypeMap: Record<string, string> = {
-      json: "application/json",
-      txt: "text/plain",
-      md: "text/markdown",
-      csv: "text/csv",
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      mp4: "video/mp4",
-      webm: "video/webm",
-    };
-
-    const contentType = contentTypeMap[ext] ?? "application/octet-stream";
+    const contentType = EXT_TO_CONTENT_TYPE[ext] ?? "application/octet-stream";
 
     if (request.method === "HEAD") {
       return new HttpResponse(null, {
@@ -1343,24 +1008,7 @@ export const handlers = [
     const filePath = url.searchParams.get("path") ?? "";
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
-    const contentTypeMap: Record<string, string> = {
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      gif: "image/gif",
-      webp: "image/webp",
-      svg: "image/svg+xml",
-      mp4: "video/mp4",
-      webm: "video/webm",
-      pdf: "application/pdf",
-      json: "application/json",
-      md: "text/markdown",
-      txt: "text/plain",
-      parquet: "application/octet-stream",
-      tfrecord: "application/octet-stream",
-    };
-
-    const contentType = contentTypeMap[ext] ?? "application/octet-stream";
+    const contentType = EXT_TO_CONTENT_TYPE[ext] ?? "application/octet-stream";
 
     return new HttpResponse(null, {
       status: 200,
@@ -1405,145 +1053,23 @@ export const handlers = [
   // Collections are accessed via /api/bucket/list_dataset with type filter
 
   // ==========================================================================
-  // Profile
+  // Profile + Credentials
   // ==========================================================================
 
-  // NOTE: /api/profile was removed - not a real backend endpoint
-  // Only /api/profile/settings exists in the backend
+  // GET /api/profile/settings - mock: returns notification/profile settings
+  getGetNotificationSettingsApiProfileSettingsGetMockHandler(profileGenerator.handleGetSettings),
 
-  // Get profile settings
-  http.get("*/api/profile/settings", async () => {
-    await delay(MOCK_DELAY);
+  // POST /api/profile/settings - mock: updates notification/profile settings
+  http.post("*/api/profile/settings", profileGenerator.handlePostSettings),
 
-    const userProfile = profileGenerator.generateProfile("current.user");
-    const settings = profileGenerator.generateSettings("current.user");
-    // Use all pool names from patterns, not limited by volume config
-    const pools = MOCK_CONFIG.pools.names;
+  // GET /api/credentials - mock: returns user credentials
+  getGetUserCredentialApiCredentialsGetMockHandler(profileGenerator.handleGetCredentials),
 
-    // Merge stored settings with generated defaults
-    const emailNotification = mockProfileSettings.email_notification ?? settings.notifications.email;
-    const slackNotification = mockProfileSettings.slack_notification ?? settings.notifications.slack;
-    const defaultBucket = mockProfileSettings.bucket ?? settings.default_bucket;
-    const defaultPool = mockProfileSettings.pool ?? settings.default_pool;
+  // POST /api/credentials/:name - mock: sets or updates a user credential
+  http.post("*/api/credentials/:name", profileGenerator.handlePostCredential),
 
-    // Ensure default pool is in accessible pools list
-    const accessiblePools =
-      defaultPool !== null && pools.includes(defaultPool)
-        ? pools
-        : defaultPool !== null
-          ? [defaultPool, ...pools]
-          : pools;
-
-    // Backend returns flat structure: { profile: { username, email_notification, slack_notification, bucket, pool }, pools: string[] }
-    // Adapter transforms to nested structure for UI
-    // Note: Accessible buckets come from separate /api/bucket endpoint
-    return HttpResponse.json({
-      profile: {
-        username: userProfile.email, // Backend uses email as username
-        email_notification: emailNotification,
-        slack_notification: slackNotification,
-        bucket: defaultBucket,
-        pool: defaultPool,
-      },
-      pools: accessiblePools,
-    });
-  }),
-
-  // Update profile settings (POST, not PUT - matching backend)
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.post("*/api/profile/settings", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const body = (await request.json()) as Record<string, unknown>;
-
-    // Persist settings to mock storage
-    if ("email_notification" in body) {
-      mockProfileSettings.email_notification = body.email_notification as boolean;
-    }
-    if ("slack_notification" in body) {
-      mockProfileSettings.slack_notification = body.slack_notification as boolean;
-    }
-    if ("bucket" in body) {
-      mockProfileSettings.bucket = body.bucket as string;
-    }
-    if ("pool" in body) {
-      mockProfileSettings.pool = body.pool as string;
-    }
-
-    return HttpResponse.json({ ...body, updated_at: new Date().toISOString() });
-  }),
-
-  // ==========================================================================
-  // Credentials
-  // ==========================================================================
-
-  // Get credentials list (production format: { json: [...] })
-  http.get("*/api/credentials", async () => {
-    await delay(MOCK_DELAY);
-
-    // If we have stored credentials, return those; otherwise return generated defaults
-    if (mockCredentials.size > 0) {
-      const credentials = Array.from(mockCredentials.values());
-      return HttpResponse.json({ json: credentials });
-    }
-
-    // First time: generate defaults and store them
-    const credentials = profileGenerator.generateCredentials(5);
-    for (const cred of credentials) {
-      if (cred && typeof cred === "object" && "cred_name" in cred) {
-        mockCredentials.set(cred.cred_name as string, cred);
-      }
-    }
-    return HttpResponse.json({ json: credentials });
-  }),
-
-  // Create credential (POST /api/credentials/{name})
-  // Note: Updates are not supported - credentials must be deleted and recreated
-  http.post("*/api/credentials/:name", async ({ params, request }) => {
-    await delay(MOCK_DELAY);
-
-    const name = params.name as string;
-    const body = (await request.json()) as Record<string, unknown>;
-
-    // Determine credential type and extract profile value
-    let cred_type: "REGISTRY" | "DATA" | "GENERIC" = "GENERIC";
-    let profile: string | null = null;
-
-    if (body.registry_credential && typeof body.registry_credential === "object") {
-      cred_type = "REGISTRY";
-      const reg = body.registry_credential as Record<string, unknown>;
-      profile = String(reg.registry || "");
-    } else if (body.data_credential && typeof body.data_credential === "object") {
-      cred_type = "DATA";
-      const data = body.data_credential as Record<string, unknown>;
-      profile = String(data.endpoint || "");
-    } else if (body.generic_credential && typeof body.generic_credential === "object") {
-      cred_type = "GENERIC";
-      profile = null; // Generic credentials don't have a profile
-    }
-
-    // Create credential in production format
-    const credential = {
-      cred_name: name,
-      cred_type,
-      profile,
-    };
-
-    // Store the credential
-    mockCredentials.set(name, credential);
-
-    return HttpResponse.json(credential);
-  }),
-
-  // Delete credential
-  http.delete("*/api/credentials/:name", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
-    const name = params.name as string;
-    // Remove from storage
-    mockCredentials.delete(name);
-    return HttpResponse.json({ message: `Credential ${name} deleted` });
-  }),
+  // DELETE /api/credentials/:credName - mock: deletes a user credential
+  getDeleteUsersCredentialApiCredentialsCredNameDeleteMockHandler(profileGenerator.handleDeleteCredential),
 
   // ==========================================================================
   // Auth
@@ -1709,6 +1235,5 @@ export {
   datasetGenerator,
   profileGenerator,
   portForwardGenerator,
-  ptySimulator,
   taskSummaryGenerator,
 };

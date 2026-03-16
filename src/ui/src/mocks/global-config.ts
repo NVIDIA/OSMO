@@ -26,8 +26,16 @@
  * SOLUTION: Use Node.js global object as the single source of truth.
  */
 
-import type { MockVolumes } from "@/mocks/actions/mock-config.types";
 import { DEFAULT_VOLUME } from "@/mocks/seed/types";
+
+export interface MockVolumes {
+  workflows: number;
+  pools: number;
+  resourcesPerPool: number;
+  resourcesGlobal: number;
+  buckets: number;
+  datasets: number;
+}
 
 // Extend Node.js global type
 declare global {

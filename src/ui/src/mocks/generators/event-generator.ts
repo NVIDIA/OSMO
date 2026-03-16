@@ -14,16 +14,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Event Generator
- *
- * Generates Kubernetes-style lifecycle events for workflows and tasks.
- */
-
 import { faker } from "@faker-js/faker";
-import { MOCK_CONFIG, type EventPatterns } from "@/mocks/seed/types";
 import { hashString, abortableDelay } from "@/mocks/utils";
 import { TaskGroupStatus } from "@/lib/api/generated";
+
+const BASE_SEED = 22222;
 
 // ============================================================================
 // Types
@@ -71,20 +66,12 @@ export interface GeneratedEvent {
 // ============================================================================
 
 export class EventGenerator {
-  private patterns: EventPatterns;
-  private baseSeed: number;
-
-  constructor(patterns: EventPatterns = MOCK_CONFIG.events, baseSeed: number = 22222) {
-    this.patterns = patterns;
-    this.baseSeed = baseSeed;
-  }
-
   /**
-   * Generate events for an existing workflow (uses actual tasks from workflow generator)
-   * This is the primary method called by MSW handlers.
+   * Generate events for an existing workflow (uses actual tasks from workflow generator).
+   * Primary method called by MSW handlers.
    */
   generateEventsForWorkflow(workflow: EventWorkflowInput, taskNameFilter?: string): GeneratedEvent[] {
-    faker.seed(this.baseSeed + hashString(workflow.name));
+    faker.seed(BASE_SEED + hashString(workflow.name));
 
     // Use showcase events if workflow name contains "showcase" or "demo"
     if (workflow.name.toLowerCase().includes("showcase") || workflow.name.toLowerCase().includes("demo")) {
@@ -103,17 +90,168 @@ export class EventGenerator {
         task.name,
         new Date(task.start_time || workflow.submit_time),
         lifecycleStatus,
-        task.status, // Pass full status for specific failure types
+        task.status,
         task.node_name,
       );
       events.push(...taskEvents);
     }
 
-    // Sort all events by timestamp to interleave them
     events.sort((a, b) => new Date(a.first_timestamp).getTime() - new Date(b.first_timestamp).getTime());
 
     return events;
   }
+
+  /**
+   * Create an async generator for streaming event generation.
+   * Yields formatted event lines with configurable delay for real-time simulation.
+   *
+   * Simulates ongoing pod lifecycle events for active (non-terminal) workflows:
+   * - New task scheduling events
+   * - Container pulling/creating/starting events
+   * - Periodic health check events
+   * - Occasional warnings (probe failures, resource pressure)
+   *
+   * @param options.workflow - The mock workflow to generate events for
+   * @param options.taskNameFilter - Optional task name to filter events
+   * @param options.signal - AbortSignal to stop generation when the consumer disconnects
+   * @param options.streamDelayMs - Delay between stream entries in milliseconds (default: 3000)
+   */
+  async *createStream(options: {
+    workflow: EventWorkflowInput;
+    taskNameFilter?: string;
+    signal?: AbortSignal;
+    streamDelayMs?: number;
+  }): AsyncGenerator<string, void, unknown> {
+    const { workflow, taskNameFilter, signal, streamDelayMs = 3000 } = options;
+
+    faker.seed(BASE_SEED + hashString(workflow.name + ":stream"));
+
+    // Get running/initializing tasks for ongoing event generation
+    const allTasks = workflow.groups.flatMap((g) => g.tasks ?? []);
+    const tasks = taskNameFilter ? allTasks.filter((t) => t.name === taskNameFilter) : allTasks;
+
+    // Filter to tasks that would produce ongoing events (running, initializing, pending)
+    const activeTasks = tasks.filter((t) => {
+      const lifecycle = this.mapTaskStatusToLifecycle(t.status);
+      return lifecycle === "running" || lifecycle === "initializing" || lifecycle === "pending";
+    });
+
+    // If no active tasks, use all tasks for event generation (simulate new activity)
+    const streamTasks = activeTasks.length > 0 ? activeTasks : tasks;
+    if (streamTasks.length === 0) return;
+
+    // Ongoing event templates for realistic lifecycle simulation
+    const ongoingEventTemplates: Array<{
+      type: "Normal" | "Warning";
+      reason: string;
+      messageTemplate: (taskName: string) => string;
+      weight: number;
+    }> = [
+      // Normal lifecycle events (high frequency)
+      {
+        type: "Normal",
+        reason: "Pulling",
+        messageTemplate: (name) => `Pulling image "nvcr.io/nvidia/pytorch:24.12" for ${name}`,
+        weight: 5,
+      },
+      {
+        type: "Normal",
+        reason: "Pulled",
+        messageTemplate: () => "Successfully pulled image",
+        weight: 5,
+      },
+      {
+        type: "Normal",
+        reason: "Created",
+        messageTemplate: () => "Created container training",
+        weight: 4,
+      },
+      {
+        type: "Normal",
+        reason: "Started",
+        messageTemplate: () => "Started container training",
+        weight: 4,
+      },
+      {
+        type: "Normal",
+        reason: "Scheduled",
+        messageTemplate: (name) =>
+          `Successfully assigned ${name} to dgx-a100-${faker.number.int({ min: 1, max: 48 }).toString().padStart(2, "0")}`,
+        weight: 3,
+      },
+      // Health check events (medium frequency)
+      {
+        type: "Normal",
+        reason: "HealthCheckPassed",
+        messageTemplate: () => "Liveness probe succeeded",
+        weight: 6,
+      },
+      {
+        type: "Normal",
+        reason: "Ready",
+        messageTemplate: () => "Readiness probe succeeded",
+        weight: 4,
+      },
+      // Warning events (low frequency)
+      {
+        type: "Warning",
+        reason: "Unhealthy",
+        messageTemplate: () => "Readiness probe failed: connection refused",
+        weight: 1,
+      },
+      {
+        type: "Warning",
+        reason: "FailedScheduling",
+        messageTemplate: () => "0/48 nodes available: 48 Insufficient nvidia.com/gpu",
+        weight: 1,
+      },
+      {
+        type: "Warning",
+        reason: "BackOff",
+        messageTemplate: (name) => `Back-off restarting failed container in pod ${name}`,
+        weight: 1,
+      },
+    ];
+
+    // Build weighted array for random selection
+    const weightedTemplates: typeof ongoingEventTemplates = [];
+    for (const template of ongoingEventTemplates) {
+      for (let i = 0; i < template.weight; i++) {
+        weightedTemplates.push(template);
+      }
+    }
+
+    // Stream events indefinitely until aborted
+    let currentTime = new Date();
+
+    while (!signal?.aborted) {
+      // Pick a random task and event template
+      const task = faker.helpers.arrayElement(streamTasks);
+      const template = faker.helpers.arrayElement(weightedTemplates);
+
+      // Advance time with jitter
+      const jitter = faker.number.int({ min: 0, max: 1000 });
+      currentTime = new Date(currentTime.getTime() + streamDelayMs + jitter);
+
+      // Format to backend event line format:
+      // "{timestamp} [{entity}] {reason}: {message}"
+      const timestamp = currentTime
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "+00:00");
+      const message = template.messageTemplate(task.name);
+      const line = `${timestamp} [${task.name}] ${template.reason}: ${message}\n`;
+
+      yield line;
+
+      // Abort-aware delay between events
+      await abortableDelay(streamDelayMs, signal);
+    }
+  }
+
+  // ============================================================================
+  // Private helpers
+  // ============================================================================
 
   /**
    * Map TaskGroupStatus enum to lifecycle status for event generation
@@ -337,231 +475,19 @@ export class EventGenerator {
   }
 
   /**
-   * Create an async generator for streaming event generation.
-   * Yields formatted event lines with configurable delay for real-time simulation.
-   *
-   * Simulates ongoing pod lifecycle events for active (non-terminal) workflows:
-   * - New task scheduling events
-   * - Container pulling/creating/starting events
-   * - Periodic health check events
-   * - Occasional warnings (probe failures, resource pressure)
-   *
-   * @param options.workflow - The mock workflow to generate events for
-   * @param options.taskNameFilter - Optional task name to filter events
-   * @param options.signal - AbortSignal to stop generation when the consumer disconnects
-   * @param options.streamDelayMs - Delay between stream entries in milliseconds (default: 3000)
-   */
-  async *createStream(options: {
-    workflow: EventWorkflowInput;
-    taskNameFilter?: string;
-    signal?: AbortSignal;
-    streamDelayMs?: number;
-  }): AsyncGenerator<string, void, unknown> {
-    const { workflow, taskNameFilter, signal, streamDelayMs = 3000 } = options;
-
-    faker.seed(this.baseSeed + hashString(workflow.name + ":stream"));
-
-    // Get running/initializing tasks for ongoing event generation
-    const allTasks = workflow.groups.flatMap((g) => g.tasks ?? []);
-    const tasks = taskNameFilter ? allTasks.filter((t) => t.name === taskNameFilter) : allTasks;
-
-    // Filter to tasks that would produce ongoing events (running, initializing, pending)
-    const activeTasks = tasks.filter((t) => {
-      const lifecycle = this.mapTaskStatusToLifecycle(t.status);
-      return lifecycle === "running" || lifecycle === "initializing" || lifecycle === "pending";
-    });
-
-    // If no active tasks, use all tasks for event generation (simulate new activity)
-    const streamTasks = activeTasks.length > 0 ? activeTasks : tasks;
-    if (streamTasks.length === 0) return;
-
-    // Ongoing event templates for realistic lifecycle simulation
-    const ongoingEventTemplates: Array<{
-      type: "Normal" | "Warning";
-      reason: string;
-      messageTemplate: (taskName: string) => string;
-      weight: number;
-    }> = [
-      // Normal lifecycle events (high frequency)
-      {
-        type: "Normal",
-        reason: "Pulling",
-        messageTemplate: (name) => `Pulling image "nvcr.io/nvidia/pytorch:24.12" for ${name}`,
-        weight: 5,
-      },
-      {
-        type: "Normal",
-        reason: "Pulled",
-        messageTemplate: () => "Successfully pulled image",
-        weight: 5,
-      },
-      {
-        type: "Normal",
-        reason: "Created",
-        messageTemplate: () => "Created container training",
-        weight: 4,
-      },
-      {
-        type: "Normal",
-        reason: "Started",
-        messageTemplate: () => "Started container training",
-        weight: 4,
-      },
-      {
-        type: "Normal",
-        reason: "Scheduled",
-        messageTemplate: (name) =>
-          `Successfully assigned ${name} to dgx-a100-${faker.number.int({ min: 1, max: 48 }).toString().padStart(2, "0")}`,
-        weight: 3,
-      },
-      // Health check events (medium frequency)
-      {
-        type: "Normal",
-        reason: "HealthCheckPassed",
-        messageTemplate: () => "Liveness probe succeeded",
-        weight: 6,
-      },
-      {
-        type: "Normal",
-        reason: "Ready",
-        messageTemplate: () => "Readiness probe succeeded",
-        weight: 4,
-      },
-      // Warning events (low frequency)
-      {
-        type: "Warning",
-        reason: "Unhealthy",
-        messageTemplate: () => "Readiness probe failed: connection refused",
-        weight: 1,
-      },
-      {
-        type: "Warning",
-        reason: "FailedScheduling",
-        messageTemplate: () => "0/48 nodes available: 48 Insufficient nvidia.com/gpu",
-        weight: 1,
-      },
-      {
-        type: "Warning",
-        reason: "BackOff",
-        messageTemplate: (name) => `Back-off restarting failed container in pod ${name}`,
-        weight: 1,
-      },
-    ];
-
-    // Build weighted array for random selection
-    const weightedTemplates: typeof ongoingEventTemplates = [];
-    for (const template of ongoingEventTemplates) {
-      for (let i = 0; i < template.weight; i++) {
-        weightedTemplates.push(template);
-      }
-    }
-
-    // Stream events indefinitely until aborted
-    let currentTime = new Date();
-
-    while (!signal?.aborted) {
-      // Pick a random task and event template
-      const task = faker.helpers.arrayElement(streamTasks);
-      const template = faker.helpers.arrayElement(weightedTemplates);
-
-      // Advance time with jitter
-      const jitter = faker.number.int({ min: 0, max: 1000 });
-      currentTime = new Date(currentTime.getTime() + streamDelayMs + jitter);
-
-      // Format to backend event line format:
-      // "{timestamp} [{entity}] {reason}: {message}"
-      const timestamp = currentTime
-        .toISOString()
-        .replace("T", " ")
-        .replace(/\.\d{3}Z$/, "+00:00");
-      const message = template.messageTemplate(task.name);
-      const line = `${timestamp} [${task.name}] ${template.reason}: ${message}\n`;
-
-      yield line;
-
-      // Abort-aware delay between events
-      await abortableDelay(streamDelayMs, signal);
-    }
-  }
-
-  /**
-   * Generate events for a workflow with multiple tasks (10-15 tasks with interleaved events)
-   */
-  generateWorkflowEvents(
-    workflowName: string,
-    _status: string,
-    submitTime: string,
-    _startTime?: string,
-    _endTime?: string,
-  ): GeneratedEvent[] {
-    faker.seed(this.baseSeed + hashString(workflowName));
-
-    const events: GeneratedEvent[] = [];
-    const baseTime = new Date(submitTime);
-
-    // For "showcase" workflows, generate comprehensive examples of all scenarios
-    if (workflowName.toLowerCase().includes("showcase") || workflowName.toLowerCase().includes("demo")) {
-      return this.generateShowcaseEvents(baseTime);
-    }
-
-    // Generate 10-15 tasks with interleaved events
-    const numTasks = faker.number.int({ min: 10, max: 15 });
-
-    for (let i = 0; i < numTasks; i++) {
-      const taskName = `worker-${i}`;
-
-      // Each task starts at slightly different times (0-60 seconds apart)
-      const taskStartOffset = i * faker.number.int({ min: 2000, max: 8000 });
-      const taskSubmitTime = new Date(baseTime.getTime() + taskStartOffset);
-
-      // Determine task status (most succeed, some fail, some still running)
-      let taskStatus: "completed" | "running" | "failed" | "initializing" | "pending";
-      const rand = faker.number.float({ min: 0, max: 1 });
-
-      if (rand < 0.6) {
-        // 60% completed
-        taskStatus = "completed";
-      } else if (rand < 0.75) {
-        // 15% running
-        taskStatus = "running";
-      } else if (rand < 0.85) {
-        // 10% failed
-        taskStatus = "failed";
-      } else if (rand < 0.95) {
-        // 10% initializing
-        taskStatus = "initializing";
-      } else {
-        // 5% pending
-        taskStatus = "pending";
-      }
-
-      // Generate task lifecycle events
-      const taskEvents = this.generateTaskLifecycleEvents(taskName, taskSubmitTime, taskStatus);
-      events.push(...taskEvents);
-    }
-
-    // Sort all events by timestamp to interleave them
-    events.sort((a, b) => new Date(a.first_timestamp).getTime() - new Date(b.first_timestamp).getTime());
-
-    return events;
-  }
-
-  /**
    * Generate comprehensive showcase events demonstrating all possible scenarios
    */
   private generateShowcaseEvents(baseTime: Date): GeneratedEvent[] {
     const events: GeneratedEvent[] = [];
     let currentOffset = 0;
 
-    // Helper to create task events with specific scenarios
     const addShowcaseTask = (
       taskName: string,
       offsetMs: number,
       eventsFn: (taskName: string, startTime: Date) => GeneratedEvent[],
     ) => {
       const taskTime = new Date(baseTime.getTime() + currentOffset);
-      const taskEvents = eventsFn(taskName, taskTime);
-      events.push(...taskEvents);
+      events.push(...eventsFn(taskName, taskTime));
       currentOffset += offsetMs;
     };
 
@@ -569,83 +495,49 @@ export class EventGenerator {
     // COMPLETED TASKS (Success Cases)
     // ========================================================================
 
-    addShowcaseTask("checkpoint-0", 5000, (name, time) => {
-      return this.generateCompleteSuccessEvents(name, time, 30000); // 30s duration
-    });
-
-    addShowcaseTask("checkpoint-1", 5000, (name, time) => {
-      return this.generateCompleteSuccessEvents(name, time, 120000); // 2min duration
-    });
-
-    addShowcaseTask("checkpoint-2", 5000, (name, time) => {
-      return this.generateCompleteSuccessEvents(name, time, 300000); // 5min duration
-    });
+    addShowcaseTask("checkpoint-0", 5000, (name, time) => this.generateCompleteSuccessEvents(name, time, 30000));
+    addShowcaseTask("checkpoint-1", 5000, (name, time) => this.generateCompleteSuccessEvents(name, time, 120000));
+    addShowcaseTask("checkpoint-2", 5000, (name, time) => this.generateCompleteSuccessEvents(name, time, 300000));
 
     // ========================================================================
     // RUNNING TASKS (In Progress)
     // ========================================================================
 
-    addShowcaseTask("eval-0", 5000, (name, time) => {
-      return this.generateRunningHealthyEvents(name, time);
-    });
-
-    addShowcaseTask("eval-1", 5000, (name, time) => {
-      return this.generateRunningWithWarningsEvents(name, time);
-    });
+    addShowcaseTask("eval-0", 5000, (name, time) => this.generateRunningHealthyEvents(name, time));
+    addShowcaseTask("eval-1", 5000, (name, time) => this.generateRunningWithWarningsEvents(name, time));
 
     // ========================================================================
     // INITIALIZING TASKS (Stuck at Various Init Stages)
     // ========================================================================
 
-    addShowcaseTask("trainer-0", 5000, (name, time) => {
-      return this.generateInitializingPullingEvents(name, time);
-    });
-
-    addShowcaseTask("trainer-1", 5000, (name, time) => {
-      return this.generateImagePullBackOffEvents(name, time);
-    });
+    addShowcaseTask("trainer-0", 5000, (name, time) => this.generateInitializingPullingEvents(name, time));
+    addShowcaseTask("trainer-1", 5000, (name, time) => this.generateImagePullBackOffEvents(name, time));
 
     // ========================================================================
     // PENDING TASKS (Scheduling Issues - TRANSIENT)
     // ========================================================================
 
-    addShowcaseTask("worker-0", 5000, (name, time) => {
-      return this.generateFailedSchedulingEvents(name, time, "0/48 nodes available: 48 Insufficient nvidia.com/gpu");
-    });
-
-    addShowcaseTask("worker-1", 5000, (name, time) => {
-      return this.generateFailedSchedulingEvents(
+    addShowcaseTask("worker-0", 5000, (name, time) =>
+      this.generateFailedSchedulingEvents(name, time, "0/48 nodes available: 48 Insufficient nvidia.com/gpu"),
+    );
+    addShowcaseTask("worker-1", 5000, (name, time) =>
+      this.generateFailedSchedulingEvents(
         name,
         time,
         "0/48 nodes available: 3 node(s) had untolerated taint {gpu: a100}",
-      );
-    });
-
-    addShowcaseTask("worker-2", 5000, (name, time) => {
-      return this.generatePreemptingEvents(name, time);
-    });
-
-    addShowcaseTask("worker-3", 5000, () => {
-      return []; // No events yet - stuck in queue
-    });
+      ),
+    );
+    addShowcaseTask("worker-2", 5000, (name, time) => this.generatePreemptingEvents(name, time));
+    addShowcaseTask("worker-3", 5000, () => []); // No events yet - stuck in queue
 
     // ========================================================================
     // FAILED TASKS (Terminal Failures)
     // ========================================================================
 
-    addShowcaseTask("worker-4", 5000, (name, time) => {
-      return this.generateOOMKilledEvents(name, time);
-    });
+    addShowcaseTask("worker-4", 5000, (name, time) => this.generateOOMKilledEvents(name, time));
+    addShowcaseTask("worker-5", 5000, (name, time) => this.generateCrashLoopEvents(name, time));
+    addShowcaseTask("worker-6", 5000, (name, time) => this.generateEvictedEvents(name, time));
 
-    addShowcaseTask("worker-5", 5000, (name, time) => {
-      return this.generateCrashLoopEvents(name, time);
-    });
-
-    addShowcaseTask("worker-6", 5000, (name, time) => {
-      return this.generateEvictedEvents(name, time);
-    });
-
-    // Sort all events by timestamp
     events.sort((a, b) => new Date(a.first_timestamp).getTime() - new Date(b.first_timestamp).getTime());
 
     return events;
@@ -661,21 +553,16 @@ export class EventGenerator {
 
     events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
     t += 1000;
-
     events.push(
       this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/pytorch:24.12"'),
     );
     t += 8000;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Pulled", taskName, "Successfully pulled image"));
     t += 500;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Created", taskName, "Created container"));
     t += 500;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Started", taskName, "Started container"));
     t += durationMs - 10000;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Ready", taskName, "Container is ready"));
 
     return events;
@@ -687,20 +574,15 @@ export class EventGenerator {
 
     events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
     t += 1000;
-
     events.push(
       this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/pytorch:24.12"'),
     );
     t += 8000;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Pulled", taskName, "Successfully pulled image"));
     t += 500;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Created", taskName, "Created container"));
     t += 500;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Started", taskName, "Started container"));
-    // Still running - no completion event
 
     return events;
   }
@@ -708,8 +590,6 @@ export class EventGenerator {
   private generateRunningWithWarningsEvents(taskName: string, startTime: Date): GeneratedEvent[] {
     const events = this.generateRunningHealthyEvents(taskName, startTime);
     const lastTime = new Date(events[events.length - 1].first_timestamp).getTime();
-
-    // Add some probe warnings during runtime
     events.push(
       this.createTaskEvent(
         new Date(lastTime + 30000),
@@ -719,7 +599,6 @@ export class EventGenerator {
         "Readiness probe failed: connection refused",
       ),
     );
-
     return events;
   }
 
@@ -729,7 +608,6 @@ export class EventGenerator {
 
     events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
     t += 1000;
-
     events.push(
       this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/llama:70b"'),
     );
@@ -744,12 +622,10 @@ export class EventGenerator {
 
     events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
     t += 1000;
-
     events.push(
       this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/invalid:latest"'),
     );
     t += 5000;
-
     events.push(
       this.createTaskEvent(
         new Date(t),
@@ -760,7 +636,6 @@ export class EventGenerator {
       ),
     );
     t += 10000;
-
     events.push(
       this.createTaskEvent(
         new Date(t),
@@ -777,13 +652,10 @@ export class EventGenerator {
   private generateFailedSchedulingEvents(taskName: string, startTime: Date, reason: string): GeneratedEvent[] {
     const events: GeneratedEvent[] = [];
     let t = startTime.getTime();
-
-    // Multiple FailedScheduling attempts
     for (let i = 0; i < 5; i++) {
       events.push(this.createTaskEvent(new Date(t), "Warning", "FailedScheduling", taskName, reason));
       t += 10000; // Retry every 10 seconds
     }
-
     return events;
   }
 
@@ -801,7 +673,6 @@ export class EventGenerator {
       ),
     );
     t += 15000;
-
     events.push(
       this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned after preemption"),
     );
@@ -812,8 +683,6 @@ export class EventGenerator {
   private generateOOMKilledEvents(taskName: string, startTime: Date): GeneratedEvent[] {
     const events = this.generateRunningHealthyEvents(taskName, startTime);
     const lastTime = new Date(events[events.length - 1].first_timestamp).getTime();
-
-    // Run for 2 minutes, then OOM
     events.push(
       this.createTaskEvent(
         new Date(lastTime + 120000),
@@ -823,7 +692,6 @@ export class EventGenerator {
         "Container exceeded memory limit (32Gi)",
       ),
     );
-
     return events;
   }
 
@@ -833,27 +701,20 @@ export class EventGenerator {
 
     events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
     t += 1000;
-
     events.push(
       this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/pytorch:24.12"'),
     );
     t += 8000;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Pulled", taskName, "Successfully pulled image"));
     t += 500;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Created", taskName, "Created container"));
     t += 500;
-
     events.push(this.createTaskEvent(new Date(t), "Normal", "Started", taskName, "Started container"));
     t += 2000;
-
-    // Crash immediately
     events.push(
       this.createTaskEvent(new Date(t), "Warning", "BackOff", taskName, "Container exited with code 1 (error)"),
     );
     t += 5000;
-
     events.push(
       this.createTaskEvent(
         new Date(t),
@@ -870,8 +731,6 @@ export class EventGenerator {
   private generateEvictedEvents(taskName: string, startTime: Date): GeneratedEvent[] {
     const events = this.generateRunningHealthyEvents(taskName, startTime);
     const lastTime = new Date(events[events.length - 1].first_timestamp).getTime();
-
-    // Run for 1 minute, then evicted
     events.push(
       this.createTaskEvent(
         new Date(lastTime + 60000),
@@ -881,128 +740,6 @@ export class EventGenerator {
         "Pod evicted due to node memory pressure",
       ),
     );
-
-    return events;
-  }
-
-  /**
-   * Generate lifecycle events for a single task
-   */
-  private generateTaskLifecycleEvents(
-    taskName: string,
-    startTime: Date,
-    status: "completed" | "running" | "failed" | "initializing" | "pending",
-  ): GeneratedEvent[] {
-    const events: GeneratedEvent[] = [];
-    let currentTime = startTime.getTime();
-
-    // 1. Scheduling phase (always happens)
-    events.push(
-      this.createTaskEvent(new Date(currentTime), "Normal", "Scheduled", taskName, "Successfully assigned pod to node"),
-    );
-    currentTime += faker.number.int({ min: 1000, max: 3000 });
-
-    if (status === "pending") {
-      // Pending tasks have scheduling issues
-      events.push(
-        this.createTaskEvent(
-          new Date(currentTime),
-          "Warning",
-          "FailedScheduling",
-          taskName,
-          "0/48 nodes available: 48 Insufficient nvidia.com/gpu",
-        ),
-      );
-      return events;
-    }
-
-    // 2. Image pull phase
-    events.push(
-      this.createTaskEvent(
-        new Date(currentTime),
-        "Normal",
-        "Pulling",
-        taskName,
-        'Pulling image "nvcr.io/nvidia/pytorch:24.12"',
-      ),
-    );
-    currentTime += faker.number.int({ min: 5000, max: 20000 });
-
-    events.push(
-      this.createTaskEvent(
-        new Date(currentTime),
-        "Normal",
-        "Pulled",
-        taskName,
-        `Successfully pulled image in ${(currentTime - startTime.getTime()) / 1000}s`,
-      ),
-    );
-    currentTime += faker.number.int({ min: 500, max: 2000 });
-
-    if (status === "initializing") {
-      // Initializing tasks are stuck at container creation
-      return events;
-    }
-
-    // 3. Container phase
-    events.push(
-      this.createTaskEvent(new Date(currentTime), "Normal", "Created", taskName, "Created container training"),
-    );
-    currentTime += faker.number.int({ min: 500, max: 1500 });
-
-    events.push(
-      this.createTaskEvent(new Date(currentTime), "Normal", "Started", taskName, "Started container training"),
-    );
-    currentTime += faker.number.int({ min: 1000, max: 5000 });
-
-    if (status === "running") {
-      // Running tasks don't have completion events yet
-      return events;
-    }
-
-    if (status === "failed") {
-      // Failed tasks have OOM or other errors
-      currentTime += faker.number.int({ min: 60000, max: 300000 }); // Fail after 1-5 minutes
-      const failureReason = faker.helpers.arrayElement(["OOMKilled", "Error", "BackOff"]);
-
-      if (failureReason === "OOMKilled") {
-        events.push(
-          this.createTaskEvent(
-            new Date(currentTime),
-            "Warning",
-            "OOMKilled",
-            taskName,
-            "Container training exceeded memory limit (32Gi)",
-          ),
-        );
-        currentTime += faker.number.int({ min: 1000, max: 3000 });
-        events.push(
-          this.createTaskEvent(
-            new Date(currentTime),
-            "Warning",
-            "BackOff",
-            taskName,
-            `Back-off restarting failed container training in pod ${taskName}`,
-          ),
-        );
-      } else {
-        events.push(
-          this.createTaskEvent(
-            new Date(currentTime),
-            "Warning",
-            failureReason,
-            taskName,
-            "Container terminated with exit code 1",
-          ),
-        );
-      }
-      return events;
-    }
-
-    // 4. Completion phase (for completed tasks)
-    currentTime += faker.number.int({ min: 120000, max: 600000 }); // Complete after 2-10 minutes
-    events.push(this.createTaskEvent(new Date(currentTime), "Normal", "Ready", taskName, "True"));
-
     return events;
   }
 
@@ -1035,110 +772,16 @@ export class EventGenerator {
     };
   }
 
-  /**
-   * Generate events for a task
-   */
-  generateTaskEvents(
-    workflowName: string,
-    taskName: string,
-    status: string,
-    startTime?: string,
-    endTime?: string,
-  ): GeneratedEvent[] {
-    faker.seed(this.baseSeed + hashString(workflowName + taskName));
-
-    const events: GeneratedEvent[] = [];
-    const objectName = `${workflowName}/${taskName}`;
-    const now = new Date();
-
-    // Scheduling
-    events.push(
-      this.createEvent(
-        startTime ? new Date(new Date(startTime).getTime() - 30000) : now,
-        "Normal",
-        "Scheduled",
-        objectName,
-        "Task",
-      ),
-    );
-
-    // If started
-    if (startTime) {
-      const start = new Date(startTime);
-      events.push(
-        this.createEvent(start, "Normal", "Pulling", objectName, "Task"),
-        this.createEvent(new Date(start.getTime() + 5000), "Normal", "Pulled", objectName, "Task"),
-        this.createEvent(new Date(start.getTime() + 6000), "Normal", "Created", objectName, "Task"),
-        this.createEvent(new Date(start.getTime() + 7000), "Normal", "Started", objectName, "Task"),
-      );
-    }
-
-    // Completion
-    if (endTime) {
-      const end = new Date(endTime);
-      if (status === "COMPLETED") {
-        events.push(this.createEvent(end, "Normal", "Completed", objectName, "Task"));
-      } else if (status.startsWith("FAILED")) {
-        events.push(this.createEvent(end, "Warning", "Failed", objectName, "Task", status));
-      }
-    }
-
-    return events;
+  formatEventLines(events: GeneratedEvent[]): string[] {
+    return events.map((event) => {
+      const timestamp = new Date(event.first_timestamp)
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, "+00:00");
+      return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
+    });
   }
 
-  // --------------------------------------------------------------------------
-  // Private helpers
-  // --------------------------------------------------------------------------
-
-  private createEvent(
-    time: Date,
-    type: "Normal" | "Warning",
-    reason: string,
-    objectName: string,
-    kind: string,
-    failureType?: string,
-  ): GeneratedEvent {
-    const messages = this.patterns.messages[reason];
-    let message = messages ? faker.helpers.arrayElement(messages) : `${reason} for ${objectName}`;
-
-    // Replace placeholders
-    message = message
-      .replace("{namespace}", "default")
-      .replace("{pod}", objectName.replace("/", "-"))
-      .replace("{node}", `dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}`)
-      .replace("{image}", faker.helpers.arrayElement(MOCK_CONFIG.images.repositories))
-      .replace("{container}", "main")
-      .replace("{duration}", faker.number.int({ min: 5, max: 30 }).toString())
-      .replace("{code}", faker.helpers.arrayElement(["1", "137", "139"]))
-      .replace("{resource}", faker.helpers.arrayElement(["memory", "nvidia.com/gpu"]))
-      .replace("{total}", faker.number.int({ min: 10, max: 100 }).toString())
-      .replace("{reason}", failureType || "insufficient resources");
-
-    return {
-      type,
-      reason,
-      message,
-      source: {
-        component: faker.helpers.arrayElement(this.patterns.sources.components),
-        host:
-          kind === "Task"
-            ? `dgx-a100-${faker.number.int({ min: 1, max: 100 }).toString().padStart(3, "0")}`
-            : undefined,
-      },
-      first_timestamp: time.toISOString(),
-      last_timestamp: time.toISOString(),
-      count: 1,
-      involved_object: {
-        kind,
-        name: objectName,
-        namespace: "default",
-      },
-    };
-  }
 }
-
-// ============================================================================
-// Singleton instance
-// ============================================================================
 
 export const eventGenerator = new EventGenerator();

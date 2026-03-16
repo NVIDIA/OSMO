@@ -86,7 +86,7 @@ This is transparent to the UI - it uses the standard endpoint path.
 
 ### PTY Simulator
 
-The `POST /api/workflow/:name/exec/task/:taskName` mock returns a session ID and simulates PTY behavior for development. The mock WebSocket server (`pnpm dev:mock-ws`) provides interactive shell simulation.
+The `POST /api/workflow/:name/exec/task/:taskName` mock returns a session ID and simulates PTY behavior for development. The mock exec server (`pnpm dev:mock-exec`) provides interactive shell simulation.
 
 ## Adding New Mock Handlers
 
