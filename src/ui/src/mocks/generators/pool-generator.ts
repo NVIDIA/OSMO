@@ -15,6 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { faker } from "@faker-js/faker";
+import { delay } from "msw";
+import { getMockDelay } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 import type { PoolResourceUsage, PoolResources, ResourceUsage, PoolResponse, PlatformMinimal } from "@/lib/api/generated";
 import { PoolStatus } from "@/lib/api/generated";
@@ -191,6 +193,36 @@ export class PoolGenerator {
       ? baseName
       : `${baseName}-${Math.floor(index / MOCK_CONFIG.pools.names.length)}`;
   }
+
+  // ============================================================================
+  // MSW handler methods — passed directly to http.get() / generated factories
+  // ============================================================================
+
+  handleGetPoolQuota = async ({ request }: { request: Request }): Promise<PoolResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const poolsParam = url.searchParams.get("pools");
+    if (poolsParam && url.searchParams.get("all_pools") !== "true") {
+      return this.generatePoolResponse(poolsParam.split(",").map((p) => p.trim()));
+    }
+    return this.generatePoolResponse();
+  };
+
+  handleListPools = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const allPools = url.searchParams.get("all_pools") === "true";
+    const poolsParam = url.searchParams.get("pools");
+    let poolNames: string[];
+    if (poolsParam) {
+      poolNames = poolsParam.split(",").map((p) => p.trim());
+    } else if (allPools) {
+      poolNames = this.getPoolNames();
+    } else {
+      poolNames = this.getPoolNames().slice(0, 10);
+    }
+    return new Response(poolNames.join("\n"), { headers: { "Content-Type": "text/plain" } });
+  };
 }
 
 export const poolGenerator = new PoolGenerator();

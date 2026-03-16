@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { faker } from "@faker-js/faker";
-import { delay } from "msw";
+import { HttpResponse, delay } from "msw";
 import { hashString, getMockDelay } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
@@ -28,6 +28,30 @@ import type {
   DataInfoCollectionEntry,
 } from "@/mocks/generated-mocks";
 import type { RawFileItem } from "@/lib/api/adapter/datasets";
+
+const EXT_TO_CONTENT_TYPE: Record<string, string> = {
+  json: "application/json",
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  svg: "image/svg+xml",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  pdf: "application/pdf",
+  parquet: "application/octet-stream",
+  tfrecord: "application/octet-stream",
+};
+
+// 1×1 transparent PNG for image placeholder responses
+const PLACEHOLDER_PNG = Uint8Array.from(
+  atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="),
+  (c) => c.charCodeAt(0),
+);
 
 const BASE_SEED = 55555;
 
@@ -307,6 +331,71 @@ export class DatasetGenerator {
     }
 
     return { datasets };
+  };
+
+  handleGetLocationFiles = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const locationUrl = url.searchParams.get("url") ?? "";
+    const datasetName = locationUrl.match(/\/datasets\/([^/]+)\/v\d+/)?.[1] ?? "";
+    const bucket = locationUrl.match(/s3:\/\/([^/]+)/)?.[1] ?? "osmo-datasets";
+    return HttpResponse.json(this.generateFlatManifest(datasetName, bucket, locationUrl));
+  };
+
+  handleFileProxy = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const fileUrl = url.searchParams.get("url") ?? "";
+    const datasetName = fileUrl.match(/\/dataset\/([^/?]+)\/preview/)?.[1] ?? "";
+
+    if (this.isPrivateDataset(datasetName)) {
+      return new HttpResponse(null, { status: 401 });
+    }
+
+    const filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+    const contentType = EXT_TO_CONTENT_TYPE[ext] ?? "application/octet-stream";
+
+    if (request.method === "HEAD") {
+      return new HttpResponse(null, { status: 200, headers: { "Content-Type": contentType } });
+    }
+    if (ext === "json") {
+      return HttpResponse.json({ mock: true, path: filePath, dataset: datasetName });
+    }
+    return HttpResponse.text(`Mock file: ${filePath}\nDataset: ${datasetName}\n`, {
+      headers: { "Content-Type": "text/plain" },
+    });
+  };
+
+  handleFilePreviewHead = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const filePath = url.searchParams.get("path") ?? "";
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+    return new HttpResponse(null, {
+      status: 200,
+      headers: { "Content-Type": EXT_TO_CONTENT_TYPE[ext] ?? "application/octet-stream" },
+    });
+  };
+
+  handleFilePreviewGet = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const filePath = url.searchParams.get("path") ?? "";
+    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
+
+    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
+      return new HttpResponse(PLACEHOLDER_PNG, { status: 200, headers: { "Content-Type": "image/png" } });
+    }
+    if (["txt", "md", "json"].includes(ext)) {
+      return HttpResponse.text(`Mock preview for: ${filePath}`, {
+        headers: { "Content-Type": ext === "json" ? "application/json" : "text/plain" },
+      });
+    }
+    return new HttpResponse(new Uint8Array(8), {
+      status: 200,
+      headers: { "Content-Type": "application/octet-stream" },
+    });
   };
 
   handleGetDatasetInfo = async ({

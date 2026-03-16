@@ -47,7 +47,7 @@ import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
 import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
-import { getMockWorkflow, getWorkflowLogConfig } from "@/mocks/mock-workflows";
+import { getMockWorkflow } from "@/mocks/mock-workflows";
 import { MOCK_CONFIG, SHARED_POOL_ALPHA, SHARED_POOL_BETA } from "@/mocks/seed/types";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
@@ -72,24 +72,6 @@ const MOCK_DELAY = getMockDelay();
 // The `.*` prefix ensures basePath-agnostic matching (works with /v2, /v3, etc.)
 const WORKFLOW_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/logs$/;
 const TASK_LOGS_PATTERN = /.*\/api\/workflow\/([^/]+)\/task\/([^/]+)\/logs$/;
-
-const EXT_TO_CONTENT_TYPE: Record<string, string> = {
-  json: "application/json",
-  txt: "text/plain",
-  md: "text/markdown",
-  csv: "text/csv",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  svg: "image/svg+xml",
-  mp4: "video/mp4",
-  webm: "video/webm",
-  pdf: "application/pdf",
-  parquet: "application/octet-stream",
-  tfrecord: "application/octet-stream",
-};
 
 // ============================================================================
 // Handlers
@@ -692,52 +674,40 @@ export const handlers = [
     // - Completed tasks (end_time exists): stream to EOF (finite)
     // - Running tasks (end_time undefined): stream infinitely
     if (isTailing) {
-      const logConfig = getWorkflowLogConfig(workflowName);
-      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : (logConfig.features.streamDelayMs ?? 200);
+      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
       const encoder = new TextEncoder();
+      const streamKey = `task:${workflowName}:${taskName}`;
+      abortExistingStream(streamKey);
+      const abortController = new AbortController();
+      activeStreams.set(streamKey, abortController);
 
-      const levels = ["INFO", "DEBUG", "WARN", "ERROR"];
-      const messages = [
-        "Processing batch",
-        "Loading data",
-        "Checkpoint saved",
-        "GPU memory: 85%",
-        "Epoch completed",
-        "Validating output",
-      ];
-
-      let intervalId: ReturnType<typeof setInterval> | null = null;
-      let lineNum = 0;
-
-      const generateLine = (): string => {
-        const now = new Date();
-        const ts = now.toISOString().replace("T", " ").slice(0, 19);
-        const level = lineNum % 20 === 0 ? "ERROR" : lineNum % 5 === 0 ? "WARN" : levels[lineNum % 2];
-        const msg = messages[lineNum % messages.length];
-        lineNum++;
-        return `${ts} [${taskName}] ${level}: ${msg} (line ${lineNum})\n`;
-      };
+      const streamGen = logGenerator.createStream({
+        workflowName,
+        taskNames: [taskName],
+        continueFrom: taskStartTime,
+        streamDelayMs: streamDelay,
+        signal: abortController.signal,
+      });
 
       const stream = new ReadableStream<Uint8Array>({
-        start(controller) {
-          intervalId = setInterval(() => {
-            try {
-              controller.enqueue(encoder.encode(generateLine()));
-            } catch {
-              if (intervalId) clearInterval(intervalId);
-            }
-          }, streamDelay);
+        async start(controller) {
+          try {
+            for await (const line of streamGen) controller.enqueue(encoder.encode(line));
+          } catch {
+            // Stream closed or aborted
+          } finally {
+            activeStreams.delete(streamKey);
+            try { controller.close(); } catch { /* already closed */ }
+          }
         },
         cancel() {
-          if (intervalId) clearInterval(intervalId);
+          abortController.abort();
+          activeStreams.delete(streamKey);
         },
       });
 
       return new HttpResponse(stream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache",
-        },
+        headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
       });
     }
 
@@ -841,41 +811,11 @@ export const handlers = [
   // Pools (matches PoolResponse format for /api/pool_quota)
   // ==========================================================================
 
-  // Get pool quotas (main endpoint for pools)
-  // Returns PoolResponse: { node_sets: [{ pools: PoolResourceUsage[] }], resource_sum }
-  getGetPoolQuotasApiPoolQuotaGetMockHandler(async ({ request }) => {
-    await delay(MOCK_DELAY);
-    const url = new URL(request.url);
-    const poolsParam = url.searchParams.get("pools");
-    if (poolsParam && url.searchParams.get("all_pools") !== "true") {
-      return poolGenerator.generatePoolResponse(poolsParam.split(",").map((p) => p.trim()));
-    }
-    return poolGenerator.generatePoolResponse();
-  }),
+  // Get pool quotas — returns PoolResponse: { node_sets: [{ pools: PoolResourceUsage[] }], resource_sum }
+  getGetPoolQuotasApiPoolQuotaGetMockHandler(poolGenerator.handleGetPoolQuota),
 
-  // List pools - returns pool names as plain text (matches backend behavior)
-  // The UI uses /api/pool_quota instead for detailed pool info
-  http.get("*/api/pool", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const allPools = url.searchParams.get("all_pools") === "true";
-    const poolsParam = url.searchParams.get("pools");
-
-    let poolNames: string[];
-    if (poolsParam) {
-      poolNames = poolsParam.split(",").map((p) => p.trim());
-    } else if (allPools) {
-      poolNames = poolGenerator.getPoolNames();
-    } else {
-      poolNames = poolGenerator.getPoolNames().slice(0, 10); // Default subset
-    }
-
-    // Backend returns plain text list of pool names
-    return new Response(poolNames.join("\n"), {
-      headers: { "Content-Type": "text/plain" },
-    });
-  }),
+  // List pools — returns pool names as plain text (matches backend behavior)
+  http.get("*/api/pool", poolGenerator.handleListPools),
 
   // NOTE: /api/pool/:name was removed - not a real backend endpoint
   // Use /api/pool_quota?pools=X instead
@@ -939,115 +879,16 @@ export const handlers = [
   // Get dataset or collection info - generated factory with generator callback
   getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler(datasetGenerator.handleGetDatasetInfo),
 
-  // Dataset location files — returns a flat file manifest for a dataset version's location URL.
-  // The location URL encodes the dataset name (e.g. s3://bucket/datasets/name/v1/).
-  // MSW intercepts this browser-side request so the Next.js proxy route is bypassed in mock mode.
-  http.get("*/api/datasets/location-files", async ({ request }) => {
-    await delay(MOCK_DELAY);
+  // Dataset location files — returns a flat file manifest for a dataset version's location URL
+  http.get("*/api/datasets/location-files", datasetGenerator.handleGetLocationFiles),
 
-    const url = new URL(request.url);
-    const locationUrl = url.searchParams.get("url") ?? "";
+  // HEAD + GET /proxy/dataset/file — preflight + content for file preview panel
+  // Uses http.all because http.head() does not reliably intercept HEAD requests via mock tunnel
+  http.all("*/proxy/dataset/file", datasetGenerator.handleFileProxy),
 
-    // Extract dataset name from location URL: s3://{bucket}/datasets/{name}/v{version}/
-    const nameMatch = locationUrl.match(/\/datasets\/([^/]+)\/v\d+/);
-    const datasetName = nameMatch?.[1] ?? "";
-
-    const bucketMatch = locationUrl.match(/s3:\/\/([^/]+)/);
-    const bucket = bucketMatch?.[1] ?? "osmo-datasets";
-
-    const items = datasetGenerator.generateFlatManifest(datasetName, bucket, locationUrl);
-    return HttpResponse.json(items);
-  }),
-
-  // HEAD + GET /proxy/dataset/file — preflight + content for file preview panel.
-  // Uses http.all because http.head() does not reliably intercept http.request with method HEAD
-  // when routed through the mock port-9999 tunnel.
-  // Returns 401 for datasets that simulate a private bucket, 200/content otherwise.
-  http.all("*/proxy/dataset/file", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const fileUrl = url.searchParams.get("url") ?? "";
-
-    // Extract dataset name from url param: /api/bucket/{bucket}/dataset/{name}/preview
-    const nameMatch = fileUrl.match(/\/dataset\/([^/?]+)\/preview/);
-    const datasetName = nameMatch?.[1] ?? "";
-
-    if (datasetGenerator.isPrivateDataset(datasetName)) {
-      return new HttpResponse(null, { status: 401 });
-    }
-
-    const filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
-    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-
-    const contentType = EXT_TO_CONTENT_TYPE[ext] ?? "application/octet-stream";
-
-    if (request.method === "HEAD") {
-      return new HttpResponse(null, {
-        status: 200,
-        headers: { "Content-Type": contentType },
-      });
-    }
-
-    if (ext === "json") {
-      return HttpResponse.json({ mock: true, path: filePath, dataset: datasetName });
-    }
-
-    return HttpResponse.text(`Mock file: ${filePath}\nDataset: ${datasetName}\n`, {
-      headers: { "Content-Type": "text/plain" },
-    });
-  }),
-
-  // HEAD and GET preview handler for dataset files
-  // Used by FilePreviewPanel to check content-type before rendering
-  // Returns 200 with Content-Type based on file extension for mock public buckets
-  http.head("*/api/bucket/:bucket/dataset/:name/preview", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const filePath = url.searchParams.get("path") ?? "";
-    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-
-    const contentType = EXT_TO_CONTENT_TYPE[ext] ?? "application/octet-stream";
-
-    return new HttpResponse(null, {
-      status: 200,
-      headers: { "Content-Type": contentType },
-    });
-  }),
-
-  // GET preview - returns a simple placeholder for images/text in mock
-  http.get("*/api/bucket/:bucket/dataset/:name/preview", async ({ request }) => {
-    await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const filePath = url.searchParams.get("path") ?? "";
-    const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
-
-    // For images: return a 1x1 placeholder pixel
-    if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
-      // 1x1 transparent PNG
-      const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      return new HttpResponse(bytes, {
-        status: 200,
-        headers: { "Content-Type": "image/png" },
-      });
-    }
-
-    // For text/json/markdown: return sample text
-    if (["txt", "md", "json"].includes(ext)) {
-      return HttpResponse.text(`Mock preview for: ${filePath}`, {
-        headers: { "Content-Type": ext === "json" ? "application/json" : "text/plain" },
-      });
-    }
-
-    // For everything else: 200 with binary placeholder
-    return new HttpResponse(new Uint8Array(8), {
-      status: 200,
-      headers: { "Content-Type": "application/octet-stream" },
-    });
-  }),
+  // HEAD + GET /api/bucket/:bucket/dataset/:name/preview — file preview panel
+  http.head("*/api/bucket/:bucket/dataset/:name/preview", datasetGenerator.handleFilePreviewHead),
+  http.get("*/api/bucket/:bucket/dataset/:name/preview", datasetGenerator.handleFilePreviewGet),
 
   // NOTE: /api/bucket/collections was removed - not a real backend endpoint
   // Collections are accessed via /api/bucket/list_dataset with type filter
