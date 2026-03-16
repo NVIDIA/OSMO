@@ -26,6 +26,10 @@
 import { http, HttpResponse, delay, passthrough } from "msw";
 import {
   getFastAPIMock,
+  getCancelWorkflowApiWorkflowNameCancelPostMockHandler,
+  getListWorkflowApiWorkflowGetMockHandler,
+  getGetWorkflowApiWorkflowNameGetMockHandler,
+  getSubmitWorkflowApiPoolPoolNameWorkflowPostMockHandler,
   getGetBucketInfoApiBucketGetMockHandler,
   getListDatasetFromBucketApiBucketListDatasetGetMockHandler,
   getGetInfoApiBucketBucketDatasetNameInfoGetMockHandler,
@@ -47,9 +51,8 @@ import { datasetGenerator } from "@/mocks/generators/dataset-generator";
 import { profileGenerator } from "@/mocks/generators/profile-generator";
 import { portForwardGenerator } from "@/mocks/generators/portforward-generator";
 import { taskSummaryGenerator } from "@/mocks/generators/task-summary-generator";
-import { parsePagination, parseWorkflowFilters, hasActiveFilters, getMockDelay, hashString, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
+import { getMockDelay, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
 import { getMockWorkflow } from "@/mocks/mock-workflows";
-import { MOCK_CONFIG } from "@/mocks/seed/types";
 
 // Simulate network delay (ms) - minimal in dev for fast iteration
 const MOCK_DELAY = getMockDelay();
@@ -84,289 +87,62 @@ export const handlers = [
   // ==========================================================================
 
   // Get all users who have submitted workflows
-  // Returns string[] of usernames (matches backend /api/users endpoint)
-  http.get("*/api/users", async () => {
-    await delay(MOCK_DELAY);
-
-    // Return the list of users from mock config (workflow patterns)
-    const users = MOCK_CONFIG.workflows.users;
-
-    // Backend returns JSON string of string array (see BACKEND_TODOS.md #1)
-    return HttpResponse.json(users);
-  }),
+  // Backend returns JSON string of string array (see BACKEND_TODOS.md #1)
+  http.get("*/api/users", workflowGenerator.handleGetUsers),
 
   // ==========================================================================
   // Workflows
   // ==========================================================================
 
-  // List workflows (paginated)
-  // Returns SrcServiceCoreWorkflowObjectsListResponse format
-  http.get("*/api/workflow", async ({ request }) => {
+  // List workflows — generated factory with generator callback
+  getListWorkflowApiWorkflowGetMockHandler(workflowGenerator.handleListWorkflows),
+
+  // Get single workflow — generated factory; checks mock-workflows first for log-viewer fixtures
+  getGetWorkflowApiWorkflowNameGetMockHandler(async ({ params }) => {
     await delay(MOCK_DELAY);
-
-    const url = new URL(request.url);
-    const { offset, limit } = parsePagination(url, { limit: 20 });
-    const filters = parseWorkflowFilters(url);
-
-    const { entries, total } = workflowGenerator.generatePage(offset, limit);
-
-    // Apply filters if provided
-    let filtered = entries;
-    if (filters.statuses.length > 0) {
-      filtered = filtered.filter((w) => filters.statuses.includes(w.status));
-    }
-    if (filters.pools.length > 0) {
-      filtered = filtered.filter((w) => w.pool && filters.pools.includes(w.pool));
-    }
-    if (filters.users.length > 0) {
-      filtered = filtered.filter((w) => filters.users.includes(w.submitted_by));
-    }
-
-    // Transform to API response format (SrcServiceCoreWorkflowObjectsListEntry)
-    const workflows = filtered.map((w) => ({
-      user: w.submitted_by,
-      name: w.name,
-      workflow_uuid: w.uuid,
-      submit_time: w.submit_time,
-      start_time: w.start_time,
-      end_time: w.end_time,
-      queued_time: w.queued_time,
-      duration: w.duration,
-      status: w.status,
-      overview: `${w.groups.length} groups, ${w.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
-      logs: w.logs_url,
-      error_logs: w.status.toString().startsWith("FAILED") ? `/api/workflow/${w.name}/logs?type=error` : undefined,
-      grafana_url: `https://grafana.example.com/d/workflow/${w.name}`,
-      dashboard_url: `https://dashboard.example.com/workflow/${w.name}`,
-      pool: w.pool,
-      app_owner: undefined,
-      app_name: undefined,
-      app_version: undefined,
-      priority: w.priority,
-    }));
-
-    // When filters are active, don't report more entries (we've filtered the full set)
-    const moreEntries = hasActiveFilters(filters) ? false : offset + limit < total;
-
-    return HttpResponse.json({
-      workflows,
-      more_entries: moreEntries,
-    });
-  }),
-
-  // Get single workflow
-  // Returns WorkflowQueryResponse format
-  // Uses wildcard to ensure basePath-agnostic matching (works with /v2, /v3, etc.)
-  http.get("*/api/workflow/:name", async ({ params }) => {
-    await delay(MOCK_DELAY);
-
     const name = params.name as string;
-
-    // Check for mock workflows first (for log-viewer experimental page)
     const mockWorkflow = getMockWorkflow(name);
-    if (mockWorkflow) {
-      return HttpResponse.json(mockWorkflow);
-    }
-
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    // Transform groups to API format (GroupQueryResponse)
-    const groups = workflow.groups.map((g) => ({
-      name: g.name,
-      status: g.status,
-      start_time: g.tasks[0]?.start_time,
-      end_time: g.tasks[g.tasks.length - 1]?.end_time,
-      remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
-      downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
-      failure_message: g.failure_message,
-      // Tasks: include all fields matching TaskQueryResponse
-      tasks: g.tasks.map((t) => ({
-        name: t.name,
-        retry_id: t.retry_id,
-        status: t.status,
-        lead: t.lead,
-        // Identifiers
-        task_uuid: t.task_uuid,
-        pod_name: t.pod_name,
-        pod_ip: t.pod_ip,
-        node_name: t.node_name,
-        // Timeline timestamps
-        scheduling_start_time: t.scheduling_start_time,
-        initializing_start_time: t.initializing_start_time,
-        input_download_start_time: t.input_download_start_time,
-        input_download_end_time: t.input_download_end_time,
-        processing_start_time: t.processing_start_time,
-        start_time: t.start_time,
-        output_upload_start_time: t.output_upload_start_time,
-        end_time: t.end_time,
-        // Status
-        exit_code: t.exit_code,
-        failure_message: t.failure_message,
-        // URLs
-        logs: t.logs,
-        error_logs: t.error_logs,
-        events: t.events,
-        dashboard_url: t.dashboard_url,
-        grafana_url: t.grafana_url,
-      })),
-    }));
-
-    // Transform to WorkflowQueryResponse format
-    const response = {
-      name: workflow.name,
-      uuid: workflow.uuid,
-      submitted_by: workflow.submitted_by,
-      cancelled_by: workflow.cancelled_by,
-      spec: workflow.spec_url,
-      template_spec: workflow.template_spec_url,
-      logs: workflow.logs_url,
-      events: workflow.events_url,
-      overview: `${workflow.groups.length} groups, ${workflow.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
-      dashboard_url: `https://dashboard.example.com/workflow/${workflow.name}`,
-      grafana_url: `https://grafana.example.com/d/workflow/${workflow.name}`,
-      tags: workflow.tags,
-      submit_time: workflow.submit_time,
-      start_time: workflow.start_time,
-      end_time: workflow.end_time,
-      duration: workflow.duration,
-      queued_time: workflow.queued_time,
-      status: workflow.status,
-      groups,
-      pool: workflow.pool,
-      backend: workflow.backend,
-      plugins: {},
-      priority: workflow.priority,
-    };
-
-    return HttpResponse.json(response);
+    if (mockWorkflow) return mockWorkflow as unknown as import("@/lib/api/generated").WorkflowQueryResponse;
+    return workflowGenerator.toWorkflowQueryResponse(workflowGenerator.getByName(name));
   }),
 
   // ==========================================================================
   // Workflow Actions (cancel, retry, delete)
   // ==========================================================================
 
-  // Cancel workflow
-  http.post("*/api/workflow/:name/cancel", async ({ params }) => {
-    await delay(MOCK_DELAY);
-    const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    // In mock mode, just return success (no actual state change persisted)
-    return HttpResponse.json({ message: `Workflow ${name} cancelled` });
-  }),
+  // Cancel workflow — generated factory (getByName never returns null in mock mode)
+  getCancelWorkflowApiWorkflowNameCancelPostMockHandler(),
 
   // Retry workflow
   http.post("*/api/workflow/:name/retry", async ({ params }) => {
     await delay(MOCK_DELAY);
-    const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.json({ message: `Workflow ${name} retry initiated` });
+    return HttpResponse.json({ message: `Workflow ${params.name as string} retry initiated` });
   }),
 
   // Delete workflow
   http.delete("*/api/workflow/:name", async ({ params }) => {
     await delay(MOCK_DELAY);
-    const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.json({ message: `Workflow ${name} deleted` });
+    return HttpResponse.json({ message: `Workflow ${params.name as string} deleted` });
   }),
 
   // Cancel task group
   http.post("*/api/workflow/:name/groups/:groupName/cancel", async ({ params }) => {
     await delay(MOCK_DELAY);
-    const name = params.name as string;
-    const groupName = params.groupName as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    const group = workflow.groups.find((g) => g.name === groupName);
-    if (!group) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.json({ message: `Group ${groupName} in workflow ${name} cancelled` });
+    return HttpResponse.json({ message: `Group ${params.groupName as string} in workflow ${params.name as string} cancelled` });
   }),
 
   // Retry task group
   http.post("*/api/workflow/:name/groups/:groupName/retry", async ({ params }) => {
     await delay(MOCK_DELAY);
-    const name = params.name as string;
-    const groupName = params.groupName as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    const group = workflow.groups.find((g) => g.name === groupName);
-    if (!group) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.json({ message: `Group ${groupName} in workflow ${name} retry initiated` });
+    return HttpResponse.json({ message: `Group ${params.groupName as string} in workflow ${params.name as string} retry initiated` });
   }),
 
   // ==========================================================================
   // Workflow Submission / Resubmit
   // ==========================================================================
 
-  // Submit/Resubmit workflow to pool
-  // POST /api/pool/{pool_name}/workflow?workflow_id={id}&priority={priority}
-  // Body: TemplateSpec with { file, set_variables, ... }
-  // Returns: SubmitResponse with new workflow name
-  http.post("*/api/pool/:poolName/workflow", async ({ params, request }) => {
-    await delay(MOCK_DELAY);
-
-    const poolName = params.poolName as string;
-    const url = new URL(request.url);
-    const workflowId = url.searchParams.get("workflow_id");
-
-    // Validate pool exists
-    const pool = poolGenerator.getByName(poolName);
-    if (!pool) {
-      return HttpResponse.json({ detail: `Pool ${poolName} not found` }, { status: 404 });
-    }
-
-    // Generate a new workflow name for the resubmitted workflow
-    // Use deterministic seeding based on workflow_id + timestamp for uniqueness
-    const seed = workflowId ? hashString(workflowId + Date.now()) : Math.floor(Math.random() * 1000000);
-    faker.seed(seed);
-
-    const prefix = faker.helpers.arrayElement(MOCK_CONFIG.workflows.namePatterns.prefixes);
-    const suffix = faker.helpers.arrayElement(MOCK_CONFIG.workflows.namePatterns.suffixes);
-    const id = faker.string.alphanumeric(8).toLowerCase();
-    const newWorkflowName = `${prefix}-${suffix}-${id}`;
-
-    // Return SubmitResponse format (matching generated API types)
-    return HttpResponse.json({
-      name: newWorkflowName,
-      overview: `/api/workflow/${newWorkflowName}`,
-      logs: `/api/workflow/${newWorkflowName}/logs`,
-      spec: `/api/workflow/${newWorkflowName}/spec`,
-      dashboard_url: `/workflows/${newWorkflowName}`,
-    });
-  }),
+  // Submit/Resubmit workflow to pool — generated factory with generator callback
+  getSubmitWorkflowApiPoolPoolNameWorkflowPostMockHandler(workflowGenerator.handleSubmitWorkflow),
 
   // ==========================================================================
   // Workflow Logs

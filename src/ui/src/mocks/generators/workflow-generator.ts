@@ -62,12 +62,21 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { delay, HttpResponse } from "msw";
 
 // Import status and priority enums from generated API spec - prevents drift!
-import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/generated";
+import {
+  WorkflowStatus,
+  TaskGroupStatus,
+  WorkflowPriority,
+  type SrcServiceCoreWorkflowObjectsListEntry,
+  type SrcServiceCoreWorkflowObjectsListResponse,
+  type WorkflowQueryResponse,
+  type SubmitResponse,
+} from "@/lib/api/generated";
 
 import { MOCK_CONFIG, type WorkflowPatterns } from "@/mocks/seed/types";
-import { hashString } from "@/mocks/utils";
+import { hashString, getMockDelay, parsePagination, parseWorkflowFilters, hasActiveFilters } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
@@ -151,18 +160,14 @@ export interface MockWorkflow {
 }
 
 interface GeneratorConfig {
-  total: number;
   baseSeed: number;
   patterns: WorkflowPatterns;
 }
 
 const DEFAULT_CONFIG: GeneratorConfig = {
-  total: MOCK_CONFIG.volume.workflows, // 10,000 by default
   baseSeed: 12345,
   patterns: MOCK_CONFIG.workflows,
 };
-
-let instanceCounter = 0;
 
 export class WorkflowGenerator {
   private config: GeneratorConfig;
@@ -170,11 +175,8 @@ export class WorkflowGenerator {
   private nameToIndexCache: Map<string, number> = new Map();
   // Track which indices have been cached
   private cachedUpToIndex: number = -1;
-  // Unique instance ID for debugging module duplication
-  private instanceId: number;
 
   constructor(config: Partial<GeneratorConfig> = {}) {
-    this.instanceId = ++instanceCounter;
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
@@ -211,56 +213,10 @@ export class WorkflowGenerator {
    * VALIDATED: Guarantees state machine invariants are satisfied.
    */
   generate(index: number): MockWorkflow {
-    // Seed faker deterministically based on index
     faker.seed(this.config.baseSeed + index);
-
-    const status = this.pickWeighted(this.config.patterns.statusDistribution) as WorkflowStatus;
-    const priority = this.pickWeighted(this.config.patterns.priorityDistribution) as Priority;
-    const pool = faker.helpers.arrayElement(this.config.patterns.pools);
-    const user = faker.helpers.arrayElement(this.config.patterns.users);
     const name = this.generateName(index);
-
-    // Cache the name → index mapping for efficient lookup
     this.nameToIndexCache.set(name, index);
-
-    // Timing
-    const submitTime = this.generateSubmitTime(index);
-    const { startTime, endTime, queuedTime, duration } = this.generateTiming(status, submitTime);
-
-    // Groups and tasks
-    const groups = this.generateGroups(status, name);
-
-    // Container image
-    const image = `${faker.helpers.arrayElement(MOCK_CONFIG.images.repositories)}:${faker.helpers.arrayElement(MOCK_CONFIG.images.tags)}`;
-
-    const workflow: MockWorkflow = {
-      name,
-      uuid: faker.string.uuid(),
-      submitted_by: user,
-      cancelled_by:
-        status === WorkflowStatus.FAILED_CANCELED ? faker.helpers.arrayElement(this.config.patterns.users) : undefined,
-      status,
-      priority,
-      pool,
-      backend: "kubernetes",
-      tags: this.generateTags(),
-      submit_time: submitTime,
-      start_time: startTime,
-      end_time: endTime,
-      queued_time: queuedTime,
-      duration,
-      groups,
-      image,
-      spec_url: `/api/workflow/${name}/spec`,
-      template_spec_url: `/api/workflow/${name}/template-spec`,
-      logs_url: `/api/workflow/${name}/logs`,
-      events_url: `/api/workflow/${name}/events`,
-    };
-
-    // VALIDATE: Ensure state machine invariants are satisfied
-    this.enforceInvariants(workflow);
-
-    return workflow;
+    return this.buildWorkflowBody(name, index);
   }
 
   /**
@@ -457,7 +413,7 @@ export class WorkflowGenerator {
    * SINGLE SOURCE OF TRUTH: Returns the same workflow that generate() produces.
    * Uses name→index cache for O(1) lookup after first generation.
    */
-  getByName(name: string): MockWorkflow | null {
+  getByName(name: string): MockWorkflow {
     // 1. Check cache first (O(1) lookup)
     const cachedIndex = this.nameToIndexCache.get(name);
     if (cachedIndex !== undefined) {
@@ -497,19 +453,15 @@ export class WorkflowGenerator {
   }
 
   /**
-   * Generate a workflow for an arbitrary name that wasn't in the generated set.
-   * Deterministic: same name always produces same workflow.
+   * Build a workflow object after faker has been seeded.
+   * NOTE: faker must already be seeded by the caller before calling this method.
+   * Shared by generate() and generateForArbitraryName() to avoid duplication.
    */
-  private generateForArbitraryName(name: string): MockWorkflow {
-    const nameHash = Math.abs(hashString(name));
-    faker.seed(this.config.baseSeed + nameHash);
-
+  private buildWorkflowBody(name: string, pseudoIndex: number): MockWorkflow {
     const status = this.pickWeighted(this.config.patterns.statusDistribution) as WorkflowStatus;
     const priority = this.pickWeighted(this.config.patterns.priorityDistribution) as Priority;
     const pool = faker.helpers.arrayElement(this.config.patterns.pools);
     const user = faker.helpers.arrayElement(this.config.patterns.users);
-    const pseudoIndex = nameHash % this.total; // Use getter
-
     const submitTime = this.generateSubmitTime(pseudoIndex);
     const { startTime, endTime, queuedTime, duration } = this.generateTiming(status, submitTime);
     const groups = this.generateGroups(status, name);
@@ -541,6 +493,16 @@ export class WorkflowGenerator {
 
     this.enforceInvariants(workflow);
     return workflow;
+  }
+
+  /**
+   * Generate a workflow for an arbitrary name that wasn't in the generated set.
+   * Deterministic: same name always produces same workflow.
+   */
+  private generateForArbitraryName(name: string): MockWorkflow {
+    const nameHash = Math.abs(hashString(name));
+    faker.seed(this.config.baseSeed + nameHash);
+    return this.buildWorkflowBody(name, nameHash % this.total);
   }
 
   // --------------------------------------------------------------------------
@@ -1454,14 +1416,152 @@ export class WorkflowGenerator {
 
     return faker.helpers.arrayElement(messages["FAILED"] || ["Unknown error"]);
   }
+
+  // ============================================================================
+  // Transform methods — MockWorkflow → API response shapes
+  // ============================================================================
+
+  /**
+   * Transform a MockWorkflow to the list entry format.
+   * Matches SrcServiceCoreWorkflowObjectsListEntry from the generated API spec.
+   */
+  toListEntry(w: MockWorkflow): SrcServiceCoreWorkflowObjectsListEntry {
+    return {
+      user: w.submitted_by,
+      name: w.name,
+      workflow_uuid: w.uuid,
+      submit_time: w.submit_time,
+      start_time: w.start_time,
+      end_time: w.end_time,
+      queued_time: w.queued_time,
+      duration: w.duration,
+      status: w.status,
+      overview: `${w.groups.length} groups, ${w.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
+      logs: w.logs_url,
+      error_logs: w.status.toString().startsWith("FAILED") ? `/api/workflow/${w.name}/logs?type=error` : undefined,
+      grafana_url: `https://grafana.example.com/d/workflow/${w.name}`,
+      dashboard_url: `https://dashboard.example.com/workflow/${w.name}`,
+      pool: w.pool,
+      app_owner: undefined,
+      app_name: undefined,
+      app_version: undefined,
+      priority: w.priority,
+    };
+  }
+
+  /**
+   * Transform a MockWorkflow to the detailed query response format.
+   * Matches WorkflowQueryResponse from the generated API spec.
+   */
+  toWorkflowQueryResponse(w: MockWorkflow): WorkflowQueryResponse {
+    const groups = w.groups.map((g) => ({
+      name: g.name,
+      status: g.status,
+      start_time: g.tasks[0]?.start_time,
+      end_time: g.tasks[g.tasks.length - 1]?.end_time,
+      remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
+      downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
+      failure_message: g.failure_message,
+      tasks: g.tasks.map((t) => ({
+        name: t.name,
+        retry_id: t.retry_id,
+        status: t.status,
+        lead: t.lead,
+        task_uuid: t.task_uuid,
+        pod_name: t.pod_name,
+        pod_ip: t.pod_ip,
+        node_name: t.node_name,
+        scheduling_start_time: t.scheduling_start_time,
+        initializing_start_time: t.initializing_start_time,
+        input_download_start_time: t.input_download_start_time,
+        input_download_end_time: t.input_download_end_time,
+        processing_start_time: t.processing_start_time,
+        start_time: t.start_time,
+        output_upload_start_time: t.output_upload_start_time,
+        end_time: t.end_time,
+        exit_code: t.exit_code,
+        failure_message: t.failure_message,
+        logs: t.logs,
+        error_logs: t.error_logs,
+        events: t.events,
+        dashboard_url: t.dashboard_url,
+        grafana_url: t.grafana_url,
+      })),
+    }));
+
+    return {
+      name: w.name,
+      uuid: w.uuid,
+      submitted_by: w.submitted_by,
+      cancelled_by: w.cancelled_by,
+      spec: w.spec_url,
+      template_spec: w.template_spec_url,
+      logs: w.logs_url,
+      events: w.events_url,
+      overview: `${w.groups.length} groups, ${w.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
+      dashboard_url: `https://dashboard.example.com/workflow/${w.name}`,
+      grafana_url: `https://grafana.example.com/d/workflow/${w.name}`,
+      tags: w.tags,
+      submit_time: w.submit_time,
+      start_time: w.start_time,
+      end_time: w.end_time,
+      duration: w.duration,
+      queued_time: w.queued_time,
+      status: w.status,
+      groups,
+      pool: w.pool,
+      backend: w.backend,
+      plugins: {},
+      priority: w.priority,
+    };
+  }
+
+  // ============================================================================
+  // MSW handler methods — passed directly to generated factory callbacks
+  // ============================================================================
+
+  handleGetUsers = async (): Promise<Response> => {
+    await delay(getMockDelay());
+    return HttpResponse.json(this.config.patterns.users);
+  };
+
+  handleListWorkflows = async ({ request }: { request: Request }): Promise<SrcServiceCoreWorkflowObjectsListResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const { offset, limit } = parsePagination(url, { limit: 20 });
+    const filters = parseWorkflowFilters(url);
+
+    const { entries, total } = this.generatePage(offset, limit);
+
+    let filtered = entries;
+    if (filters.statuses.length > 0) filtered = filtered.filter((w) => filters.statuses.includes(w.status));
+    if (filters.pools.length > 0) filtered = filtered.filter((w) => w.pool && filters.pools.includes(w.pool));
+    if (filters.users.length > 0) filtered = filtered.filter((w) => filters.users.includes(w.submitted_by));
+
+    return {
+      workflows: filtered.map((w) => this.toListEntry(w)),
+      more_entries: hasActiveFilters(filters) ? false : offset + limit < total,
+    };
+  };
+
+  handleSubmitWorkflow = async ({ request }: { params: Record<string, string | readonly string[] | undefined>; request: Request }): Promise<SubmitResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const workflowId = url.searchParams.get("workflow_id");
+    const seed = workflowId ? hashString(workflowId + Date.now()) : Math.floor(Math.random() * 1000000);
+    faker.seed(seed);
+    const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+    const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+    const id = faker.string.alphanumeric(8).toLowerCase();
+    const newWorkflowName = `${prefix}-${suffix}-${id}`;
+    return {
+      name: newWorkflowName,
+      overview: `/api/workflow/${newWorkflowName}`,
+      logs: `/api/workflow/${newWorkflowName}/logs`,
+      spec: `/api/workflow/${newWorkflowName}/spec`,
+      dashboard_url: `/workflows/${newWorkflowName}`,
+    };
+  };
 }
 
 export const workflowGenerator = new WorkflowGenerator();
-
-export function setWorkflowTotal(total: number): void {
-  workflowGenerator.total = total;
-}
-
-export function getWorkflowTotal(): number {
-  return workflowGenerator.total;
-}
