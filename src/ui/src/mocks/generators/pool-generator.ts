@@ -18,9 +18,21 @@ import { faker } from "@faker-js/faker";
 import { delay } from "msw";
 import { getMockDelay } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
-import type { PoolResourceUsage, PoolResources, ResourceUsage, PoolResponse, PlatformMinimal } from "@/lib/api/generated";
+import type {
+  PoolResourceUsage,
+  PoolResources,
+  ResourceUsage,
+  PoolResponse,
+  PlatformMinimal,
+} from "@/lib/api/generated";
 import { PoolStatus } from "@/lib/api/generated";
-import { MOCK_CONFIG, SHARED_POOL_ALPHA, SHARED_POOL_BETA, SHARED_PLATFORM, ALPHA_EXTRA_PLATFORM } from "@/mocks/seed/types";
+import {
+  MOCK_CONFIG,
+  SHARED_POOL_ALPHA,
+  SHARED_POOL_BETA,
+  SHARED_PLATFORM,
+  ALPHA_EXTRA_PLATFORM,
+} from "@/mocks/seed/types";
 
 const BASE_SEED = 54321;
 

@@ -22,7 +22,7 @@ import type { BucketInfoResponse } from "@/mocks/generated-mocks";
 
 const BASE_SEED = 44444;
 
-const BUCKET_NAMES = [
+export const BUCKET_NAMES = [
   "osmo-artifacts",
   "osmo-checkpoints",
   "osmo-datasets",

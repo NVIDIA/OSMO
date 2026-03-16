@@ -47,16 +47,8 @@ export class ResourceGenerator {
     return getGlobalMockConfig().resourcesPerPool;
   }
 
-  set perPool(value: number) {
-    getGlobalMockConfig().resourcesPerPool = value;
-  }
-
   get totalGlobal(): number {
     return getGlobalMockConfig().resourcesGlobal;
-  }
-
-  set totalGlobal(value: number) {
-    getGlobalMockConfig().resourcesGlobal = value;
   }
 
   /**
@@ -342,4 +334,3 @@ export class ResourceGenerator {
 // ============================================================================
 
 export const resourceGenerator = new ResourceGenerator();
-

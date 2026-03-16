@@ -18,20 +18,10 @@ import { faker } from "@faker-js/faker";
 import { HttpResponse, delay } from "msw";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
 import { hashString, getMockDelay } from "@/mocks/utils";
+import { BUCKET_NAMES } from "@/mocks/generators/bucket-generator";
 import type { ProfileResponse, CredentialGetResponse } from "@/lib/api/generated";
 
 const BASE_SEED = 66666;
-
-const BUCKET_NAMES = [
-  "osmo-artifacts",
-  "osmo-checkpoints",
-  "osmo-datasets",
-  "osmo-models",
-  "ml-experiments",
-  "training-outputs",
-  "inference-cache",
-  "model-registry",
-];
 
 export class ProfileGenerator {
   // Persists changes across requests within a session
@@ -93,11 +83,21 @@ export class ProfileGenerator {
       },
       api_keys: Array.from({ length: faker.number.int({ min: 0, max: 3 }) }, () => ({
         id: faker.string.uuid(),
-        name: faker.helpers.arrayElement(["CI Pipeline", "Local Dev", "Jupyter Notebook", "VS Code Extension", "CLI Tool"]),
+        name: faker.helpers.arrayElement([
+          "CI Pipeline",
+          "Local Dev",
+          "Jupyter Notebook",
+          "VS Code Extension",
+          "CLI Tool",
+        ]),
         prefix: `osmo_${faker.string.alphanumeric(8)}`,
         created_at: faker.date.past({ years: 1 }).toISOString(),
-        last_used: faker.datatype.boolean({ probability: 0.7 }) ? faker.date.recent({ days: 30 }).toISOString() : undefined,
-        expires_at: faker.datatype.boolean({ probability: 0.3 }) ? faker.date.future({ years: 1 }).toISOString() : undefined,
+        last_used: faker.datatype.boolean({ probability: 0.7 })
+          ? faker.date.recent({ days: 30 }).toISOString()
+          : undefined,
+        expires_at: faker.datatype.boolean({ probability: 0.3 })
+          ? faker.date.future({ years: 1 }).toISOString()
+          : undefined,
       })),
     };
   }

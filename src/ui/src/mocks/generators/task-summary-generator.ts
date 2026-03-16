@@ -34,7 +34,7 @@
 import { faker } from "@faker-js/faker";
 import { delay, HttpResponse, passthrough } from "msw";
 import type { ListTaskSummaryEntry, ListTaskSummaryResponse } from "@/lib/api/generated";
-import { getMockDelay } from "@/mocks/utils";
+import { getMockDelay, hashString } from "@/mocks/utils";
 
 // ============================================================================
 // Deterministic seeding helpers
@@ -42,18 +42,9 @@ import { getMockDelay } from "@/mocks/utils";
 
 const BASE_SEED = 0xdeadbeef;
 
-function hashKey(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = Math.imul(31, h) + s.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
 /** Deterministic integer in [min, max] keyed by an arbitrary string. */
 function rng(key: string, min: number, max: number): number {
-  faker.seed(BASE_SEED ^ hashKey(key));
+  faker.seed(BASE_SEED ^ hashString(key));
   return faker.number.int({ min, max });
 }
 

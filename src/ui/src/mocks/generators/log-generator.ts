@@ -31,7 +31,15 @@ import { faker } from "@faker-js/faker";
 import { HttpResponse, delay } from "msw";
 import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
 import { getWorkflowLogConfig, type WorkflowLogConfig } from "@/mocks/mock-workflows";
-import { hashString, abortableDelay, getMockDelay, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
+import {
+  hashString,
+  abortableDelay,
+  getMockDelay,
+  abortExistingStream,
+  buildChunkedStream,
+  pickFromDistribution,
+  createStreamingResponse,
+} from "@/mocks/utils";
 
 const LOG_RESPONSE_HEADERS = {
   "Content-Type": "text/plain; charset=us-ascii",
@@ -244,7 +252,7 @@ export class LogGenerator {
       const level = this.pickLevel(config.levelDistribution);
       const ioType = this.pickIOType(config.ioTypeDistribution);
 
-      let message = this.generateMessage(level, ioType, i, numLines, config);
+      let message = this.generateMessage(level, ioType, i, numLines);
 
       // Optionally add ANSI codes
       if (config.features.ansiCodes) {
@@ -351,7 +359,7 @@ export class LogGenerator {
       const level = this.pickLevel(config.levelDistribution);
       const ioType = this.pickIOType(config.ioTypeDistribution);
 
-      let message = this.generateMessage(level, ioType, i, numLines, config);
+      let message = this.generateMessage(level, ioType, i, numLines);
 
       if (config.features.ansiCodes) {
         message = this.addAnsiCodes(message, level);
@@ -425,42 +433,24 @@ export class LogGenerator {
       return new HttpResponse(buildChunkedStream(allLogs), { headers: LOG_RESPONSE_HEADERS });
     }
 
-    const encoder = new TextEncoder();
-    const abortController = new AbortController();
-    activeStreams.set(streamKey, abortController);
-
-    const streamGen = this.createStream({
-      workflowName: name,
-      taskNames,
-      continueFrom: workflowStartTime,
-      signal: abortController.signal,
+    return createStreamingResponse({
+      streamKey,
+      headers: LOG_RESPONSE_HEADERS,
+      makeGenerator: (signal) =>
+        this.createStream({ workflowName: name, taskNames, continueFrom: workflowStartTime, signal }),
     });
-
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          for await (const line of streamGen) controller.enqueue(encoder.encode(line));
-        } catch {
-          // Stream closed or aborted
-        } finally {
-          activeStreams.delete(streamKey);
-          try { controller.close(); } catch { /* already closed */ }
-        }
-      },
-      cancel() {
-        abortController.abort();
-        activeStreams.delete(streamKey);
-      },
-    });
-
-    return new HttpResponse(stream, { headers: LOG_RESPONSE_HEADERS });
   };
 
   /**
    * Handles GET /api/workflow/:name/task/:taskName/logs
    * Task is pre-resolved by handlers.ts (may be undefined for unknown workflows).
    */
-  handleTaskLogs = async (request: Request, workflowName: string, taskName: string, task?: LogTaskInput): Promise<Response> => {
+  handleTaskLogs = async (
+    request: Request,
+    workflowName: string,
+    taskName: string,
+    task?: LogTaskInput,
+  ): Promise<Response> => {
     const url = new URL(request.url);
     const delayOverride = url.searchParams.get("log_delay");
     const isTailing = url.searchParams.get("tail") === "true";
@@ -472,37 +462,17 @@ export class LogGenerator {
       const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
       const streamKey = `task:${workflowName}:${taskName}`;
       abortExistingStream(streamKey);
-      const abortController = new AbortController();
-      activeStreams.set(streamKey, abortController);
-      const encoder = new TextEncoder();
-
-      const streamGen = this.createStream({
-        workflowName,
-        taskNames: [taskName],
-        continueFrom: taskStartTime,
-        streamDelayMs: streamDelay,
-        signal: abortController.signal,
-      });
-
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          try {
-            for await (const line of streamGen) controller.enqueue(encoder.encode(line));
-          } catch {
-            // Stream closed or aborted
-          } finally {
-            activeStreams.delete(streamKey);
-            try { controller.close(); } catch { /* already closed */ }
-          }
-        },
-        cancel() {
-          abortController.abort();
-          activeStreams.delete(streamKey);
-        },
-      });
-
-      return new HttpResponse(stream, {
+      return createStreamingResponse({
+        streamKey,
         headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-cache" },
+        makeGenerator: (signal) =>
+          this.createStream({
+            workflowName,
+            taskNames: [taskName],
+            continueFrom: taskStartTime,
+            streamDelayMs: streamDelay,
+            signal,
+          }),
       });
     }
 
@@ -550,36 +520,14 @@ export class LogGenerator {
   }
 
   private pickLevel(distribution: Record<LogLevel, number>): LogLevel {
-    const rand = faker.number.float();
-    let cumulative = 0;
-    for (const [level, prob] of Object.entries(distribution) as [LogLevel, number][]) {
-      cumulative += prob;
-      if (rand <= cumulative) {
-        return level;
-      }
-    }
-    return "info";
+    return pickFromDistribution(distribution, "info");
   }
 
   private pickIOType(distribution: Record<LogIOType, number>): LogIOType {
-    const rand = faker.number.float();
-    let cumulative = 0;
-    for (const [ioType, prob] of Object.entries(distribution) as [LogIOType, number][]) {
-      cumulative += prob;
-      if (rand <= cumulative) {
-        return ioType;
-      }
-    }
-    return "stdout";
+    return pickFromDistribution(distribution, "stdout");
   }
 
-  private generateMessage(
-    level: LogLevel,
-    ioType: LogIOType,
-    index: number,
-    total: number,
-    _config: WorkflowLogConfig,
-  ): string {
+  private generateMessage(level: LogLevel, ioType: LogIOType, index: number, total: number): string {
     // IO type specific messages
     if (ioType === "osmo_ctrl") {
       return this.generateOsmoMessage(index, total);

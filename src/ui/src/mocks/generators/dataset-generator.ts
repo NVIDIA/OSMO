@@ -176,8 +176,7 @@ export class DatasetGenerator {
     faker.seed(BASE_SEED + 99999 + index);
 
     const baseName = COLLECTION_NAMES[index % COLLECTION_NAMES.length];
-    const uniqueSuffix =
-      index >= COLLECTION_NAMES.length ? `-${Math.floor(index / COLLECTION_NAMES.length)}` : "";
+    const uniqueSuffix = index >= COLLECTION_NAMES.length ? `-${Math.floor(index / COLLECTION_NAMES.length)}` : "";
     const name = `${baseName}${uniqueSuffix}`;
     const bucket = faker.helpers.arrayElement(DATASET_BUCKETS);
 
@@ -222,12 +221,8 @@ export class DatasetGenerator {
   }
 
   getByName(name: string) {
-    for (let i = 0; i < Math.min(this.totalDatasets, 1000); i++) {
-      const dataset = this.generate(i);
-      if (dataset.name === name) return dataset;
-    }
     const dataset = this.generate(Math.abs(hashString(name)) % this.totalDatasets);
-    return { ...dataset, name };
+    return dataset.name === name ? dataset : { ...dataset, name };
   }
 
   isPrivateDataset(datasetName: string): boolean {

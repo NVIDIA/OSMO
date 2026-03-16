@@ -62,7 +62,6 @@ const MOCK_DELAY = getMockDelay();
 // Stateful Mock Data (persists changes during session)
 // =============================================================================
 
-
 // =============================================================================
 // URL Matching Patterns
 // =============================================================================
@@ -129,13 +128,17 @@ export const handlers = [
   // Cancel task group
   http.post("*/api/workflow/:name/groups/:groupName/cancel", async ({ params }) => {
     await delay(MOCK_DELAY);
-    return HttpResponse.json({ message: `Group ${params.groupName as string} in workflow ${params.name as string} cancelled` });
+    return HttpResponse.json({
+      message: `Group ${params.groupName as string} in workflow ${params.name as string} cancelled`,
+    });
   }),
 
   // Retry task group
   http.post("*/api/workflow/:name/groups/:groupName/retry", async ({ params }) => {
     await delay(MOCK_DELAY);
-    return HttpResponse.json({ message: `Group ${params.groupName as string} in workflow ${params.name as string} retry initiated` });
+    return HttpResponse.json({
+      message: `Group ${params.groupName as string} in workflow ${params.name as string} retry initiated`,
+    });
   }),
 
   // ==========================================================================

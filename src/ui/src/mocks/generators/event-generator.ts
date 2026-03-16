@@ -16,7 +16,14 @@
 
 import { faker } from "@faker-js/faker";
 import { HttpResponse, delay } from "msw";
-import { hashString, abortableDelay, getMockDelay, activeStreams, abortExistingStream, buildChunkedStream } from "@/mocks/utils";
+import {
+  hashString,
+  abortableDelay,
+  getMockDelay,
+  abortExistingStream,
+  buildChunkedStream,
+  createStreamingResponse,
+} from "@/mocks/utils";
 import { TaskGroupStatus } from "@/lib/api/generated";
 
 const EVENT_HEADERS = {
@@ -220,21 +227,15 @@ export class EventGenerator {
       },
     ];
 
-    // Build weighted array for random selection
-    const weightedTemplates: typeof ongoingEventTemplates = [];
-    for (const template of ongoingEventTemplates) {
-      for (let i = 0; i < template.weight; i++) {
-        weightedTemplates.push(template);
-      }
-    }
-
     // Stream events indefinitely until aborted
     let currentTime = new Date();
 
     while (!signal?.aborted) {
       // Pick a random task and event template
       const task = faker.helpers.arrayElement(streamTasks);
-      const template = faker.helpers.arrayElement(weightedTemplates);
+      const template = faker.helpers.weightedArrayElement(
+        ongoingEventTemplates.map((t) => ({ value: t, weight: t.weight })),
+      );
 
       // Advance time with jitter
       const jitter = faker.number.int({ min: 0, max: 1000 });
@@ -555,23 +556,11 @@ export class EventGenerator {
   // ========================================================================
 
   private generateCompleteSuccessEvents(taskName: string, startTime: Date, durationMs: number): GeneratedEvent[] {
-    const events: GeneratedEvent[] = [];
-    let t = startTime.getTime();
-
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
-    t += 1000;
+    const events = this.generateRunningHealthyEvents(taskName, startTime);
+    const lastTime = new Date(events[events.length - 1].first_timestamp).getTime();
     events.push(
-      this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/pytorch:24.12"'),
+      this.createTaskEvent(new Date(lastTime + durationMs - 10000), "Normal", "Ready", taskName, "Container is ready"),
     );
-    t += 8000;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Pulled", taskName, "Successfully pulled image"));
-    t += 500;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Created", taskName, "Created container"));
-    t += 500;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Started", taskName, "Started container"));
-    t += durationMs - 10000;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Ready", taskName, "Container is ready"));
-
     return events;
   }
 
@@ -703,35 +692,26 @@ export class EventGenerator {
   }
 
   private generateCrashLoopEvents(taskName: string, startTime: Date): GeneratedEvent[] {
-    const events: GeneratedEvent[] = [];
-    let t = startTime.getTime();
-
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Scheduled", taskName, "Successfully assigned to node"));
-    t += 1000;
-    events.push(
-      this.createTaskEvent(new Date(t), "Normal", "Pulling", taskName, 'Pulling image "nvcr.io/nvidia/pytorch:24.12"'),
-    );
-    t += 8000;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Pulled", taskName, "Successfully pulled image"));
-    t += 500;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Created", taskName, "Created container"));
-    t += 500;
-    events.push(this.createTaskEvent(new Date(t), "Normal", "Started", taskName, "Started container"));
-    t += 2000;
-    events.push(
-      this.createTaskEvent(new Date(t), "Warning", "BackOff", taskName, "Container exited with code 1 (error)"),
-    );
-    t += 5000;
+    const events = this.generateRunningHealthyEvents(taskName, startTime);
+    const lastTime = new Date(events[events.length - 1].first_timestamp).getTime();
     events.push(
       this.createTaskEvent(
-        new Date(t),
+        new Date(lastTime + 2000),
+        "Warning",
+        "BackOff",
+        taskName,
+        "Container exited with code 1 (error)",
+      ),
+    );
+    events.push(
+      this.createTaskEvent(
+        new Date(lastTime + 7000),
         "Warning",
         "CrashLoopBackOff",
         taskName,
         "Container is in crash loop, back-off restarting",
       ),
     );
-
     return events;
   }
 
@@ -787,7 +767,12 @@ export class EventGenerator {
    * Handles GET /api/workflow/:name/events
    * Workflow is pre-resolved by handlers.ts (checks mock-workflows first, then generated).
    */
-  handleWorkflowEvents = async (request: Request, name: string, workflow: EventWorkflowInput, taskNameOverride?: string): Promise<Response> => {
+  handleWorkflowEvents = async (
+    request: Request,
+    name: string,
+    workflow: EventWorkflowInput,
+    taskNameOverride?: string,
+  ): Promise<Response> => {
     await delay(getMockDelay());
 
     const url = new URL(request.url);
@@ -803,30 +788,12 @@ export class EventGenerator {
       return new HttpResponse(buildChunkedStream(lines.join("\n")), { headers: EVENT_HEADERS });
     }
 
-    const encoder = new TextEncoder();
-    const abortController = new AbortController();
-    activeStreams.set(streamKey, abortController);
-    const streamGen = this.createStream({ workflow, taskNameFilter: taskName ?? undefined, signal: abortController.signal });
-
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        try {
-          for (const line of lines) controller.enqueue(encoder.encode(line + "\n"));
-          for await (const line of streamGen) controller.enqueue(encoder.encode(line));
-        } catch {
-          // Stream closed or aborted
-        } finally {
-          activeStreams.delete(streamKey);
-          try { controller.close(); } catch { /* already closed */ }
-        }
-      },
-      cancel() {
-        abortController.abort();
-        activeStreams.delete(streamKey);
-      },
+    return createStreamingResponse({
+      streamKey,
+      headers: EVENT_HEADERS,
+      prefixLines: lines,
+      makeGenerator: (signal) => this.createStream({ workflow, taskNameFilter: taskName ?? undefined, signal }),
     });
-
-    return new HttpResponse(stream, { headers: EVENT_HEADERS });
   };
 
   formatEventLines(events: GeneratedEvent[]): string[] {
@@ -838,7 +805,6 @@ export class EventGenerator {
       return `${timestamp} [${event.involved_object.name}] ${event.reason}: ${event.message}`;
     });
   }
-
 }
 
 export const eventGenerator = new EventGenerator();

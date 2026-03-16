@@ -21,6 +21,9 @@
  * These follow MSW 2.0 patterns and provide type-safe parsing.
  */
 
+import { faker } from "@faker-js/faker";
+import { HttpResponse } from "msw";
+
 // ============================================================================
 // Pagination
 // ============================================================================
@@ -165,4 +168,73 @@ export function buildChunkedStream(text: string): ReadableStream<Uint8Array> {
       controller.close();
     },
   });
+}
+
+// ============================================================================
+// Distribution Sampling
+// ============================================================================
+
+/**
+ * Sample a key from a weighted distribution using cumulative probability.
+ * Used by log and resource generators to pick levels, IO types, and statuses.
+ */
+export function pickFromDistribution<T extends string>(distribution: Record<T, number>, defaultValue: T): T {
+  const rand = faker.number.float();
+  let cumulative = 0;
+  for (const [key, prob] of Object.entries(distribution) as [T, number][]) {
+    cumulative += prob;
+    if (rand <= cumulative) return key;
+  }
+  return defaultValue;
+}
+
+// ============================================================================
+// Streaming Response Builder
+// ============================================================================
+
+const STREAM_ENCODER = new TextEncoder();
+
+/**
+ * Build a streaming HttpResponse from an async generator.
+ * Handles AbortController lifecycle, stream cleanup, and optional prefix lines.
+ *
+ * Used by log and event handlers for running workflows.
+ */
+export function createStreamingResponse(options: {
+  streamKey: string;
+  headers: Record<string, string>;
+  makeGenerator: (signal: AbortSignal) => AsyncGenerator<string>;
+  prefixLines?: string[];
+}): Response {
+  const { streamKey, headers, makeGenerator, prefixLines } = options;
+  const abortController = new AbortController();
+  activeStreams.set(streamKey, abortController);
+
+  const streamGen = makeGenerator(abortController.signal);
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        if (prefixLines) {
+          for (const line of prefixLines) controller.enqueue(STREAM_ENCODER.encode(line + "\n"));
+        }
+        for await (const line of streamGen) controller.enqueue(STREAM_ENCODER.encode(line));
+      } catch {
+        // Stream closed or aborted
+      } finally {
+        activeStreams.delete(streamKey);
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+      }
+    },
+    cancel() {
+      abortController.abort();
+      activeStreams.delete(streamKey);
+    },
+  });
+
+  return new HttpResponse(stream, { headers });
 }

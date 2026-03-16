@@ -110,6 +110,14 @@ const DEFAULT_IO_DISTRIBUTION: Record<LogIOType, number> = {
 
 const BASE_SUBMIT_TIME = new Date("2026-01-24T10:00:00Z");
 
+const MOCK_WORKFLOW_BASE = {
+  submitted_by: "user@example.com",
+  pool: "default",
+  backend: "kubernetes",
+  outputs: undefined,
+  plugins: {},
+} as const;
+
 // =============================================================================
 // Mock Workflows
 // =============================================================================
@@ -120,13 +128,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Default scenario for testing completed workflows.
    */
   "mock-typical-completed": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-typical-completed",
     uuid: "550e8400-e29b-41d4-a716-446655440001",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.COMPLETED,
     priority: WorkflowPriority.NORMAL,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "llama-3", "production"],
     submit_time: BASE_SUBMIT_TIME.toISOString(),
     start_time: new Date(BASE_SUBMIT_TIME.getTime() + 30_000).toISOString(), // +30s
@@ -203,8 +209,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-typical-completed/logs",
     events: "/api/workflow/mock-typical-completed/events",
     overview: "/api/workflow/mock-typical-completed/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 500, max: 2000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -225,13 +229,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Default scenario for testing running workflows.
    */
   "mock-typical-running": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-typical-running",
     uuid: "550e8400-e29b-41d4-a716-446655440002",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.HIGH,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "gpt-4", "experiment"],
     submit_time: new Date(Date.now() - 600_000).toISOString(), // 10 minutes ago
     start_time: new Date(Date.now() - 570_000).toISOString(), // 9.5 minutes ago
@@ -284,8 +286,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-typical-running/logs",
     events: "/api/workflow/mock-typical-running/events",
     overview: "/api/workflow/mock-typical-running/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 500, max: 2000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -306,13 +306,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Good for testing retry UI and failure messages.
    */
   "mock-typical-failed": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-typical-failed",
     uuid: "550e8400-e29b-41d4-a716-446655440003",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.FAILED,
     priority: WorkflowPriority.NORMAL,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "bert", "debug"],
     submit_time: BASE_SUBMIT_TIME.toISOString(),
     start_time: new Date(BASE_SUBMIT_TIME.getTime() + 15_000).toISOString(),
@@ -399,8 +397,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-typical-failed/logs",
     events: "/api/workflow/mock-typical-failed/events",
     overview: "/api/workflow/mock-typical-failed/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 500, max: 2000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -421,13 +417,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Infinite log stream for testing real-time updates and auto-scroll.
    */
   "mock-streaming-running": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-streaming-running",
     uuid: "550e8400-e29b-41d4-a716-446655440004",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.NORMAL,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "streaming", "live"],
     submit_time: new Date(Date.now() - 300_000).toISOString(), // 5 minutes ago
     start_time: new Date(Date.now() - 270_000).toISOString(), // 4.5 minutes ago
@@ -459,8 +453,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-streaming-running/logs",
     events: "/api/workflow/mock-streaming-running/events",
     overview: "/api/workflow/mock-streaming-running/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 500, max: 1000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -481,13 +473,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * 30% errors, 20% warnings - tests error highlighting and filtering.
    */
   "mock-high-error-failed": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-high-error-failed",
     uuid: "550e8400-e29b-41d4-a716-446655440005",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.FAILED,
     priority: WorkflowPriority.HIGH,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "error-test", "debug"],
     submit_time: BASE_SUBMIT_TIME.toISOString(),
     start_time: new Date(BASE_SUBMIT_TIME.getTime() + 20_000).toISOString(),
@@ -525,8 +515,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-high-error-failed/logs",
     events: "/api/workflow/mock-high-error-failed/events",
     overview: "/api/workflow/mock-high-error-failed/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 500, max: 1000 },
       levelDistribution: {
@@ -560,13 +548,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Tests virtualization, memory usage, and scroll performance.
    */
   "mock-large-running": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-large-running",
     uuid: "550e8400-e29b-41d4-a716-446655440006",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.NORMAL,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "performance-test", "large"],
     submit_time: new Date(Date.now() - 3_600_000).toISOString(), // 1 hour ago
     start_time: new Date(Date.now() - 3_570_000).toISOString(), // 59.5 minutes ago
@@ -598,8 +584,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-large-running/logs",
     events: "/api/workflow/mock-large-running/events",
     overview: "/api/workflow/mock-large-running/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 50000, max: 75000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -620,13 +604,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Tests empty state UI and edge cases.
    */
   "mock-empty-completed": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-empty-completed",
     uuid: "550e8400-e29b-41d4-a716-446655440007",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.COMPLETED,
     priority: WorkflowPriority.LOW,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["test", "empty"],
     submit_time: BASE_SUBMIT_TIME.toISOString(),
     start_time: new Date(BASE_SUBMIT_TIME.getTime() + 5_000).toISOString(),
@@ -661,8 +643,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-empty-completed/logs",
     events: "/api/workflow/mock-empty-completed/events",
     overview: "/api/workflow/mock-empty-completed/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 0, max: 0 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -681,13 +661,11 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Tests UI with large task counts and complex dependencies.
    */
   "mock-multi-task": {
+    ...MOCK_WORKFLOW_BASE,
     name: "mock-multi-task",
     uuid: "550e8400-e29b-41d4-a716-446655440008",
-    submitted_by: "user@example.com",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.NORMAL,
-    pool: "default",
-    backend: "kubernetes",
     tags: ["training", "complex", "multi-stage"],
     submit_time: new Date(Date.now() - 1_800_000).toISOString(), // 30 minutes ago
     start_time: new Date(Date.now() - 1_770_000).toISOString(),
@@ -828,8 +806,6 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
     logs: "/api/workflow/mock-multi-task/logs",
     events: "/api/workflow/mock-multi-task/events",
     overview: "/api/workflow/mock-multi-task/overview",
-    outputs: undefined,
-    plugins: {},
     _logConfig: {
       volume: { min: 2000, max: 5000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,

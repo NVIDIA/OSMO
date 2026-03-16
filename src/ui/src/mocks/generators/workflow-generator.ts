@@ -1526,7 +1526,11 @@ export class WorkflowGenerator {
     return HttpResponse.json(this.config.patterns.users);
   };
 
-  handleListWorkflows = async ({ request }: { request: Request }): Promise<SrcServiceCoreWorkflowObjectsListResponse> => {
+  handleListWorkflows = async ({
+    request,
+  }: {
+    request: Request;
+  }): Promise<SrcServiceCoreWorkflowObjectsListResponse> => {
     await delay(getMockDelay());
     const url = new URL(request.url);
     const { offset, limit } = parsePagination(url, { limit: 20 });
@@ -1545,7 +1549,11 @@ export class WorkflowGenerator {
     };
   };
 
-  handleGetTask = async ({ params }: { params: Record<string, string | readonly string[] | undefined> }): Promise<Response> => {
+  handleGetTask = async ({
+    params,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+  }): Promise<Response> => {
     await delay(getMockDelay());
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
@@ -1583,7 +1591,12 @@ export class WorkflowGenerator {
     return new HttpResponse(null, { status: 404 });
   };
 
-  handleSubmitWorkflow = async ({ request }: { params: Record<string, string | readonly string[] | undefined>; request: Request }): Promise<SubmitResponse> => {
+  handleSubmitWorkflow = async ({
+    request,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+    request: Request;
+  }): Promise<SubmitResponse> => {
     await delay(getMockDelay());
     const url = new URL(request.url);
     const workflowId = url.searchParams.get("workflow_id");
