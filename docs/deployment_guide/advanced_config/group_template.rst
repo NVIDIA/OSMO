@@ -150,23 +150,24 @@ OSMO's backend worker creates and cleans up group template resources using its K
 ServiceAccount. Before using a group template that creates a given resource kind, the backend
 operator must be granted permission for that kind in the workflow namespace.
 
-The ``backend-operator`` Helm chart exposes a ``backendWorker.extraRBACRules`` values field for
-this purpose (see :ref:`deploy_backend`). For each resource kind referenced in your group
-templates, add a corresponding entry:
+The ``backend-operator`` Helm chart exposes a ``services.backendWorker.extraRBACRules`` values
+field for this purpose (see :ref:`deploy_backend`). For each resource kind referenced in your
+group templates, add a corresponding entry:
 
 .. code-block:: yaml
 
-  backendWorker:
-    extraRBACRules:
-      # Vanilla Kubernetes resources
-      - apiGroups: [""]
-        resources: ["configmaps"]
-        verbs: ["list", "create", "delete", "patch"]
+  services:
+    backendWorker:
+      extraRBACRules:
+        # Vanilla Kubernetes resources
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["list", "create", "delete", "patch"]
 
-      # Example CRD — adjust apiGroups and resources for your CRD
-      - apiGroups: ["resource.nvidia.com"]
-        resources: ["computedomains"]
-        verbs: ["list", "create", "delete", "patch"]
+        # Example CRD — adjust apiGroups and resources for your CRD
+        - apiGroups: ["resource.nvidia.com"]
+          resources: ["computedomains"]
+          verbs: ["list", "create", "delete", "patch"]
 
 .. note::
    The ``verbs`` list must include at minimum ``create``, ``delete``, ``list``, and ``patch``.
