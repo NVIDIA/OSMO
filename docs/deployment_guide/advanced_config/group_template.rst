@@ -141,6 +141,43 @@ Key Features
    For detailed configuration fields and all available variables, see :ref:`group_template_config` in the API reference.
 
 
+.. _group_template_permissions:
+
+Required Backend Permissions
+=============================
+
+OSMO's backend worker creates and cleans up group template resources using its Kubernetes
+ServiceAccount. Before using a group template that creates a given resource kind, the backend
+operator must be granted permission for that kind in the workflow namespace.
+
+The ``backend-operator`` Helm chart exposes a ``backendWorker.extraRBACRules`` values field for
+this purpose (see :ref:`deploy_backend`). For each resource kind referenced in your group
+templates, add a corresponding entry:
+
+.. code-block:: yaml
+
+  backendWorker:
+    extraRBACRules:
+      # Vanilla Kubernetes resources
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["list", "create", "delete", "patch"]
+
+      # Example CRD — adjust apiGroups and resources for your CRD
+      - apiGroups: ["resource.nvidia.com"]
+        resources: ["computedomains"]
+        verbs: ["list", "create", "delete", "patch"]
+
+.. note::
+   The ``verbs`` list must include at minimum ``create``, ``delete``, ``list``, and ``patch``.
+   OSMO requires ``list`` and ``patch`` for label injection and cleanup tracking in addition to
+   ``create`` and ``delete``.
+
+.. warning::
+   For CRDs, ``apiGroups`` must match the CRD's group exactly. Run
+   ``kubectl get crd <crd-name> -o jsonpath='{.spec.group}'`` to find the correct value.
+
+
 Practical Guide
 ===============
 

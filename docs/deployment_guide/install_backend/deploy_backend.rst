@@ -128,6 +128,12 @@ Prepare the ``backend_operator_values.yaml`` file:
             limits:
                 memory: "1Gi"
 
+.. note::
+
+   If you plan to use group templates that create ConfigMaps, CRDs, or other Kubernetes objects,
+   you must grant the backend worker permission for those resource kinds via
+   ``backendWorker.extraRBACRules``. See :ref:`group_template_permissions` for details and examples.
+
 Deploy the backend operator:
 
 .. code-block:: bash

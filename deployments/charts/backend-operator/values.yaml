@@ -403,6 +403,19 @@ services:
     # custom.label/key: "value"
     # environment: "production"
 
+    ## Extra RBAC rules added to the backend worker Role in the workflow namespace.
+    ## Use this to grant permissions for any Kubernetes resource kinds (vanilla or CRD)
+    ## that your group templates create. Each entry follows the standard PolicyRule format.
+    ## See the group templates section of the deployment guide for details.
+    ##
+    extraRBACRules: []
+    # - apiGroups: [""]
+    #   resources: ["configmaps"]
+    #   verbs: ["list", "create", "delete", "patch"]
+    # - apiGroups: ["resource.nvidia.com"]
+    #   resources: ["computedomains"]
+    #   verbs: ["list", "create", "delete", "patch"]
+
     ## Additional sidecar containers for the backend worker
     ##
     extraSidecarContainers: []
