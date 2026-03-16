@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Set, Type
 import kubernetes.client as kb_client  # type: ignore
 import kubernetes.client.exceptions as kb_exceptions  # type: ignore
 import kubernetes.dynamic as kb_dynamic  # type: ignore
+import kubernetes.dynamic.exceptions as kb_dynamic_exceptions  # type: ignore
 import pydantic
 import urllib3  # type: ignore
 import yaml
@@ -502,7 +503,15 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
                                cleanup_spec: backend_job_defs.BackendCleanupSpec):
         """Synchronizes K8s objects for a specific cleanup spec"""
         # Get existing objects
-        objects = self._get_objects(context, cleanup_spec)
+        try:
+            objects = self._get_objects(context, cleanup_spec)
+        except kb_dynamic_exceptions.ResourceNotFoundError:
+            logging.warning(
+                'CRD not found on backend, skipping sync for %s/%s',
+                cleanup_spec.effective_api_version,
+                cleanup_spec.effective_kind,
+            )
+            return
         all_objects: Dict[str, Dict] = {obj['metadata']['name']: obj for obj in objects}
 
         # Filter k8s_resources to only those matching this cleanup spec
