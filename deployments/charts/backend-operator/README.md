@@ -145,6 +145,7 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `services.backendWorker.resources.requests.memory` | Memory requests | `512Mi` |
 | `services.backendWorker.resources.limits.cpu` | CPU limits | `2` |
 | `services.backendWorker.resources.limits.memory` | Memory limits | `1Gi` |
+| `services.backendWorker.extraRBACRules` | Extra RBAC rules appended to the backend worker Role in the workflow namespace. Use this to grant permissions for Kubernetes resource kinds (vanilla or CRD) that your group templates create. Each entry follows the standard `PolicyRule` format. | `[]` |
 
 
 ### Prometheus Metrics Settings
