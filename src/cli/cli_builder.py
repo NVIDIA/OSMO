@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import argparse
 import os
+import shutil
 import tempfile
 
 import PyInstaller.__main__
@@ -47,6 +48,8 @@ def main():
                         required=True,
                         choices=['x86_64', 'arm64'],
                         help='The target architecture to build for')
+    parser.add_argument('--uninstall-script',
+                        help='Path to the uninstall script to bundle')
     args = parser.parse_args()
 
     # Get the path to the runner directory
@@ -102,6 +105,12 @@ def main():
 
         with open(f'{top_level_dir}/autocomplete.zsh', 'w', encoding='utf-8') as file:
             file.write(shtab.complete(parser, shell='zsh'))
+
+        if args.uninstall_script:
+            shutil.copy2(
+                os.path.join(runner_dir, args.uninstall_script),
+                os.path.join(top_level_dir, 'uninstall.sh'),
+            )
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -111,12 +111,14 @@ run_binary(
         "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
         "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
         "--target-arch x86_64",
+        "--uninstall-script $(location //src/cli/packaging:uninstall.sh)",
     ],
     out_dirs = ["osmo_cli_onedir_amd64"],
     tool = ":cli_builder",
     srcs = [
         "cli.py",
         ":cli_lib",
+        "//src/cli/packaging:uninstall.sh",
         "//src/lib/utils:version.yaml",
         "//src/lib/data/storage:extra_hooks",
         "//src/lib/rsync:rsync_bin",
@@ -192,12 +194,14 @@ run_binary(
         "--add-data $(location //src/lib/utils:version.yaml):src/lib/utils/",
         "--additional-hooks $(locations //src/lib/data/storage:extra_hooks)",
         "--target-arch arm64",
+        "--uninstall-script $(location //src/cli/packaging:uninstall.sh)",
     ],
     out_dirs = ["osmo_cli_onedir_arm64"],
     tool = ":cli_builder",
     srcs = [
         "cli.py",
         ":cli_lib",
+        "//src/cli/packaging:uninstall.sh",
         "//src/lib/utils:version.yaml",
         "//src/lib/data/storage:extra_hooks",
         "//src/lib/rsync:rsync_bin",
