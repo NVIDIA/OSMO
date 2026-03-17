@@ -72,34 +72,47 @@ test.describe("Sidebar Navigation", () => {
     await page.waitForLoadState("networkidle");
   });
 
+  // Each test waits for networkidle after navigation so the destination page
+  // has settled before teardown begins. Without this, RSC fetch requests and
+  // TanStack Query activity on the new page outlive the test and cause
+  // "Tearing down context exceeded timeout". networkidle resolves quickly
+  // because the catch-all in setupDefaultMocks answers all /api/** with 404
+  // (no retries) and route warmup in globalSetup pre-compiles all routes.
+
   test("Pools link navigates to /pools", async ({ page }) => {
     await sidebarLink(page, "Pools").click();
     await expect(page).toHaveURL(/\/pools/);
+    await page.waitForLoadState("networkidle");
   });
 
   test("Resources link navigates to /resources", async ({ page }) => {
     await sidebarLink(page, "Resources").click();
     await expect(page).toHaveURL(/\/resources/);
+    await page.waitForLoadState("networkidle");
   });
 
   test("Workflows link navigates to /workflows", async ({ page }) => {
     await sidebarLink(page, "Workflows").click();
     await expect(page).toHaveURL(/\/workflows/);
+    await page.waitForLoadState("networkidle");
   });
 
   test("Occupancy link navigates to /occupancy", async ({ page }) => {
     await sidebarLink(page, "Occupancy").click();
     await expect(page).toHaveURL(/\/occupancy/);
+    await page.waitForLoadState("networkidle");
   });
 
   test("Datasets link navigates to /datasets", async ({ page }) => {
     await sidebarLink(page, "Datasets").click();
     await expect(page).toHaveURL(/\/datasets/);
+    await page.waitForLoadState("networkidle");
   });
 
   test("Dashboard link navigates to /", async ({ page }) => {
     await sidebarLink(page, "Dashboard").click();
     await expect(page).toHaveURL(/\/$/);
+    await page.waitForLoadState("networkidle");
   });
 });
 

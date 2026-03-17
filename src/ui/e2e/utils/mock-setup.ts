@@ -29,8 +29,36 @@ const VERSION_BODY = JSON.stringify(createVersion());
 
 // ── Default setup ─────────────────────────────────────────────────────────────
 
-/** Sets up auth-disabled and version routes. Call in beforeEach. */
+/**
+ * Sets up auth-disabled and version routes. Call in beforeEach.
+ *
+ * Two isolation guarantees:
+ *
+ * 1. page.unrouteAll() — clears stale handlers from a previous test run.
+ *    In Playwright's --ui "Reuse browser" mode the same page object is kept
+ *    alive across tests. Without this, prior handlers accumulate and win over
+ *    the current test's handlers (Playwright uses LIFO: last registered = first
+ *    tried, so stale handlers registered earlier are tried last but still fire
+ *    if a later handler falls through).
+ *
+ * 2. Catch-all abort for unmatched /api/** — registered FIRST so it is tried
+ *    LAST (LIFO). Specific routes registered afterwards always take priority.
+ *    Any API call the test does not explicitly mock is aborted immediately,
+ *    preventing in-flight requests (e.g. TanStack Query refetchOnWindowFocus)
+ *    from outliving the test and blocking context teardown, which would
+ *    manifest as "Tearing down context exceeded timeout" + zip corruption.
+ */
 export async function setupDefaultMocks(page: Page): Promise<void> {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  // Catch-all registered first → tried last (LIFO). Specific mocks win.
+  // Returns 404 instead of aborting: route.abort() emits a network-level error
+  // which TanStack Query treats as a disconnect, triggering refetchOnReconnect
+  // and up to 3 retries with exponential backoff (~7s total). A 404 response
+  // is treated as a non-retryable 4xx by clientRetry, so queries fail fast
+  // with no retry storm during context teardown.
+  await page.route("**/api/**", (route) =>
+    route.fulfill({ status: 404, contentType: "application/json", body: '{"detail":"Not mocked"}' }),
+  );
   await Promise.all([setupAuthDisabled(page), setupVersion(page)]);
 }
 
