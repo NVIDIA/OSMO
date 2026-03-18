@@ -27,7 +27,7 @@ from . import osmo_errors
 
 VERSION_HEADER = 'x-osmo-client-version'
 SERVICE_VERSION_HEADER = 'x-osmo-service-version'
-VERSION_WARNING_HEADER = 'x-osmo-version-warning'
+WARNING_HEADER = 'x-osmo-warning'
 
 
 class Version(pydantic.BaseModel):

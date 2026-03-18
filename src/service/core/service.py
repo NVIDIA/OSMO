@@ -30,7 +30,7 @@ import fastapi.responses
 import uvicorn  # type: ignore
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor # type: ignore
 
-from src.lib.utils import common, osmo_errors, version
+from src.lib.utils import common, login, osmo_errors, version
 import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
@@ -57,6 +57,7 @@ curr_cli_config = connectors.CliConfig()
 @app.middleware('http')
 async def check_client_version(request: fastapi.Request, call_next):
     client_version_str = request.headers.get(version.VERSION_HEADER)
+    token_name = request.headers.get(login.OSMO_TOKEN_NAME_HEADER)
     if client_version_str is None:
         return await call_next(request)
     client_version = version.Version.from_string(client_version_str)
@@ -86,14 +87,52 @@ async def check_client_version(request: fastapi.Request, call_next):
                         'error_code': osmo_errors.OSMOError.error_code},
             )
         suggest_version_update = True
+
+    warning_msg = ''
+    if token_name:
+        user_name = request.headers.get(login.OSMO_USER_HEADER)
+        if user_name:
+            try:
+                token = auth_objects.AccessToken.fetch_from_db(
+                    postgres, token_name, user_name)
+                today = datetime.datetime.now(datetime.timezone.utc).date()
+                expiry_date = token.expires_at.date()
+                if expiry_date <= today:
+                    return fastapi.responses.JSONResponse(
+                        status_code=400,
+                        content={
+                            'message': f'Access token {token_name} has expired.',
+                            'error_code': osmo_errors.OSMOError.error_code,
+                        },
+                    )
+                days_until_expiry = (expiry_date - today).days
+                if days_until_expiry <= 7:
+                    token_warning = (
+                        f'WARNING: Access token {token_name} is expiring '
+                        f'on {expiry_date} at 12AM UTC.')
+                    if warning_msg:
+                        warning_msg += f'\n{token_warning}'
+                    else:
+                        warning_msg = token_warning
+            except osmo_errors.OSMOUserError:
+                logging.warning('Failed to fetch access token for user %s and token %s',
+                                user_name, token_name)
+                pass
+
     response = await call_next(request)
+
     if suggest_version_update:
         response.headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
-        warning_msg = (
+        version_warning = (
             f'WARNING: New client {newest_client_version} available.\n'
             f'Current version: {client_version_str}.\n'
             f'{install_command}')
-        response.headers[version.VERSION_WARNING_HEADER] = (
+        if warning_msg:
+            warning_msg = f'{version_warning}\n{warning_msg}'
+        else:
+            warning_msg = version_warning
+    if warning_msg:
+        response.headers[version.WARNING_HEADER] = (
             base64.b64encode(warning_msg.encode()).decode())
     return response
 

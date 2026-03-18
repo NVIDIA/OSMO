@@ -61,9 +61,9 @@ class ResponseMode(enum.Enum):
 
 
 def handle_response(response, mode: ResponseMode = ResponseMode.JSON):
-    if response.headers.get(version.VERSION_WARNING_HEADER) is not None:
+    if response.headers.get(version.WARNING_HEADER) is not None:
         warning = base64.b64decode(
-            response.headers.get(version.VERSION_WARNING_HEADER)).decode()
+            response.headers.get(version.WARNING_HEADER)).decode()
         print(warning, file=sys.stderr)
     if response.status_code != 200:
         logging.error('Server responded with status code %s', response.status_code)
