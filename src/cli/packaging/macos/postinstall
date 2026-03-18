@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ set -e
 OSMO_CLI_INSTALL_PATH="/usr/local/osmo"
 OSMO_CLI_SYMLINK_PATH="/usr/local/bin"
 OSMO_CLI_AUTOCOMPLETE_DIR="/usr/local/share/zsh/site-functions"
+
+# Ensure symlink directory exists (may not exist on fresh macOS installs)
+mkdir -p "$OSMO_CLI_SYMLINK_PATH"
 
 # Create symlink
 ln -s -f "$OSMO_CLI_INSTALL_PATH/osmo" "$OSMO_CLI_SYMLINK_PATH/osmo"
