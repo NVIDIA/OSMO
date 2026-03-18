@@ -115,7 +115,7 @@ async def check_client_version(request: fastapi.Request, call_next):
                 if days_until_expiry <= 7:
                     token_warning = (
                         f'WARNING: Access token {token_name} is expiring '
-                        f'on {expiry_date}.')
+                        f'on {expiry_date} at 12AM UTC.')
                     if warning_msg:
                         warning_msg += f'\n{token_warning}'
                     else:
