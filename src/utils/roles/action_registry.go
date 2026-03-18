@@ -172,6 +172,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== WORKFLOW ====================
 	ActionWorkflowCreate: {
 		{Path: "/api/pool/*/workflow", Methods: []string{"POST"}},
+		{Path: "/api/pool/*/workflow/*", Methods: []string{"POST"}},
 	},
 	ActionWorkflowList: {
 		{Path: "/api/workflow", Methods: []string{"GET"}},
