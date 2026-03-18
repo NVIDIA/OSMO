@@ -89,12 +89,6 @@ async def check_client_version(request: fastapi.Request, call_next):
         suggest_version_update = True
 
     warning_msg = ''
-    if suggest_version_update:
-        response.headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
-        warning_msg = (
-            f'WARNING: New client {newest_client_version} available.\n'
-            f'Current version: {client_version_str}.\n'
-            f'{install_command}')
     if token_name:
         user_name = request.headers.get(login.OSMO_USER_HEADER)
         if user_name:
@@ -125,6 +119,16 @@ async def check_client_version(request: fastapi.Request, call_next):
 
     response = await call_next(request)
 
+    if suggest_version_update:
+        response.headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
+        version_warning = (
+            f'WARNING: New client {newest_client_version} available.\n'
+            f'Current version: {client_version_str}.\n'
+            f'{install_command}')
+        if warning_msg:
+            warning_msg = f'{version_warning}\n{warning_msg}'
+        else:
+            warning_msg = version_warning
     if warning_msg:
         response.headers[version.WARNING_HEADER] = (
             base64.b64encode(warning_msg.encode()).decode())
