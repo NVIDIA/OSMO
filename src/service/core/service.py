@@ -115,6 +115,8 @@ async def check_client_version(request: fastapi.Request, call_next):
                     else:
                         warning_msg = token_warning
             except osmo_errors.OSMOUserError:
+                logging.warning('Failed to fetch access token for user %s and token %s',
+                                user_name, token_name)
                 pass
 
     response = await call_next(request)
