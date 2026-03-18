@@ -95,7 +95,7 @@ async def check_client_version(request: fastapi.Request, call_next):
             try:
                 token = auth_objects.AccessToken.fetch_from_db(
                     postgres, token_name, user_name)
-                today = datetime.datetime.utcnow().date()
+                today = datetime.datetime.now(datetime.timezone.utc).date()
                 expiry_date = token.expires_at.date()
                 if expiry_date <= today:
                     return fastapi.responses.JSONResponse(
