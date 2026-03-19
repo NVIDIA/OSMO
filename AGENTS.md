@@ -75,6 +75,51 @@ Before making any code changes in this repo, you MUST:
   - **Good**: `if value is None: raise ValueError("Value cannot be None")`
   - **Bad**: `assert value is not None, "Value cannot be None"`
 
+## AI-Native Development Framework
+
+OSMO uses a 5-layer framework for AI-assisted development. Default to DIF (Deterministic Infrastructure Functions), escalate to LLM.
+
+### Agent Workflow
+
+When starting a task:
+1. **Context**: Read `docs/agent/decision-tree.md` to identify which files to read. Run `scripts/agent/route-context.sh <file>` for file-specific context.
+2. **Decision**: Check `docs/agent/architecture-intent.md` for architectural constraints. Run `scripts/agent/check-decisions.sh` to verify changes respect boundaries.
+3. **Quality**: Run `scripts/agent/lint-fast.sh` for quick feedback. Run `scripts/agent/quality-gate.sh` before declaring done.
+4. **Continuity**: Run `scripts/agent/load-progress.sh` to bootstrap from saved state. Run `scripts/agent/save-progress.sh` before ending a session.
+5. **Meta-cognition**: Consult `docs/agent/meta-cognition-protocol.md` if stuck. Run `scripts/agent/meta-check.sh` for self-assessment.
+
+### Framework Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `docs/agent/decision-tree.md` | Task-type routing: given a task, which files to read |
+| `docs/agent/cross-service-impact.md` | Which services are affected by shared code changes |
+| `docs/agent/architecture-intent.md` | Why the system is designed this way |
+| `docs/agent/continuity-protocol.md` | Progress file format and session handoff convention |
+| `docs/agent/meta-cognition-protocol.md` | When to change strategy, delegate, or escalate |
+
+### DIF Scripts (`scripts/agent/`)
+
+| Script | Layer | Purpose |
+|--------|-------|---------|
+| `route-context.sh` | Context | Given a file path, output relevant docs |
+| `check-decisions.sh` | Decision | Verify architectural boundaries |
+| `lint-fast.sh` | Quality | Quick lint check (<5s) |
+| `verify.sh` | Quality | Full build + test verification |
+| `quality-gate.sh` | Quality | Orchestrates lint -> verify -> decisions |
+| `save-progress.sh` | Continuity | Save session state |
+| `load-progress.sh` | Continuity | Bootstrap from saved state |
+| `meta-check.sh` | Meta-cognition | Detect spinning, drift, stale progress |
+
+### Service-Level Context
+
+| File | Scope |
+|------|-------|
+| `src/service/core/AGENTS.md` | Core FastAPI service context |
+| `src/lib/AGENTS.md` | Python libraries context |
+| `src/runtime/AGENTS.md` | Go runtime containers context |
+| `src/ui/AGENTS.md` | Frontend Next.js context |
+
 ## Codebase Structure (`src/`)
 
 All paths below are relative to `src/`.
