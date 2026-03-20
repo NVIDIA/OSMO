@@ -253,6 +253,17 @@ export function useShell(options: UseShellOptions): UseShellReturn {
           }
         });
 
+        const onResizeDisposable = terminal.onResize(({ cols, rows }) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const prefix = new Uint8Array([0x00]);
+          const payload = sharedEncoder.encode(`RESIZE:${JSON.stringify({ Rows: rows, Cols: cols })}`);
+          const msg = new Uint8Array(prefix.length + payload.length);
+          msg.set(prefix, 0);
+          msg.set(payload, prefix.length);
+          ws.send(msg);
+        });
+        _updateSession(sessionKey, { onResizeDisposable });
+
         const timeout = setTimeout(() => {
           dispatch({ type: "TIMEOUT" });
         }, SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS);
@@ -398,6 +409,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       // Dispose old input handler if it exists
       if (currentSession.onDataDisposable) {
         currentSession.onDataDisposable.dispose();
+      }
+      if (currentSession.onResizeDisposable) {
+        currentSession.onResizeDisposable.dispose();
       }
 
       // Connect terminal input to WebSocket output
@@ -598,6 +612,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     if (session.onDataDisposable) {
       session.onDataDisposable.dispose();
     }
+    if (session.onResizeDisposable) {
+      session.onResizeDisposable.dispose();
+    }
     if (session.onRenderDisposable) {
       session.onRenderDisposable.dispose();
     }
@@ -689,6 +706,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
             reconnectCallback: null,
             terminalReady: false,
             onRenderDisposable: null,
+            onResizeDisposable: null,
           });
         }
       }
