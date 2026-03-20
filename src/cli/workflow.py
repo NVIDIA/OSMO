@@ -51,6 +51,7 @@ from src.lib.utils import (client, common, osmo_errors, paths, port_forward, pri
 
 
 INTERACTIVE_COMMANDS = ['bash', 'sh', 'zsh', 'fish', 'tcsh', 'csh', 'ksh']
+RESIZE_PREFIX = b'\x00RESIZE:'
 
 
 class TemplateData(pydantic.BaseModel, extra=pydantic.Extra.forbid):
@@ -1275,11 +1276,33 @@ async def _connect_stdin_stdout() -> Tuple[asyncio.StreamReader, asyncio.StreamW
     return reader, writer
 
 
-async def send_terminal_size(ws: websockets.WebSocketClientProtocol):  # type: ignore
+def _get_terminal_size() -> bytes:
     s = struct.pack('HHHH', 0, 0, 0, 0)
     rows, cols = struct.unpack('HHHH', fcntl.ioctl(sys.stdin, termios.TIOCGWINSZ, s))[:2]
-    size_message = json.dumps({'Rows': rows, 'Cols': cols}).encode('utf-8')
-    await ws.send(size_message)
+    return json.dumps({'Rows': rows, 'Cols': cols}).encode('utf-8')
+
+
+async def send_terminal_size(ws: websockets.WebSocketClientProtocol):  # type: ignore
+    await ws.send(_get_terminal_size())
+
+
+async def _send_terminal_resize(ws: websockets.WebSocketClientProtocol):  # type: ignore
+    await ws.send(RESIZE_PREFIX + _get_terminal_size())
+
+
+async def _watch_terminal_resize(ws: websockets.WebSocketClientProtocol):  # type: ignore
+    loop = asyncio.get_event_loop()
+    resize_event = asyncio.Event()
+    loop.add_signal_handler(signal.SIGWINCH, resize_event.set)
+    try:
+        while True:
+            await resize_event.wait()
+            resize_event.clear()
+            await _send_terminal_resize(ws)
+    except (websockets.exceptions.ConnectionClosed, asyncio.CancelledError):
+        pass
+    finally:
+        loop.remove_signal_handler(signal.SIGWINCH)
 
 
 async def _run_exec_interactive(service_client: client.ServiceClient, args: argparse.Namespace,
@@ -1313,7 +1336,8 @@ async def _run_exec_interactive(service_client: client.ServiceClient, args: argp
         loop = asyncio.get_event_loop()
         coroutines = [
             loop.create_task(port_forward.write_data(writer, ws)),
-            loop.create_task(port_forward.read_data(reader, ws))
+            loop.create_task(port_forward.read_data(reader, ws)),
+            loop.create_task(_watch_terminal_resize(ws)),
         ]
         done, pending = await asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED)
         for i in pending:
