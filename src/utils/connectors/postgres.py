@@ -4516,6 +4516,12 @@ DEFAULT_ROLES: Dict[str, Role] = {
                     'resources:Read',
                 ],
                 resources=['*']
+            ),
+            role.RolePolicy(
+                actions=[
+                    'workflow:Create',
+                ],
+                resources=['pool/default']
             )
         ]
     ),
