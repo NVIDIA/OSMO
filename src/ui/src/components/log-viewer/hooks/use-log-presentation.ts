@@ -111,6 +111,12 @@ export interface UseLogPresentationReturn {
 // Hook
 // =============================================================================
 
+/**
+ * Transform raw log stream state into grouped props consumed by `LogViewer`.
+ * Applies filter chips, time-range bounds, and timeline markers derived from
+ * workflow metadata. State management (URL-synced vs local) is injected via
+ * `params.stateApi` so the hook works in both standalone and embedded contexts.
+ */
 export function useLogPresentation(params: UseLogPresentationParams): UseLogPresentationReturn {
   const { rawEntries, phase, error, isStreaming, restart, workflowMetadata, now, scope, logUrl, stateApi } = params;
 

@@ -72,6 +72,11 @@ interface EventViewerContainerProps {
   taskTimings?: Map<string, TaskTiming>;
 }
 
+/**
+ * Container for the event viewer. Fetches K8s events from the given URL and
+ * renders them in a filterable, sortable table with per-task status and timing
+ * overlays. Supports both task-scope and workflow-scope event streams.
+ */
 export function EventViewerContainer({
   url,
   className,

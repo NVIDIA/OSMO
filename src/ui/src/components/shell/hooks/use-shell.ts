@@ -99,6 +99,12 @@ export interface UseShellReturn {
 
 const sharedEncoder = new TextEncoder();
 
+/**
+ * Manage an interactive shell session for a workflow task. Opens a WebSocket
+ * exec connection via the router, attaches an xterm.js terminal, and exposes
+ * controls for resize, search, and session lifecycle. Multiple concurrent
+ * sessions are keyed by `sessionKey`.
+ */
 export function useShell(options: UseShellOptions): UseShellReturn {
   const {
     sessionKey,

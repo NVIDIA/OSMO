@@ -324,6 +324,11 @@ interface TaskDetailsInternalProps extends TaskDetailsProps {
   setSelectedTab?: (tab: TaskTab) => void;
 }
 
+/**
+ * Detail panel for a single workflow task. Renders tabbed content including
+ * logs, events, shell, and spec views. Memoized to avoid re-renders when
+ * sibling tasks or unrelated workflow state changes.
+ */
 export const TaskDetails = memo(function TaskDetails({
   group,
   allGroups,
