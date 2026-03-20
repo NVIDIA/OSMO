@@ -199,7 +199,9 @@ jobs:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
 
-      # Coverage covers Go tests only.
+      # Collects Go coverage natively (rules_go) and Python coverage via
+      # coverage.py (rules_python configure_coverage_tool). Produces a single
+      # combined LCOV report for both languages.
       - name: Run Tests with Coverage
         run: |
           bazel coverage --config=ci \
@@ -209,6 +211,16 @@ jobs:
             --test_output=errors \
             -- \
             //...
+
+      # Strip Bazel sandbox path prefixes from LCOV SF: lines so Codecov
+      # maps coverage to workspace-relative source paths.
+      - name: Fix coverage paths
+        if: always() && !cancelled()
+        run: |
+          REPORT=bazel-out/_coverage/_coverage_report.dat
+          if [ -f "$REPORT" ]; then
+            sed -i 's|SF:.*/runfiles/_main/|SF:|g' "$REPORT"
+          fi
 
       - name: Upload coverage to Codecov
         if: always() && !cancelled()

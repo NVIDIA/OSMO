@@ -81,6 +81,7 @@ bazel_dep(name = "rules_python", version = "1.8.4")
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
+    configure_coverage_tool = True,
     ignore_root_user_error = True,
     is_default = True,
     python_version = "3.10.19",
