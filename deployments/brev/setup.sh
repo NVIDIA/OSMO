@@ -55,7 +55,7 @@ NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
 
 # Helm chart versions
 GPU_OPERATOR_VERSION="v25.10.0"
-KAI_SCHEDULER_VERSION="v0.13.0"
+KAI_SCHEDULER_VERSION="v0.13.4"
 
 # ============================================
 # Step 0: System Configuration
