@@ -138,6 +138,9 @@ export function getBasePathUrl(path: string): string {
  * must be stripped of their origin so requests route through the same-origin
  * Next.js proxy instead of going directly to the backend hostname.
  *
+ * Scheme-relative URLs (starting with "//") and malformed absolute URLs are
+ * treated as path-relative: all leading slashes are collapsed to a single "/".
+ *
  * @param url - A URL string that may be absolute or path-relative
  * @returns Path + search string (e.g., `/api/workflow/foo/logs?last_n_lines=100`)
  *
@@ -147,14 +150,24 @@ export function getBasePathUrl(path: string): string {
  * // => "/api/workflow/foo/logs?last_n_lines=100"
  *
  * toProxiedPath("/api/workflow/foo/logs") // => "/api/workflow/foo/logs"
+ *
+ * toProxiedPath("//api.osmo/path") // => "/api.osmo/path"  (scheme-relative → relative)
+ *
+ * toProxiedPath("http://") // => "/http://"  (parse error → path-normalized)
  * ```
  */
 export function toProxiedPath(url: string): string {
   if (url.startsWith("http://") || url.startsWith("https://")) {
-    const { pathname, search } = new URL(url);
-    return pathname + search;
+    try {
+      const { pathname, search } = new URL(url);
+      return pathname + search;
+    } catch {
+      // Fall through to normalization below.
+    }
   }
-  return url.startsWith("/") ? url : `/${url}`;
+  // Collapse any number of leading slashes (including scheme-relative "//" URLs)
+  // to exactly one "/" so the path is always same-origin-relative.
+  return "/" + url.replace(/^\/+/, "");
 }
 
 /**
