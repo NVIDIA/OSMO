@@ -158,6 +158,42 @@ export function toProxiedPath(url: string): string {
 }
 
 /**
+ * Return the host (hostname + port) to use for a WebSocket connection to a
+ * backend URL.
+ *
+ * Follows the same principle as `toProxiedPath` but for WebSocket connections,
+ * which cannot be proxied through Next.js route handlers. When the backend's
+ * hostname matches the current page's hostname, the port is preserved so local
+ * services on different ports remain reachable (e.g., a mock WS server on
+ * port 3001 while the UI runs on 3000). When the hostnames differ, the current
+ * page's host is used so the connection routes through the same proxy as HTTP
+ * requests.
+ *
+ * @param url - An absolute backend URL (e.g., `router_address` from the exec API)
+ * @returns Host string to use in the WebSocket URL (e.g., `localhost:3001`)
+ *
+ * @example
+ * ```ts
+ * // Production: different hostname → use current page's host
+ * toProxiedWsHost("http://quick-start.osmo")
+ * // => "osmo0-45wiq069v.brevlab.com"  (window.location.host)
+ *
+ * // Local dev: same hostname, different port → preserve port
+ * toProxiedWsHost("http://localhost:3001")
+ * // => "localhost:3001"
+ * ```
+ */
+export function toProxiedWsHost(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    const { hostname, host } = new URL(url);
+    if (hostname === window.location.hostname) {
+      return host; // Same hostname: preserve port (e.g., localhost:3001)
+    }
+  }
+  return window.location.host; // Different hostname: use current page's host
+}
+
+/**
  * Remove basePath prefix from a URL path if basePath is configured.
  *
  * This is useful when you need to pass URLs to Next.js router methods (push, replace, etc.)

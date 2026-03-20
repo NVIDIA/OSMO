@@ -23,6 +23,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
 import { useExecIntoTask } from "@/lib/api/adapter/hooks";
+import { toProxiedWsHost } from "@/lib/config";
 import { updateALBCookies } from "@/lib/auth/cookies";
 import {
   type ShellState,
@@ -412,8 +413,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       _updateSession(sessionKey, { onDataDisposable });
 
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const routerAddress = execData.router_address.replace(/^https?:/, wsProtocol);
-      const wsUrl = `${routerAddress}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
+      const wsUrl = `${wsProtocol}//${toProxiedWsHost(execData.router_address)}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
 
       dispatch({ type: "API_SUCCESS", terminal, wsUrl });
 
