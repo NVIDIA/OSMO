@@ -222,6 +222,7 @@ async def user_error_handler(request: fastapi.Request, error: osmo_errors.OSMOEr
     )
 
 
+@app.exception_handler(osmo_errors.OSMODataStorageError)
 @app.exception_handler(osmo_errors.OSMOBackendError)
 @app.exception_handler(osmo_errors.OSMOServerError)
 @app.exception_handler(Exception)
