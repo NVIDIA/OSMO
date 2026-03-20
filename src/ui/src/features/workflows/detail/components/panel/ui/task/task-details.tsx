@@ -66,6 +66,7 @@ import type { SiblingTask, BreadcrumbSegment } from "@/features/workflows/detail
 import type { TaskDetailsProps } from "@/features/workflows/detail/components/panel/ui/task/task-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
 import { isTaskTerminal } from "@/lib/api/status-metadata.generated";
+import { toProxiedPath } from "@/lib/config";
 
 interface OverviewTabProps {
   task: TaskDetailsProps["task"];
@@ -610,9 +611,11 @@ export const TaskDetails = memo(function TaskDetails({
                 icon={TextSearch}
                 title="Task Logs"
                 description="View stdout/stderr output from the task execution"
-                url={task.logs}
+                url={task.logs ? toProxiedPath(task.logs) : task.logs}
                 secondaryAction={
-                  task.error_logs ? { url: task.error_logs, label: "View Error Logs", icon: AlertCircle } : undefined
+                  task.error_logs
+                    ? { url: toProxiedPath(task.error_logs), label: "View Error Logs", icon: AlertCircle }
+                    : undefined
                 }
               />
             </div>

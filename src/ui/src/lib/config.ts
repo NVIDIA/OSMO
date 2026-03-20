@@ -130,6 +130,34 @@ export function getBasePathUrl(path: string): string {
 }
 
 /**
+ * Convert a backend URL to a path-only URL for same-origin proxying.
+ *
+ * Backend responses include absolute URLs containing the backend's hostname
+ * (e.g., `http://api.osmo/api/workflow/foo/logs`). When the UI is served
+ * from a different domain than the backend's `service_base_url`, these URLs
+ * must be stripped of their origin so requests route through the same-origin
+ * Next.js proxy instead of going directly to the backend hostname.
+ *
+ * @param url - A URL string that may be absolute or path-relative
+ * @returns Path + search string (e.g., `/api/workflow/foo/logs?last_n_lines=100`)
+ *
+ * @example
+ * ```ts
+ * toProxiedPath("http://api.osmo/api/workflow/foo/logs?last_n_lines=100")
+ * // => "/api/workflow/foo/logs?last_n_lines=100"
+ *
+ * toProxiedPath("/api/workflow/foo/logs") // => "/api/workflow/foo/logs"
+ * ```
+ */
+export function toProxiedPath(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    const { pathname, search } = new URL(url);
+    return pathname + search;
+  }
+  return url.startsWith("/") ? url : `/${url}`;
+}
+
+/**
  * Remove basePath prefix from a URL path if basePath is configured.
  *
  * This is useful when you need to pass URLs to Next.js router methods (push, replace, etc.)

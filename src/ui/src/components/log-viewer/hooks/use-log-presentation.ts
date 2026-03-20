@@ -47,6 +47,7 @@ import type {
   WorkflowMetadata,
 } from "@/components/log-viewer/lib/types";
 import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "@/components/log-viewer/lib/timeline-constants";
+import { toProxiedPath } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -205,14 +206,7 @@ export function useLogPresentation(params: UseLogPresentationParams): UseLogPres
   // -------------------------------------------------------------------------
   const externalLogUrl = useMemo(() => {
     if (!logUrl) return "";
-
-    // If the logUrl is already absolute, use it directly
-    if (logUrl.startsWith("http://") || logUrl.startsWith("https://")) {
-      return logUrl;
-    }
-
-    const normalizedPath = logUrl.startsWith("/") ? logUrl : `/${logUrl}`;
-    return new URL(normalizedPath, window.location.origin).href;
+    return new URL(toProxiedPath(logUrl), window.location.origin).href;
   }, [logUrl]);
 
   // -------------------------------------------------------------------------

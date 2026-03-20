@@ -27,7 +27,7 @@ import type { TaskGroupStatus } from "@/lib/api/generated";
 import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { useTick } from "@/hooks/use-tick";
-import { getBasePathUrl } from "@/lib/config";
+import { getBasePathUrl, toProxiedPath } from "@/lib/config";
 import { FilterBar } from "@/components/filter-bar/filter-bar";
 import { useUrlChips } from "@/components/filter-bar/hooks/use-url-chips";
 import { EVENT_SEARCH_FIELDS, EVENT_PRESETS } from "@/components/event-viewer/lib/event-search-fields";
@@ -82,7 +82,7 @@ export function EventViewerContainer({
   taskTimings,
 }: EventViewerContainerProps) {
   const isTaskScope = scope === "task";
-  const openUrl = url.startsWith("http://") || url.startsWith("https://") ? url : getBasePathUrl(url);
+  const openUrl = getBasePathUrl(toProxiedPath(url));
 
   // URL-synced filter chips (only in workflow scope)
   const { searchChips, setSearchChips } = useUrlChips({ paramName: "ef" });
