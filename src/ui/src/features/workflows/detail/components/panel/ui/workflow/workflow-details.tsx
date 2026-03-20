@@ -60,6 +60,7 @@ import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "@/features/workflows/detail/hooks/use-navigation-state";
 import { WorkflowTasksTab } from "@/features/workflows/detail/components/panel/ui/workflow/workflow-tasks-tab";
 import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
+import { AgentQuestionsPanel } from "@/features/workflows/detail/components/panel/ui/agent/agent-questions-panel";
 
 // Lazy-load CodeMirror-based spec viewer (only loads when "Spec" tab is clicked)
 // Saves ~92 KB from initial bundle (CodeMirror + YAML parser + Lezer)
@@ -271,9 +272,16 @@ interface OverviewTabProps {
   canCancel: boolean;
   onCancel?: () => void;
   onResubmit?: () => void;
+  isAgentWorkflow: boolean;
 }
 
-const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel, onResubmit }: OverviewTabProps) {
+const OverviewTab = memo(function OverviewTab({
+  workflow,
+  canCancel,
+  onCancel,
+  onResubmit,
+  isAgentWorkflow,
+}: OverviewTabProps) {
   // Build actions array
   const actions: ActionItem[] = [];
 
@@ -303,6 +311,14 @@ const OverviewTab = memo(function OverviewTab({ workflow, canCancel, onCancel, o
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Agent questions (shown first when present for agent workflows) */}
+      {isAgentWorkflow && (
+        <AgentQuestionsPanel
+          taskId={workflow.name}
+          enabled={isAgentWorkflow}
+        />
+      )}
+
       {/* Timeline section */}
       <section>
         <h3 className={STYLES.sectionHeader}>Timeline</h3>
@@ -355,6 +371,9 @@ export const WorkflowDetails = memo(function WorkflowDetails({
     ],
     [],
   );
+
+  // Detect agent orchestrator workflows by name prefix
+  const isAgentWorkflow = workflow.name.startsWith("agent-");
 
   // Fallback to "waiting" (a valid key in STATUS_STYLES) if status is unknown
   const statusCategory = STATUS_CATEGORY_MAP[workflow.status] ?? "waiting";
@@ -429,6 +448,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
             canCancel={canCancel}
             onCancel={onCancel}
             onResubmit={onResubmit}
+            isAgentWorkflow={isAgentWorkflow}
           />
         </TabPanel>
 
