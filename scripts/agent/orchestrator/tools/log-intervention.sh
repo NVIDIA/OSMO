@@ -22,8 +22,7 @@
 # Categories: design_decision, ambiguity, bug, failure, steering
 #
 # Environment variables (required):
-#   S3_BUCKET - S3 bucket name
-#   TASK_ID   - Current task identifier
+#   STORAGE_URI - Base URI for agent state (e.g., s3://bucket/agent/task-001)
 
 set -euo pipefail
 
@@ -69,14 +68,14 @@ if ! echo "$FRAMEWORK_FIX_JSON" | jq empty 2>/dev/null; then
   exit 1
 fi
 
-S3_PATH="s3://${S3_BUCKET}/${TASK_ID}/interventions.json"
+REMOTE_PATH="s3://${S3_BUCKET}/${TASK_ID}/interventions.json"
 TEMP_DIR=$(mktemp -d /tmp/osmo-intervention-XXXXXX)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
 INTERVENTIONS_FILE="${TEMP_DIR}/interventions.json"
 
 # Download existing interventions or create empty structure
-if aws s3 cp "$S3_PATH" "$INTERVENTIONS_FILE" --quiet 2>/dev/null; then
+if osmo data download "$REMOTE_PATH" "$TEMP_DIR" 2>/dev/null; then
   echo "Downloaded existing interventions log." >&2
 else
   echo '{"interventions":[],"summary":{"total":0,"avoidable":0,"categories":{}}}' > "$INTERVENTIONS_FILE"
@@ -121,7 +120,7 @@ UPDATED=$(jq \
 
 echo "$UPDATED" > "$INTERVENTIONS_FILE"
 
-# Upload back to S3
-aws s3 cp "$INTERVENTIONS_FILE" "$S3_PATH" --quiet
+# Upload back to storage
+osmo data upload "$REMOTE_PATH" "$INTERVENTIONS_FILE"
 
 echo "Logged intervention $INTERVENTION_ID (question: $QUESTION_ID, category: $CATEGORY, avoidable: $AVOIDABLE)"

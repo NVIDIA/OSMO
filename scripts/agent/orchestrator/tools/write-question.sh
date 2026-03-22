@@ -20,8 +20,7 @@
 # Usage: write-question.sh <question-id> <subtask-id> <context> <question> <options-json>
 #
 # Environment variables (required):
-#   S3_BUCKET - S3 bucket name
-#   TASK_ID   - Current task identifier
+#   STORAGE_URI - Base URI for agent state (e.g., s3://bucket/agent/task-001)
 
 set -euo pipefail
 
@@ -43,12 +42,10 @@ QUESTION="$4"
 OPTIONS_JSON="$5"
 
 # Validate required environment variables
-for var in S3_BUCKET TASK_ID; do
-  if [[ -z "${!var:-}" ]]; then
-    echo "ERROR: Required environment variable $var is not set." >&2
-    exit 1
-  fi
-done
+if [[ -z "${STORAGE_URI:-}" ]]; then
+  echo "ERROR: Required environment variable STORAGE_URI is not set." >&2
+  exit 1
+fi
 
 # Validate that options-json is valid JSON
 if ! echo "$OPTIONS_JSON" | jq empty 2>/dev/null; then
@@ -83,8 +80,8 @@ trap 'rm -f "$TEMP_FILE"' EXIT
 
 echo "$QUESTION_JSON" > "$TEMP_FILE"
 
-S3_PATH="s3://${S3_BUCKET}/${TASK_ID}/questions/${QUESTION_ID}.json"
+REMOTE_PATH="${STORAGE_URI}/questions/${QUESTION_ID}.json"
 
-aws s3 cp "$TEMP_FILE" "$S3_PATH" --quiet
+osmo data upload "$REMOTE_PATH" "$TEMP_FILE"
 
-echo "Question $QUESTION_ID written to $S3_PATH"
+echo "Question $QUESTION_ID written to $REMOTE_PATH"

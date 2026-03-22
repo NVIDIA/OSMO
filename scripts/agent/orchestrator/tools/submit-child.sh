@@ -15,39 +15,38 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Submit a child OSMO workflow for a specific module/subtask.
+# Submit a child agent workflow for a specific subtask.
 #
-# Usage: submit-child.sh <module> <files-csv> <description>
+# Uses the SAME orchestrator.yaml as the parent — every agent at every level
+# runs the same workflow, same image, same meta-prompt. The only difference
+# is SUBTASK_ID, which tells the child which entry in plan.json to work on.
 #
-# Reads the child workflow and prompt templates, substitutes placeholders,
-# and submits the rendered workflow via the OSMO CLI.
+# Usage: submit-child.sh <subtask-id> <module-name>
+#
+# Example: submit-child.sh "st-004" "utils-connectors"
 #
 # Environment variables (required):
-#   GITHUB_REPO       - Repository URL
-#   BRANCH_NAME       - Git branch to work on
-#   KNOWLEDGE_DOC     - Path or content of the knowledge document
-#   COMMIT_PREFIX     - Prefix for commit messages
-#
-# Environment variables (optional):
-#   LEARNED_DECISIONS - Accumulated decisions from prior subtasks (may be empty)
+#   GITHUB_REPO   - Repository URL
+#   BRANCH_NAME   - Git branch
+#   STORAGE_URI   - Storage URI for questions/interventions
+#   KNOWLEDGE_DOC - Path to knowledge document
+#   COMMIT_PREFIX - Commit message prefix
 
 set -euo pipefail
 
-if [[ $# -lt 3 ]]; then
-  echo "Usage: submit-child.sh <module> <files-csv> <description>" >&2
+if [[ $# -lt 2 ]]; then
+  echo "Usage: submit-child.sh <subtask-id> <module-name>" >&2
   echo "" >&2
-  echo "  module       Short identifier for the subtask (e.g., lib-utils)" >&2
-  echo "  files-csv    Comma-separated file paths relative to repo root" >&2
-  echo "  description  One-sentence description of the child's task" >&2
+  echo "  subtask-id   ID of the subtask in plan.json (e.g., st-004)" >&2
+  echo "  module-name  Short name for the workflow (e.g., utils-connectors)" >&2
   exit 1
 fi
 
-MODULE="$1"
-FILES_CSV="$2"
-DESCRIPTION="$3"
+SUBTASK_ID="$1"
+MODULE_NAME="$2"
 
 # Validate required environment variables
-for var in GITHUB_REPO BRANCH_NAME KNOWLEDGE_DOC COMMIT_PREFIX; do
+for var in GITHUB_REPO BRANCH_NAME STORAGE_URI KNOWLEDGE_DOC COMMIT_PREFIX; do
   if [[ -z "${!var:-}" ]]; then
     echo "ERROR: Required environment variable $var is not set." >&2
     exit 1
@@ -55,74 +54,29 @@ for var in GITHUB_REPO BRANCH_NAME KNOWLEDGE_DOC COMMIT_PREFIX; do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ORCHESTRATOR_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ORCHESTRATOR_YAML="$SCRIPT_DIR/../orchestrator.yaml"
 
-WORKFLOW_TEMPLATE="$ORCHESTRATOR_DIR/child-workflow-template.yaml"
-PROMPT_TEMPLATE="$ORCHESTRATOR_DIR/child-prompt.md"
-
-if [[ ! -f "$WORKFLOW_TEMPLATE" ]]; then
-  echo "ERROR: Child workflow template not found at $WORKFLOW_TEMPLATE" >&2
+if [[ ! -f "$ORCHESTRATOR_YAML" ]]; then
+  echo "ERROR: orchestrator.yaml not found at $ORCHESTRATOR_YAML" >&2
   exit 1
 fi
 
-if [[ ! -f "$PROMPT_TEMPLATE" ]]; then
-  echo "ERROR: Child prompt template not found at $PROMPT_TEMPLATE" >&2
-  exit 1
-fi
+# Sanitize module name for workflow naming
+SANITIZED_MODULE=$(echo "$MODULE_NAME" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+WORKFLOW_NAME="agent-${SANITIZED_MODULE}"
 
-# Sanitize module name for OSMO workflow naming: replace / with -, lowercase
-SANITIZED_MODULE=$(echo "$MODULE" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+# Submit using the SAME orchestrator.yaml with subtask_id set
+OUTPUT=$(osmo workflow submit "$ORCHESTRATOR_YAML" \
+  --set subtask_id="$SUBTASK_ID" \
+  --set workflow_name="$WORKFLOW_NAME" \
+  --set github_repo="$GITHUB_REPO" \
+  --set branch_name="$BRANCH_NAME" \
+  --set storage_uri="$STORAGE_URI" \
+  --set knowledge_doc="$KNOWLEDGE_DOC" \
+  --set commit_prefix="$COMMIT_PREFIX" \
+  2>&1)
 
-# Convert comma-separated files to a markdown list (one per line with "- " prefix)
-FILES_LIST=""
-IFS=',' read -ra FILE_ARRAY <<< "$FILES_CSV"
-for file in "${FILE_ARRAY[@]}"; do
-  trimmed=$(echo "$file" | xargs)
-  if [[ -n "$trimmed" ]]; then
-    FILES_LIST="${FILES_LIST}- ${trimmed}"$'\n'
-  fi
-done
-# Remove trailing newline
-FILES_LIST="${FILES_LIST%$'\n'}"
-
-LEARNED_DECISIONS="${LEARNED_DECISIONS:-}"
-
-# Render the prompt template with placeholder substitution
-RENDERED_PROMPT=$(cat "$PROMPT_TEMPLATE")
-RENDERED_PROMPT="${RENDERED_PROMPT//__MODULE__/$MODULE}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__GITHUB_REPO__/$GITHUB_REPO}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__BRANCH__/$BRANCH_NAME}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__DESCRIPTION__/$DESCRIPTION}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__COMMIT_PREFIX__/$COMMIT_PREFIX}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__FILES_LIST__/$FILES_LIST}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__KNOWLEDGE_DOC__/$KNOWLEDGE_DOC}"
-RENDERED_PROMPT="${RENDERED_PROMPT//__LEARNED_DECISIONS__/$LEARNED_DECISIONS}"
-
-# Render the workflow template
-RENDERED_WORKFLOW=$(cat "$WORKFLOW_TEMPLATE")
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__MODULE__/$SANITIZED_MODULE}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__GITHUB_REPO__/$GITHUB_REPO}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__BRANCH__/$BRANCH_NAME}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__DESCRIPTION__/$DESCRIPTION}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__COMMIT_PREFIX__/$COMMIT_PREFIX}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__FILES_LIST__/$FILES_LIST}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__KNOWLEDGE_DOC__/$KNOWLEDGE_DOC}"
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__LEARNED_DECISIONS__/$LEARNED_DECISIONS}"
-
-# Insert the rendered prompt into the workflow YAML
-RENDERED_WORKFLOW="${RENDERED_WORKFLOW//__PROMPT_CONTENTS__/$RENDERED_PROMPT}"
-
-# Write to a temp file
-TEMP_FILE=$(mktemp /tmp/osmo-child-workflow-XXXXXX.yaml)
-trap 'rm -f "$TEMP_FILE"' EXIT
-
-echo "$RENDERED_WORKFLOW" > "$TEMP_FILE"
-
-# Submit the workflow and capture the workflow ID
-OUTPUT=$(osmo workflow submit "$TEMP_FILE" 2>&1)
-
-# Extract the workflow ID from the output.
-# The osmo CLI typically prints a line containing the workflow ID.
+# Extract workflow ID from output
 WORKFLOW_ID=$(echo "$OUTPUT" | grep -oE '[a-f0-9-]{36}' | head -1)
 
 if [[ -z "$WORKFLOW_ID" ]]; then

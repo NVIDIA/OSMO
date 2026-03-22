@@ -24,28 +24,25 @@
 #   1 - No answers found
 #
 # Environment variables (required):
-#   S3_BUCKET - S3 bucket name
-#   TASK_ID   - Current task identifier
+#   STORAGE_URI - Base URI for agent state (e.g., s3://bucket/agent/task-001)
 
 set -euo pipefail
 
 # Validate required environment variables
-for var in S3_BUCKET TASK_ID; do
-  if [[ -z "${!var:-}" ]]; then
-    echo "ERROR: Required environment variable $var is not set." >&2
-    exit 1
-  fi
-done
+if [[ -z "${STORAGE_URI:-}" ]]; then
+  echo "ERROR: Required environment variable STORAGE_URI is not set." >&2
+  exit 1
+fi
 
-S3_PREFIX="s3://${S3_BUCKET}/${TASK_ID}/questions/"
+REMOTE_PREFIX="${STORAGE_URI}/questions/"
 TEMP_DIR=$(mktemp -d /tmp/osmo-answers-XXXXXX)
 trap 'rm -rf "$TEMP_DIR"' EXIT
 
-# List question files in S3
-FILE_LIST=$(aws s3 ls "$S3_PREFIX" 2>/dev/null || true)
+# List question files
+FILE_LIST=$(osmo data list "$REMOTE_PREFIX" --no-pager 2>/dev/null || true)
 
 if [[ -z "$FILE_LIST" ]]; then
-  echo "No question files found in $S3_PREFIX" >&2
+  echo "No question files found in $REMOTE_PREFIX" >&2
   exit 1
 fi
 
@@ -53,22 +50,20 @@ fi
 ANSWERED_QUESTIONS="[]"
 FOUND_ANSWERS=false
 
-while IFS= read -r line; do
-  # Extract the filename from the listing (last field)
-  FILENAME=$(echo "$line" | awk '{print $NF}')
+while IFS= read -r FILEPATH; do
+  FILENAME=$(basename "$FILEPATH")
   if [[ -z "$FILENAME" || "$FILENAME" != *.json ]]; then
     continue
   fi
 
   LOCAL_FILE="${TEMP_DIR}/${FILENAME}"
-  aws s3 cp "${S3_PREFIX}${FILENAME}" "$LOCAL_FILE" --quiet 2>/dev/null || continue
+  osmo data download "${REMOTE_PREFIX}${FILENAME}" "$TEMP_DIR" 2>/dev/null || continue
 
   # Check if the question has been answered
   STATUS=$(jq -r '.status // empty' "$LOCAL_FILE" 2>/dev/null || true)
 
   if [[ "$STATUS" == "answered" ]]; then
     FOUND_ANSWERS=true
-    # Append the answered question to the JSON array
     ANSWERED_QUESTIONS=$(echo "$ANSWERED_QUESTIONS" | jq --slurpfile q "$LOCAL_FILE" '. + $q')
   fi
 done <<< "$FILE_LIST"
