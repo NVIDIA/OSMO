@@ -2,533 +2,258 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an OSMO-native agent orchestrator that runs as an OSMO workflow, submits child workflows for each migration module, uses git as state passing, and tracks human interventions. First task: Pydantic v1→v2 migration.
+**Goal:** Build an OSMO-native meta-framework where Claude Code IS the orchestrator. Given any natural language task, it autonomously discovers scope, decomposes into subtasks, submits OSMO child workflows, monitors them, validates results, and asks humans when stuck. The Pydantic v1→v2 migration is the first task to validate the framework.
 
-**Architecture:** Orchestrator = OSMO workflow task (Claude Code + OSMO CLI + git). Child workflows = one per module (Claude Code + git). Git branch = code state. S3 = human interaction only.
+**Architecture:** The orchestrator is Claude Code running inside an OSMO workflow task. It has OSMO CLI + git. It reasons about the task (LLM), then uses infrastructure scripts (DIF) to submit child workflows, poll status, manage git, and communicate with humans via S3. The intelligence is in the LLM. The plumbing is in the scripts.
 
-**Tech Stack:** OSMO workflows (YAML), bash (DIF scripts), Claude Code CLI, git, S3 (questions only), vanilla HTML/JS (web UI)
+**Tech Stack:** OSMO workflows (YAML), bash (infrastructure DIF scripts), Claude Code CLI (orchestrator + child agents), git (state), S3 (human interaction), vanilla HTML/JS (web UI)
 
 **Spec:** `docs/superpowers/specs/2026-03-19-e2e-poc-autonomous-orchestrator-design.md`
 
 ---
 
-## File Structure
+## The Key Insight
 
-### New Files
+The orchestrator does NOT have pre-written discovery scripts, planners, or module orderers. Those are task-specific. Instead:
+
+| Layer | DIF (we build — infrastructure) | LLM (Claude Code at runtime — intelligence) |
+|---|---|---|
+| **Discovery** | Git clone, file access | Read codebase, understand scope, identify what needs to change |
+| **Planning** | — | Decompose task into subtasks, determine order and dependencies |
+| **Execution** | Submit child OSMO workflow, poll status | Write code changes in child workflows |
+| **Quality** | Run quality-gate.sh, lint-fast.sh | Self-correct failures, reason about errors |
+| **Communication** | Write/read S3 JSON files | Decide WHAT to ask humans, formulate questions |
+| **Continuity** | Git commit/push/pull | Decide what to commit, what message to write |
+| **Meta-cognition** | Track attempt counts, elapsed time | Decide when to change strategy, when to ask for help |
+
+---
+
+## File Structure
 
 ```
 scripts/agent/orchestrator/
-├── orchestrator.yaml            # OSMO workflow: the orchestrator task
-├── child-workflow-template.yaml # OSMO workflow template: one migration subtask
-├── orchestrator.sh              # Main loop: discovery → plan → submit children → validate
-├── discovery.sh                 # DIF: scan codebase, output module list as JSON
-├── planner.sh                   # DIF: order modules by dependency, output subtask plan
-├── submit-child.sh              # DIF: generate child YAML from template, submit via osmo CLI
-├── poll-workflow.sh             # DIF: poll child workflow status until done/failed
-├── check-answer.sh             # DIF: check S3 for human answers, incorporate
-├── write-question.sh            # DIF: write structured question JSON to S3
-├── intervention.sh              # DIF: log intervention, generate framework patches
-├── child-prompt.md              # Claude Code prompt template for child migrations
-
-docs/agent/pydantic-v2-migration.md  # Task knowledge doc
+├── orchestrator.yaml              # OSMO workflow: runs Claude Code as orchestrator (DONE)
+├── child-workflow-template.yaml   # OSMO workflow template: one child task (DONE)
+├── child-prompt.md                # Claude Code prompt template for children (DONE)
+├── orchestrator-prompt.md         # THE KEY FILE: meta-prompt that makes Claude Code an orchestrator
+├── tools/
+│   ├── submit-child.sh            # DIF: generate child YAML from template, osmo workflow submit
+│   ├── poll-workflow.sh           # DIF: poll osmo workflow query until done/failed
+│   ├── write-question.sh          # DIF: write question JSON to S3
+│   ├── check-answers.sh           # DIF: check S3 for answered questions
+│   └── log-intervention.sh        # DIF: append intervention to S3 log
 
 web/
-└── index.html                   # Static SPA: progress, questions, answers
-```
-
-### Modified Files
-
-```
-scripts/agent/verify.sh          # Fix Python path globs to cover subdirectories
+└── index.html                     # Static SPA for async human interaction
 ```
 
 ---
 
-## Task 1: OSMO Orchestrator Workflow YAML
+## Task 1: Orchestrator Meta-Prompt
 
-The workflow spec that runs the orchestrator as an OSMO task.
+**THE core artifact.** This is the prompt that transforms Claude Code into an autonomous orchestrator. Everything else is plumbing.
 
 **Files:**
-- Create: `scripts/agent/orchestrator/orchestrator.yaml`
+- Create: `scripts/agent/orchestrator/orchestrator-prompt.md`
 
-- [ ] **Step 1: Create the orchestrator workflow YAML**
+- [ ] **Step 1: Write the orchestrator meta-prompt**
 
-```yaml
-# scripts/agent/orchestrator/orchestrator.yaml
-workflow:
-  name: agent-orchestrator
-  resources:
-    default:
-      cpu: 4
-      memory: 8Gi
-      storage: 50Gi
-  tasks:
-  - name: orchestrator
-    image: {{orchestrator_image}}
-    command: ["bash"]
-    args: ["/tmp/orchestrator.sh"]
-    credentials:
-      github-pat: /tmp/github
-    environment:
-      GITHUB_REPO: "{{github_repo}}"
-      BRANCH_NAME: "{{branch_name}}"
-      S3_BUCKET: "{{s3_bucket}}"
-      TASK_ID: "{{task_id}}"
-      TASK_PROMPT: "{{task_prompt}}"
-      KNOWLEDGE_DOC: "{{knowledge_doc}}"
-    files:
-    - path: /tmp/setup_git.sh
-      contents: |-
-        set -e
-        GITHUB_PAT=$(cat /tmp/github/github-pat)
-        git config --global credential.helper store
-        echo "https://token:${GITHUB_PAT}@github.com" > ~/.git-credentials
-        git config --global user.email "osmo-agent@nvidia.com"
-        git config --global user.name "OSMO Agent"
+This markdown file is the system prompt for Claude Code running inside the OSMO orchestrator task. It defines:
 
-    - path: /tmp/orchestrator.sh
-      contents: |-
-        set -euo pipefail
+**Identity and role:**
+- You are an autonomous agent orchestrator running inside an OSMO workflow
+- You have access to: the full repo (git), OSMO CLI, S3 (via aws cli), quality gate scripts
+- Your job: take a task prompt, understand it, decompose it, execute it via child workflows, validate results
 
-        # Setup git auth
-        bash /tmp/setup_git.sh
+**Available tools (DIF scripts):**
+- `scripts/agent/orchestrator/tools/submit-child.sh <module> <files> <description>` — submit a child OSMO workflow
+- `scripts/agent/orchestrator/tools/poll-workflow.sh <workflow-id>` — poll until done/failed
+- `scripts/agent/orchestrator/tools/write-question.sh <id> <subtask> <context> <question> <options-json>` — ask human
+- `scripts/agent/orchestrator/tools/check-answers.sh` — check for human answers
+- `scripts/agent/orchestrator/tools/log-intervention.sh <question-id> <category> <avoidable> <fix-json>` — log intervention
+- `scripts/agent/quality-gate.sh` — run full quality verification
+- `scripts/agent/lint-fast.sh` — quick lint check
 
-        # Clone repo and create migration branch
-        cd /workspace
-        git clone "$GITHUB_REPO" repo
-        cd repo
-
-        # Check if branch exists, create if not
-        if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
-          git checkout "$BRANCH_NAME"
-          git pull origin "$BRANCH_NAME"
-        else
-          git checkout -b "$BRANCH_NAME"
-          git push -u origin "$BRANCH_NAME"
-        fi
-
-        # Run the orchestrator loop
-        bash scripts/agent/orchestrator/orchestrator.sh
-
-default-values:
-  orchestrator_image: ubuntu:24.04
-  github_repo: https://github.com/NVIDIA/osmo.git
-  branch_name: agent/pydantic-v2-migration
-  s3_bucket: osmo-agent
-  task_id: pydantic-v2
-  task_prompt: "Migrate from Pydantic v1 to v2.12.5, no regressions, full advantage of v2"
-  knowledge_doc: docs/agent/pydantic-v2-migration.md
+**The autonomous loop:**
+```
+1. Read the task prompt from $TASK_PROMPT
+2. Read the knowledge doc from $KNOWLEDGE_DOC (if provided)
+3. Explore the codebase to understand the scope
+4. Decompose into subtasks (modules/files that need changes)
+5. For each subtask:
+   a. Check for pending human answers (check-answers.sh)
+   b. Generate child workflow (submit-child.sh)
+   c. Wait for completion (poll-workflow.sh)
+   d. Pull changes (git pull)
+   e. Validate (lint-fast.sh or quality-gate.sh)
+   f. If validation fails:
+      - Attempt self-correction (resubmit with error context, max 2 retries)
+      - If still failing: revert (git revert HEAD), ask human (write-question.sh), continue to next
+6. After all subtasks: run final quality-gate.sh
+7. Generate intervention analysis
+8. Push final branch state
 ```
 
-- [ ] **Step 2: Verify YAML is valid**
+**Decision-making guidance:**
+- Decompose by module boundaries — each child workflow should touch files in one module
+- Order by dependency: shared libraries first, consumers last
+- Each child gets scoped context: only the files it needs to change + the knowledge doc
+- If a child fails and self-correction fails: don't loop. Ask human and move on.
+- If blocked on multiple questions with no unblocked subtasks: exit cleanly. The next session resumes when answers arrive.
 
-Run: `python3 -c "import yaml; yaml.safe_load(open('scripts/agent/orchestrator/orchestrator.yaml'))" && echo "Valid YAML"`
-Expected: `Valid YAML`
+**Question protocol:**
+- Only ask when genuinely stuck — not for confirmation of obvious choices
+- Always provide options (A/B/C) with reasoning, not open-ended questions
+- Include enough context for the human to answer without reading code
+- After receiving an answer, log it as a learned decision for future children
+
+**Resumption protocol:**
+- On startup, check git log to see what's already been done
+- Check S3 for pending answers
+- Resume from where the previous session left off
+- Never redo work that's already committed
+
+- [ ] **Step 2: Review the prompt for task-agnosticism**
+
+Verify: the prompt contains ZERO references to Pydantic, migration, or any specific task. It should work equally well for "add OpenTelemetry tracing" or "upgrade React 18 to 19."
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add scripts/agent/orchestrator/orchestrator-prompt.md
+git commit -m "feat(orchestrator): add meta-prompt — the core orchestrator intelligence"
+```
+
+---
+
+## Task 2: Infrastructure DIF Scripts (tools/)
+
+The plumbing that the orchestrator calls. Pure infrastructure — no task-specific logic.
+
+**Files:**
+- Create: `scripts/agent/orchestrator/tools/submit-child.sh`
+- Create: `scripts/agent/orchestrator/tools/poll-workflow.sh`
+- Create: `scripts/agent/orchestrator/tools/write-question.sh`
+- Create: `scripts/agent/orchestrator/tools/check-answers.sh`
+- Create: `scripts/agent/orchestrator/tools/log-intervention.sh`
+
+- [ ] **Step 1: Create submit-child.sh**
+
+Usage: `submit-child.sh <module> <files-csv> <description>`
+
+What it does:
+1. Read `child-workflow-template.yaml`
+2. Replace placeholders (`__MODULE__`, `__GITHUB_REPO__`, `__BRANCH__`, `__DESCRIPTION__`, `__COMMIT_PREFIX__`, `__PROMPT_CONTENTS__`) with actual values from args + environment
+3. Build the prompt from `child-prompt.md` template with the same placeholder replacement
+4. Write rendered YAML to temp file
+5. Run `osmo workflow submit <temp>.yaml`
+6. Parse workflow ID from output, print it to stdout
+7. Clean up temp file
+
+Environment vars used: `GITHUB_REPO`, `BRANCH_NAME`, `KNOWLEDGE_DOC`, `COMMIT_PREFIX`
+
+- [ ] **Step 2: Create poll-workflow.sh**
+
+Usage: `poll-workflow.sh <workflow-id> [poll-interval-seconds]`
+
+What it does:
+1. Loop: `osmo workflow query <id>` → parse status
+2. If COMPLETED → exit 0
+3. If FAILED_* → print failure info, exit 1
+4. Otherwise → sleep for poll interval (default 30s), repeat
+5. Timeout after 30 minutes → exit 2
+
+- [ ] **Step 3: Create write-question.sh**
+
+Usage: `write-question.sh <question-id> <subtask-id> <context> <question> <options-json>`
+
+What it does:
+1. Build JSON: `{"id": "...", "status": "pending", "asked": "<timestamp>", "subtask": "...", "context": "...", "question": "...", "options": [...]}`
+2. Upload to `s3://$S3_BUCKET/$TASK_ID/questions/<question-id>.json`
+
+- [ ] **Step 4: Create check-answers.sh**
+
+Usage: `check-answers.sh`
+
+What it does:
+1. List `s3://$S3_BUCKET/$TASK_ID/questions/`
+2. Download each, check for `"status": "answered"`
+3. Print answered question IDs and their answer keys to stdout
+4. Exit 0 if any answers found, exit 1 if none
+
+- [ ] **Step 5: Create log-intervention.sh**
+
+Usage: `log-intervention.sh <question-id> <category> <avoidable> <framework-fix-json>`
+
+What it does:
+1. Download existing `s3://$S3_BUCKET/$TASK_ID/interventions.json` (or create empty)
+2. Append new intervention record
+3. Update summary counts
+4. Upload back to S3
+
+- [ ] **Step 6: Make all scripts executable**
+
+Run: `chmod +x scripts/agent/orchestrator/tools/*.sh`
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add scripts/agent/orchestrator/tools/
+git commit -m "feat(orchestrator): add infrastructure DIF scripts (submit, poll, question, intervention)"
+```
+
+---
+
+## Task 3: Wire Orchestrator YAML to Meta-Prompt
+
+Update the orchestrator.yaml entry script to invoke Claude Code with the meta-prompt instead of a hardcoded bash script.
+
+**Files:**
+- Modify: `scripts/agent/orchestrator/orchestrator.yaml`
+
+- [ ] **Step 1: Update the entry script**
+
+Change the entry script (`/tmp/entry.sh`) so that after cloning and checking out the branch, instead of `exec bash scripts/agent/orchestrator/orchestrator.sh`, it runs:
+
+```bash
+# Build the orchestrator prompt with environment context
+PROMPT=$(cat scripts/agent/orchestrator/orchestrator-prompt.md)
+PROMPT="$PROMPT
+
+## Current Task
+Prompt: $TASK_PROMPT
+Knowledge doc: $KNOWLEDGE_DOC
+Branch: $BRANCH_NAME
+Commit prefix: $COMMIT_PREFIX
+
+## Environment
+- OSMO CLI: available (osmo workflow submit/query/cancel/logs)
+- S3 bucket: $S3_BUCKET
+- Task ID: $TASK_ID
+- Tools: scripts/agent/orchestrator/tools/ (submit-child.sh, poll-workflow.sh, etc.)
+- Quality gates: scripts/agent/lint-fast.sh, scripts/agent/quality-gate.sh
+"
+
+# Run Claude Code as the orchestrator
+claude --print --dangerously-skip-permissions -p "$PROMPT"
+```
+
+- [ ] **Step 2: Verify YAML is still valid**
+
+Run: `python3 -c "import yaml; yaml.safe_load(open('scripts/agent/orchestrator/orchestrator.yaml'))"`
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add scripts/agent/orchestrator/orchestrator.yaml
-git commit -m "feat(orchestrator): add OSMO orchestrator workflow YAML"
+git commit -m "feat(orchestrator): wire entry script to meta-prompt + Claude Code"
 ```
 
 ---
 
-## Task 2: Child Workflow Template
+## Task 4: Static Web UI
 
-The YAML template that the orchestrator instantiates for each module migration.
-
-**Files:**
-- Create: `scripts/agent/orchestrator/child-workflow-template.yaml`
-- Create: `scripts/agent/orchestrator/child-prompt.md`
-
-- [ ] **Step 1: Create the child workflow template**
-
-```yaml
-# scripts/agent/orchestrator/child-workflow-template.yaml
-# Template variables: MODULE, FILES, DESCRIPTION, GITHUB_REPO, BRANCH_NAME, KNOWLEDGE_DOC
-workflow:
-  name: migrate-MODULE_PLACEHOLDER
-  resources:
-    default:
-      cpu: 4
-      memory: 8Gi
-      storage: 50Gi
-  tasks:
-  - name: migrate
-    image: ORCHESTRATOR_IMAGE_PLACEHOLDER
-    command: ["bash"]
-    args: ["/tmp/migrate.sh"]
-    credentials:
-      github-pat: /tmp/github
-    files:
-    - path: /tmp/setup_git.sh
-      contents: |-
-        set -e
-        GITHUB_PAT=$(cat /tmp/github/github-pat)
-        git config --global credential.helper store
-        echo "https://token:${GITHUB_PAT}@github.com" > ~/.git-credentials
-        git config --global user.email "osmo-agent@nvidia.com"
-        git config --global user.name "OSMO Agent"
-
-    - path: /tmp/migrate.sh
-      contents: |-
-        set -euo pipefail
-        bash /tmp/setup_git.sh
-
-        cd /workspace
-        git clone GITHUB_REPO_PLACEHOLDER repo
-        cd repo
-        git checkout BRANCH_PLACEHOLDER
-        git pull origin BRANCH_PLACEHOLDER
-
-        # Run Claude Code with scoped prompt
-        claude --print --dangerously-skip-permissions -p "$(cat /tmp/prompt.md)"
-
-        # Stage, commit, push
-        git add -A
-        if git diff --cached --quiet; then
-          echo "No changes to commit"
-        else
-          git commit -m "migrate(pydantic): MODULE_PLACEHOLDER — DESCRIPTION_PLACEHOLDER"
-          git push origin BRANCH_PLACEHOLDER
-        fi
-
-    - path: /tmp/prompt.md
-      contents: |-
-        PROMPT_PLACEHOLDER
-```
-
-Note: Placeholders (MODULE_PLACEHOLDER, etc.) are replaced by `submit-child.sh` using sed before submission.
-
-- [ ] **Step 2: Create the child prompt template**
-
-```markdown
-# scripts/agent/orchestrator/child-prompt.md
-You are migrating Pydantic v1 to v2.12.5 for the module: {{MODULE}}
-
-## Files to migrate
-{{FILES_LIST}}
-
-## Task
-{{DESCRIPTION}}
-
-## Migration Guide
-Read `{{KNOWLEDGE_DOC}}` in this repo for the full migration patterns.
-
-{{LEARNED_DECISIONS}}
-
-## Instructions
-1. Read each file listed above
-2. Apply Pydantic v1 → v2 transformations per the migration guide
-3. Key changes: `.dict()` → `.model_dump()`, `class Config:` → `model_config = ConfigDict(...)`, `Optional[X]` → `X | None = None`
-4. Run `scripts/agent/lint-fast.sh` to verify no syntax errors
-5. Do NOT change field names, field types, or wire format — only Pydantic API surface
-6. If a model's output is used in Redis, PostgreSQL, or API responses, verify format is unchanged
-```
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/agent/orchestrator/child-workflow-template.yaml scripts/agent/orchestrator/child-prompt.md
-git commit -m "feat(orchestrator): add child workflow template and prompt"
-```
-
----
-
-## Task 3: Discovery DIF Script
-
-Scan the codebase for Pydantic usage and output structured JSON.
-
-**Files:**
-- Create: `scripts/agent/orchestrator/discovery.sh`
-
-- [ ] **Step 1: Write the discovery script**
-
-Create `scripts/agent/orchestrator/discovery.sh` — a bash script that:
-- Finds all Python files importing pydantic under `src/`
-- Groups by module (first two path components, e.g., `lib/utils`, `service/core`)
-- Counts: BaseModel subclasses, `.dict()` calls, `class Config:` inner classes per module
-- Outputs JSON to stdout: `{"pydantic_version": "...", "modules": [...], "summary": {...}}`
-
-The script should work when run from the repo root: `bash scripts/agent/orchestrator/discovery.sh`
-
-Use associative arrays in bash to group by module. Output valid JSON (verify with `python3 -c "import json,sys; json.load(sys.stdin)"`).
-
-- [ ] **Step 2: Test the script**
-
-Run: `bash scripts/agent/orchestrator/discovery.sh | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Found {len(d[\"modules\"])} modules, {d[\"summary\"][\"total_files\"]} files')"`
-Expected: Something like `Found 15 modules, 68 files`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/agent/orchestrator/discovery.sh
-git commit -m "feat(orchestrator): add Pydantic discovery DIF script"
-```
-
----
-
-## Task 4: Planner DIF Script
-
-Order modules by dependency (libs first, consumers last).
-
-**Files:**
-- Create: `scripts/agent/orchestrator/planner.sh`
-
-- [ ] **Step 1: Write the planner script**
-
-Create `scripts/agent/orchestrator/planner.sh` — takes discovery JSON from stdin, outputs ordered subtask list as JSON.
-
-Ordering rules (DIF — no LLM needed):
-1. `lib/data/*` — lowest level, migrate first
-2. `lib/utils`, `lib/rsync` — shared libraries
-3. `utils/*` — utility modules
-4. `operator/*` — operator code
-5. `service/worker`, `service/agent`, `service/logger`, `service/router`, `service/delayed*` — services
-6. `service/core` — core service (highest dependency, migrate last)
-7. `cli/*` — CLI (depends on lib/utils)
-8. `tests/*` — test helpers
-
-Output JSON: `{"subtasks": [{"id": "st-001", "module": "lib/data", "files": [...], "description": "..."}], "dependency_graph": {"st-005": ["st-001", "st-002"]}}`
-
-- [ ] **Step 2: Test the planner**
-
-Run: `bash scripts/agent/orchestrator/discovery.sh | bash scripts/agent/orchestrator/planner.sh | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{len(d[\"subtasks\"])} subtasks planned')"`
-Expected: Something like `15 subtasks planned`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/agent/orchestrator/planner.sh
-git commit -m "feat(orchestrator): add module ordering planner DIF script"
-```
-
----
-
-## Task 5: Submit-Child and Poll Scripts
-
-Generate child workflow YAML from template and submit to OSMO.
-
-**Files:**
-- Create: `scripts/agent/orchestrator/submit-child.sh`
-- Create: `scripts/agent/orchestrator/poll-workflow.sh`
-
-- [ ] **Step 1: Write submit-child.sh**
-
-Create `scripts/agent/orchestrator/submit-child.sh` — takes module info as args, generates workflow YAML from template, submits via `osmo workflow submit`.
-
-Usage: `submit-child.sh <module> <files_csv> <description>`
-
-The script:
-1. Reads `child-workflow-template.yaml`
-2. Replaces placeholders with actual values using sed
-3. Builds the Claude Code prompt from `child-prompt.md` template
-4. Writes the generated YAML to a temp file
-5. Runs `osmo workflow submit <temp>.yaml`
-6. Outputs the workflow ID
-
-- [ ] **Step 2: Write poll-workflow.sh**
-
-Create `scripts/agent/orchestrator/poll-workflow.sh` — polls workflow status until complete or failed.
-
-Usage: `poll-workflow.sh <workflow-id> [poll-interval-seconds]`
-
-The script:
-1. Runs `osmo workflow query <id>` in a loop
-2. Parses status from output
-3. Exits 0 on COMPLETED, exits 1 on FAILED_*
-4. Default poll interval: 30 seconds
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/agent/orchestrator/submit-child.sh scripts/agent/orchestrator/poll-workflow.sh
-git commit -m "feat(orchestrator): add child workflow submission and polling scripts"
-```
-
----
-
-## Task 6: Question and Intervention Scripts
-
-S3 interaction for async human communication.
-
-**Files:**
-- Create: `scripts/agent/orchestrator/write-question.sh`
-- Create: `scripts/agent/orchestrator/check-answer.sh`
-- Create: `scripts/agent/orchestrator/intervention.sh`
-
-- [ ] **Step 1: Write write-question.sh**
-
-Usage: `write-question.sh <question-id> <subtask-id> <context> <question-text> <options-json>`
-
-Writes a question JSON file to `s3://$S3_BUCKET/$TASK_ID/questions/q-NNN.json` with strict envelope (id, status, timestamps) and fluid content (context, question, options).
-
-- [ ] **Step 2: Write check-answer.sh**
-
-Usage: `check-answer.sh`
-
-Lists all question files in S3, checks for `"status": "answered"` on any pending question. Outputs the answered question IDs and their answers. Returns exit code 0 if answers found, 1 if none.
-
-- [ ] **Step 3: Write intervention.sh**
-
-Usage: `intervention.sh <question-id> <category> <avoidable> <framework-fix-json>`
-
-Appends an intervention record to `s3://$S3_BUCKET/$TASK_ID/interventions.json`. After all interventions, generates framework improvement suggestions.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add scripts/agent/orchestrator/write-question.sh scripts/agent/orchestrator/check-answer.sh scripts/agent/orchestrator/intervention.sh
-git commit -m "feat(orchestrator): add S3 question/answer and intervention scripts"
-```
-
----
-
-## Task 7: Main Orchestrator Loop
-
-The core script that ties everything together.
-
-**Files:**
-- Create: `scripts/agent/orchestrator/orchestrator.sh`
-
-- [ ] **Step 1: Write the main orchestrator loop**
-
-Create `scripts/agent/orchestrator/orchestrator.sh` — the core loop. Run from inside the orchestrator OSMO task.
-
-```
-#!/usr/bin/env bash
-# Main orchestrator loop.
-# Expects: GITHUB_REPO, BRANCH_NAME, S3_BUCKET, TASK_ID, KNOWLEDGE_DOC env vars
-# Expects: CWD is the repo root with the migration branch checked out
-
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Phase 1: Discovery
-echo "=== Phase 1: Discovery ==="
-DISCOVERY=$("$SCRIPT_DIR/discovery.sh")
-echo "$DISCOVERY" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Found {d[\"summary\"][\"total_files\"]} files in {len(d[\"modules\"])} modules')"
-
-# Phase 2: Planning
-echo "=== Phase 2: Planning ==="
-PLAN=$(echo "$DISCOVERY" | "$SCRIPT_DIR/planner.sh")
-SUBTASK_COUNT=$(echo "$PLAN" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['subtasks']))")
-echo "Planned $SUBTASK_COUNT subtasks"
-
-# Phase 3: Execution
-echo "=== Phase 3: Execution ==="
-COMPLETED=0
-FAILED=0
-BLOCKED=0
-QUESTION_COUNTER=0
-
-echo "$PLAN" | python3 -c "
-import json, sys
-plan = json.load(sys.stdin)
-for st in plan['subtasks']:
-    print(f\"{st['id']}|{st['module']}|{','.join(st['files'])}|{st['description']}\")
-" | while IFS='|' read -r ST_ID MODULE FILES DESCRIPTION; do
-
-  echo "--- Subtask $ST_ID: $MODULE ---"
-
-  # Check for pending human answers before each subtask
-  if "$SCRIPT_DIR/check-answer.sh" 2>/dev/null; then
-    echo "  Human answer received, incorporating..."
-    # TODO: incorporate answer logic
-  fi
-
-  # Submit child workflow
-  WF_ID=$("$SCRIPT_DIR/submit-child.sh" "$MODULE" "$FILES" "$DESCRIPTION")
-  echo "  Submitted workflow: $WF_ID"
-
-  # Poll until done
-  if "$SCRIPT_DIR/poll-workflow.sh" "$WF_ID"; then
-    echo "  Child workflow completed"
-
-    # Pull changes
-    git pull origin "$BRANCH_NAME"
-
-    # Run quality gate
-    if bash scripts/agent/lint-fast.sh 2>/dev/null; then
-      echo "  Quality gate passed"
-      COMPLETED=$((COMPLETED + 1))
-    else
-      echo "  Quality gate FAILED — reverting"
-      git revert --no-edit HEAD
-      git push origin "$BRANCH_NAME"
-      QUESTION_COUNTER=$((QUESTION_COUNTER + 1))
-      "$SCRIPT_DIR/write-question.sh" "q-$QUESTION_COUNTER" "$ST_ID" \
-        "Module $MODULE failed quality gate after migration" \
-        "How should I proceed?" \
-        '[{"key":"A","label":"Skip this module"},{"key":"B","label":"Provide guidance"}]'
-      BLOCKED=$((BLOCKED + 1))
-    fi
-  else
-    echo "  Child workflow FAILED"
-    QUESTION_COUNTER=$((QUESTION_COUNTER + 1))
-    "$SCRIPT_DIR/write-question.sh" "q-$QUESTION_COUNTER" "$ST_ID" \
-      "Child workflow for $MODULE failed" \
-      "How should I proceed?" \
-      '[{"key":"A","label":"Skip"},{"key":"B","label":"Retry with guidance"}]'
-    BLOCKED=$((BLOCKED + 1))
-  fi
-done
-
-# Phase 4: Validation
-echo "=== Phase 4: Final Validation ==="
-bash scripts/agent/quality-gate.sh || echo "Final validation had issues"
-
-# Summary
-echo "=== Summary ==="
-echo "Completed: $COMPLETED / $SUBTASK_COUNT"
-echo "Blocked: $BLOCKED"
-echo "Questions: $QUESTION_COUNTER"
-```
-
-This is the skeleton — the actual script will need refinement, but this captures the full loop.
-
-- [ ] **Step 2: Verify the script is syntactically valid**
-
-Run: `bash -n scripts/agent/orchestrator/orchestrator.sh && echo "Syntax OK"`
-Expected: `Syntax OK`
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add scripts/agent/orchestrator/orchestrator.sh
-git commit -m "feat(orchestrator): add main orchestrator loop script"
-```
-
----
-
-## Task 8: Pydantic Migration Knowledge Doc
-
-The pluggable knowledge doc that makes this a Pydantic migration.
-
-**Files:**
-- Create: `docs/agent/pydantic-v2-migration.md`
-
-- [ ] **Step 1: Write the knowledge doc**
-
-Create `docs/agent/pydantic-v2-migration.md` with:
-- V1 → V2 transformation patterns (imports, Config→ConfigDict, .dict()→.model_dump(), .json()→.model_dump_json(), parse_obj→model_validate, Optional field changes, Field parameter renames)
-- OSMO-specific notes: high-risk modules, wire compatibility rules, rules about not changing field names/types
-
-See the plan from the previous iteration for the full content.
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add docs/agent/pydantic-v2-migration.md
-git commit -m "docs: add Pydantic v2 migration knowledge doc for orchestrator"
-```
-
----
-
-## Task 9: Static Web UI
-
-Single HTML file for async human interaction.
+Single HTML file for async human interaction. Task-agnostic — renders whatever questions the orchestrator writes.
 
 **Files:**
 - Create: `web/index.html`
@@ -536,106 +261,94 @@ Single HTML file for async human interaction.
 - [ ] **Step 1: Create the static SPA**
 
 Create `web/index.html` — single HTML file with embedded CSS and JS:
-- Takes config via URL params: `?api=<s3-base-url>&task=<task-id>`
-- Polls S3 for `state.json` (or derives state from questions/) every 30s
-- Renders pending questions with clickable options + free-text
-- On submit: writes answer via presigned PUT URL
-- Shows progress (derived from git log or question count)
-- Shows intervention summary
+- Config via URL params: `?api=<s3-http-base>&task=<task-id>`
+- Polls for questions every 30s (fetches question JSON files from S3 via HTTP GET)
+- Renders: task ID, pending questions with clickable option buttons + free-text fallback, answered questions log
+- On answer submit: writes answer to question file via presigned PUT URL or API Gateway
 - No framework, no dependencies, no build step
+- Clean, functional design
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add web/index.html
-git commit -m "feat: add static web UI for async human interaction"
+git commit -m "feat: add static web UI for async human-agent interaction"
 ```
 
 ---
 
-## Task 10: Fix verify.sh Path Coverage
+## Task 5: Dry-Run Integration Test
+
+Validate the full pipeline works without OSMO (mocked osmo CLI).
 
 **Files:**
-- Modify: `scripts/agent/verify.sh`
-
-- [ ] **Step 1: Read verify.sh and identify non-recursive Python globs**
-
-Look for patterns like `src/utils/*.py` that miss subdirectories like `src/utils/job/*.py`.
-
-- [ ] **Step 2: Fix globs to be recursive**
-
-Change non-recursive patterns to recursive (e.g., `src/utils/**/*.py` or use `find`).
-
-- [ ] **Step 3: Run quality gate to verify**
-
-Run: `bash scripts/agent/quality-gate.sh`
-Expected: Passes
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add scripts/agent/verify.sh
-git commit -m "fix: make verify.sh Python path detection recursive"
-```
-
----
-
-## Task 11: Integration Test — Dry Run
-
-Test the full orchestrator pipeline without actually submitting OSMO workflows.
-
-**Files:**
-- Create: `scripts/agent/orchestrator/test-dry-run.sh`
+- Create: `scripts/agent/orchestrator/tests/test-dry-run.sh`
 
 - [ ] **Step 1: Write dry-run test**
 
-Create `scripts/agent/orchestrator/test-dry-run.sh` — tests the orchestrator pipeline with mocked `osmo` CLI:
+Create a test that:
+1. Creates a mock `osmo` command on PATH that returns fake workflow IDs and success
+2. Creates a mock `aws` command that simulates S3 read/write to local temp dir
+3. Runs `submit-child.sh` with test args → verify it generates valid YAML and calls osmo
+4. Runs `write-question.sh` with test args → verify it produces valid JSON
+5. Runs `check-answers.sh` → verify it reads from the mock S3
+6. Runs `log-intervention.sh` → verify it appends correctly
+7. Verifies all scripts exit cleanly
 
-1. Create a mock `osmo` command that echoes workflow IDs and returns success
-2. Run `discovery.sh` → verify valid JSON output
-3. Pipe to `planner.sh` → verify ordered subtasks
-4. Run `submit-child.sh` with mock osmo → verify YAML generation
-5. Run `write-question.sh` → verify question JSON structure
-6. Verify all scripts exit cleanly
+- [ ] **Step 2: Run the test**
 
-- [ ] **Step 2: Run the dry-run test**
-
-Run: `bash scripts/agent/orchestrator/test-dry-run.sh`
+Run: `bash scripts/agent/orchestrator/tests/test-dry-run.sh`
 Expected: All checks pass
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add scripts/agent/orchestrator/test-dry-run.sh
-git commit -m "test(orchestrator): add dry-run integration test"
+git add scripts/agent/orchestrator/tests/
+git commit -m "test(orchestrator): add dry-run integration test with mocked osmo/S3"
 ```
 
 ---
 
 ## Summary
 
-| Task | Component | Type | Files |
-|------|-----------|------|-------|
-| 1 | Orchestrator YAML | OSMO workflow | `orchestrator.yaml` |
-| 2 | Child Template | OSMO workflow + prompt | `child-workflow-template.yaml`, `child-prompt.md` |
-| 3 | Discovery | DIF (bash) | `discovery.sh` |
-| 4 | Planner | DIF (bash) | `planner.sh` |
-| 5 | Submit + Poll | DIF (bash) | `submit-child.sh`, `poll-workflow.sh` |
-| 6 | Questions + Interventions | DIF (bash + S3) | `write-question.sh`, `check-answer.sh`, `intervention.sh` |
-| 7 | Orchestrator Loop | DIF (bash) | `orchestrator.sh` |
-| 8 | Knowledge Doc | Markdown | `pydantic-v2-migration.md` |
-| 9 | Web UI | Static HTML | `index.html` |
-| 10 | verify.sh Fix | Bash | `verify.sh` |
-| 11 | Dry-Run Test | Bash | `test-dry-run.sh` |
+| Task | What | Type | Key Artifact |
+|------|------|------|---|
+| 1 | Orchestrator Meta-Prompt | Intelligence (LLM prompt) | `orchestrator-prompt.md` |
+| 2 | Infrastructure DIF Scripts | Plumbing (bash) | `tools/*.sh` (5 scripts) |
+| 3 | Wire YAML to Meta-Prompt | Integration | `orchestrator.yaml` update |
+| 4 | Static Web UI | Human interface | `web/index.html` |
+| 5 | Dry-Run Test | Validation | `tests/test-dry-run.sh` |
 
-**Total: 11 tasks, 14 files, 11 commits**
+**Total: 5 tasks, ~10 files, 5 commits**
 
-**What's eliminated vs. old plan**: `storage.py`, `lock.py`, `coordinator.py`, `executor.py`, `run.py`, `models.py`, `config.py`, and all Python tests. Replaced by bash scripts + OSMO workflow YAMLs. ~70% less code.
+**Already done (from previous tasks):**
+- `orchestrator.yaml` — OSMO workflow spec (Task 1 of old plan)
+- `child-workflow-template.yaml` — child workflow template
+- `child-prompt.md` — child agent prompt template
 
-After all tasks complete, the orchestrator runs with:
+**What's different from the old plan:**
+- No `discovery.sh` — the LLM reads the codebase and discovers scope
+- No `planner.sh` — the LLM reasons about decomposition and ordering
+- No `orchestrator.sh` bash loop — Claude Code IS the loop
+- No Python coordinator — bash DIF scripts for plumbing, LLM for intelligence
+- Task 1 (the meta-prompt) is 80% of the value. Everything else is plumbing.
+
+**To run the Pydantic migration:**
 ```bash
 osmo workflow submit scripts/agent/orchestrator/orchestrator.yaml \
   --set github_repo=https://github.com/NVIDIA/osmo.git \
   --set branch_name=agent/pydantic-v2-migration \
-  --set s3_bucket=osmo-agent
+  --set task_prompt="Migrate from Pydantic v1 to v2.12.5, no regressions, full advantage of v2" \
+  --set knowledge_doc=docs/agent/pydantic-v2-migration.md \
+  --set commit_prefix="migrate(pydantic)"
+```
+
+**To run a different task (zero orchestrator changes):**
+```bash
+osmo workflow submit scripts/agent/orchestrator/orchestrator.yaml \
+  --set github_repo=https://github.com/NVIDIA/osmo.git \
+  --set branch_name=agent/add-otel-tracing \
+  --set task_prompt="Add OpenTelemetry tracing to all Python services" \
+  --set knowledge_doc=docs/agent/otel-tracing-guide.md \
+  --set commit_prefix="feat(otel)"
 ```
