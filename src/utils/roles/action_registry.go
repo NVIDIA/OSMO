@@ -204,6 +204,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowRsync: {
 		{Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
+		{Path: "/api/workflow/*/rsync/*", Methods: []string{"POST"}},
 		{Path: "/api/router/rsync/*/client/*", Methods: []string{"*"}},
 	},
 
