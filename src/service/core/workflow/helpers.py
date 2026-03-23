@@ -366,7 +366,7 @@ def get_workflow_file(file_name: str, workflow_name: str,
     return storage_client.get_object_stream(
         file_prefix,
         as_lines=True,
-)
+    )
 
 
 def workflow_file_exists(workflow_id: str,
