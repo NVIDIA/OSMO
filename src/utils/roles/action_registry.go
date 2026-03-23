@@ -193,6 +193,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowExec: {
 		{Path: "/api/workflow/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
+		{Path: "/api/workflow/*/exec/*", Methods: []string{"POST", "WEBSOCKET"}},
 		{Path: "/api/router/exec/*/client/*", Methods: []string{"*"}},
 	},
 	ActionWorkflowPortForward: {
