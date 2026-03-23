@@ -130,6 +130,83 @@ export function getBasePathUrl(path: string): string {
 }
 
 /**
+ * Convert a backend URL to a path-only URL for same-origin proxying.
+ *
+ * Backend responses include absolute URLs containing the backend's hostname
+ * (e.g., `http://api.osmo/api/workflow/foo/logs`). When the UI is served
+ * from a different domain than the backend's `service_base_url`, these URLs
+ * must be stripped of their origin so requests route through the same-origin
+ * Next.js proxy instead of going directly to the backend hostname.
+ *
+ * Scheme-relative URLs (starting with "//") and malformed absolute URLs are
+ * treated as path-relative: all leading slashes are collapsed to a single "/".
+ *
+ * @param url - A URL string that may be absolute or path-relative
+ * @returns Path + search string (e.g., `/api/workflow/foo/logs?last_n_lines=100`)
+ *
+ * @example
+ * ```ts
+ * toProxiedPath("http://api.osmo/api/workflow/foo/logs?last_n_lines=100")
+ * // => "/api/workflow/foo/logs?last_n_lines=100"
+ *
+ * toProxiedPath("/api/workflow/foo/logs") // => "/api/workflow/foo/logs"
+ *
+ * toProxiedPath("//api.osmo/path") // => "/api.osmo/path"  (scheme-relative → relative)
+ *
+ * toProxiedPath("http://") // => "/http://"  (parse error → path-normalized)
+ * ```
+ */
+export function toProxiedPath(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    try {
+      const { pathname, search } = new URL(url);
+      return pathname + search;
+    } catch {
+      // Fall through to normalization below.
+    }
+  }
+  // Collapse any number of leading slashes (including scheme-relative "//" URLs)
+  // to exactly one "/" so the path is always same-origin-relative.
+  return "/" + url.replace(/^\/+/, "");
+}
+
+/**
+ * Return the host (hostname + port) to use for a WebSocket connection to a
+ * backend URL.
+ *
+ * Follows the same principle as `toProxiedPath` but for WebSocket connections,
+ * which cannot be proxied through Next.js route handlers. When the backend's
+ * hostname matches the current page's hostname, the port is preserved so local
+ * services on different ports remain reachable (e.g., a mock WS server on
+ * port 3001 while the UI runs on 3000). When the hostnames differ, the current
+ * page's host is used so the connection routes through the same proxy as HTTP
+ * requests.
+ *
+ * @param url - An absolute backend URL (e.g., `router_address` from the exec API)
+ * @returns Host string to use in the WebSocket URL (e.g., `localhost:3001`)
+ *
+ * @example
+ * ```ts
+ * // Production: different hostname → use current page's host
+ * toProxiedWsHost("http://quick-start.osmo")
+ * // => "osmo0-45wiq069v.brevlab.com"  (window.location.host)
+ *
+ * // Local dev: same hostname, different port → preserve port
+ * toProxiedWsHost("http://localhost:3001")
+ * // => "localhost:3001"
+ * ```
+ */
+export function toProxiedWsHost(url: string): string {
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    const { hostname, host } = new URL(url);
+    if (hostname === window.location.hostname) {
+      return host; // Same hostname: preserve port (e.g., localhost:3001)
+    }
+  }
+  return window.location.host; // Different hostname: use current page's host
+}
+
+/**
  * Remove basePath prefix from a URL path if basePath is configured.
  *
  * This is useful when you need to pass URLs to Next.js router methods (push, replace, etc.)

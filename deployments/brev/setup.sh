@@ -55,7 +55,7 @@ NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
 
 # Helm chart versions
 GPU_OPERATOR_VERSION="v25.10.0"
-KAI_SCHEDULER_VERSION="v0.8.1"
+KAI_SCHEDULER_VERSION="v0.13.4"
 
 # ============================================
 # Step 0: System Configuration
@@ -334,7 +334,7 @@ print_status "GPU Operator installed successfully"
 print_status "Installing KAI Scheduler..."
 
 helm upgrade --install kai-scheduler \
-  oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
+  oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
   --version ${KAI_SCHEDULER_VERSION} \
   --create-namespace -n kai-scheduler \
   --set global.nodeSelector.node_group=kai-scheduler \
