@@ -2659,6 +2659,7 @@ class DynamicConfig(ExtraArgBaseModel):
     def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):
         """ Decrypts all secrets in `config_dict` """
         encrypt_keys = set()
+        delete_keys = set()  # Keys with stale JWE to delete (triggers regeneration)
 
         # Define function to pass into secret_manager.decrypt to update secrets
         def re_encrypt(key: str, new_encrypted: List):
@@ -2725,20 +2726,18 @@ class DynamicConfig(ExtraArgBaseModel):
                     if PostgresConnector._is_jwe_compact(secret):
                         # Value is already JWE-encrypted but cannot be decrypted
                         # with the current MEK. This happens when the MEK ConfigMap
-                        # is regenerated with new key material. Log the error and
-                        # return empty string so the service stays alive — the
-                        # affected config field will be non-functional but won't
-                        # crash the entire service or break WebSocket handlers.
+                        # is regenerated with new key material. Delete the stale
+                        # config row so _init_configs() regenerates it with a fresh
+                        # default on the next startup.
                         # See https://github.com/NVIDIA/OSMO/issues/731
                         logging.error(
                             "Cannot decrypt config key '%s' with current MEK: "
-                            "key material mismatch. The MEK ConfigMap was likely "
-                            "recreated with new key material while encrypted data "
-                            "remains in the database. This field will be empty "
-                            "until reset to plaintext. "
+                            "key material mismatch. Deleting stale config so "
+                            "the service regenerates it on next startup. "
                             "See https://github.com/NVIDIA/OSMO/issues/731",
                             top_level_key)
-                        return '', secret  # Return empty, keep encrypted value in DB
+                        delete_keys.add(top_level_key)
+                        return '', None
                     # Genuinely unencrypted plaintext — encrypt it
                     encrypted = postgres.secret_manager.encrypt(secret, '')
                     encrypt_keys.add(top_level_key)
@@ -2768,6 +2767,15 @@ class DynamicConfig(ExtraArgBaseModel):
                 new_value = json.dumps(encrypted_dict[key])
                 cmd = 'UPDATE configs SET value = %s WHERE key = %s AND value = %s;'
                 postgres.execute_commit_command(cmd, (new_value, key, old_value))
+
+        # Delete configs with stale encryption — forces regeneration via
+        # _init_configs() → _set_default_config() → INSERT ON CONFLICT DO NOTHING.
+        # Must include type in WHERE clause — configs PK is (key, type).
+        config_type = dynamic_config.get_type().value
+        for key in delete_keys:
+            cmd = 'DELETE FROM configs WHERE key = %s AND type = %s;'
+            postgres.execute_commit_command(cmd, (key, config_type))
+
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
