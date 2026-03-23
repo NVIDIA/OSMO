@@ -53,8 +53,13 @@ spec:
             exit 1
           fi
 
+          # Generate a unique kid for this MEK to make key material mismatches
+          # detectable. A static kid (e.g. "key1") causes get_mek() to silently
+          # return the wrong key after MEK regeneration. See NVIDIA/OSMO#731.
+          KID="key-$(openssl rand -hex 8)"
+
           # Create JWK JSON structure and encode it
-          JWK_JSON='{"k":"'$RANDOM_KEY'","kid":"key1","kty":"oct"}'
+          JWK_JSON='{"k":"'$RANDOM_KEY'","kid":"'$KID'","kty":"oct"}'
           ENCODED_JWK=$(echo -n "$JWK_JSON" | base64 | tr -d '\n')
 
           # Get current timestamp
@@ -70,9 +75,9 @@ spec:
           data:
             mek.yaml: |
               # MEK generated $TIMESTAMP
-              currentMek: key1
+              currentMek: $KID
               meks:
-                key1: $ENCODED_JWK
+                $KID: $ENCODED_JWK
           EOF
 
           echo "Generated MEK ConfigMap"

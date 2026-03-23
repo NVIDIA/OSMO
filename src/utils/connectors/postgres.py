@@ -603,6 +603,19 @@ class PostgresConnector:
     def get_method(self) -> Optional[Literal['dev']]:
         return self.config.method
 
+    @staticmethod
+    def _is_jwe_compact(value: str) -> bool:
+        """Check if a string looks like a JWE compact serialization.
+
+        JWE compact format has 5 base64url segments separated by dots:
+        header.encryptedKey.iv.ciphertext.tag
+        The header is base64url-encoded JSON starting with '{"alg":' which
+        encodes to 'eyJ'.
+
+        This distinguishes JWE from JWS/JWT (3 dots) and plain JSON (0 dots).
+        """
+        return isinstance(value, str) and value.startswith("eyJ") and value.count('.') == 4
+
     def decrypt_credential(self, db_row) -> Dict:
         result = {}
         payload = PostgresConnector.decode_hstore(db_row.payload)
@@ -622,6 +635,14 @@ class PostgresConnector:
                     self.generate_update_secret_func(cmd, cmd_args))
                 result[key] = decrypted.value
             except (JWException, osmo_errors.OSMONotFoundError):
+                if self._is_jwe_compact(value):
+                    raise osmo_errors.OSMOServerError(
+                        f"Cannot decrypt credential key '{key}' for user "
+                        f"'{db_row.user_name}' with current MEK: key material "
+                        f"mismatch. The MEK ConfigMap was likely recreated with "
+                        f"new key material while encrypted data remains in the "
+                        f"database. See https://github.com/NVIDIA/OSMO/issues/731"
+                    )
                 result[key] = value
                 encrypted = self.secret_manager.encrypt(value, db_row.user_name)
                 cmd = (
@@ -2695,7 +2716,23 @@ class DynamicConfig(ExtraArgBaseModel):
                         new_encrypted = new_encrypted_list[0]
                     return decrypted.value, new_encrypted
                 except (JWException, osmo_errors.OSMONotFoundError):
-                    # Encrypt the plain text secret
+                    if PostgresConnector._is_jwe_compact(secret):
+                        # Value is already JWE-encrypted but cannot be decrypted
+                        # with the current MEK. This happens when the MEK ConfigMap
+                        # is regenerated with new key material. Raise rather than
+                        # wrapping in another JWE layer (which causes exponential
+                        # config growth) or returning ciphertext to application code.
+                        # See https://github.com/NVIDIA/OSMO/issues/731
+                        raise osmo_errors.OSMOServerError(
+                            f"Cannot decrypt config key '{top_level_key}' with "
+                            f"current MEK: key material mismatch. The MEK ConfigMap "
+                            f"was likely recreated with new key material while "
+                            f"encrypted data remains in the database. To recover, "
+                            f"reset the affected config values to plaintext in the "
+                            f"database and restart the service. "
+                            f"See https://github.com/NVIDIA/OSMO/issues/731"
+                        )
+                    # Genuinely unencrypted plaintext — encrypt it
                     encrypted = postgres.secret_manager.encrypt(secret, '')
                     encrypt_keys.add(top_level_key)
                     return secret, encrypted.value
