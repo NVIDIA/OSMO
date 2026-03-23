@@ -228,6 +228,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== CREDENTIALS ====================
 	ActionCredentialsCreate: {
 		{Path: "/api/credentials", Methods: []string{"POST"}},
+		{Path: "/api/credentials/*", Methods: []string{"POST"}},
 	},
 	ActionCredentialsRead: {
 		{Path: "/api/credentials", Methods: []string{"GET"}},
