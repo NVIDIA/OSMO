@@ -275,12 +275,15 @@ create_secrets() {
         log_info "MEK ConfigMap already exists, skipping generation"
     else
         log_info "Generating Master Encryption Key (MEK)..."
-        local random_key=$(openssl rand -base64 32 | tr -d '\n')
+        local random_key
+        random_key="$(openssl rand -base64 32 | tr -d '\n')"
         # Use a unique kid per generation to make key material mismatches
         # detectable. See https://github.com/NVIDIA/OSMO/issues/731
-        local kid="key-$(openssl rand -hex 8)"
+        local kid
+        kid="key-$(openssl rand -hex 8)"
         local jwk_json="{\"k\":\"$random_key\",\"kid\":\"$kid\",\"kty\":\"oct\"}"
-        local encoded_jwk=$(echo -n "$jwk_json" | base64 | tr -d '\n')
+        local encoded_jwk
+        encoded_jwk="$(echo -n "$jwk_json" | base64 | tr -d '\n')"
 
         local mek_manifest="apiVersion: v1
 kind: ConfigMap
