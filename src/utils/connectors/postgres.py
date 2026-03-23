@@ -642,13 +642,13 @@ class PostgresConnector:
                 result[key] = decrypted.value
             except (JWException, osmo_errors.OSMONotFoundError) as error:
                 if self._is_jwe_compact(value):
-                    raise osmo_errors.OSMOServerError(
-                        f"Cannot decrypt credential key '{key}' for user "
-                        f"'{db_row.user_name}' with current MEK: key material "
-                        f"mismatch. The MEK ConfigMap was likely recreated with "
-                        f"new key material while encrypted data remains in the "
-                        f"database. See https://github.com/NVIDIA/OSMO/issues/731"
-                    ) from error
+                    logging.error(
+                        "Cannot decrypt credential key '%s' for user '%s' "
+                        "with current MEK: key material mismatch. "
+                        "See https://github.com/NVIDIA/OSMO/issues/731",
+                        key, db_row.user_name)
+                    result[key] = ''  # Return empty, service stays alive
+                    continue
                 result[key] = value
                 encrypted = self.secret_manager.encrypt(value, db_row.user_name)
                 cmd = (
@@ -2725,19 +2725,20 @@ class DynamicConfig(ExtraArgBaseModel):
                     if PostgresConnector._is_jwe_compact(secret):
                         # Value is already JWE-encrypted but cannot be decrypted
                         # with the current MEK. This happens when the MEK ConfigMap
-                        # is regenerated with new key material. Raise rather than
-                        # wrapping in another JWE layer (which causes exponential
-                        # config growth) or returning ciphertext to application code.
+                        # is regenerated with new key material. Log the error and
+                        # return empty string so the service stays alive — the
+                        # affected config field will be non-functional but won't
+                        # crash the entire service or break WebSocket handlers.
                         # See https://github.com/NVIDIA/OSMO/issues/731
-                        raise osmo_errors.OSMOServerError(
-                            f"Cannot decrypt config key '{top_level_key}' with "
-                            f"current MEK: key material mismatch. The MEK ConfigMap "
-                            f"was likely recreated with new key material while "
-                            f"encrypted data remains in the database. To recover, "
-                            f"reset the affected config values to plaintext in the "
-                            f"database and restart the service. "
-                            f"See https://github.com/NVIDIA/OSMO/issues/731"
-                        ) from error
+                        logging.error(
+                            "Cannot decrypt config key '%s' with current MEK: "
+                            "key material mismatch. The MEK ConfigMap was likely "
+                            "recreated with new key material while encrypted data "
+                            "remains in the database. This field will be empty "
+                            "until reset to plaintext. "
+                            "See https://github.com/NVIDIA/OSMO/issues/731",
+                            top_level_key)
+                        return '', secret  # Return empty, keep encrypted value in DB
                     # Genuinely unencrypted plaintext — encrypt it
                     encrypted = postgres.secret_manager.encrypt(secret, '')
                     encrypt_keys.add(top_level_key)

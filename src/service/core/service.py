@@ -228,6 +228,17 @@ async def user_error_handler(request: fastapi.Request, error: osmo_errors.OSMOEr
 async def top_level_exception_handler(request: fastapi.Request, error: Exception):
     logging.exception('Got an exception of type %s on url path %s', type(error).__name__,
                       request.url.path)
+    # WebSocket connections cannot receive HTTP responses — attempting to send
+    # a JSONResponse on an accepted WebSocket triggers an ASGI protocol error:
+    # "Expected 'websocket.send' but got 'websocket.http.response.start'"
+    # Detect WebSocket scope and close gracefully instead.
+    if request.scope.get('type') == 'websocket':
+        try:
+            websocket = fastapi.WebSocket(request.scope, request.receive, request._send)
+            await websocket.close(code=1011, reason=str(error)[:123])
+        except Exception:
+            pass  # Connection may already be closed
+        return None
     return fastapi.responses.JSONResponse(
         status_code=500,
         content={'message': f'Internal server error: {error}'}
