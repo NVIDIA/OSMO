@@ -23,6 +23,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
 import { useExecIntoTask } from "@/lib/api/adapter/hooks";
+import { toProxiedWsHost } from "@/lib/config";
 import { updateALBCookies } from "@/lib/auth/cookies";
 import {
   type ShellState,
@@ -98,6 +99,12 @@ export interface UseShellReturn {
 
 const sharedEncoder = new TextEncoder();
 
+/**
+ * Manage an interactive shell session for a workflow task. Opens a WebSocket
+ * exec connection via the router, attaches an xterm.js terminal, and exposes
+ * controls for resize, search, and session lifecycle. Multiple concurrent
+ * sessions are keyed by `sessionKey`.
+ */
 export function useShell(options: UseShellOptions): UseShellReturn {
   const {
     sessionKey,
@@ -426,8 +433,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       _updateSession(sessionKey, { onDataDisposable });
 
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const routerAddress = execData.router_address.replace(/^https?:/, wsProtocol);
-      const wsUrl = `${routerAddress}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
+      const wsUrl = `${wsProtocol}//${toProxiedWsHost(execData.router_address)}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
 
       dispatch({ type: "API_SUCCESS", terminal, wsUrl });
 
