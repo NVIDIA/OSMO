@@ -29,7 +29,8 @@
     "licenses:check": "node scripts/check-licenses.mjs",
     "licenses:generate": "node scripts/generate-licenses.mjs",
     "licenses": "node scripts/check-licenses.mjs && node scripts/generate-licenses.mjs",
-    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test && pnpm build"
+    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test && pnpm build",
+    "validate:coverage": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test:coverage && pnpm build"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
@@ -105,6 +106,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",
+    "@vitest/coverage-v8": "4.0.18",
     "critters": "^0.0.25",
     "cssnano": "^7.0.6",
     "eslint": "^9",
