@@ -19,7 +19,7 @@ import datetime
 import hashlib
 import http
 import os
-from typing import Any, Generator, List, Tuple
+from typing import Any, List, Tuple
 import urllib
 
 import fastapi
@@ -310,28 +310,6 @@ def get_pool_resources(pools: List[str] | None = None,
     return objects.PoolResourcesResponse(pools=pool_response)
 
 
-def _stream_with_error_handling(
-    stream: storage.LinesStream,
-    file_name: str,
-) -> storage.LinesStream:
-    """Wrap a storage stream to catch errors and yield them as content.
-
-    Returns the stream wrapped in error handling so that storage errors
-    (e.g. invalid credentials returning 403) are yielded as text content
-    instead of raising an exception that kills the HTTP streaming response.
-    """
-    def _inner() -> Generator[str, None, storage.StreamSummary]:
-        try:
-            yield from stream
-        except Exception as error:  # pylint: disable=broad-exception-caught
-            yield f'\nError: Failed to retrieve {file_name}: {error}\n'
-        return stream.summary or storage.StreamSummary(
-            start_time=datetime.datetime.now(datetime.timezone.utc),
-        )
-
-    return storage.LinesStream(_inner())
-
-
 def get_workflow_file_prefix(workflow_name: str, file_name: str) -> str:
     """ Return the prefix to the corresponding workflow file. """
     return os.path.join(workflow_name, file_name)
@@ -372,23 +350,23 @@ def get_workflow_file(file_name: str, workflow_name: str,
                 workflow_name,
                 common.WORKFLOW_SPEC_FILE_NAME,
             )
+    else:
+        # Pre-validate storage access before streaming. This eagerly hits
+        # the storage backend (e.g. HEAD call) so that credential or
+        # permission errors surface as proper HTTP errors instead of
+        # silently killing the stream after a 200 is already committed.
+        workflow_file_exists(workflow_name, file_name, storage_client)
 
     if last_n_lines is not None:
-        return _stream_with_error_handling(
-            storage_client.get_object_stream(
-                file_prefix,
-                last_n_lines=last_n_lines,
-            ),
-            file_name,
+        return storage_client.get_object_stream(
+            file_prefix,
+            last_n_lines=last_n_lines,
         )
 
-    return _stream_with_error_handling(
-        storage_client.get_object_stream(
-            file_prefix,
-            as_lines=True,
-        ),
-        file_name,
-    )
+    return storage_client.get_object_stream(
+        file_prefix,
+        as_lines=True,
+)
 
 
 def workflow_file_exists(workflow_id: str,
