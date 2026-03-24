@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependencies for the coverage agent pipeline.
+# Installed via pip in CI (not Bazel-managed for v1).
+
+langchain-core>=0.3.0
+langchain-nvidia-ai-endpoints>=0.3.0
+langgraph>=0.2.0
+
+# Optional providers (install only when using the corresponding --provider flag):
+# langchain-openai>=0.3.0    # for --provider openai

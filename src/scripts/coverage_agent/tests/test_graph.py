@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+import unittest
+
+from coverage_agent.graph import route_quality, route_validation
+from coverage_agent.state import CoverageState, CoverageTarget
+
+
+def _make_state(**overrides) -> CoverageState:
+    """Create a minimal CoverageState with sensible defaults."""
+    defaults: CoverageState = {
+        "provider": "nemotron",
+        "targets": [
+            CoverageTarget("src/a.py", [(1, 10)], 20.0, None, "python", "//src"),
+            CoverageTarget("src/b.py", [(1, 5)], 40.0, None, "python", "//src"),
+        ],
+        "current_index": 0,
+        "generated_files": [],
+        "last_generated": None,
+        "validation_passed": False,
+        "validation_output": "",
+        "retry_count": 0,
+        "max_retries": 3,
+        "max_targets": 5,
+        "min_coverage_delta": 0.5,
+        "pr_url": None,
+        "branch_name": "coverage-agent/test",
+        "dry_run": False,
+        "errors": [],
+    }
+    return {**defaults, **overrides}
+
+
+class TestRouteValidation(unittest.TestCase):
+    def test_retry_on_failure_with_retries_left(self):
+        state = _make_state(validation_passed=False, retry_count=1, max_retries=3)
+        self.assertEqual(route_validation(state), "retry")
+
+    def test_skip_on_failure_retries_exhausted(self):
+        state = _make_state(validation_passed=False, retry_count=3, max_retries=3)
+        self.assertEqual(route_validation(state), "skip")
+
+    def test_next_on_pass_more_targets(self):
+        state = _make_state(validation_passed=True, current_index=0)
+        self.assertEqual(route_validation(state), "next")
+
+    def test_done_on_pass_last_target(self):
+        state = _make_state(validation_passed=True, current_index=1)
+        self.assertEqual(route_validation(state), "done")
+
+    def test_done_on_pass_single_target(self):
+        state = _make_state(
+            validation_passed=True,
+            current_index=0,
+            targets=[CoverageTarget("src/a.py", [(1, 10)], 20.0, None, "python", "//src")],
+        )
+        self.assertEqual(route_validation(state), "done")
+
+
+class TestRouteQuality(unittest.TestCase):
+    def test_create_pr_when_files_exist(self):
+        state = _make_state(generated_files=["src/tests/test_a.py"])
+        self.assertEqual(route_quality(state), "create_pr")
+
+    def test_abort_when_no_files(self):
+        state = _make_state(generated_files=[])
+        self.assertEqual(route_quality(state), "abort")
+
+
+if __name__ == "__main__":
+    unittest.main()
