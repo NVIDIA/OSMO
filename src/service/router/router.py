@@ -65,22 +65,20 @@ class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.Sta
 
 class RouterConnection(pydantic.BaseModel):
     """Model representing a router connection with websocket and synchronization events."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
     wait_connect: Optional[asyncio.Event] = None
     wait_close: Optional[asyncio.Event] = None
     websocket: Optional[fastapi.WebSocket] = None
 
-    class Config:
-        arbitrary_types_allowed = True
-
 
 class WebserverConnection(pydantic.BaseModel):
     """Model representing a webserver connection with websocket and synchronization events."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
     wait_close: asyncio.Event
     last_active_time: datetime.datetime
     websocket: fastapi.WebSocket
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ConnectionPayload(pydantic.BaseModel):

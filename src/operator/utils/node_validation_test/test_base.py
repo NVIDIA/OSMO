@@ -106,11 +106,9 @@ class NodeCondition(pydantic.BaseModel):
     last_heartbeat_time: Optional[str] = pydantic.Field(None, alias='lastHeartbeatTime')
     last_transition_time: Optional[str] = pydantic.Field(None, alias='lastTransitionTime')
 
-    class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
-    @pydantic.validator('last_heartbeat_time', 'last_transition_time')
+    @pydantic.field_validator('last_heartbeat_time', 'last_transition_time')
     @classmethod
     def validate_rfc3339_timestamp(cls, v):
         """Validate RFC3339 timestamp format if value is provided.
