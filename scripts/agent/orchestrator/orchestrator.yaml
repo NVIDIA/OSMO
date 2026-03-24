@@ -56,6 +56,7 @@ workflow:
       KNOWLEDGE_DOC: "{{knowledge_doc}}"
       COMMIT_PREFIX: "{{commit_prefix}}"
       SUBTASK_ID: "{{subtask_id}}"
+      ADDITIONAL_CONTEXT: "{{additional_context}}"
     files:
     - path: /tmp/setup_git.sh
       contents: |-
@@ -101,7 +102,7 @@ workflow:
 
         # Initialize .agent/ if root agent and no task.json exists
         if [ -z "${SUBTASK_ID}" ] && [ ! -f .agent/task.json ]; then
-          mkdir -p .agent/subtasks .agent/decisions
+          mkdir -p .agent/subtasks .agent/decisions .agent/discovered
           jq -n \
             --arg prompt "${TASK_PROMPT}" \
             --arg knowledge_doc "${KNOWLEDGE_DOC}" \
@@ -116,6 +117,8 @@ workflow:
         elif [ -f .agent/task.json ]; then
           echo "Resuming. Task:"
           jq '.' .agent/task.json
+          echo "Discovered:"
+          ls .agent/discovered/ 2>/dev/null || echo "  (none)"
           echo "Subtasks:"
           for f in .agent/subtasks/st-*.json 2>/dev/null; do
             jq '{id:.id, phase:.phase, status:.status, scope:.scope}' "$f"
@@ -142,9 +145,17 @@ workflow:
         **Branch**: ${BRANCH_NAME}
         **Commit prefix**: ${COMMIT_PREFIX}
 
-        Read the task prompt and knowledge doc. Explore the codebase. Decompose into subtasks.
-        Create subtask files in .agent/subtasks/. Then execute: delegate or do directly.
+        Start by reading /osmo/agent/skills/discovery.md. Learn the repo. Then proceed with the task.
         "
+
+        # Append additional context if provided
+        if [ -n "${ADDITIONAL_CONTEXT}" ]; then
+          PROMPT="${PROMPT}
+        ## Additional Context (from user)
+
+        ${ADDITIONAL_CONTEXT}
+        "
+        fi
         else
           PROMPT="${PROMPT}
 
@@ -170,10 +181,11 @@ workflow:
 
         - OSMO CLI: available (\`osmo workflow submit/query/cancel/logs\`, \`osmo data upload/download/list\`)
         - Storage URI: ${STORAGE_URI}
-        - Framework tools: /osmo/agent/tools/ (submit-child.sh, poll-workflow.sh, write-question.sh, check-answers.sh, log-intervention.sh)
-        - Quality gates: scripts/agent/lint-fast.sh, scripts/agent/quality-gate.sh (from repo)
+        - Framework tools: /osmo/agent/tools/
         - Workflow template: /osmo/agent/orchestrator.yaml
         - Working directory: $(pwd)
+        - Knowledge doc: ${KNOWLEDGE_DOC:-not provided — discover from repo}
+        - Additional context: ${ADDITIONAL_CONTEXT:-none}
         "
 
         echo "Starting Claude Code (subtask: ${SUBTASK_ID:-root})..."
@@ -189,3 +201,4 @@ default-values:
   commit_prefix: "agent"
   subtask_id: ""
   workflow_name: agent-orchestrator
+  additional_context: ""

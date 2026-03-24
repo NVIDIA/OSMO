@@ -7,27 +7,40 @@ SPDX-License-Identifier: Apache-2.0
 
 Read this when you need to validate your work.
 
-## Available Quality Gates
+## Discover Before Validating
 
-These live in the repo (not the image) because they're codebase-specific:
+During the Discovery phase, you should have identified how this repo validates code. Use whatever you found:
 
-- **`scripts/agent/lint-fast.sh`** — Quick lint check (<5 seconds). Runs ruff (Python), go vet (Go), tsc (TypeScript) on changed files. Use after every code change.
+- Repo-specific scripts (e.g., `scripts/agent/quality-gate.sh`, `make test`, `npm run lint`)
+- CI config commands (from `.github/workflows/`, `.gitlab-ci.yml`)
+- Package scripts (from `package.json` scripts section)
+- Makefile targets
 
-- **`scripts/agent/quality-gate.sh`** — Full verification: architecture checks + lint + build + tests. Takes minutes. Use before declaring a task complete or after all subtasks are done.
+**Prefer repo-specific tooling** over generic checks. If the repo has a quality gate script, it was built for this codebase and knows things you don't.
+
+## Fallbacks (When Repo Has No Tooling)
+
+| Language | Quick check | Full check |
+|----------|------------|------------|
+| Python | `python -m py_compile <file>` | `python -m pytest` (if tests exist) |
+| Go | `go vet ./...` | `go test ./...` |
+| TypeScript | `npx tsc --noEmit` | `npm test` (if configured) |
+| Rust | `cargo check` | `cargo test` |
+| Generic | syntax check the changed files | run whatever tests exist |
 
 ## When to Validate
 
-- After modifying code, before committing: at minimum run `lint-fast.sh`
-- After pulling a child's changes: run `lint-fast.sh` to catch regressions
-- Before declaring the entire task done: run `quality-gate.sh`
+- After modifying code, before committing: at minimum run the quick check
+- After pulling a child's changes: verify the combined state is healthy
+- Before declaring the entire task done: run the full check
 
-Use your judgment on how often to run the full gate vs. the fast lint. The fast lint catches most issues. The full gate catches integration issues.
+Use your judgment on frequency. Don't skip validation entirely, but don't run the full test suite after every single file edit either.
 
 ## When Validation Fails
 
 1. Read the error output carefully
 2. Fix the issue yourself if you can
-3. If you can't fix it after a reasonable attempt, you have options:
+3. If you can't fix it after a reasonable attempt:
    - Revert: `git revert --no-edit HEAD && git push`
    - Ask a human (see `human-interaction.md`)
    - Try a different approach
