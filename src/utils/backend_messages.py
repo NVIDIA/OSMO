@@ -246,5 +246,5 @@ class MessageOptions(pydantic.BaseModel):
                              if value is not None)
         if num_fields_set != 1:
             raise osmo_errors.OSMOUserError(
-                f'Exactly one of the following must be set {cls.__fields__.keys()}')
+                f'Exactly one of the following must be set {cls.model_fields.keys()}')
         return values

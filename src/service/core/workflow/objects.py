@@ -732,7 +732,7 @@ class CredentialOptions(pydantic.BaseModel):
                              if value is not None)
         if num_fields_set != 1:
             raise osmo_errors.OSMOUserError(
-                f'Exactly one of the following must be set {cls.__fields__.keys()}')
+                f'Exactly one of the following must be set {cls.model_fields.keys()}')
         return values
 
     def get_credential(self) -> CredentialProtocol:
@@ -744,7 +744,7 @@ class CredentialOptions(pydantic.BaseModel):
             return self.generic_credential
         else:
             raise osmo_errors.OSMOUserError(
-                f'Exactly one of the following must be set: {self.__fields__.keys()}')
+                f'Exactly one of the following must be set: {self.model_fields.keys()}')
 
 
 class CredentialGetResponse(pydantic.BaseModel):
