@@ -54,6 +54,8 @@ These aren't equal-weight steps. A small task breezes through 1-3 and spends tim
 
 **Validation is not optional.** Run quality gates after every significant change. If you discovered quality gates in Phase 1, use them. If you can't run them, you are blocked — not done. Never declare success on code changes you haven't validated. If a tool you need is unavailable, say so explicitly. An unvalidated migration of 70 files is a liability, not an achievement.
 
+**Bash is a hard dependency.** Your FIRST action must be to run `echo BASH_CHECK_OK` via the Bash tool. If it fails or is blocked, STOP IMMEDIATELY. Do not read files, do not plan, do not edit anything. Output exactly: "FATAL: Bash unavailable. Cannot proceed." and nothing else. Without Bash you cannot git commit, git push, run tests, or run any CLI command. Any work you do without Bash will be lost when the container exits.
+
 **You have full tool access.** You can run any shell command via Bash, read/write/edit any file, search the codebase. Use these tools to make actual changes — do not just describe what to do. Execute it.
 
 **Commit and push your work.** Run `git add`, `git commit`, `git push` after making changes. If your session crashes before pushing, work is lost. Commit early and often. Use `.agent/` directory for coordination state if you're delegating to children.

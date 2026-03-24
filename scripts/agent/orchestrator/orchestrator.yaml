@@ -52,8 +52,8 @@ workflow:
       FAIL: 80-99
     credentials:
       github-pat: /tmp/github
-      anthropic-api-key:
-        ANTHROPIC_API_KEY: anthropic-api-key
+      nv-api-key:
+        NV_API_KEY: nv-api-key
     environment:
       GITHUB_REPO: "{{github_repo}}"
       BRANCH_NAME: "{{branch_name}}"
@@ -102,9 +102,9 @@ workflow:
           fi
         done
 
-        # Check 2: Anthropic API key
-        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-          echo "FATAL: ANTHROPIC_API_KEY not set. Check anthropic-api-key credential."
+        # Check 2: API key
+        if [ -z "${NV_API_KEY:-}" ]; then
+          echo "FATAL: NV_API_KEY not set. Check nv-api-key credential."
           exit 80
         fi
 
@@ -200,14 +200,12 @@ workflow:
             done || echo "  (none)"
         fi
 
-        # Build prompt from image (static) + runtime context (dynamic)
-        PROMPT=$(cat /osmo/agent/orchestrator-prompt.md)
+        # Build prompts: system prompt (static framework) + user prompt (dynamic role/task context)
+        SYSTEM_PROMPT_FILE="/osmo/agent/orchestrator-prompt.md"
 
-        # Append role context
+        # Build user prompt with role context
         if [ -z "${SUBTASK_ID}" ]; then
-          PROMPT="${PROMPT}
-
-        ## Your Role: Root Agent
+          PROMPT="## Your Role: Root Agent
 
         You are the root agent. No one delegated to you — the human submitted this task directly.
 
@@ -228,9 +226,7 @@ workflow:
         "
         fi
         else
-          PROMPT="${PROMPT}
-
-        ## Your Role: Subtask Agent
+          PROMPT="## Your Role: Subtask Agent
 
         You were delegated subtask **${SUBTASK_ID}** by a parent agent.
 
@@ -260,56 +256,31 @@ workflow:
         "
 
         # ============================================================
-        # Pre-flight: verify Claude Code has Bash access
-        # Without Bash, the agent cannot: git commit/push, run tests,
-        # run osmo CLI, or execute any shell command. Fail fast.
+        # Pre-flight: verify Bash works (quick test, no API call)
         # ============================================================
-        echo "=== Pre-flight: Bash access check ==="
-
-        # Diagnostic: show what settings are active
-        echo "Managed settings:"
-        cat /etc/claude-code/managed-settings.json 2>/dev/null || echo "  (none)"
-        echo "Remote settings (ask rules block Bash):"
-        cat /home/agent/.claude/remote-settings.json 2>/dev/null | grep -A5 '"ask"' || echo "  (none)"
-        echo "User settings:"
-        cat /home/agent/.claude/settings.json 2>/dev/null | head -15 || echo "  (none)"
-
-        # Actual test: can Claude Code execute a Bash command?
-        PREFLIGHT_RESULT=$(claude --print --dangerously-skip-permissions -p "Run: echo PREFLIGHT_BASH_OK" 2>&1 | tail -20)
-        if echo "$PREFLIGHT_RESULT" | grep -q "PREFLIGHT_BASH_OK"; then
-          echo "Pre-flight PASSED: Bash is available"
+        echo "=== Pre-flight: Bash check ==="
+        if echo "BASH_OK" | grep -q "BASH_OK"; then
+          echo "Bash: OK"
         else
-          echo ""
-          echo "============================================================"
-          echo "FATAL: Claude Code cannot use Bash"
-          echo "============================================================"
-          echo ""
-          echo "Without Bash, the agent cannot:"
-          echo "  - git commit / git push (checkpoint work — changes lost on exit)"
-          echo "  - Run tests or linters (no validation)"
-          echo "  - Run osmo CLI (no child workflows, no storage access)"
-          echo "  - Execute any shell command"
-          echo ""
-          echo "This is likely caused by remote-settings.json from your org"
-          echo "setting 'ask' on Bash, which blocks it in headless mode."
-          echo ""
-          echo "FIX: Add managed-settings.json to the Docker image:"
-          echo "  /etc/claude-code/managed-settings.json"
-          echo '  {"permissions":{"allow":["Bash","Read","Write","Edit"]}}'
-          echo ""
-          echo "Claude Code output was:"
-          echo "$PREFLIGHT_RESULT"
-          echo "============================================================"
-          exit 80  # 80-99 = FAIL (unretryable). Fix the config and resubmit manually.
+          echo "FATAL: Bash not available in container"
+          exit 80
         fi
 
-        echo "Starting Claude Code (subtask: ${SUBTASK_ID:-root})..."
+        # ============================================================
+        # Run agent via Python SDK harness (OpenAI-compatible API)
+        # Calls Claude via NVIDIA inference endpoint. No permission system.
+        # ============================================================
+        echo "Starting agent harness (subtask: ${SUBTASK_ID:-root})..."
+        echo "Model: ${CLAUDE_MODEL:-azure/anthropic/claude-opus-4-6}"
+        CLAUDE_LOG="/tmp/claude-output.log"
         set +e
-        claude --print --verbose --output-format stream-json \
-          --model opus \
-          --dangerously-skip-permissions \
-          -p "$PROMPT"
-        EXIT_CODE=$?
+        python3 /osmo/agent/agent-harness.py \
+          --model "${CLAUDE_MODEL:-azure/anthropic/claude-opus-4-6}" \
+          --system-prompt-file "${SYSTEM_PROMPT_FILE}" \
+          --prompt "$PROMPT" \
+          --checkpoint-interval 10 \
+          --commit-prefix "${COMMIT_PREFIX}" 2>&1 | tee "$CLAUDE_LOG"
+        EXIT_CODE=${PIPESTATUS[0]}
         set -e
 
         # Always commit and push any changes (code + .agent/ state)
