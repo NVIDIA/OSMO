@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 import uuid
 
 import pydantic
-import kombu # type: ignore
+import kombu  # type: ignore
 import kombu.pools  # type: ignore
 
 from src.lib.utils import osmo_errors
@@ -61,7 +61,6 @@ class JobResult(pydantic.BaseModel):
             return f'{self.status.name}: {self.message}'
         else:
             return self.status.name
-
 
 
 class Job(pydantic.BaseModel):
@@ -100,10 +99,10 @@ class Job(pydantic.BaseModel):
             values['job_type'] = cls.__name__
         # If a value is provided, make sure it is correct.
         # values['job_type'] not in cls.__name__ and
-        elif  not (values['job_type'] == cls.__name__ or \
-                   values['job_type'] in cls._get_allowed_job_type()):
+        elif not (values['job_type'] == cls.__name__ or
+                  values['job_type'] in cls._get_allowed_job_type()):
             raise osmo_errors.OSMOServerError(
-                f'Tried to initialize a {cls.__name__} instance with ' \
+                f'Tried to initialize a {cls.__name__} instance with '
                 f'job_type as {values["job_type"]} or not in {cls._get_allowed_job_type()}')
 
         if 'job_id' not in values or values['job_id'] is None:
@@ -163,9 +162,9 @@ class Job(pydantic.BaseModel):
         priority = connectors.JOB_PRIORITY.get(
             self.job_type or '', connectors.DEFAULT_JOB_PRIORITY)
         with kombu.Connection(redis_config.redis_url,
-            transport_options=options) as conn:
+                              transport_options=options) as conn:
             with kombu.pools.producers[conn].acquire(block=True) as producer:
-                producer.publish(json.loads(self.json()), exchange=exchange,
+                producer.publish(json.loads(self.model_dump_json()), exchange=exchange,
                                  declare=jobs, routing_key=self.job_type,
                                  priority=priority)
         self.log_submission()

@@ -199,11 +199,11 @@ class BackendConfig(pydantic.BaseModel):
         dict_data['scheduler_settings'] = (
             None
             if not self.scheduler_settings
-            else str(self.scheduler_settings.json())
+            else str(self.scheduler_settings.model_dump_json())
         )
 
         dict_data['node_conditions'] = (
-            None if not self.node_conditions else str(self.node_conditions.json())
+            None if not self.node_conditions else str(self.node_conditions.model_dump_json())
         )
         return dict_data
 

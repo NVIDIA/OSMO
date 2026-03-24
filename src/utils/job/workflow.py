@@ -960,7 +960,7 @@ class Workflow(pydantic.BaseModel):
                         self.user, self.submit_time, self.start_time, self.end_time,
                         self.status.name, self.logs, exec_timeout, queue_timeout, self.backend,
                         self.pool, version, self.failure_message, self.parent_name,
-                        self.parent_job_id, self.app_uuid, self.app_version, self.plugins.json(),
+                        self.parent_job_id, self.app_uuid, self.app_version, self.plugins.model_dump_json(),
                         self.priority.value))
                 break
             except osmo_errors.OSMODatabaseError as err:

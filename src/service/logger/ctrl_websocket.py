@@ -194,15 +194,15 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                                 time=loaded_json['time'],
                                 text=loaded_json['text'],
                                 io_type=loaded_json['iotype'])
-                            # Use logs.json() instead of logs.model_dump() to convert enum and datetime to
+                            # Use logs.model_dump_json() instead of logs.model_dump() to convert enum and datetime to
                             # strings
                             await redis_client.xadd(f'{workflow_obj.workflow_id}-logs',
-                                                    json.loads(logs.json()),
+                                                    json.loads(logs.model_dump_json()),
                                                     maxlen=workflow_config.max_log_lines)
                             await redis_client.xadd(
                                 common.get_redis_task_log_name(
                                     workflow_obj.workflow_id, task_name, retry_id),
-                                json.loads(logs.json()),
+                                json.loads(logs.model_dump_json()),
                                 maxlen=workflow_config.max_task_log_lines)
                         # Set expiration on first log message
                         if first_run:

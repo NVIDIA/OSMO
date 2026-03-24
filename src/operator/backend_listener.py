@@ -1022,7 +1022,7 @@ def send_pod_conditions(event_send_queue: helpers.EnqueueCallback,
         retry_id: Retry ID
         conditions_messages: List of condition messages to send
     """
-    pod_conditions_key = (task_uuid, tuple(c.json() for c in conditions_messages))
+    pod_conditions_key = (task_uuid, tuple(c.model_dump_json() for c in conditions_messages))
 
     if not check_ttl_cache(pod_conditions_cache, pod_conditions_key):
         pod_conditions_message = backend_messages.MessageBody(
@@ -1617,10 +1617,10 @@ async def websocket_connect(progress_writer: progress.ProgressWriter,
                         k8s_namespace=config.namespace,
                         version=str(version.VERSION),
                         node_condition_prefix=config.node_condition_prefix))
-                await websocket.send(init_message.json())
+                await websocket.send(init_message.model_dump_json())
 
                 for message in unack_messages.list_messages():
-                    await websocket.send(message.json())
+                    await websocket.send(message.model_dump_json())
                     progress_writer.report_progress()
 
                 async def _send_message():
@@ -1629,7 +1629,7 @@ async def websocket_connect(progress_writer: progress.ProgressWriter,
                             message = await asyncio.wait_for(
                                 message_queue.get(), timeout=TIMEOUT_SEC)
                             await unack_messages.add_message(message)
-                            await websocket.send(message.json())
+                            await websocket.send(message.model_dump_json())
                             message_queue.task_done()
                             send_backend_message_transmission_count(
                                 event_type=connection_type.value)

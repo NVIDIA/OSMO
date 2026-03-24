@@ -894,7 +894,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
             else:
                 raise osmo_errors.OSMOUsageError('Unknown Input Type')
 
-        parsed_json = self.json()
+        parsed_json = self.model_dump_json()
         for key, value in tokens.items():
             parsed_json = re.sub('{{[ ]*' + key + '[ ]*}}', value, parsed_json)
 
@@ -1605,7 +1605,7 @@ class TaskGroup(pydantic.BaseModel):
     def insert_to_db(self, status: TaskGroupStatus = TaskGroupStatus.SUBMITTING,
                      failure_message: str | None = None):
         """ Creates an entry in the database for the group. """
-        spec = self.spec.json()
+        spec = self.spec.model_dump_json()
         insert_cmd = '''
             INSERT INTO groups
             (workflow_id, name, group_uuid, spec, status, failure_message,
@@ -1619,7 +1619,7 @@ class TaskGroup(pydantic.BaseModel):
              failure_message,
              _encode_hstore(self.remaining_upstream_groups),
              _encode_hstore(self.downstream_groups),
-             self.scheduler_settings.json() if self.scheduler_settings else None,
+             self.scheduler_settings.model_dump_json() if self.scheduler_settings else None,
              json.dumps(self.group_template_resource_types)))
 
     @staticmethod
@@ -1972,7 +1972,7 @@ class TaskGroup(pydantic.BaseModel):
         update_cmd = connectors.PostgresUpdateCommand(table='groups')
         update_cmd.add_condition('workflow_id = %s AND name = %s', [self.workflow_id, self.name])
         if scheduler_settings is not None:
-            update_cmd.add_field('scheduler_settings', scheduler_settings.json())
+            update_cmd.add_field('scheduler_settings', scheduler_settings.model_dump_json())
         if group_status == TaskGroupStatus.WAITING:
             update_cmd.add_condition("status IN ('SUBMITTING')", [])
         if group_status == TaskGroupStatus.PROCESSING:

@@ -134,7 +134,7 @@ class FrontendJob(Job):
         job into the job queue.
         """
         redis_client = connectors.RedisConnector.get_instance().client
-        serialized_job = self.json()
+        serialized_job = self.model_dump_json()
         timeout_time = time.time() + delay_duration.total_seconds()
         redis_client.zadd(DELAYED_JOB_QUEUE, {serialized_job: timeout_time})
         self.log_delayed_submission(delay_duration)
@@ -333,7 +333,7 @@ class SubmitWorkflow(WorkflowJob):
                     time=common.current_time(), io_type=connectors.redis.IOType.OSMO_CTRL,
                     source='OSMO', retry_id=0, text='Failed SubmitWorkflow for workflow ' +
                     f'{workflow_obj.workflow_id} with error: {error}')
-            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
             redis_client.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
 
         for group_obj in workflow_obj.get_group_objs():
@@ -1427,15 +1427,15 @@ class CleanupWorkflow(WorkflowJob):
             logs = connectors.redis.LogStreamBody(
                 time=common.current_time(), io_type=connectors.redis.IOType.DUMP,
                 source='OSMO', retry_id=0, text=log_message)
-            redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+            redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
 
         logs = connectors.redis.LogStreamBody(
             time=common.current_time(), io_type=connectors.redis.IOType.END_FLAG,
             source='', retry_id=0, text='')
-        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
         redis_batch_pipeline.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
         redis_batch_pipeline.xadd(common.get_workflow_events_redis_name(self.workflow_uuid),
-                                  json.loads(logs.json()))
+                                  json.loads(logs.model_dump_json()))
         redis_batch_pipeline.expire(common.get_workflow_events_redis_name(self.workflow_uuid),
                                     connectors.MAX_LOG_TTL, nx=True)
         for group in workflow_obj.groups:
@@ -1444,14 +1444,14 @@ class CleanupWorkflow(WorkflowJob):
                     redis_batch_pipeline.xadd(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
-                        json.loads(logs.json()))
+                        json.loads(logs.model_dump_json()))
                     redis_batch_pipeline.expire(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
                         connectors.MAX_LOG_TTL, nx=True)
                 redis_batch_pipeline.xadd(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
-                    json.loads(logs.json()))
+                    json.loads(logs.model_dump_json()))
                 redis_batch_pipeline.expire(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
                     connectors.MAX_LOG_TTL, nx=True)
