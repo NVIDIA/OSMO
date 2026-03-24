@@ -1,0 +1,26 @@
+{
+  "build_system": "bazel",
+  "quick_check": {
+    "description": "Python syntax check via py_compile on changed files",
+    "command": "python3 -m py_compile <file>"
+  },
+  "lint": {
+    "description": "Ruff linting (Google style)",
+    "command": "ruff check src/ (or bazel run //bzl/linting:...)"
+  },
+  "unit_tests": {
+    "description": "Python tests via bazel",
+    "command": "bazel test //src/...",
+    "fallback": "python3 -m pytest (may not work without bazel dependencies)"
+  },
+  "full_check": {
+    "description": "All Python tests",
+    "command": "bazel test //src/..."
+  },
+  "notes": [
+    "Bazel is available in container",
+    "Python 3.10 is used via Bazel toolchain, system Python is 3.12",
+    "pydantic v2 already installed in system Python",
+    "Tests need bazel for proper dependency resolution"
+  ]
+}

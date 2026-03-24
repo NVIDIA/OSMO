@@ -1,0 +1,28 @@
+{
+  "languages": ["Python 3.10", "Go", "TypeScript"],
+  "frameworks": {
+    "python": ["FastAPI", "Pydantic v1 (1.10.26)", "pytest", "Kombu", "Uvicorn", "OpenTelemetry"],
+    "go": ["standard library", "pgx", "testcontainers-go"],
+    "typescript": ["Next.js", "React", "TanStack Query", "Vitest", "Playwright"]
+  },
+  "build_system": "Bazel (MODULE.bazel, rules_python, rules_oci)",
+  "linting": "ruff (Google style), pylint",
+  "testing": "Bazel test rules wrapping pytest (Python), Go testing, Vitest+Playwright (TS)",
+  "python_scope_dirs": ["src/service/", "src/lib/", "src/utils/", "src/cli/", "src/operator/", "src/tests/"],
+  "pydantic_files_count": 70,
+  "pydantic_model_count": 212,
+  "key_pydantic_patterns": {
+    "BaseModel_with_Extra_forbid": "class Foo(pydantic.BaseModel, extra=pydantic.Extra.forbid)",
+    "validators": "@pydantic.validator, @pydantic.root_validator",
+    "Field_with_regex": "pydantic.Field(regex=...)",
+    "Field_with_env": "none found (only BaseSettings uses env)",
+    "BaseSettings": "1 usage in lib/data/storage/core/executor.py",
+    "pydantic_dataclasses": "~15 usages across lib/data/storage/",
+    "dict_method": ".dict() used in ~40 places",
+    "json_method": ".json() used in ~30 places",
+    "error_wrappers": "pydantic.error_wrappers.ValidationError in 2 places",
+    "Config_inner_class": "~20 usages with arbitrary_types_allowed, use_enum_values, etc.",
+    "SecretStr": "used in auth, credentials, config",
+    "Extra_enum": "pydantic.Extra.allow/forbid/ignore used as enum values"
+  }
+}
