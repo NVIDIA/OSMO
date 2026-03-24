@@ -374,11 +374,11 @@ class ConfigHistoryQueryParams(pydantic.BaseModel):
 
     @pydantic.field_validator('at_timestamp')
     @classmethod
-    def validate_at_timestamp(cls, v, values):
+    def validate_at_timestamp(cls, v, info: pydantic.FieldValidationInfo):
         if v is not None:
-            if 'created_before' in values and values['created_before'] is not None:
+            if 'created_before' in info.data and info.data['created_before'] is not None:
                 raise ValueError('Cannot specify both at_timestamp and created_before')
-            if 'created_after' in values and values['created_after'] is not None:
+            if 'created_after' in info.data and info.data['created_after'] is not None:
                 raise ValueError('Cannot specify both at_timestamp and created_after')
         return v
 

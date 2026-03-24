@@ -165,7 +165,6 @@ class SubmitResponse(pydantic.BaseModel, extra="forbid"):
     spec: Optional[str]
     dashboard_url: Optional[str]
 
-    @classmethod
     @pydantic.model_validator(mode='before')
     @classmethod
     def logs_or_spec(cls, values):
