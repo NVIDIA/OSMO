@@ -208,7 +208,7 @@ def patch_configs(
         tags=request.tags,
     )
 
-    new_configs_dict = postgres.get_configs(config_type).dict(by_alias=True, exclude_unset=True)
+    new_configs_dict = postgres.get_configs(config_type).model_dump(by_alias=True, exclude_unset=True)
     return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
 
 def backend_action_request_helper(payload: Dict[str, Any], name: str):
@@ -281,7 +281,7 @@ def create_backend_config_history_entry(
     backends = connectors.Backend.list_from_db(postgres)
 
     backends_list = [
-        backend.dict(by_alias=True, exclude_unset=True)
+        backend.model_dump(by_alias=True, exclude_unset=True)
         for backend in backends
     ]
 
@@ -404,7 +404,7 @@ def delete_backend(
     postgres.execute_commit_command(delete_resource_cmd, (name,))
 
     backends = [
-        backend.dict(by_alias=True, exclude_unset=True)
+        backend.model_dump(by_alias=True, exclude_unset=True)
         for backend in connectors.Backend.list_from_db(postgres)
     ]
 
@@ -428,7 +428,7 @@ def create_pool_config_history_entry(
     Add a history entry for a pool config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    pools = connectors.fetch_editable_pool_config(postgres).dict(
+    pools = connectors.fetch_editable_pool_config(postgres).model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -451,7 +451,7 @@ def create_dataset_config_history_entry(
     Add a history entry for a dataset config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    dataset_configs = postgres.get_dataset_configs().dict(
+    dataset_configs = postgres.get_dataset_configs().model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -726,7 +726,7 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
         for test_name in current_tests:
             try:
                 test_config = connectors.BackendTests.fetch_from_db(postgres, test_name)
-                test_configs[test_name] = test_config.dict(by_alias=True, exclude_unset=True)
+                test_configs[test_name] = test_config.model_dump(by_alias=True, exclude_unset=True)
             except osmo_errors.OSMOError as error:
                 logging.error('Failed to fetch test config for test %s: %s', test_name, error)
                 continue

@@ -28,7 +28,7 @@ import fastapi
 import fastapi.middleware.cors
 import fastapi.responses
 import uvicorn  # type: ignore
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor # type: ignore
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
 
 from src.lib.utils import common, login, osmo_errors, version
 import src.lib.utils.logging
@@ -50,7 +50,7 @@ from src.utils.job import task as task_lib
 
 
 app = fastapi.FastAPI(docs_url='/api/docs', redoc_url=None, openapi_url='/api/openapi.json')
-misc_router = fastapi.APIRouter(tags = ['Misc API'])
+misc_router = fastapi.APIRouter(tags=['Misc API'])
 curr_cli_config = connectors.CliConfig()
 
 
@@ -71,7 +71,7 @@ async def check_client_version(request: fastapi.Request, call_next):
         if cli_info.latest_version else version.VERSION
     if cli_info.client_install_url:
         install_command = f'Please run the following command:\n' \
-                          f'curl -fsSL {cli_info.client_install_url} | bash'
+            f'curl -fsSL {cli_info.client_install_url} | bash'
     else:
         install_command = \
             'Please update by running the install command in the documentation.'
@@ -81,10 +81,10 @@ async def check_client_version(request: fastapi.Request, call_next):
                 client_version < version.Version.from_string(cli_info.min_supported_version):
             return fastapi.responses.JSONResponse(
                 status_code=400,
-                content={'message': 'Your client is out of date. Client version is ' + \
-                        f'{client_version_str} but the newest client version is '
-                        f'{newest_client_version}.\n{install_command}',
-                        'error_code': osmo_errors.OSMOError.error_code},
+                content={'message': 'Your client is out of date. Client version is ' +
+                         f'{client_version_str} but the newest client version is '
+                         f'{newest_client_version}.\n{install_command}',
+                         'error_code': osmo_errors.OSMOError.error_code},
             )
         suggest_version_update = True
 
@@ -207,6 +207,7 @@ def get_workflow_plugins_configs() -> connectors.PluginsConfig:
 
 app.include_router(misc_router)
 
+
 @app.exception_handler(osmo_errors.OSMOUsageError)
 @app.exception_handler(osmo_errors.OSMOResourceError)
 @app.exception_handler(osmo_errors.OSMOCredentialError)
@@ -291,17 +292,17 @@ def set_default_backend_images(postgres: connectors.PostgresConnector):
 
     # If backend_images are already set, do not override them
     if curr_workflow_configs.backend_images.init and \
-        curr_workflow_configs.backend_images.client:
+            curr_workflow_configs.backend_images.client:
         return
 
     if postgres.config.osmo_image_location and \
-        postgres.config.osmo_image_tag:
+            postgres.config.osmo_image_tag:
         # Override default backend_images with deployment values
         backend_images = connectors.OsmoImageConfig(
             init=f'{postgres.config.osmo_image_location}/'
-                    f'init-container:{postgres.config.osmo_image_tag}',
+            f'init-container:{postgres.config.osmo_image_tag}',
             client=f'{postgres.config.osmo_image_location}/'
-                    f'client:{postgres.config.osmo_image_tag}',
+            f'client:{postgres.config.osmo_image_tag}',
         )
         config_service.patch_workflow_configs(
             request=config_objects.PatchConfigRequest(

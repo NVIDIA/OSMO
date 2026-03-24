@@ -901,7 +901,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
         return TaskSpec(**json.loads(parsed_json))
 
     def saved_spec(self) -> Dict:
-        base_spec = self.dict(exclude_defaults=True)
+        base_spec = self.model_dump(exclude_defaults=True)
         if 'resources' in base_spec:
             del base_spec['resources']
         if 'backend' in base_spec:
@@ -1003,7 +1003,7 @@ class TaskGroupSpec(pydantic.BaseModel):
             tasks=tasks)
 
     def saved_spec(self) -> Dict:
-        base_spec = self.dict(exclude_defaults=True)
+        base_spec = self.model_dump(exclude_defaults=True)
         base_spec['tasks'] = [task.saved_spec() for task in self.tasks]
         return base_spec
 

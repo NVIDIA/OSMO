@@ -195,7 +195,7 @@ class BackendConfig(pydantic.BaseModel):
 
     def plaintext_dict(self, *args, **kwargs):
         """Convert the BackendConfig to a dictionary."""
-        dict_data = super().dict(*args, **kwargs)
+        dict_data = super().model_dump(*args, **kwargs)
         dict_data['scheduler_settings'] = (
             None
             if not self.scheduler_settings

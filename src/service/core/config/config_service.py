@@ -36,6 +36,7 @@ router = fastapi.APIRouter(
     tags=['Config API']
 )
 
+
 class ConfigNameType(enum.Enum):
     """ Represents the config type for checking name. """
     POD_TEMPLATE = 'Pod template'
@@ -51,8 +52,9 @@ def _check_config_name(name: str, name_type: ConfigNameType):
     if not re.fullmatch(common.CONFIG_NAME_REGEX, name):
         raise osmo_errors.OSMOUserError(
             f'{name_type.value} name "{name}" is not valid! Name can only '
-             'be alphanumeric and contain dash or underscore.'
+            'be alphanumeric and contain dash or underscore.'
         )
+
 
 @router.get(
     '/api/configs/service',
@@ -210,9 +212,9 @@ def create_clean_config_api(app: fastapi.FastAPI):
         except pydantic.ValidationError as err:
             raise osmo_errors.OSMOUsageError(f'{err}')
         return postgres.get_service_configs().dict(by_alias=True,
-                                                                        exclude_unset=True)
+                                                   exclude_unset=True)
 
-    app.add_api_route('/api/configs/service/clean', clean_configs, # type: ignore
+    app.add_api_route('/api/configs/service/clean', clean_configs,  # type: ignore
                       description='Clean service configurations',
                       response_model=Dict, methods=['POST'], tags=['Config API'])
 
@@ -262,7 +264,7 @@ def delete_backend(
             [name], 1)
         if alive_workflows:
             raise osmo_errors.OSMOBackendError(
-                f'Backend {name} is not finished running workflows. Alive workflows: ' +\
+                f'Backend {name} is not finished running workflows. Alive workflows: ' +
                 f'{", ".join(wf.workflow_id for wf in alive_workflows)}')
     connectors.delete_redis_backend(name, workflow_objects.WorkflowServiceContext.get().config)
     helpers.delete_backend(name, request, username)
@@ -273,7 +275,7 @@ def delete_backend(
     response_model=connectors.VerbosePoolConfig | connectors.EditablePoolConfig,
 )
 def list_pools(verbose: bool = False, backend: str | None = None) -> \
-    connectors.VerbosePoolConfig | connectors.EditablePoolConfig:
+        connectors.VerbosePoolConfig | connectors.EditablePoolConfig:
     """ List all Pools """
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
@@ -304,8 +306,8 @@ def _check_platform_changes(old_pool: connectors.Pool, new_pool: connectors.Pool
     # Check platforms that exist in both old and new configs
     for platform_name in old_platforms & new_platforms:
         if not helpers.pod_labels_and_tolerations_equal(
-            old_pool.platforms[platform_name].parsed_pod_template,
-            new_pool.platforms[platform_name].parsed_pod_template):
+                old_pool.platforms[platform_name].parsed_pod_template,
+                new_pool.platforms[platform_name].parsed_pod_template):
             return True
 
     return False
@@ -332,8 +334,8 @@ def _check_pool_changes(old_pool: connectors.Pool | None, new_pool: connectors.P
 
     # Check if pod template changed
     if not helpers.pod_labels_and_tolerations_equal(
-        old_pool.parsed_pod_template,
-        new_pool.parsed_pod_template):
+            old_pool.parsed_pod_template,
+            new_pool.parsed_pod_template):
         return True
 
     # Check if platforms changed
@@ -628,6 +630,7 @@ def rename_platform_in_pool(name: str, platform_name: str,
         tags=request.tags,
     )
 
+
 @router.get(
     '/api/configs/pod_template',
     response_model=Dict[str, Any],
@@ -665,7 +668,7 @@ def put_pod_templates(request: objects.PutPodTemplatesRequest,
         pod_template = connectors.PodTemplate(pod_template=pod_template_dict)
         pod_template.insert_into_db(postgres, name)
         if old_pod_template and \
-            not helpers.pod_labels_and_tolerations_equal(old_pod_template, pod_template_dict):
+                not helpers.pod_labels_and_tolerations_equal(old_pod_template, pod_template_dict):
             pool_list = connectors.PodTemplate.get_pools(postgres, name)
             for pool in pool_list:
                 helpers.update_backend_node_pool_platform(pool=pool['name'], platform=None)
@@ -696,7 +699,7 @@ def put_pod_template(name: str,
     pod_template = connectors.PodTemplate(pod_template=request.configs)
     pod_template.insert_into_db(postgres, name)
     if old_pod_template and \
-        not helpers.pod_labels_and_tolerations_equal(old_pod_template, request.configs):
+            not helpers.pod_labels_and_tolerations_equal(old_pod_template, request.configs):
         pool_list = connectors.PodTemplate.get_pools(postgres, name)
         for pool in pool_list:
             helpers.update_backend_node_pool_platform(pool=pool['name'], platform=None)
@@ -1289,7 +1292,7 @@ def rollback_config(
     elif request.config_type == connectors.ConfigHistoryType.ROLE:
         # Delete all existing roles
         existing_roles = connectors.Role.list_from_db(postgres)
-        next_roles= [role['name'] for role in history_entry['data']]
+        next_roles = [role['name'] for role in history_entry['data']]
         roles_to_remove = [
             role.name for role in existing_roles if role.name not in next_roles
         ]
@@ -1307,6 +1310,7 @@ def rollback_config(
         )
     else:
         raise osmo_errors.OSMOUserError(f'Unsupported config type: {request.config_type.value}')
+
 
 @router.delete('/api/configs/history/{config_type}/revision/{revision}')
 def delete_config_history_revision(
@@ -1469,8 +1473,8 @@ def diff_secret_strs(first_data: Any, second_data: Any, second_revision: int) ->
         else:
             return second_data
     elif isinstance(first_data, pydantic.BaseModel) and \
-        isinstance(second_data, pydantic.BaseModel) and \
-        isinstance(first_data, type(second_data)):
+            isinstance(second_data, pydantic.BaseModel) and \
+            isinstance(first_data, type(second_data)):
         result = {}
         for key in second_data.__dict__:
             if key in first_data.__dict__:

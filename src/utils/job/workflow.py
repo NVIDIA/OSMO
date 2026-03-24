@@ -367,7 +367,7 @@ class WorkflowSpec(pydantic.BaseModel, extra="forbid"):
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)
                       for group in self.groups]
-            if 'timeout' in self.dict(exclude_defaults=True):
+            if 'timeout' in self.model_dump(exclude_defaults=True):
                 return WorkflowSpec(name=self.name, groups=groups, timeout=self.timeout,
                                     resources=self.resources, backend=self.backend, pool=self.pool)
             return WorkflowSpec(name=self.name, groups=groups,
@@ -744,10 +744,10 @@ class WorkflowSpec(pydantic.BaseModel, extra="forbid"):
         base_spec = {
             'name': self.name,
             'groups': [group.saved_spec() for group in self.groups],
-            'resources': {key: resource.dict(exclude_defaults=True)
+            'resources': {key: resource.model_dump(exclude_defaults=True)
                           for key, resource in self.resources.items()}
         }
-        if 'timeout' in self.dict(exclude_defaults=True):
+        if 'timeout' in self.model_dump(exclude_defaults=True):
             base_spec['timeout'] = self.timeout.model_dump()
         return base_spec
 

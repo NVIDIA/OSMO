@@ -1315,7 +1315,7 @@ class PostgresConnector:
                 )
             elif config_type == ConfigHistoryType.BACKEND:
                 data = [
-                    backend.dict(by_alias=True, exclude_unset=True)
+                    backend.model_dump(by_alias=True, exclude_unset=True)
                     for backend in Backend.list_from_db(self)
                 ]
             elif config_type == ConfigHistoryType.POOL:
@@ -1769,8 +1769,8 @@ class ResourceSpec(pydantic.BaseModel, extra="forbid"):
 
     def update(self, other: 'ResourceSpec') -> 'ResourceSpec':
         """ Apply all fields from the other resource spec to this one """
-        self_dict = self.dict(exclude_none=True)
-        other_dict = other.dict(exclude_none=True)
+        self_dict = self.model_dump(exclude_none=True)
+        other_dict = other.model_dump(exclude_none=True)
         return ResourceSpec(**common.recursive_dict_update(self_dict, other_dict))
 
     @classmethod
@@ -2685,8 +2685,8 @@ class DynamicConfig(ExtraArgBaseModel):
                 return encrypted_data, None
 
         dynamic_config = cls(**config_dict)
-        encrypted_dict = dynamic_config.dict(exclude_unset=True)
-        decrypted_dict = dynamic_config.dict(exclude_unset=True)
+        encrypted_dict = dynamic_config.model_dump(exclude_unset=True)
+        decrypted_dict = dynamic_config.model_dump(exclude_unset=True)
 
         for key in config_dict:
             if not hasattr(dynamic_config, key):
@@ -2739,13 +2739,13 @@ class DynamicConfig(ExtraArgBaseModel):
 
     def serialize(self, postgres: PostgresConnector, exclude_unset=True) -> Dict[str, str | None]:
         """Encrypts all secret fields and returns a dictionary """
-        config_dict = self.dict(by_alias=True, exclude_unset=exclude_unset)
+        config_dict = self.model_dump(by_alias=True, exclude_unset=exclude_unset)
         result = self.serialize_helper(config_dict, postgres, top_level=True)
         return result
 
     def plaintext_dict(self, *args, **kwargs):
         """Returns as a dictionary with all SecretStrs converted to str"""
-        data = self.dict(*args, **kwargs)
+        data = self.model_dump(*args, **kwargs)
         def _convert_secrets(node):
             # Recurse for dict and list
             if isinstance(node, dict):

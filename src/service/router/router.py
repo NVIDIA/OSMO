@@ -242,7 +242,7 @@ async def webserver_http_request(request: fastapi.Request, ctrl_key: str):
     sticky_cookies = RouterServiceConfig.load().sticky_cookies
     cookie_str = ', '.join(f'{k}={v}' for k, v in request.cookies.items() if k in sticky_cookies)
     await ctrl_ws.send_json(
-        ConnectionPayload(key=conn_key, cookie=cookie_str).dict(exclude_none=True))
+        ConnectionPayload(key=conn_key, cookie=cookie_str).model_dump(exclude_none=True))
     try:
         await asyncio.wait_for(connect.wait(), RouterServiceConfig.load().timeout)
         ws = connections[conn_key].websocket
