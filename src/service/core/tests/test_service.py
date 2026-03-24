@@ -84,7 +84,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
     def test_get_client_version_with_config_override(self):
         # Arrange
-        test_version = version.VERSION.copy()
+        test_version = version.VERSION.model_copy()
         test_version.revision = str(int(test_version.revision) + 1)
         helpers.patch_configs(
             config_objects.PatchConfigRequest(
@@ -132,7 +132,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
     def test_outdated_client_receives_no_update_prompt(self):
         # Arrange
-        test_version = version.VERSION.copy()
+        test_version = version.VERSION.model_copy()
         test_version.major = str(int(test_version.major) - 1)
 
         # Act
@@ -145,7 +145,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
     def test_outdated_client_receives_update_prompt_if_min_supported_version_is_set(self):
         # Arrange
         self.patch_cli_config(min_supported_version=str(version.VERSION))
-        test_version = version.VERSION.copy()
+        test_version = version.VERSION.model_copy()
         test_version.major = str(int(test_version.major) - 1)
 
         # Act
