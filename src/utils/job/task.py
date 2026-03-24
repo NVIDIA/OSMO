@@ -659,7 +659,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
 
     @pydantic.field_validator('command')
     @classmethod
-    def validate_command(cls, command: List[str], info: pydantic.FieldValidationInfo) -> List[str]:
+    def validate_command(cls, command: List[str], info: pydantic.ValidationInfo) -> List[str]:
         """
         Validates command. Returns the value of command if valid.
 
@@ -673,7 +673,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
 
     @pydantic.field_validator('files')
     @classmethod
-    def validate_files(cls, files: List[File], info: pydantic.FieldValidationInfo) -> List[File]:
+    def validate_files(cls, files: List[File], info: pydantic.ValidationInfo) -> List[File]:
         """
         Validates that all file paths are unique. Returns the list if valid
 
@@ -703,7 +703,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
 
     @pydantic.field_validator('exitActions')
     @classmethod
-    def validate_exit_actions(cls, exit_actions: Dict[str, str], info: pydantic.FieldValidationInfo) -> Dict[str, str]:
+    def validate_exit_actions(cls, exit_actions: Dict[str, str], info: pydantic.ValidationInfo) -> Dict[str, str]:
         name = info.data.get('name', '')
         regex = re.compile(CODE_REGEX)
         for key, value in exit_actions.items():
@@ -927,7 +927,7 @@ class TaskGroupSpec(pydantic.BaseModel):
 
     @pydantic.field_validator('tasks')
     @classmethod
-    def validate_tasks(cls, value: List[TaskSpec], info: pydantic.FieldValidationInfo) -> List[TaskSpec]:
+    def validate_tasks(cls, value: List[TaskSpec], info: pydantic.ValidationInfo) -> List[TaskSpec]:
         """
         Validates tasks. Returns the value of tasks if valid.
 
