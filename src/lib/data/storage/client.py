@@ -193,7 +193,7 @@ class Client(pydantic.BaseModel):
 
     storage_uri: str = pydantic.Field(
         ...,
-        regex=constants.STORAGE_BACKEND_REGEX,
+        pattern=constants.STORAGE_BACKEND_REGEX,
         description='The URI of the remote storage this instance of storage Client will '
                     'operate against. Must point to a valid container.',
     )
