@@ -43,22 +43,23 @@ class StaticConfig(pydantic.BaseModel):
                                  'times. If a config parameter is duplicated in more than one ' \
                                  'file, the value in the last file is used.')
 
-        for name, field in cls.__fields__.items():
-            if 'command_line' in field.field_info.extra:
-                help_message = field.field_info.description
+        for name, field in cls.model_fields.items():
+            extras = field.json_schema_extra or {}
+            if 'command_line' in extras:
+                help_message = field.description or ''
                 if field.default is not None:
                     help_message += f' (default: {str(field.default)})'
-                parser.add_argument(f'--{field.field_info.extra["command_line"]}',
-                                    action=field.field_info.extra.get('action', 'store'),
+                parser.add_argument(f'--{extras["command_line"]}',
+                                    action=extras.get('action', 'store'),
                                     help=help_message)
         args = parser.parse_args()
 
         # Initialize config with default values
         config = {}
-        for name, field in cls.__fields__.items():
+        for name, field in cls.model_fields.items():
             # If the default is None and its not optional, then dont set the default because the
             # user must provide this value
-            if not field.required:
+            if not field.is_required():
                 config[name] = field.default
 
         # Load any config files. The later files override anything from the earlier files
