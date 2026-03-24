@@ -1409,6 +1409,67 @@ class Task(pydantic.BaseModel):
         update_cmd.add_field('status', status.name)
         self.database.execute_commit_command(*update_cmd.get_args())
 
+    @staticmethod
+    def batch_update_status_to_db(
+        database: connectors.PostgresConnector,
+        workflow_id: str,
+        group_name: str,
+        update_time: datetime.datetime,
+        status: TaskGroupStatus,
+        message: str,
+        exit_code: int | None = None,
+        exclude_task_name: str | None = None,
+    ) -> None:
+        """Batch-update all tasks in a group to a terminal status in a single query.
+
+        Only updates tasks that haven't already reached a terminal state.
+        This is equivalent to calling update_status_to_db on each task individually,
+        but uses a single DB round-trip.
+
+        Args:
+            database: The Postgres connector instance.
+            workflow_id: The workflow ID.
+            group_name: The group name.
+            update_time: Time of the update.
+            status: The terminal status to set (must be a finished status).
+            message: Failure/completion message.
+            exit_code: Optional exit code.
+            exclude_task_name: If set, skip this task (already updated separately).
+        """
+        if not status.finished():
+            raise ValueError(
+                f'batch_update_status_to_db only supports finished statuses, got {status}')
+
+        update_cmd = connectors.PostgresUpdateCommand(table='tasks')
+        update_cmd.add_condition('workflow_id = %s', [workflow_id])
+        update_cmd.add_condition('group_name = %s', [group_name])
+        update_cmd.add_condition('end_time IS NULL', [])
+
+        if status == TaskGroupStatus.FAILED_START_TIMEOUT:
+            update_cmd.add_condition(
+                "status IN ('WAITING', 'PROCESSING', 'SCHEDULING', 'INITIALIZING')", [])
+        else:
+            update_cmd.add_condition(
+                "status IN ('WAITING', 'PROCESSING', 'SCHEDULING', "
+                "'INITIALIZING', 'RUNNING')", [])
+
+        update_cmd.add_condition(
+            'retry_id = (SELECT MAX(retry_id) FROM tasks t2 '
+            'WHERE t2.name = tasks.name AND t2.workflow_id = tasks.workflow_id '
+            'AND t2.group_name = tasks.group_name)', [])
+
+        if exclude_task_name is not None:
+            update_cmd.add_condition('name != %s', [exclude_task_name])
+
+        update_cmd.add_field('status', status.name)
+        update_cmd.add_field('end_time', update_time)
+        if exit_code is not None:
+            update_cmd.add_field('exit_code', exit_code)
+        if message:
+            update_cmd.add_field('failure_message', message)
+
+        database.execute_commit_command(*update_cmd.get_args())
+
     def create_new(self) -> 'Task':
         """ Creates an new Task from the existing one. """
         return Task(workflow_id_internal=self.workflow_id,
