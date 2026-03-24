@@ -21,6 +21,7 @@ load("@osmo_tests_python_deps//:requirements.bzl", osmo_tests_requirement = "req
 
 osmo_py_test(
     name = "test_workflow_service",
+    size = "large",
     srcs = ["test_workflow_service.py"],
     deps = [
         "//src/service/core:service_lib",

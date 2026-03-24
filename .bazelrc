@@ -85,3 +85,7 @@ build:ci --nokeep_state_after_build
 # Testcontainers Environment
 build:ci --test_env=DOCKER_HOST=tcp://docker:2375
 build:ci --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker
+
+# Coverage: use with `bazel coverage`
+coverage --combined_report=lcov
+coverage --test_tag_filters=-nocoverage
