@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "prompt": "Migrate all Python code in the OSMO repository (github.com/NVIDIA/osmo) from Pydantic v1 (1.10.26) to Pydantic v2 (2.12.5). Scope is Python only: src/service/, src/lib/, src/utils/, src/cli/, src/operator/, and src/tests/. Do not touch Go (src/runtime/), TypeScript (src/ui/), or infrastructure code. No regressions — all existing Python tests must pass. Read CLAUDE.md at the repo root for project conventions.",
+  "knowledge_doc": "",
+  "commit_prefix": "agent(pydantic-v2)",
+  "created": "2026-03-24T22:12:56Z"
+}
