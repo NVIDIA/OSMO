@@ -891,9 +891,7 @@ class Workflow(pydantic.BaseModel):
     parent_job_id: int | None = None
     plugins: task_common.WorkflowPlugins = task_common.WorkflowPlugins()
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     def insert_to_db(self, version: int = 2):
         """ Creates an entry in the database for the overall workflow. """

@@ -140,10 +140,6 @@ class Job(pydantic.BaseModel):
     def __str__(self) -> str:
         return f'(type={self.job_type}, id={self.job_id})'
 
-    class Config:
-        allow_extra = False
-        ignore_extra = False
-
     def log_submission(self):
         logging.info('Submitted new job %s to the job queue', self)
 

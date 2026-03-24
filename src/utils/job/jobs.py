@@ -59,9 +59,7 @@ class JobExecutionContext(pydantic.BaseModel):
     postgres: connectors.PostgresConnector
     redis: connectors.RedisConfig
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workflow_uuid: str,

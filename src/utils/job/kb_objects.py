@@ -620,9 +620,7 @@ class FileMount(pydantic.BaseModel):
     digest: str = ''
     k8s_factory: K8sObjectFactory
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     @pydantic.root_validator(pre=True)
     @classmethod
