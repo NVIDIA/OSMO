@@ -206,6 +206,7 @@ workflow:
         claude --print --verbose --output-format stream-json \
           --permission-mode bypassPermissions \
           --dangerously-skip-permissions \
+          --allowedTools "Bash Read Write Edit Glob Grep WebFetch Agent Task TodoWrite WebSearch NotebookEdit TaskStop TaskOutput ToolSearch" \
           -p "$PROMPT"
         EXIT_CODE=$?
         set -e
