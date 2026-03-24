@@ -131,21 +131,21 @@ class WorkflowLogContext:
 class LoggingConfig(pydantic.BaseModel):
     """Manages the logging configuration"""
     log_level: LoggingLevel = pydantic.Field(
-        command_line='log_level',
         default=LoggingLevel.INFO,
-        description='The level of logging errors messages to record.')
+        description='The level of logging errors messages to record.',
+        json_schema_extra={'command_line': 'log_level'})
     log_dir: Optional[str] = pydantic.Field(
-        command_line='log_dir',
         default=None,
-        description='The directory to write logs to.')
+        description='The directory to write logs to.',
+        json_schema_extra={'command_line': 'log_dir'})
     log_name: str = pydantic.Field(
-        command_line='log_name',
         default='',
-        description='The name of the log file.')
+        description='The name of the log file.',
+        json_schema_extra={'command_line': 'log_name'})
     k8s_log_level: LoggingLevel = pydantic.Field(
-        command_line='k8s_log_level',
         default=LoggingLevel.WARNING,
-        description='The level of k8s logging errors messages to record.')
+        description='The level of k8s logging errors messages to record.',
+        json_schema_extra={'command_line': 'k8s_log_level'})
 
     @pydantic.field_validator('log_level', 'k8s_log_level', mode='before')
     @classmethod

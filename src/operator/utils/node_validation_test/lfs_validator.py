@@ -31,65 +31,64 @@ class LFSTestConfig(test_base.NodeTestConfig):
     """Configuration for LFS validation tests."""
 
     condition_name: str = pydantic.Field(
-        command_line='condition_name',
         default='LFSMountFailure',
-        description='Condition name for LFS mount failure')
+        description='Condition name for LFS mount failure',
+        json_schema_extra={'command_line': 'condition_name'})
 
     # Mount configs
     volume_type: str = pydantic.Field(
-        command_line='volume_type',
         default='pvc',
-        description='Type of volume (pvc or csi)')
+        description='Type of volume (pvc or csi)',
+        json_schema_extra={'command_line': 'volume_type'})
     volume_names: List[str] = pydantic.Field(
-        command_line='volume_names',
-        description='LFS volume names')
+        description='LFS volume names',
+        json_schema_extra={'command_line': 'volume_names'})
     mount_paths: List[str] = pydantic.Field(
-        command_line='mount_paths',
-        description='Mount paths of the LFS volumemount')
+        description='Mount paths of the LFS volumemount',
+        json_schema_extra={'command_line': 'mount_paths'})
     # PVC configs
     claim_names: List[str] = pydantic.Field(
-        command_line='claim_names',
         default=[],
-        description='Claim names of the LFS volume')
+        description='Claim names of the LFS volume',
+        json_schema_extra={'command_line': 'claim_names'})
     sub_paths: List[str] = pydantic.Field(
-        command_line='sub_paths',
         default=[],
-        description='Sub paths of the LFS volumemount')
+        description='Sub paths of the LFS volumemount',
+        json_schema_extra={'command_line': 'sub_paths'})
     # CSI configs
     lustre_drivers: List[str] = pydantic.Field(
-        command_line='lustre_drivers',
         default=[],
-        description='Lustre driver names for CSI volumes')
+        description='Lustre driver names for CSI volumes',
+        json_schema_extra={'command_line': 'lustre_drivers'})
     lustre_shares: List[str] = pydantic.Field(
-        command_line='lustre_shares',
         default=[],
-        description='Lustre share paths for CSI volumes')
+        description='Lustre share paths for CSI volumes',
+        json_schema_extra={'command_line': 'lustre_shares'})
     lustre_servers: List[str] = pydantic.Field(
-        command_line='lustre_servers',
         default=[],
-        description='Lustre server addresses for CSI volumes. Use ";" to separate multiple servers')
+        description='Lustre server addresses for CSI volumes. Use ";" to separate multiple servers',
+        json_schema_extra={'command_line': 'lustre_servers'})
     lustre_mount_options: List[str] = pydantic.Field(
-        command_line='lustre_mount_options',
         default=[],
-        description='Lustre mount options for CSI volumes')
+        description='Lustre mount options for CSI volumes',
+        json_schema_extra={'command_line': 'lustre_mount_options'})
 
     # Test Pod Configs
     pod_namespace: str = pydantic.Field(
-        command_line='pod_namespace',
-        env='OSMO_POD_NAMESPACE',
-        description='Namespace of the pod to create')
+        description='Namespace of the pod to create',
+        json_schema_extra={'command_line': 'pod_namespace', 'env': 'OSMO_POD_NAMESPACE'})
     pod_image: str = pydantic.Field(
-        command_line='pod_image',
         default='alpine:latest',
-        description='Image for the test pod')
+        description='Image for the test pod',
+        json_schema_extra={'command_line': 'pod_image'})
     image_pull_secret: str = pydantic.Field(
-        command_line='image_pull_secret',
         default='nvcr-secret',
-        description='Secret name for pulling the container image')
+        description='Secret name for pulling the container image',
+        json_schema_extra={'command_line': 'image_pull_secret'})
     pod_succeeded_timeout: int = pydantic.Field(
-        command_line='pod_succeeded_timeout',
         default=120,
-        description='Timeout in seconds for the pod to be succeeded')
+        description='Timeout in seconds for the pod to be succeeded',
+        json_schema_extra={'command_line': 'pod_succeeded_timeout'})
 
     @pydantic.model_validator(mode='before')
     @classmethod

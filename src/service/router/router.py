@@ -38,29 +38,31 @@ class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.Sta
                           connectors.PostgresConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the router service.')
+        description='The url to bind to when serving the router service.',
+        json_schema_extra={'command_line': 'host'})
     hostname: str = pydantic.Field(
-        command_line='hostname',
         default='localhost',
-        description='The DNS hostname of the router service.')
+        description='The DNS hostname of the router service.',
+        json_schema_extra={'command_line': 'hostname'})
     timeout: int = pydantic.Field(
-        command_line='timeout',
         default=60,
-        description='Timeout for router connections.')
+        description='Timeout for router connections.',
+        json_schema_extra={'command_line': 'timeout'})
     webserver_initial_timeout: int = pydantic.Field(
-        command_line='webserver_initial_timeout',
-        default=60 * 60,  # 1 hour in seconds
-        description='Initial timeout for webserver connections.')
+        default=60 * 60,
+        # 1 hour in seconds
+        description='Initial timeout for webserver connections.',
+        json_schema_extra={'command_line': 'webserver_initial_timeout'})
     webserver_nonactive_timeout: int = pydantic.Field(
-        command_line='webserver_nonactive_timeout',
-        default=30 * 60,  # 30 minutes in seconds
-        description='Timeout for non-activewebserver connections.')
+        default=30 * 60,
+        # 30 minutes in seconds
+        description='Timeout for non-activewebserver connections.',
+        json_schema_extra={'command_line': 'webserver_nonactive_timeout'})
     sticky_cookies: List[str] = pydantic.Field(
-        command_line='sticky_cookies',
         default=['AWSALB', 'AWSALBCORS'],
-        description='List of sticky cookies to send to the webserver.')
+        description='List of sticky cookies to send to the webserver.',
+        json_schema_extra={'command_line': 'sticky_cookies'})
 
 
 class RouterConnection(pydantic.BaseModel):

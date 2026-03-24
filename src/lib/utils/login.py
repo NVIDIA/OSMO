@@ -54,39 +54,37 @@ def fetch_login_info(url: str):
 class LoginConfig(pydantic.BaseModel):
     """ Manages configuration specific to the login """
     username: str | None = pydantic.Field(
-        command_line='username',
-        description='The username to sign in with.')
+        description='The username to sign in with.',
+        json_schema_extra={'command_line': 'username'})
     password: str | None = pydantic.Field(
-        command_line='password',
         default=None,
-        env='OSMO_LOGIN_PASSWORD',
-        description='The password to sign in with.')
+        description='The password to sign in with.',
+        json_schema_extra={'command_line': 'password', 'env': 'OSMO_LOGIN_PASSWORD'})
     password_file: str | None = pydantic.Field(
-        command_line='password_file',
         default=None,
-        description='The password stored in a file to sign in with.')
+        description='The password stored in a file to sign in with.',
+        json_schema_extra={'command_line': 'password_file'})
     token: str | None = pydantic.Field(
-        command_line='token',
         default=None,
-        env='OSMO_LOGIN_TOKEN',
-        description='The access token to sign in with.')
+        description='The access token to sign in with.',
+        json_schema_extra={'command_line': 'token', 'env': 'OSMO_LOGIN_TOKEN'})
     token_file: str | None = pydantic.Field(
-        command_line='token_file',
         default=None,
-        description='The file containing the access token to sign in with.')
+        description='The file containing the access token to sign in with.',
+        json_schema_extra={'command_line': 'token_file'})
     token_endpoint: str | None = pydantic.Field(
-        command_line='token_endpoint',
         default = None,
-        description='The url to get a token from device auth, client auth, or refresh token.')
+        description='The url to get a token from device auth, client auth, or refresh token.',
+        json_schema_extra={'command_line': 'token_endpoint'})
     client_id: str | None = pydantic.Field(
-        command_line='client_id',
         default=None,
-        description='The client id for the OSMO application.')
+        description='The client id for the OSMO application.',
+        json_schema_extra={'command_line': 'client_id'})
     login_method: Literal['password', 'token'] | None = pydantic.Field(
-        command_line='login_method',
         default='password',
         description='The method to use to login, either "password" or "token". '
-                    'Defaults to "password".')
+                    'Defaults to "password".',
+        json_schema_extra={'command_line': 'login_method'})
 
     def token_or_default(self, login_url: str) -> str:
         if self.token_endpoint is not None:

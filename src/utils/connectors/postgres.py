@@ -128,82 +128,68 @@ class ClusterResources(pydantic.BaseModel):
 class PostgresConfig(pydantic.BaseModel):
     """ Manages the config for the postgres database. """
     postgres_host: str = pydantic.Field(
-        command_line='postgres_host',
-        env='OSMO_POSTGRES_HOST',
         default='localhost',
-        description='The hostname of the postgres server to connect to.')
+        description='The hostname of the postgres server to connect to.',
+        json_schema_extra={'command_line': 'postgres_host', 'env': 'OSMO_POSTGRES_HOST'})
     postgres_port: int = pydantic.Field(
-        command_line='postgres_port',
-        env='OSMO_POSTGRES_PORT',
         default=5432,
-        description='The port of the postgres server to connect to.')
+        description='The port of the postgres server to connect to.',
+        json_schema_extra={'command_line': 'postgres_port', 'env': 'OSMO_POSTGRES_PORT'})
     postgres_user: str = pydantic.Field(
-        command_line='postgres_user',
-        env='OSMO_POSTGRES_USER',
         default='postgres',
-        description='The user of the postgres server.')
+        description='The user of the postgres server.',
+        json_schema_extra={'command_line': 'postgres_user', 'env': 'OSMO_POSTGRES_USER'})
     postgres_password: str = pydantic.Field(
-        command_line='postgres_password',
-        env='OSMO_POSTGRES_PASSWORD',
-        description='The password to connect to the postgres server.')
+        description='The password to connect to the postgres server.',
+        json_schema_extra={'command_line': 'postgres_password', 'env': 'OSMO_POSTGRES_PASSWORD'})
     postgres_database_name: str = pydantic.Field(
-        command_line='postgres_database_name',
-        env='OSMO_POSTGRES_DATABASE_NAME',
         default='osmo_db',
-        description='The database name for postgres server.')
+        description='The database name for postgres server.',
+        json_schema_extra={'command_line': 'postgres_database_name', 'env': 'OSMO_POSTGRES_DATABASE_NAME'})
     postgres_reconnect_retry: int = pydantic.Field(
-        command_line='postgres_reconnect_retry',
-        env='OSMO_POSTGRES_RECONNECT_RETRY',
-        type=validation.positive_integer,
         default=5,
-        description='Reconnect try count after connection error')
+        description='Reconnect try count after connection error',
+        json_schema_extra={'command_line': 'postgres_reconnect_retry', 'env': 'OSMO_POSTGRES_RECONNECT_RETRY', 'type': validation.positive_integer})
     mek_file: str = pydantic.Field(
-        command_line='mek_file',
-        env='OSMO_MEK_FILE',
         default='/home/osmo/vault-agent/secrets/vault-secrets.yaml',
-        description='Path to the file that stores master encryption keys'
-    )
+        description='Path to the file that stores master encryption keys',
+        json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
     method: Literal['dev'] | None = pydantic.Field(
-        command_line='method',
         default=None,
         description='If set to "dev", use the default local mek file'
-                    'ingoring `mek_file` field.')
+                    'ingoring `mek_file` field.',
+        json_schema_extra={'command_line': 'method'})
     dev_user: str = pydantic.Field(
-        command_line='dev_user',
         default='testuser',
         description='If method is set to "dev", the browser flow to the service will use this '
-                    'user name.')
+                    'user name.',
+        json_schema_extra={'command_line': 'dev_user'})
     # Deployment configuration fields from Helm values for auto-initialization
     osmo_image_location: str | None = pydantic.Field(
-        command_line='osmo_image_location',
         default=None,
-        description='The image registry location for OSMO images')
+        description='The image registry location for OSMO images',
+        json_schema_extra={'command_line': 'osmo_image_location'})
     osmo_image_tag: str | None = pydantic.Field(
-        command_line='osmo_image_tag',
         default=None,
-        description='The image tag for OSMO images')
+        description='The image tag for OSMO images',
+        json_schema_extra={'command_line': 'osmo_image_tag'})
     service_hostname: str | None = pydantic.Field(
-        command_line='service_hostname',
         default=None,
-        description='The public hostname for the OSMO service (used for URL generation)')
+        description='The public hostname for the OSMO service (used for URL generation)',
+        json_schema_extra={'command_line': 'service_hostname'})
     postgres_pool_minconn: int = pydantic.Field(
-        command_line='postgres_pool_minconn',
-        type=validation.positive_integer,
-        env='OSMO_POSTGRES_POOL_MINCONN',
         default=1,
-        description='Minimum number of connections to keep in the connection pool')
+        description='Minimum number of connections to keep in the connection pool',
+        json_schema_extra={'command_line': 'postgres_pool_minconn', 'type': validation.positive_integer, 'env': 'OSMO_POSTGRES_POOL_MINCONN'})
     postgres_pool_maxconn: int = pydantic.Field(
-        command_line='postgres_pool_maxconn',
-        type=validation.positive_integer,
-        env='OSMO_POSTGRES_POOL_MAXCONN',
         default=10,
-        description='Maximum number of connections allowed in the connection pool')
+        description='Maximum number of connections allowed in the connection pool',
+        json_schema_extra={'command_line': 'postgres_pool_maxconn', 'type': validation.positive_integer, 'env': 'OSMO_POSTGRES_POOL_MAXCONN'})
     schema_version: str = pydantic.Field(
-        command_line='schema_version',
-        env='OSMO_SCHEMA_VERSION',
         default='public',
         description='pgroll schema version to use. '
-                    'Set to "public" to use the default schema without pgroll versioning.')
+                    'Set to "public" to use the default schema without pgroll versioning.',
+        json_schema_extra={'command_line': 'schema_version', 'env': 'OSMO_SCHEMA_VERSION'})
 
 
 def retry(func=None, *, reconnect: bool = True):

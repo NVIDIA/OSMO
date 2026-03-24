@@ -67,7 +67,7 @@ class StaticConfig(pydantic.BaseModel):
             with open(config_file, encoding='utf-8') as file:
                 config.update(yaml.safe_load(file))
             for key in config:
-                if key not in cls.__fields__.keys():
+                if key not in cls.model_fields.keys():
                     raise ValueError(f'Unrecognized key "{key}" in config file {config_file}')
         args_dict = vars(args)
         args_dict.pop('config')
@@ -77,10 +77,11 @@ class StaticConfig(pydantic.BaseModel):
         # 2. Command line argument
         # 3. Config file
         # 4. Default
-        for name, field in cls.__fields__.items():
-            env_name = field.field_info.extra.get('env')
-            arg_name = field.field_info.extra.get('command_line')
-            is_list = typing.get_origin(field.outer_type_) is list
+        for name, field in cls.model_fields.items():
+            extras = field.json_schema_extra or {}
+            env_name = extras.get('env')
+            arg_name = extras.get('command_line')
+            is_list = typing.get_origin(field.annotation) is list
             # Do we have an environment variable? If so, use that
             if env_name is not None and env_name in os.environ:
                 if is_list:
@@ -99,18 +100,21 @@ class StaticConfig(pydantic.BaseModel):
         except pydantic.ValidationError as error:
             # Parse through errors and print them in a more user friendly manner
             for type_error in error.errors():
-                if type_error['type'] not in ('type_error.none.not_allowed', 'value_error.missing'):
+                if type_error['type'] not in ('type_error.none.not_allowed', 'value_error.missing',
+                                                 'missing', 'none_required'):
                     print(type_error)
                 else:
-                    field = cls.__fields__[str(type_error['loc'][0])]  # pylint: disable=E1136
-                    print(f'ERROR: No value provided for config {field.name} ' \
+                    field_name = str(type_error['loc'][0])
+                    field = cls.model_fields[field_name]  # pylint: disable=E1136
+                    extras = field.json_schema_extra or {}
+                    print(f'ERROR: No value provided for config {field_name} ' \
                           'via any of the following methods:')
-                    print(f'- Config file key: {field.name}')
-                    if 'command_line' in field.field_info.extra:
-                        command_line = field.field_info.extra['command_line']
+                    print(f'- Config file key: {field_name}')
+                    if 'command_line' in extras:
+                        command_line = extras['command_line']
                         print(f'- Command line argument: --{command_line}')
-                    if 'env' in field.field_info.extra:
-                        env = field.field_info.extra['env']
+                    if 'env' in extras:
+                        env = extras['env']
                         print(f'- Environment variable: {env}')
             sys.exit(1)
         return cls._instance

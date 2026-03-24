@@ -40,62 +40,58 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                             static_config.StaticConfig, metrics.MetricsCreatorConfig):
     """ Manages configuration specific to the workflow service. """
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the workflow service.')
+        description='The url to bind to when serving the workflow service.',
+        json_schema_extra={'command_line': 'host'})
     device_endpoint: str | None = pydantic.Field(
-        command_line='device_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the device endpoint.')
+        description='The url to bind to when authenticating with the device endpoint.',
+        json_schema_extra={'command_line': 'device_endpoint'})
     device_client_id: str | None = pydantic.Field(
-        command_line='device_client_id',
         default=None,
-        description='The client id to use when authenticating with the device endpoint.')
+        description='The client id to use when authenticating with the device endpoint.',
+        json_schema_extra={'command_line': 'device_client_id'})
     browser_endpoint: str | None = pydantic.Field(
-        command_line='browser_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the browser endpoint.')
+        description='The url to bind to when authenticating with the browser endpoint.',
+        json_schema_extra={'command_line': 'browser_endpoint'})
     browser_client_id: str | None = pydantic.Field(
-        command_line='browser_client_id',
         default=None,
-        description='The client id to use when authenticating with the browser endpoint.')
+        description='The client id to use when authenticating with the browser endpoint.',
+        json_schema_extra={'command_line': 'browser_client_id'})
     token_endpoint: str | None = pydantic.Field(
-        command_line='token_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the token endpoint.')
+        description='The url to bind to when authenticating with the token endpoint.',
+        json_schema_extra={'command_line': 'token_endpoint'})
     logout_endpoint: str | None = pydantic.Field(
-        command_line='logout_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the logout endpoint.')
+        description='The url to bind to when authenticating with the logout endpoint.',
+        json_schema_extra={'command_line': 'logout_endpoint'})
     client_install_url: str | None = pydantic.Field(
-        command_line='client_install_url',
         default=None,
-        description='The URL for the client install script shown in version update messages.')
+        description='The URL for the client install script shown in version update messages.',
+        json_schema_extra={'command_line': 'client_install_url'})
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write progress timestamps to (For liveness/startup probes)')
+        description='The file to write progress timestamps to (For liveness/startup probes)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_iter_frequency: str = pydantic.Field(
-        command_line='progress_iter_frequency',
-        env='OSMO_PROGRESS_ITER_FREQUENCY',
         default='15s',
         description='How often to write to progress file when processing tasks in a loop ('
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
-                    'm (minutes).')
+                    'm (minutes).',
+        json_schema_extra={'command_line': 'progress_iter_frequency', 'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
     default_admin_username: str | None = pydantic.Field(
-        command_line='default_admin_username',
-        env='OSMO_DEFAULT_ADMIN_USERNAME',
         default=None,
         description='The username for the default admin user to create on startup. '
-                    'If set, default_admin_password must also be set.')
+                    'If set, default_admin_password must also be set.',
+        json_schema_extra={'command_line': 'default_admin_username', 'env': 'OSMO_DEFAULT_ADMIN_USERNAME'})
     default_admin_password: str | None = pydantic.Field(
-        command_line='default_admin_password',
-        env='OSMO_DEFAULT_ADMIN_PASSWORD',
         default=None,
         description='The password (access token value) for the default admin user. '
-                    'Must be set if default_admin_username is set.')
+                    'Must be set if default_admin_username is set.',
+        json_schema_extra={'command_line': 'default_admin_password', 'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'})
 
     @pydantic.model_validator(mode='before')
     @classmethod

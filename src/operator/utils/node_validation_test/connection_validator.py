@@ -49,22 +49,21 @@ class ConnectionTestConfig(test_base.NodeTestConfig):
     """Configuration for connection validation tests."""
 
     condition_name: str = pydantic.Field(
-        command_line='condition_name',
         default='ServiceConnectionTestFailure',
-        description='Condition name for service connection failure')
+        description='Condition name for service connection failure',
+        json_schema_extra={'command_line': 'condition_name'})
     test_url: Optional[str] = pydantic.Field(
-        command_line='test_url',
         default=None,
-        description='Single URL to test connection to')
+        description='Single URL to test connection to',
+        json_schema_extra={'command_line': 'test_url'})
     test_timeout: int = pydantic.Field(
-        command_line='test_timeout',
         default=30,
-        description='Default timeout in seconds for connection tests')
+        description='Default timeout in seconds for connection tests',
+        json_schema_extra={'command_line': 'test_timeout'})
     url_configs_filepath: Optional[str] = pydantic.Field(
-        command_line='url_configs_filepath',
         default=os.path.join(os.path.dirname(__file__), 'connection_validator.yaml'),
-        description='Path to a YAML file containing url_configs list'
-    )
+        description='Path to a YAML file containing url_configs list',
+        json_schema_extra={'command_line': 'url_configs_filepath'})
     url_configs: Optional[List[URLTestConfig]] = pydantic.Field(
         default=None,
         description='List of URLTestConfig items loaded from YAML'
