@@ -13,6 +13,10 @@ Read this when resuming from a previous session (`.agent/` directory exists in t
 # What was the task?
 cat .agent/task.json
 
+# What did prior agents learn? (read this FIRST — most valuable context)
+cat .agent/memory/long-term.json 2>/dev/null
+ls .agent/memory/episodes/ 2>/dev/null
+
 # What did discovery find?
 ls .agent/discovered/
 cat .agent/discovered/repo-profile.json
