@@ -50,8 +50,9 @@ class TaskIOMetrics(pydantic.BaseModel, extra="forbid"):
     download_type: DownloadTypeMetrics
 
 
-class TaskIO(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=True):
+class TaskIO(pydantic.BaseModel):
     """ Represents the task object . """
+    model_config = pydantic.ConfigDict(extra="forbid", arbitrary_types_allowed=True)
     workflow_id: task_common.NamePattern
     group_name: task_common.NamePattern
     task_name: task_common.NamePattern

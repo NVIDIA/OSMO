@@ -99,13 +99,15 @@ class StoragePath:
 class StorageBackend(
     abc.ABC,
     pydantic.BaseModel,
-    extra="forbid",
-    arbitrary_types_allowed=True,
-    keep_untouched=(functools.cached_property,),  # Don't serialize cached properties
 ):
     """
     Represents information about a storage backend.
     """
+    model_config = pydantic.ConfigDict(
+        extra="forbid",
+        arbitrary_types_allowed=True,
+        ignored_types=(functools.cached_property,),  # Don't serialize cached properties
+    )
 
     scheme: str
     uri: str
