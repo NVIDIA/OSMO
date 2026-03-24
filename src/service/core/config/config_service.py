@@ -400,7 +400,7 @@ def read_pool(
     """
     postgres = connectors.PostgresConnector.get_instance()
     pool_info = connectors.Pool.fetch_from_db(postgres, name)
-    return pool_info if verbose else connectors.PoolEditable(**pool_info.dict())
+    return pool_info if verbose else connectors.PoolEditable(**pool_info.model_dump())
 
 
 @router.put('/api/configs/pool/{name}')
@@ -462,7 +462,7 @@ def patch_pool(
         raise osmo_errors.OSMOUserError(f'Pool {name} not found') from e
 
     # Apply the strategic merge patch to create the updated pool configuration
-    current_pool_dict = current_pool.dict()
+    current_pool_dict = current_pool.model_dump()
     updated_pool_dict = common.strategic_merge_patch(
         current_pool_dict, request.configs_dict
     )
@@ -1034,7 +1034,7 @@ def patch_backend_test(
         raise osmo_errors.OSMOUserError(f'Backend test {name} not found') from e
 
     # Apply the strategic merge patch
-    current_test_dict = current_test.dict()
+    current_test_dict = current_test.model_dump()
     updated_test_dict = common.strategic_merge_patch(
         current_test_dict, request.configs_dict
     )

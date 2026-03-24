@@ -899,7 +899,7 @@ class UpdateGroup(WorkflowJob):
             if group_obj.status == task.TaskGroupStatus.PROCESSING:
                 delayed_job = copy.deepcopy(self)
                 delayed_job.job_id = \
-                    f'{common.generate_unique_id(5)}-{UpdateGroup._get_job_id(delayed_job.dict())}'
+                    f'{common.generate_unique_id(5)}-{UpdateGroup._get_job_id(delayed_job.model_dump())}'
                 delayed_job.send_delayed_job_to_queue(
                     datetime.timedelta(minutes=1))
 
@@ -1294,7 +1294,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
         return value
 
     def _delay_cleanup_pod(self):
-        cleanup_job = CleanupGroup(**self.cleanup_job.dict())
+        cleanup_job = CleanupGroup(**self.cleanup_job.model_dump())
         # Update retry id label
         if cleanup_job.error_log_spec:
             cleanup_job.error_log_spec.labels['osmo.retry_id'] = str(self.retry_id)

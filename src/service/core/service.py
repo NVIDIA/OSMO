@@ -306,7 +306,7 @@ def set_default_backend_images(postgres: connectors.PostgresConnector):
         config_service.patch_workflow_configs(
             request=config_objects.PatchConfigRequest(
                 configs_dict={
-                    'backend_images': backend_images.dict()
+                    'backend_images': backend_images.model_dump()
                 }
             ),
             username='System',
@@ -344,7 +344,7 @@ def set_client_install_url(postgres: connectors.PostgresConnector,
                            config: objects.WorkflowServiceConfig):
     curr_service_configs = postgres.get_service_configs()
     if curr_service_configs.cli_config.client_install_url != config.client_install_url:
-        updated_cli_config = curr_service_configs.cli_config.dict()
+        updated_cli_config = curr_service_configs.cli_config.model_dump()
         updated_cli_config['client_install_url'] = config.client_install_url
         config_service.patch_service_configs(
             request=config_objects.PatchConfigRequest(
@@ -454,7 +454,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     )
     if login_info != service_configs_dict.service_auth.login_info:
         configs_dict['service_auth'] = {
-            'login_info': login_info.dict()
+            'login_info': login_info.model_dump()
         }
 
     if configs_dict:

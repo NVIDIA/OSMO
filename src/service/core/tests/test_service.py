@@ -90,7 +90,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
             config_objects.PatchConfigRequest(
                 configs_dict=connectors.postgres.ServiceConfig(
                     cli_config=connectors.postgres.CliConfig(latest_version=str(test_version)),
-                ).dict(),
+                ).model_dump(),
             ),
             config_type=connectors.ConfigType.SERVICE,
             username='test@nvidia.com',
@@ -201,7 +201,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         helpers.patch_configs(
             config_objects.PatchConfigRequest(
                 configs_dict=connectors.postgres.WorkflowConfig(
-                    workflow_info=connectors.postgres.WorkflowInfo(tags=tags)).dict(),
+                    workflow_info=connectors.postgres.WorkflowInfo(tags=tags)).model_dump(),
             ),
             config_type=connectors.ConfigType.WORKFLOW,
             username='test@nvidia.com',
@@ -461,7 +461,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                         latest_version=latest_version,
                         min_supported_version=min_supported_version,
                     ),
-                ).dict(),
+                ).model_dump(),
             ),
             config_type=connectors.ConfigType.SERVICE,
             username='test@nvidia.com',

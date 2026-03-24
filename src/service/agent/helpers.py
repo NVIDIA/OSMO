@@ -588,7 +588,7 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                 ack_body = backend_messages.AckBody(uuid=message.uuid)
                 ack_message = backend_messages.MessageBody(
                     type=backend_messages.MessageType.ACK,
-                    body=ack_body.dict()
+                    body=ack_body.model_dump()
                 )
                 message_options = {
                     message.type.value: message.body
@@ -680,7 +680,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
     try:
         # Get backend info from database and send node conditions
         backend_info = connectors.Backend.fetch_from_db(postgres, name)
-        node_conditions = backend_info.node_conditions.dict()
+        node_conditions = backend_info.node_conditions.model_dump()
 
         # Send node conditions to backend listener
         message = backend_messages.MessageBody(

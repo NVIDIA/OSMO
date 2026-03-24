@@ -194,7 +194,7 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                                 time=loaded_json['time'],
                                 text=loaded_json['text'],
                                 io_type=loaded_json['iotype'])
-                            # Use logs.json() instead of logs.dict() to convert enum and datetime to
+                            # Use logs.json() instead of logs.model_dump() to convert enum and datetime to
                             # strings
                             await redis_client.xadd(f'{workflow_obj.workflow_id}-logs',
                                                     json.loads(logs.json()),

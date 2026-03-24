@@ -56,9 +56,9 @@ def backend_action_queue_name(backend_name: str) -> str:
 
 class ExtraType(enum.Enum):
     """ Setting for Pydantic Extra """
-    ALLOW = pydantic.Extra.allow
-    FORBID = pydantic.Extra.forbid
-    IGNORE = pydantic.Extra.ignore
+    ALLOW = "allow"
+    FORBID = "forbid"
+    IGNORE = "ignore"
 
 
 class CredentialType(enum.Enum):
@@ -1765,14 +1765,14 @@ class TopologyRequirementType(str, enum.Enum):
     PREFERRED = 'preferred'
 
 
-class TopologyRequirement(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TopologyRequirement(pydantic.BaseModel, extra="forbid"):
     """Single topology requirement for a resource"""
     key: str  # References pool's topology_keys[].key
     group: str = 'default'  # Logical grouping of tasks
     requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED  # pylint: disable=invalid-name
 
 
-class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ResourceSpec(pydantic.BaseModel, extra="forbid"):
     """ Represents the resource spec in an OSMO2 workflow. """
     cpu: int | None = None
     storage: str | None = None
@@ -3033,7 +3033,7 @@ class ResourceValidation(pydantic.BaseModel):
             '''
         database.execute_commit_command(
             insert_cmd,
-            (name,[json.dumps(validation.dict()) for validation in self.resource_validations]))
+            (name,[json.dumps(validation.model_dump()) for validation in self.resource_validations]))
 
         for pool_info in ResourceValidation.get_pools(database, name):
             Pool.update_resource_validations(database, pool_info['name'])
@@ -3232,7 +3232,7 @@ class PlatformMinimal(PlatformBase):
     default_mounts: List[str] = []
 
 
-class PlatformEditable(PlatformBase, extra=pydantic.Extra.ignore):
+class PlatformEditable(PlatformBase, extra="ignore"):
     """ Single Platform Entry """
 
     default_variables: Dict = {}
@@ -3314,7 +3314,7 @@ class PoolMinimal(PoolBase):
     platforms: Dict[str, PlatformMinimal] = {}
 
 
-class PoolEditable(PoolBase, extra=pydantic.Extra.ignore):
+class PoolEditable(PoolBase, extra="ignore"):
     common_default_variables: Dict = {}
     common_resource_validations: List[str] = []
     common_pod_template: List[str] = []
@@ -3322,7 +3322,7 @@ class PoolEditable(PoolBase, extra=pydantic.Extra.ignore):
     platforms: Dict[str, PlatformEditable] = {}
 
 
-class Pool(PoolBase, extra=pydantic.Extra.ignore):
+class Pool(PoolBase, extra="ignore"):
     """ Single Pool Entry """
     common_default_variables: Dict = {}
     common_resource_validations: List[str] = []
@@ -3768,10 +3768,10 @@ def fetch_platform_config(
     if pool_type == PoolType.VERBOSE:
         return platforms
     elif pool_type == PoolType.EDITABLE:
-        return {platform_name: PlatformEditable(**platform.dict())
+        return {platform_name: PlatformEditable(**platform.model_dump())
                 for platform_name, platform in platforms.items()}
     elif pool_type == PoolType.MINIMAL:
-        return {platform_name: PlatformMinimal(**platform.dict())
+        return {platform_name: PlatformMinimal(**platform.model_dump())
                 for platform_name, platform in platforms.items()}
     else:
         raise osmo_errors.OSMOServerError(f'Unknown pool type: {pool_type.name}')
@@ -3783,7 +3783,7 @@ class ListOrder(enum.Enum):
     DESC = 'DESC'
 
 
-class PostgresUpdateCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PostgresUpdateCommand(pydantic.BaseModel, extra="forbid"):
     """ A class for creating database updating command. """
     table: str
     conditions: List[str] = []
@@ -3839,7 +3839,7 @@ class PostgresUpdateCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return command, tuple(args)
 
 
-class PostgresSelectCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PostgresSelectCommand(pydantic.BaseModel, extra="forbid"):
     """ A class for creating database selecting command. """
     table: str
     conditions: List[str] = []

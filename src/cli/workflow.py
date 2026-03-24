@@ -54,7 +54,7 @@ INTERACTIVE_COMMANDS = ['bash', 'sh', 'zsh', 'fish', 'tcsh', 'csh', 'ksh']
 RESIZE_PREFIX = b'\x00RESIZE:'
 
 
-class TemplateData(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TemplateData(pydantic.BaseModel, extra="forbid"):
     """Pydantic model representing parsed template data from workflow files."""
     file: str
     set_variables: List[str]

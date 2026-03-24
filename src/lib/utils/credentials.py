@@ -29,7 +29,7 @@ get_static_data_credential_from_config = credentials.get_static_data_credential_
 CREDNAMEREGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
 
 
-class RegistryCredential(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class RegistryCredential(pydantic.BaseModel, extra="forbid"):
     """ Authentication information for a Docker registry. """
     registry: str = pydantic.Field('', description='The Docker registry URL')
     username: str = pydantic.Field('', description='The username for the Docker registry')

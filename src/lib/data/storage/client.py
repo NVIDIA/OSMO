@@ -69,7 +69,7 @@ class Client(pydantic.BaseModel):
     """
 
     class Config:
-        extra = pydantic.Extra.forbid
+        extra = "forbid"
         frozen = True
         keep_untouched = (functools.cached_property,)
 
@@ -1196,7 +1196,7 @@ class SingleObjectClient(pydantic.BaseModel):
     """
 
     class Config:
-        extra = pydantic.Extra.forbid
+        extra = "forbid"
         frozen = True
 
     @overload

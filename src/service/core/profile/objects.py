@@ -24,13 +24,13 @@ import pydantic
 from src.utils import connectors
 
 
-class TokenIdentity(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TokenIdentity(pydantic.BaseModel, extra="forbid"):
     """ Identity when the request is authenticated with an access token. """
     name: str
     expires_at: datetime.datetime | None = None  # YYYY-MM-DD when token is found in DB
 
 
-class ProfileResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ProfileResponse(pydantic.BaseModel, extra="forbid"):
     """
     Profile and identity info. When token header is set, roles/pools are the
     token's; otherwise they are the user's. JSON is self-explanatory for CLI.

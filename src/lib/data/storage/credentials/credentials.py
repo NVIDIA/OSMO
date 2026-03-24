@@ -32,7 +32,7 @@ from .. import constants
 from ....utils import client_configs, osmo_errors
 
 
-class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbid):
+class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra="forbid"):
     """
     Base class for data credentials (i.e. credentials with endpoint and region).
     """
@@ -60,7 +60,7 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra=pydantic.Extra.forbi
         return value.rstrip('/')
 
 
-class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.forbid):
+class StaticDataCredential(DataCredentialBase, abc.ABC, extra="forbid"):
     """
     Static data credentials (i.e. credentials with access_key_id and access_key) for a data backend.
     """
@@ -90,7 +90,7 @@ class StaticDataCredential(DataCredentialBase, abc.ABC, extra=pydantic.Extra.for
         return output
 
 
-class DefaultDataCredential(DataCredentialBase, extra=pydantic.Extra.forbid):
+class DefaultDataCredential(DataCredentialBase, extra="forbid"):
     """
     Data credential that delegates resolution to the underlying SDK.
 

@@ -45,7 +45,7 @@ class Manager(pydantic.BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
-        extra = pydantic.Extra.forbid
+        extra = "forbid"
         frozen = True
         keep_untouched = (functools.cached_property,)
 

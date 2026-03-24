@@ -337,7 +337,7 @@ async def webserver_ws_request(ws: fastapi.WebSocket, ctrl_key: str):
                 cookies.append(cookie.strip())
     cookie_str = ', '.join(cookies)
     await ctrl_ws.send_json(
-        ConnectionPayload(key=conn_key, cookie=cookie_str, type='ws', payload=payload).dict())
+        ConnectionPayload(key=conn_key, cookie=cookie_str, type='ws', payload=payload).model_dump())
 
     close = None
     try:

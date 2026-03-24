@@ -56,7 +56,7 @@ class BackendDeleteType(enum.Enum):
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 
 
-class ListBackendsResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListBackendsResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing info for all backends. """
     backends: List[connectors.Backend]
 

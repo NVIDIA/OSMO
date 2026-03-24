@@ -187,7 +187,7 @@ class IOType(enum.Enum):
         return self.name in ('STDOUT', 'STDERR', 'DOWNLOAD', 'UPLOAD')
 
 
-class LogStreamBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class LogStreamBody(pydantic.BaseModel, extra="forbid"):
     """ Represents the log stream body. """
     source: str
     retry_id: int

@@ -127,7 +127,7 @@ DEFAULT_VARIABLES = {
 }
 
 
-class ListBackendsResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListBackendsResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing info for all backends. """
     backends: List[connectors.Backend]
 

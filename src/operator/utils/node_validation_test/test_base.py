@@ -213,7 +213,7 @@ class NodeTestBase:
         if labels is not None:
             patch['metadata'] = {'labels': labels}
         if taints is not None:
-            patch['spec'] = {'taints': [t.dict() for t in taints]}
+            patch['spec'] = {'taints': [t.model_dump() for t in taints]}
 
         # Update metadata and spec if needed
         if patch:

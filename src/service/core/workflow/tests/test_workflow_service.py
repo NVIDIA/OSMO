@@ -113,7 +113,7 @@ class WorkflowServiceTestCase(
                         platforms={
                             platform_name: connectors.Platform(),
                         },
-                    ).dict(),
+                    ).model_dump(),
                 },
             },
         )
@@ -178,7 +178,7 @@ class WorkflowServiceTestCase(
         # Act
         response = self.client.post(
             f'/api/pool/{pool_name}/workflow',
-            json=workflow_template.dict(),
+            json=workflow_template.model_dump(),
         )
 
         # Assert
@@ -243,7 +243,7 @@ class WorkflowServiceTestCase(
 
                 response = self.client.post(
                     f'/api/pool/{pool_name}/workflow',
-                    json=workflow_template.dict(),
+                    json=workflow_template.model_dump(),
                 )
                 return (request_id, response.status_code, response.json())
             except Exception as e: # pylint: disable=broad-exception-caught

@@ -196,7 +196,7 @@ class RemoteToRemoteMapping(NamedTuple):
 
 @pydantic.dataclasses.dataclass(
     config=pydantic.ConfigDict(
-        extra=pydantic.Extra.forbid,
+        extra="forbid",
         frozen=True,
     ),
 )
@@ -211,7 +211,7 @@ class UploadStartResult:
 
 @pydantic.dataclasses.dataclass(
     config=pydantic.ConfigDict(
-        extra=pydantic.Extra.forbid,
+        extra="forbid",
         frozen=True,
     ),
 )
@@ -225,7 +225,7 @@ class UploadResult:
 
 @pydantic.dataclasses.dataclass(
     config=pydantic.ConfigDict(
-        extra=pydantic.Extra.forbid,
+        extra="forbid",
         frozen=True,
     ),
 )
@@ -242,7 +242,7 @@ class UpdateStartResult:
 
 @pydantic.dataclasses.dataclass(
     config=pydantic.ConfigDict(
-        extra=pydantic.Extra.forbid,
+        extra="forbid",
         frozen=True,
     ),
 )

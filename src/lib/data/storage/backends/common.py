@@ -99,7 +99,7 @@ class StoragePath:
 class StorageBackend(
     abc.ABC,
     pydantic.BaseModel,
-    extra=pydantic.Extra.forbid,
+    extra="forbid",
     arbitrary_types_allowed=True,
     keep_untouched=(functools.cached_property,),  # Don't serialize cached properties
 ):

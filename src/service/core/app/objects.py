@@ -24,7 +24,7 @@ import pydantic
 from src.lib.utils import common
 
 
-AppNamePattern = Annotated[str, pydantic.Field(regex=common.APP_NAME_VALIDATION_REGEX)]
+AppNamePattern = Annotated[str, pydantic.Field(pattern=common.APP_NAME_VALIDATION_REGEX)]
 
 
 class ListEntry(pydantic.BaseModel):
@@ -36,7 +36,7 @@ class ListEntry(pydantic.BaseModel):
     latest_version: str
 
 
-class ListResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListResponse(pydantic.BaseModel, extra="forbid"):
     apps: List[ListEntry]
     more_entries: bool
 
@@ -48,7 +48,7 @@ class GetVersionEntry(pydantic.BaseModel):
     status: str
 
 
-class GetAppResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class GetAppResponse(pydantic.BaseModel, extra="forbid"):
     uuid: str
     name: str
     description: str
@@ -57,7 +57,7 @@ class GetAppResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     versions: List[GetVersionEntry]
 
 
-class EditResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class EditResponse(pydantic.BaseModel, extra="forbid"):
     uuid: str
     version: int
     name: str

@@ -69,7 +69,7 @@ def set_notification_settings(
     set_default_backend: bool = False,
     user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
     fields = {}
-    for key, value in preferences.dict().items():
+    for key, value in preferences.model_dump().items():
         if value is not None:
             fields[key] = value
     if set_default_backend:

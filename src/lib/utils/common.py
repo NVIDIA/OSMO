@@ -95,7 +95,7 @@ UUID_REGEX = r'[a-f0-9]{32}'
 GROUP_UUID_REGEX = r'osmo-[a-f0-9]{32}'
 OLD_UUID_REGEX = r'[a-z2-7]{26}'
 UuidPattern = Annotated[str,
-                        pydantic.Field(regex=f'^{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX}$')]
+                        pydantic.Field(pattern=f'^{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX}$')]
 
 WFID_REGEX = r'[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?-\d+$'
 RESOURCE_REGEX = r'(?P<size>(\d+(?:\.\d+)?))(?P<unit>([a-zA-Z]*))'
@@ -167,7 +167,7 @@ TAB = '  '
 def pydantic_encoder(obj):
     ''' Allows pydantic objects to be used for json.dumps '''
     if isinstance(obj, pydantic.BaseModel):
-        return obj.dict()
+        return obj.model_dump()
     elif isinstance(obj, enum.Enum):
         return obj.value
     raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
