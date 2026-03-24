@@ -934,7 +934,7 @@ class TaskGroupSpec(pydantic.BaseModel):
         Raises:
             ValueError: Containers fails validation.
         """
-        group_name = values['name']
+        group_name = info.data['name']
 
         # Need at least one task
         if not value:
