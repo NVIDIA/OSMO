@@ -1867,8 +1867,9 @@ class TaskGroup(pydantic.BaseModel):
         if status.in_queue() or status.canceled():
             group_status = status
         else:
-            tasks = Task.list_by_group_name(self.database, self.workflow_id, self.name)
-            group_status = self._aggregate_status(tasks)
+            status_summary = TaskGroup._fetch_status_summary(
+                self.database, self.workflow_id, self.name)
+            group_status = self._aggregate_status(status_summary)
             if group_status == self.status:
                 return
 
@@ -2005,34 +2006,71 @@ class TaskGroup(pydantic.BaseModel):
             (start_time, end_time, workflow_id, task_name, retry_id)
         )
 
-    def _aggregate_status(self, tasks: List[Task]) -> TaskGroupStatus:
+    @staticmethod
+    def _fetch_status_summary(
+        database: connectors.PostgresConnector,
+        workflow_id: str,
+        group_name: str,
+    ) -> List[Dict]:
+        """Fetch task status and lead flag grouped, for lightweight aggregation.
+
+        Returns rows like: [{'status': 'RUNNING', 'lead': True, 'count': 1}, ...]
         """
-        Gets the group status from task statuses.
+        fetch_cmd = '''
+            SELECT t.status, t.lead, COUNT(*) as count FROM tasks t
+            WHERE t.workflow_id = %s AND t.group_name = %s
+                AND t.retry_id = (
+                    SELECT MAX(retry_id) FROM tasks
+                    WHERE name = t.name AND workflow_id = %s AND group_name = %s
+                )
+            GROUP BY t.status, t.lead;
+        '''
+        return database.execute_fetch_command(
+            fetch_cmd, (workflow_id, group_name, workflow_id, group_name), True)
+
+    def _aggregate_status(self, status_summary: List[Dict]) -> TaskGroupStatus:
+        """Gets the group status from a lightweight status summary.
 
         Args:
-            tasks (List[Task]): Tasks.
+            status_summary: Rows with 'status', 'lead', and 'count' keys,
+                as returned by _fetch_status_summary().
 
         Returns:
             TaskGroupStatus: New group status.
         """
-        def is_considered(task: Task) -> bool:
-            return not self.spec.ignoreNonleadStatus or task.lead
+        ignore_nonlead = self.spec.ignoreNonleadStatus
 
-        if any(not t.status.group_finished() for t in tasks):
-            if any(t.status == TaskGroupStatus.RUNNING for t in tasks):
+        all_statuses: set[TaskGroupStatus] = set()
+        considered_statuses: set[TaskGroupStatus] = set()
+        considered_completed_count = 0
+        considered_total_count = 0
+
+        for row in status_summary:
+            task_status = TaskGroupStatus[row['status']]
+            lead = row['lead']
+            count = row['count']
+            all_statuses.add(task_status)
+            if not ignore_nonlead or lead:
+                considered_statuses.add(task_status)
+                considered_total_count += count
+                if task_status == TaskGroupStatus.COMPLETED:
+                    considered_completed_count += count
+
+        if any(not s.group_finished() for s in all_statuses):
+            if TaskGroupStatus.RUNNING in all_statuses:
                 return TaskGroupStatus.RUNNING
             return TaskGroupStatus.INITIALIZING
-        if any(t.status == TaskGroupStatus.FAILED_UPSTREAM for t in tasks):
+        if TaskGroupStatus.FAILED_UPSTREAM in all_statuses:
             return TaskGroupStatus.FAILED_UPSTREAM
-        if any(t.status == TaskGroupStatus.FAILED_SERVER_ERROR for t in tasks):
+        if TaskGroupStatus.FAILED_SERVER_ERROR in all_statuses:
             return TaskGroupStatus.FAILED_SERVER_ERROR
-        if any(t.status == TaskGroupStatus.FAILED_PREEMPTED for t in tasks):
+        if TaskGroupStatus.FAILED_PREEMPTED in all_statuses:
             return TaskGroupStatus.FAILED_PREEMPTED
-        if any(t.status == TaskGroupStatus.FAILED_EVICTED for t in tasks if is_considered(t)):
+        if TaskGroupStatus.FAILED_EVICTED in considered_statuses:
             return TaskGroupStatus.FAILED_EVICTED
-        if any(t.status.failed() for t in tasks if is_considered(t)):
+        if any(s.failed() for s in considered_statuses):
             return TaskGroupStatus.FAILED
-        if all(t.status == TaskGroupStatus.COMPLETED for t in tasks if is_considered(t)):
+        if considered_total_count > 0 and considered_completed_count == considered_total_count:
             return TaskGroupStatus.COMPLETED
         return TaskGroupStatus.RUNNING
 
