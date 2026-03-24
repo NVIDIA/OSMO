@@ -48,7 +48,8 @@ workflow:
     args: [/tmp/entry.sh]
     exitActions:
       COMPLETE: 0
-      RESCHEDULE: 1-99
+      RESCHEDULE: 1-79
+      FAIL: 80-99
     credentials:
       github-pat: /tmp/github
       anthropic-api-key:
@@ -88,23 +89,85 @@ workflow:
         echo "Branch:   ${BRANCH_NAME}"
         echo "Subtask:  ${SUBTASK_ID:-root}"
 
-        # Setup git auth (ANTHROPIC_API_KEY injected by OSMO credentials)
-        bash /tmp/setup_git.sh
+        # ============================================================
+        # Pre-flight checks — fail fast on unrecoverable issues
+        # Exit 80-99 = FAIL (unretryable, won't reschedule)
+        # ============================================================
 
-        # Clone and checkout branch (single-branch for speed, full history for agents)
+        # Check 1: Required env vars
+        for var in GITHUB_REPO BRANCH_NAME; do
+          if [ -z "${!var:-}" ]; then
+            echo "FATAL: Required env var $var is not set"
+            exit 80
+          fi
+        done
+
+        # Check 2: Anthropic API key
+        if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+          echo "FATAL: ANTHROPIC_API_KEY not set. Check anthropic-api-key credential."
+          exit 80
+        fi
+
+        # Check 3: Git auth
+        bash /tmp/setup_git.sh
+        if ! git ls-remote "${GITHUB_REPO}" HEAD > /dev/null 2>&1; then
+          echo "FATAL: Cannot access ${GITHUB_REPO}. Check github-pat credential."
+          exit 80
+        fi
+
+        # Check 4: Clone repo
         cd /workspace
         if git ls-remote --exit-code --heads "${GITHUB_REPO}" "${BRANCH_NAME}" > /dev/null 2>&1; then
-          # Branch exists — clone just that branch with full history
           git clone --single-branch --branch "${BRANCH_NAME}" "${GITHUB_REPO}" repo
           cd repo
         else
-          # Branch doesn't exist — clone default branch, create work branch
           git clone --single-branch "${GITHUB_REPO}" repo
           cd repo
           git checkout -b "${BRANCH_NAME}"
         fi
 
+        # Check 5: Verify push access
+        if ! git push --dry-run origin "${BRANCH_NAME}" > /dev/null 2>&1; then
+          echo "FATAL: Cannot push to ${BRANCH_NAME}. Check github-pat permissions (needs repo scope)."
+          exit 80
+        fi
+
+        # Check 6: Verify storage access (if STORAGE_URI is set)
+        if [ -n "${STORAGE_URI}" ]; then
+          echo "Checking storage access: ${STORAGE_URI}"
+          if ! osmo data check "${STORAGE_URI}" --access-type WRITE > /dev/null 2>&1; then
+            echo "FATAL: Cannot write to ${STORAGE_URI}. Check storage credentials."
+            exit 80
+          fi
+        fi
+
+        echo "=== All pre-flight checks passed ==="
+
         echo "On branch: $(git branch --show-current)"
+
+        # Write project-level settings to allow all tools (overrides CLAUDE.md)
+        mkdir -p .claude
+        cat > .claude/settings.json << 'CLSETTINGS'
+        {
+          "permissions": {
+            "allow": [
+              "Bash",
+              "Read",
+              "Write",
+              "Edit",
+              "Glob",
+              "Grep",
+              "WebFetch",
+              "Agent",
+              "Task",
+              "TodoWrite",
+              "WebSearch",
+              "NotebookEdit"
+            ],
+            "deny": []
+          }
+        }
+        CLSETTINGS
 
         # Initialize .agent/ if root agent and no task.json exists
         if [ -z "${SUBTASK_ID}" ] && [ ! -f .agent/task.json ]; then
@@ -196,17 +259,55 @@ workflow:
         - Additional context: ${ADDITIONAL_CONTEXT:-none}
         "
 
+        # ============================================================
+        # Pre-flight: verify Claude Code has Bash access
+        # Without Bash, the agent cannot: git commit/push, run tests,
+        # run osmo CLI, or execute any shell command. Fail fast.
+        # ============================================================
+        echo "=== Pre-flight: Bash access check ==="
+
+        # Diagnostic: show what settings are active
+        echo "Managed settings:"
+        cat /etc/claude-code/managed-settings.json 2>/dev/null || echo "  (none)"
+        echo "Remote settings (ask rules block Bash):"
+        cat /home/agent/.claude/remote-settings.json 2>/dev/null | grep -A5 '"ask"' || echo "  (none)"
+        echo "User settings:"
+        cat /home/agent/.claude/settings.json 2>/dev/null | head -15 || echo "  (none)"
+
+        # Actual test: can Claude Code execute a Bash command?
+        PREFLIGHT_RESULT=$(claude --print --dangerously-skip-permissions -p "Run: echo PREFLIGHT_BASH_OK" 2>&1 | tail -20)
+        if echo "$PREFLIGHT_RESULT" | grep -q "PREFLIGHT_BASH_OK"; then
+          echo "Pre-flight PASSED: Bash is available"
+        else
+          echo ""
+          echo "============================================================"
+          echo "FATAL: Claude Code cannot use Bash"
+          echo "============================================================"
+          echo ""
+          echo "Without Bash, the agent cannot:"
+          echo "  - git commit / git push (checkpoint work — changes lost on exit)"
+          echo "  - Run tests or linters (no validation)"
+          echo "  - Run osmo CLI (no child workflows, no storage access)"
+          echo "  - Execute any shell command"
+          echo ""
+          echo "This is likely caused by remote-settings.json from your org"
+          echo "setting 'ask' on Bash, which blocks it in headless mode."
+          echo ""
+          echo "FIX: Add managed-settings.json to the Docker image:"
+          echo "  /etc/claude-code/managed-settings.json"
+          echo '  {"permissions":{"allow":["Bash","Read","Write","Edit"]}}'
+          echo ""
+          echo "Claude Code output was:"
+          echo "$PREFLIGHT_RESULT"
+          echo "============================================================"
+          exit 80  # 80-99 = FAIL (unretryable). Fix the config and resubmit manually.
+        fi
+
         echo "Starting Claude Code (subtask: ${SUBTASK_ID:-root})..."
-        # --dangerously-skip-permissions: no confirmation prompts (headless container)
-        # --print: output to stdout (non-interactive)
-        #
-        # If Claude Code crashes, save whatever state exists in git so the
-        # next session can resume. Don't use exec — we need the trap to fire.
         set +e
         claude --print --verbose --output-format stream-json \
-          --permission-mode bypassPermissions \
+          --model opus \
           --dangerously-skip-permissions \
-          --allowedTools "Bash Read Write Edit Glob Grep WebFetch Agent Task TodoWrite WebSearch NotebookEdit TaskStop TaskOutput ToolSearch" \
           -p "$PROMPT"
         EXIT_CODE=$?
         set -e
@@ -220,8 +321,13 @@ workflow:
           else
             git commit -m "${COMMIT_PREFIX}: auto-save on exit (code $EXIT_CODE)" 2>/dev/null || true
           fi
-          git push origin "${BRANCH_NAME}" 2>/dev/null || true
-          echo "Changes pushed to ${BRANCH_NAME}."
+          echo "Pushing to ${BRANCH_NAME}..."
+          if ! git push origin "${BRANCH_NAME}"; then
+            echo "ERROR: git push failed. Retrying with verbose output..."
+            git push origin "${BRANCH_NAME}" --verbose || echo "FATAL: git push failed twice"
+          else
+            echo "Changes pushed to ${BRANCH_NAME}."
+          fi
         else
           echo "No uncommitted changes."
         fi
