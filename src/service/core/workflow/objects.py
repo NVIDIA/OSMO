@@ -97,7 +97,7 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         description='The password (access token value) for the default admin user. '
                     'Must be set if default_admin_username is set.')
 
-    @pydantic.root_validator()
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_default_admin(cls, values):
         """
@@ -166,7 +166,8 @@ class SubmitResponse(pydantic.BaseModel, extra="forbid"):
     dashboard_url: Optional[str]
 
     @classmethod
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
+    @classmethod
     def logs_or_spec(cls, values):
         if (values['logs'] is not None, values['spec'] is not None).count(True) != 1:
             raise ValueError('Exactly one of "logs" or "spec" must be set')
@@ -728,7 +729,8 @@ class CredentialOptions(pydantic.BaseModel):
     generic_credential: Optional[UserCredential] = pydantic.Field(
         description='Generic authentication information')
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
+    @classmethod
     def validate_credential(cls, values):  # pylint: disable=no-self-argument
         """ A valid credential can only be one of the three types """
         num_fields_set = sum(1 for value in values.values()

@@ -147,7 +147,7 @@ class LoggingConfig(pydantic.BaseModel):
         default=LoggingLevel.WARNING,
         description='The level of k8s logging errors messages to record.')
 
-    @pydantic.validator('log_level', 'k8s_log_level', pre=True)
+    @pydantic.field_validator('log_level', 'k8s_log_level', mode='before')
     @classmethod
     def _parse_logging_levels(cls, v) -> LoggingLevel:
         return LoggingLevel.parse(v)

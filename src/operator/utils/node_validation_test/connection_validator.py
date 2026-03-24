@@ -70,7 +70,7 @@ class ConnectionTestConfig(test_base.NodeTestConfig):
         description='List of URLTestConfig items loaded from YAML'
     )
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
     @classmethod
     def load_url_configs_from_file(cls, values):
         """

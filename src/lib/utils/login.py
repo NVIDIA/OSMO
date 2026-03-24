@@ -138,13 +138,14 @@ class LoginStorage(pydantic.BaseModel):
     url: str
     osmo_token: bool = False
 
-    @pydantic.validator('url')
+    @pydantic.field_validator('url')
     @classmethod
     def replace_url_without_slash(cls, login_url: str):
         return login_url.rstrip('/')
 
     @classmethod
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
+    @classmethod
     def validate_one_login_type(cls, values):
         fields = ('token_login', 'dev_login')
         login_fields = [field for field in fields if values.get(field) is not None]

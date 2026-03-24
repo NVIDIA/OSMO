@@ -232,7 +232,7 @@ class Client(pydantic.BaseModel):
         description='Headers to apply to all requests of this client.',
     )
 
-    @pydantic.root_validator(skip_on_failure=True)
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_data_credential_endpoint(cls, values):
         """

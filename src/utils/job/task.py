@@ -269,7 +269,7 @@ class TaskInputOutput(pydantic.BaseModel, extra="forbid"):
     task: task_common.TaskNamePattern
     regex: str = ''
 
-    @pydantic.validator('regex')
+    @pydantic.field_validator('regex')
     @classmethod
     def validate_regex(cls, regex: str) -> str | None:
         """
@@ -325,7 +325,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
         regex: str = ''
         localpath: str | None = None
 
-        @pydantic.validator('name')
+        @pydantic.field_validator('name')
         @classmethod
         def validate_name(cls, name: str) -> str:
             """
@@ -340,7 +340,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
                 raise ValueError(f'Invalid name: {err}') from err
             return name
 
-        @pydantic.validator('path')
+        @pydantic.field_validator('path')
         @classmethod
         def validate_path(cls, path: str) -> str:
             """
@@ -355,7 +355,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
                 raise ValueError(f'Invalid path: {path}') from err
             return path
 
-        @pydantic.validator('metadata')
+        @pydantic.field_validator('metadata')
         @classmethod
         def validate_metadata(cls, metadata: List[str]) -> List[str]:
             """
@@ -371,7 +371,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
                     raise ValueError(f'Invalid path: {path}') from err
             return metadata
 
-        @pydantic.validator('labels')
+        @pydantic.field_validator('labels')
         @classmethod
         def validate_labels(cls, labels: List[str]) -> List[str]:
             """
@@ -387,7 +387,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
                     raise ValueError(f'Invalid path: {path}') from err
             return labels
 
-        @pydantic.validator('regex')
+        @pydantic.field_validator('regex')
         @classmethod
         def validate_regex(cls, regex: str) -> str | None:
             """
@@ -420,7 +420,7 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra="forbid"):
         metadata: List[str] = []
         labels: List[str] = []
 
-        @pydantic.validator('name')
+        @pydantic.field_validator('name')
         @classmethod
         def validate_name(cls, name: str) -> str:
             """
@@ -435,7 +435,7 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra="forbid"):
                 raise ValueError(f'Invalid name: {err}') from err
             return name
 
-        @pydantic.validator('paths')
+        @pydantic.field_validator('paths')
         @classmethod
         def validate_paths(cls, paths: List[str]) -> List[str]:
             """
@@ -451,7 +451,7 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra="forbid"):
                     raise ValueError(f'Invalid path: {path}') from err
             return paths
 
-        @pydantic.validator('metadata')
+        @pydantic.field_validator('metadata')
         @classmethod
         def validate_metadata(cls, metadata: List[str]) -> List[str]:
             """
@@ -467,7 +467,7 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra="forbid"):
                     raise ValueError(f'Invalid path: {path}') from err
             return metadata
 
-        @pydantic.validator('labels')
+        @pydantic.field_validator('labels')
         @classmethod
         def validate_labels(cls, labels: List[str]) -> List[str]:
             """
@@ -494,7 +494,7 @@ class URLInputOutput(pydantic.BaseModel, extra="forbid"):
     url: str
     regex: str = ''
 
-    @pydantic.validator('regex')
+    @pydantic.field_validator('regex')
     @classmethod
     def validate_regex(cls, regex: str) -> str | None:
         """
@@ -529,7 +529,7 @@ class CheckpointSpec(pydantic.BaseModel, extra="forbid"):
     frequency: datetime.timedelta
     regex: str = ''
 
-    @pydantic.validator('frequency', pre=True)
+    @pydantic.field_validator('frequency', mode='before')
     @classmethod
     def validate_frequency(cls, value) ->datetime.timedelta:
         if isinstance(value, (int, float)):
@@ -538,7 +538,7 @@ class CheckpointSpec(pydantic.BaseModel, extra="forbid"):
             return value
         return common.to_timedelta(value)
 
-    @pydantic.validator('regex')
+    @pydantic.field_validator('regex')
     @classmethod
     def validate_regex(cls, regex: str) -> str | None:
         """
@@ -569,7 +569,7 @@ class File(pydantic.BaseModel, extra="forbid"):
     path: str
     contents: str
 
-    @pydantic.validator('path')
+    @pydantic.field_validator('path')
     @classmethod
     def validate_path(cls, path: str) -> str:
         """
@@ -619,7 +619,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
     # A simplified resource representation in the workflow spec
     resource: str = 'default'
 
-    @pydantic.validator('downloadType', pre=True)
+    @pydantic.field_validator('downloadType', mode='before')
     @classmethod
     def validate_download_type(cls, download_type: Optional[Union[str, connectors.DownloadType]],
         values: Dict) -> Optional[connectors.DownloadType]:
@@ -631,7 +631,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
         """
         if download_type is None:
             return None
-        name = values.get('name', '')
+        name = info.data.get('name', '')
         if isinstance(download_type, connectors.DownloadType):
             return download_type
         if isinstance(download_type, str):
@@ -643,7 +643,7 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
                            f'Valid types are: {valid_types}')
 
 
-    @pydantic.validator('name')
+    @pydantic.field_validator('name')
     @classmethod
     def validate_name(cls, name: task_common.NamePattern) -> task_common.NamePattern:
         """
@@ -657,30 +657,30 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
                              'This is a restricted name.')
         return name
 
-    @pydantic.validator('command')
+    @pydantic.field_validator('command')
     @classmethod
-    def validate_command(cls, command: List[str], values: Dict) -> List[str]:
+    def validate_command(cls, command: List[str], info: pydantic.FieldValidationInfo) -> List[str]:
         """
         Validates command. Returns the value of command if valid.
 
         Raises:
             ValueError: Containers fails validation.
         """
-        name = values.get('name', '')
+        name = info.data.get('name', '')
         if not command:
             raise ValueError(f'Container {name} should have at least one command.')
         return command
 
-    @pydantic.validator('files')
+    @pydantic.field_validator('files')
     @classmethod
-    def validate_files(cls, files: List[File], values: Dict) -> List[File]:
+    def validate_files(cls, files: List[File], info: pydantic.FieldValidationInfo) -> List[File]:
         """
         Validates that all file paths are unique. Returns the list if valid
 
         Raises:
             ValueError: There are duplicate file paths
         """
-        name = values.get('name', '')
+        name = info.data.get('name', '')
         all_paths: Set[str] = set()
         for file in files:
             if file.path in all_paths:
@@ -701,10 +701,10 @@ class TaskSpec(pydantic.BaseModel, extra="forbid"):
                 f'Requesting undefined resource {self.resource}.')
         self.resources = resource_spec
 
-    @pydantic.validator('exitActions')
+    @pydantic.field_validator('exitActions')
     @classmethod
-    def validate_exit_actions(cls, exit_actions: Dict[str, str], values: Dict) -> Dict[str, str]:
-        name = values.get('name', '')
+    def validate_exit_actions(cls, exit_actions: Dict[str, str], info: pydantic.FieldValidationInfo) -> Dict[str, str]:
+        name = info.data.get('name', '')
         regex = re.compile(CODE_REGEX)
         for key, value in exit_actions.items():
             try:
@@ -925,9 +925,9 @@ class TaskGroupSpec(pydantic.BaseModel):
             inputs |= set(task.inputs)
         return list(inputs)
 
-    @pydantic.validator('tasks')
+    @pydantic.field_validator('tasks')
     @classmethod
-    def validate_tasks(cls, value: List[TaskSpec], values: Dict) -> List[TaskSpec]:
+    def validate_tasks(cls, value: List[TaskSpec], info: pydantic.FieldValidationInfo) -> List[TaskSpec]:
         """
         Validates tasks. Returns the value of tasks if valid.
 

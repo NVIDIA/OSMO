@@ -91,7 +91,7 @@ class LFSTestConfig(test_base.NodeTestConfig):
         default=120,
         description='Timeout in seconds for the pod to be succeeded')
 
-    @pydantic.root_validator()
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_mount_configs(cls, values):
         def _check_length(required_fields):

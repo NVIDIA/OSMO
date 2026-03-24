@@ -222,7 +222,7 @@ class UploadParams:
                     'after each file is uploaded.',
     )
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_upload_sources(cls, values):
         """

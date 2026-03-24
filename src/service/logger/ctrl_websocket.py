@@ -40,7 +40,8 @@ class MetricsOptions(pydantic.BaseModel):
     task_io_metrics: Optional[task_io.TaskIOMetrics] = pydantic.Field(
         description='Metrics for task io')
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
+    @classmethod
     def validate(cls, values):  # pylint: disable=no-self-argument
         """ A valid metric can only be one of the two types """
         num_fields_set = sum(1 for value in values.values()

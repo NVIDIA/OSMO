@@ -190,7 +190,7 @@ class TimeoutSpec(pydantic.BaseModel, extra="forbid"):
     exec_timeout: datetime.timedelta | None = None
     queue_timeout: datetime.timedelta | None = None
 
-    @pydantic.validator('exec_timeout', 'queue_timeout', pre=True)
+    @pydantic.field_validator('exec_timeout', 'queue_timeout', mode='before')
     @classmethod
     def validate_timeout(cls, value) -> Optional[datetime.timedelta]:
         if isinstance(value, (int, float)):
@@ -252,7 +252,7 @@ class WorkflowSpec(pydantic.BaseModel, extra="forbid"):
     timeout: TimeoutSpec = TimeoutSpec()
     backend: str = ''
 
-    @pydantic.root_validator()
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_tasks_groups(cls, values):
         """
@@ -757,7 +757,7 @@ class VersionedWorkflowSpec(pydantic.BaseModel, extra="forbid"):
     version: int = 2  # Default to OSMO workflow spec version 2
     workflow: WorkflowSpec
 
-    @pydantic.validator('version', pre=True, always=True)
+    @pydantic.field_validator('version', mode='before')
     @classmethod
     def validate_version(cls, value: int) -> int:
         """ Validates that the version is supported.  """

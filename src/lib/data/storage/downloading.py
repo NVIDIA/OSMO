@@ -140,7 +140,7 @@ class DownloadParams:
         description='Whether to enable the progress tracker. Defaults to False.',
     )
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_download_sources(cls, values):
         """

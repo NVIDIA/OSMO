@@ -77,7 +77,7 @@ class NodeTestConfig(static_config.StaticConfig, logging_utils.LoggingConfig):
         default=10,
         description='Base wait time in seconds between retries')
 
-    @pydantic.validator('node_condition_prefix')
+    @pydantic.field_validator('node_condition_prefix')
     @classmethod
     def validate_node_condition_prefix(cls, v: str) -> str:
         """Validate that node_condition_prefix ends with 'osmo.nvidia.com/'.

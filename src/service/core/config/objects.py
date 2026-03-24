@@ -360,7 +360,7 @@ class ConfigHistoryQueryParams(pydantic.BaseModel):
         default=False, description='Whether to omit data from the response'
     )
 
-    @pydantic.validator('config_types')
+    @pydantic.field_validator('config_types')
     @classmethod
     def validate_config_types(cls, v):
         if v is not None:
@@ -372,7 +372,7 @@ class ConfigHistoryQueryParams(pydantic.BaseModel):
                 )
         return v
 
-    @pydantic.validator('at_timestamp')
+    @pydantic.field_validator('at_timestamp')
     @classmethod
     def validate_at_timestamp(cls, v, values):
         if v is not None:
@@ -421,14 +421,14 @@ class UpdateConfigTagsRequest(pydantic.BaseModel):
         description='Tags to remove from the config'
     )
 
-    @pydantic.validator('set_tags', 'delete_tags')
+    @pydantic.field_validator('set_tags', 'delete_tags')
     @classmethod
     def validate_tags(cls, v):
         if v is not None and not v:
             raise ValueError('Tags list cannot be empty')
         return v
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_at_least_one_tag_operation(cls, values):
         if not values.get('set_tags') and not values.get('delete_tags'):

@@ -49,7 +49,7 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra="forbid"):
         description='HTTP endpoint URL override the storage URI (e.g., http://minio:9000)',
     )
 
-    @pydantic.validator('endpoint')
+    @pydantic.field_validator('endpoint')
     @classmethod
     def validate_endpoint(cls, value: str) -> constants.StorageCredentialPattern:
         """

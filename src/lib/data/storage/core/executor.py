@@ -129,10 +129,7 @@ class ExecutorParameters(pydantic_settings.BaseSettings):
         description='The size of the log queue for the executor. Only used for multi-process jobs.',
     )
 
-    @pydantic.validator(
-        'num_threads_inflight_multiplier',
-        'chunk_queue_size_multiplier',
-    )
+    @pydantic.field_validator('num_threads_inflight_multiplier', 'chunk_queue_size_multiplier')
     @classmethod
     def _validate_multiplier_max(cls, v: int) -> int:
         if v > MAX_MULTIPLIER:

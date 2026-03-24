@@ -87,7 +87,7 @@ class Job(pydantic.BaseModel):
     def _get_allowed_super_type(cls) -> List[str]:
         return ['frontend', 'backend']
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_job_type_and_id(cls, values) -> str:
         """
@@ -110,7 +110,7 @@ class Job(pydantic.BaseModel):
 
         return values
 
-    @pydantic.validator('super_type', always=True)
+    @pydantic.field_validator('super_type')
     @classmethod
     def validate_super_type(cls, value) -> str:
         """
@@ -121,7 +121,7 @@ class Job(pydantic.BaseModel):
                 f'Tried to initialize a {cls.__name__} instance with super_type as {value}')
         return value
 
-    @pydantic.validator('job_uuid', always=True)
+    @pydantic.field_validator('job_uuid')
     @classmethod
     def validate_job_uuid(cls, value: str) -> str:
         """

@@ -236,7 +236,7 @@ class TestRunnerConfig(BackendBaseConfig):
         default='test-runner',
         description='Service account name to use for the daemonset pods')
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_config_source(cls, values):
         read_from_osmo = values.get('read_from_osmo', True)

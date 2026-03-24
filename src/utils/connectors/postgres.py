@@ -1809,12 +1809,12 @@ class ResourceSpec(pydantic.BaseModel, extra="forbid"):
             value = f'{common.convert_resource_value_str(value, target="Ki")}Ki'
         return value
 
-    @pydantic.validator('memory')
+    @pydantic.field_validator('memory')
     @classmethod
     def validate_memory(cls, value: str | None) -> str | None:
         return cls.validate_unit_value(value, 'memory')
 
-    @pydantic.validator('storage')
+    @pydantic.field_validator('storage')
     @classmethod
     def validate_storage(cls, value: str | None) -> str | None:
         return cls.validate_unit_value(value, 'storage')
@@ -3935,7 +3935,7 @@ class BackendTestBase(pydantic.BaseModel):
     test_timeout: str = pydantic.Field(default='300s')
     node_conditions: List[str] = pydantic.Field(min_items=1)
 
-    @pydantic.validator('name')
+    @pydantic.field_validator('name')
     @classmethod
     def validate_name_rfc1123(cls, v: str) -> str:
         """
@@ -3959,7 +3959,7 @@ class BackendTestBase(pydantic.BaseModel):
 
         return v
 
-    @pydantic.validator('cron_schedule')
+    @pydantic.field_validator('cron_schedule')
     @classmethod
     def validate_cron_schedule(cls, v: str) -> str:
         """
@@ -4014,7 +4014,7 @@ class BackendTestBase(pydantic.BaseModel):
 
         return v
 
-    @pydantic.validator('test_timeout')
+    @pydantic.field_validator('test_timeout')
     @classmethod
     def validate_test_timeout(cls, v: str) -> str:
         """
@@ -4049,7 +4049,7 @@ class BackendTestBase(pydantic.BaseModel):
 
         return v
 
-    @pydantic.validator('node_conditions')
+    @pydantic.field_validator('node_conditions')
     @classmethod
     def validate_node_conditions(cls, v: List[str]) -> List[str]:
         """
