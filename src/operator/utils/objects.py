@@ -179,11 +179,9 @@ class BackendWorkerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
 class TestRunnerConfig(BackendBaseConfig):
     """Configuration for resource tests."""
     test_name: str = pydantic.Field(
-        required=True,
         description='Name of the test to run',
         json_schema_extra={'command_line': 'backend_test_name', 'env': 'BACKEND_TEST_NAME'})
     namespace: str = pydantic.Field(
-        required=True,
         description='Kubernetes namespace to run test in',
         json_schema_extra={'command_line': 'namespace', 'env': 'NAMESPACE'})
     node_condition_prefix: str = pydantic.Field(
@@ -192,7 +190,6 @@ class TestRunnerConfig(BackendBaseConfig):
         json_schema_extra={'env': 'NODE_CONDITION_PREFIX', 'command_line': 'node_condition_prefix'})
     prefix: str = pydantic.Field(
         default='osmo',
-        required=True,
         description='Prefix for daemonset names',
         json_schema_extra={'command_line': 'prefix', 'env': 'PREFIX'})
     read_from_osmo: bool = pydantic.Field(

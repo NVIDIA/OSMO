@@ -32,6 +32,8 @@ WARNING_HEADER = 'x-osmo-warning'
 
 class Version(pydantic.BaseModel):
     """ A class to maintain version information. """
+    model_config = pydantic.ConfigDict(coerce_numbers_to_str=True)
+
     major: str
     minor: str = '0'
     revision: str = '0'
