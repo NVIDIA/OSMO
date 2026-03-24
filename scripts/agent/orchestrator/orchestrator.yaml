@@ -126,13 +126,15 @@ workflow:
           echo "Discovered:"
           ls .agent/discovered/ 2>/dev/null || echo "  (none)"
           echo "Subtasks:"
-          for f in .agent/subtasks/st-*.json 2>/dev/null; do
-            jq '{id:.id, phase:.phase, status:.status, scope:.scope}' "$f"
-          done
+          ls .agent/subtasks/st-*.json >/dev/null 2>&1 && \
+            for f in .agent/subtasks/st-*.json; do
+              jq '{id:.id, phase:.phase, status:.status, scope:.scope}' "$f"
+            done || echo "  (none)"
           echo "Decisions:"
-          for f in .agent/decisions/d-*.json 2>/dev/null; do
-            jq '.decision' "$f"
-          done
+          ls .agent/decisions/d-*.json >/dev/null 2>&1 && \
+            for f in .agent/decisions/d-*.json; do
+              jq '.decision' "$f"
+            done || echo "  (none)"
         fi
 
         # Build prompt from image (static) + runtime context (dynamic)
