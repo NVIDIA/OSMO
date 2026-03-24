@@ -2364,7 +2364,7 @@ class BackendResource(pydantic.BaseModel):
                 config_fields = cls._create_config_fields(
                     pool_platform_labels, pool_config) \
                     if pool_config else None
-                all_resources.append(BackendResource.construct(
+                all_resources.append(BackendResource.model_construct(
                     label_fields=label_fields,
                     taint_fields=taints,
                     allocatable_fields=allocatable_fields,

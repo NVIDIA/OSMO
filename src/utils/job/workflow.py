@@ -121,7 +121,7 @@ class ResourcesEntry(pydantic.BaseModel, extra="forbid"):
     @classmethod
     def from_backend_resource(cls, resource: connectors.BackendResource,
                               verbose: bool) -> 'ResourcesEntry':
-        return ResourcesEntry.construct(
+        return ResourcesEntry.model_construct(
             hostname=resource.name,
             backend=resource.backend,
             usage_fields=resource.converted_usage_fields,

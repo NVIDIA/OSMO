@@ -205,7 +205,7 @@ class ListEntry(pydantic.BaseModel, extra="forbid"):
         overview = f'{base_url}/workflows/{row["workflow_id"]}'
         if config.method == 'dev':
             overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
-        return ListEntry.construct(
+        return ListEntry.model_construct(
             user=row['submitted_by'], name=row['workflow_id'],
             workflow_uuid=row['workflow_uuid'],
             submit_time=row['submit_time'],
@@ -237,7 +237,7 @@ class ListResponse(pydantic.BaseModel, extra="forbid"):
     def from_db_rows(cls, rows: Any, base_url: str, more_entries: bool) -> 'ListResponse':
         backend_lookup: Dict = {}
         workflows = [ListEntry.from_db_row(row, base_url, backend_lookup) for row in rows]
-        return ListResponse.construct(workflows=workflows, more_entries=more_entries)
+        return ListResponse.model_construct(workflows=workflows, more_entries=more_entries)
 
 
 class ListTaskSummaryEntry(pydantic.BaseModel, extra="forbid"):
@@ -269,7 +269,7 @@ class ListTaskAggregatedEntry(ListTaskSummaryEntry, extra="forbid"):
 
     @classmethod
     def from_db_row(cls, row: Any) -> 'ListTaskAggregatedEntry':
-        return ListTaskAggregatedEntry.construct(
+        return ListTaskAggregatedEntry.model_construct(
             workflow_id=row['workflow_id'],
             **ListTaskSummaryEntry.from_db_row(row).model_dump()
             )
