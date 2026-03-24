@@ -47,6 +47,7 @@ import type {
   WorkflowMetadata,
 } from "@/components/log-viewer/lib/types";
 import { DISPLAY_PADDING_RATIO, MIN_PADDING_MS } from "@/components/log-viewer/lib/timeline-constants";
+import { toProxiedPath } from "@/lib/config";
 
 // =============================================================================
 // Types
@@ -110,6 +111,12 @@ export interface UseLogPresentationReturn {
 // Hook
 // =============================================================================
 
+/**
+ * Transform raw log stream state into grouped props consumed by `LogViewer`.
+ * Applies filter chips, time-range bounds, and timeline markers derived from
+ * workflow metadata. State management (URL-synced vs local) is injected via
+ * `params.stateApi` so the hook works in both standalone and embedded contexts.
+ */
 export function useLogPresentation(params: UseLogPresentationParams): UseLogPresentationReturn {
   const { rawEntries, phase, error, isStreaming, restart, workflowMetadata, now, scope, logUrl, stateApi } = params;
 
@@ -205,14 +212,7 @@ export function useLogPresentation(params: UseLogPresentationParams): UseLogPres
   // -------------------------------------------------------------------------
   const externalLogUrl = useMemo(() => {
     if (!logUrl) return "";
-
-    // If the logUrl is already absolute, use it directly
-    if (logUrl.startsWith("http://") || logUrl.startsWith("https://")) {
-      return logUrl;
-    }
-
-    const normalizedPath = logUrl.startsWith("/") ? logUrl : `/${logUrl}`;
-    return new URL(normalizedPath, window.location.origin).href;
+    return new URL(toProxiedPath(logUrl), window.location.origin).href;
   }, [logUrl]);
 
   // -------------------------------------------------------------------------

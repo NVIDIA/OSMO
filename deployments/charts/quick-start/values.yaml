@@ -755,7 +755,7 @@ backend-operator:
           set -e
           apk add --no-cache curl jq
           echo "Waiting for backend-operator-token to be created..."
-          until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
+          until curl -s http://quick-start.osmo/api/auth/user/backend-operator/access_token | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
             echo "Token backend-operator-token not found, waiting..."
             sleep 2
           done
@@ -806,7 +806,7 @@ backend-operator:
           set -e
           apk add --no-cache curl jq
           echo "Waiting for backend-operator-token to be created..."
-          until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
+          until curl -s http://quick-start.osmo/api/auth/user/backend-operator/access_token | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
             echo "Token backend-operator-token not found, waiting..."
             sleep 2
           done

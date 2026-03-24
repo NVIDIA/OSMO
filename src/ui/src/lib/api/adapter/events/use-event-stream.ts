@@ -24,6 +24,7 @@ import { parseEventChunk } from "@/lib/api/adapter/events/events-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 import { parseStreamErrorResponse } from "@/lib/api/stream-error";
 import { isTransientError, getRetryDelay, abortableDelay, MAX_AUTO_RETRIES } from "@/lib/api/stream-retry";
+import { toProxiedPath } from "@/lib/config";
 
 // ============================================================================
 // Types
@@ -166,10 +167,10 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
       let retryCount = 0;
 
       // Build absolute URL once — it won't change across retries.
-      const isAbsoluteUrl = url.startsWith("http://") || url.startsWith("https://");
-      const fullUrl = isAbsoluteUrl
-        ? new URL(url)
-        : new URL(url.startsWith("/") ? url : `/${url}`, window.location.origin);
+      // toProxiedPath strips the origin so requests route through the same-origin
+      // Next.js proxy when the UI is served from a different domain than the
+      // backend's service_base_url.
+      const fullUrl = new URL(toProxiedPath(url), window.location.origin);
 
       // ----------------------------------------------------------------
       // Retry loop: reconnects automatically on transient errors

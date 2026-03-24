@@ -193,6 +193,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowExec: {
 		{Path: "/api/workflow/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
+		{Path: "/api/workflow/*/exec/*", Methods: []string{"POST", "WEBSOCKET"}},
 		{Path: "/api/router/exec/*/client/*", Methods: []string{"*"}},
 	},
 	ActionWorkflowPortForward: {
@@ -202,7 +203,10 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/router/webserver/*", Methods: []string{"GET"}},
 	},
 	ActionWorkflowRsync: {
+		// TODO: Refactor the /api/plugins/configs permissions to be more intuitive
+		{Path: "/api/plugins/configs", Methods: []string{"GET"}},
 		{Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
+		{Path: "/api/workflow/*/rsync/*", Methods: []string{"POST"}},
 		{Path: "/api/router/rsync/*/client/*", Methods: []string{"*"}},
 	},
 
@@ -228,6 +232,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== CREDENTIALS ====================
 	ActionCredentialsCreate: {
 		{Path: "/api/credentials", Methods: []string{"POST"}},
+		{Path: "/api/credentials/*", Methods: []string{"POST"}},
 	},
 	ActionCredentialsRead: {
 		{Path: "/api/credentials", Methods: []string{"GET"}},

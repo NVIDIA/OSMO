@@ -24,6 +24,7 @@ import { parseLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
 import { parseStreamErrorResponse } from "@/lib/api/stream-error";
 import { LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter/constants";
+import { toProxiedPath } from "@/lib/config";
 import { isTransientError, getRetryDelay, abortableDelay, MAX_AUTO_RETRIES } from "@/lib/api/stream-retry";
 
 export type StreamPhase =
@@ -172,10 +173,10 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
       let retryCount = 0;
 
       // Build absolute URL once — it won't change across retries.
-      const isAbsoluteUrl = logUrl.startsWith("http://") || logUrl.startsWith("https://");
-      const url = isAbsoluteUrl
-        ? new URL(logUrl)
-        : new URL(logUrl.startsWith("/") ? logUrl : `/${logUrl}`, window.location.origin);
+      // toProxiedPath strips the origin so requests route through the same-origin
+      // Next.js proxy when the UI is served from a different domain than the
+      // backend's service_base_url.
+      const url = new URL(toProxiedPath(logUrl), window.location.origin);
 
       // Strip last_n_lines param - we always fetch ALL logs progressively
       url.searchParams.delete("last_n_lines");
