@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 from typing import List, Literal
 
-import pydantic  # type: ignore
+import pydantic
 
 from src.lib.utils import logging, login
 from src.operator.utils.node_validation_test import test_base

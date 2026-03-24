@@ -36,7 +36,7 @@ from urllib.parse import urlparse
 
 import kubernetes  # type: ignore
 import opentelemetry.metrics as otelmetrics
-import pydantic  # type: ignore
+import pydantic
 import urllib3  # type: ignore
 import websockets
 import websockets.exceptions
