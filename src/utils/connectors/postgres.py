@@ -1740,12 +1740,11 @@ class UserProfile(pydantic.BaseModel):
 
 class ExtraArgBaseModel(pydantic.BaseModel):
     """ BaseModel class which can be used to enable validation """
-    class Config:
-        extra = ExtraType.IGNORE.value
+    model_config = pydantic.ConfigDict(extra='ignore')
 
     @classmethod
     def set_extra(cls, extra_type: ExtraType):
-        cls.__config__.extra = extra_type.value
+        cls.model_config['extra'] = extra_type.value
 
 
 class OsmoImageConfig(ExtraArgBaseModel):
@@ -1966,9 +1965,7 @@ class ResourceAssertion(pydantic.BaseModel):
     right_operand: str
     assert_message: str
 
-    class Config:
-        use_enum_values = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(use_enum_values=True, extra='forbid')
 
     def evaluate(self, tokens: Dict[str, Any],
                  task_name: str):
@@ -2625,8 +2622,7 @@ class BucketConfig(ExtraArgBaseModel):
 class DynamicConfig(ExtraArgBaseModel):
     """ Manages the dynamic configs for the postgres database. """
 
-    class Config:
-        validate_assignment = True
+    model_config = pydantic.ConfigDict(validate_assignment=True)
 
     @classmethod
     def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):

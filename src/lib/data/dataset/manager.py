@@ -43,11 +43,12 @@ class Manager(pydantic.BaseModel):
     Manager for a dataset.
     """
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = "forbid"
-        frozen = True
-        keep_untouched = (functools.cached_property,)
+    model_config = pydantic.ConfigDict(
+        arbitrary_types_allowed=True,
+        extra="forbid",
+        frozen=True,
+        ignored_types=(functools.cached_property,),
+    )
 
     #########################
     #    Required fields    #
