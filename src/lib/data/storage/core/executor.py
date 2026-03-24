@@ -47,6 +47,7 @@ from typing import (
 )
 
 import pydantic
+import pydantic_settings
 
 from . import progress, provider
 from ....utils import common, logging as logging_utils, osmo_errors

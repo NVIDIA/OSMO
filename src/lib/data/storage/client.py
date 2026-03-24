@@ -68,10 +68,11 @@ class Client(pydantic.BaseModel):
     A storage client that can be used to perform data operations against a remote storage.
     """
 
-    class Config:
-        extra = "forbid"
-        frozen = True
-        keep_untouched = (functools.cached_property,)
+    model_config = pydantic.ConfigDict(
+        extra="forbid",
+        frozen=True,
+        ignored_types=(functools.cached_property,),
+    )
 
     #########################
     #    Factory methods    #
@@ -1195,9 +1196,7 @@ class SingleObjectClient(pydantic.BaseModel):
     interacting with a single object.
     """
 
-    class Config:
-        extra = "forbid"
-        frozen = True
+    model_config = pydantic.ConfigDict(extra="forbid", frozen=True)
 
     @overload
     @classmethod
