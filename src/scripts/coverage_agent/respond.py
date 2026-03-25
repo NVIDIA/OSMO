@@ -6,6 +6,9 @@ import argparse
 import dataclasses
 import json
 import logging
+import os
+import shlex
+import tempfile
 from typing import Optional
 
 from coverage_agent.nodes.quality_gate import check_test_quality
@@ -105,11 +108,16 @@ def _update_response_count(pr_number: int, count: int) -> None:
 def _reply_to_comment(pr_number: int, comment_id: int, message: str) -> None:
     """Post a reply to a review comment."""
     repo = _get_repo_nwo()
-    escaped_message = message.replace("\"", "\\\"")
-    run_shell(
-        f"gh api repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies "
-        f"-f body=\"{escaped_message}\""
-    )
+    body_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    try:
+        body_file.write(message)
+        body_file.close()
+        run_shell(
+            f"gh api repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies "
+            f"-F body=@{shlex.quote(body_file.name)}"
+        )
+    finally:
+        os.unlink(body_file.name)
 
 
 def respond_to_comment(
@@ -188,8 +196,15 @@ def respond_to_comment(
         return
 
     # Commit and push
-    run_shell(f"git add {comment.file_path}")
-    run_shell(f"git commit -m \"Address review comment on {comment.file_path}:{comment.line}\"")
+    run_shell(f"git add {shlex.quote(comment.file_path)}")
+    commit_message = f"Address review comment on {comment.file_path}:{comment.line}"
+    msg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    try:
+        msg_file.write(commit_message)
+        msg_file.close()
+        run_shell(f"git commit -F {shlex.quote(msg_file.name)}")
+    finally:
+        os.unlink(msg_file.name)
     run_shell("git push")
 
     # Update response count and reply

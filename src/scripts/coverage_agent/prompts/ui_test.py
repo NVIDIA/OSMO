@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Vitest/TypeScript test generation prompt templates."""
 
+from coverage_agent.prompts import escape_fenced_content
 from coverage_agent.prompts.quality_rules import QUALITY_RULES_PREAMBLE
 
 UI_TEST_SYSTEM_PROMPT = QUALITY_RULES_PREAMBLE + """\
@@ -30,19 +31,19 @@ def build_ui_prompt(
     reference_test_content: str | None = None,
 ) -> str:
     prompt = "Generate Vitest tests for the following TypeScript source file.\n\n"
-    prompt += f"### Source file: `{source_path}`\n```typescript\n{source_content}\n```\n\n"
+    prompt += f"### Source file: `{source_path}`\n```typescript\n{escape_fenced_content(source_content)}\n```\n\n"
     prompt += f"### Uncovered line ranges to target: {uncovered_ranges}\n\n"
 
     if existing_test_content:
         prompt += (
             f"### Existing tests (extend, don't duplicate):\n"
-            f"```typescript\n{existing_test_content}\n```\n\n"
+            f"```typescript\n{escape_fenced_content(existing_test_content)}\n```\n\n"
         )
 
     if reference_test_content:
         prompt += (
             f"### Reference test pattern (follow this style):\n"
-            f"```typescript\n{reference_test_content}\n```\n\n"
+            f"```typescript\n{escape_fenced_content(reference_test_content)}\n```\n\n"
         )
 
     prompt += "Generate tests that cover the uncovered lines listed above."

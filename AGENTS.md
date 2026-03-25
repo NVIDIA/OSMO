@@ -123,6 +123,12 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
 
+### Scripts
+
+| Module | Key Classes | Purpose |
+|--------|-------------|---------|
+| `scripts/coverage_agent/` | `WriterPlugin`, `CoverageState`, `LangGraph` | AI-powered coverage gap analysis, test generation, and PR creation. Plugin architecture for LLM providers (Nemotron/NIM, Claude Code, OpenAI). |
+
 ### CLI (`cli/`)
 
 Entry point: `cli.py` → `main_parser.py` (argparse). Subcommand modules:

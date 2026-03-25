@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Go test generation prompt templates."""
 
+from coverage_agent.prompts import escape_fenced_content
 from coverage_agent.prompts.quality_rules import QUALITY_RULES_PREAMBLE
 
 GO_TEST_SYSTEM_PROMPT = QUALITY_RULES_PREAMBLE + """\
@@ -29,19 +30,19 @@ def build_go_prompt(
     reference_test_content: str | None = None,
 ) -> str:
     prompt = "Generate Go unit tests for the following source file.\n\n"
-    prompt += f"### Source file: `{source_path}`\n```go\n{source_content}\n```\n\n"
+    prompt += f"### Source file: `{source_path}`\n```go\n{escape_fenced_content(source_content)}\n```\n\n"
     prompt += f"### Uncovered line ranges to target: {uncovered_ranges}\n\n"
 
     if existing_test_content:
         prompt += (
             f"### Existing tests (extend, don't duplicate):\n"
-            f"```go\n{existing_test_content}\n```\n\n"
+            f"```go\n{escape_fenced_content(existing_test_content)}\n```\n\n"
         )
 
     if reference_test_content:
         prompt += (
             f"### Reference test pattern (follow this style):\n"
-            f"```go\n{reference_test_content}\n```\n\n"
+            f"```go\n{escape_fenced_content(reference_test_content)}\n```\n\n"
         )
 
     prompt += "Generate tests that cover the uncovered lines listed above."
