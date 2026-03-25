@@ -1,0 +1,35 @@
+{
+  "patterns": [
+    {
+      "id": "pydantic-v2-optional-defaults",
+      "description": "Pydantic v2 requires Optional[X] fields to have explicit = None defaults. v1 auto-defaulted them to None.",
+      "impact": "High — this was the most widespread change needed (61+ fields across 270 models)",
+      "solution": "Automated script to find all Optional/Union[..., None] fields in BaseModel subclasses and add = None"
+    },
+    {
+      "id": "pydantic-v2-validator-values-param",
+      "description": "@field_validator in v2 does not receive 'values' dict parameter. Validators needing cross-field access must use @model_validator(mode='before').",
+      "impact": "Medium — affects validators that check other fields",
+      "solution": "Convert @field_validator to @model_validator(mode='before') and access values dict directly"
+    },
+    {
+      "id": "pydantic-v2-settings-split",
+      "description": "pydantic-settings is a separate package in v2",
+      "impact": "Low — one import change",
+      "solution": "pip install pydantic-settings; change import from pydantic to pydantic_settings"
+    },
+    {
+      "id": "repo-test-infrastructure",
+      "description": "Many tests in this repo require redis-server, Docker, or the Bazel-generated services module path",
+      "impact": "Limits what can be tested outside Bazel environment",
+      "solution": "Focus on tests that can run with just PYTHONPATH=/workspace/repo"
+    },
+    {
+      "id": "pre-existing-broken-tests",
+      "description": "test_workflow.py calls convert_to_workflow_spec() which was never implemented. test_kb_objects.py uses assertEquals() removed in Python 3.12.",
+      "impact": "These failures are NOT related to any migration work",
+      "solution": "Document and skip — out of scope for migration"
+    }
+  ],
+  "last_updated": "2025-01-27"
+}
