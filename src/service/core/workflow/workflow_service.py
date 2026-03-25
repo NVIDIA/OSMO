@@ -885,8 +885,27 @@ def download_workflow_spec(workflow_id: str, use_template: bool = False):
 @router.get('/api/workflow/{name}/spec', response_class=fastapi.responses.PlainTextResponse)
 def get_workflow_spec(name: str, use_template: bool = False) -> Any:
     """ Returns the workflow spec. """
+    context = objects.WorkflowServiceContext.get()
+    rows = context.database.execute_fetch_command('''
+        WITH task_creds AS (
+            SELECT cred.key AS cred_name, cred.value AS cred_map
+            FROM groups,
+                 jsonb_array_elements(spec->'tasks') AS task_spec,
+                 jsonb_each(task_spec->'credentials') AS cred
+            WHERE workflow_id = %s
+        )
+        SELECT DISTINCT item AS name FROM (
+            SELECT cred_name AS item FROM task_creds
+            UNION ALL
+            SELECT kv.value AS item
+            FROM task_creds,
+                 jsonb_each_text(cred_map) AS kv
+            WHERE jsonb_typeof(cred_map) = 'object'
+        ) items;
+    ''', (name,))
+    cred_allowlist = frozenset(row.name for row in rows)
     return fastapi.responses.StreamingResponse(
-        redact_secrets(download_workflow_spec(name, use_template)),
+        redact_secrets(download_workflow_spec(name, use_template), cred_allowlist),
         media_type='application/yaml'
     )
 
