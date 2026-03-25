@@ -21,6 +21,8 @@ IGNORE_PATTERNS = [
     "src/tests/**",
     "src/scripts/**",
     "bzl/**",
+    "run/**",
+    "deployments/**",
 ]
 
 GENERATED_FILE_PATTERNS = [
