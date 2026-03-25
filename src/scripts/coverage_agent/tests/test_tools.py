@@ -3,6 +3,7 @@
 """Tests for shell, file_ops, and tool utilities."""
 
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -32,25 +33,19 @@ class TestWriteFile(unittest.TestCase):
     """Tests for writing files with parent directory creation."""
 
     def test_write_file_creates_file(self):
-        path = os.path.join(tempfile.mkdtemp(), "test_output.py")
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "test_output.py")
             result = write_file(path, "print('hello')\n")  # pylint: disable=inconsistent-quotes
             self.assertIn("Written", result)
             with open(path, encoding="utf-8") as file:
                 self.assertEqual(file.read(), "print('hello')\n")  # pylint: disable=inconsistent-quotes
-        finally:
-            if os.path.exists(path):
-                os.unlink(path)
 
     def test_write_file_creates_parent_dirs(self):
-        path = os.path.join(tempfile.mkdtemp(), "subdir", "test_output.py")
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "subdir", "test_output.py")
             result = write_file(path, "content\n")
             self.assertIn("Written", result)
             self.assertTrue(os.path.exists(path))
-        finally:
-            if os.path.exists(path):
-                os.unlink(path)
 
 
 class TestRunShell(unittest.TestCase):
@@ -81,7 +76,8 @@ class TestRunShell(unittest.TestCase):
         Spawns a process that writes its PID to a file, then verifies
         the process is no longer running after timeout.
         """
-        pid_file = os.path.join(tempfile.mkdtemp(), "pid.txt")
+        tmpdir = tempfile.mkdtemp()  # intentionally not TemporaryDirectory — dir may be deleted before process writes
+        pid_file = os.path.join(tmpdir, "pid.txt")
         # Write shell's PID and sleep; run_shell should kill the process group
         result = run_shell(f"echo $$ > {pid_file} && sleep 60", timeout=2)
         self.assertEqual(result.returncode, -1)
@@ -99,6 +95,8 @@ class TestRunShell(unittest.TestCase):
                 pass  # also acceptable: process exists but we can't signal it
         except (FileNotFoundError, ValueError):
             pass  # pid file may not have been written before timeout
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":
