@@ -235,9 +235,9 @@ class UpdateStartResult:
     """
     upload_response: UploadResponse
     current_manifest_path: str
-    local_update_paths: List[LocalToRemoteMapping] | None
-    backend_update_paths: List[RemoteToRemoteMapping] | None
-    remove_regex: str | None
+    local_update_paths: List[LocalToRemoteMapping] | None = None
+    backend_update_paths: List[RemoteToRemoteMapping] | None = None
+    remove_regex: str | None = None
 
 
 @pydantic.dataclasses.dataclass(
