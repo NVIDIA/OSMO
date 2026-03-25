@@ -37,43 +37,26 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
       github.event.pull_request.user.login == 'coverage-agent[bot]'
     timeout-minutes: 15
-    runs-on: self-hosted
-    environment:
-      name: internal-ci
-    container:
-      # python:3.10.18-bullseye pinned to digest for security (amd64)
-      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
-      env:
-        DOCKER_HOST: "tcp://docker:2375"
-        DOCKER_TLS_CERTDIR: ""
-    services:
-      docker:
-        image: docker:29.2.1-dind@sha256:2658fda9e8779b94ea1581f4d25214dac9ed144b407902842e5328cce8f861f5
-        env:
-          DOCKER_TLS_CERTDIR: ""
-          DOCKER_DRIVER: overlay2
-        options: --privileged --memory=4g --cpus=2
-        ports:
-          - 2375:2375
+    runs-on: ubuntu-latest
     steps:
-      - name: Install Docker CLI and dependencies
-        run: |
-          apt-get update
-          apt-get install -y ca-certificates curl gnupg git-lfs
-
-          install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-          chmod a+r /etc/apt/keyrings/docker.asc
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-          apt-get update
-          apt-get install -y docker-ce-cli
-
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 20
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Install agent dependencies
         run: pip install -r src/agent_requirements.txt
@@ -88,7 +71,7 @@ jobs:
           PYTHONPATH=src/scripts python -m coverage_agent.respond \
             --pr-number ${{ github.event.pull_request.number }} \
             --comment-id ${{ github.event.comment.id }} \
-            --provider ${{ vars.AGENT_LLM_PROVIDER || 'nemotron' }}
+            --provider ${{ vars.AGENT_LLM_PROVIDER || 'claude-code' }}
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

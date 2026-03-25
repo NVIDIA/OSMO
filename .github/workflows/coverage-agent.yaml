@@ -53,92 +53,65 @@ concurrency:
 
 jobs:
   generate-tests:
-    timeout-minutes: 60
-    runs-on: self-hosted
-    environment:
-      name: internal-ci
-    env:
-      COMPOSE_PROJECT_NAME: agent-${{ github.run_id }}
-      DOCKER_BUILDKIT: "1"
-    container:
-      # python:3.10.18-bullseye pinned to digest for security (amd64)
-      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
-      env:
-        DOCKER_HOST: "tcp://docker:2375"
-        DOCKER_TLS_CERTDIR: ""
-      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
-    services:
-      docker:
-        # docker:29.2.1-dind pinned to digest for security
-        image: docker:29.2.1-dind@sha256:2658fda9e8779b94ea1581f4d25214dac9ed144b407902842e5328cce8f861f5
-        env:
-          DOCKER_TLS_CERTDIR: ""
-          DOCKER_DRIVER: overlay2
-        options: --privileged --memory=4g --cpus=2
-        ports:
-          - 2375:2375
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
     steps:
-      - name: Install Docker CLI and dependencies
+      - name: Free disk space
         run: |
-          apt-get update
-          apt-get install -y ca-certificates curl gnupg git-lfs
-
-          install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-          chmod a+r /etc/apt/keyrings/docker.asc
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-          apt-get update
-          apt-get install -y docker-ce-cli
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker image prune --all --force || true
 
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           lfs: true
-          fetch-depth: 0  # Full history for branch creation
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/ui/package.json
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
 
       - name: Setup Bazel
         uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
 
-      - name: Run coverage
-        # Some integration tests may fail (e.g., testcontainers needing DinD).
-        # The agent only needs the LCOV output from tests that passed.
+      - name: Run backend coverage
+        # No DinD on github-hosted runners — testcontainer integration tests will fail.
+        # That's fine: we only need LCOV from unit + Go tests for now.
         continue-on-error: true
         run: |
-          bazel coverage --config=ci \
-            --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
-            --test_env=DOCKER_HOST=tcp://docker:2375 \
-            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
-            --test_output=errors \
-            -- \
-            //...
-
-      - name: Install Node.js and pnpm (for UI coverage + test validation)
-        run: |
-          curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list > /dev/null
-          apt-get update
-          apt-get remove -y nodejs || true
-          apt-get install -y nodejs=20.*
-          npm install -g pnpm @anthropic-ai/claude-code
+          bazel coverage --test_output=errors -- //...
 
       - name: Run UI coverage
         working-directory: src/ui
+        continue-on-error: true
         run: |
           pnpm install --frozen-lockfile
-          # Ensure lcov reporter is included (produces coverage/lcov.info for the agent)
           npx vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text || true
-        continue-on-error: true
 
       - name: Install agent dependencies
         run: pip install -r src/agent_requirements.txt
 
       - name: Configure git
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "coverage-agent[bot]"
           git config user.email "coverage-agent[bot]@users.noreply.github.com"
 
@@ -155,21 +128,3 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Docker cleanup
-        if: always()
-        run: |
-          docker ps -q | xargs -r docker stop --time=5 || true
-          docker ps -aq | xargs -r docker rm -f || true
-          docker volume ls -q | xargs -r docker volume rm -f || true
-          docker network ls --filter type=custom -q | xargs -r docker network rm || true
-
-      - name: Host cleanup
-        if: always()
-        env:
-          DOCKER_HOST: ""
-        run: |
-          docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null | xargs -r docker rm -f || true
-          docker volume prune -f 2>/dev/null || true
-          docker network prune -f 2>/dev/null || true
-          docker image prune -f 2>/dev/null || true
