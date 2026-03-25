@@ -50,7 +50,7 @@ class JobStatus(enum.Enum):
 class JobResult(pydantic.BaseModel):
     """ Describes the result of a job """
     status: JobStatus = JobStatus.SUCCESS
-    message: Optional[str]
+    message: Optional[str] = None
 
     @property
     def retry(self):

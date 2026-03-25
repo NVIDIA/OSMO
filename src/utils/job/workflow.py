@@ -106,15 +106,15 @@ class ResourcesEntry(pydantic.BaseModel, extra='forbid'):
     exposed_fields: Dict
     taints: List[Dict]
     usage_fields: Dict
-    conditions: List[str] | None
+    conditions: List[str] | None = None
     non_workflow_usage_fields: Dict
     allocatable_fields: Dict
-    platform_allocatable_fields: Dict | None
-    platform_available_fields: Dict | None
-    platform_workflow_allocatable_fields: Dict | None
-    config_fields: Dict | None
+    platform_allocatable_fields: Dict | None = None
+    platform_available_fields: Dict | None = None
+    platform_workflow_allocatable_fields: Dict | None = None
+    config_fields: Dict | None = None
     backend: str
-    label_fields: Dict | None
+    label_fields: Dict | None = None
     pool_platform_labels: Dict[str, List[str]]
     resource_type: connectors.BackendResourceType
 
@@ -882,11 +882,11 @@ class Workflow(pydantic.BaseModel):
     status: WorkflowStatus = WorkflowStatus.PENDING
     timeout: TimeoutSpec = TimeoutSpec()
     priority: wf_priority.WorkflowPriority
-    cancelled_by: str | None
+    cancelled_by: str | None = None
     outputs: str = ''
     backend: str
     # TODO make pool not None
-    pool: str | None
+    pool: str | None = None
     version: int | None = 0
     failure_message: str | None = ''
     parent_name: task_common.NamePattern | None = None
