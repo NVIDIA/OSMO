@@ -90,13 +90,17 @@ def redact_pod_spec_env(pod_spec: Dict) -> Dict:
     return pod_spec
 
 
-def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
+def redact_secrets(lines: Iterable[str],
+                   value_allowlist: frozenset | None = None) -> Generator[str, None, None]:
     """
     Yield lines with secrets redacted.
 
     Scans each line for key=value patterns that look like secrets and replaces
     the value with [MASKED]. Also detects base64-encoded fragments, decodes them,
     and replaces the whole fragment with [MASKED] if secrets are found inside.
+
+    Values present in value_allowlist are never masked (e.g. credential field names
+    that are identifiers, not secrets).
     """
     def redact_base64_fragments(line: str) -> str:
         """
@@ -119,7 +123,13 @@ def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
             return '[MASKED]'
         return _BASE64_FRAGMENT_RE.sub(replace_if_secrets, line)
 
+    def redact_line(line: str) -> str:
+        def replace(m: re.Match) -> str:
+            if value_allowlist and m.group(1) in value_allowlist:
+                return m.group(0)
+            return m.group(0).replace(m.group(1), '[MASKED]')
+        return SECRET_REDACTION_RE.sub(replace, line)
+
     for line in lines:
         line = redact_base64_fragments(line)
-        yield SECRET_REDACTION_RE.sub(
-            lambda m: m.group(0).replace(m.group(1), '[MASKED]'), line)
+        yield redact_line(line)
