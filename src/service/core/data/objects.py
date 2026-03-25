@@ -74,7 +74,7 @@ class BucketInfoEntry(pydantic.BaseModel, extra="forbid"):
 
 class BucketInfoResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Upload Response. """
-    default: Optional[str]
+    default: Optional[str] = None
     buckets: Dict[str, BucketInfoEntry]
 
 
@@ -125,7 +125,7 @@ class DataInfoCollectionEntry(pydantic.BaseModel, extra="forbid"):
     version: str
     location: str
     uri: str
-    hash_location: str | None
+    hash_location: str | None = None
     size: int
 
 
@@ -134,10 +134,10 @@ class DataInfoResponse(pydantic.BaseModel, extra="forbid"):
     name: str
     id: str
     bucket: str
-    created_by: str | None
-    created_date: datetime.datetime | None
-    hash_location: str | None
-    hash_location_size: int | None
+    created_by: str | None = None
+    created_date: datetime.datetime | None = None
+    hash_location: str | None = None
+    hash_location_size: int | None = None
     labels: Dict
     type: DatasetType
     versions: List[DataInfoDatasetEntry | DataInfoCollectionEntry]
@@ -155,10 +155,10 @@ class DataListEntry(pydantic.BaseModel, extra="forbid"):
     id: str
     bucket: str
     create_time: datetime.datetime
-    last_created: datetime.datetime | None
-    hash_location: str | None
-    hash_location_size: int | None
-    version_id: str | None
+    last_created: datetime.datetime | None = None
+    hash_location: str | None = None
+    hash_location_size: int | None = None
+    version_id: str | None = None
     type: DatasetType
 
 
@@ -186,9 +186,9 @@ class DataMetadataResponse(pydantic.BaseModel, extra="forbid"):
 
 class DataAttributeResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Tag/Label/Metadata Response. """
-    tag_response: DataTagResponse | None
-    label_response: DataMetadataResponse | None
-    metadata_response: DataMetadataResponse | None
+    tag_response: DataTagResponse | None = None
+    label_response: DataMetadataResponse | None = None
+    metadata_response: DataMetadataResponse | None = None
 
 class DataLocationResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Label/Metadata Response. """

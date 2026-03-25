@@ -392,7 +392,7 @@ class ConfigHistory(pydantic.BaseModel):
     username: str
     created_at: datetime.datetime
     description: str
-    tags: List[str] | None
+    tags: List[str] | None = None
     data: Any
 
 

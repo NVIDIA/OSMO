@@ -2018,7 +2018,7 @@ class BackendResource(pydantic.BaseModel):
     usage_fields: Dict[str, str]
     non_workflow_usage_fields: Dict[str, str]
     taint_fields: List[Dict]
-    config_fields: Dict[str, Dict[str, BackendResourceConfig]] | None
+    config_fields: Dict[str, Dict[str, BackendResourceConfig]] | None = None
     pool_platform_labels: Dict[str, List[str]]
     updated_allocatable_fields: Dict[str, Dict[str, Dict]]
     # Allocatable field accounting for osmo-ctrl usage and non-workflow pod usage
