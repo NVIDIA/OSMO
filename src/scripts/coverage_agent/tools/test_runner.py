@@ -4,8 +4,6 @@
 
 import logging
 import shlex
-from typing import Optional
-
 from coverage_agent.plugins.base import (
     TestType,
     ValidationResult,
@@ -17,7 +15,7 @@ from coverage_agent.tools.shell import run_shell
 logger = logging.getLogger(__name__)
 
 
-def _file_path_to_bazel_target(file_path: str) -> Optional[str]:
+def _file_path_to_bazel_target(file_path: str) -> str:
     """Discover the Bazel test target for a given test file via bazel query."""
     package = file_path_to_bazel_package(file_path)
     basename = file_path.rsplit("/", 1)[-1]
