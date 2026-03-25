@@ -21,6 +21,7 @@ import argparse
 import glob as glob_module
 import json
 import os
+import pty
 import select
 import subprocess
 import sys
@@ -144,6 +145,9 @@ PEEK_INTERVAL = 60  # seconds between LLM progress checks
 def execute_bash(command):
     """Execute a bash command. No artificial time limits.
 
+    Uses a pseudo-TTY so tools like Bazel, npm, cargo etc. produce
+    progress output instead of suppressing it in pipe mode.
+
     The LLM monitors progress every PEEK_INTERVAL seconds and decides
     whether to continue or kill. If the LLM client is not available,
     the command runs until it finishes on its own.
@@ -151,11 +155,17 @@ def execute_bash(command):
     try:
         _progress_history.clear()
 
+        # Use a PTY so commands think they're in a terminal and produce progress output
+        primary_fd, replica_fd = pty.openpty()
         process = subprocess.Popen(
             ["bash", "-c", command],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, cwd=os.getcwd(),
+            stdout=replica_fd, stderr=replica_fd,
+            close_fds=True, cwd=os.getcwd(),
         )
+        os.close(replica_fd)
+
+        # Wrap the PTY fd for reading
+        pty_reader = os.fdopen(primary_fd, "r", errors="replace")
 
         output_lines = []
         start = time.time()
@@ -163,15 +173,22 @@ def execute_bash(command):
         last_peek_time = start
 
         while True:
-            ready = select.select([process.stdout], [], [], 1.0)[0]
+            ready = select.select([pty_reader], [], [], 1.0)[0]
 
             if ready:
-                line = process.stdout.readline()
+                try:
+                    line = pty_reader.readline()
+                except OSError:
+                    # PTY closed — process exited
+                    break
                 if line:
-                    output_lines.append(line.rstrip())
-                    sys.stderr.write(f"  | {line}")
-                    sys.stderr.flush()
-                    last_output_time = time.time()
+                    # Strip terminal control codes for clean output
+                    clean = line.rstrip()
+                    if clean:
+                        output_lines.append(clean)
+                        sys.stderr.write(f"  | {clean}\n")
+                        sys.stderr.flush()
+                        last_output_time = time.time()
                 elif process.poll() is not None:
                     break
             elif process.poll() is not None:
@@ -202,6 +219,9 @@ def execute_bash(command):
                         f"determined command is not making progress)"
                     )
                     break
+
+        pty_reader.close()
+        process.wait()
 
         output = "\n".join(output_lines)
         if process.returncode and process.returncode != 0:
