@@ -116,7 +116,7 @@ class PodErrorInfo(pydantic.BaseModel, extra="forbid"):
 class PodWaitingStatus(pydantic.BaseModel, extra="forbid"):
     """ Lightweight class for storing information about pod status. """
     waiting_on_error: bool
-    waiting_reason: str | None
+    waiting_reason: str | None = None
     error_info: PodErrorInfo = pydantic.Field(default_factory=PodErrorInfo)
 
 
