@@ -622,7 +622,7 @@ class TaskSpec(pydantic.BaseModel, extra='forbid'):
     @pydantic.field_validator('downloadType', mode='before')
     @classmethod
     def validate_download_type(cls, download_type: Optional[Union[str, connectors.DownloadType]],
-        values: Dict) -> Optional[connectors.DownloadType]:
+        info: pydantic.ValidationInfo) -> Optional[connectors.DownloadType]:
         """
         Validates downloadType. Converts string values to DownloadType enum.
 
@@ -1032,8 +1032,8 @@ class Task(pydantic.BaseModel):
     failure_message: str | None = None
     database: connectors.PostgresConnector
     exit_actions: Dict[str, str]
-    node_name: str | None
-    pod_ip: str | None
+    node_name: str | None = None
+    pod_ip: str | None = None
     lead: bool
 
     model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
