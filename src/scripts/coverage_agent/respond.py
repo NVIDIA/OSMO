@@ -108,7 +108,7 @@ def _update_response_count(pr_number: int, count: int) -> None:
 def _reply_to_comment(pr_number: int, comment_id: int, message: str) -> None:
     """Post a reply to a review comment."""
     repo = _get_repo_nwo()
-    body_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    body_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)  # pylint: disable=consider-using-with
     try:
         body_file.write(message)
         body_file.close()
@@ -198,7 +198,7 @@ def respond_to_comment(
     # Commit and push
     run_shell(f"git add {shlex.quote(comment.file_path)}")
     commit_message = f"Address review comment on {comment.file_path}:{comment.line}"
-    msg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    msg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)  # pylint: disable=consider-using-with
     try:
         msg_file.write(commit_message)
         msg_file.close()
