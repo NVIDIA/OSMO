@@ -32,7 +32,10 @@ concurrency:
 
 jobs:
   respond:
-    if: contains(github.event.pull_request.labels.*.name, 'ai-generated')
+    # Only respond on PRs created by the agent bot itself — not human PRs
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
+      github.event.pull_request.user.login == 'coverage-agent[bot]'
     timeout-minutes: 15
     runs-on: self-hosted
     environment:
