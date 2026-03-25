@@ -104,6 +104,9 @@ jobs:
           bazelisk-version: 1.27.0
 
       - name: Run coverage
+        # Some integration tests may fail (e.g., testcontainers needing DinD).
+        # The agent only needs the LCOV output from tests that passed.
+        continue-on-error: true
         run: |
           bazel coverage --config=ci \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
