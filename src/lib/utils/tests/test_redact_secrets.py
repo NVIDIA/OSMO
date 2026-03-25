@@ -74,8 +74,10 @@ _SPEC_WITH_CREDENTIALS = textwrap.dedent(f'''\
 ''')
 
 
-def _redact(spec: str, value_allowlist: frozenset | None = None) -> str:
-    return ''.join(redact_secrets(spec.splitlines(keepends=True), value_allowlist))
+def _redact(spec: str, value_allowlist: frozenset | None = None,
+            entropy_threshold: float | None = None) -> str:
+    return ''.join(redact_secrets(spec.splitlines(keepends=True), value_allowlist,
+                                  entropy_threshold))
 
 
 class TestRedactSecretsPlaintext(unittest.TestCase):
@@ -120,6 +122,24 @@ class TestRedactSecretsAllowlist(unittest.TestCase):
         self.assertIn(_CRED_FIELD_SECRET_KEY, redacted)
         self.assertIn(_CRED_FIELD_DATA, redacted)
         self.assertNotIn('[MASKED]', redacted)
+
+
+class TestRedactSecretsEntropyThreshold(unittest.TestCase):
+    """redact_secrets skips masking when value entropy is at or below the threshold."""
+
+    def test_preserves_low_entropy_credential_field_references(self):
+        # Credential field references have entropy well below 3.8 — not masked.
+        redacted = _redact(_SPEC_WITH_CREDENTIALS, entropy_threshold=3.8)
+        self.assertIn(_CRED_FIELD_ACCESS_KEY, redacted)
+        self.assertIn(_CRED_FIELD_SECRET_KEY, redacted)
+        self.assertIn(_CRED_FIELD_DATA, redacted)
+        self.assertNotIn('[MASKED]', redacted)
+
+    def test_still_masks_high_entropy_secrets(self):
+        # The secret key (entropy ~4.8) is masked; the access key ID (entropy ~3.7)
+        # is structured enough to fall below the threshold — an accepted best-effort trade-off.
+        redacted = _redact(_SPEC_WITH_SECRETS, entropy_threshold=3.8)
+        self.assertNotIn(_AWS_SECRET_KEY, redacted)
 
 
 class TestRedactSecretsBase64(unittest.TestCase):
