@@ -28,7 +28,7 @@ def build_go_prompt(
     existing_test_content: str | None = None,
     reference_test_content: str | None = None,
 ) -> str:
-    prompt = f"Generate Go unit tests for the following source file.\n\n"
+    prompt = "Generate Go unit tests for the following source file.\n\n"
     prompt += f"### Source file: `{source_path}`\n```go\n{source_content}\n```\n\n"
     prompt += f"### Uncovered line ranges to target: {uncovered_ranges}\n\n"
 

@@ -66,7 +66,7 @@ def should_skip_comment(
 def _get_response_count(pr_number: int) -> int:
     """Get the current auto-response count for a PR from labels."""
     result = run_shell(
-        f'gh pr view {pr_number} --json labels --jq \'.labels[].name\''
+        f"gh pr view {pr_number} --json labels --jq \".labels[].name\""
     )
     if result.returncode != 0:
         return 0

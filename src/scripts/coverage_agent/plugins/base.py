@@ -60,6 +60,8 @@ def file_path_to_bazel_package(file_path: str) -> str:
 
 
 class WriterPlugin(ABC):
+    """Abstract interface for test writer plugins."""
+
     @abstractmethod
     def generate_test(
         self,

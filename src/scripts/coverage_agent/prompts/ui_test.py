@@ -29,7 +29,7 @@ def build_ui_prompt(
     existing_test_content: str | None = None,
     reference_test_content: str | None = None,
 ) -> str:
-    prompt = f"Generate Vitest tests for the following TypeScript source file.\n\n"
+    prompt = "Generate Vitest tests for the following TypeScript source file.\n\n"
     prompt += f"### Source file: `{source_path}`\n```typescript\n{source_content}\n```\n\n"
     prompt += f"### Uncovered line ranges to target: {uncovered_ranges}\n\n"
 

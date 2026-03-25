@@ -43,7 +43,7 @@ def build_python_prompt(
     existing_test_content: str | None = None,
     reference_test_content: str | None = None,
 ) -> str:
-    prompt = f"Generate unit tests for the following Python source file.\n\n"
+    prompt = "Generate unit tests for the following Python source file.\n\n"
     prompt += f"### Source file: `{source_path}`\n```python\n{source_content}\n```\n\n"
     prompt += f"### Uncovered line ranges to target: {uncovered_ranges}\n\n"
 

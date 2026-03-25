@@ -148,6 +148,7 @@ class ClaudeCodeWriter(WriterPlugin):
                 capture_output=True,
                 text=True,
                 timeout=self._timeout,
+                check=False,
             )
         except subprocess.TimeoutExpired:
             logger.error("Claude Code timed out after %ds", self._timeout)
@@ -191,7 +192,7 @@ class ClaudeCodeWriter(WriterPlugin):
         uncovered_ranges: list[tuple[int, int]],
         existing_test_path: Optional[str],
         test_type: str,
-        build_package: str,
+        _build_package: str,
         test_file_path: str,
         retry_context: Optional[str],
     ) -> str:
@@ -238,7 +239,7 @@ class ClaudeCodeWriter(WriterPlugin):
         return prompt
 
     def _parse_output(
-        self, data: dict, source_path: str, test_type: str, test_file_path: str,
+        self, data: dict, _source_path: str, _test_type: str, test_file_path: str,
     ) -> GeneratedTest:
         """Parse Claude Code JSON output. Claude writes files directly to disk."""
         # Claude Code writes files directly via its Write/Edit tools.
