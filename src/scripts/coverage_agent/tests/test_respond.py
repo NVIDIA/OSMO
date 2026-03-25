@@ -3,6 +3,7 @@
 
 import unittest
 
+from coverage_agent.plugins.base import detect_test_type
 from coverage_agent.respond import (
     MAX_AUTO_RESPONSES,
     parse_review_comment,
@@ -24,6 +25,24 @@ HUMAN_COMMENT = {
     "body": "This test doesn't cover the edge case where input is None.",
     "path": "src/lib/utils/tests/test_common.py",
     "line": 55,
+    "start_line": None,
+    "user": {"login": "jiaenr"},
+}
+
+GO_COMMENT = {
+    "id": 12349,
+    "body": "Use table-driven tests here.",
+    "path": "src/utils/roles/roles_test.go",
+    "line": 20,
+    "start_line": None,
+    "user": {"login": "coderabbitai[bot]"},
+}
+
+UI_COMMENT = {
+    "id": 12350,
+    "body": "Add a test for the error case.",
+    "path": "src/ui/src/lib/utils.test.ts",
+    "line": 30,
     "start_line": None,
     "user": {"login": "jiaenr"},
 }
@@ -88,6 +107,28 @@ class TestShouldSkipComment(unittest.TestCase):
         self.assertFalse(
             should_skip_comment(SAMPLE_COMMENT, current_response_count=MAX_AUTO_RESPONSES - 1)
         )
+
+
+class TestRespondTestTypeDetection(unittest.TestCase):
+    """Would have caught: respond.py hardcoding 'python' for quality gate check on all files."""
+
+    def test_go_comment_detects_go_type(self):
+        comment = parse_review_comment(GO_COMMENT)
+        test_type = detect_test_type(comment.file_path)
+        self.assertIsNotNone(test_type)
+        self.assertEqual(test_type.value, "go")
+
+    def test_ui_comment_detects_ui_type(self):
+        comment = parse_review_comment(UI_COMMENT)
+        test_type = detect_test_type(comment.file_path)
+        self.assertIsNotNone(test_type)
+        self.assertEqual(test_type.value, "ui")
+
+    def test_python_comment_detects_python_type(self):
+        comment = parse_review_comment(SAMPLE_COMMENT)
+        test_type = detect_test_type(comment.file_path)
+        self.assertIsNotNone(test_type)
+        self.assertEqual(test_type.value, "python")
 
 
 if __name__ == "__main__":

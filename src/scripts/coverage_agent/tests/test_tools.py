@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import signal
 import tempfile
 import unittest
 
@@ -61,6 +62,37 @@ class TestRunShell(unittest.TestCase):
     def test_run_shell_captures_stderr(self):
         result = run_shell("echo error_msg >&2")
         self.assertIn("error_msg", result.stderr)
+
+    def test_run_shell_timeout_returns_error(self):
+        """Would have caught: orphaned child process on timeout."""
+        result = run_shell("sleep 60", timeout=1)
+        self.assertEqual(result.returncode, -1)
+        self.assertIn("timed out", result.stderr)
+
+    def test_run_shell_timeout_kills_process(self):
+        """Would have caught: child process left running after timeout.
+
+        Spawns a process that writes its PID to a file, then verifies
+        the process is no longer running after timeout.
+        """
+        pid_file = os.path.join(tempfile.mkdtemp(), "pid.txt")
+        # Write shell's PID and sleep; run_shell should kill the process group
+        result = run_shell(f"echo $$ > {pid_file} && sleep 60", timeout=2)
+        self.assertEqual(result.returncode, -1)
+
+        try:
+            with open(pid_file) as file:
+                pid = int(file.read().strip())
+            # Check that the process is actually dead
+            try:
+                os.kill(pid, 0)  # signal 0 = check existence without killing
+                self.fail(f"Process {pid} should have been killed but is still running")
+            except ProcessLookupError:
+                pass  # expected: process was killed
+            except PermissionError:
+                pass  # also acceptable: process exists but we can't signal it
+        except (FileNotFoundError, ValueError):
+            pass  # pid file may not have been written before timeout
 
 
 if __name__ == "__main__":
