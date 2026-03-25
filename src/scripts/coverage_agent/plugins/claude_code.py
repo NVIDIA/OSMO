@@ -7,8 +7,10 @@ import os
 import subprocess
 from typing import Optional
 
-from coverage_agent.plugins.base import GeneratedTest, ValidationResult, WriterPlugin
+from coverage_agent.plugins.base import GeneratedTest, TestType, ValidationResult, WriterPlugin, determine_test_path
 from coverage_agent.prompts.quality_rules import QUALITY_RULES_PREAMBLE
+from coverage_agent.tools.file_ops import write_file
+from coverage_agent.tools.test_runner import run_test
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ class ClaudeCodeWriter(WriterPlugin):
         build_package: str = "",
         retry_context: Optional[str] = None,
     ) -> GeneratedTest:
-        test_file_path = self._determine_test_path(source_path, test_type)
+        test_file_path = determine_test_path(source_path, TestType(test_type))
         prompt = self._build_prompt(
             source_path, uncovered_ranges, existing_test_path,
             test_type, build_package, test_file_path, retry_context,
@@ -79,25 +81,15 @@ class ClaudeCodeWriter(WriterPlugin):
         return self._parse_output(result, source_path, test_type, test_file_path)
 
     def validate_test(self, test: GeneratedTest) -> ValidationResult:
-        """Claude Code already validates during generation (self-correction).
-
-        This runs a final confirmation via bazel test to catch any edge cases.
+        """Run a final confirmation via bazel test. Claude Code self-corrects during
+        generation, but we verify once more to be safe.
         """
-        if not os.path.exists(test.test_file_path):
-            return ValidationResult(
-                passed=False,
-                output=f"File not found: {test.test_file_path}",
-                retry_hint="Claude Code did not create the test file",
-            )
-
         if not test.test_content.strip():
             return ValidationResult(
                 passed=False,
                 output="Generated test file is empty",
                 retry_hint="Generate actual test content with assertions",
             )
-
-        from coverage_agent.tools.test_runner import run_test
 
         return run_test(test.test_file_path)
 
@@ -230,36 +222,33 @@ class ClaudeCodeWriter(WriterPlugin):
         self, data: dict, source_path: str, test_type: str, test_file_path: str,
     ) -> GeneratedTest:
         """Parse Claude Code JSON output. Claude writes files directly to disk."""
-        # Claude Code writes files via its Write/Edit tools during execution.
-        # The JSON output's "result" field contains the text response, not the file content.
-        # Check disk for the actual generated file.
-        if os.path.exists(test_file_path):
+        # Claude Code writes files directly via its Write/Edit tools.
+        # Try reading from disk first; fall back to JSON result field.
+        try:
             with open(test_file_path) as file:
                 test_content = file.read()
 
-            # Also check if Claude wrote a BUILD file entry
             build_dir = os.path.dirname(test_file_path)
             build_path = os.path.join(build_dir, "BUILD")
             build_entry = None
-            if os.path.exists(build_path):
+            try:
                 with open(build_path) as file:
                     build_entry = file.read()
+            except FileNotFoundError:
+                pass
 
             return GeneratedTest(
                 test_file_path=test_file_path,
                 test_content=test_content,
                 build_entry=build_entry,
             )
+        except FileNotFoundError:
+            pass
 
-        # Fallback: Claude may have returned the content in the result field
-        # instead of writing to disk (happens when Write tool isn't used)
+        # Fallback: extract from JSON result field and write to disk
         result_text = data.get("result", "")
         if result_text:
-            logger.warning(
-                "Claude Code did not write to %s. Attempting to extract from result.",
-                test_file_path,
-            )
-            from coverage_agent.tools.file_ops import write_file
+            logger.warning("Claude Code did not write to %s, extracting from result field", test_file_path)
             write_file(test_file_path, result_text)
 
         return GeneratedTest(
@@ -267,16 +256,3 @@ class ClaudeCodeWriter(WriterPlugin):
             test_content=result_text,
             build_entry=None,
         )
-
-    def _determine_test_path(self, source_path: str, test_type: str) -> str:
-        """Determine the output path for a generated test file."""
-        directory = os.path.dirname(source_path)
-        basename = os.path.splitext(os.path.basename(source_path))[0]
-
-        if test_type == "python":
-            return os.path.join(directory, "tests", f"test_{basename}.py")
-        if test_type == "go":
-            return os.path.join(directory, f"{basename}_test.go")
-        if test_type == "ui":
-            return os.path.join(directory, f"{basename}.test.ts")
-        return os.path.join(directory, f"test_{basename}")

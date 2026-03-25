@@ -2,8 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import dataclasses
+import enum
+import os
 from abc import ABC, abstractmethod
 from typing import Optional
+
+
+class TestType(str, enum.Enum):
+    PYTHON = "python"
+    GO = "go"
+    UI = "ui"
 
 
 @dataclasses.dataclass
@@ -16,8 +24,38 @@ class GeneratedTest:
 @dataclasses.dataclass
 class ValidationResult:
     passed: bool
-    output: str  # stdout/stderr
-    retry_hint: Optional[str]  # Error context for retry prompt
+    output: str
+    retry_hint: Optional[str]
+
+
+def detect_test_type(file_path: str) -> Optional[TestType]:
+    """Detect the test type based on file extension and path."""
+    if file_path.endswith(".py"):
+        return TestType.PYTHON
+    if file_path.endswith(".go"):
+        return TestType.GO
+    if file_path.startswith("src/ui/") and file_path.endswith((".ts", ".tsx")):
+        return TestType.UI
+    return None
+
+
+def determine_test_path(source_path: str, test_type: TestType) -> str:
+    """Determine the output path for a generated test file."""
+    directory = os.path.dirname(source_path)
+    basename = os.path.splitext(os.path.basename(source_path))[0]
+
+    if test_type == TestType.PYTHON:
+        return os.path.join(directory, "tests", f"test_{basename}.py")
+    if test_type == TestType.GO:
+        return os.path.join(directory, f"{basename}_test.go")
+    if test_type == TestType.UI:
+        return os.path.join(directory, f"{basename}.test.ts")
+    return os.path.join(directory, f"test_{basename}")
+
+
+def file_path_to_bazel_package(file_path: str) -> str:
+    """Convert a file path to a Bazel package (e.g., src/utils/roles → //src/utils/roles)."""
+    return "//" + os.path.dirname(file_path)
 
 
 class WriterPlugin(ABC):
@@ -27,7 +65,7 @@ class WriterPlugin(ABC):
         source_path: str,
         uncovered_ranges: list[tuple[int, int]],
         existing_test_path: Optional[str],
-        test_type: str,
+        test_type: TestType,
         build_package: str,
         retry_context: Optional[str] = None,
     ) -> GeneratedTest:

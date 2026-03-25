@@ -6,26 +6,22 @@ import tempfile
 import unittest
 
 from coverage_agent.lcov_parser import CoverageEntry
-from coverage_agent.nodes.analyze import (
-    detect_test_type,
-    find_existing_test,
-    select_targets,
-    should_skip_file,
-)
+from coverage_agent.nodes.analyze import find_existing_test, select_targets, should_skip_file
+from coverage_agent.plugins.base import TestType, detect_test_type
 
 
 class TestDetectTestType(unittest.TestCase):
     def test_detect_python(self):
-        self.assertEqual(detect_test_type("src/lib/utils/common.py"), "python")
+        self.assertEqual(detect_test_type("src/lib/utils/common.py"), TestType.PYTHON)
 
     def test_detect_go(self):
-        self.assertEqual(detect_test_type("src/utils/roles/roles.go"), "go")
+        self.assertEqual(detect_test_type("src/utils/roles/roles.go"), TestType.GO)
 
     def test_detect_ui_typescript(self):
-        self.assertEqual(detect_test_type("src/ui/src/lib/utils.ts"), "ui")
+        self.assertEqual(detect_test_type("src/ui/src/lib/utils.ts"), TestType.UI)
 
     def test_detect_ui_tsx(self):
-        self.assertEqual(detect_test_type("src/ui/src/components/Button.tsx"), "ui")
+        self.assertEqual(detect_test_type("src/ui/src/components/Button.tsx"), TestType.UI)
 
     def test_unknown_extension(self):
         self.assertIsNone(detect_test_type("src/data/config.yaml"))
@@ -71,15 +67,15 @@ class TestFindExistingTest(unittest.TestCase):
 class TestShouldSkipFile(unittest.TestCase):
     def test_skip_small_file(self):
         entry = CoverageEntry("src/foo.py", total_lines=5, covered_lines=0, coverage_pct=0.0, uncovered_ranges=[(1, 5)])
-        self.assertTrue(should_skip_file(entry, min_lines=10, max_lines=500))
+        self.assertIsNotNone(should_skip_file(entry, min_lines=10, max_lines=500))
 
     def test_skip_large_file(self):
         entry = CoverageEntry("src/foo.py", total_lines=600, covered_lines=0, coverage_pct=0.0, uncovered_ranges=[(1, 600)])
-        self.assertTrue(should_skip_file(entry, min_lines=10, max_lines=500))
+        self.assertIsNotNone(should_skip_file(entry, min_lines=10, max_lines=500))
 
     def test_keep_normal_file(self):
         entry = CoverageEntry("src/foo.py", total_lines=100, covered_lines=50, coverage_pct=50.0, uncovered_ranges=[(51, 100)])
-        self.assertFalse(should_skip_file(entry, min_lines=10, max_lines=500))
+        self.assertIsNone(should_skip_file(entry, min_lines=10, max_lines=500))
 
 
 class TestSelectTargets(unittest.TestCase):

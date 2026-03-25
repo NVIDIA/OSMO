@@ -3,26 +3,34 @@
 
 import logging
 import os
+import re
 from typing import Optional
 
-from coverage_agent.plugins.base import GeneratedTest, ValidationResult, WriterPlugin
+from coverage_agent.plugins.base import (
+    GeneratedTest,
+    TestType,
+    ValidationResult,
+    WriterPlugin,
+    determine_test_path,
+)
 from coverage_agent.prompts.go_test import GO_TEST_SYSTEM_PROMPT, build_go_prompt
 from coverage_agent.prompts.python_test import PYTHON_TEST_SYSTEM_PROMPT, build_python_prompt
 from coverage_agent.prompts.ui_test import UI_TEST_SYSTEM_PROMPT, build_ui_prompt
 from coverage_agent.tools.file_ops import read_file, write_file
+from coverage_agent.tools.test_runner import run_test
 
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPTS = {
-    "python": PYTHON_TEST_SYSTEM_PROMPT,
-    "go": GO_TEST_SYSTEM_PROMPT,
-    "ui": UI_TEST_SYSTEM_PROMPT,
+    TestType.PYTHON: PYTHON_TEST_SYSTEM_PROMPT,
+    TestType.GO: GO_TEST_SYSTEM_PROMPT,
+    TestType.UI: UI_TEST_SYSTEM_PROMPT,
 }
 
 PROMPT_BUILDERS = {
-    "python": build_python_prompt,
-    "go": build_go_prompt,
-    "ui": build_ui_prompt,
+    TestType.PYTHON: build_python_prompt,
+    TestType.GO: build_go_prompt,
+    TestType.UI: build_ui_prompt,
 }
 
 
@@ -56,8 +64,9 @@ class NemotronWriter(WriterPlugin):
         source_content = read_file(source_path)
         existing_test_content = read_file(existing_test_path) if existing_test_path else None
 
-        system_prompt = SYSTEM_PROMPTS[test_type]
-        build_prompt = PROMPT_BUILDERS[test_type]
+        test_type_enum = TestType(test_type)
+        system_prompt = SYSTEM_PROMPTS[test_type_enum]
+        build_prompt = PROMPT_BUILDERS[test_type_enum]
 
         user_prompt = build_prompt(
             source_content=source_content,
@@ -74,16 +83,13 @@ class NemotronWriter(WriterPlugin):
             {"role": "user", "content": user_prompt},
         ]
 
+        logger.info("Calling Nemotron LLM for %s (test_type=%s)", source_path, test_type)
         response = self.llm.invoke(messages)
-        generated_content = response.content
+        logger.info("Nemotron response: %d chars", len(response.content))
 
-        # Parse response to extract test file content and BUILD entry
-        test_content, build_entry = self._parse_response(generated_content, test_type)
+        test_content, build_entry = self._parse_response(response.content, test_type)
+        test_file_path = determine_test_path(source_path, test_type_enum)
 
-        # Determine output path
-        test_file_path = self._determine_test_path(source_path, test_type)
-
-        # Write the test file
         write_file(test_file_path, test_content)
 
         return GeneratedTest(
@@ -93,40 +99,22 @@ class NemotronWriter(WriterPlugin):
         )
 
     def validate_test(self, test: GeneratedTest) -> ValidationResult:
-        from coverage_agent.tools.test_runner import run_test
-
         return run_test(test.test_file_path)
 
     def _parse_response(self, response: str, test_type: str) -> tuple[str, Optional[str]]:
         """Parse LLM response to extract test content and optional BUILD entry."""
-        # Look for code blocks
         test_content = response
         build_entry = None
-
-        # Extract python/go/typescript code block
-        import re
 
         code_blocks = re.findall(r"```(?:python|go|typescript|ts)?\n(.*?)```", response, re.DOTALL)
         if code_blocks:
             test_content = code_blocks[0]
+            logger.debug("Extracted %d code blocks from response", len(code_blocks))
+        else:
+            logger.warning("No code blocks found in LLM response, using raw response as test content")
 
-        # Extract BUILD entry if present
         build_blocks = re.findall(r"```(?:starlark|bzl|bazel)?\n(.*?)```", response, re.DOTALL)
         if build_blocks and test_type == "python":
-            build_entry = build_blocks[-1]  # Last code block is usually the BUILD entry
+            build_entry = build_blocks[-1]
 
         return test_content.strip() + "\n", build_entry
-
-    def _determine_test_path(self, source_path: str, test_type: str) -> str:
-        """Determine the output path for a generated test file."""
-        directory = os.path.dirname(source_path)
-        basename = os.path.splitext(os.path.basename(source_path))[0]
-
-        if test_type == "python":
-            test_dir = os.path.join(directory, "tests")
-            return os.path.join(test_dir, f"test_{basename}.py")
-        elif test_type == "go":
-            return os.path.join(directory, f"{basename}_test.go")
-        elif test_type == "ui":
-            return os.path.join(directory, f"{basename}.test.ts")
-        return os.path.join(directory, f"test_{basename}")

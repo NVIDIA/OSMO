@@ -2,66 +2,51 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import glob
+import logging
 import os
 from typing import Optional
 
 from coverage_agent.lcov_parser import CoverageEntry, parse_lcov
+from coverage_agent.plugins.base import TestType, detect_test_type, file_path_to_bazel_package
 from coverage_agent.state import CoverageState, CoverageTarget
 
-
-def detect_test_type(file_path: str) -> Optional[str]:
-    """Detect the test type based on file extension and path."""
-    if file_path.endswith(".py"):
-        return "python"
-    if file_path.endswith(".go"):
-        return "go"
-    if file_path.startswith("src/ui/") and (file_path.endswith(".ts") or file_path.endswith(".tsx")):
-        return "ui"
-    return None
+logger = logging.getLogger(__name__)
 
 
-def find_existing_test(source_path: str, test_type: str, repo_root: str = ".") -> Optional[str]:
+def find_existing_test(source_path: str, test_type: TestType, repo_root: str = ".") -> Optional[str]:
     """Find an existing test file for a given source file."""
     abs_source = os.path.join(repo_root, source_path) if not os.path.isabs(source_path) else source_path
     source_dir = os.path.dirname(abs_source)
     source_name = os.path.splitext(os.path.basename(abs_source))[0]
 
-    if test_type == "python":
+    if test_type == TestType.PYTHON:
         test_dir = os.path.join(source_dir, "tests")
         pattern = os.path.join(test_dir, f"test_{source_name}.py")
         matches = glob.glob(pattern)
         if matches:
             return matches[0]
 
-    elif test_type == "go":
+    elif test_type == TestType.GO:
         pattern = os.path.join(source_dir, f"{source_name}_test.go")
         if os.path.exists(pattern):
             return pattern
 
-    elif test_type == "ui":
-        pattern = os.path.join(source_dir, f"{source_name}.test.ts")
-        if os.path.exists(pattern):
-            return pattern
-        pattern_tsx = os.path.join(source_dir, f"{source_name}.test.tsx")
-        if os.path.exists(pattern_tsx):
-            return pattern_tsx
+    elif test_type == TestType.UI:
+        for ext in (".test.ts", ".test.tsx"):
+            pattern = os.path.join(source_dir, f"{source_name}{ext}")
+            if os.path.exists(pattern):
+                return pattern
 
     return None
 
 
-def should_skip_file(entry: CoverageEntry, min_lines: int = 10, max_lines: int = 500) -> bool:
-    """Check if a file should be skipped based on size heuristics."""
+def should_skip_file(entry: CoverageEntry, min_lines: int = 10, max_lines: int = 500) -> Optional[str]:
+    """Check if a file should be skipped. Returns skip reason or None."""
     if entry.total_lines < min_lines:
-        return True
+        return f"too small ({entry.total_lines} lines < {min_lines})"
     if entry.total_lines > max_lines:
-        return True
-    return False
-
-
-def _compute_build_package(file_path: str) -> str:
-    """Compute the Bazel package path from a file path."""
-    directory = os.path.dirname(file_path)
-    return f"//{directory}"
+        return f"too large ({entry.total_lines} lines > {max_lines})"
+    return None
 
 
 def select_targets(
@@ -75,15 +60,18 @@ def select_targets(
     targets = []
 
     for entry in entries:
-        if should_skip_file(entry, min_lines=min_lines, max_lines=max_lines):
+        skip_reason = should_skip_file(entry, min_lines=min_lines, max_lines=max_lines)
+        if skip_reason:
+            logger.debug("Skipping %s: %s", entry.file_path, skip_reason)
             continue
 
         test_type = detect_test_type(entry.file_path)
         if test_type is None:
+            logger.debug("Skipping %s: unsupported file type", entry.file_path)
             continue
 
         existing_test = find_existing_test(entry.file_path, test_type, repo_root=repo_root)
-        build_package = _compute_build_package(entry.file_path)
+        build_package = file_path_to_bazel_package(entry.file_path)
 
         targets.append(
             CoverageTarget(
@@ -91,7 +79,7 @@ def select_targets(
                 uncovered_ranges=entry.uncovered_ranges,
                 coverage_pct=entry.coverage_pct,
                 existing_test_path=existing_test,
-                test_type=test_type,
+                test_type=test_type.value,
                 build_package=build_package,
             )
         )
@@ -99,12 +87,18 @@ def select_targets(
         if len(targets) >= max_targets:
             break
 
+    logger.info("Selected %d targets from %d coverage entries", len(targets), len(entries))
+    for target in targets:
+        logger.info("  %.1f%% %s (existing_test=%s)", target.coverage_pct, target.file_path, target.existing_test_path)
+
     return targets
 
 
 def analyze_coverage(state: CoverageState) -> CoverageState:
     """LangGraph node: parse LCOV and populate targets."""
     lcov_path = state.get("lcov_path", "bazel-out/_coverage/_coverage_report.dat")
+    logger.info("Parsing LCOV from %s", lcov_path)
     entries = parse_lcov(lcov_path)
+    logger.info("Parsed %d coverage entries", len(entries))
     targets = select_targets(entries, max_targets=state["max_targets"])
     return {**state, "targets": targets}

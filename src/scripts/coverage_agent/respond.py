@@ -9,7 +9,8 @@ from typing import Optional
 
 from coverage_agent.nodes.quality_gate import check_test_quality
 from coverage_agent.plugins import get_writer
-from coverage_agent.tools.file_ops import read_file, write_file
+from coverage_agent.plugins.base import detect_test_type
+from coverage_agent.tools.file_ops import read_file
 from coverage_agent.tools.shell import run_shell
 
 logger = logging.getLogger(__name__)
@@ -139,17 +140,18 @@ def respond_to_comment(
         f"Apply the suggested fix to the file. Only modify what's needed to address the comment."
     )
 
-    # Use the writer to generate a fix
+    test_type = detect_test_type(comment.file_path)
+    test_type_str = test_type.value if test_type else "python"
+
     generated = writer.generate_test(
         source_path=comment.file_path,
         uncovered_ranges=[(comment.start_line or comment.line, comment.line)],
         existing_test_path=comment.file_path,
-        test_type="python" if comment.file_path.endswith(".py") else "go" if comment.file_path.endswith(".go") else "ui",
+        test_type=test_type_str,
         build_package="",
         retry_context=fix_prompt,
     )
 
-    # Validate the fix
     validation = writer.validate_test(generated)
 
     if not validation.passed:
@@ -159,8 +161,7 @@ def respond_to_comment(
         )
         return
 
-    # Run quality gate on the fixed file
-    quality = check_test_quality(generated.test_content, "python")
+    quality = check_test_quality(generated.test_content, test_type_str)
     if not quality.passed:
         _reply_to_comment(
             pr_number, comment_id,
