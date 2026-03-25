@@ -92,13 +92,28 @@ jobs:
           bazelisk-version: 1.27.0
           disk-cache: ${{ github.workflow }}
           repository-cache: true
+          external-cache: |
+            manifest:
+              # Python dependencies
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+
+              # Go dependencies
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
 
       - name: Run backend coverage
         # No DinD on github-hosted runners — testcontainer integration tests will fail.
         # That's fine: we only need LCOV from unit + Go tests for now.
         continue-on-error: true
         run: |
-          bazel coverage --test_output=errors -- //...
+          bazel coverage \
+            ${{ secrets.BAZEL_REMOTE_CACHE_URL && format('--remote_cache={0}', secrets.BAZEL_REMOTE_CACHE_URL) || '' }} \
+            --test_output=errors \
+            -- \
+            //...
 
       - name: Run UI coverage
         working-directory: src/ui
