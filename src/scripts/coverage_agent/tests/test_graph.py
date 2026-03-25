@@ -35,6 +35,8 @@ def _make_state(**overrides) -> CoverageState:
 
 
 class TestRouteValidation(unittest.TestCase):
+    """Tests for the validation routing logic (retry, skip, next, done)."""
+
     def test_retry_on_failure_with_retries_left(self):
         state = _make_state(validation_passed=False, retry_count=1, max_retries=3)
         self.assertEqual(route_validation(state), "retry")
@@ -61,6 +63,8 @@ class TestRouteValidation(unittest.TestCase):
 
 
 class TestRouteQuality(unittest.TestCase):
+    """Tests for the quality-gate routing logic (create_pr vs abort)."""
+
     def test_create_pr_when_files_exist(self):
         state = _make_state(generated_files=["src/tests/test_a.py"])
         self.assertEqual(route_quality(state), "create_pr")

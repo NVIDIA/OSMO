@@ -3,8 +3,6 @@
 """Tests for the plugin base types and registry."""
 
 import unittest
-from typing import Optional
-
 from coverage_agent.plugins import _instances, get_writer, register_plugin
 from coverage_agent.plugins.base import (
     GeneratedTest,
@@ -17,17 +15,21 @@ from coverage_agent.plugins.base import (
 
 
 class TestWriterPluginABC(unittest.TestCase):
+    """Tests that WriterPlugin enforces its abstract interface contract."""
+
     def test_writer_plugin_is_abstract(self):
         with self.assertRaises(TypeError):
-            WriterPlugin()
+            WriterPlugin()  # pylint: disable=abstract-class-instantiated
 
 
 class TestGeneratedTest(unittest.TestCase):
+    """Tests for the GeneratedTest data class fields."""
+
     def test_generated_test_fields(self):
         test = GeneratedTest(
             test_file_path="src/lib/utils/tests/test_common.py",
             test_content="import unittest\n\nclass TestCommon(unittest.TestCase):\n    pass\n",
-            build_entry='osmo_py_test(name = "test_common", srcs = ["test_common.py"])',
+            build_entry="osmo_py_test(name = \"test_common\", srcs = [\"test_common.py\"])",
         )
         self.assertEqual(test.test_file_path, "src/lib/utils/tests/test_common.py")
         self.assertIn("unittest", test.test_content)
@@ -43,6 +45,8 @@ class TestGeneratedTest(unittest.TestCase):
 
 
 class TestValidationResult(unittest.TestCase):
+    """Tests for the ValidationResult data class fields."""
+
     def test_validation_result_passed(self):
         result = ValidationResult(passed=True, output="PASSED", retry_hint=None)
         self.assertTrue(result.passed)
@@ -51,8 +55,8 @@ class TestValidationResult(unittest.TestCase):
     def test_validation_result_failed(self):
         result = ValidationResult(
             passed=False,
-            output="ImportError: No module named 'foo'",
-            retry_hint="Fix import: 'foo' does not exist",
+            output="ImportError: No module named 'foo'",  # pylint: disable=inconsistent-quotes
+            retry_hint="Fix import: 'foo' does not exist",  # pylint: disable=inconsistent-quotes
         )
         self.assertFalse(result.passed)
         self.assertIn("ImportError", result.output)

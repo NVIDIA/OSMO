@@ -3,7 +3,6 @@
 """Tests for shell, file_ops, and tool utilities."""
 
 import os
-import signal
 import tempfile
 import unittest
 
@@ -12,6 +11,8 @@ from coverage_agent.tools.shell import run_shell
 
 
 class TestReadFile(unittest.TestCase):
+    """Tests for reading files with error handling."""
+
     def test_read_file_existing(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as file:
             file.write("hello world\n")
@@ -28,13 +29,15 @@ class TestReadFile(unittest.TestCase):
 
 
 class TestWriteFile(unittest.TestCase):
+    """Tests for writing files with parent directory creation."""
+
     def test_write_file_creates_file(self):
         path = os.path.join(tempfile.mkdtemp(), "test_output.py")
         try:
-            result = write_file(path, "print('hello')\n")
+            result = write_file(path, "print('hello')\n")  # pylint: disable=inconsistent-quotes
             self.assertIn("Written", result)
             with open(path, encoding="utf-8") as file:
-                self.assertEqual(file.read(), "print('hello')\n")
+                self.assertEqual(file.read(), "print('hello')\n")  # pylint: disable=inconsistent-quotes
         finally:
             if os.path.exists(path):
                 os.unlink(path)
@@ -51,6 +54,8 @@ class TestWriteFile(unittest.TestCase):
 
 
 class TestRunShell(unittest.TestCase):
+    """Tests for shell command execution with timeout and cleanup."""
+
     def test_run_shell_success(self):
         result = run_shell("echo hello")
         self.assertIn("hello", result.stdout)

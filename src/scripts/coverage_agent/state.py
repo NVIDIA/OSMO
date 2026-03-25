@@ -10,6 +10,8 @@ from coverage_agent.plugins.base import GeneratedTest
 
 @dataclasses.dataclass
 class CoverageTarget:
+    """A single file targeted for test generation by the coverage agent."""
+
     file_path: str
     uncovered_ranges: list[tuple[int, int]]
     coverage_pct: float
@@ -19,7 +21,10 @@ class CoverageTarget:
 
 
 class CoverageState(TypedDict):
+    """Typed dictionary representing the full pipeline state."""
+
     provider: str
+    lcov_path: str
     targets: list[CoverageTarget]
     current_index: int
     generated_files: list[str]
@@ -29,7 +34,7 @@ class CoverageState(TypedDict):
     retry_count: int
     max_retries: int
     max_targets: int
-    min_coverage_delta: float
+    min_coverage_delta: float  # TODO: implement coverage delta check in quality_gate
     pr_url: Optional[str]
     branch_name: str
     dry_run: bool

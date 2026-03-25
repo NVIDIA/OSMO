@@ -121,13 +121,14 @@ end_of_record
 
 
 def _write_lcov(content: str) -> str:
-    file = tempfile.NamedTemporaryFile(mode="w", suffix=".dat", delete=False)
-    file.write(content)
-    file.close()
-    return file.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".dat", delete=False) as file:
+        file.write(content)
+        return file.name
 
 
 class TestLcovParser(unittest.TestCase):
+    """Tests for LCOV file parsing, filtering, and range computation."""
+
     def test_parse_basic_lcov(self):
         path = _write_lcov(BASIC_LCOV)
         try:

@@ -20,8 +20,18 @@ MAX_AUTO_RESPONSES = 5
 BOT_LOGIN = "coverage-agent[bot]"
 
 
+def _get_repo_nwo() -> str:
+    """Get the owner/repo (e.g., 'NVIDIA/OSMO') from gh CLI."""
+    result = run_shell("gh repo view --json nameWithOwner --jq .nameWithOwner")
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    return "NVIDIA/OSMO"  # fallback
+
+
 @dataclasses.dataclass
 class ReviewComment:
+    """A parsed GitHub PR review comment."""
+
     file_path: str
     line: int
     start_line: Optional[int]
@@ -86,18 +96,19 @@ def _update_response_count(pr_number: int, count: int) -> None:
     new_label = f"agent-responses:{count}"
 
     if old_label:
-        run_shell(f'gh pr edit {pr_number} --remove-label "{old_label}"')
+        run_shell(f"gh pr edit {pr_number} --remove-label \"{old_label}\"")
 
-    run_shell(f'gh label create "{new_label}" --force --color c5def5 2>/dev/null || true')
-    run_shell(f'gh pr edit {pr_number} --add-label "{new_label}"')
+    run_shell(f"gh label create \"{new_label}\" --force --color c5def5 2>/dev/null || true")
+    run_shell(f"gh pr edit {pr_number} --add-label \"{new_label}\"")
 
 
 def _reply_to_comment(pr_number: int, comment_id: int, message: str) -> None:
     """Post a reply to a review comment."""
-    escaped_message = message.replace('"', '\\"')
+    repo = _get_repo_nwo()
+    escaped_message = message.replace("\"", "\\\"")
     run_shell(
-        f'gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments/{comment_id}/replies '
-        f'-f body="{escaped_message}"'
+        f"gh api repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies "
+        f"-f body=\"{escaped_message}\""
     )
 
 
@@ -108,8 +119,9 @@ def respond_to_comment(
 ) -> None:
     """Fetch a review comment, apply fix, validate, and push."""
     # Fetch the comment
+    repo = _get_repo_nwo()
     result = run_shell(
-        f'gh api repos/{{owner}}/{{repo}}/pulls/comments/{comment_id}'
+        f"gh api repos/{repo}/pulls/comments/{comment_id}"
     )
     if result.returncode != 0:
         logger.error("Failed to fetch comment %d: %s", comment_id, result.stderr)
@@ -140,7 +152,7 @@ def respond_to_comment(
 
     fix_prompt = (
         f"A reviewer commented on {comment.file_path} at line {comment.line}:\n"
-        f'"{comment.body}"\n\n'
+        f"\"{comment.body}\"\n\n"
         f"Apply the suggested fix to the file. Only modify what's needed to address the comment."
     )
 
@@ -171,20 +183,20 @@ def respond_to_comment(
         _reply_to_comment(
             pr_number, comment_id,
             f"Fix applied but failed quality gate: "
-            f"{'; '.join(quality.blocking_issues)}\nNeeds human review."
+            f"{'; '.join(quality.blocking_issues)}\nNeeds human review."  # pylint: disable=inconsistent-quotes
         )
         return
 
     # Commit and push
-    run_shell(f'git add {comment.file_path}')
-    run_shell(f'git commit -m "Address review comment on {comment.file_path}:{comment.line}"')
+    run_shell(f"git add {comment.file_path}")
+    run_shell(f"git commit -m \"Address review comment on {comment.file_path}:{comment.line}\"")
     run_shell("git push")
 
     # Update response count and reply
     _update_response_count(pr_number, response_count + 1)
     quality_summary = ""
     if quality.warnings:
-        quality_summary = f"\n\nQuality warnings: {'; '.join(quality.warnings)}"
+        quality_summary = f"\n\nQuality warnings: {'; '.join(quality.warnings)}"  # pylint: disable=inconsistent-quotes
 
     _reply_to_comment(
         pr_number, comment_id,

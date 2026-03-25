@@ -10,6 +10,8 @@ import subprocess
 
 @dataclasses.dataclass
 class ShellResult:
+    """Captured output of a shell command execution."""
+
     stdout: str
     stderr: str
     returncode: int
@@ -20,7 +22,7 @@ def run_shell(command: str, timeout: int = 300) -> ShellResult:
 
     On timeout, kills the child process tree to avoid orphans.
     """
-    process = subprocess.Popen(
+    process = subprocess.Popen(  # pylint: disable=consider-using-with
         command,
         shell=True,
         stdout=subprocess.PIPE,
@@ -36,6 +38,6 @@ def run_shell(command: str, timeout: int = 300) -> ShellResult:
         stdout, stderr = process.communicate()
         return ShellResult(
             stdout=stdout or "",
-            stderr=f"Command timed out after {timeout}s: {command}\n{stderr or ''}",
+            stderr=f"Command timed out after {timeout}s: {command}\n{stderr or ''}",  # pylint: disable=inconsistent-quotes
             returncode=-1,
         )

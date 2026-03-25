@@ -53,7 +53,7 @@ def main():
         "max_targets": args.max_targets,
         "min_coverage_delta": args.min_coverage_delta,
         "pr_url": None,
-        "branch_name": f"coverage-agent/{datetime.now().strftime('%Y%m%d')}",
+        "branch_name": f"coverage-agent/{datetime.now().strftime('%Y%m%d')}",  # pylint: disable=inconsistent-quotes
         "dry_run": args.dry_run,
         "errors": [],
         "lcov_path": args.lcov_path,

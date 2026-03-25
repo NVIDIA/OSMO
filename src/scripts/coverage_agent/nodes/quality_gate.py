@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class QualityCheckResult:
+    """Result of running quality checks on a generated test file."""
+
     passed: bool
     blocking_issues: list[str]
     warnings: list[str]
@@ -52,7 +54,7 @@ GENERIC_NAME_PATTERNS = [
     r"def test_\d+",
     r"def test_it\(",
     r"func Test\d+\(",
-    r'it\("test \d+',
+    r'it\("test \d+',  # pylint: disable=inconsistent-quotes
 ]
 
 
@@ -100,7 +102,7 @@ def _check_no_private_method_calls(content: str, test_type: str) -> list[str]:
         private_calls = [c for c in private_calls if f"self.{c}" not in content]
         all_privates = set(private_imports + private_calls)
         if all_privates:
-            issues.append(f"Tests call private/internal methods: {', '.join(sorted(all_privates))}")
+            issues.append(f"Tests call private/internal methods: {', '.join(sorted(all_privates))}")  # pylint: disable=inconsistent-quotes
     return issues
 
 
@@ -209,11 +211,11 @@ def quality_gate(state: CoverageState) -> CoverageState:
             if result.warnings:
                 for warning in result.warnings:
                     logger.info("  Warning: %s", warning)
-                errors.append(f"Quality warnings for {file_path}: {'; '.join(result.warnings)}")
+                errors.append(f"Quality warnings for {file_path}: {'; '.join(result.warnings)}")  # pylint: disable=inconsistent-quotes
         else:
             for issue in result.blocking_issues:
                 logger.warning("  BLOCKED: %s", issue)
-            errors.append(f"Quality gate BLOCKED {file_path}: {'; '.join(result.blocking_issues)}")
+            errors.append(f"Quality gate BLOCKED {file_path}: {'; '.join(result.blocking_issues)}")  # pylint: disable=inconsistent-quotes
 
     logger.info(
         "Quality gate result: %d/%d files passed",

@@ -8,6 +8,8 @@ from coverage_agent.state import CoverageState, CoverageTarget
 
 
 class TestCoverageTarget(unittest.TestCase):
+    """Tests for CoverageTarget data class construction and fields."""
+
     def test_coverage_target_fields(self):
         target = CoverageTarget(
             file_path="src/lib/utils/common.py",
@@ -37,6 +39,8 @@ class TestCoverageTarget(unittest.TestCase):
 
 
 class TestCoverageState(unittest.TestCase):
+    """Tests for CoverageState TypedDict construction and field access."""
+
     def test_coverage_state_construction(self):
         state: CoverageState = {
             "provider": "nemotron",

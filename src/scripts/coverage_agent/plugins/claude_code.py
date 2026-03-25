@@ -186,13 +186,13 @@ class ClaudeCodeWriter(WriterPlugin):
             logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
             return None
 
-    def _build_prompt(
+    def _build_prompt(  # pylint: disable=too-many-arguments
         self,
         source_path: str,
         uncovered_ranges: list[tuple[int, int]],
         existing_test_path: Optional[str],
         test_type: str,
-        _build_package: str,
+        build_package: str,  # pylint: disable=unused-argument
         test_file_path: str,
         retry_context: Optional[str],
     ) -> str:
@@ -238,8 +238,8 @@ class ClaudeCodeWriter(WriterPlugin):
 
         return prompt
 
-    def _parse_output(
-        self, data: dict, _source_path: str, _test_type: str, test_file_path: str,
+    def _parse_output(  # pylint: disable=unused-argument
+        self, data: dict, source_path: str, test_type: str, test_file_path: str,
     ) -> GeneratedTest:
         """Parse Claude Code JSON output. Claude writes files directly to disk."""
         # Claude Code writes files directly via its Write/Edit tools.

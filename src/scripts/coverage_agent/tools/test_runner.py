@@ -25,7 +25,7 @@ def _file_path_to_bazel_target(file_path: str) -> str:
         timeout=30,
     )
     if result.returncode == 0 and result.stdout.strip():
-        target = result.stdout.strip().split("\n")[0]
+        target = result.stdout.strip().split("\n", maxsplit=1)[0]
         logger.debug("Discovered Bazel target: %s → %s", file_path, target)
         return target
 

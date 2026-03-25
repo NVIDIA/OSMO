@@ -5,7 +5,6 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
 
 from coverage_agent.graph import route_quality, route_validation
 from coverage_agent.lcov_parser import CoverageEntry
@@ -169,6 +168,8 @@ class TestAnalyzeToQualityGatePipeline(unittest.TestCase):
 
 
 class TestSelectTargetsIntegration(unittest.TestCase):
+    """Integration tests for target selection with realistic LCOV entries."""
+
     def test_select_targets_with_real_entries(self):
         entries = [
             CoverageEntry("src/lib/utils/common.py", 100, 30, 30.0, [(31, 100)]),

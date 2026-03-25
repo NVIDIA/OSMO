@@ -8,6 +8,8 @@ import fnmatch
 
 @dataclasses.dataclass
 class CoverageEntry:
+    """A single file entry parsed from an LCOV coverage report."""
+
     file_path: str
     total_lines: int
     covered_lines: int

@@ -4,7 +4,7 @@
 
 import unittest
 
-from coverage_agent.nodes.quality_gate import QualityCheckResult, check_test_quality
+from coverage_agent.nodes.quality_gate import check_test_quality
 
 
 GOOD_PYTHON_TEST = """\
@@ -130,6 +130,8 @@ class TestParseUrl(unittest.TestCase):
 
 
 class TestCheckTestQuality(unittest.TestCase):
+    """Tests for the quality gate check logic across all rule categories."""
+
     def test_pass_good_test(self):
         result = check_test_quality(GOOD_PYTHON_TEST, "python")
         self.assertTrue(result.passed)

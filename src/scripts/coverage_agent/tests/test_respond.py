@@ -68,6 +68,8 @@ SELF_COMMENT = {
 
 
 class TestParseReviewComment(unittest.TestCase):
+    """Tests for parsing GitHub review comment API responses."""
+
     def test_parse_bot_comment(self):
         result = parse_review_comment(SAMPLE_COMMENT)
         self.assertEqual(result.file_path, "src/lib/utils/tests/test_common.py")
@@ -87,6 +89,8 @@ class TestParseReviewComment(unittest.TestCase):
 
 
 class TestShouldSkipComment(unittest.TestCase):
+    """Tests for comment-skip logic including bot replies and rate limits."""
+
     def test_skip_agent_prefix(self):
         self.assertTrue(should_skip_comment(SKIP_AGENT_COMMENT))
 

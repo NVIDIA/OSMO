@@ -12,6 +12,8 @@ from coverage_agent.plugins.base import TestType, detect_test_type
 
 
 class TestDetectTestType(unittest.TestCase):
+    """Tests for file-type detection based on path and extension."""
+
     def test_detect_python(self):
         self.assertEqual(detect_test_type("src/lib/utils/common.py"), TestType.PYTHON)
 
@@ -29,6 +31,8 @@ class TestDetectTestType(unittest.TestCase):
 
 
 class TestFindExistingTest(unittest.TestCase):
+    """Tests for locating existing test files for a given source file."""
+
     def test_find_python_test(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             source = os.path.join(tmpdir, "src", "lib", "utils", "common.py")
@@ -36,8 +40,10 @@ class TestFindExistingTest(unittest.TestCase):
             test_file = os.path.join(test_dir, "test_common.py")
             os.makedirs(os.path.dirname(source))
             os.makedirs(test_dir)
-            open(source, "w", encoding="utf-8").close()
-            open(test_file, "w", encoding="utf-8").close()
+            with open(source, "w", encoding="utf-8") as file:
+                file.close()
+            with open(test_file, "w", encoding="utf-8") as file:
+                file.close()
 
             result = find_existing_test(source, "python", repo_root=tmpdir)
             self.assertIsNotNone(result)
@@ -48,8 +54,10 @@ class TestFindExistingTest(unittest.TestCase):
             source = os.path.join(tmpdir, "src", "utils", "roles", "roles.go")
             test_file = os.path.join(tmpdir, "src", "utils", "roles", "roles_test.go")
             os.makedirs(os.path.dirname(source))
-            open(source, "w", encoding="utf-8").close()
-            open(test_file, "w", encoding="utf-8").close()
+            with open(source, "w", encoding="utf-8") as file:
+                file.close()
+            with open(test_file, "w", encoding="utf-8") as file:
+                file.close()
 
             result = find_existing_test(source, "go", repo_root=tmpdir)
             self.assertIsNotNone(result)
@@ -59,13 +67,16 @@ class TestFindExistingTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             source = os.path.join(tmpdir, "src", "lib", "new_module.py")
             os.makedirs(os.path.dirname(source))
-            open(source, "w", encoding="utf-8").close()
+            with open(source, "w", encoding="utf-8") as file:
+                file.close()
 
             result = find_existing_test(source, "python", repo_root=tmpdir)
             self.assertIsNone(result)
 
 
 class TestShouldSkipFile(unittest.TestCase):
+    """Tests for file-skip heuristics based on line count."""
+
     def test_skip_small_file(self):
         entry = CoverageEntry(
             "src/foo.py", total_lines=5, covered_lines=0,
@@ -89,6 +100,8 @@ class TestShouldSkipFile(unittest.TestCase):
 
 
 class TestSelectTargets(unittest.TestCase):
+    """Tests for coverage target selection from LCOV entries."""
+
     def test_limit_max_targets(self):
         entries = [
             CoverageEntry(

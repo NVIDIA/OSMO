@@ -10,6 +10,8 @@ from typing import Optional
 
 
 class TestType(str, enum.Enum):
+    """Supported test framework types."""
+
     PYTHON = "python"
     GO = "go"
     UI = "ui"
@@ -17,6 +19,8 @@ class TestType(str, enum.Enum):
 
 @dataclasses.dataclass
 class GeneratedTest:
+    """Output of a writer plugin: test file content and optional BUILD entry."""
+
     test_file_path: str
     test_content: str
     build_entry: Optional[str]  # BUILD file addition (None for Go/UI)
@@ -24,6 +28,8 @@ class GeneratedTest:
 
 @dataclasses.dataclass
 class ValidationResult:
+    """Result of running a generated test through the build system."""
+
     passed: bool
     output: str
     retry_hint: Optional[str]
