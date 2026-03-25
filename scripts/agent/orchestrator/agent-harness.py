@@ -21,7 +21,6 @@ import argparse
 import glob as glob_module
 import json
 import os
-import pty
 import select
 import subprocess
 import sys
@@ -146,9 +145,6 @@ PEEK_INTERVAL = 60  # seconds between LLM progress checks
 def execute_bash(command):
     """Execute a bash command. No artificial time limits.
 
-    Uses a pseudo-TTY so tools like Bazel, npm, cargo etc. produce
-    progress output instead of suppressing it in pipe mode.
-
     The LLM monitors progress every PEEK_INTERVAL seconds and decides
     whether to continue or kill. If the LLM client is not available,
     the command runs until it finishes on its own.
@@ -156,19 +152,13 @@ def execute_bash(command):
     try:
         _progress_history.clear()
 
-        # Use a PTY so commands think they're in a terminal and produce progress output.
-        # Start in a new process group so we can kill the entire tree (e.g., bazel server).
-        primary_fd, replica_fd = pty.openpty()
+        # Start in a new process group so we can kill the entire tree
         process = subprocess.Popen(
             ["bash", "-c", command],
-            stdout=replica_fd, stderr=replica_fd,
-            close_fds=True, cwd=os.getcwd(),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, cwd=os.getcwd(),
             preexec_fn=os.setsid,
         )
-        os.close(replica_fd)
-
-        # Wrap the PTY fd for reading
-        pty_reader = os.fdopen(primary_fd, "r", errors="replace")
 
         output_lines = []
         start = time.time()
@@ -176,29 +166,20 @@ def execute_bash(command):
         last_peek_time = start
 
         while True:
-            # Check if process exited FIRST — don't block on readline for a dead process
+            # Check if process exited
             if process.poll() is not None:
-                # Drain any remaining output
-                try:
-                    while select.select([pty_reader], [], [], 0.1)[0]:
-                        line = pty_reader.readline()
-                        if not line:
-                            break
-                        clean = line.rstrip()
-                        if clean:
-                            output_lines.append(clean)
-                            sys.stderr.write(f"  | {clean}\n")
-                            sys.stderr.flush()
-                except OSError:
-                    pass
+                # Drain remaining output
+                for line in process.stdout:
+                    clean = line.rstrip()
+                    if clean:
+                        output_lines.append(clean)
+                        sys.stderr.write(f"  | {clean}\n")
+                        sys.stderr.flush()
                 break
 
-            ready = select.select([pty_reader], [], [], 1.0)[0]
+            ready = select.select([process.stdout], [], [], 1.0)[0]
             if ready:
-                try:
-                    line = pty_reader.readline()
-                except OSError:
-                    break
+                line = process.stdout.readline()
                 if line:
                     clean = line.rstrip()
                     if clean:
@@ -206,19 +187,19 @@ def execute_bash(command):
                         sys.stderr.write(f"  | {clean}\n")
                         sys.stderr.flush()
                         last_output_time = time.time()
+                elif process.poll() is not None:
+                    break
 
             now = time.time()
             elapsed = now - start
 
-            # LLM progress check — the LLM decides everything:
-            # inactivity, repetition, wrong track
+            # LLM progress check
             if _llm_client and now - last_peek_time > PEEK_INTERVAL:
                 last_peek_time = now
                 silent = int(now - last_output_time)
                 recent = output_lines[-30:] if output_lines else [f"(no output for {silent}s)"]
                 verdict = _check_progress(command, int(elapsed), recent)
                 if verdict == "kill":
-                    # Kill entire process group (bazel server, child processes, etc.)
                     try:
                         os.killpg(os.getpgid(process.pid), 9)
                     except ProcessLookupError:
@@ -232,20 +213,17 @@ def execute_bash(command):
                         )
                     sys.stderr.write(f"  === END snapshots ===\n")
 
-                    # Tell the LLM WHY — if piped, call it out
                     has_pipe = "|" in command
                     kill_msg = f"(killed after {int(elapsed)}s — no progress detected."
                     if has_pipe:
                         kill_msg += (
-                            " NOTE: This command used a pipe (| tail, | grep, etc.) which "
-                            "buffers output and prevents progress monitoring. Retry WITHOUT "
-                            "piping — run the command directly."
+                            " NOTE: This command used a pipe which buffers output "
+                            "and prevents progress monitoring. Retry without piping."
                         )
                     kill_msg += ")"
                     output_lines.append(kill_msg)
                     break
 
-        pty_reader.close()
         process.wait()
 
         output = "\n".join(output_lines)
