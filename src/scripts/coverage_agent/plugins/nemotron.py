@@ -10,7 +10,6 @@ from coverage_agent.prompts.go_test import GO_TEST_SYSTEM_PROMPT, build_go_promp
 from coverage_agent.prompts.python_test import PYTHON_TEST_SYSTEM_PROMPT, build_python_prompt
 from coverage_agent.prompts.ui_test import UI_TEST_SYSTEM_PROMPT, build_ui_prompt
 from coverage_agent.tools.file_ops import read_file, write_file
-from coverage_agent.tools.shell import run_shell
 
 logger = logging.getLogger(__name__)
 
@@ -94,29 +93,9 @@ class NemotronWriter(WriterPlugin):
         )
 
     def validate_test(self, test: GeneratedTest) -> ValidationResult:
-        if test.test_file_path.endswith(".py"):
-            result = run_shell(f"python -m py_compile {test.test_file_path}")
-            if result.returncode != 0:
-                return ValidationResult(
-                    passed=False,
-                    output=result.stderr,
-                    retry_hint=f"Syntax error: {result.stderr}",
-                )
-            # Try running with pytest
-            result = run_shell(f"python -m pytest {test.test_file_path} -v --tb=short")
-        elif test.test_file_path.endswith(".go"):
-            directory = os.path.dirname(test.test_file_path)
-            result = run_shell(f"cd {directory} && go test -v -run .")
-        elif test.test_file_path.endswith(".ts") or test.test_file_path.endswith(".tsx"):
-            result = run_shell(f"cd src/ui && pnpm test -- --run {test.test_file_path}")
-        else:
-            return ValidationResult(passed=False, output="Unknown test type", retry_hint=None)
+        from coverage_agent.tools.test_runner import run_test
 
-        return ValidationResult(
-            passed=result.returncode == 0,
-            output=result.stdout + result.stderr,
-            retry_hint=result.stderr if result.returncode != 0 else None,
-        )
+        return run_test(test.test_file_path)
 
     def _parse_response(self, response: str, test_type: str) -> tuple[str, Optional[str]]:
         """Parse LLM response to extract test content and optional BUILD entry."""

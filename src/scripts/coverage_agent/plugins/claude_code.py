@@ -4,9 +4,7 @@
 import json
 import logging
 import os
-import shlex
 import subprocess
-import tempfile
 from typing import Optional
 
 from coverage_agent.plugins.base import GeneratedTest, ValidationResult, WriterPlugin
@@ -52,6 +50,9 @@ class ClaudeCodeWriter(WriterPlugin):
         self._session_id: Optional[str] = None
         self._max_turns = int(os.getenv("CLAUDE_CODE_MAX_TURNS", "20"))
         self._timeout = int(os.getenv("CLAUDE_CODE_TIMEOUT", "300"))
+        # Model selection via env var. Defaults to claude-sonnet-4-20250514 for
+        # cost/speed balance. Use claude-opus-4-20250514 for higher quality.
+        self._model = os.getenv("CLAUDE_CODE_MODEL", "")
 
     def generate_test(
         self,
@@ -80,7 +81,7 @@ class ClaudeCodeWriter(WriterPlugin):
     def validate_test(self, test: GeneratedTest) -> ValidationResult:
         """Claude Code already validates during generation (self-correction).
 
-        This runs a final confirmation to catch any edge cases Claude missed.
+        This runs a final confirmation via bazel test to catch any edge cases.
         """
         if not os.path.exists(test.test_file_path):
             return ValidationResult(
@@ -96,25 +97,9 @@ class ClaudeCodeWriter(WriterPlugin):
                 retry_hint="Generate actual test content with assertions",
             )
 
-        command = self._get_test_command(test.test_file_path)
-        if command is None:
-            return ValidationResult(passed=False, output="Unknown test type", retry_hint=None)
+        from coverage_agent.tools.test_runner import run_test
 
-        try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, timeout=120,
-            )
-            return ValidationResult(
-                passed=result.returncode == 0,
-                output=result.stdout + result.stderr,
-                retry_hint=result.stderr if result.returncode != 0 else None,
-            )
-        except subprocess.TimeoutExpired:
-            return ValidationResult(
-                passed=False,
-                output="Test execution timed out after 120s",
-                retry_hint="Test may have an infinite loop or hung process",
-            )
+        return run_test(test.test_file_path)
 
     def _run_claude(self, prompt: str, test_type: str, is_retry: bool) -> Optional[dict]:
         """Execute `claude -p` and return parsed JSON output, or None on failure."""
@@ -128,7 +113,6 @@ class ClaudeCodeWriter(WriterPlugin):
         # - --max-turns: cap iterations to control cost/runtime
         cmd = [
             "claude",
-            "--bare",
             "-p", prompt,
             "--output-format", "json",
             "--allowedTools", allowed_tools,
@@ -136,12 +120,21 @@ class ClaudeCodeWriter(WriterPlugin):
             "--max-turns", str(self._max_turns),
         ]
 
-        # Per official docs: use --resume with session_id for multi-turn.
-        # On retry, resume the same session so Claude has context of the failure.
+        if self._model:
+            cmd.extend(["--model", self._model])
+
+        # --bare skips hooks/skills/MCP/CLAUDE.md for reproducible CI runs,
+        # but also disables OAuth login auto-discovery. Only enable when
+        # ANTHROPIC_API_KEY is set (i.e., CI environments).
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            cmd.insert(1, "--bare")
+
         if is_retry and self._session_id:
             cmd.extend(["--resume", self._session_id])
 
-        logger.info("Running Claude Code: claude --bare -p <prompt> --max-turns %d", self._max_turns)
+        bare_flag = "--bare " if "--bare" in cmd else ""
+        model_flag = f"--model {self._model} " if self._model else ""
+        logger.info("Running Claude Code: claude %s%s-p <prompt> --max-turns %d", bare_flag, model_flag, self._max_turns)
         logger.debug("Allowed tools: %s", allowed_tools)
 
         try:
@@ -150,7 +143,6 @@ class ClaudeCodeWriter(WriterPlugin):
                 capture_output=True,
                 text=True,
                 timeout=self._timeout,
-                env={**os.environ, "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", "")},
             )
         except subprocess.TimeoutExpired:
             logger.error("Claude Code timed out after %ds", self._timeout)
@@ -160,7 +152,8 @@ class ClaudeCodeWriter(WriterPlugin):
             return None
 
         if result.returncode != 0:
-            logger.error("Claude Code failed (exit %d): %s", result.returncode, result.stderr[:500])
+            logger.error("Claude Code failed (exit %d): stderr=%s", result.returncode, result.stderr[:500])
+            logger.error("Claude Code stdout: %s", result.stdout[:500])
             return None
 
         # Parse JSON output. Per docs, --output-format json returns:
@@ -274,17 +267,6 @@ class ClaudeCodeWriter(WriterPlugin):
             test_content=result_text,
             build_entry=None,
         )
-
-    def _get_test_command(self, test_file_path: str) -> Optional[str]:
-        """Return the shell command to run a test file."""
-        if test_file_path.endswith(".py"):
-            return f"python -m pytest {shlex.quote(test_file_path)} -v --tb=short"
-        if test_file_path.endswith(".go"):
-            directory = os.path.dirname(test_file_path)
-            return f"cd {shlex.quote(directory)} && go test -v -run ."
-        if test_file_path.endswith((".ts", ".tsx")):
-            return f"cd src/ui && pnpm test -- --run {shlex.quote(test_file_path)}"
-        return None
 
     def _determine_test_path(self, source_path: str, test_type: str) -> str:
         """Determine the output path for a generated test file."""
