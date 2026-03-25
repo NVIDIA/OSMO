@@ -148,8 +148,9 @@ class PostgresConfig(pydantic.BaseModel):
         json_schema_extra={'command_line': 'postgres_database_name', 'env': 'OSMO_POSTGRES_DATABASE_NAME'})
     postgres_reconnect_retry: int = pydantic.Field(
         default=5,
+        gt=0,
         description='Reconnect try count after connection error',
-        json_schema_extra={'command_line': 'postgres_reconnect_retry', 'env': 'OSMO_POSTGRES_RECONNECT_RETRY', 'type': validation.positive_integer})
+        json_schema_extra={'command_line': 'postgres_reconnect_retry', 'env': 'OSMO_POSTGRES_RECONNECT_RETRY'})
     mek_file: str = pydantic.Field(
         default='/home/osmo/vault-agent/secrets/vault-secrets.yaml',
         description='Path to the file that stores master encryption keys',
@@ -179,12 +180,14 @@ class PostgresConfig(pydantic.BaseModel):
         json_schema_extra={'command_line': 'service_hostname'})
     postgres_pool_minconn: int = pydantic.Field(
         default=1,
+        gt=0,
         description='Minimum number of connections to keep in the connection pool',
-        json_schema_extra={'command_line': 'postgres_pool_minconn', 'type': validation.positive_integer, 'env': 'OSMO_POSTGRES_POOL_MINCONN'})
+        json_schema_extra={'command_line': 'postgres_pool_minconn', 'env': 'OSMO_POSTGRES_POOL_MINCONN'})
     postgres_pool_maxconn: int = pydantic.Field(
         default=10,
+        gt=0,
         description='Maximum number of connections allowed in the connection pool',
-        json_schema_extra={'command_line': 'postgres_pool_maxconn', 'type': validation.positive_integer, 'env': 'OSMO_POSTGRES_POOL_MAXCONN'})
+        json_schema_extra={'command_line': 'postgres_pool_maxconn', 'env': 'OSMO_POSTGRES_POOL_MAXCONN'})
     schema_version: str = pydantic.Field(
         default='public',
         description='pgroll schema version to use. '
