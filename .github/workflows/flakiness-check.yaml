@@ -1,0 +1,87 @@
+name: Flakiness Check
+
+on:
+  push:
+
+jobs:
+  flakiness-check:
+    runs-on: self-hosted
+    env:
+      COMPOSE_PROJECT_NAME: ci-${{ github.run_id }}
+      DOCKER_BUILDKIT: "1"
+    container:
+      # python:3.10.18-bullseye pinned to digest for security (amd64)
+      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
+      env:
+        DOCKER_HOST: "tcp://docker:2375"
+        DOCKER_TLS_CERTDIR: ""
+      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
+    services:
+      docker:
+        # docker:29.2.1-dind pinned to digest for security
+        image: docker:29.2.1-dind@sha256:2658fda9e8779b94ea1581f4d25214dac9ed144b407902842e5328cce8f861f5
+        env:
+          DOCKER_TLS_CERTDIR: ""
+          DOCKER_DRIVER: overlay2
+        options: --privileged --memory=4g --cpus=2
+        ports:
+          - 2375:2375
+    steps:
+      - name: Install Node.js, Docker CLI, and dependencies
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates curl gnupg git-lfs
+
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list > /dev/null
+
+          apt-get update
+          apt-get install -y docker-ce-cli
+          apt-get remove -y nodejs || true
+          apt-get install -y nodejs=20.*
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+
+      - name: Run flakiness check (20 runs)
+        run: |
+          PASS=0
+          FAIL=0
+          for i in $(seq 1 20); do
+            echo "=== Run $i/20 ==="
+            if bazel test --config=ci \
+              --cache_test_results=no \
+              --test_env=DOCKER_HOST=tcp://docker:2375 \
+              --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
+              --test_output=errors \
+              //src/service/core/workflow/tests:test_workflow_service; then
+              PASS=$((PASS + 1))
+              echo "Run $i: PASS"
+            else
+              FAIL=$((FAIL + 1))
+              echo "Run $i: FAIL"
+            fi
+          done
+          echo "=== Results: $PASS/20 passed, $FAIL/20 failed ==="
+          if [ "$FAIL" -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          docker ps -q | xargs -r docker stop --time=5 || true
+          docker system prune -f || true
