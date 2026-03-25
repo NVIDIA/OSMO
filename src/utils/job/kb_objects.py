@@ -663,7 +663,7 @@ class FileMount(pydantic.BaseModel):
             self.name, labels, {os.path.basename(self.path): self.content}, {})
 
 
-class HostMount(pydantic.BaseModel, extra="forbid"):
+class HostMount(pydantic.BaseModel, extra='forbid'):
     """ Encodes text contents to uniformly support text and binary files. """
     name: str
     path: str

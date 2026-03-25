@@ -126,7 +126,7 @@ class WorkflowServiceContext(pydantic.BaseModel):
                 'Using WorkflowServiceContext before initialization.')
         return cls._instance
 
-class ResourceUsage(pydantic.BaseModel, extra="forbid"):
+class ResourceUsage(pydantic.BaseModel, extra='forbid'):
     """ Object storing resource usage information. """
     quota_used: str
     quota_free: str
@@ -136,23 +136,23 @@ class ResourceUsage(pydantic.BaseModel, extra="forbid"):
     total_free: str
 
 
-class PoolResourceUsage(connectors.PoolMinimal, extra="forbid"):
+class PoolResourceUsage(connectors.PoolMinimal, extra='forbid'):
     """ Object storing pool information. """
     resource_usage: ResourceUsage
 
 
-class PoolNodeSetResourceUsage(pydantic.BaseModel, extra="forbid"):
+class PoolNodeSetResourceUsage(pydantic.BaseModel, extra='forbid'):
     """ Object storing pool node set information. """
     pools: List[PoolResourceUsage]
 
 
-class PoolResponse(pydantic.BaseModel, extra="forbid"):
+class PoolResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing pool information. """
     node_sets: List[PoolNodeSetResourceUsage]
     resource_sum: ResourceUsage
 
 
-class SubmitResponse(pydantic.BaseModel, extra="forbid"):
+class SubmitResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing workflow name, logs, and spec after submission. """
     # The name of the newly created workflow
     name: str
@@ -169,12 +169,12 @@ class SubmitResponse(pydantic.BaseModel, extra="forbid"):
         return values
 
 
-class CancelResponse(pydantic.BaseModel, extra="forbid"):
+class CancelResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing workflow name. """
     name: str
 
 
-class ListEntry(pydantic.BaseModel, extra="forbid"):
+class ListEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for list API results. """
     user: str
     name: str
@@ -229,7 +229,7 @@ class ListEntry(pydantic.BaseModel, extra="forbid"):
             priority=row['priority'])
 
 
-class ListResponse(pydantic.BaseModel, extra="forbid"):
+class ListResponse(pydantic.BaseModel, extra='forbid'):
     workflows: List[ListEntry]
     more_entries: bool
 
@@ -240,7 +240,7 @@ class ListResponse(pydantic.BaseModel, extra="forbid"):
         return ListResponse.model_construct(workflows=workflows, more_entries=more_entries)
 
 
-class ListTaskSummaryEntry(pydantic.BaseModel, extra="forbid"):
+class ListTaskSummaryEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task list API results. """
     user: str
     pool: str | None
@@ -263,7 +263,7 @@ class ListTaskSummaryEntry(pydantic.BaseModel, extra="forbid"):
             priority=row['priority'],
             )
 
-class ListTaskAggregatedEntry(ListTaskSummaryEntry, extra="forbid"):
+class ListTaskAggregatedEntry(ListTaskSummaryEntry, extra='forbid'):
     """ Entry for task list API results, aggregated by workflow. """
     workflow_id: str
 
@@ -274,7 +274,7 @@ class ListTaskAggregatedEntry(ListTaskSummaryEntry, extra="forbid"):
             **ListTaskSummaryEntry.from_db_row(row).model_dump()
             )
 
-class ListTaskSummaryResponse(pydantic.BaseModel, extra="forbid"):
+class ListTaskSummaryResponse(pydantic.BaseModel, extra='forbid'):
     summaries: List[ListTaskSummaryEntry]
 
     @classmethod
@@ -283,7 +283,7 @@ class ListTaskSummaryResponse(pydantic.BaseModel, extra="forbid"):
         return ListTaskSummaryResponse.construct(summaries=summaries)
 
 
-class ListTaskAggregatedResponse(pydantic.BaseModel, extra="forbid"):
+class ListTaskAggregatedResponse(pydantic.BaseModel, extra='forbid'):
     summaries: List[ListTaskAggregatedEntry]
 
     @classmethod
@@ -291,7 +291,7 @@ class ListTaskAggregatedResponse(pydantic.BaseModel, extra="forbid"):
         summaries = [ListTaskAggregatedEntry.from_db_row(row) for row in rows]
         return ListTaskAggregatedResponse(summaries=summaries)
 
-class TaskEntry(pydantic.BaseModel, extra="forbid"):
+class TaskEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task GET API result. """
     workflow_id: str
     task_name: str
@@ -322,7 +322,7 @@ class TaskEntry(pydantic.BaseModel, extra="forbid"):
         )
 
 
-class ListTaskEntry(pydantic.BaseModel, extra="forbid"):
+class ListTaskEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task list API results. """
     user: str
     workflow_id: str
@@ -385,7 +385,7 @@ class ListTaskEntry(pydantic.BaseModel, extra="forbid"):
             )
 
 
-class ListTaskResponse(pydantic.BaseModel, extra="forbid"):
+class ListTaskResponse(pydantic.BaseModel, extra='forbid'):
     tasks: List[ListTaskEntry]
 
     @classmethod
@@ -420,7 +420,7 @@ class TaskQueryResponse(pydantic.BaseModel):
     node_name: str | None = None
     lead: bool = False
 
-class GroupQueryResponse(pydantic.BaseModel, extra="forbid"):
+class GroupQueryResponse(pydantic.BaseModel, extra='forbid'):
     """ Represents the queryed task information. """
     name: str
     status: task.TaskGroupStatus
@@ -435,7 +435,7 @@ class GroupQueryResponse(pydantic.BaseModel, extra="forbid"):
     tasks: List[TaskQueryResponse] = []
 
 
-class WorkflowQueryResponse(pydantic.BaseModel, extra="forbid"):
+class WorkflowQueryResponse(pydantic.BaseModel, extra='forbid'):
     """ Represents the queryed workflow information. """
     name: str
     uuid: str
@@ -531,12 +531,12 @@ class WorkflowQueryResponse(pydantic.BaseModel, extra="forbid"):
             priority=workflow_obj.priority)
 
 
-class ResourcesResponse(pydantic.BaseModel, extra="forbid"):
+class ResourcesResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing execution cluster node resource information. """
     resources: List[workflow.ResourcesEntry]
 
 
-class PoolResourcesEntry(pydantic.BaseModel, extra="forbid"):
+class PoolResourcesEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for resources API results. """
     pool: str
     platform: str
@@ -546,12 +546,12 @@ class PoolResourcesEntry(pydantic.BaseModel, extra="forbid"):
     backend: str
 
 
-class PoolResourcesResponse(pydantic.BaseModel, extra="forbid"):
+class PoolResourcesResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing execution cluster node resource information. """
     pools: List[PoolResourcesEntry]
 
 
-class DataUploadResponse(pydantic.BaseModel, extra="forbid"):
+class DataUploadResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing Upload Response. """
     version_id: str
     container: str
@@ -559,7 +559,7 @@ class DataUploadResponse(pydantic.BaseModel, extra="forbid"):
     path: str
 
 
-class DataDownloadResponse(pydantic.BaseModel, extra="forbid"):
+class DataDownloadResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing Download Response. """
     location: str
     container: str
@@ -587,7 +587,7 @@ class CredentialProtocol(Protocol):
 
 class UserRegistryCredential(
     credentials.RegistryCredential,
-    extra="forbid",
+    extra='forbid',
 ):
     """ Authentication information for a Docker registry. """
     auth: str = pydantic.Field(
@@ -616,7 +616,7 @@ class UserRegistryCredential(
 
 class UserDataCredential(
     data_credentials.DataCredentialBase,
-    extra="forbid",
+    extra='forbid',
 ):
     """ Authentication information for a data service. """
 
@@ -672,7 +672,7 @@ class UserDataCredential(
 
 class UserCredential(
     pydantic.BaseModel,
-    extra="forbid",
+    extra='forbid',
 ):
     """ Generic authentication information. """
     credential: Dict[str, str] = pydantic.Field(

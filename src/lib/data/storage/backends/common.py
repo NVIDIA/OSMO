@@ -104,7 +104,7 @@ class StorageBackend(
     Represents information about a storage backend.
     """
     model_config = pydantic.ConfigDict(
-        extra="forbid",
+        extra='forbid',
         arbitrary_types_allowed=True,
         ignored_types=(functools.cached_property,),  # Don't serialize cached properties
     )

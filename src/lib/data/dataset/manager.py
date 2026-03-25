@@ -45,7 +45,7 @@ class Manager(pydantic.BaseModel):
 
     model_config = pydantic.ConfigDict(
         arbitrary_types_allowed=True,
-        extra="forbid",
+        extra='forbid',
         frozen=True,
         ignored_types=(functools.cached_property,),
     )

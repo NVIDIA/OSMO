@@ -100,7 +100,7 @@ class WorkflowStatus(str, enum.Enum):
         return not self.alive() and self.name != 'COMPLETED'
 
 
-class ResourcesEntry(pydantic.BaseModel, extra="forbid"):
+class ResourcesEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for resources API results. """
     hostname: str
     exposed_fields: Dict
@@ -185,7 +185,7 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
     return mapping
 
 
-class TimeoutSpec(pydantic.BaseModel, extra="forbid"):
+class TimeoutSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the timeout spec. """
     exec_timeout: datetime.timedelta | None = None
     queue_timeout: datetime.timedelta | None = None
@@ -242,7 +242,7 @@ def split_assertion_rules(assertions: List[connectors.ResourceAssertion]) -> \
     return static_assertions, k8_assertions
 
 
-class WorkflowSpec(pydantic.BaseModel, extra="forbid"):
+class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the workflow spec from the workflow service. """
     name: task_common.NamePattern
     pool: str = ''
@@ -756,7 +756,7 @@ class WorkflowSpec(pydantic.BaseModel, extra="forbid"):
         return base_spec
 
 
-class VersionedWorkflowSpec(pydantic.BaseModel, extra="forbid"):
+class VersionedWorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """Control the WorkflowSpec version. """
     version: int = 2  # Default to OSMO workflow spec version 2
     workflow: WorkflowSpec
@@ -770,7 +770,7 @@ class VersionedWorkflowSpec(pydantic.BaseModel, extra="forbid"):
         return value
 
 
-class TemplateSpec(pydantic.BaseModel, extra="forbid"):
+class TemplateSpec(pydantic.BaseModel, extra='forbid'):
     """ Template Spec. """
     file: str
     set_variables: List[str] = []

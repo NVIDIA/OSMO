@@ -69,7 +69,7 @@ class Client(pydantic.BaseModel):
     """
 
     model_config = pydantic.ConfigDict(
-        extra="forbid",
+        extra='forbid',
         frozen=True,
         ignored_types=(functools.cached_property,),
     )
@@ -1196,7 +1196,7 @@ class SingleObjectClient(pydantic.BaseModel):
     interacting with a single object.
     """
 
-    model_config = pydantic.ConfigDict(extra="forbid", frozen=True)
+    model_config = pydantic.ConfigDict(extra='forbid', frozen=True)
 
     @overload
     @classmethod

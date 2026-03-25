@@ -91,7 +91,7 @@ def get_container_exit_code(container_name: str, exit_code: int) -> int:
     return exit_code
 
 
-class PodErrorInfo(pydantic.BaseModel, extra="forbid"):
+class PodErrorInfo(pydantic.BaseModel, extra='forbid'):
     """ Lightweight class for storing information about pod failure"""
     error_message: str = ''
     exit_codes: Dict[str, int] = {}
@@ -113,7 +113,7 @@ class PodErrorInfo(pydantic.BaseModel, extra="forbid"):
         return None
 
 
-class PodWaitingStatus(pydantic.BaseModel, extra="forbid"):
+class PodWaitingStatus(pydantic.BaseModel, extra='forbid'):
     """ Lightweight class for storing information about pod status. """
     waiting_on_error: bool
     waiting_reason: str | None = None

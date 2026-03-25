@@ -264,7 +264,7 @@ class TaskGroupStatus(enum.Enum):
              and not self.canceled())
 
 
-class TaskInputOutput(pydantic.BaseModel, extra="forbid"):
+class TaskInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents an input/output that is another task """
     task: task_common.TaskNamePattern
     regex: str = ''
@@ -314,9 +314,9 @@ class TaskInputOutput(pydantic.BaseModel, extra="forbid"):
         return hash((self.__class__.__name__, self.task))
 
 
-class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
+class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents an input/output that is a dataset """
-    class _Dataset(pydantic.BaseModel, extra="forbid"):
+    class _Dataset(pydantic.BaseModel, extra='forbid'):
         """ Represents dataset info """
         name: str
         path: str = ''
@@ -411,9 +411,9 @@ class DatasetInputOutput(pydantic.BaseModel, extra="forbid"):
         return hash((self.__class__.__name__, self.dataset.name, self.dataset.path))
 
 
-class UpdateDatasetOutput(pydantic.BaseModel, extra="forbid"):
+class UpdateDatasetOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents an input/output that is a dataset """
-    class _Dataset(pydantic.BaseModel, extra="forbid"):
+    class _Dataset(pydantic.BaseModel, extra='forbid'):
         """ Represents dataset info """
         name: str
         paths: List[str] = []
@@ -489,7 +489,7 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra="forbid"):
         return hash((self.__class__.__name__, self.update_dataset.name))
 
 
-class URLInputOutput(pydantic.BaseModel, extra="forbid"):
+class URLInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents a url used for input/output """
     url: str
     regex: str = ''
@@ -522,7 +522,7 @@ InputType = TaskInputOutput | DatasetInputOutput | URLInputOutput
 OutputType = DatasetInputOutput | URLInputOutput | UpdateDatasetOutput
 
 
-class CheckpointSpec(pydantic.BaseModel, extra="forbid"):
+class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents a checkpoint spec """
     path: str
     url: constants.StorageBackendPattern
@@ -557,13 +557,13 @@ class CheckpointSpec(pydantic.BaseModel, extra="forbid"):
             raise ValueError(f'Invalid regex: {regex}') from err
 
 
-class TaskKPI(pydantic.BaseModel, extra="forbid"):
+class TaskKPI(pydantic.BaseModel, extra='forbid'):
     """ Represents a KPI stored in a task """
     index: str
     path: str
 
 
-class File(pydantic.BaseModel, extra="forbid"):
+class File(pydantic.BaseModel, extra='forbid'):
     """ Encodes text contents to uniformly support text and binary files. """
     base64: bool = False
     path: str
@@ -594,7 +594,7 @@ class File(pydantic.BaseModel, extra="forbid"):
         return self.contents
 
 
-class TaskSpec(pydantic.BaseModel, extra="forbid"):
+class TaskSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the container spec in a task spec. """
     name: task_common.NamePattern
     image: str
@@ -1008,7 +1008,7 @@ class TaskGroupSpec(pydantic.BaseModel):
         return base_spec
 
 
-class TaskGroupMetrics(pydantic.BaseModel, extra="forbid"):
+class TaskGroupMetrics(pydantic.BaseModel, extra='forbid'):
     """  Represents metrics submitted by each user task in a workflow
     """
     retry_id: int = 0

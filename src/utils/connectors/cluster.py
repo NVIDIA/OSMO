@@ -20,7 +20,7 @@ import kubernetes  # type: ignore
 import pydantic
 
 
-class ClusterConfig(pydantic.BaseModel, extra="forbid"):
+class ClusterConfig(pydantic.BaseModel, extra='forbid'):
     """ A class for managing the config for the execution cluster. """
     cluster_host: str = pydantic.Field(
         default='https://localhost:6443',

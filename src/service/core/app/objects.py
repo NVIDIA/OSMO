@@ -36,7 +36,7 @@ class ListEntry(pydantic.BaseModel):
     latest_version: str
 
 
-class ListResponse(pydantic.BaseModel, extra="forbid"):
+class ListResponse(pydantic.BaseModel, extra='forbid'):
     apps: List[ListEntry]
     more_entries: bool
 
@@ -48,7 +48,7 @@ class GetVersionEntry(pydantic.BaseModel):
     status: str
 
 
-class GetAppResponse(pydantic.BaseModel, extra="forbid"):
+class GetAppResponse(pydantic.BaseModel, extra='forbid'):
     uuid: str
     name: str
     description: str
@@ -57,7 +57,7 @@ class GetAppResponse(pydantic.BaseModel, extra="forbid"):
     versions: List[GetVersionEntry]
 
 
-class EditResponse(pydantic.BaseModel, extra="forbid"):
+class EditResponse(pydantic.BaseModel, extra='forbid'):
     uuid: str
     version: int
     name: str
