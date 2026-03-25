@@ -126,8 +126,9 @@ class WorkflowServiceContext(pydantic.BaseModel):
                 'Using WorkflowServiceContext before initialization.')
         return cls._instance
 
-class ResourceUsage(pydantic.BaseModel, extra='forbid'):
+class ResourceUsage(pydantic.BaseModel):
     """ Object storing resource usage information. """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
     quota_used: str
     quota_free: str
     quota_limit: str
