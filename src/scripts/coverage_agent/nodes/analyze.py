@@ -14,30 +14,38 @@ logger = logging.getLogger(__name__)
 
 
 def find_existing_test(source_path: str, test_type: TestType, repo_root: str = ".") -> Optional[str]:
-    """Find an existing test file for a given source file."""
+    """Find an existing test file for a given source file.
+
+    Returns a normalized path relative to repo_root (no ./ prefix).
+    """
     abs_source = os.path.join(repo_root, source_path) if not os.path.isabs(source_path) else source_path
     source_dir = os.path.dirname(abs_source)
     source_name = os.path.splitext(os.path.basename(abs_source))[0]
 
+    result = None
     if test_type == TestType.PYTHON:
         test_dir = os.path.join(source_dir, "tests")
         pattern = os.path.join(test_dir, f"test_{source_name}.py")
         matches = glob.glob(pattern)
         if matches:
-            return matches[0]
+            result = matches[0]
 
     elif test_type == TestType.GO:
         pattern = os.path.join(source_dir, f"{source_name}_test.go")
         if os.path.exists(pattern):
-            return pattern
+            result = pattern
 
     elif test_type == TestType.UI:
         for ext in (".test.ts", ".test.tsx"):
             pattern = os.path.join(source_dir, f"{source_name}{ext}")
             if os.path.exists(pattern):
-                return pattern
+                result = pattern
+                break
 
-    return None
+    # Normalize: strip ./ prefix from paths like ./src/utils/roles/roles_test.go
+    if result and result.startswith("./"):
+        result = result[2:]
+    return result
 
 
 def should_skip_file(entry: CoverageEntry, min_lines: int = 10, max_lines: int = 500) -> Optional[str]:
