@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Vitest/TypeScript test generation prompt templates."""
 
 from coverage_agent.prompts.quality_rules import QUALITY_RULES_PREAMBLE
 
@@ -33,10 +34,16 @@ def build_ui_prompt(
     prompt += f"### Uncovered line ranges to target: {uncovered_ranges}\n\n"
 
     if existing_test_content:
-        prompt += f"### Existing tests (extend, don't duplicate):\n```typescript\n{existing_test_content}\n```\n\n"
+        prompt += (
+            f"### Existing tests (extend, don't duplicate):\n"
+            f"```typescript\n{existing_test_content}\n```\n\n"
+        )
 
     if reference_test_content:
-        prompt += f"### Reference test pattern (follow this style):\n```typescript\n{reference_test_content}\n```\n\n"
+        prompt += (
+            f"### Reference test pattern (follow this style):\n"
+            f"```typescript\n{reference_test_content}\n```\n\n"
+        )
 
     prompt += "Generate tests that cover the uncovered lines listed above."
     return prompt

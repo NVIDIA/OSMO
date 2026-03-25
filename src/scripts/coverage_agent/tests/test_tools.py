@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Tests for shell, file_ops, and tool utilities."""
 
 import os
 import signal
@@ -32,7 +33,7 @@ class TestWriteFile(unittest.TestCase):
         try:
             result = write_file(path, "print('hello')\n")
             self.assertIn("Written", result)
-            with open(path) as file:
+            with open(path, encoding="utf-8") as file:
                 self.assertEqual(file.read(), "print('hello')\n")
         finally:
             if os.path.exists(path):
@@ -81,7 +82,7 @@ class TestRunShell(unittest.TestCase):
         self.assertEqual(result.returncode, -1)
 
         try:
-            with open(pid_file) as file:
+            with open(pid_file, encoding="utf-8") as file:
                 pid = int(file.read().strip())
             # Check that the process is actually dead
             try:

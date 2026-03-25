@@ -1,7 +1,10 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Shell command execution with timeout and process group cleanup."""
 
 import dataclasses
+import os
+import signal
 import subprocess
 
 
@@ -29,9 +32,6 @@ def run_shell(command: str, timeout: int = 300) -> ShellResult:
         stdout, stderr = process.communicate(timeout=timeout)
         return ShellResult(stdout=stdout, stderr=stderr, returncode=process.returncode)
     except subprocess.TimeoutExpired:
-        import os
-        import signal
-
         os.killpg(process.pid, signal.SIGKILL)
         stdout, stderr = process.communicate()
         return ShellResult(

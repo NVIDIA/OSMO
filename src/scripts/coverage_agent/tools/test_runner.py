@@ -1,11 +1,17 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Test runner for Python, Go, and UI tests via Bazel and pnpm."""
 
 import logging
 import shlex
 from typing import Optional
 
-from coverage_agent.plugins.base import TestType, ValidationResult, detect_test_type, file_path_to_bazel_package
+from coverage_agent.plugins.base import (
+    TestType,
+    ValidationResult,
+    detect_test_type,
+    file_path_to_bazel_package,
+)
 from coverage_agent.tools.shell import run_shell
 
 logger = logging.getLogger(__name__)
@@ -43,7 +49,9 @@ def run_test(test_file_path: str, timeout: int = 180) -> ValidationResult:
     if test_type == TestType.UI:
         return _run_vitest(test_file_path, timeout)
 
-    return ValidationResult(passed=False, output=f"Unknown test type: {test_file_path}", retry_hint=None)
+    return ValidationResult(
+        passed=False, output=f"Unknown test type: {test_file_path}", retry_hint=None,
+    )
 
 
 def _run_bazel_test(test_file_path: str, timeout: int) -> ValidationResult:
@@ -63,7 +71,7 @@ def _run_bazel_test(test_file_path: str, timeout: int) -> ValidationResult:
                 if "testlogs" not in part:
                     continue
                 try:
-                    with open(part) as log_file:
+                    with open(part, encoding="utf-8") as log_file:
                         output += f"\n--- Test log ({part}) ---\n{log_file.read()}"
                 except OSError:
                     pass
@@ -87,7 +95,10 @@ def _run_vitest(test_file_path: str, timeout: int) -> ValidationResult:
     if vitest_path.startswith("src/ui/"):
         vitest_path = vitest_path[len("src/ui/"):]
     logger.info("Running: cd src/ui && pnpm test -- --run %s", vitest_path)
-    result = run_shell(f"cd src/ui && pnpm test -- --run {shlex.quote(vitest_path)}", timeout=timeout)
+    result = run_shell(
+        f"cd src/ui && pnpm test -- --run {shlex.quote(vitest_path)}",
+        timeout=timeout,
+    )
 
     return ValidationResult(
         passed=result.returncode == 0,

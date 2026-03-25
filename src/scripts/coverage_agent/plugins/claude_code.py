@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Claude Code headless-mode test writer plugin."""
 
 import json
 import logging
@@ -7,7 +8,13 @@ import os
 import subprocess
 from typing import Optional
 
-from coverage_agent.plugins.base import GeneratedTest, TestType, ValidationResult, WriterPlugin, determine_test_path
+from coverage_agent.plugins.base import (
+    GeneratedTest,
+    TestType,
+    ValidationResult,
+    WriterPlugin,
+    determine_test_path,
+)
 from coverage_agent.prompts.quality_rules import QUALITY_RULES_PREAMBLE
 from coverage_agent.tools.file_ops import write_file
 from coverage_agent.tools.test_runner import run_test
@@ -18,7 +25,10 @@ logger = logging.getLogger(__name__)
 # Bash(cmd *) prefix-matches commands starting with "cmd ".
 # The space before * is important to avoid over-matching.
 ALLOWED_TOOLS_BY_TYPE = {
-    "python": "Read,Write,Edit,Bash(python *),Bash(bazel *),Bash(ruff *),Bash(cat *),Bash(ls *),Bash(find *)",
+    "python": (
+        "Read,Write,Edit,Bash(python *),Bash(bazel *),"
+        "Bash(ruff *),Bash(cat *),Bash(ls *),Bash(find *)"
+    ),
     "go": "Read,Write,Edit,Bash(go *),Bash(bazel *),Bash(cat *),Bash(ls *),Bash(find *)",
     "ui": "Read,Write,Edit,Bash(pnpm *),Bash(npx *),Bash(cat *),Bash(ls *),Bash(find *)",
 }
@@ -126,7 +136,10 @@ class ClaudeCodeWriter(WriterPlugin):
 
         bare_flag = "--bare " if "--bare" in cmd else ""
         model_flag = f"--model {self._model} " if self._model else ""
-        logger.info("Running Claude Code: claude %s%s-p <prompt> --max-turns %d", bare_flag, model_flag, self._max_turns)
+        logger.info(
+            "Running Claude Code: claude %s%s-p <prompt> --max-turns %d",
+            bare_flag, model_flag, self._max_turns,
+        )
         logger.debug("Allowed tools: %s", allowed_tools)
 
         try:
@@ -140,11 +153,16 @@ class ClaudeCodeWriter(WriterPlugin):
             logger.error("Claude Code timed out after %ds", self._timeout)
             return None
         except FileNotFoundError:
-            logger.error("Claude Code CLI not found. Install: npm install -g @anthropic-ai/claude-code")
+            logger.error(
+                "Claude Code CLI not found. Install: npm install -g @anthropic-ai/claude-code",
+            )
             return None
 
         if result.returncode != 0:
-            logger.error("Claude Code failed (exit %d): stderr=%s", result.returncode, result.stderr[:500])
+            logger.error(
+                "Claude Code failed (exit %d): stderr=%s",
+                result.returncode, result.stderr[:500],
+            )
             logger.error("Claude Code stdout: %s", result.stdout[:500])
             return None
 
@@ -180,7 +198,8 @@ class ClaudeCodeWriter(WriterPlugin):
         ranges_str = ", ".join(f"lines {start}-{end}" for start, end in uncovered_ranges)
 
         prompt = (
-            f"Generate unit tests for {source_path} targeting these uncovered line ranges: {ranges_str}.\n\n"
+            f"Generate unit tests for {source_path} targeting these"
+            f" uncovered line ranges: {ranges_str}.\n\n"
             f"Write the test file to: {test_file_path}\n"
         )
 
@@ -225,14 +244,14 @@ class ClaudeCodeWriter(WriterPlugin):
         # Claude Code writes files directly via its Write/Edit tools.
         # Try reading from disk first; fall back to JSON result field.
         try:
-            with open(test_file_path) as file:
+            with open(test_file_path, encoding="utf-8") as file:
                 test_content = file.read()
 
             build_dir = os.path.dirname(test_file_path)
             build_path = os.path.join(build_dir, "BUILD")
             build_entry = None
             try:
-                with open(build_path) as file:
+                with open(build_path, encoding="utf-8") as file:
                     build_entry = file.read()
             except FileNotFoundError:
                 pass
@@ -248,7 +267,10 @@ class ClaudeCodeWriter(WriterPlugin):
         # Fallback: extract from JSON result field and write to disk
         result_text = data.get("result", "")
         if result_text:
-            logger.warning("Claude Code did not write to %s, extracting from result field", test_file_path)
+            logger.warning(
+                "Claude Code did not write to %s, extracting from result field",
+                test_file_path,
+            )
             write_file(test_file_path, result_text)
 
         return GeneratedTest(

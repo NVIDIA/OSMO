@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Parse LCOV coverage report files into structured coverage entries."""
 
 import dataclasses
 import fnmatch
@@ -66,7 +67,7 @@ def parse_lcov(lcov_path: str) -> list[CoverageEntry]:
     total_lines = 0
     hit_lines = 0
 
-    with open(lcov_path) as file:
+    with open(lcov_path, encoding="utf-8") as file:
         for raw_line in file:
             line = raw_line.strip()
 

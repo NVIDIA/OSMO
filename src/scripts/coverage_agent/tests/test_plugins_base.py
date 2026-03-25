@@ -1,11 +1,19 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Tests for the plugin base types and registry."""
 
 import unittest
 from typing import Optional
 
 from coverage_agent.plugins import _instances, get_writer, register_plugin
-from coverage_agent.plugins.base import GeneratedTest, TestType, ValidationResult, WriterPlugin, detect_test_type, determine_test_path
+from coverage_agent.plugins.base import (
+    GeneratedTest,
+    TestType,
+    ValidationResult,
+    WriterPlugin,
+    detect_test_type,
+    determine_test_path,
+)
 
 
 class TestWriterPluginABC(unittest.TestCase):

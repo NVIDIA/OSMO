@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Tests for the quality gate checks."""
 
 import unittest
 
@@ -142,29 +143,44 @@ class TestCheckTestQuality(unittest.TestCase):
     def test_block_private_method_calls(self):
         result = check_test_quality(PRIVATE_METHOD_TEST, "python")
         self.assertFalse(result.passed)
-        self.assertTrue(any("private" in issue.lower() or "internal" in issue.lower() for issue in result.blocking_issues))
+        self.assertTrue(any(
+            "private" in issue.lower() or "internal" in issue.lower()
+            for issue in result.blocking_issues
+        ))
 
     def test_block_logic_in_test(self):
         result = check_test_quality(LOGIC_IN_TEST, "python")
         self.assertFalse(result.passed)
-        self.assertTrue(any("logic" in issue.lower() or "loop" in issue.lower() for issue in result.blocking_issues))
+        self.assertTrue(any(
+            "logic" in issue.lower() or "loop" in issue.lower()
+            for issue in result.blocking_issues
+        ))
 
     def test_block_nondeterministic_random(self):
         result = check_test_quality(NONDETERMINISTIC_TEST, "python")
         self.assertFalse(result.passed)
-        self.assertTrue(any("deterministic" in issue.lower() or "random" in issue.lower() for issue in result.blocking_issues))
+        self.assertTrue(any(
+            "deterministic" in issue.lower() or "random" in issue.lower()
+            for issue in result.blocking_issues
+        ))
 
     def test_block_nondeterministic_sleep(self):
         result = check_test_quality(SLEEP_IN_TEST, "python")
         self.assertFalse(result.passed)
-        self.assertTrue(any("deterministic" in issue.lower() or "sleep" in issue.lower() for issue in result.blocking_issues))
+        self.assertTrue(any(
+            "deterministic" in issue.lower() or "sleep" in issue.lower()
+            for issue in result.blocking_issues
+        ))
 
     def test_warn_too_many_assertions(self):
         result = check_test_quality(TOO_MANY_ASSERTIONS_TEST, "python")
         # Should pass (warnings don't block) but have warnings
         self.assertTrue(result.passed)
         self.assertTrue(len(result.warnings) > 0)
-        self.assertTrue(any("assertion" in w.lower() or "behavior" in w.lower() for w in result.warnings))
+        self.assertTrue(any(
+            "assertion" in w.lower() or "behavior" in w.lower()
+            for w in result.warnings
+        ))
 
     def test_warn_generic_name(self):
         result = check_test_quality(GENERIC_NAME_TEST, "python")

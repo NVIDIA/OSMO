@@ -1,11 +1,13 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""CLI entry point for the AI coverage agent."""
 
 import argparse
 import logging
 import sys
 from datetime import datetime
 
+from coverage_agent.graph import build_graph
 from coverage_agent.plugins import _register_defaults
 from coverage_agent.state import CoverageState
 
@@ -14,7 +16,9 @@ logger = logging.getLogger(__name__)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Coverage Agent — generate tests for uncovered code")
+    parser = argparse.ArgumentParser(
+        description="AI Coverage Agent — generate tests for uncovered code",
+    )
     parser.add_argument("--lcov-path", default="bazel-out/_coverage/_coverage_report.dat",
                         help="Path to backend LCOV coverage file (Python/Go)")
     parser.add_argument("--ui-lcov-path", default="src/ui/coverage/lcov.info",
@@ -33,8 +37,6 @@ def main():
     args = parser.parse_args()
 
     _register_defaults()
-
-    from coverage_agent.graph import build_graph
 
     graph = build_graph()
 
@@ -78,7 +80,10 @@ def main():
     if result.get("pr_url"):
         logger.info("PR created: %s", result["pr_url"])
     elif args.dry_run:
-        logger.info("Dry run complete. %d files would be included in PR.", len(result["generated_files"]))
+        logger.info(
+            "Dry run complete. %d files would be included in PR.",
+            len(result["generated_files"]),
+        )
 
 
 if __name__ == "__main__":

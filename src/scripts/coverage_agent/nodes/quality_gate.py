@@ -1,11 +1,12 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Quality gate checks for AI-generated test files."""
 
 import dataclasses
 import logging
 import re
 
-from coverage_agent.plugins.base import TestType, detect_test_type
+from coverage_agent.plugins.base import detect_test_type
 from coverage_agent.state import CoverageState
 
 logger = logging.getLogger(__name__)
@@ -190,7 +191,7 @@ def quality_gate(state: CoverageState) -> CoverageState:
 
     for file_path in state["generated_files"]:
         try:
-            with open(file_path) as file:
+            with open(file_path, encoding="utf-8") as file:
                 content = file.read()
         except FileNotFoundError:
             logger.warning("Quality gate: file not found: %s", file_path)
@@ -214,5 +215,8 @@ def quality_gate(state: CoverageState) -> CoverageState:
                 logger.warning("  BLOCKED: %s", issue)
             errors.append(f"Quality gate BLOCKED {file_path}: {'; '.join(result.blocking_issues)}")
 
-    logger.info("Quality gate result: %d/%d files passed", len(kept_files), len(state["generated_files"]))
+    logger.info(
+        "Quality gate result: %d/%d files passed",
+        len(kept_files), len(state["generated_files"]),
+    )
     return {**state, "generated_files": kept_files, "errors": errors}

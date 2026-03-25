@@ -1,11 +1,13 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Tests for the LCOV coverage report parser."""
 
 import os
 import tempfile
 import unittest
 
 from coverage_agent.lcov_parser import CoverageEntry, parse_lcov
+from coverage_agent.plugins.base import TestType, detect_test_type
 
 
 BASIC_LCOV = """\
@@ -221,8 +223,6 @@ class TestLcovParser(unittest.TestCase):
         LCOV parser's _is_ignored(), not by detect_test_type(). This test verifies
         both layers work correctly together.
         """
-        from coverage_agent.plugins.base import TestType, detect_test_type
-
         self.assertEqual(detect_test_type("src/ui/src/lib/utils.ts"), TestType.UI)
         self.assertEqual(detect_test_type("src/ui/src/lib/api/adapter/pools.ts"), TestType.UI)
         # generated.ts is a valid UI type by extension — filtered at LCOV parser level

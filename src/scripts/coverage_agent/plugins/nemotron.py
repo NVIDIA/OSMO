@@ -1,10 +1,16 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Nemotron-based test writer plugin using LangChain and NVIDIA AI Endpoints."""
 
 import logging
 import os
 import re
 from typing import Optional
+
+try:
+    from langchain_nvidia_ai_endpoints import ChatNVIDIA
+except ImportError:
+    ChatNVIDIA = None
 
 from coverage_agent.plugins.base import (
     GeneratedTest,
@@ -38,16 +44,19 @@ class NemotronWriter(WriterPlugin):
     """Test writer using Nemotron via ChatNVIDIA and LangChain tool-calling."""
 
     def __init__(self):
-        try:
-            from langchain_nvidia_ai_endpoints import ChatNVIDIA
-
-            self.llm = ChatNVIDIA(
-                model=os.getenv("NIM_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
-                base_url=os.getenv("NIM_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+        if ChatNVIDIA is None:
+            logger.warning(
+                "langchain-nvidia-ai-endpoints not installed."
+                " NemotronWriter will not work.",
             )
-        except ImportError:
-            logger.warning("langchain-nvidia-ai-endpoints not installed. NemotronWriter will not work.")
             self.llm = None
+            return
+        self.llm = ChatNVIDIA(
+            model=os.getenv("NIM_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+            base_url=os.getenv(
+                "NIM_BASE_URL", "https://integrate.api.nvidia.com/v1",
+            ),
+        )
 
     def generate_test(
         self,
@@ -59,7 +68,9 @@ class NemotronWriter(WriterPlugin):
         retry_context: Optional[str] = None,
     ) -> GeneratedTest:
         if self.llm is None:
-            raise RuntimeError("ChatNVIDIA is not available. Install langchain-nvidia-ai-endpoints.")
+            raise RuntimeError(
+                "ChatNVIDIA is not available. Install langchain-nvidia-ai-endpoints."
+            )
 
         source_content = read_file(source_path)
         existing_test_content = read_file(existing_test_path) if existing_test_path else None
@@ -76,7 +87,11 @@ class NemotronWriter(WriterPlugin):
         )
 
         if retry_context:
-            user_prompt += f"\n\n### Previous attempt failed with:\n```\n{retry_context}\n```\nFix the issues and try again."
+            user_prompt += (
+                f"\n\n### Previous attempt failed with:\n"
+                f"```\n{retry_context}\n```\n"
+                f"Fix the issues and try again."
+            )
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -111,7 +126,10 @@ class NemotronWriter(WriterPlugin):
             test_content = code_blocks[0]
             logger.debug("Extracted %d code blocks from response", len(code_blocks))
         else:
-            logger.warning("No code blocks found in LLM response, using raw response as test content")
+            logger.warning(
+                "No code blocks found in LLM response,"
+                " using raw response as test content",
+            )
 
         build_blocks = re.findall(r"```(?:starlark|bzl|bazel)?\n(.*?)```", response, re.DOTALL)
         if build_blocks and test_type == "python":

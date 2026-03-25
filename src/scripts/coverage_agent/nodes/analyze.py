@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Analyze coverage data and select targets for test generation."""
 
 import glob
 import logging
@@ -13,12 +14,17 @@ from coverage_agent.state import CoverageState, CoverageTarget
 logger = logging.getLogger(__name__)
 
 
-def find_existing_test(source_path: str, test_type: TestType, repo_root: str = ".") -> Optional[str]:
+def find_existing_test(
+    source_path: str, test_type: TestType, repo_root: str = ".",
+) -> Optional[str]:
     """Find an existing test file for a given source file.
 
     Returns a normalized path relative to repo_root (no ./ prefix).
     """
-    abs_source = os.path.join(repo_root, source_path) if not os.path.isabs(source_path) else source_path
+    if os.path.isabs(source_path):
+        abs_source = source_path
+    else:
+        abs_source = os.path.join(repo_root, source_path)
     source_dir = os.path.dirname(abs_source)
     source_name = os.path.splitext(os.path.basename(abs_source))[0]
 
@@ -48,7 +54,9 @@ def find_existing_test(source_path: str, test_type: TestType, repo_root: str = "
     return result
 
 
-def should_skip_file(entry: CoverageEntry, min_lines: int = 10, max_lines: int = 500) -> Optional[str]:
+def should_skip_file(
+    entry: CoverageEntry, min_lines: int = 10, max_lines: int = 500,
+) -> Optional[str]:
     """Check if a file should be skipped. Returns skip reason or None."""
     if entry.total_lines < min_lines:
         return f"too small ({entry.total_lines} lines < {min_lines})"
@@ -97,7 +105,10 @@ def select_targets(
 
     logger.info("Selected %d targets from %d coverage entries", len(targets), len(entries))
     for target in targets:
-        logger.info("  %.1f%% %s (existing_test=%s)", target.coverage_pct, target.file_path, target.existing_test_path)
+        logger.info(
+            "  %.1f%% %s (existing_test=%s)",
+            target.coverage_pct, target.file_path, target.existing_test_path,
+        )
 
     return targets
 

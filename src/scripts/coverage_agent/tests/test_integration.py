@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Integration tests for the coverage agent pipeline stages."""
 
 import os
 import tempfile
@@ -86,7 +87,7 @@ class TestAnalyzeToQualityGatePipeline(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write a good test file
             test_path = os.path.join(tmpdir, "test_good.py")
-            with open(test_path, "w") as file:
+            with open(test_path, "w", encoding="utf-8") as file:
                 file.write(GOOD_GENERATED_TEST)
 
             state: CoverageState = {
@@ -116,7 +117,7 @@ class TestAnalyzeToQualityGatePipeline(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             # Write a bad test file (has loop)
             test_path = os.path.join(tmpdir, "test_bad.py")
-            with open(test_path, "w") as file:
+            with open(test_path, "w", encoding="utf-8") as file:
                 file.write(BAD_GENERATED_TEST_WITH_LOOP)
 
             state: CoverageState = {

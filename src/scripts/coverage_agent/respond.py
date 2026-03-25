@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""Respond to PR review comments by applying AI-generated fixes."""
 
 import argparse
 import dataclasses
@@ -8,7 +9,7 @@ import logging
 from typing import Optional
 
 from coverage_agent.nodes.quality_gate import check_test_quality
-from coverage_agent.plugins import get_writer
+from coverage_agent.plugins import _register_defaults, get_writer
 from coverage_agent.plugins.base import detect_test_type
 from coverage_agent.tools.file_ops import read_file
 from coverage_agent.tools.shell import run_shell
@@ -123,7 +124,10 @@ def respond_to_comment(
         return
 
     comment = parse_review_comment(comment_data)
-    logger.info("Responding to comment by %s on %s:%d", comment.author, comment.file_path, comment.line)
+    logger.info(
+        "Responding to comment by %s on %s:%d",
+        comment.author, comment.file_path, comment.line,
+    )
 
     # Read the file being commented on
     file_content = read_file(comment.file_path)
@@ -157,7 +161,8 @@ def respond_to_comment(
     if not validation.passed:
         _reply_to_comment(
             pr_number, comment_id,
-            f"Unable to auto-fix. Tests fail after applying change:\n```\n{validation.output[:500]}\n```\nNeeds human review."
+            "Unable to auto-fix. Tests fail after applying change:\n"
+            f"```\n{validation.output[:500]}\n```\nNeeds human review."
         )
         return
 
@@ -165,7 +170,8 @@ def respond_to_comment(
     if not quality.passed:
         _reply_to_comment(
             pr_number, comment_id,
-            f"Fix applied but failed quality gate: {'; '.join(quality.blocking_issues)}\nNeeds human review."
+            f"Fix applied but failed quality gate: "
+            f"{'; '.join(quality.blocking_issues)}\nNeeds human review."
         )
         return
 
@@ -195,7 +201,6 @@ def main():
                         choices=["nemotron", "claude-code", "openai"])
     args = parser.parse_args()
 
-    from coverage_agent.plugins import _register_defaults
     _register_defaults()
 
     respond_to_comment(args.pr_number, args.comment_id, args.provider)

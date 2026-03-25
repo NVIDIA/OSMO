@@ -1,5 +1,6 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""LangGraph node for validating generated tests."""
 
 import logging
 
@@ -20,7 +21,10 @@ def validate_test(state: CoverageState) -> CoverageState:
             "validation_output": "No test was generated",
         }
 
-    logger.info("Validating %s (content_length=%d)", last_generated.test_file_path, len(last_generated.test_content))
+    logger.info(
+        "Validating %s (content_length=%d)",
+        last_generated.test_file_path, len(last_generated.test_content),
+    )
 
     writer = get_writer(state["provider"])
     result = writer.validate_test(last_generated)

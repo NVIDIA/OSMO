@@ -1,8 +1,20 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
+"""LangGraph state graph builder and routing functions for the coverage agent pipeline."""
 
 import logging
 
+try:
+    from langgraph.graph import END, StateGraph
+except ImportError:
+    END = None
+    StateGraph = None
+
+from coverage_agent.nodes.analyze import analyze_coverage
+from coverage_agent.nodes.create_pr import create_pr
+from coverage_agent.nodes.quality_gate import quality_gate
+from coverage_agent.nodes.validate import validate_test
+from coverage_agent.nodes.write import write_test
 from coverage_agent.state import CoverageState
 
 logger = logging.getLogger(__name__)
@@ -57,18 +69,11 @@ def _increment_retry(state: CoverageState) -> CoverageState:
 
 
 def build_graph():
-    """Build the LangGraph StateGraph for the coverage agent pipeline.
-
-    Requires langgraph to be installed. Import is deferred so that tests of
-    routing functions can run without the langgraph dependency.
-    """
-    from langgraph.graph import END, StateGraph
-
-    from coverage_agent.nodes.analyze import analyze_coverage
-    from coverage_agent.nodes.create_pr import create_pr
-    from coverage_agent.nodes.quality_gate import quality_gate
-    from coverage_agent.nodes.validate import validate_test
-    from coverage_agent.nodes.write import write_test
+    """Build the LangGraph StateGraph for the coverage agent pipeline."""
+    if StateGraph is None:
+        raise RuntimeError(
+            "langgraph is not installed. Install it to use build_graph()."
+        )
 
     def validate_with_transition(state: CoverageState) -> CoverageState:
         """Run validation, then apply state transitions based on routing."""
