@@ -2,34 +2,45 @@
   "patterns": [
     {
       "id": "pydantic-v2-optional-defaults",
-      "description": "Pydantic v2 requires Optional[X] fields to have explicit = None defaults. v1 auto-defaulted them to None.",
-      "impact": "High — this was the most widespread change needed (61+ fields across 270 models)",
-      "solution": "Automated script to find all Optional/Union[..., None] fields in BaseModel subclasses and add = None"
+      "description": "Pydantic v2 requires Optional[X] fields to have explicit = None defaults. v1 auto-defaulted them.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
     },
     {
-      "id": "pydantic-v2-validator-values-param",
-      "description": "@field_validator in v2 does not receive 'values' dict parameter. Validators needing cross-field access must use @model_validator(mode='before').",
-      "impact": "Medium — affects validators that check other fields",
-      "solution": "Convert @field_validator to @model_validator(mode='before') and access values dict directly"
+      "id": "pydantic-v2-validator-to-model-validator",
+      "description": "@validator with 'values' parameter must become @model_validator(mode='before') in v2, since field_validator doesn't receive other fields' values.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
     },
     {
-      "id": "pydantic-v2-settings-split",
-      "description": "pydantic-settings is a separate package in v2",
-      "impact": "Low — one import change",
-      "solution": "pip install pydantic-settings; change import from pydantic to pydantic_settings"
+      "id": "pydantic-v2-coerce-numbers-to-str",
+      "description": "Pydantic v2 doesn't auto-coerce int→str. Use model_config = ConfigDict(coerce_numbers_to_str=True) for models that receive numeric values in str fields.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
     },
     {
-      "id": "repo-test-infrastructure",
-      "description": "Many tests in this repo require redis-server, Docker, or the Bazel-generated services module path",
-      "impact": "Limits what can be tested outside Bazel environment",
-      "solution": "Focus on tests that can run with just PYTHONPATH=/workspace/repo"
+      "id": "pydantic-settings-separate-package",
+      "description": "In Pydantic v2, BaseSettings moved to pydantic-settings package. Install separately.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
     },
     {
-      "id": "pre-existing-broken-tests",
-      "description": "test_workflow.py calls convert_to_workflow_spec() which was never implemented. test_kb_objects.py uses assertEquals() removed in Python 3.12.",
-      "impact": "These failures are NOT related to any migration work",
-      "solution": "Document and skip — out of scope for migration"
+      "id": "osmo-bazel-dependent-tests",
+      "description": "Many OSMO tests depend on Bazel-built 'services' or 'osmo' modules and cannot run outside Bazel.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
+    },
+    {
+      "id": "osmo-pre-existing-test-failures",
+      "description": "test_workflow.py::ResourceSpecTest has pre-existing failures: convert_to_workflow_spec() never existed, test data is incompatible with schema.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
+    },
+    {
+      "id": "pydantic-v2-np-bool-deprecation",
+      "description": "np.bool was deprecated in NumPy 1.20+ and removed in 1.24+. Replace with builtin bool.",
+      "learned_from": "pydantic-v2-migration",
+      "confidence": 1.0
     }
-  ],
-  "last_updated": "2025-01-27"
+  ]
 }
