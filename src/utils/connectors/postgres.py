@@ -1351,7 +1351,7 @@ class PostgresConnector:
                     'system',                   # username
                     ['initial-config'],         # tags
                     'Initial configuration',    # description
-                    json.dumps(data, default=pydantic.json.pydantic_encoder),  # data
+                    json.dumps(data, default=common.pydantic_encoder),  # data
                     config_type.value.lower(),  # for WHERE NOT EXISTS
                 ),
             )
@@ -1564,7 +1564,7 @@ class PostgresConnector:
                 username,
                 tags,
                 description,
-                json.dumps(data, default=pydantic.json.pydantic_encoder),
+                json.dumps(data, default=common.pydantic_encoder),
             ),
         )
 
