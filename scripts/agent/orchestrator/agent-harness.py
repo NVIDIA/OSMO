@@ -38,12 +38,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "Bash",
-            "description": "Execute a bash command. Returns stdout and stderr.",
+            "description": "Execute a bash command. Returns stdout and stderr. Commands run as long as they produce output. Killed only if no output for `timeout` seconds (default 120). A build that takes 30 minutes but keeps printing progress will run to completion.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {"type": "string", "description": "The bash command to execute"},
-                    "timeout": {"type": "integer", "description": "Timeout in seconds (default 120)"},
+                    "timeout": {"type": "integer", "description": "Inactivity timeout in seconds (default 120). Command is killed if no output for this long."},
                 },
                 "required": ["command"],
             },
@@ -135,22 +135,141 @@ TOOLS = [
 # ============================================================
 
 
+# LLM client/model set by run_agent so execute_bash can consult the LLM
+_llm_client = None
+_llm_model = None
+
+PEEK_INTERVAL = 30  # seconds between LLM progress checks
+
+
 def execute_bash(command, timeout=120):
+    """Execute a bash command. Keeps running as long as there's output.
+
+    Inactivity timeout: killed if no output for `timeout` seconds.
+    Progress checks: every 60s of active output, sends recent output to
+    the LLM to assess whether the command is on track. LLM can say "kill"
+    if it sees errors piling up or the wrong thing happening.
+    """
+    import select
+
     try:
-        result = subprocess.run(
+        _progress_history.clear()
+
+        process = subprocess.Popen(
             ["bash", "-c", command],
-            capture_output=True, text=True, timeout=timeout, cwd=os.getcwd(),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, cwd=os.getcwd(),
         )
-        output = result.stdout
-        if result.stderr:
-            output += "\n" + result.stderr if output else result.stderr
-        if result.returncode != 0:
-            output += f"\n(exit code: {result.returncode})"
+
+        output_lines = []
+        start = time.time()
+        last_output_time = start
+        last_peek_time = start
+
+        while True:
+            ready = select.select([process.stdout], [], [], 1.0)[0]
+
+            if ready:
+                line = process.stdout.readline()
+                if line:
+                    output_lines.append(line.rstrip())
+                    sys.stderr.write(f"  | {line}")
+                    sys.stderr.flush()
+                    last_output_time = time.time()
+                elif process.poll() is not None:
+                    break
+            elif process.poll() is not None:
+                break
+
+            now = time.time()
+            silent = now - last_output_time
+            elapsed = now - start
+
+            # Inactivity timeout — two rounds of silence before killing
+            if silent > timeout * 2:
+                process.kill()
+                process.wait()
+                output_lines.append(
+                    f"(killed: no output for {int(silent)}s — appears stuck. "
+                    f"Total runtime: {int(elapsed)}s, {len(output_lines)} lines captured)"
+                )
+                break
+
+            # LLM progress check — let the LLM decide on all conditions:
+            # progress, repetition, wrong track
+            if _llm_client and elapsed > PEEK_INTERVAL and now - last_peek_time > PEEK_INTERVAL:
+                last_peek_time = now
+                recent = output_lines[-30:] if output_lines else ["(no output)"]
+                verdict = _check_progress(command, int(elapsed), recent)
+                if verdict == "kill":
+                    process.kill()
+                    process.wait()
+                    output_lines.append(
+                        f"(killed by LLM after {int(elapsed)}s — "
+                        f"determined command is not making progress)"
+                    )
+                    break
+
+        output = "\n".join(output_lines)
+        if process.returncode and process.returncode != 0:
+            output += f"\n(exit code: {process.returncode})"
         return output or "(no output)"
-    except subprocess.TimeoutExpired:
-        return f"Command timed out after {timeout}s"
     except Exception as e:
         return f"Error: {e}"
+
+
+_progress_history = []  # list of {"elapsed": int, "line_count": int, "snapshot": str}
+
+
+def _check_progress(command, elapsed_seconds, recent_lines):
+    """Ask the LLM whether a long-running command should continue or be killed.
+
+    Maintains history of prior snapshots so the LLM can compare N vs N-1
+    and determine whether forward progress is actually being made.
+    """
+    try:
+        snapshot = "\n".join(recent_lines)
+        _progress_history.append({
+            "elapsed": elapsed_seconds,
+            "line_count": len(recent_lines),
+            "snapshot": snapshot,
+        })
+
+        # Build context showing progression
+        history_parts = []
+        for i, entry in enumerate(_progress_history):
+            history_parts.append(
+                f"--- Check {i + 1} ({entry['elapsed']}s elapsed) ---\n"
+                f"{entry['snapshot']}"
+            )
+        history_text = "\n\n".join(history_parts)
+
+        resp = _llm_client.chat.completions.create(
+            model=_llm_model,
+            messages=[
+                {"role": "system", "content": (
+                    "You are monitoring a running command. You will see snapshots of "
+                    "the output taken at regular intervals. Compare the latest snapshot "
+                    "to prior ones. Is the command making forward progress (new targets "
+                    "building, new tests running, new output appearing)? Or is it stuck "
+                    "(same output repeated, no new work done, spinning on the same error)?\n\n"
+                    "If it is making progress — even if there are some failures — reply 'continue'. "
+                    "Failures mixed with progress means let it finish to collect all results.\n"
+                    "If it is stuck or doing the completely wrong thing, reply 'kill'.\n\n"
+                    "Reply with exactly one word: 'continue' or 'kill'."
+                )},
+                {"role": "user", "content": (
+                    f"Command: {command}\n\n{history_text}"
+                )},
+            ],
+            max_tokens=10,
+        )
+        verdict = resp.choices[0].message.content.strip().lower()
+        sys.stderr.write(f"  [progress check {len(_progress_history)} at {elapsed_seconds}s: {verdict}]\n")
+        return "kill" if "kill" in verdict else "continue"
+    except Exception as e:
+        sys.stderr.write(f"  [progress check failed: {e} — continuing]\n")
+        return "continue"
 
 
 def execute_read(file_path, offset=None, limit=None):
@@ -228,7 +347,7 @@ def execute_grep(pattern, path=None, include=None):
 def execute_tool(name, args_json):
     args = json.loads(args_json) if isinstance(args_json, str) else args_json
     if name == "Bash":
-        return execute_bash(args["command"], args.get("timeout", 120))
+        return execute_bash(args["command"], args.get("timeout", 600))
     elif name == "Read":
         return execute_read(args["file_path"], args.get("offset"), args.get("limit"))
     elif name == "Write":
@@ -529,6 +648,10 @@ def run_agent(client, model, prompt, system_prompt=None,
         checkpoint_interval: Git checkpoint every N turns (0 to disable)
         commit_prefix: Prefix for checkpoint commit messages
     """
+    global _llm_client, _llm_model
+    _llm_client = client
+    _llm_model = model
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
