@@ -60,14 +60,14 @@ class MessageType(enum.Enum):
     ACK = 'ack'
     NODE_CONDITIONS = 'node_conditions'
 
-class LoggingBody(pydantic.BaseModel, extra="forbid"):
+class LoggingBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the container log body. """
     type: LoggingType
     text: str
     workflow_uuid: str | None = None
 
 
-class MessageBody(pydantic.BaseModel, extra="forbid"):
+class MessageBody(pydantic.BaseModel, extra='forbid'):
     """
     Used for Message Structure
     """
@@ -76,7 +76,7 @@ class MessageBody(pydantic.BaseModel, extra="forbid"):
     uuid: str = pydantic.Field(default_factory=common.generate_unique_id)
 
 
-class InitBody(pydantic.BaseModel, extra="forbid"):
+class InitBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the log body. """
     k8s_uid: str
     k8s_namespace: str
@@ -84,7 +84,7 @@ class InitBody(pydantic.BaseModel, extra="forbid"):
     node_condition_prefix: str
 
 
-class PodLogBody(pydantic.BaseModel, extra="forbid"):
+class PodLogBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the log body. """
     text: str
     task: str  # task_uuid
@@ -92,7 +92,7 @@ class PodLogBody(pydantic.BaseModel, extra="forbid"):
     mask: bool = True
 
 
-class ConditionMessage(pydantic.BaseModel, extra="forbid"):
+class ConditionMessage(pydantic.BaseModel, extra='forbid'):
     """ Represents the condition message body. """
     reason: str | None = None
     message: str | None = None
@@ -101,7 +101,7 @@ class ConditionMessage(pydantic.BaseModel, extra="forbid"):
     type: str
 
 
-class UpdatePodBody(pydantic.BaseModel, extra="forbid"):
+class UpdatePodBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the update pod body. """
     workflow_uuid: str
     task_uuid: str
@@ -116,7 +116,7 @@ class UpdatePodBody(pydantic.BaseModel, extra="forbid"):
     conditions: List[ConditionMessage] = []
 
 
-class ResourceBody(pydantic.BaseModel, extra="forbid"):
+class ResourceBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the resource body. """
     hostname: str
     available: bool
@@ -127,29 +127,29 @@ class ResourceBody(pydantic.BaseModel, extra="forbid"):
     taints: List[Dict] = []
 
 
-class ResourceUsageBody(pydantic.BaseModel, extra="forbid"):
+class ResourceUsageBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the resource usage body. """
     hostname: str
     usage_fields: Dict
     non_workflow_usage_fields: Dict
 
 
-class DeleteResourceBody(pydantic.BaseModel, extra="forbid"):
+class DeleteResourceBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the delete resource body. """
     resource: str
 
 
-class NodeBody(pydantic.BaseModel, extra="forbid"):
+class NodeBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the node body. """
     node_hashes: List[str]
 
 
-class TaskListBody(pydantic.BaseModel, extra="forbid"):
+class TaskListBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the list of pod names. """
     task_list: List[str]
 
 
-class MonitorPodBody(pydantic.BaseModel, extra="forbid"):
+class MonitorPodBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the container log body. """
     workflow_uuid: str
     task_uuid: str
@@ -157,12 +157,12 @@ class MonitorPodBody(pydantic.BaseModel, extra="forbid"):
     message: str = ''
 
 
-class HeartbeatBody(pydantic.BaseModel, extra="forbid"):
+class HeartbeatBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the container log body. """
     time: datetime.datetime
 
 
-class MetricsBody(pydantic.BaseModel, extra="forbid"):
+class MetricsBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the container log body. """
     type: MetricsType
     value: float
@@ -171,7 +171,7 @@ class MetricsBody(pydantic.BaseModel, extra="forbid"):
     description: str
 
 
-class PodConditionsBody(pydantic.BaseModel, extra="forbid"):
+class PodConditionsBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the pod conditions body. """
     workflow_uuid: str
     task_uuid: str
@@ -179,7 +179,7 @@ class PodConditionsBody(pydantic.BaseModel, extra="forbid"):
     conditions: List[ConditionMessage] = []
 
 
-class PodEventBody(pydantic.BaseModel, extra="forbid"):
+class PodEventBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the pod event body. """
     pod_name: str
     reason: str
@@ -187,14 +187,14 @@ class PodEventBody(pydantic.BaseModel, extra="forbid"):
     message: str
 
 
-class NodeConditionsBody(pydantic.BaseModel, extra="forbid"):
+class NodeConditionsBody(pydantic.BaseModel, extra='forbid'):
     """
     Body for node conditions messages from service to backend listener.
     """
     rules: Dict[str, str]|None = None
 
 
-class AckBody(pydantic.BaseModel, extra="forbid"):
+class AckBody(pydantic.BaseModel, extra='forbid'):
     """
     Body for acknowledgment messages from service back to backend listener.
     """
