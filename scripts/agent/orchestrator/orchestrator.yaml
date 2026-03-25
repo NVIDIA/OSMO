@@ -37,8 +37,8 @@ workflow:
   name: "{{workflow_name}}"
   resources:
     default:
-      cpu: 2
-      memory: 4Gi
+      cpu: 4
+      memory: 16Gi
       storage: 20Gi
 
   tasks:
@@ -48,8 +48,8 @@ workflow:
     args: [/tmp/entry.sh]
     exitActions:
       COMPLETE: 0
-      RESCHEDULE: 1-79
       FAIL: 80-99
+      RESCHEDULE: 1-79,100-255
     credentials:
       github-pat: /tmp/github
       nv-api-key:
