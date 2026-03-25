@@ -20,9 +20,18 @@ import argparse
 import os
 import sys
 import typing
+from typing import Any, Dict
 
 import pydantic
 import yaml
+
+
+def _get_field_extras(field: pydantic.fields.FieldInfo) -> Dict[str, Any]:
+    """Get json_schema_extra as a dict, handling Callable and None cases."""
+    extra = field.json_schema_extra
+    if isinstance(extra, dict):
+        return extra
+    return {}
 
 
 class StaticConfig(pydantic.BaseModel):
@@ -44,7 +53,7 @@ class StaticConfig(pydantic.BaseModel):
                                  'file, the value in the last file is used.')
 
         for name, field in cls.model_fields.items():
-            extras = field.json_schema_extra or {}
+            extras = _get_field_extras(field)
             if 'command_line' in extras:
                 help_message = field.description or ''
                 if field.default is not None:
@@ -78,7 +87,7 @@ class StaticConfig(pydantic.BaseModel):
         # 3. Config file
         # 4. Default
         for name, field in cls.model_fields.items():
-            extras = field.json_schema_extra or {}
+            extras = _get_field_extras(field)
             env_name = extras.get('env')
             arg_name = extras.get('command_line')
             is_list = typing.get_origin(field.annotation) is list
@@ -106,7 +115,7 @@ class StaticConfig(pydantic.BaseModel):
                 else:
                     field_name = str(type_error['loc'][0])
                     field = cls.model_fields[field_name]  # pylint: disable=E1136
-                    extras = field.json_schema_extra or {}
+                    extras = _get_field_extras(field)
                     print(f'ERROR: No value provided for config {field_name} ' \
                           'via any of the following methods:')
                     print(f'- Config file key: {field_name}')
