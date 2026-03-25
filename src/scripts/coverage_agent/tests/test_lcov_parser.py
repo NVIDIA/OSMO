@@ -74,6 +74,32 @@ LH:1
 end_of_record
 """
 
+UI_LCOV = """\
+SF:src/ui/src/lib/utils.ts
+DA:1,1
+DA:2,1
+DA:3,0
+DA:4,0
+DA:5,1
+LF:5
+LH:3
+end_of_record
+SF:src/ui/src/lib/api/generated.ts
+DA:1,0
+DA:2,0
+LF:2
+LH:0
+end_of_record
+SF:src/ui/src/lib/api/adapter/pools.ts
+DA:1,1
+DA:2,0
+DA:3,0
+DA:4,0
+LF:4
+LH:1
+end_of_record
+"""
+
 UNCOVERED_RANGES_LCOV = """\
 SF:src/lib/utils/common.py
 DA:1,1
@@ -174,6 +200,33 @@ class TestLcovParser(unittest.TestCase):
         self.assertEqual(entry.covered_lines, 7)
         self.assertAlmostEqual(entry.coverage_pct, 70.0)
         self.assertEqual(entry.uncovered_ranges, [(3, 5)])
+
+
+    def test_parse_ui_lcov(self):
+        """Verifies Vitest LCOV output is parsed correctly, with generated.ts filtered."""
+        path = _write_lcov(UI_LCOV)
+        try:
+            entries = parse_lcov(path)
+            file_paths = [e.file_path for e in entries]
+            self.assertIn("src/ui/src/lib/utils.ts", file_paths)
+            self.assertIn("src/ui/src/lib/api/adapter/pools.ts", file_paths)
+            self.assertNotIn("src/ui/src/lib/api/generated.ts", file_paths)
+        finally:
+            os.unlink(path)
+
+    def test_ui_files_detected_as_ui_type(self):
+        """Verifies that UI files from Vitest LCOV get detect_test_type == UI.
+
+        Note: generated.ts IS a valid UI file by path — it's filtered out by the
+        LCOV parser's _is_ignored(), not by detect_test_type(). This test verifies
+        both layers work correctly together.
+        """
+        from coverage_agent.plugins.base import TestType, detect_test_type
+
+        self.assertEqual(detect_test_type("src/ui/src/lib/utils.ts"), TestType.UI)
+        self.assertEqual(detect_test_type("src/ui/src/lib/api/adapter/pools.ts"), TestType.UI)
+        # generated.ts is a valid UI type by extension — filtered at LCOV parser level
+        self.assertEqual(detect_test_type("src/ui/src/lib/api/generated.ts"), TestType.UI)
 
 
 if __name__ == "__main__":

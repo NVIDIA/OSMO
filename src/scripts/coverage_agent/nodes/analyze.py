@@ -95,10 +95,35 @@ def select_targets(
 
 
 def analyze_coverage(state: CoverageState) -> CoverageState:
-    """LangGraph node: parse LCOV and populate targets."""
-    lcov_path = state.get("lcov_path", "bazel-out/_coverage/_coverage_report.dat")
-    logger.info("Parsing LCOV from %s", lcov_path)
-    entries = parse_lcov(lcov_path)
-    logger.info("Parsed %d coverage entries", len(entries))
-    targets = select_targets(entries, max_targets=state["max_targets"])
+    """LangGraph node: parse backend + UI LCOV files and populate targets."""
+    all_entries = []
+
+    backend_lcov = state.get("lcov_path", "bazel-out/_coverage/_coverage_report.dat")
+    logger.info("Parsing backend LCOV from %s", backend_lcov)
+    try:
+        backend_entries = parse_lcov(backend_lcov)
+        logger.info("Backend: %d coverage entries", len(backend_entries))
+        all_entries.extend(backend_entries)
+    except FileNotFoundError:
+        logger.warning("Backend LCOV not found at %s, skipping", backend_lcov)
+
+    ui_lcov = state.get("ui_lcov_path", "src/ui/coverage/lcov.info")
+    logger.info("Parsing UI LCOV from %s", ui_lcov)
+    try:
+        ui_entries = parse_lcov(ui_lcov)
+        # Vitest LCOV paths are relative to src/ui/ (e.g., "src/lib/utils.ts").
+        # Prefix with "src/ui/" so detect_test_type recognizes them as UI files.
+        for entry in ui_entries:
+            if not entry.file_path.startswith("src/ui/"):
+                entry.file_path = f"src/ui/{entry.file_path}"
+        logger.info("UI: %d coverage entries", len(ui_entries))
+        all_entries.extend(ui_entries)
+    except FileNotFoundError:
+        logger.warning("UI LCOV not found at %s, skipping", ui_lcov)
+
+    # Re-sort merged entries by coverage ascending
+    all_entries.sort(key=lambda entry: entry.coverage_pct)
+    logger.info("Total: %d coverage entries from all sources", len(all_entries))
+
+    targets = select_targets(all_entries, max_targets=state["max_targets"])
     return {**state, "targets": targets}

@@ -16,7 +16,9 @@ logger = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="AI Coverage Agent — generate tests for uncovered code")
     parser.add_argument("--lcov-path", default="bazel-out/_coverage/_coverage_report.dat",
-                        help="Path to LCOV coverage file")
+                        help="Path to backend LCOV coverage file (Python/Go)")
+    parser.add_argument("--ui-lcov-path", default="src/ui/coverage/lcov.info",
+                        help="Path to UI LCOV coverage file (Vitest/TypeScript)")
     parser.add_argument("--max-targets", type=int, default=3,
                         help="Maximum number of files to target per run")
     parser.add_argument("--max-retries", type=int, default=3,
@@ -53,6 +55,7 @@ def main():
         "dry_run": args.dry_run,
         "errors": [],
         "lcov_path": args.lcov_path,
+        "ui_lcov_path": args.ui_lcov_path,
     }
 
     logger.info("Starting coverage agent (provider=%s, max_targets=%d, dry_run=%s)",

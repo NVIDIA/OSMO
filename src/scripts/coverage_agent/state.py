@@ -32,4 +32,5 @@ class CoverageState(TypedDict):
     pr_url: Optional[str]
     branch_name: str
     dry_run: bool
+    ui_lcov_path: str
     errors: list[str]

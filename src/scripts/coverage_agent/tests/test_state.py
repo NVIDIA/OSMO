@@ -52,6 +52,7 @@ class TestCoverageState(unittest.TestCase):
             "pr_url": None,
             "branch_name": "coverage-agent/20260324",
             "dry_run": False,
+            "ui_lcov_path": "src/ui/coverage/lcov.info",
             "errors": [],
         }
         self.assertEqual(state["provider"], "nemotron")

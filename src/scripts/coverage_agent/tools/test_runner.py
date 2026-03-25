@@ -76,9 +76,18 @@ def _run_bazel_test(test_file_path: str, timeout: int) -> ValidationResult:
 
 
 def _run_vitest(test_file_path: str, timeout: int) -> ValidationResult:
-    """Run a UI test via pnpm/vitest."""
-    logger.info("Running: pnpm test -- --run %s", test_file_path)
-    result = run_shell(f"cd src/ui && pnpm test -- --run {shlex.quote(test_file_path)}", timeout=timeout)
+    """Run a UI test via pnpm/vitest.
+
+    Vitest runs from src/ui/ so paths must be relative to that directory.
+    Agent uses repo-root paths (src/ui/src/lib/foo.test.ts) but vitest
+    expects src/lib/foo.test.ts.
+    """
+    # Strip src/ui/ prefix since vitest cwd is src/ui/
+    vitest_path = test_file_path
+    if vitest_path.startswith("src/ui/"):
+        vitest_path = vitest_path[len("src/ui/"):]
+    logger.info("Running: cd src/ui && pnpm test -- --run %s", vitest_path)
+    result = run_shell(f"cd src/ui && pnpm test -- --run {shlex.quote(vitest_path)}", timeout=timeout)
 
     return ValidationResult(
         passed=result.returncode == 0,

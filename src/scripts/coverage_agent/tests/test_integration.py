@@ -104,6 +104,7 @@ class TestAnalyzeToQualityGatePipeline(unittest.TestCase):
                 "pr_url": None,
                 "branch_name": "test",
                 "dry_run": True,
+                "ui_lcov_path": "src/ui/coverage/lcov.info",
                 "errors": [],
             }
 
@@ -133,6 +134,7 @@ class TestAnalyzeToQualityGatePipeline(unittest.TestCase):
                 "pr_url": None,
                 "branch_name": "test",
                 "dry_run": True,
+                "ui_lcov_path": "src/ui/coverage/lcov.info",
                 "errors": [],
             }
 

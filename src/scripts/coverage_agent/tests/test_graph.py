@@ -27,6 +27,7 @@ def _make_state(**overrides) -> CoverageState:
         "pr_url": None,
         "branch_name": "coverage-agent/test",
         "dry_run": False,
+        "ui_lcov_path": "src/ui/coverage/lcov.info",
         "errors": [],
     }
     return {**defaults, **overrides}

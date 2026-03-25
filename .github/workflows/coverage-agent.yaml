@@ -109,6 +109,23 @@ jobs:
             -- \
             //...
 
+      - name: Install Node.js and pnpm (for UI coverage + test validation)
+        run: |
+          curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list > /dev/null
+          apt-get update
+          apt-get remove -y nodejs || true
+          apt-get install -y nodejs=20.*
+          npm install -g pnpm
+
+      - name: Run UI coverage
+        working-directory: src/ui
+        run: |
+          pnpm install --frozen-lockfile
+          # Ensure lcov reporter is included (produces coverage/lcov.info for the agent)
+          npx vitest run --coverage --coverage.reporter=lcov --coverage.reporter=text || true
+        continue-on-error: true
+
       - name: Install agent dependencies
         run: pip install -r src/agent_requirements.txt
 
@@ -119,8 +136,9 @@ jobs:
 
       - name: Run coverage agent
         run: |
-          python -m coverage_agent.main \
+          PYTHONPATH=src/scripts python -m coverage_agent.main \
             --lcov-path bazel-out/_coverage/_coverage_report.dat \
+            --ui-lcov-path src/ui/coverage/lcov.info \
             --max-targets ${{ inputs.max_targets || '3' }} \
             --provider ${{ inputs.provider || 'nemotron' }} \
             ${{ inputs.dry_run == true && '--dry-run' || '' }}
@@ -129,7 +147,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        working-directory: src/scripts
 
       - name: Docker cleanup
         if: always()
