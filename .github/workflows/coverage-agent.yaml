@@ -19,6 +19,10 @@
 name: Coverage Agent
 
 on:
+  # TODO: Remove pull_request trigger after testing — keep only schedule + workflow_dispatch
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
   schedule:
     - cron: '0 6 * * 1-5'  # Weekdays 6 AM UTC (max 1 PR/day)
   workflow_dispatch:
@@ -140,8 +144,8 @@ jobs:
             --lcov-path bazel-out/_coverage/_coverage_report.dat \
             --ui-lcov-path src/ui/coverage/lcov.info \
             --max-targets ${{ inputs.max_targets || '3' }} \
-            --provider ${{ inputs.provider || 'nemotron' }} \
-            ${{ inputs.dry_run == true && '--dry-run' || '' }}
+            --provider ${{ inputs.provider || 'claude-code' }} \
+            ${{ (inputs.dry_run == true || github.event_name == 'pull_request') && '--dry-run' || '' }}
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
