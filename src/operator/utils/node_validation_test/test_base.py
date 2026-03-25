@@ -63,7 +63,9 @@ class NodeTestConfig(static_config.StaticConfig, logging_utils.LoggingConfig):
     node_condition_prefix: str = pydantic.Field(
         default=DEFAULT_NODE_CONDITION_PREFIX,
         description='Prefix for node conditions',
-        json_schema_extra={'command_line': 'node_condition_prefix', 'env': 'OSMO_NODE_CONDITION_PREFIX'})
+        json_schema_extra={
+            'command_line': 'node_condition_prefix',
+            'env': 'OSMO_NODE_CONDITION_PREFIX'})
 
     # Stability
     max_retries: int = pydantic.Field(
