@@ -3392,7 +3392,7 @@ class Pool(PoolBase, extra='ignore'):
         database.execute_commit_command(
             insert_cmd,
             (json.dumps(pool_info.platforms, default=common.pydantic_encoder),
-             json.dumps(pool_info.parsed_resource_validations),
+             json.dumps(pool_info.parsed_resource_validations, default=common.pydantic_encoder),
              name))
 
     @classmethod
@@ -3719,7 +3719,7 @@ class Pool(PoolBase, extra='ignore'):
              self.max_exec_timeout, self.max_queue_timeout,
              json.dumps(self.default_exit_actions),
              json.dumps(self.common_default_variables),
-             self.common_resource_validations, json.dumps(self.parsed_resource_validations),
+             self.common_resource_validations, json.dumps(self.parsed_resource_validations, default=common.pydantic_encoder),
              self.common_pod_template, json.dumps(self.parsed_pod_template),
              self.common_group_templates, json.dumps(self.parsed_group_templates),
              self.enable_maintenance,
