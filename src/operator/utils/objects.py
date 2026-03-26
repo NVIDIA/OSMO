@@ -168,26 +168,38 @@ class BackendWorkerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     test_runner_cronjob_spec_file: str = pydantic.Field(
         default='test_runner_cronjob_spec/spec.yaml',
         description='Path to the test runner cronjob specification YAML file',
-        json_schema_extra={'command_line': 'test_runner_cronjob_spec_file', 'env': 'TEST_RUNNER_CRONJOB_SPEC_FILE'})
+        json_schema_extra={
+            'command_line': 'test_runner_cronjob_spec_file',
+            'env': 'TEST_RUNNER_CRONJOB_SPEC_FILE'})
     progress_folder_path: str = pydantic.Field(
         default='/var/run/osmo',
-        description='The folder path to write progress timestamps to (For liveness/startup probes)',
-        json_schema_extra={'command_line': 'progress_folder_path', 'env': 'OSMO_PROGRESS_FOLDER_PATH'})
+        description='The folder path to write progress timestamps to '
+                    '(For liveness/startup probes)',
+        json_schema_extra={
+            'command_line': 'progress_folder_path',
+            'env': 'OSMO_PROGRESS_FOLDER_PATH'})
     worker_heartbeat_progress_file: str = pydantic.Field(
         default='last_progress_worker_heartbeat',
-        description='The file to write worker heartbeat progress timestamps to (For ' +
-                    'liveness/startup probes)',
-        json_schema_extra={'command_line': 'worker_heartbeat_progress_file', 'env': 'OSMO_WORKER_HEARTBEAT_PROGRESS_FILE'})
+        description='The file to write worker heartbeat progress timestamps '
+                    'to (For liveness/startup probes)',
+        json_schema_extra={
+            'command_line': 'worker_heartbeat_progress_file',
+            'env': 'OSMO_WORKER_HEARTBEAT_PROGRESS_FILE'})
     worker_job_progress_file: str = pydantic.Field(
         default='last_progress_worker_job',
-        description='The file to write worker job progress timestamps to (For liveness/startup ' +
-                    'probes)',
-        json_schema_extra={'command_line': 'worker_job_progress_file', 'env': 'OSMO_WORKER_JOB_PROGRESS_FILE'})
+        description='The file to write worker job progress timestamps to '
+                    '(For liveness/startup probes)',
+        json_schema_extra={
+            'command_line': 'worker_job_progress_file',
+            'env': 'OSMO_WORKER_JOB_PROGRESS_FILE'})
     progress_iter_frequency: str = pydantic.Field(
         default='15s',
-        description='How often to write to progress file when processing tasks in a loop ('
-                    'e.g. write to progress every 100 tasks processed, like uploaded to DB)',
-        json_schema_extra={'command_line': 'progress_iter_frequency', 'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
+        description='How often to write to progress file when processing '
+                    'tasks in a loop (e.g. write to progress every 100 '
+                    'tasks processed, like uploaded to DB)',
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
     node_condition_prefix: str = pydantic.Field(
         default=test_base.DEFAULT_NODE_CONDITION_PREFIX,
         description='Prefix for node conditions',
