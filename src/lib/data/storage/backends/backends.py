@@ -580,9 +580,8 @@ class GSBackend(Boto3Backend):
     Google Cloud Platform GS Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['gs'] = pydantic.Field(
         default=common.StorageBackendType.GS.value,
-        const=True,
         description='The scheme of the GS backend.',
     )
 
@@ -590,7 +589,6 @@ class GSBackend(Boto3Backend):
     # https://issuetracker.google.com/issues/162653700
     supports_batch_delete: Literal[False] = pydantic.Field(
         default=False,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
@@ -703,15 +701,13 @@ class TOSBackend(Boto3Backend):
     https://docs.byteplus.com/en/docs/tos/docs-compatibility-with-amazon-s3#appendix-tos-compatible-s3-apis
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['tos'] = pydantic.Field(
         default=common.StorageBackendType.TOS.value,
-        const=True,
         description='The scheme of the TOS backend.',
     )
 
     supports_batch_delete: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
@@ -814,9 +810,8 @@ class AzureBlobStorageBackend(common.StorageBackend):
     Azure Blob Storage Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['azure'] = pydantic.Field(
         default=common.StorageBackendType.AZURE.value,
-        const=True,
         description='The scheme of the Azure Blob Storage backend.',
     )
 
@@ -827,7 +822,6 @@ class AzureBlobStorageBackend(common.StorageBackend):
 
     supports_environment_auth: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports environment authentication.',
     )
 
