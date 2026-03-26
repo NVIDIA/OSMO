@@ -173,13 +173,21 @@ def execute_bash(command):
         while True:
             # Check if process exited
             if process.poll() is not None:
-                # Drain remaining output
-                for line in process.stdout:
-                    clean = line.rstrip()
-                    if clean:
-                        output_lines.append(clean)
-                        sys.stderr.write(f"  | {clean}\n")
-                        sys.stderr.flush()
+                # Drain remaining output with timeout — background processes
+                # (nohup, &) may hold the pipe open after the shell exits
+                drain_start = time.time()
+                while time.time() - drain_start < 2:
+                    if select.select([process.stdout], [], [], 0.5)[0]:
+                        line = process.stdout.readline()
+                        if not line:
+                            break
+                        clean = line.rstrip()
+                        if clean:
+                            output_lines.append(clean)
+                            sys.stderr.write(f"  | {clean}\n")
+                            sys.stderr.flush()
+                    else:
+                        break
                 break
 
             ready = select.select([process.stdout], [], [], 1.0)[0]
@@ -218,15 +226,9 @@ def execute_bash(command):
                         )
                     sys.stderr.write(f"  === END snapshots ===\n")
 
-                    has_pipe = "|" in command
-                    kill_msg = f"(killed after {int(elapsed)}s — no progress detected."
-                    if has_pipe:
-                        kill_msg += (
-                            " NOTE: This command used a pipe which buffers output "
-                            "and prevents progress monitoring. Retry without piping."
-                        )
-                    kill_msg += ")"
-                    output_lines.append(kill_msg)
+                    output_lines.append(
+                        f"(killed after {int(elapsed)}s — {verdict})"
+                    )
                     break
 
         process.wait()
@@ -261,15 +263,11 @@ def _check_progress(command, elapsed_seconds, recent_lines):
         if len(_progress_history) > 5:
             _progress_history[:] = _progress_history[-5:]
 
-        # Don't even ask until we have 5 snapshots — always continue early
-        if len(_progress_history) < 5:
-            sys.stderr.write(
-                f"  [progress check {len(_progress_history)}/5 at {elapsed_seconds}s: "
-                f"continue (collecting snapshots)]\n"
-            )
-            return "continue"
+        # Ask the LLM every time, but instruct it to be conservative early on.
+        # With few snapshots, only kill if obviously wrong (server blocking, syntax error).
+        # With all 5, kill if no forward progress.
 
-        # Build context showing all 5 snapshots
+        # Build context showing all available snapshots
         history_parts = []
         for i, entry in enumerate(_progress_history):
             history_parts.append(
@@ -282,10 +280,15 @@ def _check_progress(command, elapsed_seconds, recent_lines):
             model=_llm_model,
             messages=[
                 {"role": "system", "content": (
-                    "You are monitoring a running command. You see 5 output snapshots "
-                    "taken at regular intervals. Reply 'kill' only if ALL 5 show no "
-                    "forward progress. Otherwise reply 'continue'. "
-                    "One word only: 'continue' or 'kill'."
+                    "You are monitoring a running command. You see output snapshots "
+                    "taken at regular intervals.\n"
+                    f"You have {len(_progress_history)} snapshot(s) so far.\n"
+                    "With few snapshots: only reply 'kill' if the command is OBVIOUSLY "
+                    "wrong — a server listening that will never exit, a clear fatal error, "
+                    "or a command that has already completed its useful output.\n"
+                    "With 5 snapshots: reply 'kill' if ALL show no forward progress.\n"
+                    "Otherwise reply 'continue'.\n"
+                    "If you reply 'kill', add a brief reason and suggestion after a colon."
                 )},
                 {"role": "user", "content": (
                     f"Command: {command}\n\n{history_text}"
@@ -293,9 +296,9 @@ def _check_progress(command, elapsed_seconds, recent_lines):
             ],
             max_tokens=10,
         )
-        verdict = resp.choices[0].message.content.strip().lower()
-        sys.stderr.write(f"  [progress check 5/5 at {elapsed_seconds}s: {verdict}]\n")
-        return "kill" if "kill" in verdict else "continue"
+        verdict = resp.choices[0].message.content.strip()
+        sys.stderr.write(f"  [progress check {len(_progress_history)}/5 at {elapsed_seconds}s: {verdict}]\n")
+        return verdict if "kill" in verdict.lower() else "continue"
     except Exception as e:
         sys.stderr.write(f"  [progress check failed: {e} — continuing]\n")
         return "continue"
@@ -759,15 +762,34 @@ def _check_completion_gates():
                 "Include actionable findings."
             )
 
-    # Gate 2: Validate beyond tests — only after quality gate passes
+    # Gate 2: Validate beyond tests — only after quality gate passes.
+    # Shows the agent its original task prompt so it validates against the
+    # mandate, not against what it thinks it did.
     if quality_passed and not os.path.exists(GATE_VALIDATE):
-        blockers.append(
+        task_prompt = ""
+        try:
+            with open(".agent/task.json", "r") as f:
+                task_data = json.loads(f.read())
+                task_prompt = task_data.get("prompt", "")
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass
+
+        gate_msg = (
             "BLOCKED: Quality gates passed, but you must also validate beyond tests. "
-            "Read /osmo/agent/skills/validate.md. Think about what the test suite "
-            "doesn't cover. Write /tmp/validation-beyond-tests.json with what you "
-            "checked and the results. Set \"passed\": true only when you are confident "
-            "your changes work beyond what tests exercise."
+            "Read /osmo/agent/skills/validate.md."
         )
+        if task_prompt:
+            gate_msg += (
+                "\n\nYour original task mandate:\n\n"
+                f"{task_prompt}\n\n"
+                "Validate against THIS — not just what you think you did."
+            )
+        gate_msg += (
+            "\n\nWrite /tmp/validation-beyond-tests.json with what you "
+            "checked and the results. Set \"passed\": true only when you are confident "
+            "your changes fully satisfy the task mandate."
+        )
+        blockers.append(gate_msg)
     elif os.path.exists(GATE_VALIDATE):
         try:
             with open(GATE_VALIDATE, "r") as f:

@@ -17,6 +17,7 @@ Ask yourself — scoped to the full task, not just this session's diff:
 - Do the configs, models, and data structures affected by the task actually load at runtime?
 - If the task changed an API or interface, do all callers still work — not just the ones with tests?
 - Are there integration points that only fail when run together?
+- Did you verify the ENTIRE codebase is consistent with your changes — including files you didn't modify that may depend on what you changed?
 
 ## How to validate
 

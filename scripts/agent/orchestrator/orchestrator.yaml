@@ -48,9 +48,9 @@ workflow:
     args: [/tmp/entry.sh]
     privileged: true
     exitActions:
-      COMPLETE: 0
-      FAIL: 80-99
-      RESCHEDULE: 1-79,100-255
+      COMPLETE: "0"
+      FAIL: "80-99"
+      RESCHEDULE: "1-79,100-255"
     credentials:
       github-pat: /tmp/github
       nv-api-key:
