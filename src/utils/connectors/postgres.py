@@ -589,10 +589,6 @@ class PostgresConnector:
                 result_dicts[model.key] = model.value
             else:
                 result_dicts[model.key] = json.loads(model.value)
-        import sys
-        if 'cli_config' in result_dicts:
-            print(f"DEBUG get_configs: cli_config from DB = {result_dicts['cli_config']}", file=sys.stderr)
-            print(f"DEBUG get_configs: CliConfig extra setting = {CliConfig.model_config.get('extra', 'NOT SET')}", file=sys.stderr)
         return config_class.deserialize(result_dicts, self)
 
     def get_service_configs(self) -> 'ServiceConfig':
@@ -1752,14 +1748,23 @@ class ExtraArgBaseModel(pydantic.BaseModel):
         # In Pydantic v2, model schema is compiled at class definition time.
         # Mutating model_config after the fact requires rebuilding all
         # subclasses so the new extra setting takes effect.
-        # Two-pass approach: first propagate the config to ALL descendants,
-        # then rebuild them all.  This avoids order-of-definition bugs where
-        # a parent model is rebuilt before a child it references (e.g.
-        # ServiceConfig references CliConfig — both are ExtraArgBaseModel
-        # subclasses, but CliConfig may be defined later).
+        #
+        # Three-phase approach:
+        #   1. Propagate the config to ALL descendants.
+        #   2. Rebuild every descendant so each one compiles a new core
+        #      schema that honours the updated ``extra`` setting.
+        #   3. Rebuild every descendant a *second* time.  This is necessary
+        #      because the definition order of subclasses is arbitrary: a
+        #      model that *references* another ExtraArgBaseModel subclass as
+        #      a field type (e.g. ``ServiceConfig.cli_config: CliConfig``)
+        #      may be rebuilt in phase 2 before the referenced class.  The
+        #      second pass ensures all cross-references pick up the final
+        #      compiled schemas.
         all_subclasses = cls._collect_subclasses()
         for subclass in all_subclasses:
             subclass.model_config['extra'] = cls.model_config['extra']
+        for subclass in all_subclasses:
+            subclass.model_rebuild(force=True)
         for subclass in all_subclasses:
             subclass.model_rebuild(force=True)
 
