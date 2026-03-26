@@ -165,7 +165,11 @@ class SubmitResponse(pydantic.BaseModel, extra='forbid'):
     @pydantic.model_validator(mode='before')
     @classmethod
     def logs_or_spec(cls, values):
-        if (values['logs'] is not None, values['spec'] is not None).count(True) != 1:
+        # In Pydantic v2, mode='before' receives raw input, so optional
+        # fields may be absent from the dict — use .get() with defaults.
+        logs = values.get('logs') if isinstance(values, dict) else getattr(values, 'logs', None)
+        spec = values.get('spec') if isinstance(values, dict) else getattr(values, 'spec', None)
+        if (logs is not None, spec is not None).count(True) != 1:
             raise ValueError('Exactly one of "logs" or "spec" must be set')
         return values
 
