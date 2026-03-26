@@ -179,15 +179,13 @@ class PostgresConfig(pydantic.BaseModel):
         description='The public hostname for the OSMO service (used for URL generation)',
         json_schema_extra={'command_line': 'service_hostname'})
     postgres_pool_minconn: int = pydantic.Field(
-        type=validation.positive_integer,
         default=1,
         description='Minimum number of connections to keep in the connection pool',
-        json_schema_extra={'command_line': 'postgres_pool_minconn', 'env': 'OSMO_POSTGRES_POOL_MINCONN'})
+        json_schema_extra={'command_line': 'postgres_pool_minconn', 'env': 'OSMO_POSTGRES_POOL_MINCONN', 'type': validation.positive_integer})
     postgres_pool_maxconn: int = pydantic.Field(
-        type=validation.positive_integer,
         default=10,
         description='Maximum number of connections allowed in the connection pool',
-        json_schema_extra={'command_line': 'postgres_pool_maxconn', 'env': 'OSMO_POSTGRES_POOL_MAXCONN'})
+        json_schema_extra={'command_line': 'postgres_pool_maxconn', 'env': 'OSMO_POSTGRES_POOL_MAXCONN', 'type': validation.positive_integer})
     schema_version: str = pydantic.Field(
         default='public',
         description='pgroll schema version to use. '
@@ -1354,7 +1352,7 @@ class PostgresConnector:
                     'system',                   # username
                     ['initial-config'],         # tags
                     'Initial configuration',    # description
-                    json.dumps(data, default=pydantic.json.pydantic_encoder),  # data
+                    json.dumps(data, default=common.pydantic_encoder),  # data
                     config_type.value.lower(),  # for WHERE NOT EXISTS
                 ),
             )
@@ -1567,7 +1565,7 @@ class PostgresConnector:
                 username,
                 tags,
                 description,
-                json.dumps(data, default=pydantic.json.pydantic_encoder),
+                json.dumps(data, default=common.pydantic_encoder),
             ),
         )
 
