@@ -896,8 +896,10 @@ class UpdateGroup(WorkflowJob):
             # Need to check status here because the status could have changed due to fetch_status
             if group_obj.status == task.TaskGroupStatus.PROCESSING:
                 delayed_job = copy.deepcopy(self)
+                job_id_suffix = UpdateGroup._get_job_id(
+                    delayed_job.model_dump())
                 delayed_job.job_id = \
-                    f'{common.generate_unique_id(5)}-{UpdateGroup._get_job_id(delayed_job.model_dump())}'
+                    f'{common.generate_unique_id(5)}-{job_id_suffix}'
                 delayed_job.send_delayed_job_to_queue(
                     datetime.timedelta(minutes=1))
 

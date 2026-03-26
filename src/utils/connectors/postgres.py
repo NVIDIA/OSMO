@@ -45,7 +45,7 @@ from jwcrypto.common import JWException  # type: ignore
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
-                           osmo_errors, role, validation)
+                           osmo_errors, role)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
 
