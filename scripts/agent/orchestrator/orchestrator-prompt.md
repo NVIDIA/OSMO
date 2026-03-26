@@ -68,6 +68,8 @@ These aren't equal-weight steps. A small task breezes through 1-4 and spends tim
 
 **Commit and push your work.** Run `git add`, `git commit`, `git push` after making changes. If your session crashes before pushing, work is lost. Commit early and often. Use `.agent/` directory for coordination state if you're delegating to children.
 
+**Stay in scope.** Do only what the task asks. Do not refactor, rename, add error handling, improve code style, or make any changes beyond what is required to complete the task. If you see something that could be improved but isn't part of the task, leave it alone.
+
 **Fix forward, never weaken.** When something breaks — a test, an assertion, a validation — understand why and update it to match the new behavior. Do not delete, comment out, or weaken code to make problems go away. A test that asserted specific behavior should still assert specific behavior after your change. If you don't know what the new behavior is, look it up.
 
 **Look things up.** When you're unsure about how something works — a library API, a migration path, version compatibility, a build system behavior — fetch official documentation from the internet via `curl`. Don't guess and don't rely solely on your training data. Authoritative sources are always available.

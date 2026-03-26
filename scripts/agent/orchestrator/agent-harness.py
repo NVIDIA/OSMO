@@ -424,10 +424,21 @@ def compact_messages(client, model, messages, keep_recent=6):
     Each compaction builds on the last, so the summary carries forward the
     full compressed history rather than summarizing a summary (telephone game).
     """
-    # Find boundaries
+    # Find boundaries — preserve system prompt AND original user prompt (task mandate).
+    # These are never compacted because they define the task scope.
     has_system = messages[0]["role"] == "system" if messages else False
-    prefix = messages[:1] if has_system else []
-    rest = messages[1:] if has_system else messages
+    # The original user prompt is always the first user message
+    first_user_idx = next((i for i, m in enumerate(messages) if m.get("role") == "user"), None)
+
+    prefix = []
+    if has_system:
+        prefix.append(messages[0])
+    if first_user_idx is not None:
+        prefix.append(messages[first_user_idx])
+
+    # Everything after the pinned messages is compactable
+    start_idx = (first_user_idx + 1) if first_user_idx is not None else (1 if has_system else 0)
+    rest = messages[start_idx:]
 
     # Nothing to compact if conversation is small
     if len(rest) <= keep_recent + 2:
@@ -547,22 +558,25 @@ def checkpoint(commit_prefix="agent", client=None, model=None):
 
         subprocess.run(["git", "add", "-A"], capture_output=True, timeout=10)
 
-        # Get diff stat for commit message context
-        diff_stat = subprocess.run(
-            ["git", "diff", "--cached", "--stat"],
+        # Get actual diff content for commit message (not just stat)
+        diff_content = subprocess.run(
+            ["git", "diff", "--cached", "-U2"],
             capture_output=True, text=True, timeout=10,
         ).stdout.strip()
+        # Truncate to avoid overwhelming the LLM
+        if len(diff_content) > 3000:
+            diff_content = diff_content[:3000] + "\n... (truncated)"
 
         # Ask the model for a meaningful commit message
         msg = None
-        if client and model and diff_stat:
+        if client and model and diff_content:
             try:
                 resp = client.chat.completions.create(
                     model=model,
                     messages=[
                         {"role": "system",
-                            "content": "Write a single-line git commit message (max 72 chars, no prefix, no quotes) summarizing these changes. Be specific about what changed, not generic."},
-                        {"role": "user", "content": diff_stat},
+                            "content": "Write a single-line git commit message (max 72 chars, no prefix, no quotes) describing what ACTUALLY changed in this diff. Be precise — state the specific code transformation, not a vague category."},
+                        {"role": "user", "content": diff_content},
                     ],
                     max_tokens=60,
                 )
