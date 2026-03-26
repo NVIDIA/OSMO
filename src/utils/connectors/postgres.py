@@ -1752,15 +1752,25 @@ class ExtraArgBaseModel(pydantic.BaseModel):
         # In Pydantic v2, model schema is compiled at class definition time.
         # Mutating model_config after the fact requires rebuilding all
         # subclasses so the new extra setting takes effect.
-        cls._rebuild_subclasses()
+        # Two-pass approach: first propagate the config to ALL descendants,
+        # then rebuild them all.  This avoids order-of-definition bugs where
+        # a parent model is rebuilt before a child it references (e.g.
+        # ServiceConfig references CliConfig — both are ExtraArgBaseModel
+        # subclasses, but CliConfig may be defined later).
+        all_subclasses = cls._collect_subclasses()
+        for subclass in all_subclasses:
+            subclass.model_config['extra'] = cls.model_config['extra']
+        for subclass in all_subclasses:
+            subclass.model_rebuild(force=True)
 
     @classmethod
-    def _rebuild_subclasses(cls):
-        """Recursively rebuild all subclasses after model_config mutation."""
+    def _collect_subclasses(cls):
+        """Collect all subclasses (recursively) in a flat list."""
+        result = []
         for subclass in cls.__subclasses__():
-            subclass.model_config['extra'] = cls.model_config['extra']
-            subclass.model_rebuild(force=True)
-            subclass._rebuild_subclasses()
+            result.append(subclass)
+            result.extend(subclass._collect_subclasses())
+        return result
 
 
 class OsmoImageConfig(ExtraArgBaseModel):
