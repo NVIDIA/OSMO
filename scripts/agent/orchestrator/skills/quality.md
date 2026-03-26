@@ -35,10 +35,6 @@ If a tool is blocked, unavailable, or broken:
 
 An agent that changes files and says "done" without running tests is worse than one that says "blocked — couldn't run tests." The first creates false confidence. The second is honest.
 
-## Beyond the Test Suite
-
-Tests are a minimum, not a maximum. After the test suite passes, think about what it doesn't cover. If you changed models, configs, or entry points, consider whether the code you changed is actually exercised by the tests. Code that passes tests but crashes at runtime is not done.
-
 After running quality gates, write `/tmp/quality-verified.json` with what you ran and the results. The harness will not let you finish without this file.
 
 ## When Validation Fails

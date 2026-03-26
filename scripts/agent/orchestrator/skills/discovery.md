@@ -9,7 +9,7 @@ Your first job. Learn the repo, then write what you find to `.agent/discovered/`
 
 ## If `.agent/discovered/` Already Exists
 
-Read it. Skip to your next phase.
+Read it, but verify it's still accurate. Prior sessions may have used different skills or missed things. If the repo has changed or you find gaps, update the artifacts.
 
 ## If Not — Generate These Artifacts
 
@@ -17,15 +17,7 @@ Read it. Skip to your next phase.
 
 What languages, frameworks, build system, and tooling does this repo use? Explore:
 
-```bash
-ls AGENTS.md CLAUDE.md CONTRIBUTING.md README.md 2>/dev/null
-ls *.py pyproject.toml go.mod package.json Cargo.toml 2>/dev/null
-ls Makefile BUILD MODULE.bazel Dockerfile 2>/dev/null
-ls .github/workflows/*.yml .gitlab-ci.yml 2>/dev/null
-ls scripts/agent/ 2>/dev/null
-```
-
-Write what you find. Format is up to you.
+Explore the repo root — read documentation files, build configs, CI configs, and directory structure. Understand how the repo is built, tested, and run locally.
 
 ### 2. `quality-gates.json`
 

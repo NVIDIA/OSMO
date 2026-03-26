@@ -631,6 +631,7 @@ MESSAGE_COMPACT_THRESHOLD = 100
 
 GATE_ALIGNMENT = "/tmp/environment.json"
 GATE_QUALITY = "/tmp/quality-verified.json"
+GATE_VALIDATE = "/tmp/validation-beyond-tests.json"
 
 
 def _check_gates():
@@ -743,6 +744,27 @@ def _check_completion_gates():
                 "with \"passed\": true only when zero errors and zero warnings. "
                 "Include actionable findings."
             )
+
+    # Gate 2: Validate beyond tests — only after quality gate passes
+    if quality_passed and not os.path.exists(GATE_VALIDATE):
+        blockers.append(
+            "BLOCKED: Quality gates passed, but you must also validate beyond tests. "
+            "Read /osmo/agent/skills/validate.md. Think about what the test suite "
+            "doesn't cover. Write /tmp/validation-beyond-tests.json with what you "
+            "checked and the results. Set \"passed\": true only when you are confident "
+            "your changes work beyond what tests exercise."
+        )
+    elif os.path.exists(GATE_VALIDATE):
+        try:
+            with open(GATE_VALIDATE, "r") as f:
+                vbt = json.loads(f.read())
+            if vbt.get("passed", False) is not True:
+                blockers.append(
+                    "BLOCKED: Your validation beyond tests found issues. "
+                    "Fix them before finishing."
+                )
+        except (json.JSONDecodeError, OSError):
+            pass
 
     return blockers
 
