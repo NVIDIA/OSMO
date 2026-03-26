@@ -1302,7 +1302,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             ),
         )
         self.assertEqual(
-            response.first_data,
+            response.first_data.model_dump(),
             initial_history_entry['data']
         )
         self.assertEqual(
