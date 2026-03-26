@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import itertools
 import logging
 import os
+import socket
 import tempfile
 from typing import Dict, List
 
@@ -217,6 +218,18 @@ exec envoy -c /etc/envoy/envoy.yaml
                 f'Unexpected status code: {response.status_code}')
         if response.text.strip() != ENVOY_LIVE_STATUS:
             raise ConnectionError(f'Envoy is not ready yet: {response.text}')
+
+        # Verify each proxy listener is accepting TCP connections. Envoy may report LIVE
+        # on the admin port before all forwarding listeners have finished binding.
+        for assigned_ports in self.backend_alias_to_assigned_ports.values():
+            for assigned_port in assigned_ports.values():
+                proxy_port = self.get_exposed_port(assigned_port)
+                try:
+                    with socket.create_connection((host, proxy_port), timeout=1):
+                        pass
+                except (socket.error, OSError) as e:
+                    raise requests.ConnectionError(
+                        f'Proxy listener not ready at {host}:{proxy_port}') from e
 
     def start(self):
         super().start()
