@@ -172,6 +172,20 @@ def pydantic_encoder(obj):
         return obj.model_dump()
     elif isinstance(obj, enum.Enum):
         return obj.value
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.date):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.time):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.timedelta):
+        return obj.total_seconds()
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    elif isinstance(obj, (set, frozenset)):
+        return list(obj)
+    elif isinstance(obj, bytes):
+        return obj.decode('utf-8', errors='replace')
     raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
 
 
