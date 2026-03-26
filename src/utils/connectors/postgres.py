@@ -1732,8 +1732,19 @@ class ExtraArgBaseModel(pydantic.BaseModel):
     model_config = pydantic.ConfigDict(extra='ignore')
 
     @classmethod
+    def _all_subclasses(cls):
+        result = []
+        for sub in cls.__subclasses__():
+            result.append(sub)
+            result.extend(sub._all_subclasses())
+        return result
+
+    @classmethod
     def set_extra(cls, extra_type: ExtraType):
-        cls.model_config['extra'] = extra_type.value
+        for klass in [cls] + cls._all_subclasses():
+            klass.model_config['extra'] = extra_type.value
+            klass.__pydantic_complete__ = False
+            klass.model_rebuild(force=True)
 
 
 class OsmoImageConfig(ExtraArgBaseModel):
