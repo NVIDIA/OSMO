@@ -35,7 +35,13 @@
       "pattern": "Pydantic v1 schema_extra in Config class becomes json_schema_extra in Field() or model_config in v2.",
       "confidence": "high",
       "source": "episodes-001-003"
+    },
+    {
+      "id": "pydantic-v2-migration-complete",
+      "pattern": "Full migration from Pydantic v1 (1.10.26) to v2 (2.12.5) verified with 29 pattern checks, 138 tests, 583 build targets. Zero v1 remnants remain.",
+      "confidence": "high",
+      "source": "episode-005-final"
     }
   ],
-  "last_updated": "2026-03-26T09:12:00Z"
+  "last_updated": "2026-03-26T09:25:00Z"
 }
