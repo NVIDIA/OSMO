@@ -37,7 +37,7 @@ from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
 from src.service.core.auth import auth_service, objects as auth_objects
 from src.service.core.config import (
-    config_service, helpers as config_helpers, objects as config_objects
+    config_service, configmap_loader, helpers as config_helpers, objects as config_objects
 )
 from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
@@ -465,6 +465,9 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     set_default_service_url(postgres)
     set_client_install_url(postgres, config)
     setup_default_admin(postgres, config)
+
+    if config.dynamic_config_file:
+        configmap_loader.load_dynamic_configs(config.dynamic_config_file, postgres)
 
     # Instantiate QueryParser
     query.QueryParser()

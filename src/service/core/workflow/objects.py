@@ -96,6 +96,11 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         default=None,
         description='The password (access token value) for the default admin user. '
                     'Must be set if default_admin_username is set.')
+    dynamic_config_file: str | None = pydantic.Field(
+        command_line='dynamic_config_file',
+        env='OSMO_DYNAMIC_CONFIG_FILE',
+        default=None,
+        description='Path to YAML file with dynamic configs to load on startup.')
 
     @pydantic.root_validator()
     @classmethod

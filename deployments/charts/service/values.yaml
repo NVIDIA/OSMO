@@ -229,6 +229,49 @@ services:
     ##
     passwordSecretKey: password
 
+  ## Dynamic configuration loaded from ConfigMap on service startup
+  ## When enabled, renders a ConfigMap with all config types and mounts it into the API service.
+  ## The service reads the file on startup and applies configs to the database.
+  ##
+  ## managed_by modes:
+  ##   seed: Only apply if config doesn't exist in DB (default). CLI changes are preserved.
+  ##   configmap: Always overwrite DB from ConfigMap on startup. CLI changes are ephemeral.
+  ##
+  dynamicConfig:
+    ## Enable dynamic configuration loading from ConfigMap
+    ##
+    enabled: false
+
+    ## Per-type configuration sections. Each section supports managed_by and config/items.
+    ## Example:
+    ##   service:
+    ##     managed_by: seed
+    ##     config:
+    ##       service_base_url: "https://osmo.example.com"
+    ##
+    service: {}
+    workflow: {}
+    dataset: {}
+    pools: {}
+    podTemplates: {}
+    resourceValidations: {}
+    backends: {}
+    backendTests: {}
+    groupTemplates: {}
+    roles: {}
+
+    ## Secret credential files mounted from K8s Secrets.
+    ## Each entry creates a K8s Secret + volume mount at /etc/osmo/secrets/<name>.yaml
+    ## Used by dataset bucket default_credential.secret_file references.
+    ##
+    ## Example:
+    ##   secrets:
+    ##     bucket-primary-cred:
+    ##       access_key_id: "AKIA..."
+    ##       access_key: "wJalrXUtn..."
+    ##
+    secrets: {}
+
   ## Redis cache service configuration
   ## Set enabled to false if using an external Redis deployment
   ##

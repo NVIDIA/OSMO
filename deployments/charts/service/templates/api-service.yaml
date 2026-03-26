@@ -35,6 +35,9 @@ spec:
         {{- end }}
       annotations:
         checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
+        {{- if .Values.services.dynamicConfig.enabled }}
+        checksum/dynamic-config: {{ .Values.services.dynamicConfig | toYaml | sha256sum }}
+        {{- end }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
     spec:
       {{- with .Values.services.service.hostAliases }}
@@ -149,6 +152,10 @@ spec:
         - --default_admin_username
         - {{ .Values.services.defaultAdmin.username | quote }}
         {{- end }}
+        {{- if .Values.services.dynamicConfig.enabled }}
+        - --dynamic_config_file
+        - /etc/osmo/dynamic-config/config.yaml
+        {{- end }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
@@ -192,13 +199,24 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.service.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.dynamicConfig.enabled .Values.services.service.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}
           name: mek-volume
           subPath: mek.yaml
+        {{- end }}
+        {{- if .Values.services.dynamicConfig.enabled }}
+        - name: dynamic-config
+          mountPath: /etc/osmo/dynamic-config
+          readOnly: true
+        {{- range $name, $data := .Values.services.dynamicConfig.secrets }}
+        - name: dynamic-secret-{{ $name }}
+          mountPath: /etc/osmo/secrets/{{ $name }}.yaml
+          subPath: {{ $name }}.yaml
+          readOnly: true
+        {{- end }}
         {{- end }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
@@ -262,6 +280,16 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
+        {{- if .Values.services.dynamicConfig.enabled }}
+        - name: dynamic-config
+          configMap:
+            name: {{ .Values.services.service.serviceName }}-dynamic-config
+        {{- range $name, $data := .Values.services.dynamicConfig.secrets }}
+        - name: dynamic-secret-{{ $name }}
+          secret:
+            secretName: {{ $.Values.services.service.serviceName }}-dynamic-secret-{{ $name }}
+        {{- end }}
+        {{- end }}
 ---
 {{- if .Values.sidecars.envoy.enabled }}
 
