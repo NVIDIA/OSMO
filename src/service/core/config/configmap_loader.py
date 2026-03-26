@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import enum
 import logging
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List
 
 import yaml
 
@@ -79,9 +79,24 @@ def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresCon
     logging.info('Dynamic config loading complete')
 
 
+_EXPECTED_CONFIG_KEYS = {
+    'service', 'workflow', 'dataset', 'resource_validations', 'pod_templates',
+    'group_templates', 'backends', 'backend_tests', 'pools', 'roles',
+}
+
+
 def _apply_all_configs(managed_configs: Dict[str, Any],
                        postgres: connectors.PostgresConnector) -> None:
     """Apply all config types in dependency order."""
+    if not managed_configs:
+        logging.info('managed_configs is empty, nothing to apply')
+        return
+
+    unknown_keys = set(managed_configs.keys()) - _EXPECTED_CONFIG_KEYS
+    for key in unknown_keys:
+        logging.warning('Unknown key in managed_configs: %s (expected one of: %s)',
+                        key, ', '.join(sorted(_EXPECTED_CONFIG_KEYS)))
+
     # Phase 1: Templates and validations (no dependencies)
     _safe_apply('resource_validations', managed_configs, postgres, _apply_resource_validations)
     _safe_apply('pod_templates', managed_configs, postgres, _apply_pod_templates)
@@ -105,7 +120,8 @@ def _apply_all_configs(managed_configs: Dict[str, Any],
 
 def _safe_apply(config_key: str, managed_configs: Dict[str, Any],
                 postgres: connectors.PostgresConnector,
-                apply_function) -> None:
+                apply_function: Callable[[Dict[str, Any], connectors.PostgresConnector], None],
+                ) -> None:
     """Call apply_function if config_key is present, catching all errors."""
     if config_key not in managed_configs:
         return
@@ -120,10 +136,10 @@ def _parse_managed_by(section: Dict[str, Any]) -> ManagedByMode:
     raw_value = section.get('managed_by', ManagedByMode.SEED.value)
     try:
         return ManagedByMode(raw_value)
-    except ValueError:
+    except ValueError as error:
         raise ValueError(
             f'Invalid managed_by value: {raw_value}. '
-            f'Must be one of: {", ".join(m.value for m in ManagedByMode)}')
+            f'Must be one of: {", ".join(m.value for m in ManagedByMode)}') from error
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +248,7 @@ def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
         default_credential = bucket_config.get('default_credential')
         if not isinstance(default_credential, dict):
             continue
-        secret_file_path = default_credential.pop('secret_file', None)
+        secret_file_path = default_credential.get('secret_file')
         if not secret_file_path:
             continue
 
@@ -243,17 +259,23 @@ def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
                 logging.error('Secret file %s for bucket %s does not contain a mapping',
                               secret_file_path, bucket_name)
                 continue
-            default_credential['access_key_id'] = secret_data['access_key_id']
-            default_credential['access_key'] = secret_data['access_key']
-            # Copy optional fields if present
-            for optional_field in ('region', 'endpoint', 'override_url'):
-                if optional_field in secret_data:
-                    default_credential[optional_field] = secret_data[optional_field]
-            logging.info('Loaded credentials for bucket %s from %s',
-                         bucket_name, secret_file_path)
+            # Validate required keys before modifying state
+            access_key_id = secret_data['access_key_id']
+            access_key = secret_data['access_key']
         except (OSError, KeyError, yaml.YAMLError) as error:
             logging.error('Failed to read secret file %s for bucket %s: %s',
                           secret_file_path, bucket_name, error)
+            continue
+
+        # Only mutate the credential dict after successful validation
+        default_credential.pop('secret_file')
+        default_credential['access_key_id'] = access_key_id
+        default_credential['access_key'] = access_key
+        for optional_field in ('region', 'endpoint', 'override_url'):
+            if optional_field in secret_data:
+                default_credential[optional_field] = secret_data[optional_field]
+        logging.info('Loaded credentials for bucket %s from %s',
+                     bucket_name, secret_file_path)
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +399,11 @@ def _backend_exists(name: str, postgres: connectors.PostgresConnector) -> bool:
 
 def _insert_backend(name: str, backend_data: Dict[str, Any],
                     postgres: connectors.PostgresConnector) -> None:
-    """Insert a new backend into the database with minimal defaults."""
+    """Insert a new backend into the database with minimal defaults.
+
+    Schema reference: backends table is defined in
+    src/utils/connectors/postgres.py and tests/common/database/testdata/schema.sql.
+    """
     now = common.current_time()
     description = backend_data.get('description', '')
     scheduler_settings = backend_data.get('scheduler_settings')
@@ -405,13 +431,19 @@ def _insert_backend(name: str, backend_data: Dict[str, Any],
             last_heartbeat, created_date,
             description, router_address, version, tests)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (name) DO NOTHING;
+        ON CONFLICT (name) DO NOTHING
+        RETURNING name;
     '''
-    postgres.execute_commit_command(
+    result: List[Any] = postgres.execute_fetch_command(
         insert_cmd,
         (name, '', '', dashboard_url, grafana_url,
          scheduler_settings_json, node_conditions_json,
-         now, now, description, router_address, '', tests))
+         now, now, description, router_address, '', tests),
+        return_raw=True)
+
+    if not result:
+        logging.info('Backend %s already exists (conflict), skipping history entry', name)
+        return
 
     config_helpers.create_backend_config_history_entry(
         postgres=postgres,
@@ -514,7 +546,7 @@ def _apply_roles(section: Dict[str, Any],
 # ---------------------------------------------------------------------------
 
 def _filter_named_items(items: Dict[str, Any], managed_by: ManagedByMode,
-                        model_class, postgres: connectors.PostgresConnector) -> Dict[str, Any]:
+                        model_class: type, postgres: connectors.PostgresConnector) -> Dict[str, Any]:
     """Filter named config items based on managed_by mode.
 
     In 'seed' mode, only return items that don't already exist in the DB.
@@ -534,7 +566,7 @@ def _filter_named_items(items: Dict[str, Any], managed_by: ManagedByMode,
     return filtered
 
 
-def _named_config_exists(name: str, model_class,
+def _named_config_exists(name: str, model_class: type,
                          postgres: connectors.PostgresConnector) -> bool:
     """Check if a named config item exists in the database."""
     try:
