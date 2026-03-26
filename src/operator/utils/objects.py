@@ -56,7 +56,10 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     progress_folder_path: str = pydantic.Field(
         default='/var/run/osmo',
         description='The folder path to write progress timestamps to (For liveness/startup probes)',
-        json_schema_extra={'command_line': 'progress_folder_path', 'env': 'OSMO_PROGRESS_FOLDER_PATH'})
+        json_schema_extra={
+            'command_line': 'progress_folder_path',
+            'env': 'OSMO_PROGRESS_FOLDER_PATH'
+        })
     node_progress_file: str = pydantic.Field(
         default='last_progress_node',
         description='The file to write node watch progress timestamps to (For liveness/startup ' +
@@ -71,17 +74,26 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
         default='last_progress_event',
         description='The file to write event watch progress timestamps to (For liveness/startup ' +
                     'probes)',
-        json_schema_extra={'command_line': 'event_progress_file', 'env': 'OSMO_EVENT_PROGRESS_FILE'})
+        json_schema_extra={
+            'command_line': 'event_progress_file',
+            'env': 'OSMO_EVENT_PROGRESS_FILE'
+        })
     control_progress_file: str = pydantic.Field(
         default='last_progress_control',
         description='The file to write control progress timestamps to ' +
                     '(For liveness/startup probes)',
-        json_schema_extra={'command_line': 'control_progress_file', 'env': 'OSMO_CONTROL_PROGRESS_FILE'})
+        json_schema_extra={
+            'command_line': 'control_progress_file',
+            'env': 'OSMO_CONTROL_PROGRESS_FILE'
+        })
     websocket_progress_file: str = pydantic.Field(
         default='last_progress_websocket',
         description='The file to write websocket progress timestamps to (For liveness/startup ' +
                     'probes)',
-        json_schema_extra={'command_line': 'websocket_progress_file', 'env': 'OSMO_WEBSOCKET_PROGRESS_FILE'})
+        json_schema_extra={
+            'command_line': 'websocket_progress_file',
+            'env': 'OSMO_WEBSOCKET_PROGRESS_FILE'
+        })
     pod_event_cache_size: int = pydantic.Field(
         default=1024,
         description='The size of the cache for tracking pod status updates.',
@@ -105,7 +117,10 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     backend_event_cache_size: int = pydantic.Field(
         default=1024,
         description='The size of the cache for deduplicating backend updates.',
-        json_schema_extra={'command_line': 'backend_event_cache_size', 'env': 'BACKEND_EVENT_CACHE_SIZE'})
+        json_schema_extra={
+            'command_line': 'backend_event_cache_size',
+            'env': 'BACKEND_EVENT_CACHE_SIZE'
+        })
     max_unacked_messages: int = pydantic.Field(
         default=100,
         description='Threshold for number of unacknowledged messages to determine whether to '
@@ -119,7 +134,10 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
         default=False,
         description='Enable updating the node_condition_prefix/verified node label based on '
                     'node availability determined by node conditions.',
-        json_schema_extra={'command_line': 'enable_node_label_update', 'env': 'ENABLE_NODE_LABEL_UPDATE'})
+        json_schema_extra={
+            'command_line': 'enable_node_label_update',
+            'env': 'ENABLE_NODE_LABEL_UPDATE'
+        })
     list_pods_page_size: int = pydantic.Field(
         default=1000,
         description='The number of pods to list in a single page when listing pods.',
@@ -128,7 +146,10 @@ class BackendListenerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
         default=300,
         description='The number of seconds since last successful event fetch before triggering a '
                     'refresh of the resource state.',
-        json_schema_extra={'command_line': 'refresh_resource_state_interval', 'env': 'REFRESH_RESOURCE_STATE_INTERVAL'})
+        json_schema_extra={
+            'command_line': 'refresh_resource_state_interval',
+            'env': 'REFRESH_RESOURCE_STATE_INTERVAL'
+        })
     api_qps: int = pydantic.Field(
         default=20,
         description='Kubernetes API client QPS (queries per second) setting. Controls the '
@@ -150,26 +171,41 @@ class BackendWorkerConfig(BackendBaseConfig, metrics.MetricsCreatorConfig):
     test_runner_cronjob_spec_file: str = pydantic.Field(
         default='test_runner_cronjob_spec/spec.yaml',
         description='Path to the test runner cronjob specification YAML file',
-        json_schema_extra={'command_line': 'test_runner_cronjob_spec_file', 'env': 'TEST_RUNNER_CRONJOB_SPEC_FILE'})
+        json_schema_extra={
+            'command_line': 'test_runner_cronjob_spec_file',
+            'env': 'TEST_RUNNER_CRONJOB_SPEC_FILE'
+        })
     progress_folder_path: str = pydantic.Field(
         default='/var/run/osmo',
         description='The folder path to write progress timestamps to (For liveness/startup probes)',
-        json_schema_extra={'command_line': 'progress_folder_path', 'env': 'OSMO_PROGRESS_FOLDER_PATH'})
+        json_schema_extra={
+            'command_line': 'progress_folder_path',
+            'env': 'OSMO_PROGRESS_FOLDER_PATH'
+        })
     worker_heartbeat_progress_file: str = pydantic.Field(
         default='last_progress_worker_heartbeat',
         description='The file to write worker heartbeat progress timestamps to (For ' +
                     'liveness/startup probes)',
-        json_schema_extra={'command_line': 'worker_heartbeat_progress_file', 'env': 'OSMO_WORKER_HEARTBEAT_PROGRESS_FILE'})
+        json_schema_extra={
+            'command_line': 'worker_heartbeat_progress_file',
+            'env': 'OSMO_WORKER_HEARTBEAT_PROGRESS_FILE'
+        })
     worker_job_progress_file: str = pydantic.Field(
         default='last_progress_worker_job',
         description='The file to write worker job progress timestamps to (For liveness/startup ' +
                     'probes)',
-        json_schema_extra={'command_line': 'worker_job_progress_file', 'env': 'OSMO_WORKER_JOB_PROGRESS_FILE'})
+        json_schema_extra={
+            'command_line': 'worker_job_progress_file',
+            'env': 'OSMO_WORKER_JOB_PROGRESS_FILE'
+        })
     progress_iter_frequency: str = pydantic.Field(
         default='15s',
         description='How often to write to progress file when processing tasks in a loop ('
                     'e.g. write to progress every 100 tasks processed, like uploaded to DB)',
-        json_schema_extra={'command_line': 'progress_iter_frequency', 'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
+        })
     node_condition_prefix: str = pydantic.Field(
         default=test_base.DEFAULT_NODE_CONDITION_PREFIX,
         description='Prefix for node conditions',

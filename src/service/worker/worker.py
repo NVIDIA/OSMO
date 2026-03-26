@@ -55,7 +55,10 @@ class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
                     'm (minutes).',
-        json_schema_extra={'command_line': 'progress_iter_frequency', 'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
+        })
 
 
 class Worker(kombu.mixins.ConsumerMixin):

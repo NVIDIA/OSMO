@@ -49,11 +49,17 @@ class MetricsCreatorConfig(pydantic.BaseModel):
     metrics_prometheus_port: int = pydantic.Field(
         default=9464,
         description='The port on which the Prometheus scrape endpoint is exposed.',
-        json_schema_extra={'command_line': 'metrics_prometheus_port', 'env': 'METRICS_PROMETHEUS_PORT'})
+        json_schema_extra={
+            'command_line': 'metrics_prometheus_port',
+            'env': 'METRICS_PROMETHEUS_PORT'
+        })
     metrics_otel_collector_component: str = pydantic.Field(
         default='osmo_service_component',
         description='The osmo service component',
-        json_schema_extra={'command_line': 'metrics_otel_collector_component', 'env': 'METRICS_OTEL_COLLECTOR_COMPONENT'})
+        json_schema_extra={
+            'command_line': 'metrics_otel_collector_component',
+            'env': 'METRICS_OTEL_COLLECTOR_COMPONENT'
+        })
     metrics_otel_enable: bool = pydantic.Field(
         default=False,
         description='If set false, will disable metrics',

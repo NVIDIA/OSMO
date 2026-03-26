@@ -51,7 +51,11 @@ class DelayedJobMonitorConfig(connectors.RedisConfig, connectors.PostgresConfig,
         json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     enable_metrics: bool = pydantic.Field(
         description='Enable metrics collection',
-        json_schema_extra={'command_line': 'enable_metrics', 'env': 'OSMO_ENABLE_METRICS', 'action': 'store_true'})
+        json_schema_extra={
+            'command_line': 'enable_metrics',
+            'env': 'OSMO_ENABLE_METRICS',
+            'action': 'store_true'
+        })
 
 
 class DelayedJobMonitor:

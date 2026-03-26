@@ -81,17 +81,26 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
                     'm (minutes).',
-        json_schema_extra={'command_line': 'progress_iter_frequency', 'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
+        })
     default_admin_username: str | None = pydantic.Field(
         default=None,
         description='The username for the default admin user to create on startup. '
                     'If set, default_admin_password must also be set.',
-        json_schema_extra={'command_line': 'default_admin_username', 'env': 'OSMO_DEFAULT_ADMIN_USERNAME'})
+        json_schema_extra={
+            'command_line': 'default_admin_username',
+            'env': 'OSMO_DEFAULT_ADMIN_USERNAME'
+        })
     default_admin_password: str | None = pydantic.Field(
         default=None,
         description='The password (access token value) for the default admin user. '
                     'Must be set if default_admin_username is set.',
-        json_schema_extra={'command_line': 'default_admin_password', 'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'})
+        json_schema_extra={
+            'command_line': 'default_admin_password',
+            'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
+        })
 
     @pydantic.model_validator(mode='before')
     @classmethod

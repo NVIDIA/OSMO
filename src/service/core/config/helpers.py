@@ -208,7 +208,8 @@ def patch_configs(
         tags=request.tags,
     )
 
-    new_configs_dict = postgres.get_configs(config_type).model_dump(by_alias=True, exclude_unset=True)
+    new_configs_dict = postgres.get_configs(config_type).model_dump(
+        by_alias=True, exclude_unset=True)
     return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
 
 def backend_action_request_helper(payload: Dict[str, Any], name: str):
