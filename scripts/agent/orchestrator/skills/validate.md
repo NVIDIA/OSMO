@@ -11,12 +11,12 @@ Read this after the quality gates pass. Tests passing means the test suite is gr
 
 The test suite was written before your changes. It tests what the original authors thought to test. Your changes may have introduced behavior that no test exercises.
 
-Ask yourself:
-- What code paths did I change that are NOT covered by any test?
+Ask yourself — scoped to the full task, not just this session's diff:
+- What code paths were affected by the task that are NOT covered by any test?
 - Do the entry points (services, CLI commands, scripts) still start?
-- Do the configs, models, and data structures I changed actually load at runtime?
-- If I changed an API or interface, do all callers still work — not just the ones with tests?
-- Are there integration points (between services, between modules) that only fail when run together?
+- Do the configs, models, and data structures affected by the task actually load at runtime?
+- If the task changed an API or interface, do all callers still work — not just the ones with tests?
+- Are there integration points that only fail when run together?
 
 ## How to validate
 
