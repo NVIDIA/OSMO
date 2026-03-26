@@ -1,0 +1,6 @@
+{
+  "full_test": "bazel test //...",
+  "python_only_test": "bazel test //src/...",
+  "build_check": "bazel build //...",
+  "lint": "check .ruff.toml for ruff config"
+}

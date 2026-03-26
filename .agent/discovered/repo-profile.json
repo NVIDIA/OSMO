@@ -1,0 +1,18 @@
+{
+  "languages": ["python", "go", "typescript"],
+  "build_system": "bazel",
+  "bazel_version": "8.1.1",
+  "python_version": "3.10.19",
+  "frameworks": {
+    "python": ["fastapi", "pydantic", "pytest", "uvicorn"],
+    "go": ["standard"],
+    "typescript": ["nextjs", "react"]
+  },
+  "dependency_management": {
+    "python": "requirements.txt + pip-compile locked_requirements.txt",
+    "go": "go.mod",
+    "typescript": "pnpm"
+  },
+  "current_pydantic_version": "1.10.26",
+  "target_pydantic_version": "2.12.5"
+}
