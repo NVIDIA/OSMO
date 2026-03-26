@@ -1741,9 +1741,16 @@ class ExtraArgBaseModel(pydantic.BaseModel):
 
     @classmethod
     def set_extra(cls, extra_type: ExtraType):
-        for klass in [cls] + cls._all_subclasses():
+        all_classes = [cls] + cls._all_subclasses()
+        # First pass: update all model_config and mark incomplete
+        for klass in all_classes:
             klass.model_config['extra'] = extra_type.value
             klass.__pydantic_complete__ = False
+        # Second pass: rebuild in reverse order so that leaf classes (e.g.
+        # CliConfig) are rebuilt before composite classes (e.g. ServiceConfig)
+        # that reference them.  This ensures the composite schema picks up
+        # the updated extra-field policy of its children.
+        for klass in reversed(all_classes):
             klass.model_rebuild(force=True)
 
 
