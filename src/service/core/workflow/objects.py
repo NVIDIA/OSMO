@@ -180,20 +180,20 @@ class ListEntry(pydantic.BaseModel, extra='forbid'):
     name: str
     workflow_uuid: str
     submit_time: datetime.datetime
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
     queued_time: datetime.timedelta
-    duration: datetime.timedelta | None
+    duration: datetime.timedelta | None = None
     status: workflow.WorkflowStatus
     overview: str
     logs: str
-    error_logs: str | None
-    grafana_url: str | None
-    dashboard_url: str | None
-    pool: str | None
-    app_owner: str | None
-    app_name: str | None
-    app_version: int | None
+    error_logs: str | None = None
+    grafana_url: str | None = None
+    dashboard_url: str | None = None
+    pool: str | None = None
+    app_owner: str | None = None
+    app_name: str | None = None
+    app_version: int | None = None
     priority: str
 
     @classmethod
@@ -243,7 +243,7 @@ class ListResponse(pydantic.BaseModel, extra='forbid'):
 class ListTaskSummaryEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task list API results. """
     user: str
-    pool: str | None
+    pool: str | None = None
     storage: int # Gi
     cpu: int
     memory: int # Gi
@@ -295,9 +295,9 @@ class TaskEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task GET API result. """
     workflow_id: str
     task_name: str
-    node: str | None
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
+    node: str | None = None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
     status: task.TaskGroupStatus
     storage: int  # Gi
     cpu: int
@@ -329,17 +329,17 @@ class ListTaskEntry(pydantic.BaseModel, extra='forbid'):
     workflow_uuid: str
     task_name: str
     retry_id: int
-    pool: str | None
-    node: str | None
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
-    duration: datetime.timedelta | None
+    pool: str | None = None
+    node: str | None = None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
+    duration: datetime.timedelta | None = None
     status: task.TaskGroupStatus
     overview: str
     logs: str
-    error_logs: str | None
-    grafana_url: str | None
-    dashboard_url: str | None
+    error_logs: str | None = None
+    grafana_url: str | None = None
+    dashboard_url: str | None = None
     storage: int # Gi
     cpu: int
     memory: int # Gi
@@ -400,7 +400,7 @@ class TaskQueryResponse(pydantic.BaseModel):
     name: str
     retry_id: int
     status: task.TaskGroupStatus
-    failure_message: str | None
+    failure_message: str | None = None
     exit_code: int | None = None
     logs: str
     error_logs: str | None = None
@@ -429,8 +429,8 @@ class GroupQueryResponse(pydantic.BaseModel, extra='forbid'):
     processing_start_time: datetime.datetime | None = None
     scheduling_start_time: datetime.datetime | None = None
     initializing_start_time: datetime.datetime | None = None
-    remaining_upstream_groups: Set[str] | None
-    downstream_groups: Set[str] | None
+    remaining_upstream_groups: Set[str] | None = None
+    downstream_groups: Set[str] | None = None
     failure_message: str | None = None
     tasks: List[TaskQueryResponse] = []
 
@@ -440,32 +440,32 @@ class WorkflowQueryResponse(pydantic.BaseModel, extra='forbid'):
     name: str
     uuid: str
     submitted_by: str
-    cancelled_by: str | None
+    cancelled_by: str | None = None
     spec: str
     template_spec: str
     logs: str
     events: str
     overview: str
-    parent_name: str | None
-    parent_job_id: int | None
-    dashboard_url: str | None
-    grafana_url: str | None
+    parent_name: str | None = None
+    parent_job_id: int | None = None
+    dashboard_url: str | None = None
+    grafana_url: str | None = None
     tags: List[str] = []
     submit_time: datetime.datetime
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
-    exec_timeout: datetime.timedelta | None
-    queue_timeout: datetime.timedelta | None
-    duration: datetime.timedelta | None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
+    exec_timeout: datetime.timedelta | None = None
+    queue_timeout: datetime.timedelta | None = None
+    duration: datetime.timedelta | None = None
     queued_time: datetime.timedelta
     status: workflow.WorkflowStatus
     outputs: str = ''
     groups: List[GroupQueryResponse]
-    pool: str | None
-    backend: str | None
-    app_owner: str | None
-    app_name: str | None
-    app_version: int | None
+    pool: str | None = None
+    backend: str | None = None
+    app_owner: str | None = None
+    app_name: str | None = None
+    app_version: int | None = None
     plugins: task_common.WorkflowPlugins
     priority: str
 
@@ -764,7 +764,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
     context: WorkflowServiceContext
     base32_id: str = ''
     name: str = ''
-    parent_workflow_id: str | None
+    parent_workflow_id: str | None = None
     app_uuid: str | None = None
     app_version: int | None = None
     user: str

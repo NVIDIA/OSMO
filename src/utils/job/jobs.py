@@ -175,7 +175,7 @@ class SubmitWorkflow(WorkflowJob):
     spec: workflow.WorkflowSpec
     original_spec: Dict
     group_and_task_uuids: Dict[str, common.UuidPattern]
-    parent_workflow_id: task_common.NamePattern | None
+    parent_workflow_id: task_common.NamePattern | None = None
     app_uuid: str | None = None
     app_version: int | None = None
     task_db_keys: Dict[str, str] | None = None

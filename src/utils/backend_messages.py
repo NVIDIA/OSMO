@@ -111,7 +111,7 @@ class UpdatePodBody(pydantic.BaseModel, extra='forbid'):
     pod_ip: str | None = None
     message: str = ''
     status: str
-    exit_code: int | None
+    exit_code: int | None = None
     backend: str
     conditions: List[ConditionMessage] = []
 
