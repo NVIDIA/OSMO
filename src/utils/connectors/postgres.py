@@ -188,11 +188,17 @@ class PostgresConfig(pydantic.BaseModel):
     postgres_pool_minconn: int = pydantic.Field(
         default=1,
         description='Minimum number of connections to keep in the connection pool',
-        json_schema_extra={'command_line': 'postgres_pool_minconn', 'env': 'OSMO_POSTGRES_POOL_MINCONN'})
+        json_schema_extra={
+            'command_line': 'postgres_pool_minconn',
+            'env': 'OSMO_POSTGRES_POOL_MINCONN',
+        })
     postgres_pool_maxconn: int = pydantic.Field(
         default=10,
         description='Maximum number of connections allowed in the connection pool',
-        json_schema_extra={'command_line': 'postgres_pool_maxconn', 'env': 'OSMO_POSTGRES_POOL_MAXCONN'})
+        json_schema_extra={
+            'command_line': 'postgres_pool_maxconn',
+            'env': 'OSMO_POSTGRES_POOL_MAXCONN',
+        })
     schema_version: str = pydantic.Field(
         default='public',
         description='pgroll schema version to use. '
@@ -3023,7 +3029,8 @@ class ResourceValidation(pydantic.BaseModel):
             '''
         database.execute_commit_command(
             insert_cmd,
-            (name,[json.dumps(validation.model_dump()) for validation in self.resource_validations]))
+            (name, [json.dumps(validation.model_dump())
+                    for validation in self.resource_validations]))
 
         for pool_info in ResourceValidation.get_pools(database, name):
             Pool.update_resource_validations(database, pool_info['name'])
