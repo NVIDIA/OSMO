@@ -1,46 +1,34 @@
 {
   "patterns": [
     {
-      "id": "pydantic-v2-optional-defaults",
-      "description": "Pydantic v2 requires Optional[X] fields to have explicit = None defaults. v1 auto-defaulted them.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
+      "id": "pydantic-v2-encoder",
+      "description": "Pydantic v2 pydantic_encoder() does not handle datetime, UUID, etc. by default. Must add custom handling.",
+      "context": "When migrating from Pydantic v1 to v2, custom JSON serialization using pydantic_encoder needs extension."
     },
     {
-      "id": "pydantic-v2-validator-to-model-validator",
-      "description": "@validator with 'values' parameter must become @model_validator(mode='before') in v2, since field_validator doesn't receive other fields' values.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
+      "id": "pydantic-v2-model-config-extra",
+      "description": "In Pydantic v2, model_config['extra'] is baked into core schema at class creation. Modifying it post-creation requires model_rebuild(force=True) on all subclasses in reversed order (leaf first).",
+      "context": "ExtraArgBaseModel.set_extra() pattern needed rewrite for Pydantic v2."
     },
     {
-      "id": "pydantic-v2-coerce-numbers-to-str",
-      "description": "Pydantic v2 doesn't auto-coerce int→str. Use model_config = ConfigDict(coerce_numbers_to_str=True) for models that receive numeric values in str fields.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
+      "id": "pydantic-v2-eq-change",
+      "description": "Pydantic v2 BaseModel.__eq__ no longer compares equal to dicts. Tests that compare model == dict must use model.model_dump() == dict.",
+      "context": "Test assertions involving Pydantic models."
     },
     {
-      "id": "pydantic-settings-separate-package",
-      "description": "In Pydantic v2, BaseSettings moved to pydantic-settings package. Install separately.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
+      "id": "pydantic-v2-model-validator",
+      "description": "In Pydantic v2, model_validator('before') receives raw dict. Fields may not be present. Use values.get() not values[].",
+      "context": "Validators that previously used @root_validator."
     },
     {
-      "id": "osmo-bazel-dependent-tests",
-      "description": "Many OSMO tests depend on Bazel-built 'services' or 'osmo' modules and cannot run outside Bazel.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
+      "id": "bazel-pylint-line-length",
+      "description": "OSMO repo pylintrc enforces max-line-length=100 and check-quote-consistency=yes. All new code must respect both.",
+      "context": "Pylint tests in Bazel."
     },
     {
-      "id": "osmo-pre-existing-test-failures",
-      "description": "test_workflow.py::ResourceSpecTest has pre-existing failures: convert_to_workflow_spec() never existed, test data is incompatible with schema.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
-    },
-    {
-      "id": "pydantic-v2-np-bool-deprecation",
-      "description": "np.bool was deprecated in NumPy 1.20+ and removed in 1.24+. Replace with builtin bool.",
-      "learned_from": "pydantic-v2-migration",
-      "confidence": 1.0
+      "id": "bazel-test-caching",
+      "description": "Bazel caches test results aggressively. Use --cache_test_results=no to force re-run if needed.",
+      "context": "When debugging flaky tests or verifying fixes."
     }
   ]
 }
