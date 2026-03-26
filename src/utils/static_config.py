@@ -23,10 +23,11 @@ import typing
 from typing import Any, ClassVar, Dict, Optional
 
 import pydantic
+from pydantic.fields import FieldInfo
 import yaml
 
 
-def _get_field_extras(field: pydantic.fields.FieldInfo) -> Dict[str, Any]:
+def _get_field_extras(field: FieldInfo) -> Dict[str, Any]:
     """Get json_schema_extra as a dict, handling Callable and None cases."""
     extra = field.json_schema_extra
     if isinstance(extra, dict):
