@@ -56,9 +56,9 @@ def backend_action_queue_name(backend_name: str) -> str:
 
 class ExtraType(enum.Enum):
     """ Setting for Pydantic Extra """
-    ALLOW = "allow"
-    FORBID = "forbid"
-    IGNORE = "ignore"
+    ALLOW = 'allow'
+    FORBID = 'forbid'
+    IGNORE = 'ignore'
 
 
 class CredentialType(enum.Enum):
@@ -1748,7 +1748,7 @@ class ExtraArgBaseModel(pydantic.BaseModel):
         result = []
         for sub in cls.__subclasses__():
             result.append(sub)
-            result.extend(sub._all_subclasses())
+            result.extend(sub._all_subclasses())  # pylint: disable=protected-access
         return result
 
     @classmethod
