@@ -229,9 +229,8 @@ class SwiftBackend(Boto3Backend):
     Swift Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['swift'] = pydantic.Field(
         default=common.StorageBackendType.SWIFT.value,
-        const=True,
         description='The scheme of the Swift backend.',
     )
 
@@ -242,7 +241,6 @@ class SwiftBackend(Boto3Backend):
 
     supports_batch_delete: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
@@ -390,21 +388,18 @@ class S3Backend(Boto3Backend):
     AWS S3 Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['s3'] = pydantic.Field(
         default=common.StorageBackendType.S3.value,
-        const=True,
         description='The scheme of the S3 backend.',
     )
 
     supports_batch_delete: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
     supports_environment_auth: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports environment authentication.',
     )
 
