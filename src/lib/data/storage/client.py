@@ -68,7 +68,10 @@ class Client(pydantic.BaseModel):
     A storage client that can be used to perform data operations against a remote storage.
     """
 
-    model_config = pydantic.ConfigDict(extra='forbid', frozen=True, ignored_types=(functools.cached_property,))
+    model_config = pydantic.ConfigDict(
+        extra='forbid', frozen=True,
+        ignored_types=(functools.cached_property,),
+    )
 
     #########################
     #    Factory methods    #
