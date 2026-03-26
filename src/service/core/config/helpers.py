@@ -428,7 +428,7 @@ def create_pool_config_history_entry(
     Add a history entry for a pool config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    pools = connectors.fetch_editable_pool_config(postgres).dict(
+    pools = connectors.fetch_editable_pool_config(postgres).model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -451,7 +451,7 @@ def create_dataset_config_history_entry(
     Add a history entry for a dataset config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    dataset_configs = postgres.get_dataset_configs().dict(
+    dataset_configs = postgres.get_dataset_configs().model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(

@@ -200,7 +200,7 @@ def create_clean_config_api(app: fastapi.FastAPI):
                 postgres.set_config(key, value)
         except pydantic.ValidationError as err:
             raise osmo_errors.OSMOUsageError(f'{err}')
-        return postgres.get_service_configs().dict(by_alias=True,
+        return postgres.get_service_configs().model_dump(by_alias=True,
                                                                         exclude_unset=True)
 
     app.add_api_route('/api/configs/service/clean', clean_configs, # type: ignore
