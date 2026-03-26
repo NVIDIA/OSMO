@@ -3934,7 +3934,7 @@ class BackendTestBase(pydantic.BaseModel):
     description: str
     cron_schedule: str = pydantic.Field(..., min_length=1)
     test_timeout: str = pydantic.Field(default='300s')
-    node_conditions: List[str] = pydantic.Field(min_items=1)
+    node_conditions: List[str] = pydantic.Field(min_length=1)
 
     @pydantic.field_validator('name')
     @classmethod
@@ -4173,7 +4173,7 @@ class BackendTestBase(pydantic.BaseModel):
 
 class BackendTests(BackendTestBase):
     """ Represents a test config. """
-    common_pod_template: List[str] = pydantic.Field(min_items=1)
+    common_pod_template: List[str] = pydantic.Field(min_length=1)
     parsed_pod_template: Dict = {}
 
     @classmethod
