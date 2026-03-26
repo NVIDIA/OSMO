@@ -145,16 +145,23 @@ class PostgresConfig(pydantic.BaseModel):
     postgres_database_name: str = pydantic.Field(
         default='osmo_db',
         description='The database name for postgres server.',
-        json_schema_extra={'command_line': 'postgres_database_name', 'env': 'OSMO_POSTGRES_DATABASE_NAME'})
+        json_schema_extra={
+            'command_line': 'postgres_database_name',
+            'env': 'OSMO_POSTGRES_DATABASE_NAME',
+        })
     postgres_reconnect_retry: int = pydantic.Field(
         default=5,
         description='Reconnect try count after connection error',
-        json_schema_extra={'command_line': 'postgres_reconnect_retry', 'env': 'OSMO_POSTGRES_RECONNECT_RETRY'})
+        json_schema_extra={
+            'command_line': 'postgres_reconnect_retry',
+            'env': 'OSMO_POSTGRES_RECONNECT_RETRY',
+        })
     mek_file: str = pydantic.Field(
         default='/home/osmo/vault-agent/secrets/vault-secrets.yaml',
-        description='Path to the file that stores master encryption keys'
-    ,
-        json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
+        description='Path to the file that stores master encryption keys',
+        json_schema_extra={
+            'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE',
+        })
     method: Literal['dev'] | None = pydantic.Field(
         default=None,
         description='If set to "dev", use the default local mek file'
