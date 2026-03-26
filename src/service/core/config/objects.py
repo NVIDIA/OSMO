@@ -393,7 +393,7 @@ class ConfigHistory(pydantic.BaseModel):
     created_at: datetime.datetime
     description: str
     tags: List[str] | None = None
-    data: Any
+    data: Any = None
 
 
 class GetConfigsHistoryResponse(pydantic.BaseModel):
@@ -447,5 +447,5 @@ class ConfigDiffRequest(pydantic.BaseModel):
 class ConfigDiffResponse(pydantic.BaseModel):
     """Response body for config diff endpoint."""
 
-    first_data: Any
-    second_data: Any
+    first_data: Any = None
+    second_data: Any = None

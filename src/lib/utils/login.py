@@ -54,6 +54,7 @@ def fetch_login_info(url: str):
 class LoginConfig(pydantic.BaseModel):
     """ Manages configuration specific to the login """
     username: str | None = pydantic.Field(
+        default=None,
         description='The username to sign in with.',
         json_schema_extra={'command_line': 'username'})
     password: str | None = pydantic.Field(
