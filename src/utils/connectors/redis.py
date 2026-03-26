@@ -67,30 +67,25 @@ MAX_LOG_TTL = 20 * 24 * 60 * 60
 class RedisConfig(pydantic.BaseModel):
     """Manages the configuration for the redis database"""
     redis_host: str = pydantic.Field(
-        command_line='redis_host',
-        env='OSMO_REDIS_HOST',
         default='localhost',
-        description='The hostname of the redis server to connect to.')
+        description='The hostname of the redis server to connect to.',
+        json_schema_extra={'command_line': 'redis_host', 'env': 'OSMO_REDIS_HOST'})
     redis_port: int = pydantic.Field(
-        command_line='redis_port',
-        env='OSMO_REDIS_PORT',
         default=6379,
-        description='The port of the redis server to connect to.')
+        description='The port of the redis server to connect to.',
+        json_schema_extra={'command_line': 'redis_port', 'env': 'OSMO_REDIS_PORT'})
     redis_password: Optional[str] = pydantic.Field(
-        command_line='redis_password',
-        env='OSMO_REDIS_PASSWORD',
         default=None,
-        description='The password, if any, to authenticate with the redis server')
+        description='The password, if any, to authenticate with the redis server',
+        json_schema_extra={'command_line': 'redis_password', 'env': 'OSMO_REDIS_PASSWORD'})
     redis_tls_enable: bool = pydantic.Field(
-        command_line='redis_tls_enable',
-        env='OSMO_REDIS_TLS_ENABLE',
         default=False,
-        description='Flag to connect to redis server using TLS, false by default')
+        description='Flag to connect to redis server using TLS, false by default',
+        json_schema_extra={'command_line': 'redis_tls_enable', 'env': 'OSMO_REDIS_TLS_ENABLE'})
     redis_db_number: int = pydantic.Field(
-        command_line='redis_db_number',
-        env='OSMO_REDIS_DB_NUMBER',
         default=0,
-        description='Redis database number to connect to. Default value is 0')
+        description='Redis database number to connect to. Default value is 0',
+        json_schema_extra={'command_line': 'redis_db_number', 'env': 'OSMO_REDIS_DB_NUMBER'})
 
     @property
     def redis_url(self):

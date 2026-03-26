@@ -47,20 +47,17 @@ class InstrumentType(enum.Enum):
 class MetricsCreatorConfig(pydantic.BaseModel):
     """ Manages the config for the Metrics Creator. """
     metrics_prometheus_port: int = pydantic.Field(
-        command_line='metrics_prometheus_port',
-        env='METRICS_PROMETHEUS_PORT',
         default=9464,
-        description='The port on which the Prometheus scrape endpoint is exposed.')
+        description='The port on which the Prometheus scrape endpoint is exposed.',
+        json_schema_extra={'command_line': 'metrics_prometheus_port', 'env': 'METRICS_PROMETHEUS_PORT'})
     metrics_otel_collector_component: str = pydantic.Field(
-        command_line='metrics_otel_collector_component',
-        env='METRICS_OTEL_COLLECTOR_COMPONENT',
         default='osmo_service_component',
-        description='The osmo service component')
+        description='The osmo service component',
+        json_schema_extra={'command_line': 'metrics_otel_collector_component', 'env': 'METRICS_OTEL_COLLECTOR_COMPONENT'})
     metrics_otel_enable: bool = pydantic.Field(
-        command_line='metrics_otel_enable',
-        env='METRICS_OTEL_ENABLE',
         default=False,
-        description='If set false, will disable metrics')
+        description='If set false, will disable metrics',
+        json_schema_extra={'command_line': 'metrics_otel_enable', 'env': 'METRICS_OTEL_ENABLE'})
 
 class MetricCreator:
     """

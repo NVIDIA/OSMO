@@ -46,18 +46,16 @@ class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                    src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
                    metrics.MetricsCreatorConfig):
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write progress timestamps to (For liveness/startup probes)')
+        description='The file to write progress timestamps to (For liveness/startup probes)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_iter_frequency: str = pydantic.Field(
-        command_line='progress_iter_frequency',
-        env='OSMO_PROGRESS_ITER_FREQUENCY',
         default='15s',
         description='How often to write to progress file when processing tasks in a loop ('
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
-                    'm (minutes).')
+                    'm (minutes).',
+        json_schema_extra={'command_line': 'progress_iter_frequency', 'env': 'OSMO_PROGRESS_ITER_FREQUENCY'})
 
 
 class Worker(kombu.mixins.ConsumerMixin):
