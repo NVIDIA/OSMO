@@ -557,14 +557,18 @@ class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
             raise ValueError(f'Invalid regex: {regex}') from err
 
 
-class TaskKPI(pydantic.BaseModel, extra='forbid'):
+class TaskKPI(pydantic.BaseModel):
     """ Represents a KPI stored in a task """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     index: str
     path: str
 
 
-class File(pydantic.BaseModel, extra='forbid'):
+class File(pydantic.BaseModel):
     """ Encodes text contents to uniformly support text and binary files. """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     base64: bool = False
     path: str
     contents: str
@@ -594,8 +598,14 @@ class File(pydantic.BaseModel, extra='forbid'):
         return self.contents
 
 
-class TaskSpec(pydantic.BaseModel, extra='forbid'):
+class TaskSpec(pydantic.BaseModel):
     """ Represents the container spec in a task spec. """
+    # Pydantic v2 is strict about str types. YAML users naturally write unquoted
+    # integers (e.g. exitActions: {RESCHEDULE: 3}, args: [echo, 42]) or booleans
+    # (e.g. environment: {DEBUG: true}) which parse as int/bool, not str.
+    # coerce_numbers_to_str restores v1 behavior for int/float→str coercion.
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     name: task_common.NamePattern
     image: str
     command: List[str]
@@ -618,6 +628,37 @@ class TaskSpec(pydantic.BaseModel, extra='forbid'):
     backend: str = ''
     # A simplified resource representation in the workflow spec
     resource: str = 'default'
+
+    @pydantic.field_validator('environment', 'exitActions', mode='before')
+    @classmethod
+    def coerce_dict_str_values(cls, value: Any) -> Any:
+        """Coerce non-string dict values (e.g. YAML booleans/ints) to strings.
+
+        coerce_numbers_to_str handles int/float but not bool. YAML users write
+        environment: {DEBUG: true} or exitActions: {RESCHEDULE: 3} which parse
+        as bool/int, so we coerce here.
+        """
+        if isinstance(value, dict):
+            return {str(k): str(v) for k, v in value.items()}
+        return value
+
+    @pydantic.field_validator('credentials', mode='before')
+    @classmethod
+    def coerce_credential_values(cls, value: Any) -> Any:
+        """Coerce non-string credential values to strings.
+
+        Credential values can be str (path) or Dict[str, str] (key mappings).
+        YAML may parse values as int/bool instead of str.
+        """
+        if isinstance(value, dict):
+            result: Dict[str, Union[str, Dict[str, str]]] = {}
+            for k, v in value.items():
+                if isinstance(v, dict):
+                    result[str(k)] = {str(dk): str(dv) for dk, dv in v.items()}
+                else:
+                    result[str(k)] = str(v)
+            return result
+        return value
 
     @pydantic.field_validator('downloadType', mode='before')
     @classmethod
