@@ -20,7 +20,7 @@ import argparse
 import os
 import sys
 import typing
-from typing import Any, Dict
+from typing import Any, ClassVar, Dict, Optional
 
 import pydantic
 import yaml
