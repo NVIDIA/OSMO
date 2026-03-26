@@ -74,7 +74,7 @@ class BucketInfoEntry(pydantic.BaseModel, extra='forbid'):
 
 class BucketInfoResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing Upload Response. """
-    default: Optional[str]
+    default: Optional[str] = None
     buckets: Dict[str, BucketInfoEntry]
 
 

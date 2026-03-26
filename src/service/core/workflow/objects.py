@@ -160,10 +160,10 @@ class SubmitResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing workflow name, logs, and spec after submission. """
     # The name of the newly created workflow
     name: str
-    overview: Optional[str]
-    logs: Optional[str]
-    spec: Optional[str]
-    dashboard_url: Optional[str]
+    overview: Optional[str] = None
+    logs: Optional[str] = None
+    spec: Optional[str] = None
+    dashboard_url: Optional[str] = None
 
     @pydantic.model_validator(mode='before')
     @classmethod
