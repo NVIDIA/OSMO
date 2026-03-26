@@ -425,7 +425,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-{values["group_name"]}-submit'
 
-    @pydantic.field_validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -513,7 +513,7 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-{values["group_name"]}-backend-cleanup'
 
-    @pydantic.field_validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
