@@ -1429,7 +1429,9 @@ class CleanupWorkflow(WorkflowJob):
                 io_type=connectors.redis.IOType.DUMP,
                 source='OSMO', retry_id=0,
                 text=log_message)
-            redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
+            log_key = f'{self.workflow_id}-logs'
+            redis_batch_pipeline.xadd(
+                log_key, json.loads(logs.model_dump_json()))
 
         logs = connectors.redis.LogStreamBody(
             time=common.current_time(), io_type=connectors.redis.IOType.END_FLAG,
