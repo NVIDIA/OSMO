@@ -29,6 +29,16 @@
       "id": "bazel-test-caching",
       "description": "Bazel caches test results aggressively. Use --cache_test_results=no to force re-run if needed.",
       "context": "When debugging flaky tests or verifying fixes."
+    },
+    {
+      "id": "pydantic-v2-fields-set",
+      "description": "__fields_set__ (v1) must be replaced with model_fields_set (v2). Easy to miss because it's a dunder attribute, not a decorated method.",
+      "context": "Pydantic v1 to v2 migration — attribute-level changes are harder to find than decorator changes."
+    },
+    {
+      "id": "osmo-pydantic-import-style",
+      "description": "OSMO repo uses qualified 'import pydantic' style consistently across all 216+ files. Never 'from pydantic import BaseModel'.",
+      "context": "Code style convention — maintain when adding new pydantic code."
     }
   ]
 }
