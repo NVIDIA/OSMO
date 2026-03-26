@@ -1290,7 +1290,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
                 second_revision=initial_history_entry['revision'],
             ),
         )
-        self.assertEqual(response.first_data, initial_history_entry['data'])
+        self.assertEqual(response.first_data.model_dump(mode='json'), initial_history_entry['data'])
         self.assertEqual(response.second_data, initial_history_entry['data'])
 
         # Test 2: Add the new bucket
@@ -1302,7 +1302,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             ),
         )
         self.assertEqual(
-            response.first_data,
+            response.first_data.model_dump(mode='json'),
             initial_history_entry['data']
         )
         self.assertEqual(
