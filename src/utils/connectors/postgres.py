@@ -2996,7 +2996,13 @@ class ResourceValidation(pydantic.BaseModel):
         fetch_cmd = f'SELECT * FROM resource_validations {list_of_names} ORDER BY name;'
         spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
 
-        return {spec_row['name']: spec_row['resource_validations'] for spec_row in spec_rows}
+        return {
+            spec_row['name']: [
+                item if isinstance(item, ResourceAssertion) else ResourceAssertion(**item)
+                for item in spec_row['resource_validations']
+            ]
+            for spec_row in spec_rows
+        }
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> List[ResourceAssertion]:
@@ -3008,7 +3014,10 @@ class ResourceValidation(pydantic.BaseModel):
 
         spec_row = spec_rows[0]
 
-        return spec_row['resource_validations']
+        return [
+            item if isinstance(item, ResourceAssertion) else ResourceAssertion(**item)
+            for item in spec_row['resource_validations']
+        ]
 
     @classmethod
     def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
