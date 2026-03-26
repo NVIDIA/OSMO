@@ -1425,8 +1425,10 @@ class CleanupWorkflow(WorkflowJob):
                           f'abnormally, view task status at:\n{status_url}\n\n' +\
                           f'View task error logs at:\n{error_logs_url}\n{end_delimiter}'
             logs = connectors.redis.LogStreamBody(
-                time=common.current_time(), io_type=connectors.redis.IOType.DUMP,
-                source='OSMO', retry_id=0, text=log_message)
+                time=common.current_time(),
+                io_type=connectors.redis.IOType.DUMP,
+                source='OSMO', retry_id=0,
+                text=log_message)
             redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
 
         logs = connectors.redis.LogStreamBody(

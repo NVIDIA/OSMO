@@ -703,7 +703,9 @@ class TaskSpec(pydantic.BaseModel, extra='forbid'):
 
     @pydantic.field_validator('exitActions')
     @classmethod
-    def validate_exit_actions(cls, exit_actions: Dict[str, str], info: pydantic.ValidationInfo) -> Dict[str, str]:
+    def validate_exit_actions(
+            cls, exit_actions: Dict[str, str],
+            info: pydantic.ValidationInfo) -> Dict[str, str]:
         name = info.data.get('name', '')
         regex = re.compile(CODE_REGEX)
         for key, value in exit_actions.items():

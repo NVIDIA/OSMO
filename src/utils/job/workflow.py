@@ -284,11 +284,16 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             _validate_name(spec_name)
 
         for group_spec in values.get('groups', []):
-            group_name = group_spec.name if hasattr(group_spec, 'name') else group_spec.get('name', '')
+            group_name = (group_spec.name if hasattr(group_spec, 'name')
+                          else group_spec.get('name', ''))
             _validate_name(group_name)
-            group_tasks = group_spec.tasks if hasattr(group_spec, 'tasks') else group_spec.get('tasks', [])
+            group_tasks = (group_spec.tasks
+                           if hasattr(group_spec, 'tasks')
+                           else group_spec.get('tasks', []))
             for task_spec in group_tasks:
-                spec_name = task_spec.name if hasattr(task_spec, 'name') else task_spec.get('name', '')
+                spec_name = (task_spec.name
+                             if hasattr(task_spec, 'name')
+                             else task_spec.get('name', ''))
                 _validate_name(spec_name)
 
         return values
@@ -959,10 +964,16 @@ class Workflow(pydantic.BaseModel):
                     insert_cmd,
                     (self.workflow_name, self.workflow_name,
                         self.workflow_name, self.workflow_uuid,
-                        self.user, self.submit_time, self.start_time, self.end_time,
-                        self.status.name, self.logs, exec_timeout, queue_timeout, self.backend,
-                        self.pool, version, self.failure_message, self.parent_name,
-                        self.parent_job_id, self.app_uuid, self.app_version, self.plugins.model_dump_json(),
+                        self.user, self.submit_time,
+                        self.start_time, self.end_time,
+                        self.status.name, self.logs,
+                        exec_timeout, queue_timeout,
+                        self.backend,
+                        self.pool, version,
+                        self.failure_message, self.parent_name,
+                        self.parent_job_id, self.app_uuid,
+                        self.app_version,
+                        self.plugins.model_dump_json(),
                         self.priority.value))
                 break
             except osmo_errors.OSMODatabaseError as err:
