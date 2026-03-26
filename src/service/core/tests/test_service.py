@@ -101,7 +101,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), test_version)
+        self.assertEqual(response.json(), test_version.model_dump())
 
     def test_get_client_version_without_config_override(self):
         # Arrange / Act
@@ -109,7 +109,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), version.VERSION)
+        self.assertEqual(response.json(), version.VERSION.model_dump())
 
     def test_get_client_version_plaintext(self):
         # Arrange / Act
@@ -128,7 +128,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), version.VERSION)
+        self.assertEqual(response.json(), version.VERSION.model_dump())
 
     def test_outdated_client_receives_no_update_prompt(self):
         # Arrange
