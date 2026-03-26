@@ -152,6 +152,11 @@ def execute_bash(command):
     try:
         _progress_history.clear()
 
+        # Force line-buffered output so pipes don't hide progress from the harness.
+        # `stdbuf -oL` makes stdout line-buffered even through pipes.
+        if "|" in command:
+            command = f"stdbuf -oL bash -c {repr(command)}"
+
         # Start in a new process group so we can kill the entire tree
         process = subprocess.Popen(
             ["bash", "-c", command],

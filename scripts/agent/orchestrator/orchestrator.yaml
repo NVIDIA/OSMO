@@ -39,7 +39,7 @@ workflow:
     default:
       cpu: 4
       memory: 16Gi
-      storage: 20Gi
+      storage: 80Gi
 
   tasks:
   - name: agent
