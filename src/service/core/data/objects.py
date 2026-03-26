@@ -30,13 +30,13 @@ DatasetTagPattern = Annotated[str, pydantic.Field(pattern=common.DATASET_BUCKET_
 
 
 class DatasetType(enum.Enum):
-    COLLECTION = 'COLLECTION'
-    DATASET = 'DATASET'
+    COLLECTION = "COLLECTION"
+    DATASET = "DATASET"
 
 
 class DatasetQueryType(enum.Enum):
-    VERSION = 'VERSION'
-    DATASET = 'DATASET'
+    VERSION = "VERSION"
+    DATASET = "DATASET"
 
 
 class DatasetStatus(enum.Enum):
@@ -44,14 +44,14 @@ class DatasetStatus(enum.Enum):
     The status of a dataset / dataset version.
     """
     # The dataset has been "allocated" but needs to be uploaded
-    PENDING = 'PENDING'
+    PENDING = "PENDING"
     # The dataset has been uploaded and is ready to use
-    READY = 'READY'
+    READY = "READY"
     # The dataset has been marked for delete but needs to be deleted
-    PENDING_DELETE = 'PENDING_DELETE'
+    PENDING_DELETE = "PENDING_DELETE"
     # The dataset version has been deleted. When the all versions are DELETED, the dataset will be
     # removed from the table
-    DELETED = 'DELETED'
+    DELETED = "DELETED"
 
     @staticmethod
     def is_active(name: str) -> bool:
@@ -81,9 +81,9 @@ class BucketInfoResponse(pydantic.BaseModel, extra="forbid"):
 class DataUploadResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Upload Response. """
     version_id: str
-    region: str = ''
-    storage_path: str = ''
-    manifest_path: str = ''
+    region: str = ""
+    storage_path: str = ""
+    manifest_path: str = ""
 
 
 class DataDownloadResponse(pydantic.BaseModel, extra="forbid"):
