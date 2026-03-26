@@ -37,7 +37,7 @@ def _get_field_extras(field: pydantic.fields.FieldInfo) -> Dict[str, Any]:
 class StaticConfig(pydantic.BaseModel):
     """ A class for reading in config information from either command line, files,
     or environment variables """
-    _instance = None
+    _instance: ClassVar[Optional[Any]] = None
     @classmethod
     def load(cls):
         if cls._instance is not None:

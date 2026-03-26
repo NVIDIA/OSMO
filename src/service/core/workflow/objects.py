@@ -20,7 +20,7 @@ import collections
 import datetime
 import json
 import math
-from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Set
+from typing import Any, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Set
 import yaml
 
 import pydantic
@@ -120,7 +120,7 @@ class WorkflowServiceContext(pydantic.BaseModel):
     """ Shared context that needs to be access from all api methods. """
     config: WorkflowServiceConfig
     database: connectors.PostgresConnector
-    _instance: Optional['WorkflowServiceContext'] = None
+    _instance: ClassVar[Optional['WorkflowServiceContext']] = None
 
     model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
