@@ -14,10 +14,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Runs `bazel coverage` and uploads to Codecov.
+# Runs coverage and uploads to Codecov.
 # - On push to main: provides base reports so Codecov can compute diffs on PRs.
 # - On pull_request: provides head reports for the PR branch.
-# With Bazel remote cache, test results from ci-internal are reused.
 name: Coverage
 
 on:
@@ -25,12 +24,6 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - 'docs/**'
-      - 'cookbook/**'
-      - 'src/ui/**'
-      - 'deployments/charts/**'
-      - '*.md'
   pull_request:
     types: [opened, synchronize, reopened]
     branches: [main, 'feature/**', 'release/**']
@@ -40,7 +33,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check-paths:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Check which paths changed
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          token: ''
+          filters: |
+            backend:
+              - '.github/workflows/coverage.yaml'
+              - 'BUILD'
+              - 'MODULE.bazel'
+              - 'bzl/**'
+              - 'src/**'
+              - '!src/ui/**'
+              - 'run/**'
+            ui:
+              - '.github/workflows/coverage.yaml'
+              - 'src/ui/**'
+
   coverage:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.backend == 'true'
     timeout-minutes: 45
     runs-on: self-hosted
     continue-on-error: true
@@ -131,3 +155,41 @@ jobs:
           docker volume prune -f 2>/dev/null || true
           docker network prune -f 2>/dev/null || true
           docker image prune -f 2>/dev/null || true
+
+  ui-coverage:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/ui/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version-file: src/ui/.nvmrc
+          cache: pnpm
+          cache-dependency-path: src/ui/pnpm-lock.yaml
+
+      - name: Run Tests with Coverage
+        working-directory: src/ui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:coverage
+
+      - name: Upload UI coverage to Codecov
+        if: always() && !cancelled()
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/ui/coverage/lcov.info
+          flags: ui
+          fail_ci_if_error: false
