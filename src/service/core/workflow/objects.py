@@ -117,9 +117,7 @@ class WorkflowServiceContext(pydantic.BaseModel):
     database: connectors.PostgresConnector
     _instance: Optional['WorkflowServiceContext'] = None
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     @classmethod
     def set(cls, instance: 'WorkflowServiceContext'):

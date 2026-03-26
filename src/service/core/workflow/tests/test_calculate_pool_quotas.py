@@ -45,7 +45,7 @@ def make_resource(
     gpu_usage: int = 0,
     gpu_non_workflow_usage: int = 0,
 ) -> workflow.ResourcesEntry:
-    return workflow.ResourcesEntry.construct(
+    return workflow.ResourcesEntry.model_construct(
         hostname=hostname,
         backend=backend,
         allocatable_fields={'gpu': str(gpu_allocatable)},

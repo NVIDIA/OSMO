@@ -106,9 +106,7 @@ class NodeCondition(pydantic.BaseModel):
     last_heartbeat_time: Optional[str] = pydantic.Field(None, alias='lastHeartbeatTime')
     last_transition_time: Optional[str] = pydantic.Field(None, alias='lastTransitionTime')
 
-    class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
     @pydantic.field_validator('last_heartbeat_time', 'last_transition_time')
     @classmethod
