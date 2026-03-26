@@ -1,44 +1,39 @@
 {
   "patterns": [
     {
-      "id": "pydantic-v2-encoder",
-      "description": "Pydantic v2 pydantic_encoder() does not handle datetime, UUID, etc. by default. Must add custom handling.",
-      "context": "When migrating from Pydantic v1 to v2, custom JSON serialization using pydantic_encoder needs extension."
+      "id": "pydantic-v2-underscore-attrs",
+      "category": "pydantic-v2-migration",
+      "pattern": "Pydantic v2 treats underscore-prefixed class attributes (e.g., _instance) as ModelPrivateAttr. Use ClassVar annotation to keep them as regular class attributes.",
+      "confidence": 1.0,
+      "last_seen": "2026-03-26"
     },
     {
-      "id": "pydantic-v2-model-config-extra",
-      "description": "In Pydantic v2, model_config['extra'] is baked into core schema at class creation. Modifying it post-creation requires model_rebuild(force=True) on all subclasses in reversed order (leaf first).",
-      "context": "ExtraArgBaseModel.set_extra() pattern needed rewrite for Pydantic v2."
+      "id": "pydantic-v2-json-serialization",
+      "category": "pydantic-v2-migration",
+      "pattern": "Pydantic v2 BaseModel instances are not JSON-serializable with stdlib json.dumps(). Use model.model_dump() or pass default=pydantic_encoder to json.dumps().",
+      "confidence": 1.0,
+      "last_seen": "2026-03-26"
     },
     {
-      "id": "pydantic-v2-eq-change",
-      "description": "Pydantic v2 BaseModel.__eq__ no longer compares equal to dicts. Tests that compare model == dict must use model.model_dump() == dict.",
-      "context": "Test assertions involving Pydantic models."
+      "id": "pydantic-v2-nested-model-coercion",
+      "category": "pydantic-v2-migration",
+      "pattern": "Pydantic v2 may not auto-coerce nested dicts from JSONB/DB into model instances in all contexts. Explicit model construction may be needed when reading from databases.",
+      "confidence": 1.0,
+      "last_seen": "2026-03-26"
     },
     {
-      "id": "pydantic-v2-model-validator",
-      "description": "In Pydantic v2, model_validator('before') receives raw dict. Fields may not be present. Use values.get() not values[].",
-      "context": "Validators that previously used @root_validator."
+      "id": "osmo-service-dev-mode",
+      "category": "osmo-infrastructure",
+      "pattern": "OSMO services can be started locally with --method=dev --host=http://{HOST_IP}:{PORT} to bypass MEK/secret manager. Need Redis and PostgreSQL running first.",
+      "confidence": 1.0,
+      "last_seen": "2026-03-26"
     },
     {
-      "id": "bazel-pylint-line-length",
-      "description": "OSMO repo pylintrc enforces max-line-length=100 and check-quote-consistency=yes. All new code must respect both.",
-      "context": "Pylint tests in Bazel."
-    },
-    {
-      "id": "bazel-test-caching",
-      "description": "Bazel caches test results aggressively. Use --cache_test_results=no to force re-run if needed.",
-      "context": "When debugging flaky tests or verifying fixes."
-    },
-    {
-      "id": "pydantic-v2-fields-set",
-      "description": "__fields_set__ (v1) must be replaced with model_fields_set (v2). Easy to miss because it's a dunder attribute, not a decorated method.",
-      "context": "Pydantic v1 to v2 migration — attribute-level changes are harder to find than decorator changes."
-    },
-    {
-      "id": "osmo-pydantic-import-style",
-      "description": "OSMO repo uses qualified 'import pydantic' style consistently across all 216+ files. Never 'from pydantic import BaseModel'.",
-      "context": "Code style convention — maintain when adding new pydantic code."
+      "id": "osmo-runtime-validation",
+      "category": "testing-strategy",
+      "pattern": "Unit tests may not catch Pydantic serialization issues at DB boundaries. Runtime validation with actual services is critical after schema-level library migrations.",
+      "confidence": 1.0,
+      "last_seen": "2026-03-26"
     }
   ]
 }
