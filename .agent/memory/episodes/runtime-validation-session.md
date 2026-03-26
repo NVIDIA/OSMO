@@ -36,6 +36,30 @@ The Pydantic migration code changes were already done and all 138 tests passed. 
 ## Validation Results
 - All 4 services (core, worker, delayed_job_monitor, router) start cleanly
 - 20+ API endpoints tested (both read and write paths)
-- CLI commands work against local instance
-- 138/138 tests pass
-- No Pydantic-related errors in any service logs
+- CLI commands work against local instance (`osmo version`, `osmo pool list`, `osmo workflow list`)
+- 138/138 bazel tests pass
+- 67/67 Python files compile without errors
+- Zero Pydantic-related errors in any service logs (grep across all 4 logs)
+
+## Full CRUD Testing
+- **resource_validation**: Create (PUT with 3 ResourceAssertion models) → Read → Delete → Verify deletion ✅
+- **pool**: Create → Read → Patch → Rename → Delete → Verify deletion ✅
+  - 500 errors from missing backend are expected business logic, not Pydantic issues
+- **group_template**: PUT passes Pydantic validation; 400 from app-level validation (expected)
+- All errors in service logs are expected business logic: "Backend default not found" (no runtime backend in dev mode)
+
+## API Endpoints Tested
+### Read (all 200 OK):
+- /api/version, /api/docs, /api/openapi.json
+- /api/pool, /api/resources
+- /api/configs/service, /api/configs/resource_validation, /api/configs/group_template
+- /api/configs/pod_template, /api/configs/history, /api/configs/diff
+- /api/workflow, /api/workflow/list, /api/task
+- /api/plugins/configs
+- /api/configs/pool, /api/configs/pool/default
+- Router /version (port 8001)
+
+### Write (all Pydantic serialization/deserialization correct):
+- PUT/DELETE /api/configs/resource_validation/{name}
+- PUT/PATCH/DELETE /api/configs/pool/{name}
+- PUT /api/configs/pool/{name}/rename
