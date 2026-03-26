@@ -112,6 +112,11 @@ def put_configs(
         updated_configs = request.configs.serialize(postgres)
     else:
         updated_configs = request.configs.plaintext_dict(by_alias=True, exclude_unset=True)
+        import sys
+        print(f"DEBUG put_configs: plaintext_dict result cli_config = {updated_configs.get('cli_config', 'MISSING')}", file=sys.stderr)
+        print(f"DEBUG put_configs: request.configs.cli_config = {request.configs.cli_config}", file=sys.stderr)
+        print(f"DEBUG put_configs: request.configs.cli_config.__pydantic_extra__ = {getattr(request.configs.cli_config, '__pydantic_extra__', 'N/A')}", file=sys.stderr)
+        print(f"DEBUG put_configs: CliConfig model_config extra = {connectors.CliConfig.model_config.get('extra', 'NOT SET')}", file=sys.stderr)
         # Convert dict and list values to JSON strings
         for key, value in updated_configs.items():
             if isinstance(value, (dict, list)):
@@ -122,6 +127,7 @@ def put_configs(
     configs_dict = postgres.get_configs(config_type).plaintext_dict(
         exclude_unset=True, by_alias=True
     )
+    print(f"DEBUG put_configs: after get_configs, cli_config = {configs_dict.get('cli_config', 'MISSING')}", file=sys.stderr)
     postgres.create_config_history_entry(
         config_type=config_type,
         name='',
@@ -191,6 +197,10 @@ def patch_configs(
         if postgres.get_method() != 'dev':
             connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
         updated_configs = configs.serialize(postgres)
+        import sys
+        print(f"DEBUG patch_configs: serialized cli_config = {updated_configs.get('cli_config', 'MISSING')}", file=sys.stderr)
+        if hasattr(configs, 'cli_config'):
+            print(f"DEBUG patch_configs: configs.cli_config extra = {getattr(configs.cli_config, '__pydantic_extra__', 'N/A')}", file=sys.stderr)
         for key, value in updated_configs.items():
             postgres.set_config(key, value, config_type)
     except pydantic.ValidationError as err:

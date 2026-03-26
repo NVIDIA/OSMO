@@ -589,6 +589,10 @@ class PostgresConnector:
                 result_dicts[model.key] = model.value
             else:
                 result_dicts[model.key] = json.loads(model.value)
+        import sys
+        if 'cli_config' in result_dicts:
+            print(f"DEBUG get_configs: cli_config from DB = {result_dicts['cli_config']}", file=sys.stderr)
+            print(f"DEBUG get_configs: CliConfig extra setting = {CliConfig.model_config.get('extra', 'NOT SET')}", file=sys.stderr)
         return config_class.deserialize(result_dicts, self)
 
     def get_service_configs(self) -> 'ServiceConfig':
