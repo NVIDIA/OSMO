@@ -80,10 +80,10 @@ class ExecutorParameters(pydantic_settings.BaseSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls,
+        settings_cls,  # pylint: disable=unused-argument
         init_settings,
         env_settings,
-        dotenv_settings,
+        dotenv_settings,  # pylint: disable=unused-argument
         file_secret_settings,
     ):
         # Treat explicit None as "unset" so env vars can apply.
