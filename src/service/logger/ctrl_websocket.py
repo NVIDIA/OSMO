@@ -36,9 +36,9 @@ from src.utils import connectors
 class MetricsOptions(pydantic.BaseModel):
     """ Credential options """
     group_metrics: Optional[task.TaskGroupMetrics] = pydantic.Field(
-        description='Metrics for group')
+        default=None, description='Metrics for group')
     task_io_metrics: Optional[task_io.TaskIOMetrics] = pydantic.Field(
-        description='Metrics for task io')
+        default=None, description='Metrics for task io')
 
     @pydantic.model_validator(mode='before')
     @classmethod

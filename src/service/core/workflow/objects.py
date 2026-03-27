@@ -732,11 +732,11 @@ class UserCredential(
 class CredentialOptions(pydantic.BaseModel):
     """ Credential options """
     registry_credential: Optional[UserRegistryCredential] = pydantic.Field(
-        description='Authentication information for a Docker registry')
+        default=None, description='Authentication information for a Docker registry')
     data_credential: Optional[UserDataCredential] = pydantic.Field(
-        description='Authentication information for a data service')
+        default=None, description='Authentication information for a data service')
     generic_credential: Optional[UserCredential] = pydantic.Field(
-        description='Generic authentication information')
+        default=None, description='Generic authentication information')
 
     @pydantic.model_validator(mode='before')
     @classmethod

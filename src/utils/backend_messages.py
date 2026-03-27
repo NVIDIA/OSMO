@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import datetime
 import enum
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pydantic
 
@@ -74,6 +74,18 @@ class MessageBody(pydantic.BaseModel, extra='forbid'):
     type: MessageType
     body: Dict | LoggingBody
     uuid: str = pydantic.Field(default_factory=common.generate_unique_id)
+
+    @pydantic.field_validator('body', mode='before')
+    @classmethod
+    def coerce_model_to_dict(cls, value: Any) -> Any:
+        """Coerce BaseModel instances to dicts for the Dict branch of the union.
+
+        In Pydantic v1, passing a model to a Dict field auto-coerced via .dict().
+        v2 requires an explicit dict, so we convert non-LoggingBody models here.
+        """
+        if isinstance(value, pydantic.BaseModel) and not isinstance(value, LoggingBody):
+            return value.model_dump()
+        return value
 
 
 class InitBody(pydantic.BaseModel, extra='forbid'):
@@ -204,39 +216,39 @@ class AckBody(pydantic.BaseModel, extra='forbid'):
 class MessageOptions(pydantic.BaseModel):
     """ Message options """
     init: Optional[InitBody] = pydantic.Field(
-        description='Message for websocket init')
+        default=None, description='Message for websocket init')
     pod_log: Optional[PodLogBody] = pydantic.Field(
-        description='Message for error_logs')
+        default=None, description='Message for error_logs')
     update_pod: Optional[UpdatePodBody] = pydantic.Field(
-        description='Message for events')
+        default=None, description='Message for events')
     monitor_pod: Optional[MonitorPodBody] = pydantic.Field(
-        description='Message for monitoring pod')
+        default=None, description='Message for monitoring pod')
     resource: Optional[ResourceBody] = pydantic.Field(
-        description='Message for resource change')
+        default=None, description='Message for resource change')
     resource_usage: Optional[ResourceUsageBody] = pydantic.Field(
-        description='Message for resource usage change')
+        default=None, description='Message for resource usage change')
     delete_resource: Optional[DeleteResourceBody] = pydantic.Field(
-        description='Message for resource change')
+        default=None, description='Message for resource change')
     node_hash: Optional[NodeBody] = pydantic.Field(
-        description='Message for list of current nodes')
+        default=None, description='Message for list of current nodes')
     task_list: Optional[TaskListBody] = pydantic.Field(
-        description='Message for list of current pods in backend based on the task_uuids')
+        default=None, description='Message for list of current pods in backend based on the task_uuids')
     heartbeat: Optional[HeartbeatBody] = pydantic.Field(
-        description='Message for service heartbeat')
+        default=None, description='Message for service heartbeat')
     job_status: Optional[jobs_base.JobResult] = pydantic.Field(
-        description='Message of job status')
+        default=None, description='Message of job status')
     metrics: Optional[MetricsBody] = pydantic.Field(
-        description='Message to send metrics')
+        default=None, description='Message to send metrics')
     logging: Optional[LoggingBody] = pydantic.Field(
-        description='Message to send logs')
+        default=None, description='Message to send logs')
     pod_conditions: Optional[PodConditionsBody] = pydantic.Field(
-        description='Message to send pod conditions')
+        default=None, description='Message to send pod conditions')
     pod_event: Optional[PodEventBody] = pydantic.Field(
-        description='Message to send pod event')
+        default=None, description='Message to send pod event')
     ack: Optional[AckBody] = pydantic.Field(
-        description='Message for acknowledgment')
+        default=None, description='Message for acknowledgment')
     node_conditions: Optional[NodeConditionsBody] = pydantic.Field(
-        description='Message for node conditions')
+        default=None, description='Message for node conditions')
 
     @pydantic.model_validator(mode='before')
     @classmethod
