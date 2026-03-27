@@ -1790,8 +1790,10 @@ class TopologyRequirement(pydantic.BaseModel, extra='forbid'):
     requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED  # pylint: disable=invalid-name
 
 
-class ResourceSpec(pydantic.BaseModel, extra='forbid'):
+class ResourceSpec(pydantic.BaseModel):
     """ Represents the resource spec in an OSMO2 workflow. """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     cpu: int | None = None
     storage: str | None = None
     memory: str | None = None
@@ -2623,7 +2625,6 @@ class BucketConfig(ExtraArgBaseModel):
     description: str = ''
     # Mode for read-only or read-write or write-only
     mode: str = BucketMode.READ_WRITE.value
-
     # Default cred to use doesn't have one
     # Only applies to workflow operations, NOT user cli since we cannot forward the credential
     # to the user

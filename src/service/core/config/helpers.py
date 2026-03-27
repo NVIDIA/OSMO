@@ -188,13 +188,14 @@ def patch_configs(
         else:
             raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
 
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
         updated_configs = configs.serialize(postgres)
         for key, value in updated_configs.items():
             postgres.set_config(key, value, config_type)
     except pydantic.ValidationError as err:
         raise osmo_errors.OSMOUsageError(f'{err}')
+    finally:
+        if postgres.get_method() != 'dev':
+            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
 
     postgres.create_config_history_entry(
         config_type=config_type,
