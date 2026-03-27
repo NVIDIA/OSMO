@@ -205,7 +205,6 @@ def create_clean_config_api(app: fastapi.FastAPI):
         try:
             connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
             configs = connectors.ServiceConfig(**service_configs_dict)
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.ALLOW)
             updated_configs = configs.serialize(postgres)
             for key, value in updated_configs.items():
                 postgres.set_config(key, value)
