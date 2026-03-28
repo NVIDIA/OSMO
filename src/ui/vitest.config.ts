@@ -27,7 +27,7 @@ export default defineConfig({
     // Fast by default - no coverage overhead
     coverage: {
       provider: "v8",
-      reporter: ["text"],
+      reporter: ["text", "lcov"],
       include: ["src/lib/**/*.ts"],
       exclude: ["src/lib/api/generated.ts", "**/*.test.ts"],
     },

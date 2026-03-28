@@ -914,19 +914,12 @@ export const handlers = [
     // Create PTY session
     const session = ptySimulator.createSession(workflowName, taskName, shell, scenario);
 
-    // Mock WebSocket server URL
-    // In development, the mock WS server runs on port 3001 (via pnpm dev:mock-ws)
-    // The shell connects to this URL for PTY simulation
-    const mockWsServerUrl = "http://localhost:3001";
-
-    // Return RouterResponse format (matches backend)
+    // Return RouterResponse format (matches backend).
+    // In mock mode the WS server runs on port 3001 (pnpm dev:mock-ws).
     return HttpResponse.json({
-      router_address: mockWsServerUrl,
+      router_address: "http://localhost:3001",
       key: session.id,
       cookie: `mock_session_${session.id}`,
-      // Additional fields for mock convenience
-      session_id: session.id,
-      websocket_url: `/api/router/exec/${workflowName}/client/${session.id}`,
     });
   }),
 

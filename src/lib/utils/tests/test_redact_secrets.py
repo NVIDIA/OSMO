@@ -48,9 +48,36 @@ _SPEC_WITH_SECRETS = textwrap.dedent(f'''\
             AWS_ACCESS_KEY_ID={_AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY={_AWS_SECRET_KEY} aws s3 cp <file> s3://testbucket
 ''')
 
+# Credential field references (e.g. access_key_id) should never be masked — they are
+# identifiers that name which field of a stored credential to use, not secret values.
+_CRED_FIELD_ACCESS_KEY = 'access_key_id'
+_CRED_FIELD_SECRET_KEY = 'secret_access_key'
+_CRED_FIELD_DATA = 'data_credentials'
 
-def _redact(spec: str) -> str:
-    return ''.join(redact_secrets(spec.splitlines(keepends=True)))
+_SPEC_WITH_CREDENTIALS = textwrap.dedent(f'''\
+    workflow:
+      groups:
+      - name: training
+        tasks:
+        - args:
+          - /tmp/entry.sh
+          command:
+          - bash
+          credentials:
+            aws-cred:
+              AWS_ACCESS_KEY_ID: {_CRED_FIELD_ACCESS_KEY}
+              AWS_DEFAULT_REGION: aws_default_region
+              AWS_ENDPOINT_URL: aws_endpoint_url
+              AWS_SECRET_ACCESS_KEY: {_CRED_FIELD_SECRET_KEY}
+            data-credentials:
+              DATA_CREDENTIALS: {_CRED_FIELD_DATA}
+''')
+
+
+def _redact(spec: str, value_allowlist: frozenset | None = None,
+            entropy_threshold: float | None = None) -> str:
+    return ''.join(redact_secrets(spec.splitlines(keepends=True), value_allowlist,
+                                  entropy_threshold))
 
 
 class TestRedactSecretsPlaintext(unittest.TestCase):
@@ -71,6 +98,48 @@ class TestRedactSecretsPlaintext(unittest.TestCase):
         self.assertIn('name: "test"', redacted)
         self.assertIn('image: amazon/aws-cli', redacted)
         self.assertIn('s3://testbucket', redacted)
+
+
+class TestRedactSecretsAllowlist(unittest.TestCase):
+    """redact_secrets preserves allowlisted credential field references."""
+
+    _ALLOWLIST = frozenset({
+        'aws-cred', 'data-credentials',
+        _CRED_FIELD_ACCESS_KEY, _CRED_FIELD_SECRET_KEY, _CRED_FIELD_DATA,
+        'aws_default_region', 'aws_endpoint_url',
+    })
+
+    def test_masks_credential_field_references_without_allowlist(self):
+        # Without the allowlist, field references under sensitive env var names get masked.
+        redacted = _redact(_SPEC_WITH_CREDENTIALS)
+        self.assertNotIn(_CRED_FIELD_ACCESS_KEY, redacted)
+        self.assertNotIn(_CRED_FIELD_SECRET_KEY, redacted)
+        self.assertNotIn(_CRED_FIELD_DATA, redacted)
+
+    def test_preserves_credential_field_references_with_allowlist(self):
+        redacted = _redact(_SPEC_WITH_CREDENTIALS, self._ALLOWLIST)
+        self.assertIn(_CRED_FIELD_ACCESS_KEY, redacted)
+        self.assertIn(_CRED_FIELD_SECRET_KEY, redacted)
+        self.assertIn(_CRED_FIELD_DATA, redacted)
+        self.assertNotIn('[MASKED]', redacted)
+
+
+class TestRedactSecretsEntropyThreshold(unittest.TestCase):
+    """redact_secrets skips masking when value entropy is at or below the threshold."""
+
+    def test_preserves_low_entropy_credential_field_references(self):
+        # Credential field references have entropy well below 3.8 — not masked.
+        redacted = _redact(_SPEC_WITH_CREDENTIALS, entropy_threshold=3.8)
+        self.assertIn(_CRED_FIELD_ACCESS_KEY, redacted)
+        self.assertIn(_CRED_FIELD_SECRET_KEY, redacted)
+        self.assertIn(_CRED_FIELD_DATA, redacted)
+        self.assertNotIn('[MASKED]', redacted)
+
+    def test_still_masks_high_entropy_secrets(self):
+        # The secret key (entropy ~4.8) is masked; the access key ID (entropy ~3.7)
+        # is structured enough to fall below the threshold — an accepted best-effort trade-off.
+        redacted = _redact(_SPEC_WITH_SECRETS, entropy_threshold=3.8)
+        self.assertNotIn(_AWS_SECRET_KEY, redacted)
 
 
 class TestRedactSecretsBase64(unittest.TestCase):

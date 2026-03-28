@@ -1,0 +1,18 @@
+Fix coverage_tool Label-to-string conversion in single_version_platform_override.
+
+The coverage_tool attribute in single_version_platform_override is attr.label(),
+but python_repository.coverage_tool is attr.string(). This patch converts the
+Label to string before storing it in tool_versions, so it flows through correctly.
+
+diff --git a/python/private/python.bzl b/python/private/python.bzl
+--- a/python/private/python.bzl
++++ b/python/private/python.bzl
+@@ -617,7 +617,7 @@ def _process_single_version_platform_overrides(*, tag, _fail = fail, default):
+         available_versions[tag.python_version] = {}
+
+     if tag.coverage_tool:
+-        available_versions[tag.python_version].setdefault("coverage_tool", {})[tag.platform] = tag.coverage_tool
++        available_versions[tag.python_version].setdefault("coverage_tool", {})[tag.platform] = str(tag.coverage_tool)
+     if tag.patch_strip:
+         available_versions[tag.python_version].setdefault("patch_strip", {})[tag.platform] = tag.patch_strip
+     if tag.patches:

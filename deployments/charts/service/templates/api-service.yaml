@@ -133,7 +133,7 @@ spec:
         {{- end }}
         {{- if .Values.global.osmoImageTag }}
         - --osmo_image_tag
-        - {{ .Values.global.osmoImageTag }}
+        - {{ .Values.global.osmoImageTag | quote }}
         {{- end }}
         {{- if .Values.global.logs.enabled }}
         - --log_level

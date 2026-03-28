@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,4 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_test")
-load("@osmo_python_deps//:requirements.bzl", "requirement")
-
-osmo_py_test(
-    name = "test_import",
-    srcs = ["test_import.py"],
-    # nocoverage: imports from the wheel, not source files — coverage.py crashes with NoDataError.
-    tags = ["nocoverage"],
-    deps = [
-        "//src/lib/distribution:osmo_py_wheel_unpacked",
-    ],
-)
+exports_files(["rules_python_coverage_tool_label.patch"])

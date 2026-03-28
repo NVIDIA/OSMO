@@ -889,6 +889,18 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
     def send_workflow_spec_to_queue(self, workflow_id: str, workflow_dict: Dict,
                                     original_templated_spec: str | None = None):
 
+        all_task_specs = [
+            *workflow_dict['workflow'].get('tasks', []),
+            *(t for g in workflow_dict['workflow'].get('groups', []) for t in g.get('tasks', [])),
+        ]
+        cred_allowlist = frozenset(
+            item
+            for task_spec in all_task_specs
+            for cred_name, cred_map in task_spec.get('credentials', {}).items()
+            for item in ([cred_name] +
+                         (list(cred_map.values()) if isinstance(cred_map, dict) else []))
+        )
+
         # Convert file contents to YamlLiteral for better output format
         def convert_task_file_contents(curr_task_spec: Dict):
             for file in curr_task_spec.get('files', []):
@@ -904,14 +916,15 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         workflow_spec = yaml.dump(workflow_dict, default_flow_style=False, allow_unicode=True)
 
         # Redact secrets in the workflow spec
-        workflow_spec = ''.join(redact_secrets((workflow_spec,)))
+        workflow_spec = ''.join(redact_secrets((workflow_spec,), cred_allowlist))
 
         files = [
             jobs.File(path=common.WORKFLOW_SPEC_FILE_NAME, content=workflow_spec)
         ]
         if original_templated_spec is not None:
             # Redact secrets in the original templated spec
-            original_templated_spec = ''.join(redact_secrets((original_templated_spec,)))
+            original_templated_spec = ''.join(redact_secrets(
+                (original_templated_spec,), cred_allowlist))
             files.append(jobs.File(
                 path=common.TEMPLATED_WORKFLOW_SPEC_FILE_NAME,
                 content=original_templated_spec))

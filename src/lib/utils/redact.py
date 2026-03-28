@@ -90,13 +90,22 @@ def redact_pod_spec_env(pod_spec: Dict) -> Dict:
     return pod_spec
 
 
-def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
+def redact_secrets(lines: Iterable[str],
+                   value_allowlist: frozenset | None = None,
+                   entropy_threshold: float | None = None) -> Generator[str, None, None]:
     """
     Yield lines with secrets redacted.
 
     Scans each line for key=value patterns that look like secrets and replaces
     the value with [MASKED]. Also detects base64-encoded fragments, decodes them,
     and replaces the whole fragment with [MASKED] if secrets are found inside.
+
+    Values present in value_allowlist are never masked (e.g. credential field names
+    that are identifiers, not secrets).
+
+    If entropy_threshold is set, a matched value is only masked when its Shannon
+    entropy exceeds the threshold. Useful as a best-effort filter to avoid false
+    positives on low-entropy identifiers.
     """
     def redact_base64_fragments(line: str) -> str:
         """
@@ -111,7 +120,11 @@ def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
             except (ValueError, UnicodeDecodeError):
                 return fragment
             redacted = SECRET_REDACTION_RE.sub(
-                lambda sm: sm.group(0).replace(sm.group(1), '[MASKED]'),
+                lambda sm: sm.group(0) if (
+                    (value_allowlist and sm.group(1) in value_allowlist) or
+                    (entropy_threshold is not None and
+                     _shannon_entropy(sm.group(1)) <= entropy_threshold)
+                ) else sm.group(0).replace(sm.group(1), '[MASKED]'),
                 decoded,
             )
             if redacted == decoded:
@@ -119,7 +132,16 @@ def redact_secrets(lines: Iterable[str]) -> Generator[str, None, None]:
             return '[MASKED]'
         return _BASE64_FRAGMENT_RE.sub(replace_if_secrets, line)
 
+    def redact_line(line: str) -> str:
+        def replace(m: re.Match) -> str:
+            value = m.group(1)
+            if value_allowlist and value in value_allowlist:
+                return m.group(0)
+            if entropy_threshold is not None and _shannon_entropy(value) <= entropy_threshold:
+                return m.group(0)
+            return m.group(0).replace(value, '[MASKED]')
+        return SECRET_REDACTION_RE.sub(replace, line)
+
     for line in lines:
         line = redact_base64_fragments(line)
-        yield SECRET_REDACTION_RE.sub(
-            lambda m: m.group(0).replace(m.group(1), '[MASKED]'), line)
+        yield redact_line(line)
