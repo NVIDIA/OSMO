@@ -1480,7 +1480,7 @@ class PostgresConnector:
 
             return None
 
-    def get_all_data_creds(self, user: str) -> Dict[str, credentials.DataCredential]:
+    def get_all_data_creds(self, user: str) -> Dict[str, credentials.StaticDataCredential]:
         """ Fetch all data credentials for user. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',

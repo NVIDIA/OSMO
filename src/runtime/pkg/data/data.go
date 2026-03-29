@@ -422,6 +422,9 @@ func MountURL(downloadType string, credentialInfo ConfigInfo, urlPath string,
 		os.Setenv("AWS_ACCESS_KEY_ID", dataCredential.AccessKeyId)
 		os.Setenv("AWS_SECRET_ACCESS_KEY", dataCredential.AccessKey)
 	}
+	if dataCredential.Region != "" {
+		os.Setenv("AWS_REGION", dataCredential.Region)
+	}
 
 	var commandArgs []string
 
