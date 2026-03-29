@@ -1480,7 +1480,7 @@ class PostgresConnector:
 
             return None
 
-    def get_all_data_creds(self, user: str) -> Dict[str, credentials.StaticDataCredential]:
+    def get_all_data_creds(self, user: str) -> Dict[str, credentials.DataCredential]:
         """ Fetch all data credentials for user. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -2557,7 +2557,7 @@ def construct_path(endpoint: str, bucket: str, path: str):
 
 class LogConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.StaticDataCredential | None = None
+    credential: credentials.DataCredential | None = None
 
 
 class WorkflowInfo(ExtraArgBaseModel):
@@ -2574,7 +2574,7 @@ class WorkflowInfo(ExtraArgBaseModel):
 
 class DataConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.StaticDataCredential | None = None
+    credential: credentials.DataCredential | None = None
 
     base_url: str = ''
     # Timeout in mins for osmo-ctrl to retry connecting to the OSMO service until exiting the task
