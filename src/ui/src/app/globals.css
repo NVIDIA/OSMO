@@ -249,6 +249,12 @@
   --sidebar-border: oklch(92.2% 0 0deg);
   --sidebar-ring: oklch(70.8% 0 0deg);
 
+  /* Chart: utilization dashboard (NVIDIA-branded palette) */
+  --chart-gpu: #76b900;
+  --chart-cpu: oklch(60% 0.15 250deg);
+  --chart-memory: oklch(65% 0.15 300deg);
+  --chart-storage: oklch(75% 0.15 85deg);
+
   /* Brand colors */
   --nvidia-green: #76b900;
   --nvidia-green-dark: #5a8c00;
@@ -367,6 +373,12 @@
   --sidebar-accent-foreground: oklch(98.5% 0 0deg);
   --sidebar-border: oklch(100% 0 0deg / 10%);
   --sidebar-ring: oklch(55.6% 0 0deg);
+
+  /* Chart: utilization dashboard (dark mode - adjusted lightness) */
+  --chart-gpu: #76b900;
+  --chart-cpu: oklch(70% 0.15 250deg);
+  --chart-memory: oklch(75% 0.15 300deg);
+  --chart-storage: oklch(80% 0.15 85deg);
 
   /* Brand colors - same in dark mode except bg */
   --nvidia-green: #76b900;

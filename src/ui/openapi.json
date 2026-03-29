@@ -4988,6 +4988,26 @@
           {
             "required": false,
             "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Ended After"
+            },
+            "name": "ended_after",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Ended Before"
+            },
+            "name": "ended_before",
+            "in": "query"
+          },
+          {
+            "required": false,
+            "schema": {
               "type": "integer",
               "title": "Offset",
               "default": 0

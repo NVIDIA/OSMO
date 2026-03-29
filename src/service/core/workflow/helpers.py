@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -119,6 +119,8 @@ def get_tasks(workflow_id: str | None = None,
               nodes: List[str] | None = None,
               started_after: datetime.datetime | None = None,
               started_before: datetime.datetime | None = None,
+              ended_after: datetime.datetime | None = None,
+              ended_before: datetime.datetime | None = None,
               offset: int = 0,
               limit: int = 20,
               order: connectors.ListOrder = fastapi.Query(default=connectors.ListOrder.ASC),
@@ -181,6 +183,12 @@ def get_tasks(workflow_id: str | None = None,
     if started_before:
         commands.append('(tasks.start_time < %s AND tasks.start_time is not NULL)')
         fetch_input.append(started_before.replace(microsecond=0).isoformat())
+    if ended_after:
+        commands.append('(tasks.end_time >= %s OR tasks.end_time IS NULL)')
+        fetch_input.append(ended_after.replace(microsecond=0).isoformat())
+    if ended_before:
+        commands.append('(tasks.end_time < %s AND tasks.end_time IS NOT NULL)')
+        fetch_input.append(ended_before.replace(microsecond=0).isoformat())
     if priority:
         commands.append('workflows.priority IN %s')
         fetch_input.append(tuple(p.value for p in priority))
