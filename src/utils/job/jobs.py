@@ -380,8 +380,8 @@ class UploadWorkflowFiles(WorkflowJob):
 
         if workflow_config.workflow_log.credential is None:
             return JobResult(
-                success=False,
-                error='Workflow log credential is not set',
+                status=JobStatus.FAILED_NO_RETRY,
+                message='Workflow log credential is not set',
             )
 
         storage_client = storage.Client.create(
@@ -1388,8 +1388,8 @@ class CleanupWorkflow(WorkflowJob):
         workflow_config = context.postgres.get_workflow_configs()
         if workflow_config.workflow_log.credential is None:
             return JobResult(
-                success=False,
-                error='Workflow log credential is not set',
+                status=JobStatus.FAILED_NO_RETRY,
+                message='Workflow log credential is not set',
             )
         storage_client = storage.Client.create(
             data_credential=workflow_config.workflow_log.credential,
@@ -1728,8 +1728,8 @@ class UploadApp(FrontendJob):
 
         if workflow_config.workflow_app.credential is None:
             return JobResult(
-                success=False,
-                error='Workflow app credential is not set',
+                status=JobStatus.FAILED_NO_RETRY,
+                message='Workflow app credential is not set',
             )
 
         storage_client = storage.Client.create(
@@ -1789,8 +1789,8 @@ class DeleteApp(FrontendJob):
 
         if workflow_config.workflow_app.credential is None:
             return JobResult(
-                success=False,
-                error='Workflow app credential is not set',
+                status=JobStatus.FAILED_NO_RETRY,
+                message='Workflow app credential is not set',
             )
 
         storage_client = storage.Client.create(
