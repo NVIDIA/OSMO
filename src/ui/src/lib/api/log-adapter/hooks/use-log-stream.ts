@@ -22,6 +22,7 @@ import { useRafCallback } from "@react-hookz/web";
 import type { LogEntry } from "@/lib/api/log-adapter/types";
 import { parseLogLine } from "@/lib/api/log-adapter/adapters/log-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
+import { parseStreamErrorResponse } from "@/lib/api/stream-error";
 import { LOG_QUERY_DEFAULTS } from "@/lib/api/log-adapter/constants";
 import { toProxiedPath } from "@/lib/config";
 import { isTransientError, getRetryDelay, abortableDelay, MAX_AUTO_RETRIES } from "@/lib/api/stream-retry";
@@ -196,7 +197,7 @@ export function useLogStream(params: UseLogStreamParams): UseLogStreamReturn {
           handleRedirectResponse(response, "log streaming");
 
           if (!response.ok) {
-            throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
+            throw new Error(await parseStreamErrorResponse(response));
           }
           if (!response.body) {
             throw new Error("Response body is not readable");
