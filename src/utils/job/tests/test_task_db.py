@@ -175,9 +175,11 @@ class BatchUpdateStatusDbTest(TaskDbFixture):
         self._insert_task('task2', status='RUNNING')
         self._insert_task('task3', status='COMPLETED')
 
-        self._get_db().execute_commit_command(
-            "UPDATE tasks SET end_time = NOW() WHERE name = 'task3' AND workflow_id = %s",
-            (WORKFLOW_ID,))
+        mark_finished_cmd = '''
+            UPDATE tasks SET end_time = NOW()
+            WHERE name = 'task3' AND workflow_id = %s
+        '''
+        self._get_db().execute_commit_command(mark_finished_cmd, (WORKFLOW_ID,))
 
         now = datetime.datetime.now()
         task.Task.batch_update_status_to_db(
@@ -201,9 +203,11 @@ class BatchUpdateStatusDbTest(TaskDbFixture):
         self._insert_group()
 
         self._insert_task('task1', retry_id=0, status='COMPLETED', lead=True)
-        self._get_db().execute_commit_command(
-            "UPDATE tasks SET end_time = NOW() WHERE name = 'task1' AND retry_id = 0 "
-            "AND workflow_id = %s", (WORKFLOW_ID,))
+        mark_finished_cmd = '''
+            UPDATE tasks SET end_time = NOW()
+            WHERE name = 'task1' AND retry_id = 0 AND workflow_id = %s
+        '''
+        self._get_db().execute_commit_command(mark_finished_cmd, (WORKFLOW_ID,))
 
         self._insert_task('task1', retry_id=1, status='RUNNING', lead=True)
 
@@ -234,10 +238,13 @@ class FetchStatusSummaryDbTest(TaskDbFixture):
         self._insert_task('task2', status='RUNNING')
         self._insert_task('task3', status='COMPLETED')
 
-        self._get_db().execute_commit_command(
-            "UPDATE tasks SET end_time = NOW() WHERE name = 'task3' AND workflow_id = %s",
-            (WORKFLOW_ID,))
+        mark_finished_cmd = '''
+            UPDATE tasks SET end_time = NOW()
+            WHERE name = 'task3' AND workflow_id = %s
+        '''
+        self._get_db().execute_commit_command(mark_finished_cmd, (WORKFLOW_ID,))
 
+        # pylint: disable=protected-access
         summary = task.TaskGroup._fetch_status_summary(
             self._get_db(), WORKFLOW_ID, GROUP_NAME)
 
@@ -252,6 +259,7 @@ class FetchStatusSummaryDbTest(TaskDbFixture):
         self._insert_group()
 
         with self.assertRaises(osmo_errors.OSMODatabaseError):
+            # pylint: disable=protected-access
             task.TaskGroup._fetch_status_summary(
                 self._get_db(), WORKFLOW_ID, GROUP_NAME)
 
