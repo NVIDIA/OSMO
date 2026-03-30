@@ -111,19 +111,13 @@ jobs:
         run: |
           bazel coverage \
             --combined_report=lcov \
-            ${{ secrets.BAZEL_REMOTE_CACHE_URL && format('--remote_cache={0}', secrets.BAZEL_REMOTE_CACHE_URL) || '' }} \
+            --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+            --discard_analysis_cache \
+            --notrack_incremental_state \
+            --nokeep_state_after_build \
             --test_output=errors \
             -- \
             //...
-
-      - name: Locate coverage report
-        run: |
-          echo "=== Looking for combined LCOV report ==="
-          find bazel-out/ -name "_coverage_report.dat" 2>/dev/null || echo "Not in bazel-out/"
-          find "$(bazel info output_path 2>/dev/null)" -name "_coverage_report.dat" 2>/dev/null || echo "Not in output_path"
-          ls -la bazel-out/_coverage/ 2>/dev/null || echo "bazel-out/_coverage/ does not exist"
-          echo "=== Per-target coverage files ==="
-          find bazel-testlogs/ -name "coverage.dat" 2>/dev/null | head -5 || echo "No per-target coverage.dat"
 
       - name: Run UI coverage
         working-directory: src/ui
