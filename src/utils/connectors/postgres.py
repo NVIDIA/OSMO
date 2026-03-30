@@ -1596,7 +1596,7 @@ class PostgresConnector:
                 FROM unnest(ARRAY[{", ".join(["%s"] * len(user_names))}]) as username(username)
             ),
             all_users AS (
-                SELECT DISTINCT user_name FROM profile
+                SELECT DISTINCT id FROM users
                 UNION
                 SELECT DISTINCT submitted_by FROM workflows
                 UNION
@@ -1610,12 +1610,12 @@ class PostgresConnector:
             )
             SELECT
                 n.username as input_username,
-                MIN(u.user_name) as user_name, -- Returns the first match, NULL if no match
-                COUNT(u.user_name) as match_count
+                MIN(u.id) as user_name, -- Returns the first match, NULL if no match
+                COUNT(u.id) as match_count
             FROM normalized_usernames n
             LEFT JOIN all_users u ON
-                u.user_name = n.username OR
-                (n.username = n.base_username AND u.user_name LIKE n.base_username || %s)
+                u.id = n.username OR
+                (n.username = n.base_username AND u.id LIKE n.base_username || %s)
             GROUP BY n.username;
         '''
         fetch_args = user_names + ['@%']
