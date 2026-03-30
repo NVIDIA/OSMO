@@ -11,15 +11,14 @@ from coverage_agent.plugins.base import (
     determine_test_path,
     file_path_to_bazel_package,
 )
-from coverage_agent.plugins.claude_code import ClaudeCodeWriter
-from coverage_agent.plugins.nemotron import NemotronWriter
-from coverage_agent.plugins.openai_writer import OpenAIWriter
+from coverage_agent.plugins.nim_writer import NIMWriter
 
 PLUGINS: dict[str, type[WriterPlugin]] = {}
 _instances: dict[str, WriterPlugin] = {}
 
 
 def register_plugin(name: str, plugin_class: type[WriterPlugin]) -> None:
+    """Register a plugin class under a provider name."""
     PLUGINS[name] = plugin_class
 
 
@@ -31,14 +30,14 @@ def get_writer(provider: str) -> WriterPlugin:
             f"Available: {list(PLUGINS.keys())}"
         )
     if provider not in _instances:
-        _instances[provider] = PLUGINS[provider]()
+        _instances[provider] = PLUGINS[provider](provider=provider)
     return _instances[provider]
 
 
 def _register_defaults() -> None:
-    """Register built-in plugins."""
+    """Register built-in provider presets (all backed by NIMWriter)."""
     if PLUGINS:
         return
-    register_plugin("nemotron", NemotronWriter)
-    register_plugin("claude-code", ClaudeCodeWriter)
-    register_plugin("openai", OpenAIWriter)
+    register_plugin("nemotron", NIMWriter)
+    register_plugin("claude", NIMWriter)
+    register_plugin("openai", NIMWriter)

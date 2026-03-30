@@ -225,7 +225,7 @@ def main():
     parser.add_argument("--pr-number", type=int, required=True)
     parser.add_argument("--comment-id", type=int, required=True)
     parser.add_argument("--provider", default="nemotron",
-                        choices=["nemotron", "claude-code", "openai"])
+                        choices=["nemotron", "claude", "openai"])
     args = parser.parse_args()
 
     _register_defaults()

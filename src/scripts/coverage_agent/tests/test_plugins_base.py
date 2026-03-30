@@ -66,7 +66,8 @@ class TestValidationResult(unittest.TestCase):
 class _DummyWriter(WriterPlugin):
     """Minimal concrete plugin for testing the registry."""
 
-    def __init__(self):
+    def __init__(self, provider: str = "dummy"):
+        self.provider = provider
         self.call_count = 0
 
     def generate_test(self, source_path, uncovered_ranges, existing_test_path=None,

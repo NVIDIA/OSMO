@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--max-retries", type=int, default=3,
                         help="Maximum retries per target on test failure")
     parser.add_argument("--provider", default="nemotron",
-                        choices=["nemotron", "claude-code", "openai"],
+                        choices=["nemotron", "claude", "openai"],
                         help="LLM provider for test generation")
     parser.add_argument("--min-coverage-delta", type=float, default=0.5,
                         help="Minimum coverage improvement (%%) to create a PR")

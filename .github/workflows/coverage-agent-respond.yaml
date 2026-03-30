@@ -55,9 +55,6 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
       - name: Install agent dependencies
         run: pip install -r src/agent_requirements.txt
 
@@ -71,8 +68,8 @@ jobs:
           PYTHONPATH=src/scripts python -m coverage_agent.respond \
             --pr-number ${{ github.event.pull_request.number }} \
             --comment-id ${{ github.event.comment.id }} \
-            --provider ${{ vars.AGENT_LLM_PROVIDER || 'claude-code' }}
+            --provider ${{ vars.AGENT_LLM_PROVIDER || 'claude' }}
         env:
+          AGENT_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
