@@ -106,3 +106,16 @@ osmo_py_test(
     size = "large",
     tags = ["requires-network"],
 )
+
+osmo_py_test(
+    name = "test_log_line_count",
+    srcs = ["test_log_line_count.py"],
+    deps = [
+        "//src/lib/utils:common",
+        "//src/tests/common",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+    size = "large",
+    tags = ["requires-network"],
+)

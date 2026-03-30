@@ -246,6 +246,7 @@ class SubmitWorkflow(WorkflowJob):
                         task_obj_spec.resources.memory or '0', 'GiB'),
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
+                    -1,
                 ))
         task.Task.batch_insert_to_db(postgres, task_entries)
         progress_writer.report_progress()
@@ -1505,13 +1506,26 @@ class CleanupWorkflow(WorkflowJob):
         workflow_obj.update_log_to_db(wf_logs_ss_file_path)
         workflow_obj.update_events_to_db(wf_events_ss_file_path)
 
+        # Read and persist log line counts before deleting Redis keys
+        workflow_log_count_key = f'{self.workflow_id}-log-count'
+        workflow_log_count_raw = redis_client.get(workflow_log_count_key)
+        if workflow_log_count_raw is not None:
+            workflow_obj.update_log_line_count_to_db(int(workflow_log_count_raw))
+
         # Remove logs from Redis
-        redis_keys_to_delete : List[str] = [workflow_logs_redis_key, workflow_events_redis_key]
+        redis_keys_to_delete : List[str] = [
+            workflow_logs_redis_key, workflow_events_redis_key, workflow_log_count_key]
         for group in workflow_obj.groups:
             for task_obj in group.tasks:
                 task_redis_path = common.get_redis_task_log_name(
                     self.workflow_id, task_obj.name, task_obj.retry_id)
                 redis_keys_to_delete.append(task_redis_path)
+                task_log_count_key = (
+                    f'{self.workflow_id}-{task_obj.name}-{task_obj.retry_id}-log-count')
+                task_log_count_raw = redis_client.get(task_log_count_key)
+                if task_log_count_raw is not None:
+                    task_obj.update_log_line_count_to_db(int(task_log_count_raw))
+                redis_keys_to_delete.append(task_log_count_key)
                 if task_obj.status.has_error_logs():
                     prefix = f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}'
                     redis_keys_to_delete.append(f'{prefix}-error-logs')

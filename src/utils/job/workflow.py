@@ -890,6 +890,9 @@ class Workflow(pydantic.BaseModel):
     app_version: int | None = None
     parent_job_id: int | None = None
     plugins: task_common.WorkflowPlugins = task_common.WorkflowPlugins()
+    # NULL = predates this column; -1 = initialized at submission, not yet finalized;
+    # >= 0 = finalized by CleanupWorkflow (0 = confirmed zero lines).
+    log_line_count: int | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -907,7 +910,7 @@ class Workflow(pydantic.BaseModel):
             (workflow_name, job_id, workflow_id, workflow_uuid, submitted_by, submit_time,
                 start_time, end_time, status, logs, exec_timeout, queue_timeout, backend, pool,
                 version, failure_message, parent_name, parent_job_id, app_uuid, app_version,
-                plugins, priority)
+                plugins, priority, log_line_count)
             SELECT
                 %s AS workflow_name,
                 (max_job_id + 1) AS job_id,
@@ -930,7 +933,8 @@ class Workflow(pydantic.BaseModel):
                 %s AS app_uuid,
                 %s AS app_version,
                 %s AS plugins,
-                %s AS priority
+                %s AS priority,
+                -1 AS log_line_count
             FROM last_job
             ON CONFLICT (workflow_uuid) DO NOTHING;
         '''
@@ -1143,7 +1147,8 @@ class Workflow(pydantic.BaseModel):
                         app_uuid=workflow_row['app_uuid'],
                         app_version=workflow_row['app_version'],
                         plugins=task_common.WorkflowPlugins(**workflow_row['plugins']),
-                        priority=wf_priority.WorkflowPriority(workflow_row['priority']))
+                        priority=wf_priority.WorkflowPriority(workflow_row['priority']),
+                        log_line_count=workflow_row.get('log_line_count'))
 
     def update_groups(self, workflow_spec: WorkflowSpec, group_and_task_uuids: Dict,
                       remaining_upstream_groups: Dict, downstream_groups: Dict,
@@ -1190,6 +1195,14 @@ class Workflow(pydantic.BaseModel):
         update_cmd.add_condition('workflow_id = %s', [self.workflow_id])
         update_cmd.add_field('events', events)
         self.database.execute_commit_command(*update_cmd.get_args())
+
+    def update_log_line_count_to_db(self, count: int) -> None:
+        """ Writes the final log line count. Only updates if the sentinel -1 is still present. """
+        cmd = '''
+            UPDATE workflows SET log_line_count = %s
+            WHERE workflow_id = %s AND log_line_count = -1;
+        '''
+        self.database.execute_commit_command(cmd, (count, self.workflow_id))
 
     def update_cancelled_by(self, canceled_by: str):
         update_cmd = connectors.PostgresUpdateCommand(table='workflows')
