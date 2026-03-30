@@ -1596,7 +1596,7 @@ class PostgresConnector:
                 FROM unnest(ARRAY[{", ".join(["%s"] * len(user_names))}]) as username(username)
             ),
             all_users AS (
-                SELECT DISTINCT user_name FROM profile
+                SELECT DISTINCT id FROM users
                 UNION
                 SELECT DISTINCT submitted_by FROM workflows
                 UNION
