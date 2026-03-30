@@ -31,6 +31,7 @@ class CoverageState(TypedDict):
     last_generated: Optional[GeneratedTest]
     validation_passed: bool
     validation_output: str
+    review_passed: bool
     retry_count: int
     max_retries: int
     max_targets: int

@@ -14,7 +14,18 @@ def write_test(state: CoverageState) -> CoverageState:
     """LangGraph node: delegate test generation to the active WriterPlugin."""
     target = state["targets"][state["current_index"]]
     writer = get_writer(state["provider"])
-    retry_context = state["validation_output"] if state["retry_count"] > 0 else None
+    retry_context = None
+    if state["retry_count"] > 0:
+        previous_test = state.get("last_generated")
+        issues = state.get("validation_output", "")
+        if previous_test and previous_test.test_content.strip():
+            retry_context = (
+                f"Your previous test:\n```\n{previous_test.test_content}\n```\n\n"
+                f"Issues found:\n{issues}\n\n"
+                f"Fix these specific issues in the test above."
+            )
+        else:
+            retry_context = issues
 
     logger.info(
         "Writing test for %s (index=%d, retry=%d/%d, type=%s)",

@@ -184,41 +184,6 @@ def check_test_quality(content: str, test_type: str) -> QualityCheckResult:
     )
 
 
-def quality_gate(state: CoverageState) -> CoverageState:
-    """LangGraph node: filter generated tests by quality checks."""
-    kept_files = []
-    errors = list(state.get("errors", []))
-
-    logger.info("Quality gate: checking %d generated files", len(state["generated_files"]))
-
-    for file_path in state["generated_files"]:
-        try:
-            with open(file_path, encoding="utf-8") as file:
-                content = file.read()
-        except FileNotFoundError:
-            logger.warning("Quality gate: file not found: %s", file_path)
-            errors.append(f"Quality gate: file not found: {file_path}")
-            continue
-
-        test_type = detect_test_type(file_path)
-        test_type_str = test_type.value if test_type else "python"
-
-        result = check_test_quality(content, test_type_str)
-
-        if result.passed:
-            kept_files.append(file_path)
-            logger.info("Quality gate PASSED: %s", file_path)
-            if result.warnings:
-                for warning in result.warnings:
-                    logger.info("  Warning: %s", warning)
-                errors.append(f"Quality warnings for {file_path}: {'; '.join(result.warnings)}")  # pylint: disable=inconsistent-quotes
-        else:
-            for issue in result.blocking_issues:
-                logger.warning("  BLOCKED: %s", issue)
-            errors.append(f"Quality gate BLOCKED {file_path}: {'; '.join(result.blocking_issues)}")  # pylint: disable=inconsistent-quotes
-
-    logger.info(
-        "Quality gate result: %d/%d files passed",
-        len(kept_files), len(state["generated_files"]),
-    )
-    return {**state, "generated_files": kept_files, "errors": errors}
+    # The batch quality_gate() node has been replaced by the per-file
+    # review_test() node in nodes/review.py. The check_test_quality()
+    # function above is reused by the review node.

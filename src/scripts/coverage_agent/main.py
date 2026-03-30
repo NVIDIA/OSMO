@@ -48,6 +48,7 @@ def main():
         "last_generated": None,
         "validation_passed": False,
         "validation_output": "",
+        "review_passed": False,
         "retry_count": 0,
         "max_retries": args.max_retries,
         "max_targets": args.max_targets,

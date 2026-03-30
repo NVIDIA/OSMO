@@ -11,7 +11,7 @@ from coverage_agent.plugins.base import (
     determine_test_path,
     file_path_to_bazel_package,
 )
-from coverage_agent.plugins.nim_writer import NIMWriter
+from coverage_agent.plugins.llm_client import LLMWriter
 
 PLUGINS: dict[str, type[WriterPlugin]] = {}
 _instances: dict[str, WriterPlugin] = {}
@@ -35,9 +35,9 @@ def get_writer(provider: str) -> WriterPlugin:
 
 
 def _register_defaults() -> None:
-    """Register built-in provider presets (all backed by NIMWriter)."""
+    """Register built-in provider presets (all backed by LLMWriter)."""
     if PLUGINS:
         return
-    register_plugin("nemotron", NIMWriter)
-    register_plugin("claude", NIMWriter)
-    register_plugin("openai", NIMWriter)
+    register_plugin("nemotron", LLMWriter)
+    register_plugin("claude", LLMWriter)
+    register_plugin("openai", LLMWriter)

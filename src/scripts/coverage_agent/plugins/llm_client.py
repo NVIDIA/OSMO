@@ -69,7 +69,7 @@ PROVIDER_DEFAULTS = {
 }
 
 
-class NIMWriter(WriterPlugin):
+class LLMWriter(WriterPlugin):
     """Unified test writer for any OpenAI-compatible LLM endpoint.
 
     Works with NVIDIA NIM (Nemotron, Claude), OpenAI, or any
@@ -87,7 +87,7 @@ class NIMWriter(WriterPlugin):
         )
 
         if OpenAI is None:
-            logger.warning("openai package not installed. NIMWriter will not work.")
+            logger.warning("openai package not installed. LLMWriter will not work.")
             self.client = None
             return
 
@@ -98,7 +98,7 @@ class NIMWriter(WriterPlugin):
             )
 
         self.client = OpenAI(base_url=self.base_url, api_key=api_key)
-        logger.info("NIMWriter: model=%s base_url=%s", self.model, self.base_url)
+        logger.info("LLMWriter: model=%s base_url=%s", self.model, self.base_url)
 
     def generate_test(
         self,

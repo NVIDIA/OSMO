@@ -33,13 +33,8 @@ def validate_test(state: CoverageState) -> CoverageState:
     if result.retry_hint:
         logger.info("Retry hint: %s", result.retry_hint[:200])
 
-    new_generated_files = list(state["generated_files"])
-    if result.passed:
-        new_generated_files.append(last_generated.test_file_path)
-
     return {
         **state,
         "validation_passed": result.passed,
         "validation_output": result.output,
-        "generated_files": new_generated_files,
     }
