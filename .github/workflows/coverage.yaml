@@ -1,0 +1,195 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Runs coverage and uploads to Codecov.
+# - On push to main: provides base reports so Codecov can compute diffs on PRs.
+# - On pull_request: provides head reports for the PR branch.
+name: Coverage
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, 'feature/**', 'release/**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-paths:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Check which paths changed
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        with:
+          token: ''
+          filters: |
+            backend:
+              - '.github/workflows/coverage.yaml'
+              - 'BUILD'
+              - 'MODULE.bazel'
+              - 'bzl/**'
+              - 'src/**'
+              - '!src/ui/**'
+              - 'run/**'
+            ui:
+              - '.github/workflows/coverage.yaml'
+              - 'src/ui/**'
+
+  coverage:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.backend == 'true'
+    timeout-minutes: 45
+    runs-on: self-hosted
+    continue-on-error: true
+    environment:
+      name: internal-ci
+    env:
+      COMPOSE_PROJECT_NAME: cov-${{ github.run_id }}
+      DOCKER_BUILDKIT: "1"
+    container:
+      # python:3.10.18-bullseye pinned to digest for security (amd64)
+      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
+      env:
+        DOCKER_HOST: "tcp://docker:2375"
+        DOCKER_TLS_CERTDIR: ""
+      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
+    services:
+      docker:
+        # docker:29.2.1-dind pinned to digest for security
+        image: docker:29.2.1-dind@sha256:2658fda9e8779b94ea1581f4d25214dac9ed144b407902842e5328cce8f861f5
+        env:
+          DOCKER_TLS_CERTDIR: ""
+          DOCKER_DRIVER: overlay2
+        options: --privileged --memory=4g --cpus=2
+        ports:
+          - 2375:2375
+    steps:
+      - name: Install Docker CLI and dependencies
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates curl gnupg git-lfs
+
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          chmod a+r /etc/apt/keyrings/docker.asc
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+          apt-get update
+          apt-get install -y docker-ce-cli
+
+          echo "Docker version: $(docker --version)"
+          echo "Git LFS version: $(git-lfs --version)"
+
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+
+      # Go coverage via rules_go, Python coverage via manual coverage tool wiring in MODULE.bazel.
+      - name: Run Tests with Coverage
+        run: |
+          bazel coverage --config=ci \
+            --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
+            --test_env=DOCKER_HOST=tcp://docker:2375 \
+            --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
+            --test_output=errors \
+            -- \
+            //...
+
+      - name: Upload coverage to Codecov
+        if: always() && !cancelled()
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: bazel-out/_coverage/_coverage_report.dat
+          flags: backend
+          fail_ci_if_error: false
+
+      - name: Docker cleanup
+        if: always()
+        run: |
+          docker ps -q | xargs -r docker stop --time=5 || true
+          docker ps -aq | xargs -r docker rm -f || true
+          docker volume ls -q | xargs -r docker volume rm -f || true
+          docker network ls --filter type=custom -q | xargs -r docker network rm || true
+
+      - name: Host cleanup
+        if: always()
+        env:
+          DOCKER_HOST: ""
+        run: |
+          docker ps -aq -f status=exited -f status=dead --filter "until=5m" 2>/dev/null | xargs -r docker rm -f || true
+          docker volume prune -f 2>/dev/null || true
+          docker network prune -f 2>/dev/null || true
+          docker image prune -f 2>/dev/null || true
+
+  ui-coverage:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/ui/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version-file: src/ui/.nvmrc
+          cache: pnpm
+          cache-dependency-path: src/ui/pnpm-lock.yaml
+
+      - name: Run Tests with Coverage
+        working-directory: src/ui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:coverage
+
+      - name: Upload UI coverage to Codecov
+        if: always() && !cancelled()
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/ui/coverage/lcov.info
+          flags: ui
+          fail_ci_if_error: false

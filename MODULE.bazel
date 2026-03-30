@@ -79,10 +79,49 @@ bazel_dep(name = "rules_shell", version = "0.4.1")
 bazel_dep(name = "aspect_rules_py", version = "1.8.4")
 bazel_dep(name = "rules_python", version = "1.8.4")
 
+# Patch: single_version_platform_override.coverage_tool is attr.label() but
+# python_repository.coverage_tool is attr.string(), causing a type mismatch.
+# This one-line patch converts the Label to string before it flows through.
+# TODO: Remove once rules_python fixes this upstream.
+single_version_override(
+    module_name = "rules_python",
+    patches = ["//bzl/patches:rules_python_coverage_tool_label.patch"],
+    patch_strip = 1,
+)
+
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
     ignore_root_user_error = True,
     is_default = True,
+    python_version = "3.10.19",
+)
+
+# Python coverage tool for `bazel coverage` on CI (Linux x86_64).
+# Workaround: rules_python 1.8.4 configure_coverage_tool=True silently fails in bzlmod,
+# so we create the coverage repo manually and wire it via single_version_platform_override.
+# TODO: Remove once rules_python fixes this upstream.
+# NOTE: When changing python_version above, also update:
+#   1. The coverage wheel URL below (cp3XX must match the new Python major.minor)
+#   2. python.single_version_platform_override(python_version = ...) below
+http_archive(
+    name = "python_coverage_linux_x86_64",
+    build_file_content = """\
+filegroup(
+    name = "coverage",
+    srcs = ["coverage/__main__.py"],
+    data = glob(["coverage/*.py", "coverage/**/*.py", "coverage/*.so"]),
+    visibility = ["//visibility:public"],
+)
+""",
+    patch_args = ["-p1"],
+    patches = ["@rules_python//python/private:coverage.patch"],
+    sha256 = "8f59d57baca39b32db42b83b2a7ba6f47ad9c394ec2076b084c3f029b7afca23",
+    type = "zip",
+    urls = ["https://files.pythonhosted.org/packages/53/23/9e2c114d0178abc42b6d8d5281f651a8e6519abfa0ef460a00a91f80879d/coverage-7.6.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl"],
+)
+python.single_version_platform_override(
+    coverage_tool = "@python_coverage_linux_x86_64//:coverage",
+    platform = "x86_64-unknown-linux-gnu",
     python_version = "3.10.19",
 )
 
@@ -290,8 +329,8 @@ apt.install(
 
 oci.pull(
     name = "distroless_python3_10",
-    digest = "sha256:9d2251565a7820224337f62ddc49ea5e5f7ee7f617da5fbb2afc7f10cb60ea9d",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.2",
+    digest = "sha256:d84b0a23be412faa58856365f069f7e2d364a2b589f4f7bb1d1080e215b61b16",
+    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.3",
     platforms = [
         "linux/arm64",
         "linux/amd64",
@@ -301,12 +340,12 @@ oci.pull(
 # Used for local debugging
 # oci.pull(
 #     name = "distroless_python3_10_dev",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.2-dev",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.3-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"
 #     ],
-#     digest = "sha256:397f3707d6d0d7b894d5479b26cb5fbb4df378b1003201bc5db3dbdcf94a17fe",
+#     digest = "sha256:a1870afc12027e3976f9c4982a4c8e8c4f0b97f0bb1554b66db7786effd834f2",
 # )
 
 oci.pull(
