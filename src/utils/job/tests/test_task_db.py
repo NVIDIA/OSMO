@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -106,11 +106,14 @@ class TaskDbFixture(
              json.dumps({}), lead))
         return task_db_key
 
-    def _fetch_task_status(self, task_name: str, retry_id: int = 0) -> dict:
+    def _fetch_task_status(self, task_name: str, retry_id: int = 0,
+                           group_name: str = GROUP_NAME) -> dict:
+        fetch_cmd = '''
+            SELECT status, end_time, failure_message, exit_code FROM tasks
+            WHERE workflow_id = %s AND group_name = %s AND name = %s AND retry_id = %s
+        '''
         rows = self._get_db().execute_fetch_command(
-            '''SELECT status, end_time, failure_message, exit_code FROM tasks
-               WHERE workflow_id = %s AND name = %s AND retry_id = %s''',
-            (WORKFLOW_ID, task_name, retry_id), True)
+            fetch_cmd, (WORKFLOW_ID, group_name, task_name, retry_id), True)
         return rows[0]
 
 
