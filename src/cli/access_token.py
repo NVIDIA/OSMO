@@ -60,7 +60,8 @@ def setup_parser(parser: argparse._SubParsersAction):
                             help='Create token for a specific user (admin only). '
                                  'By default, creates token for the current user.')
     set_parser.add_argument('--roles', '-r',
-                            action='append',
+                            action='extend',
+                            nargs='+',
                             help='Role to assign to the token. Can be specified multiple times. '
                                  'If not specified, inherits all of the user\'s current roles.')
     set_parser.add_argument('--format-type', '-t',
