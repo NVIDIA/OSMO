@@ -426,7 +426,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       _updateSession(sessionKey, { onDataDisposable });
 
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${wsProtocol}//${toProxiedWsHost(execData.router_address)}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
+      const wsUrl = `${wsProtocol}//${toProxiedWsHost(response.router_address)}/api/router/exec/${workflowNameRef.current}/client/${response.key}`;
 
       dispatch({ type: "API_SUCCESS", terminal, wsUrl });
 

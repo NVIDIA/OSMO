@@ -61,9 +61,11 @@ export default defineConfig({
         mock: {
           properties: {
             // Customize specific fields for realistic data
-            '/.*name.*/': () => `pool-${Math.random().toString(36).slice(2, 7)}`,
             '/.*hostname.*/': () => `node-${Math.random().toString(36).slice(2, 7)}.cluster.local`,
             '/.*description.*/': 'A test resource',
+            // Workaround: Orval bug with allOf enum refs generates invalid spread syntax.
+            // BackendSchedulerType = { kai: 'kai' } — use the only valid value directly.
+            '/scheduler_type/': 'kai',
           },
         },
       },
