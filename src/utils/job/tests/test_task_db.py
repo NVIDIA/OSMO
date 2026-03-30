@@ -300,6 +300,7 @@ class FetchMetadataDbTest(TaskDbFixture):
         self.assertEqual(task_names, {'task1', 'task2'})
 
 
+<<<<<<< HEAD
 class BatchFetchLatestRetryIdsDbTest(TaskDbFixture):
     """DB-backed tests for Task.batch_fetch_latest_retry_ids."""
 
@@ -348,5 +349,7 @@ class BatchFetchLatestRetryIdsDbTest(TaskDbFixture):
         self.assertEqual(result, {'task1': 0})
 
 
+=======
+>>>>>>> main
 if __name__ == '__main__':
     runner.run_test()

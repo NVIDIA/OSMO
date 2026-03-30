@@ -350,6 +350,12 @@ def get_workflow_file(file_name: str, workflow_name: str,
                 workflow_name,
                 common.WORKFLOW_SPEC_FILE_NAME,
             )
+    else:
+        # Pre-validate storage access before streaming. This eagerly hits
+        # the storage backend (e.g. HEAD call) so that credential or
+        # permission errors surface as proper HTTP errors instead of
+        # silently killing the stream after a 200 is already committed.
+        workflow_file_exists(workflow_name, file_name, storage_client)
 
     if last_n_lines is not None:
         return storage_client.get_object_stream(
