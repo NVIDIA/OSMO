@@ -27,7 +27,7 @@ def main():
                         help="Maximum number of files to target per run")
     parser.add_argument("--max-retries", type=int, default=3,
                         help="Maximum retries per target on test failure")
-    parser.add_argument("--provider", default="nemotron",
+    parser.add_argument("--provider", default="claude",
                         choices=["nemotron", "claude", "openai"],
                         help="LLM provider for test generation")
     parser.add_argument("--min-coverage-delta", type=float, default=0.5,
