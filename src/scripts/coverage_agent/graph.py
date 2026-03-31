@@ -85,9 +85,9 @@ def build_graph():
         new_state = validate_test(state)
         route = route_validation(new_state)
         logger.info(
-            "Validate route: %s (index=%d/%d, retry=%d/%d, passed=%s)",
-            route, new_state["current_index"], len(new_state["targets"]),
-            new_state["retry_count"], new_state["max_retries"],
+            "Validate route: %s (target %d/%d, attempt %d/%d, passed=%s)",
+            route, new_state["current_index"] + 1, len(new_state["targets"]),
+            new_state["retry_count"] + 1, new_state["max_retries"] + 1,
             new_state["validation_passed"],
         )
         if route == "retry":
@@ -101,9 +101,9 @@ def build_graph():
         new_state = review_test(state)
         route = route_review(new_state)
         logger.info(
-            "Review route: %s (index=%d/%d, retry=%d/%d, review=%s)",
-            route, new_state["current_index"], len(new_state["targets"]),
-            new_state["retry_count"], new_state["max_retries"],
+            "Review route: %s (target %d/%d, attempt %d/%d, review=%s)",
+            route, new_state["current_index"] + 1, len(new_state["targets"]),
+            new_state["retry_count"] + 1, new_state["max_retries"] + 1,
             new_state["review_passed"],
         )
         if route == "retry":

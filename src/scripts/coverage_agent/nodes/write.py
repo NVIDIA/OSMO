@@ -31,12 +31,14 @@ def write_test(state: CoverageState) -> CoverageState:
             retry_context = issues
 
     logger.info(
-        "Writing test for %s (index=%d, retry=%d/%d, type=%s)",
-        target.file_path, state["current_index"],
-        state["retry_count"], state["max_retries"], target.test_type,
+        "Writing test for %s (target %d/%d, attempt %d/%d, type=%s)",
+        target.file_path, state["current_index"] + 1, len(state["targets"]),
+        state["retry_count"] + 1, state["max_retries"] + 1, target.test_type,
     )
     if retry_context:
-        logger.info("Retry context (first 500 chars): %s", retry_context[:500])
+        # Log the feedback/error, not the test code (which is just noise in logs)
+        issues = state.get("validation_output", "")
+        logger.info("Retry reason: %s", issues if issues else "unknown")
 
     result = writer.generate_test(
         source_path=target.file_path,

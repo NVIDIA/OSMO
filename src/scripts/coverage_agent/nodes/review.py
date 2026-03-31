@@ -31,7 +31,7 @@ def review_test(state: CoverageState) -> CoverageState:
     llm_passed, llm_feedback = _run_llm_review(state, test_content, test_file_path)
 
     if not llm_passed:
-        logger.info("LLM review BLOCKED %s: %s", test_file_path, llm_feedback[:200])
+        logger.info("LLM review BLOCKED %s: %s", test_file_path, llm_feedback)
         return {
             **state,
             "review_passed": False,
@@ -94,7 +94,7 @@ def _run_llm_review(
         logger.warning("LLM review failed: %s. Skipping.", exc)
         return True, ""
 
-    logger.info("LLM review response: %s", review_text[:200])
+    logger.info("LLM review response: %s", review_text)
 
     verdict_match = re.search(r"VERDICT:\s*(PASS|FAIL)", review_text, re.IGNORECASE)
     if not verdict_match:

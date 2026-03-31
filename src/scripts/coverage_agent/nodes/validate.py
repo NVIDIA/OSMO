@@ -43,13 +43,11 @@ def validate_test(state: CoverageState) -> CoverageState:
     result = writer.validate_test(last_generated)
 
     if result.passed:
-        logger.info("Validation PASSED: %s", result.output[:200])
+        logger.info("Validation PASSED")
     else:
         logger.error("Validation FAILED for %s:", last_generated.test_file_path)
         for line in result.output.strip().split("\n"):
             logger.error("  %s", line)
-        if result.retry_hint and result.retry_hint != result.output:
-            logger.info("Retry hint (first 500 chars): %s", result.retry_hint[:500])
 
     return {
         **state,
