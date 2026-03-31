@@ -479,7 +479,7 @@ export function useWorkflow({ name, verbose = true, refetchInterval = 0 }: UseWo
  * Fetch a single workflow by name for server-side use (SSR/prefetching).
  * Uses the generated API client with clean customFetch (no serverFetch/MSW).
  */
-export async function fetchWorkflowByName(name: string, verbose = true) {
+export async function fetchWorkflowByName(name: string, verbose = true): Promise<Record<string, unknown> | null> {
   const { getWorkflowApiWorkflowNameGet } = await import("../generated");
 
   try {

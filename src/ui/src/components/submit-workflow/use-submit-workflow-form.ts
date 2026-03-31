@@ -121,17 +121,15 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
   const { mutate: submitMutate, isPending } = useSubmitWorkflowApiPoolPoolNameWorkflowPost({
     mutation: {
       onSuccess: (response) => {
-        {
-          const newName = response.name;
-          toast.success(`Workflow submitted as ${newName}`, {
-            action: {
-              label: "View Workflow",
-              onClick: () => router.push(`/workflows/${newName}`),
-            },
-          });
-          announcer.announce(`Workflow ${newName} submitted successfully`, "polite");
-          close();
-        }
+        const newName = response.name;
+        toast.success(`Workflow submitted as ${newName}`, {
+          action: {
+            label: "View Workflow",
+            onClick: () => router.push(`/workflows/${newName}`),
+          },
+        });
+        announcer.announce(`Workflow ${newName} submitted successfully`, "polite");
+        close();
       },
       onError: (err) => {
         const msg = extractErrorMessage(err);

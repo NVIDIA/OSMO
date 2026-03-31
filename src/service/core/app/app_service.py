@@ -54,11 +54,12 @@ def list_apps(name: str | None = None,
         entered_username = True
     apps = helpers.list_apps(
         postgres, name, username if entered_username else None, users, offset, limit+1, order)
+    more_entries = len(apps) > limit
     if order == connectors.ListOrder.DESC:
         apps = apps[:limit]
-    elif len(apps) > limit:
+    elif more_entries:
         apps = apps[1:]
-    return objects.ListResponse(apps=apps, more_entries=len(apps) > limit)
+    return objects.ListResponse(apps=apps, more_entries=more_entries)
 
 
 @router.get(
@@ -84,7 +85,7 @@ def get_app(name: objects.AppNamePattern,
     )
 
 
-@router.get('/api/app/user/{name}/spec')
+@router.get('/api/app/user/{name}/spec', response_class=fastapi.responses.StreamingResponse)
 def get_app_content(name: objects.AppNamePattern,
                     version: int | None = None):
     postgres = connectors.PostgresConnector.get_instance()

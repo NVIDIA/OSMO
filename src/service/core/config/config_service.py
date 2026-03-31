@@ -547,20 +547,14 @@ def delete_pool(
     '/api/configs/pool/{name}/platform',
     response_model=dict[
         str,
-        connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal,
+        connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform,
     ],
 )
 def list_platforms_in_pool(
     name: str,
     verbose: bool = False,
-) -> Mapping[str, connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal]:
-    """
-    List all Platforms
-
-    Return type Any to prevent unwanted artifacts between verbose and editable outputs
-    Should return Mapping[str, connectors.Platform | connectors.PlatformEditable |
-    connectors.PlatformMinimal] objects
-    """
+) -> Mapping[str, connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform]:
+    """List all Platforms"""
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
     return connectors.fetch_platform_config(name, pool_type, postgres)
@@ -568,19 +562,14 @@ def list_platforms_in_pool(
 
 @router.get(
     '/api/configs/pool/{name}/platform/{platform_name}',
-    response_model=connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal,
+    response_model=connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform,
 )
 def read_platform_in_pool(
     name: str,
     platform_name: str,
     verbose: bool = False,
-) -> connectors.Platform | connectors.PlatformEditable | connectors.PlatformMinimal:
-    """
-    Read Platform
-
-    Return type Any to prevent unwanted artifacts between verbose and editable outputs
-    Should return Platform or PlatformEditable or PlatformMinimal objects
-    """
+) -> connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform:
+    """Read Platform"""
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
     platforms = connectors.fetch_platform_config(name, pool_type, postgres)
