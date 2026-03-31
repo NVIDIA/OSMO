@@ -52,7 +52,8 @@ def get_keys():
     return service_config.service_auth.get_keyset()
 
 
-@router.get('/api/auth/jwt/refresh_token', response_model=objects.JwtTokenResponse)
+@router.get('/api/auth/jwt/refresh_token', response_model=objects.JwtTokenResponse,
+            response_model_exclude_none=True)
 def get_new_jwt_token(refresh_token: str, workflow_id: str,
                       group_name: str, task_name: str, retry_id: int = 0):
     """
@@ -64,7 +65,8 @@ def get_new_jwt_token(refresh_token: str, workflow_id: str,
                                           group_name, task_name, retry_id)
 
 
-@router.post('/api/auth/jwt/refresh_token', response_model=objects.JwtTokenResponse)
+@router.post('/api/auth/jwt/refresh_token', response_model=objects.JwtTokenResponse,
+             response_model_exclude_none=True)
 def post_new_jwt_token(request: objects.TokenRequest, workflow_id: str,
                        group_name: str, task_name: str, retry_id: int = 0):
     """
@@ -132,7 +134,8 @@ def _create_jwt_from_refresh_token(refresh_token: str, workflow_id: str,
             'error': None}
 
 
-@router.get('/api/auth/jwt/access_token', response_model=objects.JwtTokenResponse)
+@router.get('/api/auth/jwt/access_token', response_model=objects.JwtTokenResponse,
+            response_model_exclude_none=True)
 def get_jwt_token_from_access_token(access_token: str):
     """
     API to create a new jwt token from an access token.
@@ -142,7 +145,8 @@ def get_jwt_token_from_access_token(access_token: str):
     return _create_jwt_from_access_token(access_token)
 
 
-@router.post('/api/auth/jwt/access_token', response_model=objects.JwtTokenResponse)
+@router.post('/api/auth/jwt/access_token', response_model=objects.JwtTokenResponse,
+             response_model_exclude_none=True)
 def post_jwt_token_from_access_token(request: objects.TokenRequest):
     """
     API to create a new jwt token from an access token.
