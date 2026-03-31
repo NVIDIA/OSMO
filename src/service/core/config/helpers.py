@@ -166,16 +166,19 @@ def patch_configs(
             updated_configs_fields[key] = value
 
     try:
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.FORBID)
-
         configs: connectors.DynamicConfig
         if config_type == connectors.ConfigType.SERVICE:
-            configs = connectors.ServiceConfig(**updated_configs_fields)
+            config_class = connectors.ServiceConfig
         elif config_type == connectors.ConfigType.WORKFLOW:
-            configs = connectors.WorkflowConfig(**updated_configs_fields)
+            config_class = connectors.WorkflowConfig
         elif config_type == connectors.ConfigType.DATASET:
-            configs = connectors.DatasetConfig(**updated_configs_fields)
+            config_class = connectors.DatasetConfig
+        else:
+            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
+
+        configs = config_class(**updated_configs_fields)
+
+        if config_type == connectors.ConfigType.DATASET:
             try:
                 for _, bucket_config in configs.buckets.items():
                     connectors.BucketMode(bucket_config.mode.lower())
@@ -185,17 +188,11 @@ def patch_configs(
                     f'Bucket mode {bucket_config.mode} is not valid. Valid modes are '
                     f'{", ".join([member.value for member in connectors.BucketMode])}')
 
-        else:
-            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
-
         updated_configs = configs.serialize(postgres)
         for key, value in updated_configs.items():
             postgres.set_config(key, value, config_type)
     except pydantic.ValidationError as err:
         raise osmo_errors.OSMOUsageError(f'{err}')
-    finally:
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
 
     postgres.create_config_history_entry(
         config_type=config_type,

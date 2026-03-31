@@ -54,12 +54,6 @@ def backend_action_queue_name(backend_name: str) -> str:
     return f'backend-connections:{backend_name}'
 
 
-class ExtraType(enum.Enum):
-    """ Setting for Pydantic Extra """
-    ALLOW = 'allow'
-    FORBID = 'forbid'
-    IGNORE = 'ignore'
-
 
 class CredentialType(enum.Enum):
     """ User profile type / table name if exist """
@@ -380,7 +374,6 @@ class PostgresConnector:
         PostgresConnector._instance = self
         mek_file = self.config.mek_file
         if self.config.method == 'dev':
-            ExtraArgBaseModel.set_extra(ExtraType.ALLOW)
             mek_file = os.path.join(os.path.dirname(__file__), '..', 'secret_manager', 'mek.yaml')
         self.secret_manager = SecretManager(
             mek_file,
@@ -1740,30 +1733,27 @@ class UserProfile(pydantic.BaseModel):
         )
 
 class ExtraArgBaseModel(pydantic.BaseModel):
-    """ BaseModel class which can be used to enable validation """
-    model_config = pydantic.ConfigDict(extra='ignore')
+    """BaseModel that rejects unknown fields by default.
+
+    User input is validated strictly (extra='forbid').  Database reads go
+    through ``from_db`` which constructs with extra='ignore' so that legacy
+    columns that no longer exist in code are silently dropped.
+    """
+    model_config = pydantic.ConfigDict(extra='forbid')
 
     @classmethod
-    def _all_subclasses(cls):
-        result = []
-        for sub in cls.__subclasses__():
-            result.append(sub)
-            result.extend(sub._all_subclasses())  # pylint: disable=protected-access
-        return result
+    def from_db(cls, data: Dict):
+        """Construct from database data, tolerating unknown fields at all nesting levels."""
+        return cls.model_validate(data, context={'_from_db': True})
 
+    @pydantic.model_validator(mode='before')
     @classmethod
-    def set_extra(cls, extra_type: ExtraType):
-        all_classes = [cls] + cls._all_subclasses()
-        # First pass: update all model_config and mark incomplete
-        for klass in all_classes:
-            klass.model_config['extra'] = extra_type.value
-            klass.__pydantic_complete__ = False
-        # Second pass: rebuild in reverse order so that leaf classes (e.g.
-        # CliConfig) are rebuilt before composite classes (e.g. ServiceConfig)
-        # that reference them.  This ensures the composite schema picks up
-        # the updated extra-field policy of its children.
-        for klass in reversed(all_classes):
-            klass.model_rebuild(force=True)
+    def _strip_extra_from_db(cls, values: Any, info: pydantic.ValidationInfo) -> Any:
+        if not isinstance(values, dict):
+            return values
+        if info.context and info.context.get('_from_db'):
+            return {k: v for k, v in values.items() if k in cls.model_fields}
+        return values
 
 
 class OsmoImageConfig(ExtraArgBaseModel):
@@ -2718,7 +2708,7 @@ class DynamicConfig(ExtraArgBaseModel):
             else:
                 return encrypted_data, None
 
-        dynamic_config = cls(**config_dict)
+        dynamic_config = cls.from_db(config_dict)
         encrypted_dict = dynamic_config.model_dump(exclude_unset=True)
         decrypted_dict = dynamic_config.model_dump(exclude_unset=True)
 
