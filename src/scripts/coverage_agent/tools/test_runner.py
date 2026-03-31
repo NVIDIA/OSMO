@@ -57,21 +57,28 @@ def run_test(test_file_path: str, timeout: int = 180) -> ValidationResult:
 def _run_bazel_test(test_file_path: str, timeout: int) -> ValidationResult:
     """Run a test via bazel test."""
     target = _file_path_to_bazel_target(test_file_path)
+    test_type = detect_test_type(test_file_path)
 
     if target is None:
-        return ValidationResult(
-            passed=False,
-            output=(
-                f"No Bazel test target found for {test_file_path}. "
-                f"The test file needs a BUILD entry (e.g., py_test or osmo_py_test rule) "
-                f"before it can be executed by Bazel."
-            ),
-            retry_hint=(
-                "Include a BUILD entry in your response. "
-                "Use a starlark code block with a py_test() rule that includes "
-                "this test file in srcs and the source module in deps."
-            ),
-        )
+        # Go test files (*_test.go) are auto-included in go_test targets,
+        # so fall back to running the whole package. Python tests need
+        # explicit BUILD entries and should fail fast.
+        if test_type == TestType.GO:
+            package = file_path_to_bazel_package(test_file_path)
+            target = f"{package}:all"
+            logger.info("Go test: falling back to %s", target)
+        else:
+            return ValidationResult(
+                passed=False,
+                output=(
+                    f"No Bazel test target found for {test_file_path}. "
+                    f"The test file needs a BUILD entry (e.g., py_test rule) "
+                    f"before it can be executed by Bazel."
+                ),
+                retry_hint=(
+                    "Ensure the test has a corresponding py_test() entry in the BUILD file."
+                ),
+            )
 
     logger.info("Running: bazel test %s", target)
     result = run_shell(f"bazel test {shlex.quote(target)} --test_output=errors", timeout=timeout)
