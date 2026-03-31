@@ -227,13 +227,14 @@ export class ResourceGenerator {
       const poolsToQuery = hasMultipleShared ? requestedPools.filter((p) => p !== SHARED_POOL_BETA) : requestedPools;
       const allResources: ResourcesEntry[] = [];
       for (const pool of poolsToQuery) {
-        const { resources } = this.generatePage(pool, 0, 100);
+        const { resources } = this.generatePage(pool, 0, this.perPool);
         allResources.push(...resources);
       }
       return { resources: allResources };
     }
 
-    const { resources } = this.generatePage(poolNames[0] || "default-pool", 0, 100);
+    const defaultPool = poolNames.length > 0 ? poolNames[0] : "default-pool";
+    const { resources } = this.generatePage(defaultPool, 0, this.perPool);
     return { resources };
   };
 

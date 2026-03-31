@@ -16,6 +16,7 @@
 
 import { test as base, expect as baseExpect, type Page } from "@playwright/test";
 import type { PoolResponse, ResourcesResponse } from "@/lib/api/generated";
+import type { Version } from "@/lib/api/adapter/types";
 
 import {
   createLoginInfo,
@@ -124,7 +125,7 @@ export interface ApiErrorScenario {
 export interface TestScenarioData {
   pools?: PoolResponse;
   resources?: ResourcesResponse;
-  version?: { major: number; minor: number; revision: number; hash?: string };
+  version?: Version;
   /** Force pools API to return an error */
   poolsError?: ApiErrorScenario;
   /** Force resources API to return an error */

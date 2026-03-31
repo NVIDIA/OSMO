@@ -1321,16 +1321,25 @@ export class WorkflowGenerator {
     const { offset, limit } = parsePagination(url, { limit: 20 });
     const filters = parseWorkflowFilters(url);
 
+    if (hasActiveFilters(filters)) {
+      // When filtering, generate the full scannable set, filter, then paginate
+      const { entries } = this.generatePage(0, this.total);
+      let filtered = entries;
+      if (filters.statuses.length > 0) filtered = filtered.filter((w) => filters.statuses.includes(w.status));
+      if (filters.pools.length > 0) filtered = filtered.filter((w) => w.pool && filters.pools.includes(w.pool));
+      if (filters.users.length > 0) filtered = filtered.filter((w) => filters.users.includes(w.submitted_by));
+
+      const page = filtered.slice(offset, offset + limit);
+      return {
+        workflows: page.map((w) => this.toListEntry(w)),
+        more_entries: offset + limit < filtered.length,
+      };
+    }
+
     const { entries, total } = this.generatePage(offset, limit);
-
-    let filtered = entries;
-    if (filters.statuses.length > 0) filtered = filtered.filter((w) => filters.statuses.includes(w.status));
-    if (filters.pools.length > 0) filtered = filtered.filter((w) => w.pool && filters.pools.includes(w.pool));
-    if (filters.users.length > 0) filtered = filtered.filter((w) => filters.users.includes(w.submitted_by));
-
     return {
-      workflows: filtered.map((w) => this.toListEntry(w)),
-      more_entries: hasActiveFilters(filters) ? false : offset + limit < total,
+      workflows: entries.map((w) => this.toListEntry(w)),
+      more_entries: offset + limit < total,
     };
   };
 

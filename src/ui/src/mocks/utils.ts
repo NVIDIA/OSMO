@@ -147,7 +147,9 @@ export function createStreamingResponse(options: {
       } catch {
         // Stream closed or aborted
       } finally {
-        activeStreams.delete(streamKey);
+        if (activeStreams.get(streamKey) === abortController) {
+          activeStreams.delete(streamKey);
+        }
         try {
           controller.close();
         } catch {
@@ -157,7 +159,9 @@ export function createStreamingResponse(options: {
     },
     cancel() {
       abortController.abort();
-      activeStreams.delete(streamKey);
+      if (activeStreams.get(streamKey) === abortController) {
+        activeStreams.delete(streamKey);
+      }
     },
   });
 

@@ -214,7 +214,7 @@ export class ProfileGenerator {
   }): Promise<CredentialGetResponse> => {
     await delay(getMockDelay());
     this.credentials.delete(String(params.credName));
-    return { credentials: [] };
+    return { credentials: Array.from(this.credentials.values()) };
   };
 }
 

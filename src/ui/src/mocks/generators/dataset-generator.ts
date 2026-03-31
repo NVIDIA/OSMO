@@ -382,9 +382,12 @@ export class DatasetGenerator {
     if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
       return new HttpResponse(PLACEHOLDER_PNG, { status: 200, headers: { "Content-Type": "image/png" } });
     }
-    if (["txt", "md", "json"].includes(ext)) {
+    if (ext === "json") {
+      return HttpResponse.json({ mock: true, preview: true, path: filePath });
+    }
+    if (["txt", "md"].includes(ext)) {
       return HttpResponse.text(`Mock preview for: ${filePath}`, {
-        headers: { "Content-Type": ext === "json" ? "application/json" : "text/plain" },
+        headers: { "Content-Type": "text/plain" },
       });
     }
     return new HttpResponse(new Uint8Array(8), {

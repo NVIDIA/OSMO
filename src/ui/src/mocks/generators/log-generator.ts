@@ -362,7 +362,8 @@ export class LogGenerator {
     const taskEndTime = task?.end_time ? new Date(task.end_time) : undefined;
 
     if (isTailing) {
-      const streamDelay = delayOverride ? parseInt(delayOverride, 10) : undefined;
+      const parsed = delayOverride ? parseInt(delayOverride, 10) : undefined;
+      const streamDelay = parsed !== undefined && Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
       const streamKey = `task:${workflowName}:${taskName}`;
       abortExistingStream(streamKey);
       return createStreamingResponse({

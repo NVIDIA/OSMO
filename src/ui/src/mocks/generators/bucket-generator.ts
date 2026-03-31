@@ -59,7 +59,7 @@ export class BucketGenerator {
     const url = new URL(request.url);
     const { offset, limit } = parsePagination(url, { limit: 50 });
     const start = Math.max(0, offset);
-    const end = Math.min(offset + limit, this.totalBuckets);
+    const end = Math.min(start + limit, this.totalBuckets);
 
     const buckets = Object.fromEntries(
       Array.from({ length: end - start }, (_, i) => {

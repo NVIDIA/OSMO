@@ -667,7 +667,7 @@ export class EventGenerator {
     const url = new URL(request.url);
     const taskName = taskNameOverride ?? url.searchParams.get("task_name");
 
-    const streamKey = `events:${name}`;
+    const streamKey = `events:${name}:${taskName ?? "all"}`;
     abortExistingStream(streamKey);
 
     const events = this.generateEventsForWorkflow(workflow, taskName ?? undefined);

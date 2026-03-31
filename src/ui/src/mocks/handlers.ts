@@ -66,7 +66,11 @@ export const handlers = [
     await delay(MOCK_DELAY);
     const name = params.name as string;
     const mockWorkflow = getMockWorkflow(name);
-    if (mockWorkflow) return mockWorkflow as unknown as import("@/lib/api/generated").WorkflowQueryResponse;
+    if (mockWorkflow) {
+      // Strip _logConfig (internal to mock system) before returning
+      const { _logConfig: _, ...response } = mockWorkflow;
+      return response;
+    }
     return workflowGenerator.toWorkflowQueryResponse(workflowGenerator.getByName(name));
   }),
 
@@ -183,7 +187,7 @@ export const handlers = [
     const sessionId = faker.string.uuid();
 
     // Return RouterResponse format (matches backend).
-    // In mock mode the WS server runs on port 3001 (pnpm dev:mock-ws).
+    // In mock mode the WS server runs on port 3001 (pnpm dev:mock-exec).
     return HttpResponse.json({
       router_address: "http://localhost:3001",
       key: sessionId,
