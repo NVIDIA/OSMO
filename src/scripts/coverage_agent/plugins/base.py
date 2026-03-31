@@ -24,6 +24,7 @@ class GeneratedTest:
     test_file_path: str
     test_content: str
     build_entry: Optional[str]  # BUILD file addition (None for Go/UI)
+    syntax_error: Optional[str] = None  # Pre-validation syntax error (e.g., truncated output)
 
 
 @dataclasses.dataclass

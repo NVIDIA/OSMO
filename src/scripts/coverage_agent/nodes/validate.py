@@ -26,6 +26,19 @@ def validate_test(state: CoverageState) -> CoverageState:
         last_generated.test_file_path, len(last_generated.test_content),
     )
 
+    # Fast-fail on known syntax errors (e.g., truncated LLM output)
+    if last_generated.syntax_error:
+        error_msg = (
+            f"Generated code has a syntax error (likely truncated LLM output): "
+            f"{last_generated.syntax_error}"
+        )
+        logger.error("Validation FAILED (syntax): %s", error_msg)
+        return {
+            **state,
+            "validation_passed": False,
+            "validation_output": error_msg,
+        }
+
     writer = get_writer(state["provider"])
     result = writer.validate_test(last_generated)
 

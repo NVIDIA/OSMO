@@ -21,12 +21,13 @@ class QualityCheckResult:
     warnings: list[str]
 
 
-# Patterns that indicate non-deterministic test code
+# Patterns that indicate non-deterministic test code.
+# Require () to match CALLS only, not mock.patch string references.
 NONDETERMINISTIC_PATTERNS = [
-    r"\brandom\.",
-    r"\btime\.sleep\b",
-    r"\bdatetime\.now\b",
-    r"\bdatetime\.utcnow\b",
+    r"\brandom\.\w+\(",
+    r"\btime\.sleep\(",
+    r"\bdatetime\.now\(",
+    r"\bdatetime\.utcnow\(",
 ]
 
 # Python assertion patterns (unittest + mock verification methods)

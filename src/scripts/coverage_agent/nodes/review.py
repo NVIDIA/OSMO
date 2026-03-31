@@ -1,14 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
-"""Two-tier per-file review node: static checks then LLM review."""
+"""LLM-based test quality review node."""
 
 import logging
 import re
 from typing import Optional
 
-from coverage_agent.nodes.quality_gate import check_test_quality
 from coverage_agent.plugins import get_writer
-from coverage_agent.plugins.base import detect_test_type
 from coverage_agent.prompts.review import REVIEW_SYSTEM_PROMPT, build_review_prompt
 from coverage_agent.state import CoverageState
 from coverage_agent.tools.file_ops import read_file
@@ -16,13 +14,47 @@ from coverage_agent.tools.file_ops import read_file
 logger = logging.getLogger(__name__)
 
 
+def review_test(state: CoverageState) -> CoverageState:
+    """LangGraph node: LLM-based quality review of generated tests."""
+    last_generated = state.get("last_generated")
+    if last_generated is None or not last_generated.test_content.strip():
+        logger.warning("No test content to review")
+        return {
+            **state,
+            "review_passed": False,
+            "validation_output": "No test content generated",
+        }
+
+    test_file_path = last_generated.test_file_path
+    test_content = last_generated.test_content
+
+    llm_passed, llm_feedback = _run_llm_review(state, test_content, test_file_path)
+
+    if not llm_passed:
+        logger.info("LLM review BLOCKED %s: %s", test_file_path, llm_feedback[:200])
+        return {
+            **state,
+            "review_passed": False,
+            "validation_output": f"LLM review failed:\n{llm_feedback}",
+        }
+
+    logger.info("Review PASSED: %s", test_file_path)
+    new_generated_files = list(state["generated_files"])
+    new_generated_files.append(test_file_path)
+
+    return {
+        **state,
+        "review_passed": True,
+        "generated_files": new_generated_files,
+    }
+
+
 def _run_llm_review(
     state: CoverageState,
     test_content: str,
     test_file_path: str,
-    advisory_hints: Optional[str] = None,
 ) -> tuple[bool, str]:
-    """Tier 2: Call the LLM to review the test for deeper quality issues.
+    """Call the LLM to review the test for quality issues.
 
     Returns (passed, feedback).
     """
@@ -31,7 +63,7 @@ def _run_llm_review(
 
     if source_content.startswith("Error"):
         logger.warning("Cannot read source file for review: %s", target.file_path)
-        return True, ""  # skip LLM review if source unavailable
+        return True, ""
 
     writer = get_writer(state["provider"])
     if writer.client is None:
@@ -44,9 +76,6 @@ def _run_llm_review(
         source_content=source_content,
         source_path=target.file_path,
     )
-
-    if advisory_hints:
-        user_prompt += f"\n\n### Static analysis warnings (use your judgment):\n{advisory_hints}"
 
     logger.info("Running LLM review for %s", test_file_path)
 
@@ -63,7 +92,7 @@ def _run_llm_review(
         review_text = response.choices[0].message.content or ""
     except Exception as exc:  # pylint: disable=broad-except
         logger.warning("LLM review failed: %s. Skipping.", exc)
-        return True, ""  # don't block on review failures
+        return True, ""
 
     logger.info("LLM review response: %s", review_text[:200])
 
@@ -78,62 +107,3 @@ def _run_llm_review(
     feedback = feedback_match.group(1).strip() if feedback_match else ""
 
     return passed, feedback
-
-
-def review_test(state: CoverageState) -> CoverageState:
-    """LangGraph node: two-tier per-file review (static then LLM)."""
-    last_generated = state.get("last_generated")
-    if last_generated is None or not last_generated.test_content.strip():
-        logger.warning("No test content to review")
-        return {
-            **state,
-            "review_passed": False,
-            "validation_output": "No test content generated",
-        }
-
-    test_file_path = last_generated.test_file_path
-    test_content = last_generated.test_content
-
-    # Tier 1: Static checks (fast, free, deterministic)
-    test_type = detect_test_type(test_file_path)
-    test_type_str = test_type.value if test_type else "python"
-    static_result = check_test_quality(test_content, test_type_str)
-
-    if not static_result.passed:
-        issues = "; ".join(static_result.blocking_issues)
-        logger.info("Static review BLOCKED %s (%d issues):", test_file_path, len(static_result.blocking_issues))
-        for issue in static_result.blocking_issues:
-            logger.info("  - %s", issue)
-        return {
-            **state,
-            "review_passed": False,
-            "validation_output": f"Static quality checks failed:\n{issues}",
-        }
-
-    if static_result.warnings:
-        for warning in static_result.warnings:
-            logger.info("Static review warning: %s", warning)
-
-    # Tier 2: LLM review (deeper analysis, only if static checks pass)
-    # Pass advisory warnings so the LLM reviewer can factor them in
-    advisory_hints = "\n".join(static_result.warnings) if static_result.warnings else None
-    llm_passed, llm_feedback = _run_llm_review(state, test_content, test_file_path, advisory_hints)
-
-    if not llm_passed:
-        logger.info("LLM review BLOCKED %s: %s", test_file_path, llm_feedback[:200])
-        return {
-            **state,
-            "review_passed": False,
-            "validation_output": f"LLM review failed:\n{llm_feedback}",
-        }
-
-    # Both tiers passed — accept the test
-    logger.info("Review PASSED: %s", test_file_path)
-    new_generated_files = list(state["generated_files"])
-    new_generated_files.append(test_file_path)
-
-    return {
-        **state,
-        "review_passed": True,
-        "generated_files": new_generated_files,
-    }

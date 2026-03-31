@@ -137,8 +137,9 @@ class LLMWriter(WriterPlugin):
             )
 
         logger.info(
-            "Calling LLM model=%s for %s (type=%s)",
+            "Calling LLM model=%s for %s (type=%s, system_prompt=%d chars, user_prompt=%d chars)",
             self.model, source_path, test_type,
+            len(system_prompt), len(user_prompt),
         )
 
         response = self.client.chat.completions.create(
@@ -148,14 +149,39 @@ class LLMWriter(WriterPlugin):
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.7,
-            max_tokens=8192,
+            max_tokens=16384,
         )
 
-        content = response.choices[0].message.content or ""
-        logger.info("LLM response: %d chars", len(content))
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        finish_reason = choice.finish_reason
+        logger.info(
+            "LLM response: %d chars, finish_reason=%s",
+            len(content), finish_reason,
+        )
+
+        if finish_reason == "length":
+            logger.warning(
+                "LLM response was TRUNCATED (hit max_tokens). "
+                "Generated code is likely incomplete."
+            )
 
         test_content, build_entry = _parse_response(content, test_type)
         test_file_path = determine_test_path(source_path, test_type_enum)
+
+        # Syntax-check Python before writing to catch truncation early
+        if test_type == "python":
+            syntax_error = _check_python_syntax(test_content)
+            if syntax_error:
+                logger.warning("Generated Python has syntax error: %s", syntax_error)
+                write_file(test_file_path, test_content)
+                return GeneratedTest(
+                    test_file_path=test_file_path,
+                    test_content=test_content,
+                    build_entry=build_entry,
+                    syntax_error=syntax_error,
+                )
+
         write_file(test_file_path, test_content)
 
         return GeneratedTest(
@@ -167,6 +193,15 @@ class LLMWriter(WriterPlugin):
     def validate_test(self, test: GeneratedTest) -> ValidationResult:
         """Validate generated test by running it via bazel/pnpm."""
         return run_test(test.test_file_path)
+
+
+def _check_python_syntax(content: str) -> Optional[str]:
+    """Compile Python content to check for syntax errors. Returns error message or None."""
+    try:
+        compile(content, "<generated_test>", "exec")
+        return None
+    except SyntaxError as exc:
+        return f"line {exc.lineno}: {exc.msg}"
 
 
 def _parse_response(
