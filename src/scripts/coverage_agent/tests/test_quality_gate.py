@@ -128,6 +128,42 @@ class TestParseUrl(unittest.TestCase):
         self.assertEqual(result.host, "example.com")
 """
 
+MOCK_ASSERTIONS_TEST = """\
+import unittest
+from unittest import mock
+
+from src.cli.access_token import set_token
+
+
+class TestSetToken(unittest.TestCase):
+    @mock.patch("src.cli.access_token.request")
+    def test_set_token_calls_api(self, mock_request):
+        mock_request.return_value = {"token": "abc123"}
+        set_token("user1", "desc", [])
+        mock_request.assert_called_once_with("POST", "/api/token", data=mock.ANY)
+
+    @mock.patch("src.cli.access_token.request")
+    @mock.patch("builtins.print")
+    def test_set_token_prints_value(self, mock_print, mock_request):
+        mock_request.return_value = {"token": "abc123"}
+        set_token("user1", "desc", [])
+        mock_print.assert_called_with("abc123")
+"""
+
+MOCK_ONLY_NO_ASSERT_TEST = """\
+import unittest
+from unittest import mock
+
+from src.cli.access_token import set_token
+
+
+class TestSetToken(unittest.TestCase):
+    @mock.patch("src.cli.access_token.request")
+    def test_set_token_no_assertion(self, mock_request):
+        mock_request.return_value = {"token": "abc123"}
+        set_token("user1", "desc", [])
+"""
+
 
 class TestCheckTestQuality(unittest.TestCase):
     """Tests for the quality gate check logic across all rule categories."""
@@ -189,6 +225,18 @@ class TestCheckTestQuality(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertTrue(len(result.warnings) > 0)
         self.assertTrue(any("name" in w.lower() or "generic" in w.lower() for w in result.warnings))
+
+    def test_pass_mock_assertions(self):
+        """Tests with mock.assert_called_once_with() should pass assertion check."""
+        result = check_test_quality(MOCK_ASSERTIONS_TEST, "python")
+        assertion_issues = [i for i in result.blocking_issues if "assertion" in i.lower()]
+        self.assertEqual(len(assertion_issues), 0, f"Unexpected assertion issues: {assertion_issues}")
+
+    def test_block_mock_only_no_assert(self):
+        """Tests with ONLY mock setup but no assertion/verification should be blocked."""
+        result = check_test_quality(MOCK_ONLY_NO_ASSERT_TEST, "python")
+        self.assertFalse(result.passed)
+        self.assertTrue(any("assertion" in i.lower() for i in result.blocking_issues))
 
 
 if __name__ == "__main__":

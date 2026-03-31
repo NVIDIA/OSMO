@@ -3,8 +3,11 @@
 """LangGraph node for delegating test generation to the active writer plugin."""
 
 import logging
+import os
+import re
 
 from coverage_agent.plugins import get_writer
+from coverage_agent.plugins.base import file_path_to_bazel_package
 from coverage_agent.state import CoverageState
 
 logger = logging.getLogger(__name__)
@@ -43,7 +46,77 @@ def write_test(state: CoverageState) -> CoverageState:
     )
 
     logger.info(
-        "Write result: file=%s, content_length=%d",
+        "Write result: file=%s, content_length=%d, build_entry=%s",
         result.test_file_path, len(result.test_content),
+        "yes" if result.build_entry else "no",
     )
+
+    # Apply BUILD entry so bazel can discover the test target
+    if target.test_type == "python":
+        _apply_build_entry(result.test_file_path, result.build_entry, target.file_path)
+
     return {**state, "last_generated": result}
+
+
+def _apply_build_entry(
+    test_file_path: str,
+    build_entry: str | None,
+    source_path: str,
+) -> None:
+    """Append a BUILD entry for the generated test file.
+
+    If the LLM provided a build_entry, use it. Otherwise generate a default
+    py_test rule based on existing deps in the BUILD file.
+    """
+    test_dir = os.path.dirname(test_file_path)
+    build_path = os.path.join(test_dir, "BUILD")
+    if not os.path.exists(build_path):
+        build_path = os.path.join(test_dir, "BUILD.bazel")
+    if not os.path.exists(build_path):
+        logger.warning("No BUILD file found in %s, cannot register test target", test_dir)
+        return
+
+    test_basename = os.path.basename(test_file_path)
+    test_name = test_basename.replace(".py", "")
+
+    # Check if a target for this test already exists
+    with open(build_path, encoding="utf-8") as build_file:
+        build_content = build_file.read()
+    if test_basename in build_content:
+        logger.info("BUILD already contains entry for %s", test_basename)
+        return
+
+    if build_entry:
+        entry = build_entry.strip()
+    else:
+        entry = _generate_default_build_entry(test_name, test_basename, source_path, build_content)
+
+    with open(build_path, "a", encoding="utf-8") as build_file:
+        build_file.write("\n" + entry + "\n")
+    logger.info("Appended BUILD entry for %s to %s", test_name, build_path)
+
+
+def _generate_default_build_entry(
+    test_name: str,
+    test_basename: str,
+    source_path: str,
+    existing_build_content: str,
+) -> str:
+    """Generate a default py_test BUILD entry by inferring deps from existing targets."""
+    # Try to extract deps from existing py_test entries in the same BUILD file
+    dep_matches = re.findall(r'deps\s*=\s*\[\s*"([^"]+)"', existing_build_content)
+    if dep_matches:
+        deps_str = ",\n        ".join(f'"{dep}"' for dep in set(dep_matches))
+    else:
+        source_package = file_path_to_bazel_package(source_path)
+        deps_str = f'"{source_package}"'
+
+    return (
+        f'py_test(\n'
+        f'    name = "{test_name}",\n'
+        f'    srcs = ["{test_basename}"],\n'
+        f'    deps = [\n'
+        f'        {deps_str},\n'
+        f'    ],\n'
+        f')'
+    )

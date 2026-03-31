@@ -15,8 +15,11 @@ from coverage_agent.tools.shell import run_shell
 logger = logging.getLogger(__name__)
 
 
-def _file_path_to_bazel_target(file_path: str) -> str:
-    """Discover the Bazel test target for a given test file via bazel query."""
+def _file_path_to_bazel_target(file_path: str) -> str | None:
+    """Discover the Bazel test target for a given test file via bazel query.
+
+    Returns the specific target label, or None if the file has no BUILD entry.
+    """
     package = file_path_to_bazel_package(file_path)
     basename = file_path.rsplit("/", 1)[-1]
 
@@ -26,12 +29,11 @@ def _file_path_to_bazel_target(file_path: str) -> str:
     )
     if result.returncode == 0 and result.stdout.strip():
         target = result.stdout.strip().split("\n", maxsplit=1)[0]
-        logger.debug("Discovered Bazel target: %s → %s", file_path, target)
+        logger.info("Discovered Bazel target: %s -> %s", file_path, target)
         return target
 
-    fallback = f"{package}:all"
-    logger.debug("No specific target found for %s, falling back to %s", file_path, fallback)
-    return fallback
+    logger.warning("No Bazel target found for %s in package %s", file_path, package)
+    return None
 
 
 def run_test(test_file_path: str, timeout: int = 180) -> ValidationResult:
@@ -55,6 +57,21 @@ def run_test(test_file_path: str, timeout: int = 180) -> ValidationResult:
 def _run_bazel_test(test_file_path: str, timeout: int) -> ValidationResult:
     """Run a test via bazel test."""
     target = _file_path_to_bazel_target(test_file_path)
+
+    if target is None:
+        return ValidationResult(
+            passed=False,
+            output=(
+                f"No Bazel test target found for {test_file_path}. "
+                f"The test file needs a BUILD entry (e.g., py_test or osmo_py_test rule) "
+                f"before it can be executed by Bazel."
+            ),
+            retry_hint=(
+                "Include a BUILD entry in your response. "
+                "Use a starlark code block with a py_test() rule that includes "
+                "this test file in srcs and the source module in deps."
+            ),
+        )
 
     logger.info("Running: bazel test %s", target)
     result = run_shell(f"bazel test {shlex.quote(target)} --test_output=errors", timeout=timeout)

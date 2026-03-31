@@ -29,11 +29,19 @@ NONDETERMINISTIC_PATTERNS = [
     r"\bdatetime\.utcnow\b",
 ]
 
-# Python assertion patterns
+# Python assertion patterns (unittest + mock verification methods)
 PYTHON_ASSERTION_PATTERNS = [
     r"self\.assert\w+\(",
     r"self\.fail\(",
     r"with\s+self\.assertRaises\(",
+    # Mock verification methods (e.g., mock_obj.assert_called_with(...))
+    r"\w+\.assert_called\(",
+    r"\w+\.assert_called_with\(",
+    r"\w+\.assert_called_once\(",
+    r"\w+\.assert_called_once_with\(",
+    r"\w+\.assert_not_called\(",
+    r"\w+\.assert_any_call\(",
+    r"\w+\.assert_has_calls\(",
 ]
 
 # Go assertion patterns

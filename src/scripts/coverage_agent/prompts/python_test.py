@@ -31,9 +31,12 @@ osmo_py_test(
 ```
 
 ### Output format:
-Return two sections clearly separated:
-1. TEST FILE: The complete test file content
-2. BUILD ENTRY: The osmo_py_test() stanza to add to the BUILD file
+Return two sections clearly separated. Each MUST be in a fenced code block:
+1. TEST FILE in a ```python code block: The complete test file content
+2. BUILD ENTRY in a ```starlark code block: The py_test() stanza to add to the BUILD file
+
+IMPORTANT: Always wrap code in fenced code blocks (```python ... ``` and ```starlark ... ```).
+Never return raw code without fences. The parser uses these fences to extract code.
 """
 
 

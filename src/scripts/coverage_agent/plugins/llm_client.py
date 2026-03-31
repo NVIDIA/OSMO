@@ -181,14 +181,37 @@ def _parse_response(
     )
     if code_blocks:
         test_content = code_blocks[0]
-        logger.debug("Extracted %d code blocks from response", len(code_blocks))
+        logger.info("Extracted %d code blocks from response", len(code_blocks))
     else:
-        logger.warning("No code blocks in LLM response, using raw response")
+        logger.warning("No code blocks in LLM response, stripping markdown markers from raw response")
+        test_content = _strip_markdown_markers(response)
 
+    # Require language tag for BUILD blocks to avoid matching bare ``` fences
     build_blocks = re.findall(
-        r"```(?:starlark|bzl|bazel)?\n(.*?)```", response, re.DOTALL,
+        r"```(?:starlark|bzl|bazel)\n(.*?)```", response, re.DOTALL,
     )
     if build_blocks and test_type == "python":
         build_entry = build_blocks[-1]
 
-    return test_content.strip() + "\n", build_entry
+    content = test_content.strip() + "\n"
+    logger.info("Parsed test content: %d chars, first line: %s", len(content), content.split("\n", 1)[0][:100])
+    return content, build_entry
+
+
+def _strip_markdown_markers(content: str) -> str:
+    """Strip leading/trailing markdown code fence markers from raw content.
+
+    Handles cases where the LLM returns a single unfenced code block or
+    forgets to close the fence.
+    """
+    lines = content.strip().split("\n")
+
+    # Strip leading fence (e.g., ```python, ```go, ```)
+    if lines and re.match(r"^```\w*\s*$", lines[0]):
+        lines = lines[1:]
+
+    # Strip trailing fence
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+
+    return "\n".join(lines)
