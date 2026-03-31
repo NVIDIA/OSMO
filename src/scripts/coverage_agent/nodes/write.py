@@ -35,6 +35,8 @@ def write_test(state: CoverageState) -> CoverageState:
         target.file_path, state["current_index"],
         state["retry_count"], state["max_retries"], target.test_type,
     )
+    if retry_context:
+        logger.info("Retry context (first 500 chars): %s", retry_context[:500])
 
     result = writer.generate_test(
         source_path=target.file_path,
@@ -91,6 +93,7 @@ def _apply_build_entry(
     else:
         entry = _generate_default_build_entry(test_name, test_basename, source_path, build_content)
 
+    logger.info("BUILD entry to append for %s:\n%s", test_name, entry)
     with open(build_path, "a", encoding="utf-8") as build_file:
         build_file.write("\n" + entry + "\n")
     logger.info("Appended BUILD entry for %s to %s", test_name, build_path)

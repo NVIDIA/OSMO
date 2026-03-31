@@ -202,7 +202,8 @@ def _strip_markdown_markers(content: str) -> str:
     """Strip leading/trailing markdown code fence markers from raw content.
 
     Handles cases where the LLM returns a single unfenced code block or
-    forgets to close the fence.
+    forgets to close the fence. Also strips prose preamble before code
+    (common in retry responses where the LLM explains before writing code).
     """
     lines = content.strip().split("\n")
 
@@ -214,4 +215,43 @@ def _strip_markdown_markers(content: str) -> str:
     if lines and lines[-1].strip() == "```":
         lines = lines[:-1]
 
-    return "\n".join(lines)
+    # If the content starts with prose (not a comment or import), try to find
+    # where the actual Python/Go code begins
+    result = "\n".join(lines)
+    if lines and not _looks_like_code(lines[0]):
+        code_start = _find_code_start(lines)
+        if code_start > 0:
+            logger.info(
+                "Stripped %d lines of prose preamble before code (first prose line: %s)",
+                code_start, lines[0][:100],
+            )
+            result = "\n".join(lines[code_start:])
+
+    return result
+
+
+def _looks_like_code(line: str) -> bool:
+    """Check if a line looks like the start of source code."""
+    stripped = line.strip()
+    return (
+        stripped.startswith("#")
+        or stripped.startswith("//")
+        or stripped.startswith("import ")
+        or stripped.startswith("from ")
+        or stripped.startswith("package ")
+        or stripped.startswith("def ")
+        or stripped.startswith("class ")
+        or stripped.startswith("func ")
+        or stripped == ""
+    )
+
+
+def _find_code_start(lines: list[str]) -> int:
+    """Find the line index where actual code begins after prose preamble.
+
+    Skips blank lines between prose and code — requires a non-empty code line.
+    """
+    for i, line in enumerate(lines):
+        if line.strip() and _looks_like_code(line):
+            return i
+    return 0

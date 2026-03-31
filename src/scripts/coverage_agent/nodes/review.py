@@ -97,7 +97,9 @@ def review_test(state: CoverageState) -> CoverageState:
 
     if not static_result.passed:
         issues = "; ".join(static_result.blocking_issues)
-        logger.info("Static review BLOCKED %s: %s", test_file_path, issues)
+        logger.info("Static review BLOCKED %s (%d issues):", test_file_path, len(static_result.blocking_issues))
+        for issue in static_result.blocking_issues:
+            logger.info("  - %s", issue)
         return {
             **state,
             "review_passed": False,
