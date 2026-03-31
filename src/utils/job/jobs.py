@@ -1175,22 +1175,37 @@ class UpdateGroup(WorkflowJob):
         redis_client.delete(key)
 
     def _notify_barrier(self, database, redis_client, total_timeout: int):
-        key = task_common.barrier_key(self.workflow_id, self.group_name, task.GROUP_BARRIER_NAME)
+        barrier_key = task_common.barrier_key(
+            self.workflow_id, self.group_name, task.GROUP_BARRIER_NAME)
         count = task.TaskGroup.fetch_active_group_size(database, self.workflow_id, self.group_name)
-        barrier_set = redis_client.smembers(key)
+        barrier_set = redis_client.smembers(barrier_key)
 
         if len(barrier_set) >= count:
-            key = f'barrier-{common.generate_unique_id()}'
+            action_key = f'barrier-{common.generate_unique_id()}'
             attributes: Dict[str, str] = {'action': 'barrier'}
-            redis_client.set(key, json.dumps(attributes))
-            redis_client.expire(key, total_timeout, nx=True)
-            for name in barrier_set:
-                task_obj = task.Task.fetch_from_db(database, self.workflow_id, name.decode())
+
+            task_names = [name.decode() for name in barrier_set]
+            retry_ids = task.Task.batch_fetch_latest_retry_ids(
+                database, self.workflow_id, task_names)
+
+            pipe = redis_client.pipeline()
+            pipe.set(action_key, json.dumps(attributes))
+            pipe.expire(action_key, total_timeout, nx=True)
+
+            for task_name in task_names:
+                retry_id = retry_ids.get(task_name)
+                if retry_id is None:
+                    logging.warning('Task %s:%s not found in DB during barrier notification',
+                                    self.workflow_id, task_name)
+                    continue
                 logging.info('Notify %s:%s for barrier count meeting %d',
-                             self.workflow_id, task_obj.name, count)
+                             self.workflow_id, task_name, count)
                 queue_name = workflow.action_queue_name(
-                    self.workflow_id, task_obj.name, task_obj.retry_id)
-                redis_client.lpush(queue_name, key)
+                    self.workflow_id, task_name, retry_id)
+                pipe.lpush(queue_name, action_key)
+                pipe.expire(queue_name, total_timeout, nx=True)
+
+            pipe.execute()
 
     def _restart_task(self, redis_client, task_obj: task.Task, total_timeout: int):
         key = f'restart-{common.generate_unique_id()}'

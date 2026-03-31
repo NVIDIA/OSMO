@@ -1166,6 +1166,36 @@ class Task(pydantic.BaseModel):
 
         database.execute_commit_command(update_cmd, tuple(flat_args))
 
+    @staticmethod
+    def batch_fetch_latest_retry_ids(
+        database: connectors.PostgresConnector,
+        workflow_id: str,
+        task_names: List[str],
+    ) -> Dict[str, int]:
+        """Fetch the latest retry_id for multiple tasks in a single query.
+
+        Args:
+            database: The Postgres connector instance.
+            workflow_id: The workflow ID.
+            task_names: List of task names to look up.
+
+        Returns:
+            Dict mapping task name to its latest (max) retry_id.
+            Tasks not found in the database are omitted from the result.
+        """
+        if not task_names:
+            return {}
+
+        fetch_cmd = '''
+            SELECT name, MAX(retry_id) AS retry_id
+            FROM tasks
+            WHERE workflow_id = %s AND name = ANY(%s)
+            GROUP BY name
+        '''
+        rows = database.execute_fetch_command(
+            fetch_cmd, (workflow_id, task_names), True)
+        return {row['name']: row['retry_id'] for row in rows}
+
     @classmethod
     def from_db_row(cls, task_row, database) -> 'Task':
         return Task(workflow_id=task_row['workflow_id'],

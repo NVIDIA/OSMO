@@ -300,5 +300,53 @@ class FetchMetadataDbTest(TaskDbFixture):
         self.assertEqual(task_names, {'task1', 'task2'})
 
 
+class BatchFetchLatestRetryIdsDbTest(TaskDbFixture):
+    """DB-backed tests for Task.batch_fetch_latest_retry_ids."""
+
+    def test_batch_fetch_returns_latest_retry_ids(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', lead=True)
+        self._insert_task('task2')
+        self._insert_task('task3')
+
+        result = task.Task.batch_fetch_latest_retry_ids(
+            self._get_db(), WORKFLOW_ID, ['task1', 'task2', 'task3'])
+
+        self.assertEqual(result, {'task1': 0, 'task2': 0, 'task3': 0})
+
+    def test_batch_fetch_picks_max_retry_id(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', retry_id=0, lead=True)
+        self._insert_task('task1', retry_id=1, lead=True)
+        self._insert_task('task2', retry_id=0)
+
+        result = task.Task.batch_fetch_latest_retry_ids(
+            self._get_db(), WORKFLOW_ID, ['task1', 'task2'])
+
+        self.assertEqual(result['task1'], 1)
+        self.assertEqual(result['task2'], 0)
+
+    def test_batch_fetch_empty_list_returns_empty_dict(self):
+        self._insert_workflow()
+        self._insert_group()
+
+        result = task.Task.batch_fetch_latest_retry_ids(
+            self._get_db(), WORKFLOW_ID, [])
+
+        self.assertEqual(result, {})
+
+    def test_batch_fetch_missing_task_omitted(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', lead=True)
+
+        result = task.Task.batch_fetch_latest_retry_ids(
+            self._get_db(), WORKFLOW_ID, ['task1', 'nonexistent'])
+
+        self.assertEqual(result, {'task1': 0})
+
+
 if __name__ == '__main__':
     runner.run_test()
