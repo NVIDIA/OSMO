@@ -178,20 +178,20 @@ class TestCheckTestQuality(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertTrue(any("assertion" in issue.lower() for issue in result.blocking_issues))
 
-    def test_block_private_method_calls(self):
+    def test_warn_private_method_calls(self):
+        """Private method calls produce warnings (not blocking) — LLM review judges context."""
         result = check_test_quality(PRIVATE_METHOD_TEST, "python")
-        self.assertFalse(result.passed)
         self.assertTrue(any(
-            "private" in issue.lower() or "internal" in issue.lower()
-            for issue in result.blocking_issues
+            "private" in w.lower() or "internal" in w.lower()
+            for w in result.warnings
         ))
 
-    def test_block_logic_in_test(self):
+    def test_warn_logic_in_test(self):
+        """Logic in tests produces warnings (not blocking) — LLM review judges if acceptable."""
         result = check_test_quality(LOGIC_IN_TEST, "python")
-        self.assertFalse(result.passed)
         self.assertTrue(any(
-            "logic" in issue.lower() or "loop" in issue.lower()
-            for issue in result.blocking_issues
+            "logic" in w.lower() or "loop" in w.lower()
+            for w in result.warnings
         ))
 
     def test_block_nondeterministic_random(self):

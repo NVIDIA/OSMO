@@ -101,8 +101,12 @@ class TestReviewInLoop(unittest.TestCase):
             self.assertTrue(result["review_passed"])
             self.assertIn(test_path, result["generated_files"])
 
-    def test_review_blocks_bad_test(self):
-        """Bad test (loop in body) blocked by static review."""
+    def test_review_warns_on_bad_test(self):
+        """Bad test (loop in body) produces warnings but is not blocked by static review.
+
+        Logic checks are advisory — the LLM review tier makes the final call.
+        Since LLM client is unavailable in tests, LLM review is skipped and test passes.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             test_path = os.path.join(tmpdir, "test_bad.py")
             with open(test_path, "w", encoding="utf-8") as file:
@@ -110,9 +114,7 @@ class TestReviewInLoop(unittest.TestCase):
 
             state = self._make_state(test_path, BAD_GENERATED_TEST_WITH_LOOP)
             result = review_test(state)
-            self.assertFalse(result["review_passed"])
-            self.assertNotIn(test_path, result["generated_files"])
-            self.assertIn("Static quality checks failed", result["validation_output"])
+            self.assertTrue(result["review_passed"])
 
     def test_review_block_feeds_back_to_done_routing(self):
         """Blocked review on last target with exhausted retries → done → abort."""

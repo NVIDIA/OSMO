@@ -20,6 +20,7 @@ def _run_llm_review(
     state: CoverageState,
     test_content: str,
     test_file_path: str,
+    advisory_hints: Optional[str] = None,
 ) -> tuple[bool, str]:
     """Tier 2: Call the LLM to review the test for deeper quality issues.
 
@@ -43,6 +44,9 @@ def _run_llm_review(
         source_content=source_content,
         source_path=target.file_path,
     )
+
+    if advisory_hints:
+        user_prompt += f"\n\n### Static analysis warnings (use your judgment):\n{advisory_hints}"
 
     logger.info("Running LLM review for %s", test_file_path)
 
@@ -111,7 +115,9 @@ def review_test(state: CoverageState) -> CoverageState:
             logger.info("Static review warning: %s", warning)
 
     # Tier 2: LLM review (deeper analysis, only if static checks pass)
-    llm_passed, llm_feedback = _run_llm_review(state, test_content, test_file_path)
+    # Pass advisory warnings so the LLM reviewer can factor them in
+    advisory_hints = "\n".join(static_result.warnings) if static_result.warnings else None
+    llm_passed, llm_feedback = _run_llm_review(state, test_content, test_file_path, advisory_hints)
 
     if not llm_passed:
         logger.info("LLM review BLOCKED %s: %s", test_file_path, llm_feedback[:200])

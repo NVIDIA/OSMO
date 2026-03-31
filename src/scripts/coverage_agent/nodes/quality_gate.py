@@ -122,11 +122,13 @@ def _check_no_logic_in_tests(content: str, test_type: str) -> list[str]:
         methods = re.findall(method_pattern, content, re.DOTALL)
 
         for name, body in methods:
-            if re.search(r"\bfor\s+\w+\s+in\b", body):
+            # Match for-loop STATEMENTS (end with :) but not comprehensions/generators
+            if re.search(r"\bfor\s+\w+\s+in\b.*:\s*$", body, re.MULTILINE):
                 issues.append(f"Logic in test '{name}': contains a for loop")
-            if re.search(r"\bwhile\s+", body):
+            if re.search(r"\bwhile\s+.*:\s*$", body, re.MULTILINE):
                 issues.append(f"Logic in test '{name}': contains a while loop")
-            if re.search(r"\bif\s+", body):
+            # Match if STATEMENTS (start of line) but not ternary expressions
+            if re.search(r"^\s+(?:if|elif)\s+.*:\s*$", body, re.MULTILINE):
                 issues.append(f"Logic in test '{name}': contains a conditional")
     return issues
 
@@ -171,17 +173,22 @@ def _warn_generic_names(content: str) -> list[str]:
 
 
 def check_test_quality(content: str, test_type: str) -> QualityCheckResult:
-    """Run all quality checks on generated test content."""
+    """Run all quality checks on generated test content.
+
+    Only checks that are deterministic and have very low false-positive rates
+    are blocking. Subjective quality checks (logic, naming, style) are left
+    to the LLM review tier which has better judgment.
+    """
     blocking_issues = []
     warnings = []
 
-    # Must-pass checks (block)
+    # Must-pass checks (block) — deterministic, low false-positive
     blocking_issues.extend(_check_has_meaningful_assertions(content, test_type))
-    blocking_issues.extend(_check_no_private_method_calls(content, test_type))
-    blocking_issues.extend(_check_no_logic_in_tests(content, test_type))
     blocking_issues.extend(_check_deterministic(content))
 
-    # Should-pass checks (warn)
+    # Advisory checks (warn) — fed to LLM review for judgment
+    warnings.extend(_check_no_private_method_calls(content, test_type))
+    warnings.extend(_check_no_logic_in_tests(content, test_type))
     warnings.extend(_warn_too_many_assertions(content, test_type))
     warnings.extend(_warn_generic_names(content))
 

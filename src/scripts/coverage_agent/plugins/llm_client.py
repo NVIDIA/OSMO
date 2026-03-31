@@ -255,3 +255,5 @@ def _find_code_start(lines: list[str]) -> int:
         if line.strip() and _looks_like_code(line):
             return i
     return 0
+
+
