@@ -297,12 +297,12 @@ class SubmitWorkflow(WorkflowJob):
                         scheduler_settings_by_group[group_obj.name] = (
                             backend.scheduler_settings.json())
 
-            task.TaskGroup.batch_set_groups_to_processing(
+            transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
                 context.postgres, workflow_obj.workflow_id,
                 ready_group_names, common.current_time(),
                 scheduler_settings_by_group)
 
-            for group_name in ready_group_names:
+            for group_name in transitioned_names:
                 submit_task = CreateGroup(
                     backend=workflow_obj.backend,
                     group_name=group_name,
@@ -1016,15 +1016,15 @@ class UpdateGroup(WorkflowJob):
                         scheduler_settings_by_group[group_name] = (
                             backend.scheduler_settings.json())
 
-                task.TaskGroup.batch_set_groups_to_processing(
+                transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
                     context.postgres, self.workflow_id,
                     downstream_names, common.current_time(),
                     scheduler_settings_by_group)
 
-                for downstream_group_obj in downstream_groups:
+                for group_name in transitioned_names:
                     submit_task = CreateGroup(
                         backend=workflow_obj.backend,
-                        group_name=downstream_group_obj.name,
+                        group_name=group_name,
                         workflow_id=self.workflow_id,
                         workflow_uuid=self.workflow_uuid,
                         user=self.user)

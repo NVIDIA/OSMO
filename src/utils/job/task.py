@@ -2055,11 +2055,13 @@ class TaskGroup(pydantic.BaseModel):
         group_names: List[str],
         update_time: datetime.datetime,
         scheduler_settings_by_group: Dict[str, str],
-    ):
+    ) -> List[str]:
         """Batch-transition multiple groups to PROCESSING in two queries.
 
-        Updates tasks and groups for all specified groups at once, instead of
-        calling set_tasks_to_processing() and update_status_to_db() per group.
+        Updates groups first (with eligibility check), then only transitions
+        tasks for groups that actually moved to PROCESSING. This avoids a
+        race where a concurrent cancel could move a group out of the eligible
+        state between the two queries.
 
         Args:
             database: The Postgres connector instance.
@@ -2068,20 +2070,15 @@ class TaskGroup(pydantic.BaseModel):
             update_time: The processing start time.
             scheduler_settings_by_group: Dict mapping group name to
                 scheduler_settings JSON string.
+
+        Returns:
+            List of group names that actually transitioned to PROCESSING.
         """
         if not group_names:
-            return
+            return []
 
-        # 1. Batch-update all tasks across the groups
-        update_tasks_cmd = '''
-            UPDATE tasks SET status = 'PROCESSING'
-            WHERE workflow_id = %s AND group_name = ANY(%s)
-                AND status IN ('WAITING')
-        '''
-        database.execute_commit_command(
-            update_tasks_cmd, (workflow_id, group_names))
-
-        # 2. Batch-update all groups with per-group scheduler_settings
+        # 1. Batch-update groups with eligibility check, returning which
+        #    ones actually transitioned.
         values_clause = ','.join(['(%s, %s)'] * len(group_names))
         flat_args: List[Any] = []
         for group_name in group_names:
@@ -2099,10 +2096,24 @@ class TaskGroup(pydantic.BaseModel):
             WHERE g.workflow_id = %s AND g.name = v.name
                 AND g.processing_start_time IS NULL
                 AND g.status IN ('SUBMITTING', 'WAITING')
+            RETURNING g.name
         '''
-        database.execute_commit_command(
+        rows = database.execute_fetch_command(
             update_groups_cmd,
-            (update_time, *flat_args, workflow_id))
+            (update_time, *flat_args, workflow_id), True)
+        transitioned_names = [row['name'] for row in rows]
+
+        # 2. Only update tasks for groups that actually transitioned
+        if transitioned_names:
+            update_tasks_cmd = '''
+                UPDATE tasks SET status = 'PROCESSING'
+                WHERE workflow_id = %s AND group_name = ANY(%s)
+                    AND status IN ('WAITING')
+            '''
+            database.execute_commit_command(
+                update_tasks_cmd, (workflow_id, transitioned_names))
+
+        return transitioned_names
 
     @staticmethod
     def patch_cleaned_up(database: connectors.PostgresConnector,

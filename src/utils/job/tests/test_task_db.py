@@ -419,9 +419,11 @@ class BatchSetGroupsToProcessingDbTest(TaskDbFixture):
         self._insert_task('task2', group_name='group2', status='WAITING', lead=True)
 
         now = datetime.datetime.now()
-        task.TaskGroup.batch_set_groups_to_processing(
+        result = task.TaskGroup.batch_set_groups_to_processing(
             self._get_db(), WORKFLOW_ID, ['group1', 'group2'], now,
             {'group1': '{"key": "val1"}', 'group2': '{"key": "val2"}'})
+
+        self.assertEqual(sorted(result), ['group1', 'group2'])
 
         row1 = self._fetch_task_status('task1', group_name='group1')
         self.assertEqual(row1['status'], 'PROCESSING')
@@ -442,9 +444,10 @@ class BatchSetGroupsToProcessingDbTest(TaskDbFixture):
         self._insert_task('task1', group_name='group1', status='WAITING', lead=True)
 
         now = datetime.datetime.now()
-        task.TaskGroup.batch_set_groups_to_processing(
+        result = task.TaskGroup.batch_set_groups_to_processing(
             self._get_db(), WORKFLOW_ID, [], now, {})
 
+        self.assertEqual(result, [])
         row = self._fetch_task_status('task1', group_name='group1')
         self.assertEqual(row['status'], 'WAITING')
 
@@ -455,14 +458,35 @@ class BatchSetGroupsToProcessingDbTest(TaskDbFixture):
         self._insert_task('task2', group_name='group1', status='RUNNING')
 
         now = datetime.datetime.now()
-        task.TaskGroup.batch_set_groups_to_processing(
+        result = task.TaskGroup.batch_set_groups_to_processing(
             self._get_db(), WORKFLOW_ID, ['group1'], now, {})
 
+        self.assertEqual(result, ['group1'])
         row1 = self._fetch_task_status('task1', group_name='group1')
         self.assertEqual(row1['status'], 'PROCESSING')
 
         row2 = self._fetch_task_status('task2', group_name='group1')
         self.assertEqual(row2['status'], 'RUNNING')
+
+    def test_batch_skips_ineligible_groups(self):
+        self._insert_workflow()
+        self._insert_group('group1', status='WAITING')
+        self._insert_group('group2', group_uuid=common.generate_unique_id(),
+                           status='RUNNING')
+        self._insert_task('task1', group_name='group1', status='WAITING', lead=True)
+        self._insert_task('task2', group_name='group2', status='WAITING', lead=True)
+
+        now = datetime.datetime.now()
+        result = task.TaskGroup.batch_set_groups_to_processing(
+            self._get_db(), WORKFLOW_ID, ['group1', 'group2'], now, {})
+
+        self.assertEqual(result, ['group1'])
+
+        row1 = self._fetch_task_status('task1', group_name='group1')
+        self.assertEqual(row1['status'], 'PROCESSING')
+
+        row2 = self._fetch_task_status('task2', group_name='group2')
+        self.assertEqual(row2['status'], 'WAITING')
 
 
 if __name__ == '__main__':
