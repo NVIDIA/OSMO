@@ -2805,14 +2805,16 @@ class TaskGroup(pydantic.BaseModel):
             'restartPolicy': 'Never',
             'imagePullSecrets': image_pull_secrets,
             'hostNetwork': task_spec.hostNetwork,
-            'containers': [user_container_spec, control_container_spec],
+            'containers': [user_container_spec],
             'initContainers': [
                 k8s_factory.create_init_container(
                     login_file_mount.volume_mount(),
                     user_config_file_mount.volume_mount(),
                     init_extra_args,
                 ),
+                {**control_container_spec, 'restartPolicy': 'Always'},
             ],
+            'terminationGracePeriodSeconds': 600,
             'volumes': [
                 {'name': 'osmo'},
                 {'name': 'osmo-data'},

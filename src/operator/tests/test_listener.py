@@ -188,6 +188,55 @@ class TestBackendListener(unittest.TestCase):
         status, _, _ = backend_listener.calculate_pod_status(pod_event)
         self.assertEqual(status, task.TaskGroupStatus.RUNNING)
 
+    def create_native_sidecar_ctrl_terminated_pod(self):
+        """
+        Create a pod where osmo-ctrl is a native sidecar (in init_container_statuses)
+        that has terminated with an error, while user container is still running.
+        """
+        ctrl_init_status = V1ContainerStatus(
+            name='osmo-ctrl',
+            image='osmo-ctrl-image',
+            image_id='osmo-ctrl-imageid',
+            state=V1ContainerState(
+                terminated=V1ContainerStateTerminated(reason='Error', exit_code=2)),
+            ready=False,
+            restart_count=0
+        )
+
+        user_container_status = V1ContainerStatus(
+            name='user',
+            image='nginx',
+            image_id='nginx_id',
+            state=V1ContainerState(
+                running=V1ContainerStateRunning(started_at='2024-02-27T12:34:56Z')),
+            ready=True,
+            restart_count=0
+        )
+
+        status = V1PodStatus(
+            phase='Running',
+            init_container_statuses=[ctrl_init_status],
+            container_statuses=[user_container_status]
+        )
+
+        pod = V1Pod(
+            api_version='v1',
+            kind='Pod',
+            metadata=V1ObjectMeta(name='my-mock-pod'),
+            spec=self.create_spec(),
+            status=status
+        )
+        return pod
+
+    def test_native_sidecar_ctrl_error_detected(self):
+        """
+        Test that osmo-ctrl termination is detected when it runs as a native sidecar
+        (appears in init_container_statuses instead of container_statuses).
+        """
+        pod_event = self.create_native_sidecar_ctrl_terminated_pod()
+        error_info = backend_listener.check_running_pod_containers(pod_event)
+        self.assertNotEqual(error_info.error_message, '')
+
 
 class TestNodeAvailability(unittest.TestCase):
     def setUp(self):

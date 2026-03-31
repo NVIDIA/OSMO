@@ -71,6 +71,10 @@ var barrierReq string
 
 var rsyncStatus rsync.RsyncStatus
 
+// Upload drain: allows SIGTERM handler to wait for in-progress uploads to complete
+var uploading atomic.Bool
+var uploadDone = make(chan struct{})
+
 type PortForwardType string
 
 const (
@@ -1397,6 +1401,15 @@ func main() {
 	signal.Notify(sigintCatch, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigintCatch
+		if uploading.Load() {
+			log.Println("SIGTERM received during upload, waiting for completion...")
+			select {
+			case <-uploadDone:
+				log.Println("Upload completed after SIGTERM, exiting gracefully")
+			case <-time.After(9 * time.Minute):
+				log.Println("Upload drain timeout exceeded, forcing exit")
+			}
+		}
 		cleanupMounts(cmdArgs.DownloadType)
 		os.Exit(1)
 	}()
@@ -1482,9 +1495,12 @@ execLogs:
 
 	// Send files to be uploaded
 	outputStartTime := time.Now().Format("2006-01-02 15:04:05.000")
+	uploading.Store(true)
 	uploadOutputs(unixConn, cmdArgs.Outputs, cmdArgs.OutputPath, cmdArgs.MetadataFile,
 		uploadChan, metricChan, cmdArgs.RetryId, cmdArgs.GroupName, cmdArgs.LogSource,
 		cmdArgs.UserConfig, cmdArgs.ServiceConfig, cmdArgs.ConfigLoc)
+	uploading.Store(false)
+	close(uploadDone)
 	outputEndTime := time.Now().Format("2006-01-02 15:04:05.000")
 	uploadTimes := metrics.GroupMetrics{
 		RetryId:    cmdArgs.RetryId,
