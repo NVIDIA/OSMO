@@ -2,7 +2,7 @@
   "name": "ui-next",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.26.1",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "clean": "rm -rf .next .turbo",
     "dev": "next dev --turbopack",
