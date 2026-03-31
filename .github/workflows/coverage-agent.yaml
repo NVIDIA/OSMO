@@ -37,7 +37,7 @@ on:
           - nemotron
           - claude
           - openai
-        default: nemotron
+        default: claude
       dry_run:
         description: 'Generate but do not create PR'
         type: boolean

@@ -62,9 +62,9 @@ PROVIDER_DEFAULTS = {
         "api_key_env": "NVIDIA_API_KEY",
     },
     "openai": {
-        "model": "gpt-4o",
-        "base_url": "https://api.openai.com/v1",
-        "api_key_env": "OPENAI_API_KEY",
+        "model": "openai/openai/gpt-5.3-codex",
+        "base_url": "https://inference-api.nvidia.com/v1/responses",
+        "api_key_env": "NVIDIA_API_KEY",
     },
 }
 
