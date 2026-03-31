@@ -216,7 +216,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 19-31, 38-46, 57, 148, 156-160, 171-181
+    :emphasize-lines: 4, 19-31, 38-46, 50, 146, 151, 158-162, 173-183
 
     # Global configuration shared across all OSMO services
     global:
@@ -265,13 +265,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           token_endpoint: <idp-token-url>
           logout_endpoint: <idp-logout-url>
 
-      # Default admin (no IdP): enable to create an admin user and access token at startup
-      defaultAdmin:
-        enabled: false  # Set true when not using an IdP
-        username: "admin"
-        passwordSecretName: default-admin-secret
-        passwordSecretKey: password
-
         # Ingress configuration
         ingress:
           ingressClass: <your-ingress-class>  # e.g. alb, nginx
@@ -297,6 +290,13 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
             memory: "1Gi"
           limits:
             memory: "1Gi"
+
+      # Default admin (no IdP): enable to create an admin user and access token at startup
+      defaultAdmin:
+        enabled: false  # Set true when not using an IdP
+        username: "admin"
+        passwordSecretName: default-admin-secret
+        passwordSecretKey: password
 
       # Worker service configuration
       worker:
@@ -349,8 +349,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
       # Global Envoy proxy configuration
       envoy:
         enabled: true
-        # Use Kubernetes secrets as reference for the OIDC secrets
-        useKubernetesSecrets: true
 
         # Paths that don't require authentication
         skipAuthPaths:
@@ -367,6 +365,10 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           port: 8000
           hostname: <your-domain>
           address: 127.0.0.1
+
+        # IDP hostname for JWT JWKS fetching
+        idp:
+          host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
 
         # JWT validation: configure providers for your IdP and (if using access tokens) for OSMO-issued tokens
         jwt:
@@ -427,7 +429,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 22, 29, 57-60, 77, 84-88, 99, 111-121
+    :emphasize-lines: 4, 22, 29, 57-60, 76, 80, 87-91, 102, 114-124
 
     # Global configuration shared across router services
     global:
@@ -495,7 +497,6 @@ Create ``router_values.yaml`` for router with the following sample configuration
       # Envoy proxy configuration
       envoy:
         enabled: true
-        useKubernetesSecrets: true
 
         skipAuthPaths:
         - /api/router/version
@@ -506,6 +507,10 @@ Create ``router_values.yaml`` for router with the following sample configuration
         # Service configuration
         service:
           hostname: <your-domain>
+
+        # IDP hostname for JWT JWKS fetching
+        idp:
+          host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
 
         # JWT validation: IdP provider(s) and OSMO-issued tokens
         jwt:
@@ -562,7 +567,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 10, 15, 49, 57-61, 64-74
+    :emphasize-lines: 4, 10, 15, 48, 54, 60-64, 67-77
 
     # Global configuration shared across UI services
     global:
@@ -608,13 +613,16 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
       # Envoy proxy configuration
       envoy:
         enabled: true
-        useKubernetesSecrets: true
 
         # Service configuration
         service:
           hostname: <your-domain>
           address: 127.0.0.1
           port: 8000
+
+        # IDP hostname for JWT JWKS fetching
+        idp:
+          host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
 
         # JWT configuration
         jwt:
