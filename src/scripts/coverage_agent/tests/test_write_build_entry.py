@@ -23,7 +23,7 @@ py_test(
 class TestApplyBuildEntry(unittest.TestCase):
     """Tests for BUILD entry application logic."""
 
-    def test_applies_llm_provided_entry(self):
+    def test_generates_entry_from_existing_deps(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             build_path = os.path.join(tmpdir, "BUILD")
             with open(build_path, "w", encoding="utf-8") as build_file:
@@ -33,12 +33,12 @@ class TestApplyBuildEntry(unittest.TestCase):
             with open(test_file, "w", encoding="utf-8") as test_f:
                 test_f.write("# test")
 
-            build_entry = 'py_test(name="test_access_token", srcs=["test_access_token.py"], deps=["//src/cli:cli_lib"])'
-            _apply_build_entry(test_file, build_entry, "src/cli/access_token.py")
+            _apply_build_entry(test_file, "src/cli/access_token.py")
 
             with open(build_path, encoding="utf-8") as build_file:
                 content = build_file.read()
             self.assertIn("test_access_token", content)
+            self.assertIn("//src/cli:cli_lib", content)
 
     def test_skips_duplicate_entry(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -53,7 +53,7 @@ class TestApplyBuildEntry(unittest.TestCase):
             with open(build_path, encoding="utf-8") as build_file:
                 before = build_file.read()
 
-            _apply_build_entry(test_file, 'py_test(name="test_x_v2")', "src/cli/x.py")
+            _apply_build_entry(test_file, "src/cli/x.py")
 
             with open(build_path, encoding="utf-8") as build_file:
                 after = build_file.read()
@@ -79,7 +79,7 @@ class TestApplyBuildEntry(unittest.TestCase):
             with open(test_file, "w", encoding="utf-8") as test_f:
                 test_f.write("# test")
             # No BUILD file — should not raise, just log warning
-            _apply_build_entry(test_file, "py_test()", "src/foo.py")
+            _apply_build_entry(test_file, "src/foo.py")
 
 
 class TestValidationFalsePositive(unittest.TestCase):

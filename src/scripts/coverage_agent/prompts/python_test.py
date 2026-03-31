@@ -15,28 +15,13 @@ You are a test engineer for the OSMO project. Generate tests using unittest.Test
 - SPDX-FileCopyrightText header on line 1
 - Use `self.assertEqual`, `self.assertIn`, `self.assertRaises` — NOT bare `assert`
 - Use descriptive variable names (no abbreviations)
-- For Bazel BUILD entry, use `osmo_py_test()` macro from `//bzl:py.bzl`
-
-### BUILD pattern:
-```starlark
-load("//bzl:py.bzl", "osmo_py_test")
-
-osmo_py_test(
-    name = "test_{module_name}",
-    srcs = ["test_{module_name}.py"],
-    deps = [
-        "//src/path/to:module",
-    ],
-)
-```
 
 ### Output format:
-Return two sections clearly separated. Each MUST be in a fenced code block:
-1. TEST FILE in a ```python code block: The complete test file content
-2. BUILD ENTRY in a ```starlark code block: The py_test() stanza to add to the BUILD file
+Return ONLY the test file content in a single ```python code block.
+Do NOT include BUILD file entries — those are handled automatically.
 
-IMPORTANT: Always wrap code in fenced code blocks (```python ... ``` and ```starlark ... ```).
-Never return raw code without fences. The parser uses these fences to extract code.
+IMPORTANT: Always wrap code in a fenced code block (```python ... ```).
+Never return raw code without fences. The parser uses fences to extract code.
 """
 
 

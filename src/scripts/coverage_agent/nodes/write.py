@@ -53,22 +53,20 @@ def write_test(state: CoverageState) -> CoverageState:
         "yes" if result.build_entry else "no",
     )
 
-    # Apply BUILD entry so bazel can discover the test target
+    # Apply BUILD entry so bazel can discover the test target.
+    # Always generate from existing BUILD deps — LLM-generated entries are
+    # unreliable (the LLM guesses dep target names that don't exist).
     if target.test_type == "python":
-        _apply_build_entry(result.test_file_path, result.build_entry, target.file_path)
+        _apply_build_entry(result.test_file_path, target.file_path)
 
     return {**state, "last_generated": result}
 
 
-def _apply_build_entry(
-    test_file_path: str,
-    build_entry: str | None,
-    source_path: str,
-) -> None:
-    """Append a BUILD entry for the generated test file.
+def _apply_build_entry(test_file_path: str, source_path: str) -> None:
+    """Append a py_test BUILD entry for the generated test file.
 
-    If the LLM provided a build_entry, use it. Otherwise generate a default
-    py_test rule based on existing deps in the BUILD file.
+    Always generates the entry from existing deps in the BUILD file rather than
+    using LLM-generated entries (which guess wrong dep target names).
     """
     test_dir = os.path.dirname(test_file_path)
     build_path = os.path.join(test_dir, "BUILD")
@@ -81,18 +79,13 @@ def _apply_build_entry(
     test_basename = os.path.basename(test_file_path)
     test_name = test_basename.replace(".py", "")
 
-    # Check if a target for this test already exists
     with open(build_path, encoding="utf-8") as build_file:
         build_content = build_file.read()
     if test_basename in build_content:
         logger.info("BUILD already contains entry for %s", test_basename)
         return
 
-    if build_entry:
-        entry = build_entry.strip()
-    else:
-        entry = _generate_default_build_entry(test_name, test_basename, source_path, build_content)
-
+    entry = _generate_default_build_entry(test_name, test_basename, source_path, build_content)
     logger.info("BUILD entry to append for %s:\n%s", test_name, entry)
     with open(build_path, "a", encoding="utf-8") as build_file:
         build_file.write("\n" + entry + "\n")
