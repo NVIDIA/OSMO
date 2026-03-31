@@ -1406,6 +1406,8 @@ func main() {
 			select {
 			case <-uploadDone:
 				log.Println("Upload completed after SIGTERM, exiting gracefully")
+				cleanupMounts(cmdArgs.DownloadType)
+				os.Exit(0)
 			case <-time.After(9 * time.Minute):
 				log.Println("Upload drain timeout exceeded, forcing exit")
 			}
