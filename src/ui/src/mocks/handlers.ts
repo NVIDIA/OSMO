@@ -170,7 +170,6 @@ export const handlers = [
   http.post("*/api/workflow/:name/exec/task/:taskName", async ({ params }) => {
     await delay(MOCK_DELAY);
 
-    const workflowName = params.name as string;
     const taskName = params.taskName as string;
 
     if (taskName.includes("completed") || taskName.includes("failed")) {
@@ -187,8 +186,8 @@ export const handlers = [
     // In mock mode the WS server runs on port 3001 (pnpm dev:mock-ws).
     return HttpResponse.json({
       router_address: "http://localhost:3001",
-      key: session.id,
-      cookie: `mock_session_${session.id}`,
+      key: sessionId,
+      cookie: `mock_session_${sessionId}`,
     });
   }),
 
