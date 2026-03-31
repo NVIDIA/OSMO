@@ -41,6 +41,7 @@ from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.lib.utils.redact import redact_pod_spec_env
 from src.utils import connectors
 from src.utils.job import app, backend_job_defs, common as task_common, kb_objects, task, workflow
+from src.utils.job.task import _encode_hstore
 from src.utils.job.jobs_base import Job, JobResult, JobStatus, update_progress_writer
 from src.utils.progress_check import progress
 
@@ -223,12 +224,22 @@ class SubmitWorkflow(WorkflowJob):
         self.workflow_id = workflow_obj.workflow_id
 
         task_entries: list[tuple] = []
+        group_entries: list[tuple] = []
         for group_obj in workflow_obj.groups:
             group_obj.workflow_id_internal = workflow_obj.workflow_id
             group_obj.spec = \
                 group_obj.spec.parse(postgres, workflow_obj.workflow_id,
                                      self.group_and_task_uuids)
-            group_obj.insert_to_db()
+            group_entries.append((
+                group_obj.workflow_id_internal, group_obj.name,
+                group_obj.group_uuid, group_obj.spec.json(),
+                task.TaskGroupStatus.SUBMITTING.name, None,
+                _encode_hstore(group_obj.remaining_upstream_groups),
+                _encode_hstore(group_obj.downstream_groups),
+                group_obj.scheduler_settings.json()
+                if group_obj.scheduler_settings else None,
+                json.dumps(group_obj.group_template_resource_types),
+            ))
             for task_obj, task_obj_spec in zip(group_obj.tasks, group_obj.spec.tasks):
                 task_obj.workflow_id_internal = workflow_obj.workflow_id
                 workflow_uuid = task_obj.workflow_uuid if task_obj.workflow_uuid else ''
@@ -247,6 +258,7 @@ class SubmitWorkflow(WorkflowJob):
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
                 ))
+        task.TaskGroup.batch_insert_to_db(postgres, group_entries)
         task.Task.batch_insert_to_db(postgres, task_entries)
         progress_writer.report_progress()
 
@@ -273,24 +285,31 @@ class SubmitWorkflow(WorkflowJob):
             # Determine which groups don't have prerequisites and enqueue CreateGroup jobs
             # for them
             backend_config_cache = connectors.BackendConfigCache()
+            ready_group_names: List[str] = []
+            scheduler_settings_by_group: Dict[str, str] = {}
             for group_obj in workflow_obj.groups:
                 group_obj.workflow_id_internal = workflow_obj.workflow_id
                 if not group_obj.remaining_upstream_groups:
                     backend_name = group_obj.spec.tasks[0].backend
                     backend = backend_config_cache.get(backend_name)
+                    ready_group_names.append(group_obj.name)
+                    if backend.scheduler_settings is not None:
+                        scheduler_settings_by_group[group_obj.name] = (
+                            backend.scheduler_settings.json())
 
-                    group_obj.set_tasks_to_processing()
-                    group_obj.update_status_to_db(
-                        common.current_time(),
-                        task.TaskGroupStatus.PROCESSING,
-                        scheduler_settings=backend.scheduler_settings)
-                    submit_task = CreateGroup(
-                        backend=workflow_obj.backend,
-                        group_name=group_obj.name,
-                        workflow_id=workflow_obj.workflow_id,
-                        workflow_uuid=self.workflow_uuid,
-                        user=self.user)
-                    submit_task.send_job_to_queue()
+            task.TaskGroup.batch_set_groups_to_processing(
+                context.postgres, workflow_obj.workflow_id,
+                ready_group_names, common.current_time(),
+                scheduler_settings_by_group)
+
+            for group_name in ready_group_names:
+                submit_task = CreateGroup(
+                    backend=workflow_obj.backend,
+                    group_name=group_name,
+                    workflow_id=workflow_obj.workflow_id,
+                    workflow_uuid=self.workflow_uuid,
+                    user=self.user)
+                submit_task.send_job_to_queue()
 
         return JobResult()
 
@@ -987,21 +1006,29 @@ class UpdateGroup(WorkflowJob):
         # launch downstream groups that can be launched
         elif group_obj.status == task.TaskGroupStatus.COMPLETED:
             downstream_groups = group_obj.update_downstream_groups_in_db()
-            for downstream_group_obj in downstream_groups:
+            if downstream_groups:
                 if not workflow_obj.pool:
                     raise osmo_errors.OSMOUserError('No Pool Specified')
-                downstream_group_obj.set_tasks_to_processing()
-                downstream_group_obj.update_status_to_db(
-                    common.current_time(),
-                    task.TaskGroupStatus.PROCESSING,
-                    scheduler_settings=backend.scheduler_settings)
-                submit_task = CreateGroup(
-                    backend=workflow_obj.backend,
-                    group_name=downstream_group_obj.name,
-                    workflow_id=self.workflow_id,
-                    workflow_uuid=self.workflow_uuid,
-                    user=self.user)
-                submit_task.send_job_to_queue()
+                downstream_names = [g.name for g in downstream_groups]
+                scheduler_settings_by_group: Dict[str, str] = {}
+                if backend.scheduler_settings is not None:
+                    for group_name in downstream_names:
+                        scheduler_settings_by_group[group_name] = (
+                            backend.scheduler_settings.json())
+
+                task.TaskGroup.batch_set_groups_to_processing(
+                    context.postgres, self.workflow_id,
+                    downstream_names, common.current_time(),
+                    scheduler_settings_by_group)
+
+                for downstream_group_obj in downstream_groups:
+                    submit_task = CreateGroup(
+                        backend=workflow_obj.backend,
+                        group_name=downstream_group_obj.name,
+                        workflow_id=self.workflow_id,
+                        workflow_uuid=self.workflow_uuid,
+                        user=self.user)
+                    submit_task.send_job_to_queue()
 
         return JobResult()
 
