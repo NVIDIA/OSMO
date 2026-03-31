@@ -52,8 +52,8 @@ PROMPT_BUILDERS = {
 
 PROVIDER_DEFAULTS = {
     "nemotron": {
-        "model": "nvidia/nemotron-3-super-120b-a12b",
-        "base_url": "https://integrate.api.nvidia.com/v1",
+        "model": "nvidia/nvidia/nemotron-3-super-v3",
+        "base_url": "https://inference-api.nvidia.com",
         "api_key_env": "NVIDIA_API_KEY",
     },
     "claude": {
