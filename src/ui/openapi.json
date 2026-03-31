@@ -1096,7 +1096,7 @@
           "Config API"
         ],
         "summary": "List Platforms In Pool",
-        "description": "List all Platforms\n\nReturn type Any to prevent unwanted artifacts between verbose and editable outputs\nShould return Mapping[str, connectors.Platform | connectors.PlatformEditable |\nconnectors.PlatformMinimal] objects",
+        "description": "List all Platforms",
         "operationId": "list_platforms_in_pool_api_configs_pool__name__platform_get",
         "parameters": [
           {
@@ -1128,13 +1128,13 @@
                   "additionalProperties": {
                     "anyOf": [
                       {
-                        "$ref": "#/components/schemas/Platform"
+                        "$ref": "#/components/schemas/PlatformMinimal"
                       },
                       {
                         "$ref": "#/components/schemas/PlatformEditable"
                       },
                       {
-                        "$ref": "#/components/schemas/PlatformMinimal"
+                        "$ref": "#/components/schemas/Platform"
                       }
                     ]
                   },
@@ -1163,7 +1163,7 @@
           "Config API"
         ],
         "summary": "Read Platform In Pool",
-        "description": "Read Platform\n\nReturn type Any to prevent unwanted artifacts between verbose and editable outputs\nShould return Platform or PlatformEditable or PlatformMinimal objects",
+        "description": "Read Platform",
         "operationId": "read_platform_in_pool_api_configs_pool__name__platform__platform_name__get",
         "parameters": [
           {
@@ -1203,13 +1203,13 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/Platform"
+                      "$ref": "#/components/schemas/PlatformMinimal"
                     },
                     {
                       "$ref": "#/components/schemas/PlatformEditable"
                     },
                     {
-                      "$ref": "#/components/schemas/PlatformMinimal"
+                      "$ref": "#/components/schemas/Platform"
                     }
                   ],
                   "title": "Response Read Platform In Pool Api Configs Pool  Name  Platform  Platform Name  Get"
@@ -4554,12 +4554,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",

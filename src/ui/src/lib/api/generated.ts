@@ -1994,7 +1994,7 @@ export type ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams = {
 verbose?: boolean;
 };
 
-export type ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 = {[key: string]: Platform | PlatformEditable | PlatformMinimal};
+export type ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 = {[key: string]: PlatformMinimal | PlatformEditable | Platform};
 
 export type ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams = {
 verbose?: boolean;
@@ -4211,10 +4211,6 @@ export const useRenamePoolApiConfigsPoolNameRenamePut = <TError = HTTPValidation
     
 /**
  * List all Platforms
-
-Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Mapping[str, connectors.Platform | connectors.PlatformEditable |
-connectors.PlatformMinimal] objects
  * @summary List Platforms In Pool
  */
 export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetUrl = (name: string,
@@ -4342,9 +4338,6 @@ export const invalidateListPlatformsInPoolApiConfigsPoolNamePlatformGet = async 
 
 /**
  * Read Platform
-
-Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Platform or PlatformEditable or PlatformMinimal objects
  * @summary Read Platform In Pool
  */
 export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl = (name: string,
@@ -4366,9 +4359,9 @@ export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl =
 
 export const readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGet = async (name: string,
     platformName: string,
-    params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: RequestInit): Promise<Platform | PlatformEditable | PlatformMinimal> => {
+    params?: ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams, options?: RequestInit): Promise<PlatformMinimal | PlatformEditable | Platform> => {
   
-  return customFetch<Platform | PlatformEditable | PlatformMinimal>(getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl(name,platformName,params),
+  return customFetch<PlatformMinimal | PlatformEditable | Platform>(getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetUrl(name,platformName,params),
   {      
     ...options,
     method: 'GET'
@@ -9867,9 +9860,9 @@ export const getGetAppContentApiAppUserNameSpecGetUrl = (name: string,
 }
 
 export const getAppContentApiAppUserNameSpecGet = async (name: string,
-    params?: GetAppContentApiAppUserNameSpecGetParams, options?: RequestInit): Promise<unknown> => {
+    params?: GetAppContentApiAppUserNameSpecGetParams, options?: RequestInit): Promise<void> => {
   
-  return customFetch<unknown>(getGetAppContentApiAppUserNameSpecGetUrl(name,params),
+  return customFetch<void>(getGetAppContentApiAppUserNameSpecGetUrl(name,params),
   {      
     ...options,
     method: 'GET'

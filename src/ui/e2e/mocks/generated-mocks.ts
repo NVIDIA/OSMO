@@ -1986,7 +1986,7 @@ export type ListPlatformsInPoolApiConfigsPoolNamePlatformGetParams = {
 verbose?: boolean;
 };
 
-export type ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 = {[key: string]: Platform | PlatformEditable | PlatformMinimal};
+export type ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 = {[key: string]: PlatformMinimal | PlatformEditable | Platform};
 
 export type ReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetParams = {
 verbose?: boolean;
@@ -3422,10 +3422,6 @@ export const renamePoolApiConfigsPoolNameRenamePut = async (name: string,
 
 /**
  * List all Platforms
-
-Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Mapping[str, connectors.Platform | connectors.PlatformEditable |
-connectors.PlatformMinimal] objects
  * @summary List Platforms In Pool
  */
 export type listPlatformsInPoolApiConfigsPoolNamePlatformGetResponse200 = {
@@ -3485,13 +3481,10 @@ export const listPlatformsInPoolApiConfigsPoolNamePlatformGet = async (name: str
 
 /**
  * Read Platform
-
-Return type Any to prevent unwanted artifacts between verbose and editable outputs
-Should return Platform or PlatformEditable or PlatformMinimal objects
  * @summary Read Platform In Pool
  */
 export type readPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponse200 = {
-  data: Platform | PlatformEditable | PlatformMinimal
+  data: PlatformMinimal | PlatformEditable | Platform
   status: 200
 }
 
@@ -6739,7 +6732,7 @@ export const updateAppApiAppUserNamePatch = async (name: string,
  * @summary Get App Content
  */
 export type getAppContentApiAppUserNameSpecGetResponse200 = {
-  data: unknown
+  data: void
   status: 200
 }
 
@@ -9125,14 +9118,14 @@ export const getReadPoolApiConfigsPoolNameGetResponseMock = (): Pool | PoolEdita
       }},]))
 
 export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetResponseMock = (): ListPlatformsInPoolApiConfigsPoolNamePlatformGet200 => ({
-        [faker.string.alphanumeric(5)]: faker.helpers.arrayElement([{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
+        [faker.string.alphanumeric(5)]: faker.helpers.arrayElement([{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
-      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},])
+      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}},])
       })
 
-export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseMock = (): Platform | PlatformEditable | PlatformMinimal => (faker.helpers.arrayElement([{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
+export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetResponseMock = (): PlatformMinimal | PlatformEditable | Platform => (faker.helpers.arrayElement([{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), tolerations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({key: faker.string.alpha({length: {min: 10, max: 20}}), operator: faker.string.alpha({length: {min: 10, max: 20}}), value: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined]), effect: faker.helpers.arrayElement([faker.string.alpha({length: {min: 10, max: 20}}), undefined])})), labels: {
         [faker.string.alphanumeric(5)]: faker.string.alpha({length: {min: 10, max: 20}})
-      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},{description: 'A test resource', host_network_allowed: faker.datatype.boolean(), privileged_allowed: faker.datatype.boolean(), allowed_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), default_mounts: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}})))},]))
+      }, default_variables: {}, resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_resource_validations: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => ({operator: faker.helpers.arrayElement(Object.values(OperatorType)), left_operand: faker.string.alpha({length: {min: 10, max: 20}}), right_operand: faker.string.alpha({length: {min: 10, max: 20}}), assert_message: faker.string.alpha({length: {min: 10, max: 20}})})), override_pod_template: Array.from({ length: faker.number.int({min: 1, max: 10}) }, (_, i) => i + 1).map(() => (faker.string.alpha({length: {min: 10, max: 20}}))), parsed_pod_template: {}},]))
 
 export const getListPodTemplatesApiConfigsPodTemplateGetResponseMock = (): ListPodTemplatesApiConfigsPodTemplateGet200 => ({})
 
@@ -9565,7 +9558,7 @@ export const getListPlatformsInPoolApiConfigsPoolNamePlatformGetMockHandler = (o
   }, options)
 }
 
-export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetMockHandler = (overrideResponse?: Platform | PlatformEditable | PlatformMinimal | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<Platform | PlatformEditable | PlatformMinimal> | Platform | PlatformEditable | PlatformMinimal), options?: RequestHandlerOptions) => {
+export const getReadPlatformInPoolApiConfigsPoolNamePlatformPlatformNameGetMockHandler = (overrideResponse?: PlatformMinimal | PlatformEditable | Platform | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<PlatformMinimal | PlatformEditable | Platform> | PlatformMinimal | PlatformEditable | Platform), options?: RequestHandlerOptions) => {
   return http.get('*/api/configs/pool/:name/platform/:platformName', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   
   
@@ -10221,7 +10214,7 @@ export const getUpdateAppApiAppUserNamePatchMockHandler = (overrideResponse?: Ed
   }, options)
 }
 
-export const getGetAppContentApiAppUserNameSpecGetMockHandler = (overrideResponse?: unknown | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<unknown> | unknown), options?: RequestHandlerOptions) => {
+export const getGetAppContentApiAppUserNameSpecGetMockHandler = (overrideResponse?: void | ((info: Parameters<Parameters<typeof http.get>[1]>[0]) => Promise<void> | void), options?: RequestHandlerOptions) => {
   return http.get('*/api/app/user/:name/spec', async (info: Parameters<Parameters<typeof http.get>[1]>[0]) => {await delay(0);
   if (typeof overrideResponse === 'function') {await overrideResponse(info); }
   
