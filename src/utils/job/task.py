@@ -1622,6 +1622,45 @@ class TaskGroup(pydantic.BaseModel):
              self.scheduler_settings.json() if self.scheduler_settings else None,
              json.dumps(self.group_template_resource_types)))
 
+    @staticmethod
+    def batch_insert_to_db(
+        database: connectors.PostgresConnector,
+        group_entries: List[Tuple],
+        batch_size: int = 100,
+    ):
+        """Batch-insert multiple groups in a single query.
+
+        Args:
+            database: The Postgres connector instance.
+            group_entries: List of tuples, each containing the full set of
+                column values for a single group row (same order as insert_to_db).
+            batch_size: Maximum number of rows per INSERT statement.
+        """
+        if not group_entries:
+            return
+
+        if batch_size <= 0:
+            batch_size = 100
+
+        for i in range(0, len(group_entries), batch_size):
+            chunk = group_entries[i:i + batch_size]
+            values_clause = ','.join(
+                ['(%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, %s)']
+                * len(chunk)
+            )
+            flat_args: List[Any] = []
+            for entry in chunk:
+                flat_args.extend(entry)
+
+            insert_cmd = f'''
+                INSERT INTO groups
+                (workflow_id, name, group_uuid, spec, status, failure_message,
+                 remaining_upstream_groups, downstream_groups, cleaned_up,
+                 scheduler_settings, group_template_resource_types)
+                VALUES {values_clause} ON CONFLICT DO NOTHING;
+            '''
+            database.execute_commit_command(insert_cmd, tuple(flat_args))
+
     def update_group_template_resource_types(self) -> None:
         """ Persists group_template_resource_types to the database. """
         update_cmd = '''
@@ -2008,6 +2047,62 @@ class TaskGroup(pydantic.BaseModel):
                 AND status IN ('WAITING');
         '''
         self.database.execute_commit_command(update_cmd, (self.workflow_id, self.name))
+
+    @staticmethod
+    def batch_set_groups_to_processing(
+        database: connectors.PostgresConnector,
+        workflow_id: str,
+        group_names: List[str],
+        update_time: datetime.datetime,
+        scheduler_settings_by_group: Dict[str, str],
+    ):
+        """Batch-transition multiple groups to PROCESSING in two queries.
+
+        Updates tasks and groups for all specified groups at once, instead of
+        calling set_tasks_to_processing() and update_status_to_db() per group.
+
+        Args:
+            database: The Postgres connector instance.
+            workflow_id: The workflow ID.
+            group_names: List of group names to transition.
+            update_time: The processing start time.
+            scheduler_settings_by_group: Dict mapping group name to
+                scheduler_settings JSON string.
+        """
+        if not group_names:
+            return
+
+        # 1. Batch-update all tasks across the groups
+        update_tasks_cmd = '''
+            UPDATE tasks SET status = 'PROCESSING'
+            WHERE workflow_id = %s AND group_name = ANY(%s)
+                AND status IN ('WAITING')
+        '''
+        database.execute_commit_command(
+            update_tasks_cmd, (workflow_id, group_names))
+
+        # 2. Batch-update all groups with per-group scheduler_settings
+        values_clause = ','.join(['(%s, %s)'] * len(group_names))
+        flat_args: List[Any] = []
+        for group_name in group_names:
+            flat_args.extend([
+                group_name,
+                scheduler_settings_by_group.get(group_name),
+            ])
+
+        update_groups_cmd = f'''
+            UPDATE groups AS g
+            SET status = 'PROCESSING',
+                processing_start_time = %s,
+                scheduler_settings = v.settings
+            FROM (VALUES {values_clause}) AS v(name, settings)
+            WHERE g.workflow_id = %s AND g.name = v.name
+                AND g.processing_start_time IS NULL
+                AND g.status IN ('SUBMITTING', 'WAITING')
+        '''
+        database.execute_commit_command(
+            update_groups_cmd,
+            (update_time, *flat_args, workflow_id))
 
     @staticmethod
     def patch_cleaned_up(database: connectors.PostgresConnector,

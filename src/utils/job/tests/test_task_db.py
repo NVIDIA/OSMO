@@ -348,5 +348,122 @@ class BatchFetchLatestRetryIdsDbTest(TaskDbFixture):
         self.assertEqual(result, {'task1': 0})
 
 
+class BatchInsertGroupDbTest(TaskDbFixture):
+    """DB-backed tests for TaskGroup.batch_insert_to_db."""
+
+    def test_batch_insert_creates_all_groups(self):
+        self._insert_workflow()
+
+        spec = task.TaskGroupSpec(
+            name='g1',
+            ignoreNonleadStatus=True,
+            tasks=[task.TaskSpec(name='lead', image='img', command=['cmd'], lead=True)],
+        )
+        entries = []
+        for name in ['group1', 'group2', 'group3']:
+            entries.append((
+                WORKFLOW_ID, name, common.generate_unique_id(),
+                spec.json(), 'SUBMITTING', None, '', '', None, '[]',
+            ))
+
+        task.TaskGroup.batch_insert_to_db(self._get_db(), entries)
+
+        rows = self._get_db().execute_fetch_command(
+            'SELECT name FROM groups WHERE workflow_id = %s ORDER BY name',
+            (WORKFLOW_ID,), True)
+        names = [row['name'] for row in rows]
+        self.assertEqual(names, ['group1', 'group2', 'group3'])
+
+    def test_batch_insert_empty_list_is_noop(self):
+        self._insert_workflow()
+        task.TaskGroup.batch_insert_to_db(self._get_db(), [])
+
+        rows = self._get_db().execute_fetch_command(
+            'SELECT name FROM groups WHERE workflow_id = %s',
+            (WORKFLOW_ID,), True)
+        self.assertEqual(rows, [])
+
+    def test_batch_insert_skips_duplicates(self):
+        self._insert_workflow()
+        self._insert_group('group1')
+
+        spec = task.TaskGroupSpec(
+            name='g1',
+            ignoreNonleadStatus=True,
+            tasks=[task.TaskSpec(name='lead', image='img', command=['cmd'], lead=True)],
+        )
+        entries = [
+            (WORKFLOW_ID, 'group1', common.generate_unique_id(),
+             spec.json(), 'SUBMITTING', None, '', '', None, '[]'),
+            (WORKFLOW_ID, 'group2', common.generate_unique_id(),
+             spec.json(), 'SUBMITTING', None, '', '', None, '[]'),
+        ]
+        task.TaskGroup.batch_insert_to_db(self._get_db(), entries)
+
+        rows = self._get_db().execute_fetch_command(
+            'SELECT name FROM groups WHERE workflow_id = %s ORDER BY name',
+            (WORKFLOW_ID,), True)
+        names = [row['name'] for row in rows]
+        self.assertEqual(names, ['group1', 'group2'])
+
+
+class BatchSetGroupsToProcessingDbTest(TaskDbFixture):
+    """DB-backed tests for TaskGroup.batch_set_groups_to_processing."""
+
+    def test_batch_transitions_tasks_and_groups(self):
+        self._insert_workflow()
+        self._insert_group('group1', status='WAITING')
+        self._insert_group('group2', group_uuid=common.generate_unique_id(),
+                           status='WAITING')
+        self._insert_task('task1', group_name='group1', status='WAITING', lead=True)
+        self._insert_task('task2', group_name='group2', status='WAITING', lead=True)
+
+        now = datetime.datetime.now()
+        task.TaskGroup.batch_set_groups_to_processing(
+            self._get_db(), WORKFLOW_ID, ['group1', 'group2'], now,
+            {'group1': '{"key": "val1"}', 'group2': '{"key": "val2"}'})
+
+        row1 = self._fetch_task_status('task1', group_name='group1')
+        self.assertEqual(row1['status'], 'PROCESSING')
+        row2 = self._fetch_task_status('task2', group_name='group2')
+        self.assertEqual(row2['status'], 'PROCESSING')
+
+        group_rows = self._get_db().execute_fetch_command(
+            '''SELECT name, status, scheduler_settings
+               FROM groups WHERE workflow_id = %s ORDER BY name''',
+            (WORKFLOW_ID,), True)
+        for row in group_rows:
+            self.assertEqual(row['status'], 'PROCESSING')
+            self.assertIsNotNone(row['scheduler_settings'])
+
+    def test_batch_empty_list_is_noop(self):
+        self._insert_workflow()
+        self._insert_group('group1', status='WAITING')
+        self._insert_task('task1', group_name='group1', status='WAITING', lead=True)
+
+        now = datetime.datetime.now()
+        task.TaskGroup.batch_set_groups_to_processing(
+            self._get_db(), WORKFLOW_ID, [], now, {})
+
+        row = self._fetch_task_status('task1', group_name='group1')
+        self.assertEqual(row['status'], 'WAITING')
+
+    def test_batch_only_updates_waiting_tasks(self):
+        self._insert_workflow()
+        self._insert_group('group1', status='WAITING')
+        self._insert_task('task1', group_name='group1', status='WAITING', lead=True)
+        self._insert_task('task2', group_name='group1', status='RUNNING')
+
+        now = datetime.datetime.now()
+        task.TaskGroup.batch_set_groups_to_processing(
+            self._get_db(), WORKFLOW_ID, ['group1'], now, {})
+
+        row1 = self._fetch_task_status('task1', group_name='group1')
+        self.assertEqual(row1['status'], 'PROCESSING')
+
+        row2 = self._fetch_task_status('task2', group_name='group1')
+        self.assertEqual(row2['status'], 'RUNNING')
+
+
 if __name__ == '__main__':
     runner.run_test()
