@@ -468,6 +468,9 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
 
     if config.dynamic_config_file:
         configmap_loader.load_dynamic_configs(config.dynamic_config_file, postgres)
+        configmap_loader.start_config_watcher(
+            config.dynamic_config_file, postgres,
+            poll_interval=config.dynamic_config_poll_interval)
 
     # Instantiate QueryParser
     query.QueryParser()

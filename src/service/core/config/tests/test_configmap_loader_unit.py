@@ -20,6 +20,7 @@ import logging
 import os
 import tempfile
 import unittest
+from typing import Any, Dict
 from unittest import mock
 
 import yaml
@@ -64,18 +65,18 @@ class TestLoadDynamicConfigsFileHandling(unittest.TestCase):
 
     def test_load_dynamic_configs_managed_configs_none(self):
         """Returns gracefully when all sections are empty dicts."""
-        config = {'managed_configs': {}}
+        config: Dict[str, Any] = {'managed_configs': {}}
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
             yaml.dump(config, temp_file)
             temp_path = temp_file.name
         try:
             # Advisory lock should be acquired, but _apply_all_configs should return early
             self.mock_postgres.execute_fetch_command.return_value = [
-                {'pg_try_advisory_lock': True}
+                {'pg_try_advisory_xact_lock': True}
             ]
             configmap_loader.load_dynamic_configs(temp_path, self.mock_postgres)
-            # Should have acquired and released lock (2 calls)
-            self.assertEqual(self.mock_postgres.execute_fetch_command.call_count, 2)
+            # Should have acquired xact lock (1 call, no explicit unlock)
+            self.assertEqual(self.mock_postgres.execute_fetch_command.call_count, 1)
         finally:
             os.unlink(temp_path)
 
@@ -146,7 +147,8 @@ class TestResolveDatasetSecretFiles(unittest.TestCase):
             }
             configmap_loader._resolve_dataset_secret_files(config_data)
 
-            credential = config_data['buckets']['primary']['default_credential']
+            bucket: Dict[str, Any] = config_data['buckets']['primary']
+            credential: Dict[str, Any] = bucket['default_credential']
             self.assertEqual(credential['access_key_id'], 'AKIAIOSFODNN7EXAMPLE')
             self.assertEqual(credential['access_key'],
                              'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
@@ -234,7 +236,7 @@ class TestSafeApply(unittest.TestCase):
         """No-op when config key is not in managed_configs."""
         mock_postgres = mock.MagicMock()
         mock_function = mock.MagicMock()
-        managed_configs = {'service': {'config': {}}}
+        managed_configs: Dict[str, Any] = {'service': {'config': {}}}
 
         configmap_loader._safe_apply(
             'nonexistent_key', managed_configs, mock_postgres, mock_function)
@@ -245,7 +247,7 @@ class TestSafeApply(unittest.TestCase):
         """Logs and continues when apply function raises."""
         mock_postgres = mock.MagicMock()
         mock_function = mock.MagicMock(side_effect=RuntimeError('test error'))
-        managed_configs = {'service': {'config': {}}}
+        managed_configs: Dict[str, Any] = {'service': {'config': {}}}
 
         with self.assertLogs(level=logging.ERROR) as log_context:
             configmap_loader._safe_apply(
@@ -263,7 +265,7 @@ class TestAdvisoryLock(unittest.TestCase):
         """Skips config loading when lock is held by another replica."""
         mock_postgres = mock.MagicMock()
         mock_postgres.execute_fetch_command.return_value = [
-            {'pg_try_advisory_lock': False}
+            {'pg_try_advisory_xact_lock': False}
         ]
 
         config = {'managed_configs': {'service': {'config': {'key': 'value'}}}}
@@ -277,14 +279,14 @@ class TestAdvisoryLock(unittest.TestCase):
         finally:
             os.unlink(temp_path)
 
-    def test_advisory_lock_released_on_success(self):
-        """Lock is released after successful config application."""
+    def test_advisory_xact_lock_acquired_on_success(self):
+        """Transaction-scoped lock is acquired for config application."""
         mock_postgres = mock.MagicMock()
         mock_postgres.execute_fetch_command.return_value = [
-            {'pg_try_advisory_lock': True}
+            {'pg_try_advisory_xact_lock': True}
         ]
 
-        config = {'managed_configs': {}}
+        config: Dict[str, Any] = {'managed_configs': {}}
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
             yaml.dump(config, temp_file)
             temp_path = temp_file.name
@@ -292,24 +294,23 @@ class TestAdvisoryLock(unittest.TestCase):
             configmap_loader.load_dynamic_configs(temp_path, mock_postgres)
 
             calls = mock_postgres.execute_fetch_command.call_args_list
-            self.assertEqual(len(calls), 2)
-            # First call: acquire lock
-            self.assertIn('pg_try_advisory_lock', calls[0][0][0])
-            # Second call: release lock
-            self.assertIn('pg_advisory_unlock', calls[1][0][0])
+            # Only one call: acquire xact lock (no explicit unlock needed)
+            self.assertEqual(len(calls), 1)
+            self.assertIn('pg_try_advisory_xact_lock',
+                          calls[0][0][0])  # type: ignore[index]
         finally:
             os.unlink(temp_path)
 
     @mock.patch('src.service.core.config.configmap_loader._apply_all_configs')
-    def test_advisory_lock_released_on_failure(self, mock_apply_all):
-        """Lock is released even when _apply_all_configs raises."""
+    def test_advisory_xact_lock_no_explicit_unlock_on_failure(self, mock_apply_all):
+        """Xact lock auto-releases on transaction end, no explicit unlock needed."""
         mock_apply_all.side_effect = RuntimeError('catastrophic failure')
         mock_postgres = mock.MagicMock()
         mock_postgres.execute_fetch_command.return_value = [
-            {'pg_try_advisory_lock': True}
+            {'pg_try_advisory_xact_lock': True}
         ]
 
-        config = {'managed_configs': {'service': {'config': {'key': 'value'}}}}
+        config: Dict[str, Any] = {'managed_configs': {'service': {'config': {'key': 'value'}}}}
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
             yaml.dump(config, temp_file)
             temp_path = temp_file.name
@@ -318,9 +319,10 @@ class TestAdvisoryLock(unittest.TestCase):
                 configmap_loader.load_dynamic_configs(temp_path, mock_postgres)
 
             calls = mock_postgres.execute_fetch_command.call_args_list
-            self.assertEqual(len(calls), 2)
-            # Second call should be unlock even though exception was raised
-            self.assertIn('pg_advisory_unlock', calls[1][0][0])
+            # Only the lock acquisition call, no explicit unlock
+            self.assertEqual(len(calls), 1)
+            self.assertIn('pg_try_advisory_xact_lock',
+                          calls[0][0][0])  # type: ignore[index]
         finally:
             os.unlink(temp_path)
 
@@ -331,7 +333,7 @@ class TestUnknownKeysLogged(unittest.TestCase):
     def test_unknown_keys_logged(self):
         """WARNING logged for unrecognized keys in managed_configs."""
         mock_postgres = mock.MagicMock()
-        managed_configs = {
+        managed_configs: Dict[str, Any] = {
             'unknown_config_type': {'config': {}},
             'another_unknown': {'config': {}},
         }
@@ -351,7 +353,7 @@ class TestApplyAllConfigsNoneManagedConfigs(unittest.TestCase):
         """Returns gracefully on None input."""
         mock_postgres = mock.MagicMock()
         # Should not raise
-        configmap_loader._apply_all_configs(None, mock_postgres)
+        configmap_loader._apply_all_configs(None, mock_postgres)  # type: ignore[arg-type]
 
 
 if __name__ == '__main__':

@@ -17,12 +17,16 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import enum
+import hashlib
 import logging
-from typing import Any, Callable, Dict, List
+import threading
+import time
+from typing import Any, Callable, Dict
 
 import yaml
 
 from src.lib.utils import common, osmo_errors
+from src.lib.utils import role as role_lib
 from src.service.core.config import (
     config_service,
     helpers as config_helpers,
@@ -62,21 +66,78 @@ def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresCon
 
     managed_configs = raw_config['managed_configs']
 
-    # Acquire advisory lock so only one replica applies configs
+    # Acquire transaction-scoped advisory lock so only one replica applies configs.
+    # Using pg_try_advisory_xact_lock instead of pg_try_advisory_lock because
+    # xact locks are automatically released at transaction end, preventing lock
+    # leaks if the process is killed (OOM, SIGKILL) before explicit unlock.
     lock_result = postgres.execute_fetch_command(
-        "SELECT pg_try_advisory_lock(hashtext('configmap-sync'))", (), return_raw=True)
-    if not lock_result or not lock_result[0]['pg_try_advisory_lock']:
+        "SELECT pg_try_advisory_xact_lock(hashtext('configmap-sync'))",
+        (), return_raw=True)
+    if not lock_result or not lock_result[0]['pg_try_advisory_xact_lock']:
         logging.info('Another replica is applying dynamic configs, skipping')
         return
 
-    try:
-        _apply_all_configs(managed_configs, postgres)
-    finally:
-        # Release advisory lock
-        postgres.execute_fetch_command(
-            "SELECT pg_advisory_unlock(hashtext('configmap-sync'))", (), return_raw=True)
+    _apply_all_configs(managed_configs, postgres)
 
     logging.info('Dynamic config loading complete')
+
+
+# ---------------------------------------------------------------------------
+# Config file watcher (polling + hash-based change detection)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_POLL_INTERVAL_SECONDS = 30
+_last_config_hash: str | None = None
+
+
+def _compute_file_hash(file_path: str) -> str | None:
+    """Compute SHA-256 hash of a file's contents. Returns None on error."""
+    try:
+        with open(file_path, 'rb') as config_file:
+            return hashlib.sha256(config_file.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def start_config_watcher(config_file_path: str,
+                         postgres: connectors.PostgresConnector,
+                         poll_interval: int = _DEFAULT_POLL_INTERVAL_SECONDS,
+                         ) -> threading.Thread:
+    """Start a background daemon thread that polls the config file for changes.
+
+    Computes a SHA-256 hash of the file on each poll. If the hash differs from
+    the last successful load, re-applies configs via load_dynamic_configs().
+    This handles K8s ConfigMap updates (which replace the mounted file via
+    symlink swap) without requiring a pod restart.
+
+    Returns the thread so callers can join() it in tests.
+    """
+    global _last_config_hash  # noqa: PLW0603
+    _last_config_hash = _compute_file_hash(config_file_path)
+
+    def _poll_loop() -> None:
+        global _last_config_hash  # noqa: PLW0603
+        logging.info('Config watcher started (poll_interval=%ds, file=%s)',
+                     poll_interval, config_file_path)
+        while True:
+            time.sleep(poll_interval)
+            try:
+                current_hash = _compute_file_hash(config_file_path)
+                if current_hash is None:
+                    continue
+                if current_hash == _last_config_hash:
+                    continue
+                logging.info('Config file changed (hash %s -> %s), reloading',
+                             _last_config_hash, current_hash)
+                load_dynamic_configs(config_file_path, postgres)
+                _last_config_hash = current_hash
+            except Exception:
+                logging.exception('Error during config file poll')
+
+    watcher_thread = threading.Thread(
+        target=_poll_loop, name='config-watcher', daemon=True)
+    watcher_thread.start()
+    return watcher_thread
 
 
 _EXPECTED_CONFIG_KEYS = {
@@ -85,7 +146,7 @@ _EXPECTED_CONFIG_KEYS = {
 }
 
 
-def _apply_all_configs(managed_configs: Dict[str, Any],
+def _apply_all_configs(managed_configs: Dict[str, Any] | None,
                        postgres: connectors.PostgresConnector) -> None:
     """Apply all config types in dependency order."""
     if not managed_configs:
@@ -148,13 +209,18 @@ def _parse_managed_by(section: Dict[str, Any]) -> ManagedByMode:
 
 def _singleton_config_exists(config_type: connectors.ConfigType,
                              postgres: connectors.PostgresConnector) -> bool:
-    """Check if a singleton config has any non-default values in the DB."""
+    """Check if a singleton config has been explicitly configured.
+
+    Uses config_history to determine if a human or prior configmap-sync has
+    ever written to this config type. This avoids false positives from
+    configure_app() seeding defaults into the configs table on startup,
+    which would cause seed mode to always skip.
+    """
     try:
-        config = postgres.get_configs(config_type)
-        # A config "exists" (has been explicitly set) if it has any fields
-        # beyond the defaults. We check if any value is actually stored.
-        config_dict = config.plaintext_dict(by_alias=True, exclude_unset=True)
-        return len(config_dict) > 0
+        result = postgres.execute_fetch_command(
+            'SELECT COUNT(*) as count FROM config_history WHERE config_type = %s',
+            (config_type.value.lower(),), return_raw=True)
+        return result[0]['count'] > 0
     except osmo_errors.OSMODatabaseError:
         return False
 
@@ -271,11 +337,15 @@ def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
         default_credential.pop('secret_file')
         default_credential['access_key_id'] = access_key_id
         default_credential['access_key'] = access_key
+        # StaticDataCredential requires 'endpoint'. Default to the bucket's
+        # dataset_path if not provided in the secret file or credential dict.
+        if 'endpoint' not in default_credential and 'endpoint' not in secret_data:
+            default_credential['endpoint'] = bucket_config.get('dataset_path', '')
         for optional_field in ('region', 'endpoint', 'override_url'):
             if optional_field in secret_data:
                 default_credential[optional_field] = secret_data[optional_field]
-        logging.info('Loaded credentials for bucket %s from %s',
-                     bucket_name, secret_file_path)
+        logging.info('Loaded credentials for bucket %s from secret file',
+                     bucket_name)
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +504,7 @@ def _insert_backend(name: str, backend_data: Dict[str, Any],
         ON CONFLICT (name) DO NOTHING
         RETURNING name;
     '''
-    result: List[Any] = postgres.execute_fetch_command(
+    result: list[Any] = postgres.execute_fetch_command(
         insert_cmd,
         (name, '', '', dashboard_url, grafana_url,
          scheduler_settings_json, node_conditions_json,
@@ -529,7 +599,12 @@ def _apply_roles(section: Dict[str, Any],
 
     configs = []
     for name, role_data in items_to_apply.items():
-        configs.append(connectors.Role(name=name, **role_data))
+        # Pre-construct RolePolicy objects from raw dicts because pydantic v1
+        # cannot always coerce nested dicts into model instances automatically.
+        raw_policies = role_data.get('policies', [])
+        policies = [role_lib.RolePolicy(**policy) for policy in raw_policies]
+        role_fields = {**role_data, 'policies': policies}
+        configs.append(connectors.Role(name=name, **role_fields))
 
     config_service.put_roles(
         request=config_objects.PutRolesRequest(
@@ -546,7 +621,7 @@ def _apply_roles(section: Dict[str, Any],
 # ---------------------------------------------------------------------------
 
 def _filter_named_items(items: Dict[str, Any], managed_by: ManagedByMode,
-                        model_class: type, postgres: connectors.PostgresConnector) -> Dict[str, Any]:
+                        model_class: Any, postgres: connectors.PostgresConnector) -> Dict[str, Any]:
     """Filter named config items based on managed_by mode.
 
     In 'seed' mode, only return items that don't already exist in the DB.
@@ -566,7 +641,7 @@ def _filter_named_items(items: Dict[str, Any], managed_by: ManagedByMode,
     return filtered
 
 
-def _named_config_exists(name: str, model_class: type,
+def _named_config_exists(name: str, model_class: Any,
                          postgres: connectors.PostgresConnector) -> bool:
     """Check if a named config item exists in the database."""
     try:

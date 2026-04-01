@@ -109,3 +109,6 @@ sidecars:
 
   rateLimit:
     enabled: false
+
+podMonitor:
+  enabled: false
