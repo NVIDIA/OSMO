@@ -188,7 +188,14 @@ def get_service_job_queue_length(url: str, *args) \
     # pylint: disable=unused-argument
     redis_client = connectors.RedisConnector.get_instance().client
     for job_queue in connectors.JOBS:
-        length = redis_client.llen(f'{connectors.JOB_QUEUE_PREFIX}:{job_queue.name}')
+        # With priority queues, Kombu creates sub-queues per priority level.
+        # Priority 0 uses the base key; others use key + separator + priority.
+        base_key = f'{connectors.JOB_QUEUE_PREFIX}:{job_queue.name}'
+        length = redis_client.llen(base_key)
+        for step in connectors.PRIORITY_STEPS:
+            if step != 0:
+                length += redis_client.llen(
+                    f'{base_key}{connectors.PRIORITY_SEPARATOR}{step}')
         yield otelmetrics.Observation(length, {'job_type': job_queue.name})
 
 def get_backend_job_queue_length(url: str, *args) \
