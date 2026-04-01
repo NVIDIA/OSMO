@@ -1739,7 +1739,7 @@ class ExtraArgBaseModel(pydantic.BaseModel):
     through ``from_db`` which constructs with extra='ignore' so that legacy
     columns that no longer exist in code are silently dropped.
     """
-    model_config = pydantic.ConfigDict(extra='forbid')
+    model_config = pydantic.ConfigDict(extra='forbid', populate_by_name=True)
 
     @classmethod
     def from_db(cls, data: Dict):
