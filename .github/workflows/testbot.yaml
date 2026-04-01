@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Testbot: analyzes coverage gaps, generates tests, validates them,
+# and opens a PR for human review. Runs daily on weekdays.
+name: Testbot
+
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'  # Weekdays 6 AM UTC
+  workflow_dispatch:
+    inputs:
+      max_targets:
+        description: 'Max files to target'
+        default: '1'
+      max_lines:
+        description: 'Max uncovered lines per target'
+        default: '200'
+      provider:
+        description: 'LLM provider'
+        type: choice
+        options:
+          - nemotron
+          - claude
+        default: claude
+      dry_run:
+        description: 'Generate but do not create PR'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: testbot
+  cancel-in-progress: true
+
+jobs:
+  generate-tests:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          lfs: true
+          fetch-depth: 0
+          # Use service account PAT so git push and PR creation trigger CI workflows
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/ui/package.json
+
+      - name: Install UI dependencies
+        working-directory: src/ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+          external-cache: |
+            manifest:
+              # Python dependencies
+              osmo_python_deps: src/locked_requirements.txt
+              osmo_tests_python_deps: src/tests/locked_requirements.txt
+              osmo_mypy_deps: bzl/mypy/locked_requirements.txt
+              pylint_python_deps: bzl/linting/locked_requirements.txt
+
+              # Go dependencies
+              io_bazel_rules_go: src/runtime/go.mod
+              bazel_gazelle: src/runtime/go.sum
+
+      - name: Install agent dependencies
+        run: pip install -r src/scripts/testbot/requirements.txt
+
+      - name: Configure git
+        run: |
+          git config user.name "testbot[bot]"
+          git config user.email "testbot[bot]@users.noreply.github.com"
+
+      - name: Run testbot
+        run: |
+          PYTHONPATH=src/scripts python -m testbot.main \
+            --max-targets ${{ inputs.max_targets || '1' }} \
+            --max-lines ${{ inputs.max_lines || '200' }} \
+            --provider ${{ inputs.provider || 'claude' }} \
+            ${{ inputs.dry_run == true && '--dry-run' || '' }}
+        env:
+          LLM_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          # Use service account PAT so created PRs trigger CI workflows
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
