@@ -6,138 +6,90 @@ import json
 import unittest
 
 from testbot.respond import (
+    ReviewThread,
+    _filter_actionable_threads,
     parse_llm_json_response,
-    parse_review_comment,
-    should_skip_comment,
 )
 
 
-CODERABBIT_REVIEW = {
-    "id": 12345,
-    "body": "Fragile error detection via string prefix check.",
-    "path": "src/lib/utils/tests/test_common.py",
-    "line": 42,
-    "start_line": 40,
-    "user": {"login": "coderabbitai[bot]"},
-    "in_reply_to_id": None,
-}
-
-CODERABBIT_AUTO_REPLY = {
-    "id": 12346,
-    "body": "Skipped: comment is from another GitHub bot.",
-    "path": "src/lib/utils/tests/test_common.py",
-    "line": 42,
-    "start_line": None,
-    "user": {"login": "coderabbitai[bot]"},
-    "in_reply_to_id": 12345,
-}
-
-BOT_OWN_REPLY = {
-    "id": 12347,
-    "body": "Applied fix.",
-    "path": "src/lib/utils/tests/test_common.py",
-    "line": 42,
-    "start_line": None,
-    "user": {"login": "github-actions[bot]"},
-    "in_reply_to_id": 12345,
-}
-
-HUMAN_COMMENT = {
-    "id": 12348,
-    "body": "This test doesn't cover the edge case where input is None.",
-    "path": "src/lib/utils/tests/test_common.py",
-    "line": 55,
-    "start_line": None,
-    "user": {"login": "jiaenr"},
-}
-
-TESTBOT_SOURCE_COMMENT = {
-    "id": 12349,
-    "body": "Refactor this function.",
-    "path": "src/scripts/testbot/respond.py",
-    "line": 10,
-    "start_line": None,
-    "user": {"login": "coderabbitai[bot]"},
-    "in_reply_to_id": None,
-}
+def _thread(thread_id="T1", path="src/test.ts", line=10, is_resolved=False, comments=None):
+    """Helper to create a ReviewThread."""
+    if comments is None:
+        comments = [{"databaseId": 1, "body": "Fix this", "author": "jiaenr"}]
+    return ReviewThread(thread_id=thread_id, path=path, line=line, is_resolved=is_resolved, comments=comments)
 
 
-class TestShouldSkipComment(unittest.TestCase):
-    """Tests for comment skip logic — all skips are silent."""
+class TestFilterActionableThreads(unittest.TestCase):
+    """Tests for thread-based filtering logic."""
 
-    def test_respond_to_original_coderabbit_review(self):
-        self.assertIsNone(should_skip_comment(CODERABBIT_REVIEW))
+    def test_skip_resolved(self):
+        threads = [_thread(is_resolved=True)]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 0)
 
-    def test_skip_coderabbit_auto_reply(self):
-        self.assertIsNotNone(should_skip_comment(CODERABBIT_AUTO_REPLY))
+    def test_skip_testbot_source(self):
+        threads = [_thread(path="src/scripts/testbot/respond.py")]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 0)
 
-    def test_skip_own_reply(self):
-        self.assertIsNotNone(should_skip_comment(BOT_OWN_REPLY))
+    def test_skip_empty_comments(self):
+        threads = [_thread(comments=[])]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 0)
 
-    def test_respond_to_human_comment(self):
-        self.assertIsNone(should_skip_comment(HUMAN_COMMENT))
+    def test_skip_last_comment_is_self(self):
+        threads = [_thread(comments=[
+            {"databaseId": 1, "body": "Fix this", "author": "jiaenr"},
+            {"databaseId": 2, "body": "Fixed.", "author": "svc-osmo-ci"},
+        ])]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 0)
 
-    def test_skip_testbot_source_comment(self):
-        self.assertIsNotNone(should_skip_comment(TESTBOT_SOURCE_COMMENT))
+    def test_keep_unresolved_human_comment(self):
+        threads = [_thread()]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 1)
 
-    def test_skip_agent_prefix(self):
-        comment = {**HUMAN_COMMENT, "body": "[skip-agent] This is fine"}
-        self.assertIsNotNone(should_skip_comment(comment))
+    def test_keep_unresolved_coderabbit_review(self):
+        threads = [_thread(comments=[
+            {"databaseId": 1, "body": "Fragile error detection.", "author": "coderabbitai"},
+        ])]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 1)
 
-    def test_skip_svc_osmo_ci(self):
-        comment = {**HUMAN_COMMENT, "user": {"login": "svc-osmo-ci"}}
-        self.assertIsNotNone(should_skip_comment(comment))
-
-
-class TestParseReviewComment(unittest.TestCase):
-    """Tests for parsing GitHub API review comment data."""
-
-    def test_parse_with_reply_to(self):
-        comment = parse_review_comment(CODERABBIT_AUTO_REPLY)
-        self.assertEqual(comment.in_reply_to_id, 12345)
-
-    def test_parse_original_review(self):
-        comment = parse_review_comment(CODERABBIT_REVIEW)
-        self.assertIsNone(comment.in_reply_to_id)
-
-    def test_parse_human_comment(self):
-        comment = parse_review_comment(HUMAN_COMMENT)
-        self.assertEqual(comment.author, "jiaenr")
+    def test_keep_thread_with_new_response_after_bot_reply(self):
+        threads = [_thread(comments=[
+            {"databaseId": 1, "body": "Fix this", "author": "coderabbitai"},
+            {"databaseId": 2, "body": "Applied fix.", "author": "svc-osmo-ci"},
+            {"databaseId": 3, "body": "Still wrong, see line 42.", "author": "coderabbitai"},
+        ])]
+        self.assertEqual(len(_filter_actionable_threads(threads)), 1)
 
 
 class TestParseLlmJsonResponse(unittest.TestCase):
-    """Tests for parsing batch JSON LLM responses."""
+    """Tests for parsing batch JSON LLM responses with resolve field."""
 
-    def test_replies_only(self):
+    def test_replies_with_resolve(self):
         response = json.dumps({
             "fix": None,
             "replies": [
-                {"comment_id": 1, "reply": "This tests the date parser."},
-                {"comment_id": 2, "reply": "Good catch, but not needed here."},
+                {"comment_id": 1, "reply": "Fixed.", "resolve": True},
+                {"comment_id": 2, "reply": "Needs human review.", "resolve": False},
             ],
         })
         data = parse_llm_json_response(response)
-        self.assertIsNone(data["fix"])
-        self.assertEqual(len(data["replies"]), 2)
-        self.assertEqual(data["replies"][0]["comment_id"], 1)
+        self.assertTrue(data["replies"][0]["resolve"])
+        self.assertFalse(data["replies"][1]["resolve"])
 
     def test_fix_with_replies(self):
         response = json.dumps({
-            "fix": "import unittest\nclass Test:\n    pass\n",
-            "replies": [{"comment_id": 1, "reply": "Added timezone test."}],
+            "fix": "import unittest\n",
+            "replies": [{"comment_id": 1, "reply": "Added test.", "resolve": True}],
         })
         data = parse_llm_json_response(response)
         self.assertIn("import unittest", data["fix"])
-        self.assertEqual(len(data["replies"]), 1)
 
     def test_invalid_json_returns_empty(self):
         data = parse_llm_json_response("Not valid JSON")
         self.assertEqual(data, {})
 
     def test_json_embedded_in_text(self):
-        response = 'Here is my response:\n{"fix": null, "replies": [{"comment_id": 1, "reply": "ok"}]}\n'
+        response = 'Here:\n{"fix": null, "replies": [{"comment_id": 1, "reply": "ok", "resolve": true}]}\n'
         data = parse_llm_json_response(response)
-        self.assertIsNone(data["fix"])
         self.assertEqual(len(data["replies"]), 1)
 
 

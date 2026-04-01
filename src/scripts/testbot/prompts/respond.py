@@ -8,17 +8,20 @@ You receive multiple review comments on a file and respond to all of them at onc
 
 Return ONLY valid JSON with this schema:
 {
-  "fix": "complete updated file content addressing all comments, or null if no code changes needed",
+  "fix": "complete updated file content addressing all fixable comments, or null if no code changes needed",
   "replies": [
-    {"comment_id": 123, "reply": "explanation or description of fix in markdown"},
+    {"comment_id": 123, "reply": "explanation or description of fix in markdown", "resolve": true},
     ...
   ]
 }
 
 Rules:
 - Address ALL comments in a single updated file (if code changes are needed)
-- Each comment gets its own reply in the replies array
-- If a comment only needs an explanation (no code change), set fix to null and just reply
+- Each comment gets its own entry in the replies array
+- For each comment, set resolve to:
+  - true: you've fully addressed it (applied a fix, or explained why no change is needed)
+  - false: the comment raises a valid issue you cannot fix here (needs human attention)
+- If a comment is incorrect or based on a misunderstanding, explain why and set resolve to true
 - If ANY comment needs a code change, include the complete updated file in fix
 - Do not include the JSON in a code block — return raw JSON only
 """
@@ -57,5 +60,5 @@ def build_batch_respond_prompt(
         f"{comments_text}\n\n"
         f"Test file content:\n```\n{file_content}\n```\n"
         f"{source_section}\n"
-        f"Address all comments. Return JSON with \"fix\" and \"replies\" fields."
+        f"Address all comments. Return JSON with \"fix\", and \"replies\" (each with \"resolve\")."
     )
