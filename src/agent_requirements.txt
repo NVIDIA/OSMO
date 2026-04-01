@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dependencies for the testbot pipeline.
+# Installed via pip in CI (not Bazel-managed for v1).
+
+openai>=1.0
+langgraph>=0.2.0
+requests>=2.28.0
