@@ -287,10 +287,12 @@ export class DatasetGenerator {
     const mockCurrentUser = MOCK_CONFIG.workflows.users[0];
 
     const datasets: DataListResponse["datasets"] = [];
+    let remaining = requestedCount;
 
-    if (datasetType !== DatasetType.COLLECTION) {
-      const { entries } = this.generatePage(0, Math.min(requestedCount, this.totalDatasets));
+    if (datasetType !== DatasetType.COLLECTION && remaining > 0) {
+      const { entries } = this.generatePage(0, Math.min(remaining, this.totalDatasets));
       for (const d of entries) {
+        if (remaining <= 0) break;
         if (!allUsers && d.user !== mockCurrentUser) continue;
         datasets.push({
           name: d.name,
@@ -303,12 +305,14 @@ export class DatasetGenerator {
           version_id: `v${d.version}`,
           type: DatasetType.DATASET,
         });
+        remaining--;
       }
     }
 
-    if (datasetType !== DatasetType.DATASET) {
-      const collectionCount = Math.min(requestedCount, this.totalCollections);
+    if (datasetType !== DatasetType.DATASET && remaining > 0) {
+      const collectionCount = Math.min(remaining, this.totalCollections);
       for (let i = 0; i < collectionCount; i++) {
+        if (remaining <= 0) break;
         const c = this.generateCollection(i);
         if (!allUsers && c.user !== mockCurrentUser) continue;
         datasets.push({
@@ -322,6 +326,7 @@ export class DatasetGenerator {
           version_id: "",
           type: DatasetType.COLLECTION,
         });
+        remaining--;
       }
     }
 
@@ -362,8 +367,18 @@ export class DatasetGenerator {
     });
   };
 
-  handleFilePreviewHead = async ({ request }: { request: Request }): Promise<Response> => {
+  handleFilePreviewHead = async ({
+    params,
+    request,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+    request: Request;
+  }): Promise<Response> => {
     await delay(getMockDelay());
+    const datasetName = params.name as string;
+    if (this.isPrivateDataset(datasetName)) {
+      return new HttpResponse(null, { status: 401 });
+    }
     const url = new URL(request.url);
     const filePath = url.searchParams.get("path") ?? "";
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
@@ -373,8 +388,18 @@ export class DatasetGenerator {
     });
   };
 
-  handleFilePreviewGet = async ({ request }: { request: Request }): Promise<Response> => {
+  handleFilePreviewGet = async ({
+    params,
+    request,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+    request: Request;
+  }): Promise<Response> => {
     await delay(getMockDelay());
+    const datasetName = params.name as string;
+    if (this.isPrivateDataset(datasetName)) {
+      return new HttpResponse(null, { status: 401 });
+    }
     const url = new URL(request.url);
     const filePath = url.searchParams.get("path") ?? "";
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";

@@ -43,7 +43,7 @@ function generateBucket(index: number) {
 
   return {
     name,
-    path: provider === "minio" ? "http://minio.local:9000" : `s3://${name}`,
+    path: provider === "minio" ? "http://minio.local:9000" : provider === "gcs" ? `gs://${name}` : `s3://${name}`,
     description: `${provider} bucket in ${region}`,
   };
 }

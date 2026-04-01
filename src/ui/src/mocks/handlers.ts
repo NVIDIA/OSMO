@@ -131,29 +131,15 @@ export const handlers = [
   // Workflow spec (resolved YAML)
   http.get("*/api/workflow/:name/spec", async ({ params }) => {
     await delay(MOCK_DELAY);
-
     const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.text(generateYamlSpec(workflow));
+    return HttpResponse.text(generateYamlSpec(workflowGenerator.getByName(name)));
   }),
 
   // Workflow template spec (Jinja template)
   http.get("*/api/workflow/:name/template-spec", async ({ params }) => {
     await delay(MOCK_DELAY);
-
     const name = params.name as string;
-    const workflow = workflowGenerator.getByName(name);
-
-    if (!workflow) {
-      return new HttpResponse(null, { status: 404 });
-    }
-
-    return HttpResponse.text(generateTemplateSpec(workflow));
+    return HttpResponse.text(generateTemplateSpec(workflowGenerator.getByName(name)));
   }),
 
   // Tasks

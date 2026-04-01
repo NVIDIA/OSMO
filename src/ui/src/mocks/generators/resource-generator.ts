@@ -216,6 +216,9 @@ export class ResourceGenerator {
     const allPools = url.searchParams.get("all_pools") === "true";
 
     if (allPools) {
+      if (poolNames.length === 0) {
+        return { resources: [] };
+      }
       const { resources } = this.generateGlobalPage(poolNames, 0, this.totalGlobal);
       return { resources };
     }
