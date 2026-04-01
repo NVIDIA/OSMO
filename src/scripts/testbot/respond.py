@@ -26,6 +26,7 @@ from testbot.tools.test_runner import run_test
 logger = logging.getLogger(__name__)
 
 MAX_AUTO_RESPONSES = 10
+MAX_FIX_RETRIES = 2
 SELF_AUTHORS = {"github-actions[bot]", "svc-osmo-ci"}
 
 THREADS_QUERY = """
@@ -264,64 +265,91 @@ def _process_file_threads(
         source_content=source_content, source_path=source_path,
     )
 
-    logger.info("Calling LLM for %d comments on %s (prompt=%d chars)", len(comment_dicts), file_path, len(user_prompt))
-    try:
-        llm_response = llm.client.chat.completions.create(
-            model=llm.model,
-            messages=[
-                {"role": "system", "content": RESPOND_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.3,
-            max_tokens=16384,
+    # Retry loop: if fix fails validation, feed errors back to LLM
+    fix_applied = False
+    last_validation_error = None
+    data = {}
+
+    for attempt in range(1, MAX_FIX_RETRIES + 2):  # +1 for initial attempt, +1 for reply-only fallback
+        retry_context = ""
+        if last_validation_error:
+            retry_context = (
+                f"\n\nYour previous fix attempt failed validation:\n"
+                f"```\n{last_validation_error}\n```\n"
+                f"Fix the issues and try again, or set fix to null if you cannot resolve them."
+            )
+
+        logger.info(
+            "Calling LLM for %d comments on %s (attempt %d/%d, prompt=%d chars)",
+            len(comment_dicts), file_path, attempt, MAX_FIX_RETRIES + 1, len(user_prompt),
         )
-        response_text = llm_response.choices[0].message.content or ""
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.error("LLM call failed: %s", exc)
-        return 0
+        try:
+            llm_response = llm.client.chat.completions.create(
+                model=llm.model,
+                messages=[
+                    {"role": "system", "content": RESPOND_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt + retry_context},
+                ],
+                temperature=0.3,
+                max_tokens=16384,
+            )
+            response_text = llm_response.choices[0].message.content or ""
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.error("LLM call failed: %s", exc)
+            return 0
 
-    logger.info("LLM response (%d chars)", len(response_text))
-    data = parse_llm_json_response(response_text)
+        logger.info("LLM response (%d chars)", len(response_text))
+        data = parse_llm_json_response(response_text)
 
-    fix_content = data.get("fix")
-    replies = {r["comment_id"]: r for r in data.get("replies", []) if "comment_id" in r}
+        fix_content = data.get("fix")
+        if not fix_content:
+            logger.info("LLM returned no fix (reply only)")
+            break
 
-    # Apply fix if provided
-    if fix_content:
         logger.info("LLM provided a fix (%d chars), validating", len(fix_content))
         write_file(file_path, fix_content)
 
         validation = run_test(file_path)
-        if not validation.passed:
-            logger.warning("Fix validation failed: %s", validation.output[:300])
-            write_file(file_path, file_content)
-            # Post replies with failure note, don't resolve
-            for comment_id, reply_data in replies.items():
-                _reply_to_comment(
-                    pr_number, comment_id,
-                    f"{reply_data.get('reply', 'Addressed.')}\n\n"
-                    f"> **Note:** tests failed after applying fix, needs human review.",
-                )
-            return len(replies)
+        if validation.passed:
+            # Commit and push
+            run_shell(f"git add {shlex.quote(file_path)}")
+            commit_msg = f"testbot: address {len(threads)} review thread(s) on {file_path}"
+            msg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)  # pylint: disable=consider-using-with
+            try:
+                msg_file.write(commit_msg)
+                msg_file.close()
+                run_shell(f"git commit -F {shlex.quote(msg_file.name)}")
+            finally:
+                os.unlink(msg_file.name)
+            run_shell("git push")
+            logger.info("Committed and pushed fix for %s", file_path)
+            fix_applied = True
+            break
 
-        # Commit and push
-        run_shell(f"git add {shlex.quote(file_path)}")
-        commit_msg = f"testbot: address {len(threads)} review thread(s) on {file_path}"
-        msg_file = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)  # pylint: disable=consider-using-with
-        try:
-            msg_file.write(commit_msg)
-            msg_file.close()
-            run_shell(f"git commit -F {shlex.quote(msg_file.name)}")
-        finally:
-            os.unlink(msg_file.name)
-        run_shell("git push")
-        logger.info("Committed and pushed fix for %s", file_path)
+        # Validation failed — restore original and retry
+        logger.warning("Fix validation failed (attempt %d): %s", attempt, validation.output[:300])
+        write_file(file_path, file_content)
+        last_validation_error = validation.output[:1000]
+
+        if attempt > MAX_FIX_RETRIES:
+            logger.info("Max fix retries exhausted, posting reply without fix")
+            break
 
     # Post replies and resolve threads
+    replies = {r["comment_id"]: r for r in data.get("replies", []) if "comment_id" in r}
     replied = 0
     for comment_id, reply_data in replies.items():
         reply_text = reply_data.get("reply", "Acknowledged.")
         should_resolve = reply_data.get("resolve", False)
+
+        if last_validation_error and not fix_applied:
+            reply_text = (
+                f"I attempted to apply a fix but tests failed, so the change was **not applied**.\n\n"
+                f"**My intended fix:** {reply_text}\n\n"
+                f"**Validation error:**\n```\n{last_validation_error[:500]}\n```\n\n"
+                f"Needs human review."
+            )
+            should_resolve = False
 
         _reply_to_comment(pr_number, comment_id, reply_text)
         replied += 1
