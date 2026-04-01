@@ -78,7 +78,7 @@ import {
 import { MOCK_CONFIG, type WorkflowPatterns } from "@/mocks/seed/types";
 import { hashString, getMockDelay, parsePagination, parseWorkflowFilters, hasActiveFilters } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
-import { MOCK_WORKFLOWS } from "@/mocks/mock-workflows";
+import { MOCK_WORKFLOWS, getMockWorkflow } from "@/mocks/mock-workflows";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
@@ -1391,6 +1391,19 @@ export class WorkflowGenerator {
     await delay(getMockDelay());
     const workflowName = params.name as string;
     const taskName = params.taskName as string;
+
+    // Check hardcoded mock workflows first so retry/logs state is preserved
+    const mockWorkflow = getMockWorkflow(workflowName);
+    if (mockWorkflow) {
+      for (const group of mockWorkflow.groups ?? []) {
+        const task = group.tasks?.find((t) => t.name === taskName);
+        if (task) {
+          return HttpResponse.json(task);
+        }
+      }
+      return new HttpResponse(null, { status: 404 });
+    }
+
     const workflow = this.getByName(workflowName);
     for (const group of workflow.groups) {
       const task = group.tasks.find((t) => t.name === taskName);
