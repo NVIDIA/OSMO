@@ -161,7 +161,7 @@ class Job(pydantic.BaseModel):
     def send_job(self, redis_client, redis_config: connectors.RedisConfig, key_name: str):
         exchange, jobs, options = self.get_redis_options()
         priority = connectors.JOB_PRIORITY.get(
-            self.job_type, connectors.DEFAULT_JOB_PRIORITY)
+            self.job_type or '', connectors.DEFAULT_JOB_PRIORITY)
         with kombu.Connection(redis_config.redis_url,
             transport_options=options) as conn:
             with kombu.pools.producers[conn].acquire(block=True) as producer:
