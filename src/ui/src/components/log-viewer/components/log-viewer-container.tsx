@@ -138,7 +138,7 @@ function LogViewerContainerImpl({
         filter={filterProps}
         timeline={timelineProps ?? undefined}
         className={viewerClassName}
-        showTimeline={showTimeline && timelineProps != null}
+        showTimeline={showTimeline}
       />
     </div>
   );
