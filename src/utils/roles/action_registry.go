@@ -1244,6 +1244,7 @@ func matchSemanticAction(pattern, action string) bool {
 // Supports wildcards:
 //   - "*" matches everything
 //   - "pool/*" matches all resources in pool scope
+//   - "pool/team-a*" matches all resources with prefix "pool/team-a"
 //   - "bucket/my-bucket" matches exact resource
 func matchResource(pattern, resource string) bool {
 	// Empty resource means no scope check is needed - always matches
@@ -1265,6 +1266,12 @@ func matchResource(pattern, resource string) bool {
 	if strings.HasSuffix(pattern, "/*") {
 		prefix := strings.TrimSuffix(pattern, "/*")
 		return strings.HasPrefix(resource, prefix+"/") || resource == prefix+"/*"
+	}
+
+	// Trailing wildcard prefix match (e.g., "pool/team-a*" matches "pool/team-a-gpu-03")
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(resource, prefix)
 	}
 
 	// Resource itself is a wildcard pattern (e.g., "pool/*" resource matches "pool/*" pattern)
