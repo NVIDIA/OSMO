@@ -386,32 +386,54 @@ class UploadWorkflowFiles(WorkflowJob):
 
         storage_client = storage.Client.create(
             data_credential=workflow_config.workflow_log.credential,
+            executor_params=storage.ExecutorParameters(
+                num_processes=1,
+                # Additional threads just for context switching between upload
+                # coroutines to be safe
+                num_threads=CONCURRENT_UPLOADS + 2,
+            ),
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for file in self.files:
-                file_path = os.path.join(temp_dir, file.path)
-                with open(file_path, 'w+', encoding='utf-8') as local_file:
+        async def upload_file(file: File):
+            fd, tmp_path = tempfile.mkstemp()
+            try:
+                os.close(fd)
+                with open(tmp_path, 'w', encoding='utf-8') as local_file:
                     local_file.write(file.content)
                     local_file.flush()
 
-            # Trigger progress update (if applicable) whenever a file is uploaded
-            last_timestamp = datetime.datetime.now()
+                await progress_writer.report_progress_async()
 
-            def _upload_callback(upload_input, upload_resp) -> None:
-                # pylint: disable=unused-argument
-                nonlocal last_timestamp
-                current_timestamp = datetime.datetime.now()
-                time_elapsed = last_timestamp - current_timestamp
-                if time_elapsed > progress_iter_freq:
-                    progress_writer.report_progress()
-                    last_timestamp = current_timestamp
+                # Wrap the call in a concrete no-arg function to avoid
+                # overload issues during lint.
+                def _upload() -> storage.UploadSummary:
+                    return storage_client.upload_objects(
+                        source=tmp_path,
+                        destination_prefix=self.workflow_id,
+                        destination_name=file.path,
+                    )
 
-            storage_client.upload_objects(
-                source=os.path.join(temp_dir, '*'), # upload contents only
-                destination_prefix=self.workflow_id,
-                callback=_upload_callback,
+                await asyncio.to_thread(_upload)
+
+                await progress_writer.report_progress_async()
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+        semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
+
+        async def upload_file_concurrently(file: File):
+            async with semaphore:
+                await upload_file(file)
+
+        async def run_uploads():
+            await asyncio.gather(
+                *(upload_file_concurrently(file) for file in self.files)
             )
+
+        asyncio.run(run_uploads())
 
         return JobResult()
 
