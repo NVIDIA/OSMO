@@ -163,8 +163,8 @@ export interface LogViewerProps {
   data: LogViewerDataProps;
   /** Filter-related props (chips, scope) */
   filter: LogViewerFilterProps;
-  /** Timeline-related props (time range, presets, entity boundaries) */
-  timeline: LogViewerTimelineProps;
+  /** Timeline-related props (time range, presets, entity boundaries). Omit when entity hasn't started. */
+  timeline?: LogViewerTimelineProps;
   /** Additional CSS classes */
   className?: string;
   /** Whether to show the timeline histogram and time range controls (default: true) */
@@ -230,22 +230,20 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Destructure filter props
   const { filterChips, onFilterChipsChange, scope } = filter;
 
-  // Destructure timeline props
-  const {
-    filterStartTime,
-    filterEndTime,
-    displayStart,
-    displayEnd,
-    activePreset,
-    onFilterStartTimeChange,
-    onFilterEndTimeChange,
-    onPresetSelect,
-    onDisplayRangeChange,
-    onClearPendingDisplay,
-    entityStartTime,
-    entityEndTime,
-    now,
-  } = timeline;
+  // Destructure timeline props (may be undefined if entity hasn't started yet)
+  const filterStartTime = timeline?.filterStartTime;
+  const filterEndTime = timeline?.filterEndTime;
+  const displayStart = timeline?.displayStart;
+  const displayEnd = timeline?.displayEnd;
+  const activePreset = timeline?.activePreset;
+  const onFilterStartTimeChange = timeline?.onFilterStartTimeChange;
+  const onFilterEndTimeChange = timeline?.onFilterEndTimeChange;
+  const onPresetSelect = timeline?.onPresetSelect;
+  const onDisplayRangeChange = timeline?.onDisplayRangeChange;
+  const onClearPendingDisplay = timeline?.onClearPendingDisplay;
+  const entityStartTime = timeline?.entityStartTime;
+  const entityEndTime = timeline?.entityEndTime;
+  const now = timeline?.now;
   const { announcer } = useServices();
 
   // Scope-aware filter fields: hide "task" field when already scoped to a single task
@@ -318,6 +316,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
     (bucket: HistogramBucket) => {
+      if (!onFilterStartTimeChange || !onFilterEndTimeChange) return;
       // Set time range around the clicked bucket using constant for window size
       const bucketTime = bucket.timestamp.getTime();
       onFilterStartTimeChange(new Date(bucketTime - HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
@@ -330,6 +329,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Handle preset selection
   const handlePresetSelect = useCallback(
     (preset: TimeRangePreset) => {
+      if (!onPresetSelect) return;
       onPresetSelect(preset);
       const message = preset === "all" ? "all logs" : preset === "custom" ? "custom time range" : `last ${preset}`;
       announcer.announce(`Showing ${message}`, "polite");
@@ -340,6 +340,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Wrap time change handlers to clear pending display
   const handleStartTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
+      if (!onFilterStartTimeChange || !onClearPendingDisplay) return;
       onFilterStartTimeChange(time);
       onClearPendingDisplay();
     },
@@ -348,6 +349,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
 
   const handleEndTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
+      if (!onFilterEndTimeChange || !onClearPendingDisplay) return;
       onFilterEndTimeChange(time);
       onClearPendingDisplay();
     },
@@ -618,11 +620,11 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
             defaultCollapsed={timelineCollapsed}
             // Enable interactive draggers
             enableInteractiveDraggers
-            // Entity boundaries for pan limits
-            entityStartTime={entityStartTime}
+            // Entity boundaries for pan limits (guaranteed defined when showTimeline is true)
+            entityStartTime={entityStartTime!}
             entityEndTime={entityEndTime}
             // Synchronized "NOW" timestamp
-            now={now}
+            now={now!}
             // Zoom controls overlay
             customControls={
               <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">

@@ -14,6 +14,23 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+/**
+ * Task Summary Generator
+ *
+ * Generates realistic ListTaskSummaryEntry[] for the occupancy page mock.
+ * Each entry is one (user, pool, priority) bucket of aggregated resource usage
+ * matching the shape returned by GET /api/task?summary=true.
+ *
+ * Coverage:
+ *   - 33 users with distinct workload profiles
+ *   - 12 pools (cloud, on-prem, shared, specialised tiers)
+ *   - All three priorities across realistic user/pool combinations
+ *   - Edge cases: GPU=0 CPU-only tasks, single-priority users, users spanning
+ *     many pools, pools with a single user, heavy vs light users, automated users
+ *   - Filter support: users[], pools[], priorities[], limit
+ *   - Fully deterministic — seeded so data is stable across hot-reloads
+ */
+
 import { faker } from "@faker-js/faker";
 import { delay, HttpResponse, passthrough } from "msw";
 import type { ListTaskSummaryEntry, ListTaskSummaryResponse } from "@/lib/api/generated";
@@ -245,6 +262,171 @@ const USER_PROFILES: UserProfile[] = [
           { priority: "NORMAL", resources: CPU_ONLY },
         ],
       },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // Additional users to exceed the old 20-user cap for filter testing
+  // -------------------------------------------------------------------------
+  {
+    user: "ivan.novak",
+    pools: [
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+    ],
+  },
+  {
+    user: "julia.martinez",
+    pools: [
+      { pool: "training-pool", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "research-cluster", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "kevin.oshea",
+    pools: [
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+      { pool: "shared-pool-alpha", buckets: [{ priority: "NORMAL", resources: CPU_ONLY }] },
+    ],
+  },
+  {
+    user: "linda.nakamura",
+    pools: [
+      { pool: "dgx-cloud-eu-west-1", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+      { pool: "inference-pool", buckets: [{ priority: "NORMAL", resources: INFERENCE }] },
+    ],
+  },
+  {
+    user: "marcus.berg",
+    pools: [
+      { pool: "dedicated-h100-80gb", buckets: [{ priority: "HIGH", resources: GPU_XLARGE }] },
+      { pool: "benchmark-pool", buckets: [{ priority: "NORMAL", resources: BENCH }] },
+    ],
+  },
+  {
+    user: "nina.petrova",
+    pools: [
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "dgx-cloud-us-east-1", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "oscar.diaz",
+    pools: [
+      { pool: "shared-pool-beta", buckets: [{ priority: "LOW", resources: CPU_ONLY }] },
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "NORMAL", resources: GPU_MINIMAL }] },
+    ],
+  },
+  {
+    user: "priya.sharma",
+    pools: [
+      { pool: "training-pool", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "quinn.taylor",
+    pools: [
+      { pool: "research-cluster", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "dedicated-a100-80gb", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+    ],
+  },
+  {
+    user: "rafael.costa",
+    pools: [
+      { pool: "inference-pool", buckets: [{ priority: "LOW", resources: INFERENCE }] },
+      { pool: "shared-pool-alpha", buckets: [{ priority: "NORMAL", resources: CPU_ONLY }] },
+    ],
+  },
+  {
+    user: "sarah.oconnor",
+    pools: [
+      { pool: "dgx-cloud-eu-west-1", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+    ],
+  },
+  {
+    user: "thomas.weber",
+    pools: [
+      { pool: "benchmark-pool", buckets: [{ priority: "HIGH", resources: BENCH }] },
+      { pool: "dgx-cloud-us-east-1", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "ursula.fischer",
+    pools: [
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+      { pool: "training-pool", buckets: [{ priority: "LOW", resources: GPU_MINIMAL }] },
+    ],
+  },
+  {
+    user: "victor.santos",
+    pools: [
+      { pool: "dedicated-h100-80gb", buckets: [{ priority: "NORMAL", resources: GPU_HEAVY }] },
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "wendy.liu",
+    pools: [
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+      { pool: "research-cluster", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "xavier.dupont",
+    pools: [
+      { pool: "shared-pool-beta", buckets: [{ priority: "NORMAL", resources: CPU_ONLY }] },
+      { pool: "inference-pool", buckets: [{ priority: "LOW", resources: INFERENCE }] },
+    ],
+  },
+  {
+    user: "yuki.tanaka",
+    pools: [
+      { pool: "dgx-cloud-eu-west-1", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+      { pool: "training-pool", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "zara.ahmed",
+    pools: [
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+      { pool: "dedicated-a100-80gb", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "alex.volkov",
+    pools: [
+      { pool: "benchmark-pool", buckets: [{ priority: "NORMAL", resources: BENCH }] },
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "bianca.rossi",
+    pools: [
+      { pool: "shared-pool-alpha", buckets: [{ priority: "LOW", resources: CPU_ONLY }] },
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "NORMAL", resources: GPU_MINIMAL }] },
+    ],
+  },
+  {
+    user: "carlos.mendoza",
+    pools: [
+      { pool: "dgx-cloud-us-east-1", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+      { pool: "research-cluster", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "diana.park",
+    pools: [
+      { pool: "training-pool", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+      { pool: "inference-pool", buckets: [{ priority: "NORMAL", resources: INFERENCE }] },
+    ],
+  },
+  {
+    user: "ethan.wright",
+    pools: [
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "shared-pool-beta", buckets: [{ priority: "LOW", resources: CPU_ONLY }] },
     ],
   },
 ];

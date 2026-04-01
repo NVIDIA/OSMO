@@ -592,7 +592,7 @@ export const TaskDetails = memo(function TaskDetails({
           scrollable={false}
           className="p-0"
         >
-          {activeTab === "logs" && workflowName && task.logs && (
+          {activeTab === "logs" && workflowName && (
             <div className="absolute inset-0">
               <LogViewerContainer
                 logUrl={task.logs}
@@ -610,7 +610,7 @@ export const TaskDetails = memo(function TaskDetails({
               />
             </div>
           )}
-          {activeTab === "logs" && (!task.logs || !workflowName) && (
+          {activeTab === "logs" && !workflowName && (
             <div className="flex h-full items-center justify-center p-4">
               <EmptyTabPrompt
                 icon={TextSearch}

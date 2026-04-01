@@ -657,6 +657,183 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
   },
 
   /**
+   * Workflow with logs available but task still scheduling (no start_time).
+   * Tests that logs/events are fetched even before the task starts running.
+   */
+  "mock-has-logs-not-started": {
+    name: "mock-has-logs-not-started",
+    uuid: "550e8400-e29b-41d4-a716-446655440009",
+    submitted_by: "user@example.com",
+    status: WorkflowStatus.PENDING,
+    priority: WorkflowPriority.NORMAL,
+    pool: "default",
+    backend: "kubernetes",
+    tags: ["training", "scheduling", "pre-start"],
+    submit_time: new Date(Date.now() - 120_000).toISOString(), // 2 minutes ago
+    queued_time: 120,
+    groups: [
+      {
+        name: "train",
+        status: TaskGroupStatus.WAITING,
+        remaining_upstream_groups: [],
+        downstream_groups: [],
+        tasks: [
+          {
+            name: "train",
+            retry_id: 0,
+            status: TaskGroupStatus.WAITING,
+            lead: true,
+            task_uuid: "task-notstarted-001",
+            pod_name: "",
+            // No start_time — task hasn't started yet
+            // But logs and events URLs are present
+            logs: "/api/workflow/mock-has-logs-not-started/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-has-logs-not-started/events?task_id=train&retry_id=0",
+          },
+        ],
+      },
+    ],
+    spec: "/api/workflow/mock-has-logs-not-started/spec",
+    template_spec: "/api/workflow/mock-has-logs-not-started/template-spec",
+    logs: "/api/workflow/mock-has-logs-not-started/logs",
+    events: "/api/workflow/mock-has-logs-not-started/events",
+    overview: "/api/workflow/mock-has-logs-not-started/overview",
+    outputs: undefined,
+    plugins: {},
+    _logConfig: {
+      volume: { min: 50, max: 200 },
+      levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
+      ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
+      features: {
+        retries: false,
+        multiLine: false,
+        ansiCodes: false,
+        infinite: true,
+        streamDelayMs: 500,
+        taskCount: 1,
+      },
+    },
+  },
+
+  /**
+   * Completed workflow with a rescheduled (restarted) task.
+   * task2 retry_id=0 failed with RESCHEDULED, then retry_id=1 succeeded.
+   * Based on real restart-1067 workflow from staging.
+   */
+  "mock-restart-completed": {
+    name: "mock-restart-completed",
+    uuid: "550e8400-e29b-41d4-a716-44665544000a",
+    submitted_by: "user@example.com",
+    status: WorkflowStatus.COMPLETED,
+    priority: WorkflowPriority.NORMAL,
+    pool: "default",
+    backend: "kubernetes",
+    tags: ["restart", "reschedule"],
+    submit_time: new Date(BASE_SUBMIT_TIME.getTime()).toISOString(),
+    start_time: new Date(BASE_SUBMIT_TIME.getTime() + 323_000).toISOString(), // ~5m queue
+    end_time: new Date(BASE_SUBMIT_TIME.getTime() + 437_000).toISOString(), // ~2m run
+    queued_time: 323,
+    duration: 114,
+    groups: [
+      {
+        name: "my_group",
+        status: TaskGroupStatus.COMPLETED,
+        remaining_upstream_groups: [],
+        downstream_groups: [],
+        tasks: [
+          // task1: completed normally on first attempt
+          {
+            name: "task1",
+            retry_id: 0,
+            status: TaskGroupStatus.COMPLETED,
+            lead: true,
+            task_uuid: "task-restart-001",
+            pod_name: "restart-task1-abc",
+            pod_ip: "10.244.13.85",
+            node_name: "node-1",
+            processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 13_000).toISOString(),
+            scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 323_000).toISOString(),
+            initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 323_500).toISOString(),
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 324_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 437_000).toISOString(),
+            input_download_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 22_000).toISOString(),
+            input_download_end_time: new Date(BASE_SUBMIT_TIME.getTime() + 22_000).toISOString(),
+            output_upload_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 405_000).toISOString(),
+            exit_code: 0,
+            logs: "/api/workflow/mock-restart-completed/logs?task_id=task1&retry_id=0",
+            events: "/api/workflow/mock-restart-completed/events?task_id=task1&retry_id=0",
+          },
+          // task2 retry 1: rescheduled attempt that succeeded
+          {
+            name: "task2",
+            retry_id: 1,
+            status: TaskGroupStatus.COMPLETED,
+            task_uuid: "task-restart-002",
+            pod_name: "restart-task2-r1-def",
+            pod_ip: "10.244.13.94",
+            node_name: "node-1",
+            processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 13_000).toISOString(),
+            scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 415_000).toISOString(),
+            initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 415_200).toISOString(),
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 423_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 437_000).toISOString(),
+            input_download_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 399_000).toISOString(),
+            input_download_end_time: new Date(BASE_SUBMIT_TIME.getTime() + 399_000).toISOString(),
+            output_upload_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 405_000).toISOString(),
+            exit_code: 0,
+            logs: "/api/workflow/mock-restart-completed/logs?task_id=task2&retry_id=1",
+            events: "/api/workflow/mock-restart-completed/events?task_id=task2&retry_id=1",
+          },
+          // task2 retry 0: original attempt that was rescheduled
+          {
+            name: "task2",
+            retry_id: 0,
+            status: TaskGroupStatus.RESCHEDULED,
+            task_uuid: "task-restart-002",
+            pod_name: "restart-task2-r0-ghi",
+            pod_ip: "10.244.13.84",
+            node_name: "node-1",
+            processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 13_000).toISOString(),
+            scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 323_000).toISOString(),
+            initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 323_500).toISOString(),
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 324_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 348_000).toISOString(),
+            input_download_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 21_000).toISOString(),
+            input_download_end_time: new Date(BASE_SUBMIT_TIME.getTime() + 21_000).toISOString(),
+            output_upload_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 28_000).toISOString(),
+            failure_message:
+              "Failure reason:\n- Exit code 1 due to Task task2 failure. Exit Action: RESCHEDULE the task for exit code 1.",
+            exit_code: 1,
+            logs: "/api/workflow/mock-restart-completed/logs?task_id=task2&retry_id=0",
+            error_logs: "/api/workflow/mock-restart-completed/error_logs?task_name=task2&retry_id=0",
+            events: "/api/workflow/mock-restart-completed/events?task_id=task2&retry_id=0",
+          },
+        ],
+      },
+    ],
+    spec: "/api/workflow/mock-restart-completed/spec",
+    template_spec: "/api/workflow/mock-restart-completed/template-spec",
+    logs: "/api/workflow/mock-restart-completed/logs",
+    events: "/api/workflow/mock-restart-completed/events",
+    overview: "/api/workflow/mock-restart-completed/overview",
+    outputs: undefined,
+    plugins: { rsync: true },
+    _logConfig: {
+      volume: { min: 200, max: 500 },
+      levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
+      ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
+      features: {
+        retries: false,
+        multiLine: true,
+        ansiCodes: false,
+        infinite: false,
+        streamDelayMs: 200,
+        taskCount: 3,
+      },
+    },
+  },
+
+  /**
    * Multi-task workflow - complex DAG with many groups and tasks.
    * Tests UI with large task counts and complex dependencies.
    */
