@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Auto-responds to review comments (CodeRabbit bot + human) on AI-generated PRs.
+# Applies fixes, validates tests pass, re-runs quality gate, and pushes.
+name: Testbot - Respond to Reviews
+
+on:
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: testbot-respond-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  respond:
+    # Only respond on PRs with the ai-generated label
+    if: contains(github.event.pull_request.labels.*.name, 'ai-generated')
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 20
+
+      - name: Install agent dependencies
+        run: pip install -r src/agent_requirements.txt
+
+      - name: Configure git
+        run: |
+          git config user.name "testbot[bot]"
+          git config user.email "testbot[bot]@users.noreply.github.com"
+
+      - name: Respond to review comments
+        run: |
+          PYTHONPATH=src/scripts python -m testbot.respond \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --provider ${{ vars.AGENT_LLM_PROVIDER || 'claude' }}
+        env:
+          AGENT_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
