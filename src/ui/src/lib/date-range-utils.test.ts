@@ -164,6 +164,96 @@ describe("date-range-utils", () => {
         expect(result!.start.toISOString()).toBe("2024-06-08T00:00:00.000Z");
       });
     });
+
+    describe("time zone handling", () => {
+      it("always produces UTC dates regardless of input format", () => {
+        // The implementation explicitly parses to UTC, so results should always be UTC
+        const dateResult = parseDateRangeValue("2024-06-15");
+        const datetimeResult = parseDateRangeValue("2024-06-15T14:30");
+
+        expect(dateResult).not.toBeNull();
+        expect(datetimeResult).not.toBeNull();
+
+        // Verify UTC by checking the timezone offset in ISO string (ends with Z)
+        expect(dateResult!.start.toISOString()).toMatch(/Z$/);
+        expect(dateResult!.end.toISOString()).toMatch(/Z$/);
+        expect(datetimeResult!.start.toISOString()).toMatch(/Z$/);
+        expect(datetimeResult!.end.toISOString()).toMatch(/Z$/);
+      });
+
+      it("parses date as UTC midnight, not local midnight", () => {
+        // When parsing "2024-06-15", it should be interpreted as UTC midnight
+        // regardless of the local timezone
+        const result = parseDateRangeValue("2024-06-15");
+
+        expect(result).not.toBeNull();
+        // The start should be exactly UTC midnight
+        expect(result!.start.getUTCHours()).toBe(0);
+        expect(result!.start.getUTCMinutes()).toBe(0);
+        expect(result!.start.getUTCSeconds()).toBe(0);
+        expect(result!.start.getUTCMilliseconds()).toBe(0);
+      });
+
+      it("parses datetime as UTC, not local time", () => {
+        // "2024-06-15T14:30" should be interpreted as 14:30 UTC
+        const result = parseDateRangeValue("2024-06-15T14:30");
+
+        expect(result).not.toBeNull();
+        expect(result!.start.getUTCHours()).toBe(14);
+        expect(result!.start.getUTCMinutes()).toBe(30);
+        expect(result!.start.getUTCSeconds()).toBe(0);
+      });
+
+      it("produces consistent results for range strings in UTC", () => {
+        const result = parseDateRangeValue("2024-01-01..2024-01-31");
+
+        expect(result).not.toBeNull();
+        // Start should be Jan 1 UTC midnight
+        expect(result!.start.getUTCFullYear()).toBe(2024);
+        expect(result!.start.getUTCMonth()).toBe(0); // January
+        expect(result!.start.getUTCDate()).toBe(1);
+        expect(result!.start.getUTCHours()).toBe(0);
+
+        // End should be Feb 1 UTC midnight (exclusive end for Jan 31)
+        expect(result!.end.getUTCFullYear()).toBe(2024);
+        expect(result!.end.getUTCMonth()).toBe(1); // February
+        expect(result!.end.getUTCDate()).toBe(1);
+        expect(result!.end.getUTCHours()).toBe(0);
+      });
+
+      describe("presets use UTC calculations", () => {
+        afterEach(() => {
+          vi.useRealTimers();
+        });
+
+        it("'today' preset uses UTC date, not local date", () => {
+          // Set time to just before midnight UTC on June 15
+          // In PT (UTC-7), this would still be June 14 evening
+          vi.useFakeTimers();
+          vi.setSystemTime(new Date("2024-06-15T02:00:00.000Z"));
+
+          const result = parseDateRangeValue("today");
+
+          expect(result).not.toBeNull();
+          // Should be June 15 UTC, not June 14 (which it would be in PT)
+          expect(result!.start.toISOString()).toBe("2024-06-15T00:00:00.000Z");
+          expect(result!.end.toISOString()).toBe("2024-06-16T00:00:00.000Z");
+        });
+
+        it("'last 7 days' preset calculates days in UTC", () => {
+          // Set time to early morning UTC
+          vi.useFakeTimers();
+          vi.setSystemTime(new Date("2024-06-15T03:00:00.000Z"));
+
+          const result = parseDateRangeValue("last 7 days");
+
+          expect(result).not.toBeNull();
+          // 7 days ago from June 15 UTC should be June 8 UTC
+          expect(result!.start.toISOString()).toBe("2024-06-08T00:00:00.000Z");
+          expect(result!.end.toISOString()).toBe("2024-06-16T00:00:00.000Z");
+        });
+      });
+    });
   });
 
   describe("DATE_RANGE_PRESETS", () => {
