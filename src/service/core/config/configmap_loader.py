@@ -66,18 +66,23 @@ def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresCon
 
     managed_configs = raw_config['managed_configs']
 
-    # Acquire transaction-scoped advisory lock so only one replica applies configs.
-    # Using pg_try_advisory_xact_lock instead of pg_try_advisory_lock because
-    # xact locks are automatically released at transaction end, preventing lock
-    # leaks if the process is killed (OOM, SIGKILL) before explicit unlock.
+    # Acquire session-level advisory lock so only one replica applies configs.
+    # Session-level (not xact-level) because execute_fetch_command auto-commits,
+    # which would release a xact-level lock immediately. Session-level locks
+    # persist until explicitly released or the connection closes.
     lock_result = postgres.execute_fetch_command(
-        "SELECT pg_try_advisory_xact_lock(hashtext('configmap-sync'))",
+        "SELECT pg_try_advisory_lock(hashtext('configmap-sync'))",
         (), return_raw=True)
-    if not lock_result or not lock_result[0]['pg_try_advisory_xact_lock']:
+    if not lock_result or not lock_result[0]['pg_try_advisory_lock']:
         logging.info('Another replica is applying dynamic configs, skipping')
         return
 
-    _apply_all_configs(managed_configs, postgres)
+    try:
+        _apply_all_configs(managed_configs, postgres)
+    finally:
+        postgres.execute_fetch_command(
+            "SELECT pg_advisory_unlock(hashtext('configmap-sync'))",
+            (), return_raw=True)
 
     logging.info('Dynamic config loading complete')
 
@@ -86,7 +91,6 @@ def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresCon
 # Config file watcher (polling + hash-based change detection)
 # ---------------------------------------------------------------------------
 
-_DEFAULT_POLL_INTERVAL_SECONDS = 30
 _last_config_hash: str | None = None
 
 
@@ -101,7 +105,7 @@ def _compute_file_hash(file_path: str) -> str | None:
 
 def start_config_watcher(config_file_path: str,
                          postgres: connectors.PostgresConnector,
-                         poll_interval: int = _DEFAULT_POLL_INTERVAL_SECONDS,
+                         poll_interval: int = 30,
                          ) -> threading.Thread:
     """Start a background daemon thread that polls the config file for changes.
 
@@ -174,9 +178,14 @@ def _apply_all_configs(managed_configs: Dict[str, Any] | None,
     _safe_apply('roles', managed_configs, postgres, _apply_roles)
 
     # Phase 5: Singleton configs
-    _safe_apply('service', managed_configs, postgres, _apply_service_config)
-    _safe_apply('workflow', managed_configs, postgres, _apply_workflow_config)
-    _safe_apply('dataset', managed_configs, postgres, _apply_dataset_config)
+    _safe_apply('service', managed_configs, postgres,
+                lambda s, pg: _apply_singleton_config(s, pg, connectors.ConfigType.SERVICE))
+    _safe_apply('workflow', managed_configs, postgres,
+                lambda s, pg: _apply_singleton_config(s, pg, connectors.ConfigType.WORKFLOW))
+    _safe_apply('dataset', managed_configs, postgres,
+                lambda s, pg: _apply_singleton_config(
+                    s, pg, connectors.ConfigType.DATASET,
+                    pre_apply=_resolve_dataset_secret_files))
 
 
 def _safe_apply(config_key: str, managed_configs: Dict[str, Any],
@@ -218,84 +227,43 @@ def _singleton_config_exists(config_type: connectors.ConfigType,
     """
     try:
         result = postgres.execute_fetch_command(
-            'SELECT COUNT(*) as count FROM config_history WHERE config_type = %s',
+            'SELECT 1 FROM config_history WHERE config_type = %s LIMIT 1',
             (config_type.value.lower(),), return_raw=True)
-        return result[0]['count'] > 0
+        return len(result) > 0
     except osmo_errors.OSMODatabaseError:
         return False
 
 
-def _apply_service_config(section: Dict[str, Any],
-                          postgres: connectors.PostgresConnector) -> None:
+def _apply_singleton_config(
+    section: Dict[str, Any],
+    postgres: connectors.PostgresConnector,
+    config_type: connectors.ConfigType,
+    pre_apply: Callable[[Dict[str, Any]], None] | None = None,
+) -> None:
+    """Apply a singleton config (SERVICE, WORKFLOW, or DATASET)."""
     managed_by = _parse_managed_by(section)
     config_data = section.get('config', {})
     if not config_data:
         return
 
+    label = config_type.value.lower()
     if managed_by == ManagedByMode.SEED and _singleton_config_exists(
-            connectors.ConfigType.SERVICE, postgres):
-        logging.info('Service config already exists, skipping (managed_by=seed)')
+            config_type, postgres):
+        logging.info('%s config already exists, skipping (managed_by=seed)',
+                     label.capitalize())
         return
 
-    logging.info('Applying service config (managed_by=%s)', managed_by.value)
+    if pre_apply:
+        pre_apply(config_data)
+
+    logging.info('Applying %s config (managed_by=%s)', label, managed_by.value)
     config_helpers.patch_configs(
         request=config_objects.PatchConfigRequest(
             configs_dict=config_data,
             description=f'Applied from dynamic config (managed_by={managed_by.value})',
             tags=CONFIGMAP_SYNC_TAGS,
         ),
-        config_type=connectors.ConfigType.SERVICE,
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_workflow_config(section: Dict[str, Any],
-                           postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    config_data = section.get('config', {})
-    if not config_data:
-        return
-
-    if managed_by == ManagedByMode.SEED and _singleton_config_exists(
-            connectors.ConfigType.WORKFLOW, postgres):
-        logging.info('Workflow config already exists, skipping (managed_by=seed)')
-        return
-
-    logging.info('Applying workflow config (managed_by=%s)', managed_by.value)
-    config_helpers.patch_configs(
-        request=config_objects.PatchConfigRequest(
-            configs_dict=config_data,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        config_type=connectors.ConfigType.WORKFLOW,
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_dataset_config(section: Dict[str, Any],
-                          postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    config_data = section.get('config', {})
-    if not config_data:
-        return
-
-    if managed_by == ManagedByMode.SEED and _singleton_config_exists(
-            connectors.ConfigType.DATASET, postgres):
-        logging.info('Dataset config already exists, skipping (managed_by=seed)')
-        return
-
-    # Handle secret_file references in bucket credentials
-    _resolve_dataset_secret_files(config_data)
-
-    logging.info('Applying dataset config (managed_by=%s)', managed_by.value)
-    config_helpers.patch_configs(
-        request=config_objects.PatchConfigRequest(
-            configs_dict=config_data,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        config_type=connectors.ConfigType.DATASET,
+        config_type=config_type,
         username=CONFIGMAP_SYNC_USERNAME,
     )
 
@@ -333,12 +301,13 @@ def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
                           secret_file_path, bucket_name, error)
             continue
 
-        # Only mutate the credential dict after successful validation
         default_credential.pop('secret_file')
         default_credential['access_key_id'] = access_key_id
         default_credential['access_key'] = access_key
         # StaticDataCredential requires 'endpoint'. Default to the bucket's
         # dataset_path if not provided in the secret file or credential dict.
+        # StaticDataCredential requires 'endpoint' (the storage URI).
+        # Default to dataset_path since they share the same format (e.g. s3://bucket).
         if 'endpoint' not in default_credential and 'endpoint' not in secret_data:
             default_credential['endpoint'] = bucket_config.get('dataset_path', '')
         for optional_field in ('region', 'endpoint', 'override_url'):
@@ -433,7 +402,7 @@ def _apply_backends(section: Dict[str, Any],
 
     for name, backend_data in items.items():
         try:
-            backend_exists = _backend_exists(name, postgres)
+            backend_exists = _named_config_exists(name, connectors.Backend, postgres)
             if managed_by == ManagedByMode.SEED and backend_exists:
                 logging.info('Backend %s already exists, skipping (managed_by=seed)', name)
                 continue
@@ -457,14 +426,6 @@ def _apply_backends(section: Dict[str, Any],
         except Exception:
             logging.exception('Failed to apply backend config for %s', name)
 
-
-def _backend_exists(name: str, postgres: connectors.PostgresConnector) -> bool:
-    """Check if a backend exists in the database."""
-    try:
-        connectors.Backend.fetch_from_db(postgres, name)
-        return True
-    except osmo_errors.OSMOBackendError:
-        return False
 
 
 def _insert_backend(name: str, backend_data: Dict[str, Any],
