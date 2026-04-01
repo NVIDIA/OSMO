@@ -1,0 +1,273 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-License-Identifier: Apache-2.0
+"""Unified LLM client for OpenAI-compatible inference APIs.
+
+Supports Claude (default) and Nemotron models via NVIDIA inference API.
+Override defaults with environment variables:
+
+  LLM_API_KEY    - API key (required)
+  AGENT_MODEL    - Model name (overrides provider default)
+  AGENT_BASE_URL - API base URL (overrides provider default)
+"""
+
+import logging
+import os
+import re
+from typing import Optional
+
+from testbot.plugins.base import (
+    GeneratedTest,
+    TestType,
+    ValidationResult,
+    LLMProvider,
+    determine_test_path,
+)
+from testbot.prompts.go_test import GO_TEST_SYSTEM_PROMPT, build_go_prompt
+from testbot.prompts.python_test import (
+    PYTHON_TEST_SYSTEM_PROMPT,
+    build_python_prompt,
+)
+from testbot.prompts.ui_test import UI_TEST_SYSTEM_PROMPT, build_ui_prompt
+from testbot.tools.file_ops import read_file, write_file
+from testbot.tools.test_runner import run_test
+
+from openai import OpenAI
+
+logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPTS = {
+    TestType.PYTHON: PYTHON_TEST_SYSTEM_PROMPT,
+    TestType.GO: GO_TEST_SYSTEM_PROMPT,
+    TestType.UI: UI_TEST_SYSTEM_PROMPT,
+}
+
+PROMPT_BUILDERS = {
+    TestType.PYTHON: build_python_prompt,
+    TestType.GO: build_go_prompt,
+    TestType.UI: build_ui_prompt,
+}
+
+PROVIDER_DEFAULTS = {
+    "nemotron": {
+        "model": "nvidia/nvidia/nemotron-3-super-v3",
+        "base_url": "https://inference-api.nvidia.com",
+    },
+    "claude": {
+        "model": "aws/anthropic/claude-opus-4-5",
+        "base_url": "https://inference-api.nvidia.com/v1",
+    },
+}
+
+
+class LLMClient(LLMProvider):
+    """Unified LLM client for NVIDIA inference API.
+
+    Use --provider for presets (claude, nemotron), or override with
+    AGENT_MODEL / AGENT_BASE_URL env vars.
+    """
+
+    def __init__(self, provider: str = "claude"):
+        defaults = PROVIDER_DEFAULTS.get(provider, PROVIDER_DEFAULTS["claude"])
+
+        self.model = os.getenv("AGENT_MODEL", defaults["model"])
+        self.base_url = os.getenv("AGENT_BASE_URL", defaults["base_url"])
+        api_key = os.getenv("LLM_API_KEY", "")
+
+        if not api_key:
+            logger.warning("No API key for provider=%s (set LLM_API_KEY)", provider)
+
+        self.client = OpenAI(base_url=self.base_url, api_key=api_key)
+        logger.info("LLMClient: model=%s base_url=%s", self.model, self.base_url)
+
+    def generate_test(
+        self,
+        source_path: str,
+        uncovered_ranges: list[tuple[int, int]],
+        existing_test_path: Optional[str] = None,
+        test_type: str = "python",
+        build_package: str = "",  # pylint: disable=unused-argument
+        retry_context: Optional[str] = None,
+    ) -> GeneratedTest:
+        """Generate a test file by calling the LLM."""
+        if self.client is None:
+            raise RuntimeError("OpenAI client not available. pip install openai")
+
+        source_content = read_file(source_path)
+        existing_test_content = (
+            read_file(existing_test_path) if existing_test_path else None
+        )
+
+        test_type_enum = TestType(test_type)
+        system_prompt = SYSTEM_PROMPTS[test_type_enum]
+        build_prompt = PROMPT_BUILDERS[test_type_enum]
+
+        user_prompt = build_prompt(
+            source_content=source_content,
+            source_path=source_path,
+            uncovered_ranges=uncovered_ranges,
+            existing_test_content=existing_test_content,
+        )
+
+        if retry_context:
+            user_prompt += (
+                "\n\n### Previous attempt failed with:\n"
+                f"```\n{retry_context}\n```\n"
+                "Fix the issues and try again."
+            )
+
+        logger.info(
+            "Calling LLM model=%s for %s (type=%s, system_prompt=%d chars, user_prompt=%d chars)",
+            self.model, source_path, test_type,
+            len(system_prompt), len(user_prompt),
+        )
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.7,
+            max_tokens=16384,
+        )
+
+        choice = response.choices[0]
+        content = choice.message.content or ""
+        finish_reason = choice.finish_reason
+        logger.info(
+            "LLM response: %d chars, finish_reason=%s",
+            len(content), finish_reason,
+        )
+
+        if finish_reason == "length":
+            logger.warning(
+                "LLM response was TRUNCATED (hit max_tokens). "
+                "Generated code is likely incomplete."
+            )
+
+        test_content, build_entry = _parse_response(content, test_type)
+        test_file_path = determine_test_path(source_path, test_type_enum)
+
+        # Syntax-check Python before writing to catch truncation early
+        if test_type == "python":
+            syntax_error = _check_python_syntax(test_content)
+            if syntax_error:
+                logger.warning("Generated Python has syntax error: %s", syntax_error)
+                write_file(test_file_path, test_content)
+                return GeneratedTest(
+                    test_file_path=test_file_path,
+                    test_content=test_content,
+                    build_entry=build_entry,
+                    syntax_error=syntax_error,
+                )
+
+        write_file(test_file_path, test_content)
+
+        return GeneratedTest(
+            test_file_path=test_file_path,
+            test_content=test_content,
+            build_entry=build_entry,
+        )
+
+    def validate_test(self, test: GeneratedTest) -> ValidationResult:
+        """Validate generated test by running it via bazel/pnpm."""
+        return run_test(test.test_file_path)
+
+
+def _check_python_syntax(content: str) -> Optional[str]:
+    """Compile Python content to check for syntax errors. Returns error message or None."""
+    try:
+        compile(content, "<generated_test>", "exec")
+        return None
+    except SyntaxError as exc:
+        return f"line {exc.lineno}: {exc.msg}"
+
+
+def _parse_response(
+    response: str, test_type: str,
+) -> tuple[str, Optional[str]]:
+    """Parse LLM response to extract test content and optional BUILD entry."""
+    test_content = response
+    build_entry = None
+
+    code_blocks = re.findall(
+        r"```(?:python|go|typescript|ts)?\n(.*?)```", response, re.DOTALL,
+    )
+    if code_blocks:
+        test_content = code_blocks[0]
+        logger.info("Extracted %d code blocks from response", len(code_blocks))
+    else:
+        logger.warning("No code blocks in LLM response, stripping markdown markers from raw response")
+        test_content = _strip_markdown_markers(response)
+
+    # Require language tag for BUILD blocks to avoid matching bare ``` fences
+    build_blocks = re.findall(
+        r"```(?:starlark|bzl|bazel)\n(.*?)```", response, re.DOTALL,
+    )
+    if build_blocks and test_type == "python":
+        build_entry = build_blocks[-1]
+
+    content = test_content.strip() + "\n"
+    logger.info("Parsed test content: %d chars, first line: %s", len(content), content.split("\n", 1)[0][:100])
+    return content, build_entry
+
+
+def _strip_markdown_markers(content: str) -> str:
+    """Strip leading/trailing markdown code fence markers from raw content.
+
+    Handles cases where the LLM returns a single unfenced code block or
+    forgets to close the fence. Also strips prose preamble before code
+    (common in retry responses where the LLM explains before writing code).
+    """
+    lines = content.strip().split("\n")
+
+    # Strip leading fence (e.g., ```python, ```go, ```)
+    if lines and re.match(r"^```\w*\s*$", lines[0]):
+        lines = lines[1:]
+
+    # Strip trailing fence
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+
+    # If the content starts with prose (not a comment or import), try to find
+    # where the actual Python/Go code begins
+    result = "\n".join(lines)
+    if lines and not _looks_like_code(lines[0]):
+        code_start = _find_code_start(lines)
+        if code_start > 0:
+            logger.info(
+                "Stripped %d lines of prose preamble before code (first prose line: %s)",
+                code_start, lines[0][:100],
+            )
+            result = "\n".join(lines[code_start:])
+
+    return result
+
+
+def _looks_like_code(line: str) -> bool:
+    """Check if a line looks like the start of source code."""
+    stripped = line.strip()
+    return (
+        stripped.startswith("#")
+        or stripped.startswith("//")
+        or stripped.startswith("import ")
+        or stripped.startswith("from ")
+        or stripped.startswith("package ")
+        or stripped.startswith("def ")
+        or stripped.startswith("class ")
+        or stripped.startswith("func ")
+        or stripped == ""
+    )
+
+
+def _find_code_start(lines: list[str]) -> int:
+    """Find the line index where actual code begins after prose preamble.
+
+    Skips blank lines between prose and code — requires a non-empty code line.
+    """
+    for i, line in enumerate(lines):
+        if line.strip() and _looks_like_code(line):
+            return i
+    return 0
+
+
