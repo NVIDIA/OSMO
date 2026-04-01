@@ -78,6 +78,7 @@ import {
 import { MOCK_CONFIG, type WorkflowPatterns } from "@/mocks/seed/types";
 import { hashString, getMockDelay, parsePagination, parseWorkflowFilters, hasActiveFilters } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
+import { MOCK_WORKFLOWS } from "@/mocks/mock-workflows";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
@@ -1337,8 +1338,36 @@ export class WorkflowGenerator {
     }
 
     const { entries, total } = this.generatePage(offset, limit);
+    const workflows = entries.map((w) => this.toListEntry(w));
+
+    // Prepend hardcoded mock workflows on the first page so they appear in the list
+    if (offset === 0) {
+      const mockEntries = Object.values(MOCK_WORKFLOWS).map((mw) => ({
+        user: mw.submitted_by,
+        name: mw.name,
+        workflow_uuid: mw.uuid,
+        submit_time: mw.submit_time,
+        start_time: mw.start_time,
+        end_time: mw.end_time,
+        queued_time: mw.queued_time,
+        duration: mw.duration,
+        status: mw.status,
+        overview: `${mw.groups.length} groups, ${mw.groups.reduce((sum, g) => sum + (g.tasks?.length ?? 0), 0)} tasks`,
+        logs: mw.logs,
+        error_logs: mw.status.toString().startsWith("FAILED") ? `/api/workflow/${mw.name}/logs?type=error` : undefined,
+        grafana_url: `https://grafana.example.com/d/workflow/${mw.name}`,
+        dashboard_url: `https://dashboard.example.com/workflow/${mw.name}`,
+        pool: mw.pool,
+        app_owner: undefined,
+        app_name: undefined,
+        app_version: undefined,
+        priority: mw.priority as Priority,
+      }));
+      workflows.unshift(...mockEntries);
+    }
+
     return {
-      workflows: entries.map((w) => this.toListEntry(w)),
+      workflows,
       more_entries: offset + limit < total,
     };
   };
