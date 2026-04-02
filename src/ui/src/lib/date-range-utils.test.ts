@@ -173,6 +173,14 @@ describe("date-range-utils", () => {
       expect(result!.end.toISOString()).toBe("2024-06-16T00:00:00.000Z");
     });
 
+    it("parses_last_7_days_preset_case_insensitive", () => {
+      const result = parseDateRangeValue("Last 7 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-08T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-16T00:00:00.000Z");
+    });
+
     it("parses_last_30_days_preset", () => {
       const result = parseDateRangeValue("last 30 days");
 
