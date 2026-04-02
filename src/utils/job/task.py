@@ -2756,6 +2756,15 @@ class TaskGroup(pydantic.BaseModel):
             ctrl_extra_args, workflow_config.backend_images.client, self.group_uuid, file_mounts,
             task_spec.downloadType.value, task_spec.resources, user_cache_size)
 
+        # Propagate disable_data_validation to the ctrl sidecar so it skips
+        # osmo dataset check when the server-side config says validation is disabled.
+        disabled_data = workflow_config.credential_config.disable_data_validation
+        if disabled_data and ('*' in disabled_data or 's3' in disabled_data):
+            control_container_spec['env'].append({
+                'name': 'OSMO_SKIP_DATA_AUTH',
+                'value': '1',
+            })
+
         using_gpu = bool(task_spec.resources.gpu and task_spec.resources.gpu > 0)
         user_args += [
             '-socketPath', f'{kb_objects.DATA_LOCATION}/socket/data.sock',

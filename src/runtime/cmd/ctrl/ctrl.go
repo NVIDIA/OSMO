@@ -871,8 +871,25 @@ func sendLogs(logSource string, logQueue *common.CircularBuffer, logsPeriodMs in
 	for {
 		select {
 		case <-stopChan:
+			// Drain remaining logs before exiting
+			for {
+				bufferMutex.Lock()
+				logJson, err := logQueue.Peek()
+				if err != nil {
+					bufferMutex.Unlock()
+					break
+				}
+				err = messages.Put(webConn, logJson)
+				if err != nil {
+					log.Println("Failed to send log during drain:", err)
+					bufferMutex.Unlock()
+					break
+				}
+				logQueue.Pop()
+				bufferMutex.Unlock()
+			}
 			defer waitGoRoutines.Done()
-			log.Println("Goroutine sendLogs is done")
+			log.Println("Goroutine sendLogs is done, queue drained")
 			return
 		case <-ticker.C:
 			if data.WebsocketConnection.IsBroken {
@@ -1401,23 +1418,30 @@ func main() {
 	signal.Notify(sigintCatch, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigintCatch
+		log.Println("SIGTERM received, starting graceful shutdown...")
 		if uploading.Load() {
-			log.Println("SIGTERM received during upload, waiting for completion...")
+			log.Println("Upload in progress, waiting for completion...")
 			select {
 			case <-uploadDone:
-				log.Println("Upload completed after SIGTERM, exiting gracefully")
-				cleanupMounts(cmdArgs.DownloadType)
-				os.Exit(0)
+				log.Println("Upload completed after SIGTERM")
 			case <-time.After(9 * time.Minute):
-				log.Println("Upload drain timeout exceeded, forcing exit")
+				log.Println("Upload drain timeout exceeded")
 			}
 		}
+		// Flush log channels before exiting — os.Exit bypasses defers
+		stopPutLogs <- true
+		stopSendLogs <- true
+		waitGoRoutines.Wait()
 		cleanupMounts(cmdArgs.DownloadType)
-		os.Exit(1)
+		os.Exit(0)
 	}()
 
-	// Validate data auth access before starting downloads/uploads
-	if err := data.ValidateInputsOutputsAccess(
+	// Validate data auth access before starting downloads/uploads.
+	// Honor OSMO_SKIP_DATA_AUTH set by the service when
+	// credential_config.disable_data_validation includes "*" or "s3".
+	if os.Getenv("OSMO_SKIP_DATA_AUTH") == "1" {
+		osmoChan <- "Data validation skipped (OSMO_SKIP_DATA_AUTH=1)"
+	} else if err := data.ValidateInputsOutputsAccess(
 		cmdArgs.Inputs,
 		cmdArgs.Outputs,
 		cmdArgs.UserConfig,
@@ -1510,6 +1534,24 @@ execLogs:
 		EndTime:    outputEndTime,
 		MetricType: "output_upload"}
 	metricChan <- uploadTimes
+
+	// Flush all remaining user logs directly before sending LogDone.
+	// sendLogs runs on a ticker and may not have drained the queue yet.
+	// We must flush here while the websocket is still open — after LogDone,
+	// the logger closes the connection and any remaining logs are lost.
+	bufferMutex.Lock()
+	for !logQueue.IsEmpty() {
+		logJson, err := logQueue.Peek()
+		if err != nil {
+			break
+		}
+		if err := messages.Put(webConn, logJson); err != nil {
+			log.Printf("Failed to flush log before LogDone: %v", err)
+			break
+		}
+		logQueue.Pop()
+	}
+	bufferMutex.Unlock()
 
 	logMsg := messages.CreateLog(cmdArgs.LogSource, "", messages.LogDone)
 	for !logsFinished {
