@@ -25,6 +25,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 concurrency:
   group: testbot-respond-${{ github.event.pull_request.number }}
