@@ -131,6 +131,11 @@ describe("date-range-utils", () => {
       const result = parseDateRangeValue("2024-01-01..2024-06-15..2024-12-31");
       expect(result).toBeNull();
     });
+
+    it("returns_null_when_datetime_start_is_after_datetime_end", () => {
+      const result = parseDateRangeValue("2024-06-15T18:00..2024-06-15T09:00");
+      expect(result).toBeNull();
+    });
   });
 
   describe("parses preset labels", () => {
@@ -197,60 +202,60 @@ describe("date-range-utils", () => {
       expect(result).toBeNull();
     });
   });
-});
 
-describe("DATE_RANGE_PRESETS", () => {
-  const fixedDate = new Date("2024-06-15T12:00:00.000Z");
+  describe("DATE_RANGE_PRESETS", () => {
+    const fixedDate = new Date("2024-06-15T12:00:00.000Z");
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(fixedDate);
-  });
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(fixedDate);
+    });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-  it("contains_five_presets", () => {
-    expect(DATE_RANGE_PRESETS).toHaveLength(5);
-  });
+    it("contains_five_presets", () => {
+      expect(DATE_RANGE_PRESETS).toHaveLength(5);
+    });
 
-  it("today_preset_returns_single_date", () => {
-    const todayPreset = DATE_RANGE_PRESETS.find((p) => p.label === "today");
-    expect(todayPreset).toBeDefined();
-    expect(todayPreset!.getValue()).toBe("2024-06-15");
-  });
+    it("today_preset_returns_single_date", () => {
+      const todayPreset = DATE_RANGE_PRESETS.find((p) => p.label === "today");
+      expect(todayPreset).toBeDefined();
+      expect(todayPreset!.getValue()).toBe("2024-06-15");
+    });
 
-  it("last_7_days_preset_returns_range", () => {
-    const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 7 days");
-    expect(preset).toBeDefined();
-    expect(preset!.getValue()).toBe("2024-06-08..2024-06-15");
-  });
+    it("last_7_days_preset_returns_range", () => {
+      const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 7 days");
+      expect(preset).toBeDefined();
+      expect(preset!.getValue()).toBe("2024-06-08..2024-06-15");
+    });
 
-  it("last_30_days_preset_returns_range", () => {
-    const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 30 days");
-    expect(preset).toBeDefined();
-    expect(preset!.getValue()).toBe("2024-05-16..2024-06-15");
-  });
+    it("last_30_days_preset_returns_range", () => {
+      const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 30 days");
+      expect(preset).toBeDefined();
+      expect(preset!.getValue()).toBe("2024-05-16..2024-06-15");
+    });
 
-  it("last_90_days_preset_returns_range", () => {
-    const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 90 days");
-    expect(preset).toBeDefined();
-    expect(preset!.getValue()).toBe("2024-03-17..2024-06-15");
-  });
+    it("last_90_days_preset_returns_range", () => {
+      const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 90 days");
+      expect(preset).toBeDefined();
+      expect(preset!.getValue()).toBe("2024-03-17..2024-06-15");
+    });
 
-  it("last_365_days_preset_returns_range", () => {
-    const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 365 days");
-    expect(preset).toBeDefined();
-    expect(preset!.getValue()).toBe("2023-06-16..2024-06-15");
-  });
+    it("last_365_days_preset_returns_range", () => {
+      const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 365 days");
+      expect(preset).toBeDefined();
+      expect(preset!.getValue()).toBe("2023-06-16..2024-06-15");
+    });
 
-  it("all_presets_have_label_and_getValue", () => {
-    for (const preset of DATE_RANGE_PRESETS) {
-      expect(typeof preset.label).toBe("string");
-      expect(preset.label.length).toBeGreaterThan(0);
-      expect(typeof preset.getValue).toBe("function");
-      expect(typeof preset.getValue()).toBe("string");
-    }
+    it("all_presets_have_label_and_getValue", () => {
+      for (const preset of DATE_RANGE_PRESETS) {
+        expect(typeof preset.label).toBe("string");
+        expect(preset.label.length).toBeGreaterThan(0);
+        expect(typeof preset.getValue).toBe("function");
+        expect(typeof preset.getValue()).toBe("string");
+      }
+    });
   });
 });
