@@ -608,9 +608,36 @@ def _convert_str_to_time(duration: str) -> Tuple[int, str]:
     return int(duration[:-1]), duration[-1]
 
 
+_ISO8601_DURATION_RE = re.compile(
+    r'^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$'
+)
+
+
+def _parse_iso8601_duration(duration: str) -> datetime.timedelta | None:
+    """ Parses an ISO 8601 duration string (e.g. PT10S, PT1H30M) into a timedelta. """
+    match = _ISO8601_DURATION_RE.match(duration)
+    if not match:
+        return None
+    days = int(match.group(1)) if match.group(1) else 0
+    hours = int(match.group(2)) if match.group(2) else 0
+    minutes = int(match.group(3)) if match.group(3) else 0
+    seconds = float(match.group(4)) if match.group(4) else 0
+    return datetime.timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+
+
 def to_timedelta(duration: str) -> datetime.timedelta:
     """ Converts time duration str to datetime.timedelta instance. """
-    error_message = f'Cannot recognize duration: {duration}. Only support xd, xh, xm, xs, xms, xus'
+    error_message = (
+        f'Cannot recognize duration: {duration}. '
+        'Only support ISO 8601 (e.g. PT10S) or xd, xh, xm, xs, xms, xus'
+    )
+
+    if duration.startswith('P'):
+        result = _parse_iso8601_duration(duration)
+        if result is not None:
+            return result
+        raise ValueError(error_message)
+
     try:
         value, unit = _convert_str_to_time(duration)
     except ValueError as error:
