@@ -22,7 +22,8 @@ from typing import Any, Dict
 
 import yaml
 
-from src.service.core.config import config_service, configmap_loader, objects as config_objects
+from src.service.core.config import config_service, configmap_loader
+from src.service.core.config import helpers as config_helpers, objects as config_objects
 from src.service.core.config.configmap_loader import CONFIGMAP_SYNC_USERNAME
 from src.service.core.tests import fixture
 from src.tests.common import runner
@@ -834,6 +835,132 @@ class ConfigMapLoaderIntegrationTestCase(fixture.ServiceTestFixture):
         count_after = len(history_after['configs'])
 
         self.assertEqual(count_before, count_after)
+
+
+    # -------------------------------------------------------------------
+    # Drift reconciliation
+    # -------------------------------------------------------------------
+
+    def test_drift_reconciliation_reverts_cli_change(self):
+        """CLI change to a configmap-mode config is reverted by drift reconciliation."""
+        postgres = self._get_postgres()
+
+        config_data = {
+            'managed_configs': {
+                'workflow': {
+                    'managed_by': 'configmap',
+                    'config': {
+                        'max_num_tasks': 42,
+                    },
+                },
+            },
+        }
+        config_path = self._write_config_file(config_data)
+        try:
+            # Initial apply via ConfigMap
+            watcher = configmap_loader.ConfigMapWatcher(config_path, postgres)
+            watcher.load_and_apply()
+
+            workflow_config = postgres.get_configs(connectors.ConfigType.WORKFLOW)
+            self.assertEqual(workflow_config.dict(by_alias=True)['max_num_tasks'], 42)
+
+            # Simulate CLI override
+            config_helpers.patch_configs(
+                request=config_objects.PatchConfigRequest(
+                    configs_dict={'max_num_tasks': 999},
+                    description='CLI override',
+                ),
+                config_type=connectors.ConfigType.WORKFLOW,
+                username='test-user',
+            )
+            workflow_config = postgres.get_configs(connectors.ConfigType.WORKFLOW)
+            self.assertEqual(workflow_config.dict(by_alias=True)['max_num_tasks'], 999)
+
+            # Drift reconciliation should revert to ConfigMap value
+            watcher._reconcile_drift()
+
+            workflow_config = postgres.get_configs(connectors.ConfigType.WORKFLOW)
+            self.assertEqual(workflow_config.dict(by_alias=True)['max_num_tasks'], 42)
+        finally:
+            self._cleanup_file(config_path)
+
+    def test_drift_reconciliation_skips_seed_mode(self):
+        """Seed-mode configs are NOT reverted by drift reconciliation."""
+        postgres = self._get_postgres()
+
+        config_data = {
+            'managed_configs': {
+                'service': {
+                    'managed_by': 'seed',
+                    'config': {
+                        'cli_config': {
+                            'latest_version': 'from-configmap',
+                        },
+                    },
+                },
+            },
+        }
+        config_path = self._write_config_file(config_data)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(config_path, postgres)
+            watcher.load_and_apply()
+
+            # Simulate CLI override
+            config_helpers.patch_configs(
+                request=config_objects.PatchConfigRequest(
+                    configs_dict={'cli_config': {'latest_version': 'from-cli'}},
+                    description='CLI override',
+                ),
+                config_type=connectors.ConfigType.SERVICE,
+                username='test-user',
+            )
+
+            # Drift reconciliation should NOT touch seed-mode configs
+            watcher._reconcile_drift()
+
+            service_config = postgres.get_configs(connectors.ConfigType.SERVICE)
+            self.assertEqual(
+                service_config.dict(by_alias=True)['cli_config']['latest_version'],
+                'from-cli')
+        finally:
+            self._cleanup_file(config_path)
+
+    def test_drift_reconciliation_no_history_when_no_drift(self):
+        """No config_history entry created when values haven't drifted."""
+        postgres = self._get_postgres()
+
+        config_data = {
+            'managed_configs': {
+                'workflow': {
+                    'managed_by': 'configmap',
+                    'config': {
+                        'max_num_tasks': 77,
+                    },
+                },
+            },
+        }
+        config_path = self._write_config_file(config_data)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(config_path, postgres)
+            watcher.load_and_apply()
+
+            # Count history entries before reconciliation
+            history_before = postgres.execute_fetch_command(
+                'SELECT COUNT(*) as count FROM config_history WHERE config_type = %s',
+                ('workflow',), return_raw=True)
+            count_before = history_before[0]['count']
+
+            # Reconcile with no drift — should not create history entries
+            watcher._reconcile_drift()
+
+            history_after = postgres.execute_fetch_command(
+                'SELECT COUNT(*) as count FROM config_history WHERE config_type = %s',
+                ('workflow',), return_raw=True)
+            count_after = history_after[0]['count']
+
+            self.assertEqual(count_before, count_after)
+        finally:
+            self._cleanup_file(config_path)
 
 
 if __name__ == '__main__':

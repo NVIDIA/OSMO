@@ -88,60 +88,163 @@ def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresCon
 
 
 # ---------------------------------------------------------------------------
-# Config file watcher (polling + hash-based change detection)
+# Config file watcher with drift reconciliation
 # ---------------------------------------------------------------------------
 
-_last_config_hash: str | None = None
+# Singleton config types that support drift reconciliation
+_SINGLETON_CONFIG_TYPES = {
+    'service': connectors.ConfigType.SERVICE,
+    'workflow': connectors.ConfigType.WORKFLOW,
+    'dataset': connectors.ConfigType.DATASET,
+}
 
 
-def _compute_file_hash(file_path: str) -> str | None:
-    """Compute SHA-256 hash of a file's contents. Returns None on error."""
-    try:
-        with open(file_path, 'rb') as config_file:
-            return hashlib.sha256(config_file.read()).hexdigest()
-    except OSError:
-        return None
+class ConfigMapWatcher:
+    """Watches a ConfigMap-mounted YAML file and reconciles DB state.
 
-
-def start_config_watcher(config_file_path: str,
-                         postgres: connectors.PostgresConnector,
-                         poll_interval: int = 30,
-                         ) -> threading.Thread:
-    """Start a background daemon thread that polls the config file for changes.
-
-    Computes a SHA-256 hash of the file on each poll. If the hash differs from
-    the last successful load, re-applies configs via load_dynamic_configs().
-    This handles K8s ConfigMap updates (which replace the mounted file via
-    symlink swap) without requiring a pod restart.
-
-    Returns the thread so callers can join() it in tests.
+    Two-tier polling:
+    1. File change detection: SHA-256 hash check. When the file changes,
+       re-apply everything (both seed and configmap modes).
+    2. Drift reconciliation: for managed_by=configmap singletons, compare
+       the last-applied values against current DB state. If someone changed
+       a config via CLI, re-apply the ConfigMap values to correct the drift.
+       Only fires when the file HASN'T changed (tier 1 already handles that).
     """
-    global _last_config_hash  # noqa: PLW0603
-    _last_config_hash = _compute_file_hash(config_file_path)
 
-    def _poll_loop() -> None:
-        global _last_config_hash  # noqa: PLW0603
+    def __init__(self, config_file_path: str,
+                 postgres: connectors.PostgresConnector,
+                 poll_interval: int = 30):
+        self._config_file_path = config_file_path
+        self._postgres = postgres
+        self._poll_interval = poll_interval
+        self._last_file_hash: str | None = None
+        self._cached_managed_configs: Dict[str, Any] | None = None
+
+    def start(self) -> None:
+        """Load configs immediately, then start background polling thread."""
+        self.load_and_apply()
+        thread = threading.Thread(
+            target=self._poll_loop, name='config-watcher', daemon=True)
+        thread.start()
+
+    def load_and_apply(self) -> None:
+        """Read the config file, apply all configs, cache values + hash."""
+        load_dynamic_configs(self._config_file_path, self._postgres)
+        self._last_file_hash = self._compute_file_hash()
+        self._cached_managed_configs = self._parse_managed_configs()
+
+    def _poll_loop(self) -> None:
         logging.info('Config watcher started (poll_interval=%ds, file=%s)',
-                     poll_interval, config_file_path)
+                     self._poll_interval, self._config_file_path)
         while True:
-            time.sleep(poll_interval)
+            time.sleep(self._poll_interval)
             try:
-                current_hash = _compute_file_hash(config_file_path)
+                current_hash = self._compute_file_hash()
                 if current_hash is None:
                     continue
-                if current_hash == _last_config_hash:
-                    continue
-                logging.info('Config file changed (hash %s -> %s), reloading',
-                             _last_config_hash, current_hash)
-                load_dynamic_configs(config_file_path, postgres)
-                _last_config_hash = current_hash
-            except Exception:
+                if current_hash != self._last_file_hash:
+                    # Tier 1: file changed — full re-apply
+                    logging.info('Config file changed (hash %s -> %s), reloading',
+                                 self._last_file_hash, current_hash)
+                    self.load_and_apply()
+                else:
+                    # Tier 2: file unchanged — check for DB drift on configmap-mode singletons
+                    self._reconcile_drift()
+            except Exception:  # pylint: disable=broad-exception-caught
                 logging.exception('Error during config file poll')
 
-    watcher_thread = threading.Thread(
-        target=_poll_loop, name='config-watcher', daemon=True)
-    watcher_thread.start()
-    return watcher_thread
+    def _reconcile_drift(self) -> None:
+        """Re-apply configmap-mode singleton configs if the DB has drifted.
+
+        Compares the desired config values (from the cached ConfigMap) against
+        the current DB state. Only calls patch_configs when values actually
+        differ, avoiding spurious config_history entries.
+
+        Uses an advisory lock to prevent multiple replicas from reconciling
+        the same drift simultaneously (which would create duplicate history).
+        """
+        if not self._cached_managed_configs:
+            return
+
+        # Collect drifted configs before acquiring lock (read-only check)
+        drifted_configs = []
+        for config_key, config_type in _SINGLETON_CONFIG_TYPES.items():
+            section = self._cached_managed_configs.get(config_key)
+            if not section:
+                continue
+            managed_by = _parse_managed_by(section)
+            if managed_by != ManagedByMode.CONFIGMAP:
+                continue
+            desired_config = section.get('config', {})
+            if not desired_config:
+                continue
+
+            try:
+                current_db = self._postgres.get_configs(config_type).plaintext_dict(
+                    by_alias=True, exclude_unset=True)
+                for key, desired_value in desired_config.items():
+                    if current_db.get(key) != desired_value:
+                        drifted_configs.append((config_key, config_type, section))
+                        break
+            except Exception:  # pylint: disable=broad-exception-caught
+                logging.exception('Error checking drift for %s', config_key)
+
+        if not drifted_configs:
+            return
+
+        # Acquire lock only when we have drift to correct
+        lock_result = self._postgres.execute_fetch_command(
+            "SELECT pg_try_advisory_lock(hashtext('configmap-reconcile'))",
+            (), return_raw=True)
+        if not lock_result or not lock_result[0]['pg_try_advisory_lock']:
+            logging.info('Another replica is reconciling drift, skipping')
+            return
+
+        try:
+            for config_key, config_type, section in drifted_configs:
+                try:
+                    logging.info('Drift detected for %s config, re-applying from ConfigMap',
+                                 config_key)
+                    _apply_singleton_config(
+                        section, self._postgres, config_type,
+                        pre_apply=(_resolve_dataset_secret_files
+                                   if config_key == 'dataset' else None))
+                except Exception:  # pylint: disable=broad-exception-caught
+                    logging.exception('Error reconciling drift for %s', config_key)
+        finally:
+            self._postgres.execute_fetch_command(
+                "SELECT pg_advisory_unlock(hashtext('configmap-reconcile'))",
+                (), return_raw=True)
+
+    def _compute_file_hash(self) -> str | None:
+        try:
+            with open(self._config_file_path, 'rb') as config_file:
+                return hashlib.sha256(config_file.read()).hexdigest()
+        except OSError:
+            return None
+
+    def _parse_managed_configs(self) -> Dict[str, Any] | None:
+        """Parse the config file and return the managed_configs section.
+
+        Resolves secret_file references in dataset configs so the cached
+        values match the DB format (access_key_id/access_key instead of
+        secret_file path). Without this, drift detection would always see
+        a difference for dataset configs with credentials.
+        """
+        try:
+            with open(self._config_file_path, encoding='utf-8') as config_file:
+                raw_config = yaml.safe_load(config_file)
+            if raw_config and 'managed_configs' in raw_config:
+                managed = raw_config['managed_configs']
+                dataset_section = managed.get('dataset')
+                if dataset_section:
+                    dataset_config = dataset_section.get('config')
+                    if dataset_config:
+                        _resolve_dataset_secret_files(dataset_config)
+                return managed
+        except (OSError, yaml.YAMLError):
+            pass
+        return None
 
 
 _EXPECTED_CONFIG_KEYS = {
@@ -304,8 +407,6 @@ def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
         default_credential.pop('secret_file')
         default_credential['access_key_id'] = access_key_id
         default_credential['access_key'] = access_key
-        # StaticDataCredential requires 'endpoint'. Default to the bucket's
-        # dataset_path if not provided in the secret file or credential dict.
         # StaticDataCredential requires 'endpoint' (the storage URI).
         # Default to dataset_path since they share the same format (e.g. s3://bucket).
         if 'endpoint' not in default_credential and 'endpoint' not in secret_data:
