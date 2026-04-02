@@ -62,6 +62,15 @@ mutation($threadId: ID!) {
 REPLY_SCHEMA = json.dumps({
     "type": "object",
     "properties": {
+        "commit_message": {
+            "type": "string",
+            "description": (
+                "A concise git commit message (subject line under 72 chars, "
+                "optional body after blank line) summarizing all changes made. "
+                "Prefix with 'testbot: '. Example: "
+                "'testbot: rename describe block, add edge case tests'"
+            ),
+        },
         "replies": {
             "type": "array",
             "items": {
@@ -84,7 +93,7 @@ REPLY_SCHEMA = json.dumps({
             },
         },
     },
-    "required": ["replies"],
+    "required": ["commit_message", "replies"],
 })
 
 
@@ -334,39 +343,14 @@ def discard_changes() -> None:
     subprocess.run(["git", "checkout", "--", "."], check=False)
 
 
-def build_commit_message(comments: list[dict], replies: list[dict]) -> str:
-    """Build a descriptive commit message from the review feedback and replies."""
-    reply_lookup = {r.get("comment_id"): r for r in replies}
-
-    subject_parts = []
-    body_lines = []
-    for comment in comments:
-        comment_id = comment["comment_id"]
-        reply = reply_lookup.get(comment_id, {})
-        request = comment["body"].replace("/testbot", "").strip().split("\n")[0][:80]
-        response = reply.get("reply", "")[:120]
-        subject_parts.append(request)
-        body_lines.append(f"- {comment['path']}:{comment['line']} — {request}")
-        if response:
-            body_lines.append(f"  → {response}")
-
-    subject = "testbot: " + "; ".join(subject_parts)
-    if len(subject) > 72:
-        subject = subject[:69] + "..."
-
-    body = "\n".join(body_lines)
-    return f"{subject}\n\n{body}"
-
-
-def commit_and_push(
-    files: list[str],
-    comments: list[dict],
-    replies: list[dict],
-) -> bool:
+def commit_and_push(files: list[str], message: str) -> bool:
     """Stage specific files, commit, and push with retries."""
-    message = build_commit_message(comments, replies)
+    logger.info("Commit message: %s", message.split("\n")[0])
     subprocess.run(["git", "add"] + files, check=True)
-    subprocess.run(["git", "commit", "-m", message], check=True)
+    subprocess.run(
+        ["git", "commit", "-F", "-"],
+        input=message, text=True, check=True,
+    )
     for attempt in range(1, MAX_PUSH_RETRIES + 1):
         result = subprocess.run(
             ["git", "push"],
@@ -481,15 +465,21 @@ def main() -> None:
     if "result" in claude_output:
         logger.info("result text: %s", claude_output["result"][:500])
 
-    # Parse replies
+    # Parse replies and commit message
     replies = parse_replies(claude_output, actionable)
+    structured = claude_output.get("structured_output", {})
+    commit_message = (
+        structured.get("commit_message", "testbot: address review feedback")
+        if isinstance(structured, dict)
+        else "testbot: address review feedback"
+    )
 
     # Check for file modifications and commit
     modified_files = get_changed_files()
     push_succeeded = False
     if modified_files:
         logger.info("Modified files: %s", modified_files)
-        push_succeeded = commit_and_push(modified_files, actionable, replies)
+        push_succeeded = commit_and_push(modified_files, commit_message)
         if not push_succeeded:
             logger.error("Push failed — discarding changes")
             subprocess.run(
