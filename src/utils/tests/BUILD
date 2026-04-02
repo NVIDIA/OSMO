@@ -54,3 +54,13 @@ osmo_py_test(
         requirement("truststore"),
     ]
 )
+
+py_test(
+    name = "test_local_executor",
+    srcs = ["test_local_executor.py"],
+    deps = [
+        "//src/utils:local_executor",
+    ],
+    local = True,
+    tags = ["manual"],
+)

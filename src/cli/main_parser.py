@@ -28,6 +28,7 @@ from src.cli import (
     credential,
     data,
     dataset,
+    local,
     login,
     pool,
     profile,
@@ -55,7 +56,8 @@ PARSERS = (
     profile.setup_parser,
     pool.setup_parser,
     user.setup_parser,
-    config.setup_parser
+    config.setup_parser,
+    local.setup_parser,
 )
 
 
