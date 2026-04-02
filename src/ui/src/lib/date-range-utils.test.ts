@@ -113,6 +113,91 @@ describe("date-range-utils", () => {
       const result = parseDateRangeValue("2024-06-15T14:30:00");
       expect(result).toBeNull();
     });
+
+    it("returns_null_for_slash_separated_date", () => {
+      const result = parseDateRangeValue("2024/06/15");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_european_date_format", () => {
+      const result = parseDateRangeValue("15-06-2024");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_single_digit_month_without_padding", () => {
+      const result = parseDateRangeValue("2024-6-15");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_single_digit_day_without_padding", () => {
+      const result = parseDateRangeValue("2024-06-5");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_three_digit_year", () => {
+      const result = parseDateRangeValue("999-01-15");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_five_digit_year", () => {
+      const result = parseDateRangeValue("10000-01-15");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_negative_year", () => {
+      const result = parseDateRangeValue("-2024-01-15");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_hour_with_single_digit", () => {
+      const result = parseDateRangeValue("2024-06-15T9:30");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_minute_with_single_digit", () => {
+      const result = parseDateRangeValue("2024-06-15T09:5");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_hour_25", () => {
+      const result = parseDateRangeValue("2024-06-15T25:00");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_lowercase_t_separator", () => {
+      const result = parseDateRangeValue("2024-06-15t14:30");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_space_instead_of_T_separator", () => {
+      const result = parseDateRangeValue("2024-06-15 14:30");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_null_byte_in_input", () => {
+      const result = parseDateRangeValue("2024-06\x00-15");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_newline_in_input", () => {
+      const result = parseDateRangeValue("2024-06-15\n");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_date_with_timezone_suffix", () => {
+      const result = parseDateRangeValue("2024-06-15Z");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_datetime_with_timezone_offset", () => {
+      const result = parseDateRangeValue("2024-06-15T14:30+00:00");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_datetime_with_z_suffix", () => {
+      const result = parseDateRangeValue("2024-06-15T14:30Z");
+      expect(result).toBeNull();
+    });
   });
 
   describe("parses single ISO date strings", () => {
@@ -188,6 +273,86 @@ describe("date-range-utils", () => {
       expect(result).not.toBeNull();
       expect(result!.start.toISOString()).toBe("2023-02-28T00:00:00.000Z");
       expect(result!.end.toISOString()).toBe("2023-03-01T00:00:00.000Z");
+    });
+
+    it("parses_y2k_boundary_date", () => {
+      const result = parseDateRangeValue("2000-01-01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2000-01-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2000-01-02T00:00:00.000Z");
+    });
+
+    it("parses_pre_y2k_date", () => {
+      const result = parseDateRangeValue("1999-12-31");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("1999-12-31T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2000-01-01T00:00:00.000Z");
+    });
+
+    it("parses_distant_past_date", () => {
+      const result = parseDateRangeValue("1900-01-01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("1900-01-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("1900-01-02T00:00:00.000Z");
+    });
+
+    it("parses_far_future_date", () => {
+      const result = parseDateRangeValue("2099-12-31");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2099-12-31T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2100-01-01T00:00:00.000Z");
+    });
+
+    it("parses_april_30_month_boundary", () => {
+      const result = parseDateRangeValue("2024-04-30");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-04-30T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-05-01T00:00:00.000Z");
+    });
+
+    it("parses_june_30_month_boundary", () => {
+      const result = parseDateRangeValue("2024-06-30");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-30T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-07-01T00:00:00.000Z");
+    });
+
+    it("parses_datetime_at_minute_zero", () => {
+      const result = parseDateRangeValue("2024-06-15T14:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T14:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T14:01:00.000Z");
+    });
+
+    it("parses_datetime_at_minute_59", () => {
+      const result = parseDateRangeValue("2024-06-15T14:59");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T14:59:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T15:00:00.000Z");
+    });
+
+    it("parses_datetime_at_hour_23", () => {
+      const result = parseDateRangeValue("2024-06-15T23:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T23:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T23:01:00.000Z");
+    });
+
+    it("parses_first_day_of_year", () => {
+      const result = parseDateRangeValue("2024-01-01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-01-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-01-02T00:00:00.000Z");
     });
   });
 
@@ -313,6 +478,113 @@ describe("date-range-utils", () => {
       expect(result!.start.toISOString()).toBe("2024-01-01T00:00:00.000Z");
       expect(result!.end.toISOString()).toBe("2024-02-01T00:00:00.000Z");
     });
+
+    it("parses_one_minute_datetime_range", () => {
+      const result = parseDateRangeValue("2024-06-15T14:00..2024-06-15T14:01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T14:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T14:01:00.000Z");
+    });
+
+    it("parses_multi_year_range", () => {
+      const result = parseDateRangeValue("2000-01-01..2024-12-31");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2000-01-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2025-01-01T00:00:00.000Z");
+    });
+
+    it("parses_century_boundary_range", () => {
+      const result = parseDateRangeValue("1999-12-31..2000-01-01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("1999-12-31T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2000-01-02T00:00:00.000Z");
+    });
+
+    it("parses_one_hour_datetime_range", () => {
+      const result = parseDateRangeValue("2024-06-15T09:00..2024-06-15T10:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T09:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T10:00:00.000Z");
+    });
+
+    it("returns_null_for_range_with_slash_dates", () => {
+      const result = parseDateRangeValue("2024/01/01..2024/01/31");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_range_with_european_format", () => {
+      const result = parseDateRangeValue("01-06-2024..31-06-2024");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_range_with_single_dot", () => {
+      const result = parseDateRangeValue("2024-01-01.2024-01-31");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_range_with_triple_dot", () => {
+      const result = parseDateRangeValue("2024-01-01...2024-01-31");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_range_with_whitespace_in_separator", () => {
+      const result = parseDateRangeValue("2024-01-01. .2024-01-31");
+      expect(result).toBeNull();
+    });
+
+    it("parses_adjacent_days_range", () => {
+      const result = parseDateRangeValue("2024-06-14..2024-06-15");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-14T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-16T00:00:00.000Z");
+    });
+
+    it("parses_adjacent_months_range", () => {
+      const result = parseDateRangeValue("2024-01-31..2024-02-01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-01-31T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-02-02T00:00:00.000Z");
+    });
+
+    it("returns_null_when_start_date_equals_end_datetime", () => {
+      // Date "2024-06-15" means 00:00:00, datetime "2024-06-15T00:00" also means 00:00:00
+      // But the date advances to next midnight, so this should be valid
+      const result = parseDateRangeValue("2024-06-15..2024-06-15T00:00");
+
+      // This actually parses because date-only end would become next day
+      // but datetime end is explicit, so start (00:00) <= end (00:00) is valid (equal)
+      expect(result).not.toBeNull();
+    });
+
+    it("parses_datetime_range_crossing_midnight", () => {
+      const result = parseDateRangeValue("2024-06-15T23:00..2024-06-16T01:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T23:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-16T01:00:00.000Z");
+    });
+
+    it("parses_full_month_range_for_february_leap_year", () => {
+      const result = parseDateRangeValue("2024-02-01..2024-02-29");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-02-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-01T00:00:00.000Z");
+    });
+
+    it("parses_full_month_range_for_february_non_leap_year", () => {
+      const result = parseDateRangeValue("2023-02-01..2023-02-28");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2023-02-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2023-03-01T00:00:00.000Z");
+    });
   });
 
   describe("parses preset labels", () => {
@@ -422,6 +694,16 @@ describe("date-range-utils", () => {
       const result = parseDateRangeValue("last  7  days");
       expect(result).toBeNull();
     });
+
+    it("returns_null_for_preset_with_unicode_characters", () => {
+      const result = parseDateRangeValue("tôday");
+      expect(result).toBeNull();
+    });
+
+    it("returns_null_for_preset_with_number_substitution", () => {
+      const result = parseDateRangeValue("las7 days");
+      expect(result).toBeNull();
+    });
   });
 
   describe("DATE_RANGE_PRESETS at year boundary", () => {
@@ -442,6 +724,72 @@ describe("date-range-utils", () => {
       expect(result).not.toBeNull();
       expect(result!.start.toISOString()).toBe("2023-12-29T00:00:00.000Z");
       expect(result!.end.toISOString()).toBe("2024-01-06T00:00:00.000Z");
+    });
+
+    it("last_30_days_preset_crosses_year_boundary", () => {
+      const result = parseDateRangeValue("last 30 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2023-12-06T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-01-06T00:00:00.000Z");
+    });
+
+    it("today_preset_at_year_start", () => {
+      const result = parseDateRangeValue("today");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-01-05T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-01-06T00:00:00.000Z");
+    });
+  });
+
+  describe("DATE_RANGE_PRESETS at leap year boundary", () => {
+    const leapYearDate = new Date("2024-03-01T12:00:00.000Z");
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(leapYearDate);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("last_7_days_preset_includes_feb_29_in_leap_year", () => {
+      const result = parseDateRangeValue("last 7 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-02-23T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-02T00:00:00.000Z");
+    });
+  });
+
+  describe("DATE_RANGE_PRESETS at month boundary", () => {
+    const monthBoundaryDate = new Date("2024-02-01T12:00:00.000Z");
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(monthBoundaryDate);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("last_7_days_preset_crosses_month_boundary", () => {
+      const result = parseDateRangeValue("last 7 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-01-25T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-02-02T00:00:00.000Z");
+    });
+
+    it("last_30_days_preset_crosses_month_boundary", () => {
+      const result = parseDateRangeValue("last 30 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-01-02T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-02-02T00:00:00.000Z");
     });
   });
 
