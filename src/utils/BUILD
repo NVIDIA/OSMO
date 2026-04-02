@@ -98,3 +98,13 @@ osmo_py_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+osmo_py_library(
+    name = "local_executor",
+    srcs = ["local_executor.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/utils/job",
+    ],
+    visibility = ["//visibility:public"],
+)
