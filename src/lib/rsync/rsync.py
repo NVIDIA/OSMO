@@ -581,7 +581,7 @@ class RsyncClient:
                 RSYNC_FLAGS,
                 resolved_src,
                 resolved_dst,
-                stdout=asyncio.subprocess.PIPE,
+                stdout=None,
                 stderr=asyncio.subprocess.PIPE,
             )
 
