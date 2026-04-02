@@ -35,17 +35,9 @@ concurrency:
 
 jobs:
   respond:
-    # Only run for repo members on non-fork ai-generated PRs with /testbot trigger
+    # Only run for repo members on ai-generated PRs with /testbot trigger.
+    # Kept simple — fork rejection and deeper filtering happen in respond.py.
     if: >-
-      (
-        github.event_name == 'pull_request_review_comment' &&
-        contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      ||
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        contains(github.event.issue.labels.*.name, 'ai-generated')
-      ) &&
       contains(github.event.comment.body, '/testbot') &&
       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     timeout-minutes: 15
