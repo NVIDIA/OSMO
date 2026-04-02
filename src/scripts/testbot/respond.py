@@ -356,27 +356,39 @@ def reply_to_comment(
     message: str,
 ) -> None:
     """Post a reply using the correct API for the comment type."""
-    if comment["comment_type"] == "review":
-        run_gh(
+    comment_id = comment["comment_id"]
+    comment_type = comment["comment_type"]
+    logger.info(
+        "Posting reply to comment %s (type=%s, path=%s, line=%s)",
+        comment_id, comment_type, comment.get("path", ""), comment.get("line", ""),
+    )
+    if comment_type == "review":
+        result = run_gh(
             f"api repos/{owner}/{repo}/pulls/{pr_number}"
-            f"/comments/{comment['comment_id']}/replies "
+            f"/comments/{comment_id}/replies "
             f"-F body={shlex.quote(message)}"
         )
     else:
-        run_gh(
+        result = run_gh(
             f"api repos/{owner}/{repo}/issues/{pr_number}/comments "
             f"-F body={shlex.quote(message)}"
+        )
+    if result.returncode != 0:
+        logger.error(
+            "Failed to post reply to comment %s: %s",
+            comment_id, result.stderr[:300],
         )
 
 
 def resolve_thread(thread_id: str) -> None:
     """Mark a review thread as resolved via GraphQL."""
+    logger.info("Resolving thread %s", thread_id)
     result = run_gh(
         f"api graphql -f query={shlex.quote(RESOLVE_MUTATION)} "
         f"-F threadId={shlex.quote(thread_id)}"
     )
     if result.returncode != 0:
-        logger.warning("Failed to resolve thread %s: %s", thread_id, result.stderr)
+        logger.warning("Failed to resolve thread %s: %s", thread_id, result.stderr[:300])
 
 
 def main() -> None:
@@ -424,6 +436,13 @@ def main() -> None:
         )
         return
 
+    # Log raw output for debugging
+    logger.info("Claude output keys: %s", list(claude_output.keys()))
+    if "structured_output" in claude_output:
+        logger.info("structured_output: %s", json.dumps(claude_output["structured_output"])[:1000])
+    if "result" in claude_output:
+        logger.info("result text: %s", claude_output["result"][:500])
+
     # Parse replies
     replies = parse_replies(claude_output, actionable)
 
@@ -441,12 +460,23 @@ def main() -> None:
             )
 
     # Post replies and resolve threads
+    logger.info(
+        "Processing %d replies from Claude (comment_lookup has %d entries: %s)",
+        len(replies), len(comment_lookup), list(comment_lookup.keys()),
+    )
     replied = 0
     for reply_data in replies:
         comment_id = reply_data.get("comment_id")
+        logger.info(
+            "Reply for comment_id=%s resolve=%s reply=%s",
+            comment_id, reply_data.get("resolve"), reply_data.get("reply", "")[:100],
+        )
         comment = comment_lookup.get(comment_id)
         if not comment:
-            logger.warning("Reply for unknown comment_id %s, skipping", comment_id)
+            logger.warning(
+                "Reply for unknown comment_id %s (type=%s), skipping. Known IDs: %s",
+                comment_id, type(comment_id).__name__, list(comment_lookup.keys()),
+            )
             continue
 
         message = reply_data.get("reply", "Acknowledged.")
