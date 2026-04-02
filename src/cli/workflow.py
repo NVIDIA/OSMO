@@ -431,10 +431,8 @@ Forward UDP traffic from a task to your local machine::
     # Handle 'rsync' command
     rsync_parser = subparsers.add_parser(
         'rsync',
-        help='Rsync data from local machine to a remote workflow task.',
-        description='Syncs data from local machine to a remote workflow task via a persistent '
-                    'background daemon. It will continuously monitors the source path and '
-                    'automatically upload any changes to the remote task.\n\n'
+        help='Rsync data to/from a remote workflow task.',
+        description='Syncs data between local machine and a remote workflow task.\n\n'
                     '/osmo/run/workspace is always available as a remote path.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
@@ -443,84 +441,136 @@ Examples
 
 Upload to a task::
 
-    osmo workflow rsync <workflow_id> <task_name> <local_path>:<remote_path>
+    osmo workflow rsync upload <workflow_id> <task_name> <local_path>:<remote_path>
 
-Upload to lead task::
+Upload to lead task (daemon mode)::
 
-    osmo workflow rsync <workflow_id> <local_path>:<remote_path>
+    osmo workflow rsync upload <workflow_id> <local_path>:<remote_path>
 
 Run a single upload::
 
-    osmo workflow rsync <workflow_id> <local_path>:<remote_path> --once
+    osmo workflow rsync upload <workflow_id> <local_path>:<remote_path> --once
+
+Download from a task::
+
+    osmo workflow rsync download <workflow_id> <task_name> <remote_path>:<local_path>
+
+Download from lead task::
+
+    osmo workflow rsync download <workflow_id> <remote_path>:<local_path>
 
 Get the status of daemons::
 
-    osmo workflow rsync --status
+    osmo workflow rsync status
 
 Stop all daemons::
 
-    osmo workflow rsync --stop
+    osmo workflow rsync stop
 
 Stop a specific daemon::
 
-    osmo workflow rsync <workflow_id> --stop
+    osmo workflow rsync stop <workflow_id>
         ''')
-    rsync_parser.add_argument('workflow_id',
-                              nargs='?',
-                              help='The ID or UUID of the workflow to rsync to/from')
-    rsync_parser.add_argument('task',
-                              nargs='?',
-                              help='(Optional) The task to rsync upload to. If not provided, '
-                                   'the upload will be to the lead task of the first group.')
-    rsync_parser.add_argument('path',
-                              nargs='?',
-                              help='The src:dst path to rsync between.')
-    rsync_parser.add_argument('--status', '-s',
-                              action='store_true',
-                              help='Show the status of all rsync daemons')
-    rsync_parser.add_argument('--stop',
-                              action='store_true',
-                              help='Stop one or more rsync daemons')
-    rsync_parser.add_argument('--timeout',
-                              type=validation.positive_integer,
-                              default=10,
-                              help='The connection timeout period in seconds. '
-                                   'Default is 10 seconds.')
-    rsync_parser.add_argument('--upload-rate-limit',
-                              type=validation.positive_integer,
-                              help='Rate limit the upload speed in bytes per second. The upload '
-                                   'speed is also subjected to admin configured rate-limit.')
-    rsync_parser.add_argument('--poll-interval',
-                              type=validation.positive_float,
-                              help='The amount of time (seconds) between polling the task '
-                                   'for changes in daemon mode. If not provided, the '
-                                   'admin-configured default will be used.')
-    rsync_parser.add_argument('--debounce-delay',
-                              type=validation.positive_float,
-                              help='The amount of time (seconds) of inactivity after last '
-                                   'file change before a sync is triggered in daemon mode. If '
-                                   'not provided, the admin-configured default will be used.')
-    rsync_parser.add_argument('--reconcile-interval',
-                              type=validation.positive_float,
-                              help='The amount of time (seconds) between reconciling the upload '
-                                   'in daemon mode. This is used to ensure that failed uploads '
-                                   'during network interruptions will resume after connection is '
-                                   'restored. If not provided, the admin-configured default will '
-                                   'be used.')
-    rsync_parser.add_argument('--max-log-size',
-                              type=validation.positive_integer,
-                              default=2 * 1024 * 1024,
-                              help='The maximum log size in bytes for the daemon before log '
-                                   'rotation. Default is 2MB.')
-    rsync_parser.add_argument('--verbose',
-                              action='store_true',
-                              help='Enable verbose logging for the daemon.')
-    rsync_parser.add_argument('--once',
-                              action='store_true',
-                              help='Run a single rsync upload to the workflow. The upload will '
-                                   'be done in the foreground and will automatically exit once '
-                                   'the upload completes.')
-    rsync_parser.set_defaults(func=_rsync)
+    rsync_subparsers = rsync_parser.add_subparsers(dest='rsync_command')
+    rsync_subparsers.required = True
+
+    # --- upload subcommand ---
+    rsync_up_parser = rsync_subparsers.add_parser(
+        'upload',
+        help='Upload local data to a remote workflow task.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    rsync_up_parser.add_argument('workflow_id',
+                                 help='The ID or UUID of the workflow to rsync to')
+    rsync_up_parser.add_argument('task',
+                                 nargs='?',
+                                 help='(Optional) The task to upload to. If not provided, '
+                                      'the upload will be to the lead task of the first group.')
+    rsync_up_parser.add_argument('path',
+                                 nargs='?',
+                                 help='The <local_path>:<remote_path> to rsync between.')
+    rsync_up_parser.add_argument('--timeout',
+                                 type=validation.positive_integer,
+                                 default=10,
+                                 help='The connection timeout period in seconds. '
+                                      'Default is 10 seconds.')
+    rsync_up_parser.add_argument('--upload-rate-limit',
+                                 type=validation.positive_integer,
+                                 help='Rate limit the upload speed in bytes per second. The upload '
+                                      'speed is also subjected to admin configured rate-limit.')
+    rsync_up_parser.add_argument('--poll-interval',
+                                 type=validation.positive_float,
+                                 help='The amount of time (seconds) between polling the task '
+                                      'for changes in daemon mode. If not provided, the '
+                                      'admin-configured default will be used.')
+    rsync_up_parser.add_argument('--debounce-delay',
+                                 type=validation.positive_float,
+                                 help='The amount of time (seconds) of inactivity after last '
+                                      'file change before a sync is triggered in daemon mode. If '
+                                      'not provided, the admin-configured default will be used.')
+    rsync_up_parser.add_argument('--reconcile-interval',
+                                 type=validation.positive_float,
+                                 help='The amount of time (seconds) between reconciling the upload '
+                                      'in daemon mode. This is used to ensure that failed uploads '
+                                      'during network interruptions will resume after connection is '
+                                      'restored. If not provided, the admin-configured default '
+                                      'will be used.')
+    rsync_up_parser.add_argument('--max-log-size',
+                                 type=validation.positive_integer,
+                                 default=2 * 1024 * 1024,
+                                 help='The maximum log size in bytes for the daemon before log '
+                                      'rotation. Default is 2MB.')
+    rsync_up_parser.add_argument('--verbose',
+                                 action='store_true',
+                                 help='Enable verbose logging for the daemon.')
+    rsync_up_parser.add_argument('--once',
+                                 action='store_true',
+                                 help='Run a single rsync upload to the workflow. The upload will '
+                                      'be done in the foreground and will automatically exit once '
+                                      'the upload completes.')
+    rsync_up_parser.set_defaults(func=_rsync_upload)
+
+    # --- download subcommand ---
+    rsync_down_parser = rsync_subparsers.add_parser(
+        'download',
+        help='Download data from a remote workflow task to local machine.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    rsync_down_parser.add_argument('workflow_id',
+                                   help='The ID or UUID of the workflow to rsync from')
+    rsync_down_parser.add_argument('task',
+                                   nargs='?',
+                                   help='(Optional) The task to download from. If not provided, '
+                                        'the download will be from the lead task of the '
+                                        'first group.')
+    rsync_down_parser.add_argument('path',
+                                   nargs='?',
+                                   help='The <remote_path>:<local_path> to rsync between.')
+    rsync_down_parser.add_argument('--timeout',
+                                   type=validation.positive_integer,
+                                   default=10,
+                                   help='The connection timeout period in seconds. '
+                                        'Default is 10 seconds.')
+    rsync_down_parser.set_defaults(func=_rsync_download)
+
+    # --- status subcommand ---
+    rsync_status_parser = rsync_subparsers.add_parser(
+        'status',
+        help='Show the status of all rsync daemons.',
+    )
+    rsync_status_parser.set_defaults(func=_rsync_status_cmd)
+
+    # --- stop subcommand ---
+    rsync_stop_parser = rsync_subparsers.add_parser(
+        'stop',
+        help='Stop one or more rsync daemons.',
+    )
+    rsync_stop_parser.add_argument('workflow_id',
+                                   nargs='?',
+                                   help='(Optional) The workflow ID to filter daemons by.')
+    rsync_stop_parser.add_argument('--task',
+                                   help='(Optional) The task name to filter daemons by.')
+    rsync_stop_parser.set_defaults(func=_rsync_stop_cmd)
 
 
 def parse_file_for_template(workflow_contents: str, set_variables: List[str],
@@ -1529,8 +1579,8 @@ def _rsync_status():
         'PID',
         'Status',
         'Last Synced',
-        'Source Path',
-        'Destination Path',
+        'Local Path',
+        'Remote Path',
         'Log File',
     ]
     table = common.osmo_table(header=keys)
@@ -1544,12 +1594,19 @@ def _rsync_status():
             daemon_metadata.pid,
             daemon_info.status.name,
             daemon_metadata.last_synced,
-            daemon_metadata.rsync_request.src,
-            daemon_metadata.rsync_request.original_dst_path,
+            daemon_metadata.rsync_request.local_path,
+            daemon_metadata.rsync_request.original_remote_path,
             daemon_info.log_file,
         ])
 
     print('\n' + table.draw() + '\n')
+
+
+def _rsync_status_cmd(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Status subcommand handler.
+    """
+    _rsync_status()
 
 
 def _rsync_stop(args: argparse.Namespace):
@@ -1557,8 +1614,8 @@ def _rsync_stop(args: argparse.Namespace):
     Stop one or more running rsync daemons
     """
     running_daemons = rsync.rsync_status(
-        workflow_id=args.workflow_id,
-        task_name=args.task,
+        workflow_id=getattr(args, 'workflow_id', None),
+        task_name=getattr(args, 'task', None),
         statuses={rsync.RsyncDaemonStatus.RUNNING},
     )
 
@@ -1566,7 +1623,7 @@ def _rsync_stop(args: argparse.Namespace):
         print('No running rsync daemons found')
         return
 
-    if not args.workflow_id and not args.task:
+    if not getattr(args, 'workflow_id', None) and not getattr(args, 'task', None):
         daemon_names = '\n\t* '.join([
             f'{daemon.metadata.rsync_request.workflow_id}/{daemon.metadata.rsync_request.task_name}'
             for daemon in running_daemons
@@ -1593,23 +1650,19 @@ def _rsync_stop(args: argparse.Namespace):
             )
 
 
-def _rsync(service_client: client.ServiceClient, args: argparse.Namespace):
+def _rsync_stop_cmd(service_client: client.ServiceClient, args: argparse.Namespace):
     """
-    Main entrypoint for the rsync command.
+    Stop subcommand handler.
     """
-    if args.status:
-        _rsync_status()
-        return
+    _rsync_stop(args)
 
-    if args.stop:
-        _rsync_stop(args)
-        return
 
-    if not args.workflow_id:
-        raise osmo_errors.OSMOUserError('Workflow ID is required for rsync.')
-
+def _rsync_upload(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Upload subcommand handler.
+    """
     if not args.path and not args.task:
-        raise osmo_errors.OSMOUserError('Path is required for rsync.')
+        raise osmo_errors.OSMOUserError('Path is required for rsync upload.')
 
     if not args.path:
         # Only two arguments are provided (workflow_id and path)
@@ -1630,4 +1683,26 @@ def _rsync(service_client: client.ServiceClient, args: argparse.Namespace):
         daemon_reconcile_interval=args.reconcile_interval,
         daemon_max_log_size=args.max_log_size,
         daemon_verbose_logging=args.verbose,
+    )
+
+
+def _rsync_download(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Download subcommand handler.
+    """
+    if not args.path and not args.task:
+        raise osmo_errors.OSMOUserError('Path is required for rsync download.')
+
+    if not args.path:
+        # Only two arguments are provided (workflow_id and path)
+        # Shift task argument to the path argument
+        args.path = args.task
+        args.task = None
+
+    rsync.rsync_download(
+        service_client,
+        args.workflow_id,
+        args.task,
+        args.path,
+        timeout=args.timeout,
     )
