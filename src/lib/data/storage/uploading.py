@@ -222,23 +222,24 @@ class UploadParams:
                     'after each file is uploaded.',
     )
 
-    @pydantic.model_validator(mode='before')
+    @pydantic.model_validator(mode='wrap')
     @classmethod
-    def validate_upload_sources(cls, values):
+    def validate_upload_sources(cls, values, handler):
         """
         Validate that exactly one of upload_paths, upload_worker_inputs, or
         upload_worker_inputs_generator is provided.
         """
+        instance = handler(values)
         if sum([
-            values.get('upload_paths') is not None,
-            values.get('upload_worker_inputs') is not None,
-            values.get('upload_worker_inputs_generator') is not None,
+            instance.upload_paths is not None,
+            instance.upload_worker_inputs is not None,
+            instance.upload_worker_inputs_generator is not None,
         ]) != 1:
             raise ValueError(
                 'Exactly one of upload_paths, upload_worker_inputs, or '
                 'upload_worker_inputs_generator must be provided.')
 
-        return values
+        return instance
 
 
 @pydantic.dataclasses.dataclass(frozen=True, kw_only=True)

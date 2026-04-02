@@ -140,23 +140,24 @@ class DownloadParams:
         description='Whether to enable the progress tracker. Defaults to False.',
     )
 
-    @pydantic.model_validator(mode='before')
+    @pydantic.model_validator(mode='wrap')
     @classmethod
-    def validate_download_sources(cls, values):
+    def validate_download_sources(cls, values, handler):
         """
         Validate that exactly one of download_paths, download_worker_inputs, or
         download_worker_inputs_generator is provided.
         """
+        instance = handler(values)
         if sum([
-            values.get('download_paths') is not None,
-            values.get('download_worker_inputs') is not None,
-            values.get('download_worker_inputs_generator') is not None,
+            instance.download_paths is not None,
+            instance.download_worker_inputs is not None,
+            instance.download_worker_inputs_generator is not None,
         ]) != 1:
             raise ValueError(
                 'Exactly one of download_paths, download_worker_inputs, or '
                 'download_worker_inputs_generator must be provided.')
 
-        return values
+        return instance
 
 
 @pydantic.dataclasses.dataclass(frozen=True, kw_only=True)

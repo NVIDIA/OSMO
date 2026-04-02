@@ -232,29 +232,25 @@ class Client(pydantic.BaseModel):
         description='Headers to apply to all requests of this client.',
     )
 
-    @pydantic.model_validator(mode='before')
-    @classmethod
-    def validate_data_credential_endpoint(cls, values):
+    @pydantic.model_validator(mode='after')
+    def validate_data_credential_endpoint(self):
         """
         Validates that the data credential endpoint matches the storage backend profile.
         """
-        data_credential_input = values.get('data_credential_input')
-        if data_credential_input is not None:
-            storage_uri = values.get('storage_uri')
-
+        if self.data_credential_input is not None:
             # Construct backends to validate profiles match
             data_cred_backend = backends.construct_storage_backend(
-                uri=data_credential_input.endpoint,
+                uri=self.data_credential_input.endpoint,
             )
             storage_backend = backends.construct_storage_backend(
-                uri=storage_uri,
+                uri=self.storage_uri,
             )
 
             if data_cred_backend.profile != storage_backend.profile:
                 raise osmo_errors.OSMOCredentialError(
                     'Credential endpoint must match the storage backend profile')
 
-        return values
+        return self
 
     @functools.cached_property
     def data_credential(self) -> credentials.DataCredential:
