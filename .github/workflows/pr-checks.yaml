@@ -434,8 +434,14 @@ jobs:
           restore-keys: |
             nextjs-${{ hashFiles('src/ui/pnpm-lock.yaml') }}-
 
+      - name: Install dependencies
+        working-directory: src/ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: src/ui
+        run: pnpm exec playwright install chromium
+
       - name: Validate UI
         working-directory: src/ui
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm validate
+        run: pnpm validate

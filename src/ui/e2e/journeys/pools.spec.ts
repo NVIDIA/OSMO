@@ -16,7 +16,7 @@
 
 import { test, expect } from "@playwright/test";
 import { createPoolResponse, PoolStatus } from "@/mocks/factories";
-import { setupDefaultMocks, setupPools, setupProfile } from "../utils/mock-setup";
+import { setupDefaultMocks, setupPools, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Pool Journey Tests
@@ -91,10 +91,12 @@ test.describe("Pools List", () => {
     await searchInput.fill("production");
     await searchInput.press("Enter");
 
-    // Pressing Enter commits a chip — the URL reflects the active filter
-    await expect(page).toHaveURL(/f=pool/);
+    // Pressing Enter commits a chip — the URL reflects the active filter with the value
+    await expect(page).toHaveURL(/f=pool(%3A|:)production/);
     // The matched pool remains visible
     await expect(page.getByText("production").first()).toBeVisible();
+    // Non-matching pool is filtered out
+    await expect(page.getByText("development")).not.toBeVisible();
   });
 });
 

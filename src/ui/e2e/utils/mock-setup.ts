@@ -123,7 +123,7 @@ export async function setupResources(
             return pp.some((p) => pools.some((pool) => p.startsWith(`${pool}/`)));
           }) ?? [],
       };
-      return route.fulfill({ status: 200, json: filtered });
+      return route.fulfill({ status: 200, contentType: CT_JSON, body: JSON.stringify(filtered) });
     }
     return route.fulfill({ status: 200, contentType: CT_JSON, body: successBody });
   });

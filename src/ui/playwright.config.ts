@@ -18,7 +18,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 // Port is resolved by scripts/test-e2e.mjs before Playwright starts and
 // passed in via $PORT. Fallback to 3000 for direct `playwright test` invocations.
-const PORT = parseInt(process.env.PORT ?? "3000", 10);
+const parsed = parseInt(process.env.PORT ?? "", 10);
+const PORT = Number.isFinite(parsed) ? parsed : 3000;
 const BASE_URL = `http://localhost:${PORT}`;
 
 /**
@@ -72,9 +73,10 @@ export default defineConfig({
   // Remove stale .next/dev/lock before starting — Next.js doesn't clean it up
   // when the server crashes, which blocks a subsequent `next dev` from starting.
   webServer: {
-    command: `rm -f .next/dev/lock && PORT=${PORT} pnpm dev`,
+    command: "node scripts/start-dev.mjs",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    env: { PORT: String(PORT) },
   },
 });

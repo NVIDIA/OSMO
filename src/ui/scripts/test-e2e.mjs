@@ -42,8 +42,12 @@ function findFreePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
     server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
+      const addr = server.address();
+      if (addr === null || typeof addr === "string") {
+        server.close(() => reject(new Error("server.address() returned null or string")));
+        return;
+      }
+      server.close(() => resolve(addr.port));
     });
     server.on("error", reject);
   });

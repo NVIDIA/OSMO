@@ -16,7 +16,7 @@
 
 import { test, expect } from "@playwright/test";
 import { createPoolResponse, createResourcesResponse } from "@/mocks/factories";
-import { setupDefaultMocks, setupPools, setupProfile, setupResources } from "../utils/mock-setup";
+import { setupDefaultMocks, setupPools, setupProfile, setupResources } from "@/e2e/utils/mock-setup";
 
 /**
  * Navigation Journey Tests
@@ -174,6 +174,6 @@ test.describe("Invalid Routes", () => {
 
   test("unknown route shows a not-found page without crashing", async ({ page }) => {
     await page.goto("/this-route-does-not-exist");
-    await expect(page.locator("body")).not.toBeEmpty();
+    await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
   });
 });

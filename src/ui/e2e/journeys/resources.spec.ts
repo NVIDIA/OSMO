@@ -16,7 +16,7 @@
 
 import { test, expect } from "@playwright/test";
 import { createResourcesResponse, createPoolResponse, BackendResourceType, PoolStatus } from "@/mocks/factories";
-import { setupDefaultMocks, setupResources, setupPools } from "../utils/mock-setup";
+import { setupDefaultMocks, setupResources, setupPools } from "@/e2e/utils/mock-setup";
 
 /**
  * Resources Page Journey Tests
@@ -84,10 +84,12 @@ test.describe("Resources List", () => {
     await searchInput.fill("dgx");
     await searchInput.press("Enter");
 
-    // Pressing Enter commits a chip — the URL reflects the active filter
-    await expect(page).toHaveURL(/f=resource/);
+    // Pressing Enter commits a chip — the URL reflects the active filter with the value
+    await expect(page).toHaveURL(/f=resource(%3A|:)dgx/);
     // Matched resources remain visible
     await expect(page.getByText("dgx-001").first()).toBeVisible();
+    // Non-matching resource is filtered out
+    await expect(page.getByText("cpu-001")).not.toBeVisible();
   });
 
   test("pool filter chip via URL shows only that pool's resources", async ({ page }) => {
