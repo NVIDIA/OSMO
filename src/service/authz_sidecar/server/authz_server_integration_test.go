@@ -569,7 +569,7 @@ func TestIntegration(t *testing.T) {
 			wantCode  codes.Code
 		}{
 			{
-				name:     "new user with no header roles gets osmo-user via default role mapping",
+				name:     "new user with no header roles can read workflows via default role mapping",
 				user:     "newuser@example.com",
 				roles:    "",
 				path:     "/api/workflow/123",
@@ -577,28 +577,28 @@ func TestIntegration(t *testing.T) {
 				wantCode: codes.OK,
 			},
 			{
-				name:     "new user with no header roles can create workflows via default role mapping",
-				user:     "newuser2@example.com",
-				roles:    "",
-				path:     "/api/pool/staging/workflow",
-				method:   "POST",
-				wantCode: codes.OK,
-			},
-			{
 				name:     "new user with no header roles can list pools via default role mapping",
-				user:     "newuser3@example.com",
+				user:     "newuser2@example.com",
 				roles:    "",
 				path:     "/api/pool",
 				method:   "GET",
 				wantCode: codes.OK,
 			},
 			{
-				name:     "new user with unrelated role still gets osmo-user via default role mapping",
-				user:     "newuser4@example.com",
+				name:     "new user with unrelated role still gets mapped role via default role mapping",
+				user:     "newuser3@example.com",
 				roles:    "some-other-idp-role",
 				path:     "/api/workflow/123",
 				method:   "GET",
 				wantCode: codes.OK,
+			},
+			{
+				name:     "default role mapping only grants read - cannot create workflows",
+				user:     "newuser4@example.com",
+				roles:    "",
+				path:     "/api/pool/staging/workflow",
+				method:   "POST",
+				wantCode: codes.PermissionDenied,
 			},
 			{
 				name:      "token request does NOT get default role mapping - sync is skipped",
