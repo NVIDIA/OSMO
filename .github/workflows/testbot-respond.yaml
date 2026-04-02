@@ -22,31 +22,26 @@ name: Testbot - Respond to Reviews
 on:
   pull_request_review_comment:
     types: [created]
-  issue_comment:
-    types: [created]
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: testbot-respond-${{ github.event.pull_request.number || github.event.issue.number }}
+  group: testbot-respond-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   respond:
-    # Only run for repo members on ai-generated PRs with /testbot trigger.
-    # Kept simple — fork rejection and deeper filtering happen in respond.py.
-    if: >-
-      contains(github.event.comment.body, '/testbot') &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    # Label gate only — /testbot trigger, author, and fork checks are in respond.py.
+    if: contains(github.event.pull_request.labels.*.name, 'ai-generated')
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.event.issue.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
           token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
 
@@ -85,7 +80,7 @@ jobs:
       - name: Respond to review comments
         run: |
           python src/scripts/testbot/respond.py \
-            --pr-number ${{ github.event.pull_request.number || github.event.issue.number }} \
+            --pr-number ${{ github.event.pull_request.number }} \
             --trigger-phrase /testbot
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
