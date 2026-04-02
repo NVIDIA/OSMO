@@ -74,9 +74,11 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.NVIDIA_NIM_KEY }}
-          max_turns: 15
-          allowed_tools: "Read,Edit,Write,Bash(git:*),Bash(bazel:*),Bash(pnpm:*),Bash(gh:*),Glob,Grep"
-          custom_instructions: |
+          trigger_phrase: "@testbot"
+          claude_args: >-
+            --allowedTools "Read,Edit,Write,Bash(git:*),Bash(bazel:*),Bash(pnpm:*),Bash(gh:*),Glob,Grep"
+            --max-turns 15
+          prompt: |
             You are responding to a review comment on an AI-generated test PR.
             Read and follow the test quality rules and conventions in src/scripts/testbot/TESTBOT_PROMPT.md.
             After applying fixes, always run the relevant tests to validate:
