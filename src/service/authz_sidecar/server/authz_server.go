@@ -151,6 +151,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		}
 	}
 
+	roleNames = append(roleNames, defaultRole)
+
 	parseDone := time.Now()
 
 	// Sync user_roles table from external IDP roles and retrieve the user's
@@ -167,11 +169,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 				slog.String("error", err.Error()),
 			)
 		}
-		roleNames = append(roleNames, dbRoleNames...)
+		roleNames = deduplicateRoles(append(roleNames, dbRoleNames...))
 	}
-
-	// Add default role and deduplicate
-	roleNames = deduplicateRoles(append(roleNames, defaultRole))
 
 	syncDone := time.Now()
 
