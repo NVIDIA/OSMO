@@ -21,13 +21,15 @@ INSERT INTO roles (name, description, policies, immutable) VALUES (
 );
 
 -- User role: workflow read/create, pool read, app CRUD
-INSERT INTO roles (name, description, policies, immutable) VALUES (
+-- sync_mode='import' allows IDP sync to assign this role via external mappings
+INSERT INTO roles (name, description, policies, immutable, sync_mode) VALUES (
     'osmo-user',
     'Standard user with workflow and app access',
     ARRAY[
         '{"actions": ["workflow:Read", "workflow:Create", "pool:Read", "pool:List", "profile:Read", "resources:Read", "app:Create", "app:Read", "app:Update", "app:Delete"], "resources": ["*"]}'::jsonb
     ],
-    FALSE
+    FALSE,
+    'import'
 );
 
 -- Restricted role: only workflow read on a specific pool
@@ -65,3 +67,9 @@ INSERT INTO access_token (user_name, token_name, description) VALUES
 INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by) VALUES
     ('user@example.com', 'my-api-token', 'a0000000-0000-0000-0000-000000000003', 'seed'),
     ('user@example.com', 'full-access-token', 'a0000000-0000-0000-0000-000000000002', 'seed');
+
+-- External role mappings: osmo-default external role maps to osmo-user OSMO role.
+-- This means any user who carries the osmo-default external role (which the authz
+-- server adds automatically) will get osmo-user assigned via IDP sync.
+INSERT INTO role_external_mappings (role_name, external_role) VALUES
+    ('osmo-user', 'osmo-default');
