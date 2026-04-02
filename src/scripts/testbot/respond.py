@@ -108,7 +108,7 @@ def run_gh(args: str) -> subprocess.CompletedProcess:
 
 
 def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
-    """Fetch all review threads via GraphQL. Returns every thread with metadata."""
+    """Fetch all review threads via GraphQL with full comment history."""
     result = run_gh(
         f"api graphql -f query={shlex.quote(THREADS_QUERY)} "
         f"-F owner={shlex.quote(owner)} -F repo={shlex.quote(repo)} "
@@ -129,17 +129,21 @@ def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
 
     threads = []
     for node in nodes:
-        thread_comments = node.get("comments", {}).get("nodes", [])
-        first = thread_comments[0] if thread_comments else {}
+        raw_comments = node.get("comments", {}).get("nodes", [])
+        comments = [
+            {
+                "id": c["databaseId"],
+                "body": c.get("body", ""),
+                "author": c.get("author", {}).get("login", "unknown"),
+            }
+            for c in raw_comments
+        ]
         threads.append({
-            "comment_id": first.get("databaseId"),
             "thread_id": node["id"],
             "is_resolved": node.get("isResolved", False),
             "path": node.get("path", ""),
             "line": node.get("line", 0),
-            "body": first.get("body", ""),
-            "author": first.get("author", {}).get("login", "unknown"),
-            "comment_count": len(thread_comments),
+            "comments": comments,
         })
 
     logger.info("Fetched %d total review threads on PR #%d", len(threads), pr_number)
@@ -150,98 +154,119 @@ def filter_actionable(
     threads: list[dict],
     trigger_phrase: str,
 ) -> list[dict]:
-    """Filter threads to actionable ones, logging each skip reason."""
+    """Filter threads to actionable ones, logging each skip reason.
+
+    A thread is actionable if ANY non-bot comment contains the trigger
+    phrase. The full thread history is preserved for Claude's context.
+    The reply_comment_id is set to the LAST comment with the trigger
+    (the one that should receive the inline reply).
+    """
     actionable = []
     for thread in threads:
-        comment_id = thread["comment_id"]
         path = thread["path"]
-        author = thread["author"]
-        body_preview = thread["body"][:80].replace("\n", " ")
+        comments = thread["comments"]
+        first_body = comments[0]["body"][:80].replace("\n", " ") if comments else ""
 
         if thread["is_resolved"]:
-            logger.info(
-                "  SKIP (resolved) comment=%s path=%s author=%s body=%s",
-                comment_id, path, author, body_preview,
-            )
+            logger.info("  SKIP (resolved) path=%s body=%s", path, first_body)
             continue
 
-        if not thread["comment_id"]:
+        if not comments:
             logger.info("  SKIP (no comments) thread=%s path=%s", thread["thread_id"], path)
             continue
 
-        if trigger_phrase not in thread["body"]:
-            logger.info(
-                "  SKIP (no trigger) comment=%s path=%s author=%s body=%s",
-                comment_id, path, author, body_preview,
-            )
-            continue
-
-        if author in SELF_AUTHORS:
-            logger.info(
-                "  SKIP (bot author) comment=%s path=%s author=%s",
-                comment_id, path, author,
-            )
-            continue
-
         if path.startswith("src/scripts/testbot/"):
+            logger.info("  SKIP (testbot source) path=%s", path)
+            continue
+
+        # Skip if the bot already replied (last comment is from us — awaiting human)
+        last_author = comments[-1]["author"]
+        if last_author in SELF_AUTHORS:
             logger.info(
-                "  SKIP (testbot source) comment=%s path=%s author=%s",
-                comment_id, path, author,
+                "  SKIP (bot already replied, awaiting human) path=%s last_author=%s",
+                path, last_author,
             )
             continue
 
+        # Find the last non-bot comment containing the trigger phrase
+        trigger_comment = None
+        for comment in reversed(comments):
+            if comment["author"] in SELF_AUTHORS:
+                continue
+            if trigger_phrase in comment["body"]:
+                trigger_comment = comment
+                break
+
+        if not trigger_comment:
+            logger.info(
+                "  SKIP (no trigger in %d comments) path=%s body=%s",
+                len(comments), path, first_body,
+            )
+            continue
+
+        # Build full thread conversation for context
+        thread_history = "\n".join(
+            f"  [{c['author']}]: {c['body']}" for c in comments
+        )
         logger.info(
-            "  ACTIONABLE comment=%s path=%s line=%s author=%s body=%s",
-            comment_id, path, thread["line"], author, body_preview,
+            "  ACTIONABLE path=%s line=%s trigger_comment=%s author=%s (%d comments in thread)",
+            path, thread["line"], trigger_comment["id"],
+            trigger_comment["author"], len(comments),
         )
         actionable.append({
-            "comment_id": comment_id,
-            "comment_type": "review",
+            "reply_comment_id": trigger_comment["id"],
             "thread_id": thread["thread_id"],
             "path": path,
             "line": thread["line"],
-            "body": thread["body"],
-            "author": author,
+            "thread_history": thread_history,
+            "trigger_body": trigger_comment["body"],
+            "author": trigger_comment["author"],
         })
 
     if len(actionable) > MAX_AUTO_RESPONSES:
         logger.info(
-            "Capping from %d to %d actionable comments",
+            "Capping from %d to %d actionable threads",
             len(actionable), MAX_AUTO_RESPONSES,
         )
         actionable = actionable[:MAX_AUTO_RESPONSES]
 
-    logger.info("Result: %d actionable comment(s)", len(actionable))
+    logger.info("Result: %d actionable thread(s)", len(actionable))
     return actionable
 
 
-def build_prompt(comments: list[dict]) -> str:
-    """Build a single prompt with all comments for Claude Code."""
+def build_prompt(threads: list[dict]) -> str:
+    """Build a single prompt with all actionable threads for Claude Code.
+
+    Each thread includes the full conversation history so Claude
+    understands the context (original comment + follow-up replies).
+    """
     lines = [
         "Read and follow the test quality rules in src/scripts/testbot/TESTBOT_PROMPT.md.",
         "",
-        "Address these review comments on an AI-generated test PR:",
+        "Address these review threads on an AI-generated test PR.",
+        "Each thread includes the full conversation history — pay attention to",
+        "the LATEST request (the one containing /testbot), not just the first comment.",
         "",
     ]
-    for comment in comments:
-        location = f"`{comment['path']}` line {comment['line']}"
-        body = comment["body"].replace("/testbot", "").strip()
-        lines.append(f"- **Comment {comment['comment_id']}** ({location}): {body}")
+    for thread in threads:
+        location = f"`{thread['path']}` line {thread['line']}"
+        lines.append(f"### Thread {thread['reply_comment_id']} ({location})")
+        lines.append(thread["thread_history"])
+        lines.append("")
 
     lines.extend([
-        "",
         "Steps:",
         "1. Read the relevant source and test files.",
-        "2. Apply the requested changes.",
+        "2. Apply the requested changes from the LATEST /testbot comment in each thread.",
         "3. Run tests to validate:",
         "   - Python/Go: bazel test <target>",
         "   - TypeScript: cd src/ui && pnpm test -- --run <test_file>",
         "4. If tests fail, fix and re-run.",
         "5. Do NOT create git commits or branches.",
         "",
-        "After completing all work, produce a structured JSON reply for each comment.",
+        "After completing all work, produce a structured JSON reply for each thread.",
         "Each reply should explain what you did and whether the issue is resolved.",
-        "Include the comment_id so replies can be matched to the original comments.",
+        "Use the reply_comment_id as comment_id so replies are posted to the right thread.",
     ])
     return "\n".join(lines)
 
@@ -377,20 +402,20 @@ def reply_to_comment(
     message: str,
 ) -> None:
     """Post an inline reply to a review comment."""
-    comment_id = comment["comment_id"]
+    reply_comment_id = comment["reply_comment_id"]
     logger.info(
-        "Posting inline reply to review comment %s (path=%s, line=%s)",
-        comment_id, comment.get("path", ""), comment.get("line", ""),
+        "Posting inline reply to comment %s (path=%s, line=%s)",
+        reply_comment_id, comment.get("path", ""), comment.get("line", ""),
     )
     result = run_gh(
         f"api repos/{owner}/{repo}/pulls/{pr_number}"
-        f"/comments/{comment_id}/replies "
+        f"/comments/{reply_comment_id}/replies "
         f"-F body={shlex.quote(message)}"
     )
     if result.returncode != 0:
         logger.error(
             "Failed to post reply to comment %s: %s",
-            comment_id, result.stderr[:300],
+            reply_comment_id, result.stderr[:300],
         )
 
 
@@ -425,18 +450,18 @@ def main() -> None:
         logger.info("No actionable comments on PR #%d", args.pr_number)
         return
 
-    # Log actionable comments passed to Claude
-    logger.info("=== Actionable comments to send to Claude ===")
-    for comment in actionable:
+    # Log actionable threads passed to Claude
+    logger.info("=== Actionable threads to send to Claude ===")
+    for thread in actionable:
         logger.info(
-            "  id=%s author=%s path=%s line=%s body=%s",
-            comment["comment_id"], comment["author"],
-            comment["path"], comment["line"],
-            comment["body"][:120].replace("\n", " "),
+            "  reply_comment_id=%s author=%s path=%s line=%s trigger=%s",
+            thread["reply_comment_id"], thread["author"],
+            thread["path"], thread["line"],
+            thread["trigger_body"][:120].replace("\n", " "),
         )
 
-    # Build comment lookup for reply routing
-    comment_lookup = {c["comment_id"]: c for c in actionable}
+    # Build lookup by reply_comment_id for routing replies back to threads
+    comment_lookup = {t["reply_comment_id"]: t for t in actionable}
 
     # Save HEAD for crash recovery
     head_sha = subprocess.run(
