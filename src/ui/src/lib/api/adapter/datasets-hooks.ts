@@ -105,12 +105,15 @@ export function useDatasetLatest(bucket: string, name: string, options?: { enabl
  * @param options - Query options
  */
 export function useDatasetFiles(
+  bucket: string,
+  name: string,
+  version: string,
   location: string | null,
   options?: { enabled?: boolean },
 ): ReturnType<typeof useQuery<ProcessedManifest>> {
   return useQuery<ProcessedManifest>({
-    queryKey: buildDatasetFilesQueryKey(location),
-    queryFn: () => fetchDatasetFiles(location),
+    queryKey: buildDatasetFilesQueryKey(bucket, name, version),
+    queryFn: () => fetchDatasetFiles(bucket, name, version, location),
     enabled: (options?.enabled ?? true) && !!location,
     staleTime: 60_000, // 1 minute
   });

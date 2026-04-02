@@ -220,6 +220,20 @@ export const handlers = [
   http.all("*/proxy/dataset/file", datasetGenerator.handleFileProxy),
   http.head("*/api/bucket/:bucket/dataset/:name/preview", datasetGenerator.handleFilePreviewHead),
   http.get("*/api/bucket/:bucket/dataset/:name/preview", datasetGenerator.handleFilePreviewGet),
+  // Service-proxied manifest endpoint (private-bucket support, see PR #795).
+  http.get("*/api/bucket/:bucket/dataset/:name/manifest", async ({ request, params }) => {
+    const url = new URL(request.url);
+    const version = url.searchParams.get("version") ?? "1";
+    const datasetName = Array.isArray(params.name) ? params.name[0] : params.name;
+    const bucketName = Array.isArray(params.bucket) ? params.bucket[0] : params.bucket;
+    const locationUrl = `s3://${bucketName}/datasets/${datasetName}/v${version}/`;
+    const items = datasetGenerator.generateFlatManifest(
+      datasetName ?? "",
+      bucketName ?? "",
+      locationUrl,
+    );
+    return HttpResponse.json(items);
+  }),
 
   // Profile and credentials
   getGetNotificationSettingsApiProfileSettingsGetMockHandler(profileGenerator.handleGetSettings),

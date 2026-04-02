@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import datetime
 import json
+import mimetypes
 import shlex
 from typing import Any, Dict, List, Sequence
 import uuid
@@ -1003,6 +1004,65 @@ def get_info(
                                         if dataset_info.is_collection
                                         else objects.DatasetType.DATASET,
                                     versions=rows)
+
+
+@router.get('/{bucket}/dataset/{name}/manifest')
+def get_manifest(
+    bucket: objects.DatasetPattern,
+    name: objects.DatasetPattern,
+    version: str = fastapi.Query(...),
+) -> List:
+    """ This api returns the manifest for a dataset version. """
+    postgres = connectors.PostgresConnector.get_instance()
+    dataset_info = get_dataset(postgres, bucket=bucket, name=name)
+
+    fetch_command = '''
+        SELECT location FROM dataset_version
+        WHERE dataset_id = %s AND version_id = %s AND status = %s;
+    '''
+    rows = postgres.execute_fetch_command(
+        fetch_command, (dataset_info.id, version, objects.DatasetStatus.READY.name))
+    if not rows:
+        raise osmo_errors.OSMODatabaseError(
+            f'Version {version} not found for dataset {name} in bucket {bucket}.')
+
+    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    client = storage.Client.create(
+        storage_uri=rows[0].location,
+        data_credential=bucket_config.default_credential,
+    )
+    manifest_content = client.get_object_stream(as_io=True).read()
+    return json.loads(manifest_content)
+
+
+@router.get('/{bucket}/dataset/{name}/file-content')
+def get_file_content(
+    bucket: objects.DatasetPattern,
+    name: objects.DatasetPattern,
+    storage_path: str = fastapi.Query(...),
+) -> fastapi.responses.StreamingResponse:
+    """ This api streams file content from storage for the dataset file preview. """
+    postgres = connectors.PostgresConnector.get_instance()
+    dataset_info = get_dataset(postgres, bucket=bucket, name=name)
+
+    # Validate that the storage path belongs to this dataset's storage prefix
+    requested_backend = storage.construct_storage_backend(storage_path)
+    dataset_backend = storage.construct_storage_backend(dataset_info.hash_location)
+    if requested_backend.container != dataset_backend.container:
+        raise osmo_errors.OSMOUserError(
+            'Storage path does not belong to this dataset.')
+
+    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    client = storage.Client.create(
+        storage_uri=storage_path,
+        data_credential=bucket_config.default_credential,
+    )
+
+    content_type = mimetypes.guess_type(storage_path)[0] or 'application/octet-stream'
+    return fastapi.responses.StreamingResponse(
+        client.get_object_stream(),
+        media_type=content_type,
+    )
 
 
 @router.get('/list_dataset', response_model=objects.DataListResponse, deprecated=True)
