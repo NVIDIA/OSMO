@@ -14,35 +14,54 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Auto-responds to review comments on AI-generated PRs using Claude Code.
-# Reads the comment, applies fixes, validates tests, and pushes.
+# Responds to /testbot commands in review comments and PR comments on
+# AI-generated PRs. Delegates fixes to Claude Code CLI, posts inline
+# replies, and resolves addressed threads.
 name: Testbot - Respond to Reviews
 
 on:
   pull_request_review_comment:
     types: [created]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
   pull-requests: write
-  id-token: write
 
 concurrency:
-  group: testbot-respond-${{ github.event.pull_request.number }}
+  group: testbot-respond-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   respond:
-    if: contains(github.event.pull_request.labels.*.name, 'ai-generated')
+    # Only run for repo members on non-fork ai-generated PRs with /testbot trigger
+    if: >-
+      (
+        github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
+        github.event.pull_request.head.repo.full_name == github.repository
+      ||
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.issue.labels.*.name, 'ai-generated')
+      ) &&
+      contains(github.event.comment.body, '/testbot') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.issue.pull_request.head.ref }}
           fetch-depth: 0
           token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
 
       - name: Setup Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
@@ -71,21 +90,13 @@ jobs:
           git config user.name "testbot[bot]"
           git config user.email "testbot[bot]@users.noreply.github.com"
 
-      - name: Respond to review
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.NVIDIA_NIM_KEY }}
-          trigger_phrase: "/testbot"
-          claude_args: >-
-            --allowedTools "Read,Edit,Write,Bash(git:*),Bash(bazel:*),Bash(pnpm:*),Bash(gh:*),Glob,Grep"
-            --max-turns 15
-          prompt: |
-            You are responding to a review comment on an AI-generated test PR.
-            Read and follow the test quality rules and conventions in src/scripts/testbot/TESTBOT_PROMPT.md.
-            After applying fixes, always run the relevant tests to validate:
-            - Python/Go: bazel test <target>
-            - TypeScript: cd src/ui && pnpm test -- --run <test_file>
+      - name: Respond to review comments
+        run: |
+          python src/scripts/testbot/respond.py \
+            --pr-number ${{ github.event.pull_request.number || github.event.issue.number }} \
+            --trigger-phrase /testbot
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: aws/anthropic/claude-opus-4-5
           DISABLE_PROMPT_CACHING: "1"
