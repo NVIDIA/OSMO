@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Respond to PR review comments by delegating fixes to Claude Code CLI.
 
-Fetches unresolved review threads and top-level PR comments containing a
-trigger phrase, runs a single Claude Code CLI session to apply all fixes,
-then posts per-comment replies and resolves addressed threads.
+Fetches unresolved review threads containing a trigger phrase, runs a
+single Claude Code CLI session to apply all fixes, then posts per-comment
+inline replies and resolves addressed threads.
 
 Usage:
     python respond.py --pr-number 789 --trigger-phrase /testbot
@@ -16,7 +16,6 @@ import logging
 import os
 import shlex
 import subprocess
-import sys
 
 logging.basicConfig(
     level=logging.INFO,
@@ -100,7 +99,7 @@ def run_gh(args: str) -> subprocess.CompletedProcess:
 
 
 def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
-    """Fetch review threads via GraphQL. Returns list of comment dicts."""
+    """Fetch all review threads via GraphQL. Returns every thread with metadata."""
     result = run_gh(
         f"api graphql -f query={shlex.quote(THREADS_QUERY)} "
         f"-F owner={shlex.quote(owner)} -F repo={shlex.quote(repo)} "
@@ -119,71 +118,82 @@ def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
         .get("nodes", [])
     )
 
-    comments = []
+    threads = []
     for node in nodes:
-        if node.get("isResolved", False):
-            continue
         thread_comments = node.get("comments", {}).get("nodes", [])
-        if not thread_comments:
-            continue
-        first = thread_comments[0]
-        comments.append({
-            "comment_id": first["databaseId"],
-            "comment_type": "review",
+        first = thread_comments[0] if thread_comments else {}
+        threads.append({
+            "comment_id": first.get("databaseId"),
             "thread_id": node["id"],
+            "is_resolved": node.get("isResolved", False),
             "path": node.get("path", ""),
             "line": node.get("line", 0),
-            "body": first["body"],
+            "body": first.get("body", ""),
             "author": first.get("author", {}).get("login", "unknown"),
+            "comment_count": len(thread_comments),
         })
 
-    logger.info("Fetched %d unresolved review threads", len(comments))
-    return comments
-
-
-def fetch_pr_comments(owner: str, repo: str, pr_number: int) -> list[dict]:
-    """Fetch top-level PR comments via REST API."""
-    result = run_gh(
-        f"api repos/{owner}/{repo}/issues/{pr_number}/comments "
-        f"--jq '.[] | {{id: .id, body: .body, author: .user.login}}'"
-    )
-    if result.returncode != 0:
-        logger.error("Failed to fetch PR comments: %s", result.stderr)
-        return []
-
-    comments = []
-    for line in result.stdout.strip().splitlines():
-        if not line:
-            continue
-        item = json.loads(line)
-        comments.append({
-            "comment_id": item["id"],
-            "comment_type": "issue",
-            "thread_id": None,
-            "path": "",
-            "line": 0,
-            "body": item["body"],
-            "author": item["author"],
-        })
-
-    logger.info("Fetched %d top-level PR comments", len(comments))
-    return comments
+    logger.info("Fetched %d total review threads on PR #%d", len(threads), pr_number)
+    return threads
 
 
 def filter_actionable(
-    comments: list[dict],
+    threads: list[dict],
     trigger_phrase: str,
 ) -> list[dict]:
-    """Keep comments with the trigger phrase from non-bot authors."""
+    """Filter threads to actionable ones, logging each skip reason."""
     actionable = []
-    for comment in comments:
-        if trigger_phrase not in comment["body"]:
+    for thread in threads:
+        comment_id = thread["comment_id"]
+        path = thread["path"]
+        author = thread["author"]
+        body_preview = thread["body"][:80].replace("\n", " ")
+
+        if thread["is_resolved"]:
+            logger.info(
+                "  SKIP (resolved) comment=%s path=%s author=%s body=%s",
+                comment_id, path, author, body_preview,
+            )
             continue
-        if comment["author"] in SELF_AUTHORS:
+
+        if not thread["comment_id"]:
+            logger.info("  SKIP (no comments) thread=%s path=%s", thread["thread_id"], path)
             continue
-        if comment["path"].startswith("src/scripts/testbot/"):
+
+        if trigger_phrase not in thread["body"]:
+            logger.info(
+                "  SKIP (no trigger) comment=%s path=%s author=%s body=%s",
+                comment_id, path, author, body_preview,
+            )
             continue
-        actionable.append(comment)
+
+        if author in SELF_AUTHORS:
+            logger.info(
+                "  SKIP (bot author) comment=%s path=%s author=%s",
+                comment_id, path, author,
+            )
+            continue
+
+        if path.startswith("src/scripts/testbot/"):
+            logger.info(
+                "  SKIP (testbot source) comment=%s path=%s author=%s",
+                comment_id, path, author,
+            )
+            continue
+
+        logger.info(
+            "  ACTIONABLE comment=%s path=%s line=%s author=%s body=%s",
+            comment_id, path, thread["line"], author, body_preview,
+        )
+        actionable.append({
+            "comment_id": comment_id,
+            "comment_type": "review",
+            "thread_id": thread["thread_id"],
+            "path": path,
+            "line": thread["line"],
+            "body": thread["body"],
+            "author": author,
+        })
 
     if len(actionable) > MAX_AUTO_RESPONSES:
         logger.info(
@@ -192,7 +202,7 @@ def filter_actionable(
         )
         actionable = actionable[:MAX_AUTO_RESPONSES]
 
-    logger.info("Found %d actionable comment(s)", len(actionable))
+    logger.info("Result: %d actionable comment(s)", len(actionable))
     return actionable
 
 
@@ -205,7 +215,7 @@ def build_prompt(comments: list[dict]) -> str:
         "",
     ]
     for comment in comments:
-        location = f"`{comment['path']}` line {comment['line']}" if comment["path"] else "general PR comment"
+        location = f"`{comment['path']}` line {comment['line']}"
         body = comment["body"].replace("/testbot", "").strip()
         lines.append(f"- **Comment {comment['comment_id']}** ({location}): {body}")
 
@@ -233,9 +243,10 @@ def run_claude(prompt: str) -> dict:
     Returns a dict with 'structured_output' and/or 'result' fields.
     Returns empty dict on failure.
     """
+    model = os.environ.get("ANTHROPIC_MODEL", "aws/anthropic/claude-opus-4-5")
     cmd = [
         "npx", "@anthropic-ai/claude-code@latest", "--print",
-        "--model", os.environ.get("ANTHROPIC_MODEL", "aws/anthropic/claude-opus-4-5"),
+        "--model", model,
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
         "--allowedTools",
@@ -243,6 +254,8 @@ def run_claude(prompt: str) -> dict:
         "--max-turns", "25",
         prompt,
     ]
+    logger.info("Claude Code command: %s", " ".join(shlex.quote(c) for c in cmd))
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     except subprocess.TimeoutExpired:
@@ -259,7 +272,7 @@ def run_claude(prompt: str) -> dict:
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError:
-        logger.error("Failed to parse Claude Code JSON output")
+        logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
         return {}
 
 
@@ -270,7 +283,7 @@ def parse_replies(claude_output: dict, comments: list[dict]) -> list[dict]:
     if isinstance(structured, dict) and "replies" in structured:
         replies = structured["replies"]
         if isinstance(replies, list) and replies:
-            logger.info("Parsed %d replies from structured_output", len(replies))
+            logger.info("Parsed %d replies from structured_output (tier 1)", len(replies))
             return replies
 
     # Tier 2: extract JSON from result text
@@ -300,12 +313,10 @@ def parse_replies(claude_output: dict, comments: list[dict]) -> list[dict]:
 
 def get_changed_files() -> list[str]:
     """Return list of files with uncommitted changes or newly created."""
-    # Modified tracked files
     diff_result = subprocess.run(
         ["git", "diff", "--name-only"],
         capture_output=True, text=True,
     )
-    # New untracked files (excluding directories)
     untracked_result = subprocess.run(
         ["git", "ls-files", "--others", "--exclude-standard"],
         capture_output=True, text=True,
@@ -323,13 +334,39 @@ def discard_changes() -> None:
     subprocess.run(["git", "checkout", "--", "."], check=False)
 
 
-def commit_and_push(files: list[str]) -> bool:
+def build_commit_message(comments: list[dict], replies: list[dict]) -> str:
+    """Build a descriptive commit message from the review feedback and replies."""
+    reply_lookup = {r.get("comment_id"): r for r in replies}
+
+    subject_parts = []
+    body_lines = []
+    for comment in comments:
+        comment_id = comment["comment_id"]
+        reply = reply_lookup.get(comment_id, {})
+        request = comment["body"].replace("/testbot", "").strip().split("\n")[0][:80]
+        response = reply.get("reply", "")[:120]
+        subject_parts.append(request)
+        body_lines.append(f"- {comment['path']}:{comment['line']} — {request}")
+        if response:
+            body_lines.append(f"  → {response}")
+
+    subject = "testbot: " + "; ".join(subject_parts)
+    if len(subject) > 72:
+        subject = subject[:69] + "..."
+
+    body = "\n".join(body_lines)
+    return f"{subject}\n\n{body}"
+
+
+def commit_and_push(
+    files: list[str],
+    comments: list[dict],
+    replies: list[dict],
+) -> bool:
     """Stage specific files, commit, and push with retries."""
+    message = build_commit_message(comments, replies)
     subprocess.run(["git", "add"] + files, check=True)
-    subprocess.run(
-        ["git", "commit", "-m", "testbot: address review feedback"],
-        check=True,
-    )
+    subprocess.run(["git", "commit", "-m", message], check=True)
     for attempt in range(1, MAX_PUSH_RETRIES + 1):
         result = subprocess.run(
             ["git", "push"],
@@ -355,24 +392,17 @@ def reply_to_comment(
     comment: dict,
     message: str,
 ) -> None:
-    """Post a reply using the correct API for the comment type."""
+    """Post an inline reply to a review comment."""
     comment_id = comment["comment_id"]
-    comment_type = comment["comment_type"]
     logger.info(
-        "Posting reply to comment %s (type=%s, path=%s, line=%s)",
-        comment_id, comment_type, comment.get("path", ""), comment.get("line", ""),
+        "Posting inline reply to review comment %s (path=%s, line=%s)",
+        comment_id, comment.get("path", ""), comment.get("line", ""),
     )
-    if comment_type == "review":
-        result = run_gh(
-            f"api repos/{owner}/{repo}/pulls/{pr_number}"
-            f"/comments/{comment_id}/replies "
-            f"-F body={shlex.quote(message)}"
-        )
-    else:
-        result = run_gh(
-            f"api repos/{owner}/{repo}/issues/{pr_number}/comments "
-            f"-F body={shlex.quote(message)}"
-        )
+    result = run_gh(
+        f"api repos/{owner}/{repo}/pulls/{pr_number}"
+        f"/comments/{comment_id}/replies "
+        f"-F body={shlex.quote(message)}"
+    )
     if result.returncode != 0:
         logger.error(
             "Failed to post reply to comment %s: %s",
@@ -392,7 +422,7 @@ def resolve_thread(thread_id: str) -> None:
 
 
 def main() -> None:
-    """Fetch actionable comments, delegate to Claude Code, post replies."""
+    """Fetch actionable review threads, delegate to Claude Code, post replies."""
     parser = argparse.ArgumentParser(
         description="Respond to PR review comments via Claude Code CLI.",
     )
@@ -403,15 +433,23 @@ def main() -> None:
     github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")
     owner, repo = github_repository.split("/", 1)
 
-    # Fetch all comments
-    review_comments = fetch_threads(owner, repo, args.pr_number)
-    pr_comments = fetch_pr_comments(owner, repo, args.pr_number)
-    all_comments = review_comments + pr_comments
-
-    actionable = filter_actionable(all_comments, args.trigger_phrase)
+    # Fetch review threads only (no top-level PR comments)
+    threads = fetch_threads(owner, repo, args.pr_number)
+    logger.info("Filtering %d threads for trigger '%s':", len(threads), args.trigger_phrase)
+    actionable = filter_actionable(threads, args.trigger_phrase)
     if not actionable:
         logger.info("No actionable comments on PR #%d", args.pr_number)
         return
+
+    # Log actionable comments passed to Claude
+    logger.info("=== Actionable comments to send to Claude ===")
+    for comment in actionable:
+        logger.info(
+            "  id=%s author=%s path=%s line=%s body=%s",
+            comment["comment_id"], comment["author"],
+            comment["path"], comment["line"],
+            comment["body"][:120].replace("\n", " "),
+        )
 
     # Build comment lookup for reply routing
     comment_lookup = {c["comment_id"]: c for c in actionable}
@@ -451,31 +489,34 @@ def main() -> None:
     push_succeeded = False
     if modified_files:
         logger.info("Modified files: %s", modified_files)
-        push_succeeded = commit_and_push(modified_files)
+        push_succeeded = commit_and_push(modified_files, actionable, replies)
         if not push_succeeded:
             logger.error("Push failed — discarding changes")
             subprocess.run(
                 ["git", "reset", "--hard", head_sha],
                 check=False,
             )
+    else:
+        logger.info("No file modifications detected")
 
     # Post replies and resolve threads
     logger.info(
-        "Processing %d replies from Claude (comment_lookup has %d entries: %s)",
-        len(replies), len(comment_lookup), list(comment_lookup.keys()),
+        "Processing %d replies (comment_lookup IDs: %s)",
+        len(replies), list(comment_lookup.keys()),
     )
     replied = 0
     for reply_data in replies:
         comment_id = reply_data.get("comment_id")
         logger.info(
-            "Reply for comment_id=%s resolve=%s reply=%s",
-            comment_id, reply_data.get("resolve"), reply_data.get("reply", "")[:100],
+            "Reply entry: comment_id=%s (type=%s) resolve=%s reply=%s",
+            comment_id, type(comment_id).__name__,
+            reply_data.get("resolve"), reply_data.get("reply", "")[:100],
         )
         comment = comment_lookup.get(comment_id)
         if not comment:
             logger.warning(
-                "Reply for unknown comment_id %s (type=%s), skipping. Known IDs: %s",
-                comment_id, type(comment_id).__name__, list(comment_lookup.keys()),
+                "Reply for unknown comment_id %s, skipping. Known IDs: %s",
+                comment_id, list(comment_lookup.keys()),
             )
             continue
 
@@ -494,10 +535,9 @@ def main() -> None:
 
         if should_resolve and comment.get("thread_id"):
             resolve_thread(comment["thread_id"])
-            logger.info("Resolved thread for comment %s", comment_id)
 
     logger.info(
-        "Responded to %d comment(s) on PR #%d", replied, args.pr_number,
+        "Done: responded to %d comment(s) on PR #%d", replied, args.pr_number,
     )
 
 
