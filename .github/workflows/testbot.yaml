@@ -122,4 +122,5 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: aws/anthropic/claude-opus-4-5
+          DISABLE_PROMPT_CACHING: "1"
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
