@@ -443,7 +443,7 @@ Upload to a task::
 
     osmo workflow rsync upload <workflow_id> <task_name> <local_path>:<remote_path>
 
-Upload to lead task (daemon mode)::
+Upload to lead task::
 
     osmo workflow rsync upload <workflow_id> <local_path>:<remote_path>
 
@@ -1614,8 +1614,8 @@ def _rsync_stop(args: argparse.Namespace):
     Stop one or more running rsync daemons
     """
     running_daemons = rsync.rsync_status(
-        workflow_id=getattr(args, 'workflow_id', None),
-        task_name=getattr(args, 'task', None),
+        workflow_id=args.workflow_id,
+        task_name=args.task,
         statuses={rsync.RsyncDaemonStatus.RUNNING},
     )
 
@@ -1623,7 +1623,7 @@ def _rsync_stop(args: argparse.Namespace):
         print('No running rsync daemons found')
         return
 
-    if not getattr(args, 'workflow_id', None) and not getattr(args, 'task', None):
+    if not args.workflow_id and not args.task:
         daemon_names = '\n\t* '.join([
             f'{daemon.metadata.rsync_request.workflow_id}/{daemon.metadata.rsync_request.task_name}'
             for daemon in running_daemons
