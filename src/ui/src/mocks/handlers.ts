@@ -1281,25 +1281,54 @@ export const handlers = [
     return HttpResponse.json(items);
   }),
 
+  // Dataset manifest via service endpoint — returns a flat file manifest for a dataset version.
+  // Used by the file browser to list files without requiring direct S3 access.
+  http.get("*/api/bucket/:bucket/dataset/:name/manifest", async ({ request, params }) => {
+    await delay(MOCK_DELAY);
+
+    const url = new URL(request.url);
+    const version = url.searchParams.get("version") ?? "1";
+    const datasetName = Array.isArray(params.name) ? params.name[0] : params.name;
+    const bucketName = Array.isArray(params.bucket) ? params.bucket[0] : params.bucket;
+
+    const locationUrl = `s3://${bucketName}/datasets/${datasetName}/v${version}/`;
+    const items = datasetGenerator.generateFlatManifest(datasetName ?? "", bucketName ?? "", locationUrl);
+    return HttpResponse.json(items);
+  }),
+
   // HEAD + GET /proxy/dataset/file — preflight + content for file preview panel.
   // Uses http.all because http.head() does not reliably intercept http.request with method HEAD
   // when routed through the mock port-9999 tunnel.
-  // Returns 401 for datasets that simulate a private bucket, 200/content otherwise.
+  // Supports both new service-proxied params (bucket/name/storagePath) and legacy (url).
   http.all("*/proxy/dataset/file", async ({ request }) => {
     await delay(MOCK_DELAY);
 
     const url = new URL(request.url);
-    const fileUrl = url.searchParams.get("url") ?? "";
 
-    // Extract dataset name from url param: /api/bucket/{bucket}/dataset/{name}/preview
-    const nameMatch = fileUrl.match(/\/dataset\/([^/?]+)\/preview/);
-    const datasetName = nameMatch?.[1] ?? "";
+    // New service-proxied path: bucket/name/storagePath params
+    const storagePath = url.searchParams.get("storagePath");
+    const paramName = url.searchParams.get("name") ?? "";
+
+    let datasetName: string;
+    let filePath: string;
+
+    if (storagePath) {
+      datasetName = paramName;
+      // Extract file path from storage_path like s3://bucket/datasets/name/v1/train/img.jpg
+      const lastSlashBeforeFile = storagePath.lastIndexOf("/");
+      filePath = lastSlashBeforeFile >= 0 ? storagePath.slice(storagePath.indexOf("/", 5) + 1) : storagePath;
+    } else {
+      // Legacy: extract from url param
+      const fileUrl = url.searchParams.get("url") ?? "";
+      const nameMatch = fileUrl.match(/\/dataset\/([^/?]+)\/preview/);
+      datasetName = nameMatch?.[1] ?? "";
+      filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
+    }
 
     if (datasetGenerator.isPrivateDataset(datasetName)) {
       return new HttpResponse(null, { status: 401 });
     }
 
-    const filePath = new URL(fileUrl, "http://localhost").searchParams.get("path") ?? "";
     const ext = filePath.split(".").pop()?.toLowerCase() ?? "";
 
     const contentTypeMap: Record<string, string> = {

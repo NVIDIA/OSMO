@@ -487,10 +487,22 @@ export async function fetchDatasetDetailLatest(bucket: string, name: string): Pr
  *
  * @param location - The version's location URL (DatasetVersion.location)
  */
-export async function fetchDatasetFiles(location: string | null): Promise<ProcessedManifest> {
+export async function fetchDatasetFiles(
+  bucket: string,
+  name: string,
+  version: string,
+  location: string | null,
+): Promise<ProcessedManifest> {
   if (!location) return { byPath: [], byFilename: [], fileTypes: [] };
-  const { fetchManifest } = await import("@/lib/api/server/dataset-actions");
-  const items = (await fetchManifest(location)) as RawFileItem[];
+
+  const params = new URLSearchParams({ version });
+  const response = await fetch(
+    `/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/manifest?${params}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch manifest: ${response.status}`);
+  }
+  const items = (await response.json()) as RawFileItem[];
 
   // Sort by full relative_path — enables binary-search directory listing
   const byPath = [...items].sort((a, b) => a.relative_path.localeCompare(b.relative_path));
@@ -640,8 +652,8 @@ export function buildDatasetLatestQueryKey(bucket: string, name: string): readon
  * Build query key for the dataset version's full file manifest.
  * Keyed by location URL only — path filtering is done client-side via buildDirectoryListing.
  */
-export function buildDatasetFilesQueryKey(location: string | null): readonly unknown[] {
-  return ["datasets", "files", location] as const;
+export function buildDatasetFilesQueryKey(bucket: string, name: string, version: string): readonly unknown[] {
+  return ["datasets", "files", bucket, name, version] as const;
 }
 
 /**
