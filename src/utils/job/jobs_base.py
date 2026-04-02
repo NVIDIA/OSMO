@@ -72,7 +72,7 @@ class Job(pydantic.BaseModel):
     super_type: str = 'frontend'
     job_type: str | None = None
     job_id: str | None = None
-    job_uuid: str = ''
+    job_uuid: str = pydantic.Field(default_factory=lambda: str(uuid.uuid4()))
 
     @classmethod
     def _get_job_id(cls, values):
