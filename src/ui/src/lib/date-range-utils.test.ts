@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DATE_RANGE_PRESETS, parseDateRangeValue } from "@/lib/date-range-utils";
 
-describe("parseDateRangeValue", () => {
+describe("date-range-utils", () => {
   describe("returns null for invalid input", () => {
     it("returns_null_for_empty_string", () => {
       const result = parseDateRangeValue("");
