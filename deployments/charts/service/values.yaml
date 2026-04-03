@@ -1204,6 +1204,7 @@ gateway:
     - /api/auth/refresh_token
     - /api/auth/jwt/refresh_token
     - /api/auth/jwt/access_token
+    - /api/router/version
     - /client/version
 
     ## Route configuration for the osmo-router upstream.
