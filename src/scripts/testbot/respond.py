@@ -100,6 +100,31 @@ REPLY_SCHEMA = json.dumps({
     "required": ["commit_message", "replies"],
 })
 
+GIT_TRAILER_PREFIXES = (
+    "Signed-off-by:", "Co-authored-by:", "Reviewed-by:",
+    "Acked-by:", "Tested-by:", "Reported-by:",
+)
+MAX_COMMIT_MESSAGE_LENGTH = 500
+
+
+def sanitize_commit_message(message: str) -> str:
+    """Sanitize a commit message from Claude's output.
+
+    Enforces testbot: prefix, strips git trailers that could fake
+    attribution, and caps length.
+    """
+    lines = []
+    for line in message.splitlines():
+        if any(line.strip().startswith(prefix) for prefix in GIT_TRAILER_PREFIXES):
+            continue
+        lines.append(line)
+    sanitized = "\n".join(lines).strip()
+    if not sanitized.startswith("testbot:"):
+        sanitized = f"testbot: {sanitized}"
+    if len(sanitized) > MAX_COMMIT_MESSAGE_LENGTH:
+        sanitized = sanitized[:MAX_COMMIT_MESSAGE_LENGTH].rsplit("\n", maxsplit=1)[0]
+    return sanitized
+
 
 def run_gh(args: str) -> subprocess.CompletedProcess:
     """Run a gh CLI command and return the result."""
@@ -289,7 +314,7 @@ def build_prompt(threads: list[dict]) -> str:
         "2. Apply the requested changes from the LATEST /testbot comment in each thread.",
         "3. Run tests to validate:",
         "   - Python/Go: bazel test <target>",
-        "   - TypeScript: cd src/ui && pnpm test -- --run <test_file>",
+        "   - TypeScript: pnpm --dir src/ui test -- --run <test_file>",
         "4. If tests fail, fix and re-run.",
         "5. Do NOT create git commits or branches. Do NOT modify source code — only test files and BUILD files.",
         "",
@@ -311,12 +336,12 @@ def run_claude(
     Returns empty dict on failure.
     """
     cmd = [
-        "npx", "@anthropic-ai/claude-code@latest", "--print",
+        "npx", "@anthropic-ai/claude-code@2.1.91", "--print",
         "--model", model,
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
         "--allowedTools",
-        "Read,Edit,Write,Bash(bazel:*),Bash(pnpm:*),Glob,Grep",
+        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm test *),Glob,Grep",
         "--max-turns", str(max_turns),
         prompt,
     ]
@@ -513,11 +538,12 @@ def main() -> None:
 
     replies = parse_replies(claude_output, actionable)
     structured = claude_output.get("structured_output", {})
-    commit_message = (
+    raw_commit_message = (
         structured.get("commit_message", "testbot: address review feedback")
         if isinstance(structured, dict)
         else "testbot: address review feedback"
     )
+    commit_message = sanitize_commit_message(raw_commit_message)
 
     modified_files = get_changed_test_files()
     push_succeeded = False

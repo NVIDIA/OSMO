@@ -124,6 +124,33 @@ class TestGetChangedTestFiles(unittest.TestCase):
         result = get_changed_test_files()
         self.assertEqual(result, ["a_test.go", "z_test.go"])
 
+    @patch("src.scripts.testbot.guardrails.os.remove")
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_deletes_untracked_non_test_files(self, mock_run, mock_remove):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout=""),
+            subprocess.CompletedProcess([], 0, stdout="src/malicious.py\nsrc/utils/tests/test_new.py\n"),
+        ]
+        result = get_changed_test_files()
+        self.assertEqual(result, ["src/utils/tests/test_new.py"])
+        mock_remove.assert_called_once_with("src/malicious.py")
+
+    @patch("src.scripts.testbot.guardrails.os.remove")
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_tracked_reverted_untracked_deleted(self, mock_run, mock_remove):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout="src/tracked_source.py\n"),
+            subprocess.CompletedProcess([], 0, stdout="src/new_malicious.py\n"),
+            subprocess.CompletedProcess([], 0, stdout=""),  # git checkout for tracked
+        ]
+        get_changed_test_files()
+        checkout_call = mock_run.call_args_list[2]
+        self.assertEqual(
+            checkout_call[0][0],
+            ["git", "checkout", "--", "src/tracked_source.py"],
+        )
+        mock_remove.assert_called_once_with("src/new_malicious.py")
+
 
 if __name__ == "__main__":
     unittest.main()
