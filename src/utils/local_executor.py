@@ -254,8 +254,10 @@ class LocalExecutor:
             host_path = os.path.join(files_dir, file_spec.path.lstrip('/'))
             docker_args += ['-v', f'{host_path}:{file_spec.path}:ro']
 
+        if resolved_command:
+            docker_args += ['--entrypoint', resolved_command[0]]
         docker_args.append(task_spec.image)
-        docker_args += resolved_command + resolved_args
+        docker_args += resolved_command[1:] + resolved_args
 
         logger.debug('Docker command: %s', ' '.join(docker_args))
 
