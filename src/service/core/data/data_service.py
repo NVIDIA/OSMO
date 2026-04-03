@@ -1035,7 +1035,7 @@ def get_manifest(
     return json.loads(manifest_content)
 
 
-@router.get('/{bucket}/dataset/{name}/file-content')
+@router.api_route('/{bucket}/dataset/{name}/file-content', methods=['GET', 'HEAD'])
 def get_file_content(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
