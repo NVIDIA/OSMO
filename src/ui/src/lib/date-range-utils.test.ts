@@ -364,6 +364,80 @@ describe("parseDateRangeValue", () => {
     });
   });
 
+  describe("time zone handling", () => {
+    it("parses date-only strings as UTC midnight regardless of local time zone", () => {
+      // Date-only strings are always interpreted as UTC midnight
+      // This ensures consistent behavior across Pacific, Eastern, UTC, etc.
+      const result = parseDateRangeValue("2024-06-15");
+
+      expect(result).not.toBeNull();
+      // Start should be UTC midnight
+      expect(result!.start.getUTCHours()).toBe(0);
+      expect(result!.start.getUTCMinutes()).toBe(0);
+      expect(result!.start.getUTCSeconds()).toBe(0);
+      expect(result!.start.getUTCMilliseconds()).toBe(0);
+      // Verify the full ISO string to confirm UTC
+      expect(result!.start.toISOString()).toBe("2024-06-15T00:00:00.000Z");
+    });
+
+    it("parses datetime strings as UTC regardless of local time zone", () => {
+      // "T14:30" is interpreted as 14:30 UTC, not local time
+      const result = parseDateRangeValue("2024-06-15T14:30");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.getUTCHours()).toBe(14);
+      expect(result!.start.getUTCMinutes()).toBe(30);
+      expect(result!.start.toISOString()).toBe("2024-06-15T14:30:00.000Z");
+    });
+
+    it("parses date range with dates as UTC midnight on both ends", () => {
+      const result = parseDateRangeValue("2024-01-15..2024-06-15");
+
+      expect(result).not.toBeNull();
+      // Start: UTC midnight Jan 15
+      expect(result!.start.getUTCFullYear()).toBe(2024);
+      expect(result!.start.getUTCMonth()).toBe(0); // January is 0
+      expect(result!.start.getUTCDate()).toBe(15);
+      expect(result!.start.getUTCHours()).toBe(0);
+      // End: UTC midnight June 16 (next day for inclusive end)
+      expect(result!.end.getUTCFullYear()).toBe(2024);
+      expect(result!.end.getUTCMonth()).toBe(5); // June is 5
+      expect(result!.end.getUTCDate()).toBe(16);
+      expect(result!.end.getUTCHours()).toBe(0);
+    });
+
+    it("parses datetime range with times as UTC", () => {
+      // A user in PT (UTC-7) entering 09:00 gets 09:00 UTC, not 09:00 PT
+      const result = parseDateRangeValue("2024-06-15T09:00..2024-06-15T17:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.getUTCHours()).toBe(9);
+      expect(result!.end.getUTCHours()).toBe(17);
+      expect(result!.start.toISOString()).toBe("2024-06-15T09:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T17:00:00.000Z");
+    });
+
+    it("handles midnight boundary consistently in UTC", () => {
+      // 00:00 should be parsed as midnight UTC
+      const result = parseDateRangeValue("2024-06-15T00:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.getUTCHours()).toBe(0);
+      expect(result!.start.getUTCMinutes()).toBe(0);
+      expect(result!.start.toISOString()).toBe("2024-06-15T00:00:00.000Z");
+    });
+
+    it("handles late night time consistently in UTC", () => {
+      // 23:59 should be parsed as 23:59 UTC
+      const result = parseDateRangeValue("2024-06-15T23:59");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.getUTCHours()).toBe(23);
+      expect(result!.start.getUTCMinutes()).toBe(59);
+      expect(result!.start.toISOString()).toBe("2024-06-15T23:59:00.000Z");
+    });
+  });
+
   describe("year boundary scenarios", () => {
     beforeEach(() => {
       vi.useFakeTimers();
