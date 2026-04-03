@@ -14,4 +14,19 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-{{- include "gateway.extra-configmaps" . }}
+{{/*
+Gateway component name prefix. All gateway resources are named
+<prefix>-<component>, e.g. osmo-gateway-envoy.
+*/}}
+{{- define "osmo.gateway-name" -}}
+{{- .Values.gateway.name | default "osmo-gateway" }}
+{{- end }}
+
+{{/*
+Gateway component labels. Pass a dict with "component" and "context" keys.
+*/}}
+{{- define "osmo.gateway-component-labels" -}}
+app.kubernetes.io/name: {{ include "osmo.gateway-name" .context }}
+app.kubernetes.io/instance: {{ .context.Release.Name }}
+app.kubernetes.io/component: {{ .component }}
+{{- end }}

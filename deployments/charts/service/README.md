@@ -18,7 +18,7 @@
 
 # NVIDIA OSMO - Helm Chart
 
-This Helm chart deploys the OSMO platform with its core services and required sidecars.
+This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
 ## Values
 
@@ -156,7 +156,6 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.service.resources` | Resource limits and requests | `{}` |
 | `services.service.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 | `services.service.livenessProbe` | Liveness probe configuration | See values.yaml |
-| `services.service.envoy` | API service Envoy configuration overrides | `{}` |
 
 #### Logger Service
 
@@ -173,7 +172,6 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.logger.tolerations` | Pod tolerations | `[]` |
 | `services.logger.resources` | Resource limits and requests | See values.yaml |
 | `services.logger.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
-| `services.logger.envoy` | Logger service Envoy configuration overrides | `{}` |
 
 #### Agent Service
 
@@ -190,7 +188,6 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.tolerations` | Pod tolerations | `[]` |
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
-| `services.agent.envoy` | Agent service Envoy configuration overrides | `{}` |
 
 ### Ingress Settings
 
@@ -208,84 +205,96 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `services.service.ingress.albAnnotations.enabled` | Enable ALB annotations | `false` |
-| `services.service.ingress.albAnnotations.sslCertArn` | ARN of SSL certificate | `arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY` |
+| `services.service.ingress.albAnnotations.sslCertArn` | ARN of SSL certificate | `""` |
 
-### Sidecar Configuration
-
-The chart now supports extensible sidecar configuration through the `sidecars` section.
-
-#### Per-Service Envoy Overrides
-
-Each service (API, Logger, Agent) can override global Envoy settings using `services.<service>.envoy`. These per-service settings are merged with the global `sidecars.envoy` configuration, allowing you to customize specific settings without duplicating the entire configuration.
-
-Example - Override `maxRequests` for the API service only:
-
-```yaml
-services:
-  service:
-    envoy:
-      maxRequests: 200  # Override global default of 100
-```
-
-Any field from `sidecars.envoy` can be overridden at the service level. Fields not specified in the service-level config will inherit the global defaults.
-
-#### Envoy Proxy Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.enabled` | Enable Envoy sidecar | `true` |
-| `sidecars.envoy.image` | Envoy proxy image | `envoyproxy/envoy:v1.29.0` |
-| `sidecars.envoy.imagePullPolicy` | Image pull policy | `IfNotPresent` |
-| `sidecars.envoy.listenerPort` | Envoy listener port | `80` |
-| `sidecars.envoy.maxHeadersSizeKb` | Maximum header size in KB | `128` |
-| `sidecars.envoy.logLevel` | Envoy log level | `info` |
-| `sidecars.envoy.service.hostname` | Service hostname | `""` |
-| `sidecars.envoy.service.address` | Service address | `127.0.0.1` |
-| `sidecars.envoy.service.port` | Service port | `8000` |
-| `sidecars.envoy.extraVolumeMounts` | Additional volume mounts for Envoy container | `[]` |
-| `sidecars.envoy.jwt.user_header` | JWT user header | `x-osmo-user` |
-| `sidecars.envoy.jwt.providers` | JWT providers configuration | See values.yaml |
-
-#### Prometheus Metrics Settings
+### Prometheus Metrics Settings
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `podMonitor.enabled` | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `true` |
 
-#### Rate Limit Settings
+### Gateway Configuration
+
+When `gateway.enabled` is true, the chart deploys Envoy, OAuth2 Proxy, and Authz as independent Deployments and Services, decoupled from the application pods. This replaces the legacy sidecar model where these components ran inside every service pod.
+
+Benefits of the separate gateway model:
+- Envoy stays alive during upstream service deployments, preserving downstream connections
+- Each component can be scaled and resourced independently
+- Cookie-based session affinity at the Envoy tier (CSP-independent)
+- Envoy becomes optional for users with existing API gateways
+
+#### Gateway Envoy
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.rateLimit.enabled` | Enable rate limiting | `true` |
-| `sidecars.rateLimit.image` | Rate limit image | `envoyproxy/ratelimit:9d8d70a8` |
-| `sidecars.rateLimit.imagePullPolicy` | Image pull policy | `IfNotPresent` |
-| `sidecars.rateLimit.redis.serviceName` | Redis service name | `""` |
-| `sidecars.rateLimit.redis.port` | Redis port | `6379` |
-| `sidecars.rateLimit.configName` | Rate limit config name | `ratelimit-config` |
+| `gateway.enabled` | Deploy the standalone gateway | `false` |
+| `gateway.name` | Name prefix for all gateway resources | `osmo-gateway` |
+| `gateway.envoy.enabled` | Enable Envoy deployment | `true` |
+| `gateway.envoy.replicas` | Number of Envoy replicas | `2` |
+| `gateway.envoy.image` | Envoy image | `envoyproxy/envoy:v1.29.0` |
+| `gateway.envoy.logLevel` | Envoy log level | `info` |
+| `gateway.envoy.listenerPort` | Listener port | `8080` |
+| `gateway.envoy.maxHeadersSizeKb` | Max header size in KB | `128` |
+| `gateway.envoy.hostname` | External hostname (used in OAuth2 redirect) | `""` |
+| `gateway.envoy.maxRequests` | Circuit breaker max concurrent requests | `100` |
+| `gateway.envoy.idp.host` | IDP host for JWKS (e.g. `login.microsoftonline.com`) | `""` |
+| `gateway.envoy.jwt.providers` | JWT provider configurations | `[]` |
+| `gateway.envoy.skipAuthPaths` | Paths that bypass authentication | See values.yaml |
+| `gateway.envoy.serviceRoutes` | Custom Envoy routes for osmo-service upstream | `[]` |
+| `gateway.envoy.routerRoute.cookie.name` | Cookie name for router session affinity | `_osmo_router_affinity` |
+| `gateway.envoy.routerRoute.cookie.ttl` | Cookie TTL for router affinity | `60s` |
+| `gateway.envoy.ingress.enabled` | Enable Ingress for the gateway | `false` |
 
-#### OAuth2 Proxy Settings
+Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
+
+#### Gateway Upstreams
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sidecars.oauth2Proxy.enabled` | Enable OAuth2 Proxy sidecar | `true` |
-| `sidecars.oauth2Proxy.image` | OAuth2 Proxy container image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
-| `sidecars.oauth2Proxy.httpPort` | HTTP port for OAuth2 Proxy | `4180` |
-| `sidecars.oauth2Proxy.metricsPort` | Metrics port for OAuth2 Proxy | `44180` |
-| `sidecars.oauth2Proxy.provider` | OIDC provider type | `oidc` |
-| `sidecars.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
-| `sidecars.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
-| `sidecars.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
-| `sidecars.oauth2Proxy.cookieSecure` | Set Secure flag on cookies | `true` |
-| `sidecars.oauth2Proxy.cookieDomain` | Cookie domain | `""` |
-| `sidecars.oauth2Proxy.cookieExpire` | Cookie expiration duration | `168h` |
-| `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
-| `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
-| `sidecars.oauth2Proxy.passAccessToken` | Pass the access token to upstream | `false` |
-| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `true` |
-| `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
-| `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |
-| `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
-| `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
+| `gateway.upstreams.service.host` | osmo-service K8s DNS name | `osmo-service` |
+| `gateway.upstreams.service.port` | osmo-service port | `80` |
+| `gateway.upstreams.router.enabled` | Route to osmo-router | `true` |
+| `gateway.upstreams.router.host` | osmo-router K8s DNS name | `osmo-router` |
+| `gateway.upstreams.router.port` | osmo-router port | `80` |
+| `gateway.upstreams.ui.enabled` | Route to osmo-ui | `true` |
+| `gateway.upstreams.ui.host` | osmo-ui K8s DNS name | `osmo-ui` |
+| `gateway.upstreams.ui.port` | osmo-ui port | `80` |
+
+#### Gateway OAuth2 Proxy
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `gateway.oauth2Proxy.enabled` | Enable OAuth2 Proxy deployment | `true` |
+| `gateway.oauth2Proxy.replicas` | Number of replicas | `1` |
+| `gateway.oauth2Proxy.image` | OAuth2 Proxy image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
+| `gateway.oauth2Proxy.provider` | OIDC provider type | `oidc` |
+| `gateway.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
+| `gateway.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
+| `gateway.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
+| `gateway.oauth2Proxy.redisSessionStore` | Use Redis for session store | `true` |
+
+#### Gateway Authz
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `gateway.authz.enabled` | Enable Authz deployment | `true` |
+| `gateway.authz.replicas` | Number of replicas | `1` |
+| `gateway.authz.imageName` | Authz image name | `authz-sidecar` |
+| `gateway.authz.imageTag` | Override image tag (defaults to `global.osmoImageTag`) | `""` |
+| `gateway.authz.grpcPort` | gRPC port | `50052` |
+
+#### Network Policies
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `gateway.networkPolicies.enabled` | Deploy NetworkPolicies restricting ingress to upstream pods | `false` |
+| `gateway.networkPolicies.upstreams` | List of upstream pods to protect (name, podSelector, port) | See values.yaml |
+
+#### TLS
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `gateway.tls.enabled` | Generate self-signed certs for upstream TLS | `false` |
 
 ### Extensibility
 
@@ -314,7 +323,7 @@ This chart requires:
 
 ## Architecture
 
-The osmo platform consists of:
+The OSMO platform consists of:
 
 ### Core Services
 - **API Service**: Main REST API with ingress, scaling, and authentication
@@ -323,18 +332,22 @@ The osmo platform consists of:
 - **Agent Service**: Client communication and management
 - **Delayed Job Monitor**: Monitoring and management of delayed background jobs
 
-### Sidecar Components
-- **Envoy Proxy**: Advanced traffic routing, authentication
+### Gateway (optional, `gateway.enabled: true`)
+- **Envoy Proxy**: Unified API gateway routing to all upstream services with JWT authentication, OAuth2, authorization, and rate limiting. Uses filesystem-based dynamic config (LDS/CDS) for zero-downtime config updates.
+- **OAuth2 Proxy**: Handles OIDC authentication flows with Redis-backed sessions
+- **Authz**: gRPC authorization service evaluating semantic RBAC policies against PostgreSQL
+- **Network Policies**: Restrict ingress to upstream pods so only the gateway Envoy can reach them
+- **TLS Certificates**: Self-signed CA and server certs for encrypted gateway-to-upstream communication
+
+### Monitoring
 - **OpenTelemetry Collector**: Metrics and tracing collection
-- **Rate Limiter**: API endpoint rate limiting
+- **Prometheus PodMonitor**: Service metrics scraping
 
 ## Notes
 
 - The chart consists of multiple services: API, Worker, Logger, Agent, and Delayed Job Monitor
 - Each service can be scaled independently using HPA
-- Authentication is handled through OAuth2 providers with JWT tokens
-- The service supports both external OAuth2 providers and internal JWT authentication
-- Envoy is used as a proxy sidecar for handling authentication and routing
+- Authentication is handled through the gateway's OAuth2 Proxy and JWT validation
+- The gateway Envoy provides cookie-based session affinity for the router service
 - Comprehensive logging with Fluent Bit integration
 - OpenTelemetry for observability
-- Rate limiting available for API endpoints with extensive configuration
