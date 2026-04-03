@@ -18,12 +18,19 @@
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
 
+{{/* Validate required fields */}}
+{{- if and $gw.oauth2Proxy.enabled (not $gw.envoy.hostname) }}
+  {{- fail "gateway.envoy.hostname is required when gateway.oauth2Proxy.enabled is true (used for the OAuth2 redirect URL)" }}
+{{- end }}
+
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
 {{/* ================================================================ */}}
 {{- include "osmo.gateway-envoy-config" . }}
 
 ---
+
+{{- if $gw.envoy.enabled }}
 
 {{/* ================================================================ */}}
 {{/* Envoy Deployment                                                 */}}
@@ -170,6 +177,12 @@ metadata:
     alb.ingress.kubernetes.io/group.name: osmo
     alb.ingress.kubernetes.io/group.order: "10"
     alb.ingress.kubernetes.io/certificate-arn: {{ $gw.envoy.ingress.albAnnotations.sslCertArn }}
+    {{- if $gw.envoy.ssl.enabled }}
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    {{- end }}
+    {{- end }}
+    {{- if $gw.envoy.ssl.enabled }}
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
     {{- end }}
     {{- range $k, $v := $gw.envoy.ingress.annotations }}
     {{ $k }}: {{ $v | quote }}
@@ -194,6 +207,8 @@ spec:
     secretName: {{ $gw.envoy.ingress.sslSecret | default "osmo-tls" }}
   {{- end }}
 {{- end }}
+
+{{- end }}{{/* end envoy.enabled */}}
 
 ---
 
@@ -261,9 +276,10 @@ spec:
           - --set-xauthrequest=true
           - --set-authorization-header=true
           - --pass-access-token={{ $gw.oauth2Proxy.passAccessToken }}
+          {{- $redisHost := $gw.oauth2Proxy.redis.serviceName | default $.Values.services.redis.serviceName }}
           {{- if $gw.oauth2Proxy.redisSessionStore }}
           - --session-store-type=redis
-          - --redis-connection-url={{ if $gw.oauth2Proxy.redis.tlsEnabled }}rediss{{ else }}redis{{ end }}://{{ $gw.oauth2Proxy.redis.serviceName }}:{{ $gw.oauth2Proxy.redis.port | default 6379 }}/{{ $gw.oauth2Proxy.redis.dbNumber | default 0 }}
+          - --redis-connection-url={{ if $gw.oauth2Proxy.redis.tlsEnabled }}rediss{{ else }}redis{{ end }}://{{ $redisHost }}:{{ $gw.oauth2Proxy.redis.port | default 6379 }}/{{ $gw.oauth2Proxy.redis.dbNumber | default 0 }}
           {{- end }}
           - --upstream=static://200
           - --redirect-url=https://{{ $gw.envoy.hostname }}/oauth2/callback
@@ -450,6 +466,126 @@ spec:
       name: grpc
   selector:
     {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 4 }}
+{{- end }}
+
+---
+
+{{/* ================================================================ */}}
+{{/* Rate Limit Deployment + Service + ConfigMap                      */}}
+{{/* ================================================================ */}}
+{{- if $gw.rateLimit.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $gwName }}-ratelimit-config
+data:
+  config.yaml: |
+    domain: {{ $gw.rateLimit.config.domain | default "ratelimit" }}
+    descriptors:
+      {{- toYaml $gw.rateLimit.config.descriptors | nindent 6 }}
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $gwName }}-ratelimit
+spec:
+  replicas: {{ $gw.rateLimit.replicas }}
+  selector:
+    matchLabels:
+      {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 8 }}
+      annotations:
+        checksum/ratelimit-config: {{ $gw.rateLimit.config | toYaml | sha256sum }}
+    spec:
+      {{- with $gw.rateLimit.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gw.rateLimit.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      containers:
+      - name: ratelimit
+        image: "{{ $gw.rateLimit.image }}"
+        imagePullPolicy: "{{ $gw.rateLimit.imagePullPolicy }}"
+        securityContext:
+          {{- toYaml $gw.rateLimit.securityContext | nindent 10 }}
+        command: ["/bin/ratelimit"]
+        resources:
+          {{- toYaml $gw.rateLimit.resources | nindent 10 }}
+        env:
+        - name: LOG_LEVEL
+          value: info
+        - name: REDIS_SOCKET_TYPE
+          value: tcp
+        - name: REDIS_URL
+          value: {{ $gw.rateLimit.redis.serviceName }}:{{ $gw.rateLimit.redis.port | default 6379 }}
+        - name: REDIS_TLS
+          value: {{ $gw.rateLimit.redis.tlsEnabled | default true | quote }}
+        - name: USE_STATSD
+          value: "false"
+        - name: RUNTIME_ROOT
+          value: /data
+        - name: RUNTIME_SUBDIRECTORY
+          value: ratelimit
+        - name: RUNTIME_WATCH_ROOT
+          value: "false"
+        - name: RUNTIME_IGNOREDOTFILES
+          value: "true"
+        - name: HOST
+          value: "::"
+        - name: GRPC_HOST
+          value: "::"
+        ports:
+        - name: grpc
+          containerPort: {{ $gw.rateLimit.grpcPort }}
+        - name: http
+          containerPort: {{ $gw.rateLimit.httpPort }}
+        volumeMounts:
+        - name: ratelimit-config
+          mountPath: /data/ratelimit/config
+        livenessProbe:
+          tcpSocket:
+            port: {{ $gw.rateLimit.grpcPort }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: ratelimit-config
+        configMap:
+          name: {{ $gwName }}-ratelimit-config
+          defaultMode: 420
+          items:
+          - key: config.yaml
+            path: config.yaml
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $gwName }}-ratelimit
+spec:
+  ports:
+    - port: {{ $gw.rateLimit.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    - port: {{ $gw.rateLimit.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 4 }}
 {{- end }}
 
 ---

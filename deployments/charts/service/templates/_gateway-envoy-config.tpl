@@ -127,10 +127,12 @@ data:
               - name: gateway
                 domains: ["*"]
                 routes:
+                {{- if $gw.oauth2Proxy.enabled }}
                 - match:
                     prefix: /oauth2/
                   route:
                     cluster: oauth2-proxy
+                {{- end }}
 
                 {{- if $gw.upstreams.router.enabled }}
                 - match:
@@ -205,6 +207,7 @@ data:
                       request_handle:headers():remove("x-osmo-workflow-id")
                       request_handle:headers():remove("x-osmo-allowed-pools")
                       request_handle:headers():remove("x-envoy-internal")
+                      request_handle:headers():remove("x-forwarded-host")
                     end
             - name: add-auth-skip
               typed_config:
@@ -235,7 +238,7 @@ data:
                     function envoy_on_request(request_handle)
                       local authority = request_handle:headers():get(":authority")
                       if authority ~= nil then
-                        request_handle:headers():add("x-forwarded-host", authority)
+                        request_handle:headers():replace("x-forwarded-host", authority)
                       end
                     end
 
@@ -306,6 +309,7 @@ data:
                     failure_mode_allow: false
             {{- end }}
 
+            {{- if $envoy.jwt.providers }}
             - name: jwt-authn-with-matcher
               typed_config:
                 "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
@@ -369,6 +373,7 @@ data:
                           {{- range $i, $provider := $envoy.jwt.providers }}
                           - provider_name: provider_{{$i}}
                           {{- end}}
+            {{- end }}
 
             - name: envoy.filters.http.lua.roles
               typed_config:
@@ -380,8 +385,10 @@ data:
                       if (meta == nil or meta.verified_jwt == nil) then
                         return
                       end
-                      local roles_list = table.concat(meta.verified_jwt.roles, ',')
-                      request_handle:headers():replace('x-osmo-roles', roles_list)
+                      local roles = meta.verified_jwt.roles
+                      if (roles ~= nil and type(roles) == 'table') then
+                        request_handle:headers():replace('x-osmo-roles', table.concat(roles, ','))
+                      end
                       if (meta.verified_jwt.osmo_token_name ~= nil) then
                         request_handle:headers():replace('x-osmo-token-name', tostring(meta.verified_jwt.osmo_token_name))
                       end
