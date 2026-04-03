@@ -1239,7 +1239,9 @@ gateway:
     router:
       enabled: true
       host: osmo-router-headless
-      port: 80
+      ## Port 8000 (not 80) because the headless service resolves to pod IPs
+      ## directly, and Envoy connects to the pod port, not the Service port.
+      port: 8000
     ui:
       enabled: true
       host: osmo-ui

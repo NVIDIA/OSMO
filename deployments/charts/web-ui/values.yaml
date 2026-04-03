@@ -78,9 +78,11 @@ services:
     ## Hostname on which the osmo API server is hosted
     ## Default is the local cluster hostname
     ## Can be overridden to serve the API from public domain
-    ## e.g. "osmo.your-domain.com"
+    ## When using the gateway, point this at the gateway service so that
+    ## server-side API calls go through Envoy's auth filters.
+    ## e.g. "osmo-gateway.your-domain.com"
     ##
-    apiHostname: "osmo-service.osmo.svc.cluster.local:80"
+    apiHostname: "osmo-service.your-domain.com"
 
     ## Enable port-forwarding through Web UI
     ##
