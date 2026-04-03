@@ -129,6 +129,23 @@ def get_cached_section(config_key: str) -> Dict[str, Any] | None:
     return _active_watcher._cached_managed_configs.get(config_key)
 
 
+def is_singleton_managed(config_key: str) -> bool:
+    """Return True if a singleton config is managed by ConfigMap in configmap mode."""
+    mode = get_managed_mode(config_key)
+    return mode == ManagedByMode.CONFIGMAP.value
+
+
+def is_named_item_managed(config_key: str, item_name: str) -> bool:
+    """Return True if a named config item is managed by ConfigMap in configmap mode."""
+    section = get_cached_section(config_key)
+    if not section:
+        return False
+    if section.get('managed_by', ManagedByMode.SEED.value) != ManagedByMode.CONFIGMAP.value:
+        return False
+    items = section.get('items', {})
+    return item_name in items
+
+
 class ConfigMapWatcher:
     """Watches a ConfigMap-mounted YAML file and reconciles DB state.
 
