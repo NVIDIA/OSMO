@@ -1244,6 +1244,14 @@ gateway:
       enabled: true
       host: osmo-ui
       port: 80
+    agent:
+      enabled: true
+      host: osmo-agent
+      port: 80
+    logger:
+      enabled: true
+      host: osmo-logger
+      port: 80
 
   ## -----------------------------------------------------------------------
   ## Gateway OAuth2 Proxy — handles OIDC authentication flows.

@@ -169,6 +169,24 @@ data:
                         ttl: {{ $envoy.routerRoute.cookie.ttl | default "60s" }}
                 {{- end }}
 
+                {{- /* Agent routes — WebSocket to osmo-agent */}}
+                {{- if $gw.upstreams.agent.enabled }}
+                - match:
+                    prefix: /api/agent/
+                  route:
+                    cluster: osmo-agent
+                    timeout: 0s
+                {{- end }}
+
+                {{- /* Logger routes — WebSocket to osmo-logger */}}
+                {{- if $gw.upstreams.logger.enabled }}
+                - match:
+                    prefix: /api/logger/
+                  route:
+                    cluster: osmo-logger
+                    timeout: 0s
+                {{- end }}
+
                 {{- if $envoy.serviceRoutes }}
                 {{- toYaml $envoy.serviceRoutes | nindent 16 }}
                 {{- else }}
@@ -200,16 +218,34 @@ data:
                 default_source_code:
                   inline_string: |
                     function envoy_on_request(request_handle)
-                      local downstream_remote_port = request_handle:streamInfo():downstreamRemoteAddress()
-                      local downstream_remote = string.match(downstream_remote_port, "([^:]+)")
                       local blocked_ips = {
                       {{- range $index, $ip := $envoy.blockedIPs }}
                         {{- if $index }},{{ end }}
                         ["{{ $ip }}"] = true
                       {{- end }}
                       }
-                      if blocked_ips[downstream_remote] then
-                        request_handle:logInfo("Blocking request from downstream IP: " .. downstream_remote)
+
+                      -- Check all IPs in x-forwarded-for (covers spoofed and real entries)
+                      local xff = request_handle:headers():get("x-forwarded-for")
+                      if xff ~= nil then
+                        for ip in string.gmatch(xff, "([^,]+)") do
+                          ip = ip:match("^%s*(.-)%s*$")
+                          if blocked_ips[ip] then
+                            request_handle:logInfo("Blocking request from IP (xff): " .. ip)
+                            request_handle:respond(
+                              {[":status"] = "403"},
+                              "Access denied: IP address blocked due to excessive requests"
+                            )
+                            return
+                          end
+                        end
+                      end
+
+                      -- Also check the direct peer address
+                      local peer = request_handle:streamInfo():downstreamRemoteAddress()
+                      local peer_ip = string.match(peer, "([^:]+)")
+                      if blocked_ips[peer_ip] then
+                        request_handle:logInfo("Blocking request from IP (peer): " .. peer_ip)
                         request_handle:respond(
                           {[":status"] = "403"},
                           "Access denied: IP address blocked due to excessive requests"
@@ -555,6 +591,70 @@ data:
                 socket_address:
                   address: {{ $gw.upstreams.ui.host }}
                   port_value: {{ $gw.upstreams.ui.port }}
+      {{- if $gw.tls.enabled }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
+      {{- end }}
+    {{- end }}
+
+    {{- if $gw.upstreams.agent.enabled }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: osmo-agent
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: osmo-agent
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: {{ $gw.upstreams.agent.host }}
+                  port_value: {{ $gw.upstreams.agent.port }}
+      {{- if $gw.tls.enabled }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
+      {{- end }}
+    {{- end }}
+
+    {{- if $gw.upstreams.logger.enabled }}
+    - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: osmo-logger
+      connect_timeout: 3s
+      type: STRICT_DNS
+      dns_lookup_family: V4_ONLY
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: osmo-logger
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: {{ $gw.upstreams.logger.host }}
+                  port_value: {{ $gw.upstreams.logger.port }}
       {{- if $gw.tls.enabled }}
       transport_socket:
         name: envoy.transport_sockets.tls
