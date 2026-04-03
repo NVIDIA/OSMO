@@ -17,7 +17,7 @@ import logging
 import subprocess
 import sys
 
-from testbot.guardrails import get_changed_test_files
+from src.scripts.testbot.guardrails import get_changed_test_files
 
 logging.basicConfig(
     level=logging.INFO,
