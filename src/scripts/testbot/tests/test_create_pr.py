@@ -42,6 +42,14 @@ class TestHasOpenTestbotPr(unittest.TestCase):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="")
         self.assertTrue(has_open_testbot_pr())
 
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_filters_by_author(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="0\n")
+        has_open_testbot_pr()
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("--author", cmd)
+        self.assertIn("svc-osmo-ci", cmd)
+
 
 if __name__ == "__main__":
     unittest.main()

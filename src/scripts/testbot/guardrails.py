@@ -7,6 +7,7 @@ Ensures testbot only commits test files and never modifies source code.
 
 import fnmatch
 import logging
+import os
 import subprocess
 
 logger = logging.getLogger(__name__)
@@ -49,25 +50,46 @@ def get_changed_test_files() -> list[str]:
     )
     if untracked_result.returncode != 0:
         logger.error("git ls-files failed: %s", untracked_result.stderr[:200])
-    all_files = set()
-    for output in (diff_result.stdout, untracked_result.stdout):
-        for line in output.strip().splitlines():
-            if line and not line.startswith(".claude/"):
-                all_files.add(line)
+
+    tracked_changed: set[str] = set()
+    for line in diff_result.stdout.strip().splitlines():
+        if line and not line.startswith(".claude/"):
+            tracked_changed.add(line)
+
+    untracked: set[str] = set()
+    for line in untracked_result.stdout.strip().splitlines():
+        if line and not line.startswith(".claude/"):
+            untracked.add(line)
+
+    all_files = tracked_changed | untracked
 
     test_files = []
-    non_test_files = []
+    non_test_tracked = []
+    non_test_untracked = []
     for file_path in sorted(all_files):
         if is_test_file(file_path):
             test_files.append(file_path)
+        elif file_path in untracked:
+            non_test_untracked.append(file_path)
         else:
-            non_test_files.append(file_path)
+            non_test_tracked.append(file_path)
 
-    if non_test_files:
+    if non_test_tracked:
         logger.warning(
-            "Discarding %d non-test file(s) modified by Claude: %s",
-            len(non_test_files), non_test_files,
+            "Reverting %d non-test tracked file(s): %s",
+            len(non_test_tracked), non_test_tracked,
         )
-        subprocess.run(["git", "checkout", "--"] + non_test_files, check=False)
+        subprocess.run(["git", "checkout", "--"] + non_test_tracked, check=False)
+
+    if non_test_untracked:
+        logger.warning(
+            "Deleting %d non-test untracked file(s): %s",
+            len(non_test_untracked), non_test_untracked,
+        )
+        for file_path in non_test_untracked:
+            try:
+                os.remove(file_path)
+            except OSError as exc:
+                logger.error("Failed to delete %s: %s", file_path, exc)
 
     return test_files

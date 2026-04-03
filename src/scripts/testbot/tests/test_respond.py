@@ -14,6 +14,7 @@ from src.scripts.testbot.respond import (
     filter_actionable,
     parse_replies,
     run_claude,
+    sanitize_commit_message,
 )
 
 
@@ -291,7 +292,7 @@ class TestBuildPrompt(unittest.TestCase):
         }]
         prompt = build_prompt(threads)
         self.assertIn("bazel test", prompt)
-        self.assertIn("pnpm test", prompt)
+        self.assertIn("pnpm --dir src/ui test", prompt)
 
     def test_includes_no_git_instruction(self):
         threads = [{
@@ -347,6 +348,40 @@ class TestRunClaude(unittest.TestCase):
         cmd = mock_run.call_args[0][0]
         self.assertIn("custom/model", cmd)
         self.assertIn("10", cmd)
+
+
+class TestSanitizeCommitMessage(unittest.TestCase):
+    """Tests for sanitize_commit_message security filtering."""
+
+    def test_passes_valid_message(self):
+        self.assertEqual(
+            sanitize_commit_message("testbot: fix edge case tests"),
+            "testbot: fix edge case tests",
+        )
+
+    def test_adds_prefix_if_missing(self):
+        result = sanitize_commit_message("fix edge case tests")
+        self.assertTrue(result.startswith("testbot:"))
+
+    def test_strips_signed_off_by_trailer(self):
+        message = "testbot: fix tests\n\nSigned-off-by: attacker <a@evil.com>"
+        result = sanitize_commit_message(message)
+        self.assertNotIn("Signed-off-by:", result)
+
+    def test_strips_co_authored_by_trailer(self):
+        message = "testbot: fix tests\n\nCo-authored-by: fake <f@evil.com>"
+        result = sanitize_commit_message(message)
+        self.assertNotIn("Co-authored-by:", result)
+
+    def test_caps_length(self):
+        message = "testbot: " + "x" * 600
+        result = sanitize_commit_message(message)
+        self.assertLessEqual(len(result), 500)
+
+    def test_preserves_multiline_body(self):
+        message = "testbot: fix tests\n\nAdded edge case for empty input."
+        result = sanitize_commit_message(message)
+        self.assertIn("Added edge case", result)
 
 
 if __name__ == "__main__":

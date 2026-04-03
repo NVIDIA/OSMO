@@ -32,13 +32,15 @@ def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 def has_open_testbot_pr() -> bool:
-    """Check if there is already an open PR with the ai-generated label.
+    """Check if there is already an open testbot PR.
 
-    Returns True (fail closed) if the gh command fails, to prevent
-    stacking duplicate PRs on auth/network errors.
+    Filters by both label and author so that developer PRs manually
+    labeled ai-generated don't block new testbot runs.
+    Returns True (fail closed) if the gh command fails.
     """
     result = run(
         ["gh", "pr", "list", "--label", "ai-generated", "--state", "open",
+         "--author", "svc-osmo-ci",
          "--json", "number", "--jq", "length"],
         check=False,
     )
