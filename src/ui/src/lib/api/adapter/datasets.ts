@@ -495,14 +495,8 @@ export async function fetchDatasetFiles(
 ): Promise<ProcessedManifest> {
   if (!location) return { byPath: [], byFilename: [], fileTypes: [] };
 
-  const params = new URLSearchParams({ version });
-  const response = await fetch(
-    `/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/manifest?${params}`,
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to fetch manifest: ${response.status}`);
-  }
-  const items = (await response.json()) as RawFileItem[];
+  const { fetchManifest } = await import("@/lib/api/server/dataset-actions.production");
+  const items = (await fetchManifest(bucket, name, version)) as RawFileItem[];
 
   // Sort by full relative_path — enables binary-search directory listing
   const byPath = [...items].sort((a, b) => a.relative_path.localeCompare(b.relative_path));
