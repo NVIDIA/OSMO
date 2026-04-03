@@ -96,11 +96,8 @@ spec:
           {{- end }}
           {{- if $gw.envoy.ssl.enabled }}
           - name: ssl-cert
-            mountPath: /etc/ssl/certs/cert.crt
-            subPath: cert.crt
-          - name: ssl-key
-            mountPath: /etc/ssl/private/private_key.key
-            subPath: private_key.key
+            mountPath: /etc/ssl/envoy-certs
+            readOnly: true
           {{- end }}
         resources:
           {{- toYaml $gw.envoy.resources | nindent 10 }}
@@ -131,16 +128,7 @@ spec:
         {{- if $gw.envoy.ssl.enabled }}
         - name: ssl-cert
           secret:
-            secretName: {{ $gw.envoy.ssl.cert.secretName }}
-            items:
-            - key: {{ $gw.envoy.ssl.cert.secretKey }}
-              path: cert.crt
-        - name: ssl-key
-          secret:
-            secretName: {{ $gw.envoy.ssl.privateKey.secretName }}
-            items:
-            - key: {{ $gw.envoy.ssl.privateKey.secretKey }}
-              path: private_key.key
+            secretName: {{ $gw.envoy.ssl.secretName | default "envoy-ssl-cert" }}
         {{- end }}
 
 ---

@@ -1116,16 +1116,14 @@ gateway:
       sslSecret: osmo-tls
       annotations: {}
 
-    ## SSL/TLS configuration for the Envoy listener (downstream)
+    ## SSL/TLS configuration for the Envoy listener (downstream).
+    ## The Secret must contain tls.crt and tls.key entries (kubernetes.io/tls type).
+    ## Mounted as a directory (not subPath) so Kubernetes symlink rotation
+    ## propagates cert renewals without a pod restart.
     ##
     ssl:
       enabled: false
-      cert:
-        secretName: envoy-ssl-cert
-        secretKey: cert
-      privateKey:
-        secretName: envoy-ssl-cert
-        secretKey: privateKey
+      secretName: envoy-ssl-cert
 
     ## Security context for Envoy containers
     ##
@@ -1240,7 +1238,7 @@ gateway:
       port: 80
     router:
       enabled: true
-      host: osmo-router
+      host: osmo-router-headless
       port: 80
     ui:
       enabled: true

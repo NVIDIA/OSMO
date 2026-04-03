@@ -237,6 +237,24 @@ spec:
   selector:
     app: {{ .Values.services.service.serviceName }}
 
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.service.serviceName }}-headless
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.services.service.serviceName }}
+
 {{- if .Values.services.service.ingress.enabled }}
 ---
 

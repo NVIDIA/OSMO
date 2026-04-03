@@ -58,6 +58,28 @@ data:
           watched_directory:
             path: /var/config
 
+  {{- if $envoy.ssl.enabled }}
+  sds_downstream_tls.yaml: |
+    resources:
+    - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+      name: downstream_cert
+      tls_certificate:
+        certificate_chain:
+          filename: /etc/ssl/envoy-certs/tls.crt
+        private_key:
+          filename: /etc/ssl/envoy-certs/tls.key
+  {{- end }}
+
+  {{- if $gw.tls.enabled }}
+  sds_upstream_ca.yaml: |
+    resources:
+    - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+      name: upstream_ca
+      validation_context:
+        trusted_ca:
+          filename: /etc/gateway-tls/ca.crt
+  {{- end }}
+
   lds.yaml: |
     resources:
     - "@type": type.googleapis.com/envoy.config.listener.v3.Listener
@@ -109,6 +131,7 @@ data:
                     request_id: "%REQ(X-REQUEST-ID)%"
                     authority: "%REQ(:AUTHORITY)%"
                     x_forwarded_for: "%REQ(X-FORWARDED-FOR)%"
+                    level: "info"
                     osmo_user: "%REQ(X-OSMO-USER)%"
                     osmo_token_name: "%REQ(X-OSMO-TOKEN-NAME)%"
                     osmo_workflow_id: "%REQ(X-OSMO-WORKFLOW-ID)%"
@@ -435,11 +458,13 @@ data:
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
             common_tls_context:
-              tls_certificates:
-              - certificate_chain:
-                  filename: /etc/ssl/certs/cert.crt
-                private_key:
-                  filename: /etc/ssl/private/private_key.key
+              tls_certificate_sds_secret_configs:
+              - name: downstream_cert
+                sds_config:
+                  path_config_source:
+                    path: /var/config/sds_downstream_tls.yaml
+                    watched_directory:
+                      path: /var/config
         {{- end }}
 
   cds.yaml: |
@@ -471,9 +496,13 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           common_tls_context:
-            validation_context:
-              trusted_ca:
-                filename: /etc/gateway-tls/ca.crt
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -500,9 +529,13 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           common_tls_context:
-            validation_context:
-              trusted_ca:
-                filename: /etc/gateway-tls/ca.crt
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
       {{- end }}
     {{- end }}
 
@@ -528,9 +561,13 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           common_tls_context:
-            validation_context:
-              trusted_ca:
-                filename: /etc/gateway-tls/ca.crt
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
       {{- end }}
     {{- end }}
 
