@@ -60,6 +60,7 @@ class LocalExecutor:
       - Inline `files:` written to the container
       - `environment:` passed as Docker env vars
       - Task-to-task data flow via shared local directories
+      - GPU passthrough via --gpus for tasks that declare gpu > 0 in resources
 
     Does NOT support (raises clear errors):
       - Dataset / URL inputs/outputs (require object storage)
@@ -204,6 +205,13 @@ class LocalExecutor:
                         name=downstream, exit_code=-1, output_dir='')
                     queue.append(downstream)
 
+    def _task_gpu_count(self, task_spec: task_module.TaskSpec,
+                        spec: workflow_module.WorkflowSpec) -> int:
+        resource_spec = spec.resources.get(task_spec.resource)
+        if resource_spec and resource_spec.gpu:
+            return resource_spec.gpu
+        return 0
+
     def _run_task(self, node: TaskNode, spec: workflow_module.WorkflowSpec) -> TaskResult:
         task_spec = node.spec
         task_dir = os.path.join(self._work_dir, node.name)
@@ -224,6 +232,11 @@ class LocalExecutor:
         resolved_args = [self._substitute_tokens(a, token_map) for a in task_spec.args]
 
         docker_args = [self._docker_cmd, 'run', '--rm']
+
+        gpu_count = self._task_gpu_count(task_spec, spec)
+        if gpu_count > 0:
+            docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
+            logger.info('Task "%s" requesting %d GPU(s)', node.name, gpu_count)
 
         for key, value in task_spec.environment.items():
             resolved_value = self._substitute_tokens(value, token_map)
