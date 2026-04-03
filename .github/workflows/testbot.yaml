@@ -53,6 +53,7 @@ concurrency:
 
 jobs:
   generate-tests:
+    environment: testbot-generate
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '30') }}
     runs-on: ubuntu-latest
     steps:
@@ -118,9 +119,9 @@ jobs:
       - name: Generate tests
         run: |
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
-          npx @anthropic-ai/claude-code@latest --print \
+          npx @anthropic-ai/claude-code@2.1.91 --print \
             --model "$ANTHROPIC_MODEL" \
-            --allowedTools "Read,Edit,Write,Bash(bazel:*),Bash(pnpm:*),Glob,Grep" \
+            --allowedTools "Read,Edit,Write,Bash(bazel test *),Bash(pnpm test *),Glob,Grep" \
             --max-turns ${{ inputs.max_turns || '50' }} \
             "$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
 

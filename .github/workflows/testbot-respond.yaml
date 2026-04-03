@@ -33,6 +33,7 @@ concurrency:
 
 jobs:
   respond:
+    environment: testbot-respond
     # Label gate + fork rejection. Author association is checked per-thread in
     # respond.py, not here — a bot comment event must still let the workflow run
     # so it can process pending /testbot threads from repo members.

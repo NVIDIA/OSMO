@@ -27,18 +27,28 @@ logger = logging.getLogger(__name__)
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    """Run a command and return the result."""
-    return subprocess.run(cmd, capture_output=True, text=True, check=check)
+    """Run a command, log failures, and return the result."""
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        logger.error(
+            "Command %s failed (exit %d):\nstdout: %s\nstderr: %s",
+            cmd, result.returncode, result.stdout[:2000], result.stderr[:2000],
+        )
+        if check:
+            result.check_returncode()
+    return result
 
 
 def has_open_testbot_pr() -> bool:
-    """Check if there is already an open PR with the ai-generated label.
+    """Check if there is already an open testbot PR.
 
-    Returns True (fail closed) if the gh command fails, to prevent
-    stacking duplicate PRs on auth/network errors.
+    Filters by both label and author so that developer PRs manually
+    labeled ai-generated don't block new testbot runs.
+    Returns True (fail closed) if the gh command fails.
     """
     result = run(
         ["gh", "pr", "list", "--label", "ai-generated", "--state", "open",
+         "--author", "svc-osmo-ci",
          "--json", "number", "--jq", "length"],
         check=False,
     )
@@ -89,7 +99,10 @@ def main() -> None:
         ["git", "commit", "-m", f"Add AI-generated tests for {files_summary}"],
         check=True,
     )
-    run(["git", "push", "-u", "origin", branch])
+    push_result = run(["git", "push", "-u", "origin", branch], check=False)
+    if push_result.returncode != 0:
+        logger.error("Failed to push branch '%s'", branch)
+        sys.exit(1)
     logger.info("Pushed branch '%s'", branch)
 
     pr_body = f"""## Summary

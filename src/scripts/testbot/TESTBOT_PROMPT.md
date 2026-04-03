@@ -25,7 +25,7 @@ The targets are appended below this prompt. For each target you receive:
      in the same BUILD file. Do NOT guess target names.
 6. Run the test:
    - Python/Go: `bazel test <target>` (derive the target from the BUILD file)
-   - TypeScript: `cd src/ui && pnpm test -- --run <test_file_path>`
+   - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
 7. If the test fails, read the error output and fix the test. Retry up to 3 times.
 8. Move to the next target.
 
