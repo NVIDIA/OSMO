@@ -510,11 +510,11 @@ Stop a specific daemon::
                                       'not provided, the admin-configured default will be used.')
     rsync_up_parser.add_argument('--reconcile-interval',
                                  type=validation.positive_float,
-                                 help='The amount of time (seconds) between reconciling the upload '
-                                      'in daemon mode. This is used to ensure that failed uploads '
-                                      'during network interruptions will resume after connection is '
-                                      'restored. If not provided, the admin-configured default '
-                                      'will be used.')
+                                 help='The amount of time (seconds) between reconciling '
+                                      'the upload in daemon mode. This is used to ensure '
+                                      'that failed uploads during network interruptions '
+                                      'will resume after connection is restored. If not '
+                                      'provided, the admin-configured default will be used.')
     rsync_up_parser.add_argument('--max-log-size',
                                  type=validation.positive_integer,
                                  default=2 * 1024 * 1024,
@@ -1602,7 +1602,7 @@ def _rsync_status():
     print('\n' + table.draw() + '\n')
 
 
-def _rsync_status_cmd(service_client: client.ServiceClient, args: argparse.Namespace):
+def _rsync_status_cmd(_service_client: client.ServiceClient, _args: argparse.Namespace):
     """
     Status subcommand handler.
     """
@@ -1650,7 +1650,7 @@ def _rsync_stop(args: argparse.Namespace):
             )
 
 
-def _rsync_stop_cmd(service_client: client.ServiceClient, args: argparse.Namespace):
+def _rsync_stop_cmd(_service_client: client.ServiceClient, args: argparse.Namespace):
     """
     Stop subcommand handler.
     """
