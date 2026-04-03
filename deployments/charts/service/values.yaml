@@ -1358,12 +1358,39 @@ gateway:
 
   ## -----------------------------------------------------------------------
   ## Gateway Rate Limiting — Redis-backed rate limiting via Envoy's
-  ## ratelimit filter. Requires a separate rate limit service deployment.
+  ## ratelimit filter. Deploys a standalone ratelimit service pod.
   ## -----------------------------------------------------------------------
   rateLimit:
     enabled: false
+    replicas: 1
+    image: envoyproxy/ratelimit:9d8d70a8
+    imagePullPolicy: IfNotPresent
     grpcPort: 8091
     httpPort: 8090
+
+    redis:
+      serviceName: ""
+      port: 6379
+      tlsEnabled: true
+
+    config:
+      domain: ratelimit
+      descriptors: []
+
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1001
+    resources:
+      requests:
+        cpu: "0.1"
+        memory: "200Mi"
+      limits:
+        memory: "200Mi"
+    nodeSelector: {}
+    tolerations: []
 
   ## -----------------------------------------------------------------------
   ## Network Policies — restrict ingress to upstream service pods so that
