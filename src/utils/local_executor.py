@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import dataclasses
+import json
 import logging
 import os
 import re
@@ -32,6 +33,8 @@ from src.utils.job import workflow as workflow_module
 
 
 logger = logging.getLogger(__name__)
+
+STATE_FILE_NAME = '.osmo-state.json'
 
 
 @dataclasses.dataclass
@@ -74,19 +77,53 @@ class LocalExecutor:
         self._docker_cmd = docker_cmd
         self._task_nodes: Dict[str, TaskNode] = {}
         self._results: Dict[str, TaskResult] = {}
+        self._available_gpus: int | None = None
+
+    def _detect_available_gpus(self) -> int:
+        if self._available_gpus is not None:
+            return self._available_gpus
+        try:
+            result = subprocess.run(
+                ['nvidia-smi', '--query-gpu=index', '--format=csv,noheader'],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                gpu_indices = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+                self._available_gpus = len(gpu_indices)
+            else:
+                logger.warning('nvidia-smi failed (exit %d) — assuming 0 GPUs available', result.returncode)
+                self._available_gpus = 0
+        except FileNotFoundError:
+            logger.warning('nvidia-smi not found — assuming 0 GPUs available')
+            self._available_gpus = 0
+        except subprocess.TimeoutExpired:
+            logger.warning('nvidia-smi timed out — assuming 0 GPUs available')
+            self._available_gpus = 0
+        return self._available_gpus
 
     def load_spec(self, spec_text: str) -> workflow_module.WorkflowSpec:
         raw = yaml.safe_load(spec_text)
         versioned = workflow_module.VersionedWorkflowSpec(**raw)
         return versioned.workflow
 
-    def execute(self, spec: workflow_module.WorkflowSpec) -> bool:
+    def execute(self, spec: workflow_module.WorkflowSpec,
+                resume: bool = False, from_step: str | None = None) -> bool:
         self._build_dag(spec)
         self._validate_for_local(spec)
         self._setup_directories()
 
-        logger.info('Workflow "%s": %d task(s) across %d group(s)',
-                     spec.name, sum(len(g.tasks) for g in self._groups(spec)), len(self._groups(spec)))
+        if resume or from_step:
+            self._restore_completed_tasks(from_step)
+
+        total_tasks = sum(len(g.tasks) for g in self._groups(spec))
+        skipped = len(self._results)
+        remaining = total_tasks - skipped
+        if skipped > 0:
+            logger.info('Workflow "%s": resuming — %d task(s) skipped, %d remaining',
+                         spec.name, skipped, remaining)
+        else:
+            logger.info('Workflow "%s": %d task(s) across %d group(s)',
+                         spec.name, total_tasks, len(self._groups(spec)))
 
         ready = self._find_ready_tasks()
         while ready:
@@ -95,6 +132,7 @@ class LocalExecutor:
                 logger.info('--- Running task: %s (image: %s) ---', task_name, node.spec.image)
                 result = self._run_task(node, spec)
                 self._results[task_name] = result
+                self._save_state()
 
                 if result.exit_code != 0:
                     logger.error('Task "%s" failed with exit code %d', task_name, result.exit_code)
@@ -112,6 +150,64 @@ class LocalExecutor:
 
         logger.info('Workflow "%s" completed successfully', spec.name)
         return True
+
+    @property
+    def _state_file_path(self) -> str:
+        return os.path.join(self._work_dir, STATE_FILE_NAME)
+
+    def _save_state(self):
+        state = {
+            'tasks': {
+                name: {'exit_code': result.exit_code, 'output_dir': result.output_dir}
+                for name, result in self._results.items()
+                if result.exit_code != -1
+            }
+        }
+        with open(self._state_file_path, 'w') as f:
+            json.dump(state, f, indent=2)
+
+    def _load_state(self) -> Dict | None:
+        if not os.path.exists(self._state_file_path):
+            return None
+        with open(self._state_file_path) as f:
+            return json.load(f)
+
+    def _restore_completed_tasks(self, from_step: str | None = None):
+        state = self._load_state()
+        if state is None:
+            logger.info('No previous state found — starting from scratch')
+            return
+
+        completed: Dict[str, Dict] = {}
+        for name, info in state.get('tasks', {}).items():
+            if name not in self._task_nodes:
+                continue
+            if info['exit_code'] == 0 and os.path.isdir(info['output_dir']):
+                completed[name] = info
+
+        if from_step:
+            if from_step not in self._task_nodes:
+                raise ValueError(f'Task "{from_step}" not found in workflow')
+            to_invalidate = self._get_downstream_tasks(from_step)
+            to_invalidate.add(from_step)
+            for name in to_invalidate:
+                completed.pop(name, None)
+
+        for name, info in completed.items():
+            self._results[name] = TaskResult(
+                name=name, exit_code=0, output_dir=info['output_dir'])
+            logger.info('Resuming: skipping completed task "%s"', name)
+
+    def _get_downstream_tasks(self, task_name: str) -> Set[str]:
+        visited: Set[str] = set()
+        queue = [task_name]
+        while queue:
+            current = queue.pop(0)
+            for downstream in self._task_nodes[current].downstream:
+                if downstream not in visited:
+                    visited.add(downstream)
+                    queue.append(downstream)
+        return visited
 
     def _groups(self, spec: workflow_module.WorkflowSpec) -> List[task_module.TaskGroupSpec]:
         if spec.groups:
@@ -235,8 +331,19 @@ class LocalExecutor:
 
         gpu_count = self._task_gpu_count(task_spec, spec)
         if gpu_count > 0:
-            docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
-            logger.info('Task "%s" requesting %d GPU(s)', node.name, gpu_count)
+            available = self._detect_available_gpus()
+            if available == 0:
+                logger.warning(
+                    'Task "%s" requests %d GPU(s) but no GPUs are available — running without GPU support',
+                    node.name, gpu_count)
+            elif gpu_count > available:
+                logger.warning(
+                    'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
+                    node.name, gpu_count, available, available)
+                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(available))}"']
+            else:
+                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
+            logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
         for key, value in task_spec.environment.items():
             resolved_value = self._substitute_tokens(value, token_map)
@@ -286,7 +393,13 @@ class LocalExecutor:
 
 
 def run_workflow_locally(spec_path: str, work_dir: str | None = None,
-                         keep_work_dir: bool = False) -> bool:
+                         keep_work_dir: bool = False,
+                         resume: bool = False,
+                         from_step: str | None = None) -> bool:
+    if (resume or from_step) and work_dir is None:
+        raise ValueError(
+            '--resume and --from-step require --work-dir pointing to a previous run directory.')
+
     if work_dir is None:
         work_dir = tempfile.mkdtemp(prefix='osmo-local-')
         logger.info('Using temporary work directory: %s', work_dir)
@@ -303,7 +416,8 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
 
     executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir)
     spec = executor.load_spec(spec_text)
-    success = executor.execute(spec)
+    success = executor.execute(spec, resume=resume or from_step is not None,
+                               from_step=from_step)
 
     if not keep_work_dir and success:
         logger.info('Cleaning up work directory: %s', work_dir)

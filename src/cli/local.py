@@ -54,6 +54,19 @@ def setup_parser(parser: argparse._SubParsersAction):
         dest='docker_cmd',
         default='docker',
         help='Docker-compatible command to use (e.g. podman). Default: docker.')
+    run_parser.add_argument(
+        '--resume',
+        action='store_true',
+        default=False,
+        help='Resume a previous run, skipping tasks that already completed successfully. '
+             'Requires --work-dir pointing to the previous run directory.')
+    run_parser.add_argument(
+        '--from-step',
+        dest='from_step',
+        default=None,
+        help='Resume from a specific task, re-running it and all downstream tasks. '
+             'Tasks upstream of the specified step are skipped if they completed '
+             'successfully. Requires --work-dir pointing to the previous run directory.')
     run_parser.set_defaults(func=_run_local)
 
 
@@ -63,6 +76,8 @@ def _run_local(service_client, args: argparse.Namespace):
             spec_path=args.workflow_file,
             work_dir=args.work_dir,
             keep_work_dir=args.keep,
+            resume=args.resume,
+            from_step=args.from_step,
         )
     except ValueError as error:
         print(f'Error: {error}', file=sys.stderr)
