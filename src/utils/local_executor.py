@@ -143,6 +143,12 @@ class LocalExecutor:
 
             ready = self._find_ready_tasks()
 
+        unexecuted = set(self._task_nodes.keys()) - set(self._results.keys())
+        if unexecuted:
+            logger.error('Workflow "%s" stalled — tasks could not be scheduled (possible cycle): %s',
+                         spec.name, ', '.join(sorted(unexecuted)))
+            return False
+
         failed = [name for name, r in self._results.items() if r.exit_code != 0]
         if failed:
             logger.error('Workflow failed. Failed tasks: %s', ', '.join(failed))
@@ -366,7 +372,19 @@ class LocalExecutor:
         docker_args.append(task_spec.image)
         docker_args += resolved_command[1:] + resolved_args
 
-        logger.debug('Docker command: %s', ' '.join(docker_args))
+        if logger.isEnabledFor(logging.DEBUG):
+            redacted_args = []
+            skip_next = False
+            for arg in docker_args:
+                if skip_next:
+                    redacted_args.append(arg.split('=', 1)[0] + '=REDACTED')
+                    skip_next = False
+                elif arg == '-e':
+                    redacted_args.append(arg)
+                    skip_next = True
+                else:
+                    redacted_args.append(arg)
+            logger.debug('Docker command: %s', ' '.join(redacted_args))
 
         try:
             process = subprocess.run(docker_args, capture_output=False)
@@ -395,7 +413,8 @@ class LocalExecutor:
 def run_workflow_locally(spec_path: str, work_dir: str | None = None,
                          keep_work_dir: bool = False,
                          resume: bool = False,
-                         from_step: str | None = None) -> bool:
+                         from_step: str | None = None,
+                         docker_cmd: str = 'docker') -> bool:
     if (resume or from_step) and work_dir is None:
         raise ValueError(
             '--resume and --from-step require --work-dir pointing to a previous run directory.')
@@ -414,7 +433,8 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
             'Run "osmo workflow submit --dry-run -f <spec>" first to get the expanded spec,\n'
             'then save that output and run it locally.')
 
-    executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir)
+    executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
+                              docker_cmd=docker_cmd)
     spec = executor.load_spec(spec_text)
     success = executor.execute(spec, resume=resume or from_step is not None,
                                from_step=from_step)

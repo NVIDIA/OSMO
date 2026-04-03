@@ -78,6 +78,7 @@ def _run_local(service_client, args: argparse.Namespace):
             keep_work_dir=args.keep,
             resume=args.resume,
             from_step=args.from_step,
+            docker_cmd=args.docker_cmd,
         )
     except ValueError as error:
         print(f'Error: {error}', file=sys.stderr)

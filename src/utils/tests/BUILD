@@ -62,5 +62,4 @@ py_test(
         "//src/utils:local_executor",
     ],
     local = True,
-    tags = ["manual"],
 )
