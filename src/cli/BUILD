@@ -37,6 +37,7 @@ osmo_py_library(
         "dataset.py",
         "editor.py",
         "formatters.py",
+        "local.py",
         "login.py",
         "main_parser.py",
         "pool.py",
@@ -73,6 +74,7 @@ osmo_py_library(
         "//src/lib/utils:validation",
         "//src/lib/utils:version",
         "//src/lib/utils:workflow",
+        "//src/utils:local_executor",
     ],
 )
 
