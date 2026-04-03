@@ -1602,7 +1602,10 @@ def _rsync_status():
     print('\n' + table.draw() + '\n')
 
 
-def _rsync_status_cmd(_service_client: client.ServiceClient, _args: argparse.Namespace):
+def _rsync_status_cmd(  # pylint: disable=unused-argument
+    service_client: client.ServiceClient,
+    args: argparse.Namespace,
+):
     """
     Status subcommand handler.
     """
@@ -1650,7 +1653,10 @@ def _rsync_stop(args: argparse.Namespace):
             )
 
 
-def _rsync_stop_cmd(_service_client: client.ServiceClient, args: argparse.Namespace):
+def _rsync_stop_cmd(  # pylint: disable=unused-argument
+    service_client: client.ServiceClient,
+    args: argparse.Namespace,
+):
     """
     Stop subcommand handler.
     """
