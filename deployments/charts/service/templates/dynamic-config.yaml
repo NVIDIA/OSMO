@@ -34,7 +34,19 @@ data:
       {{- end }}
       {{- if $dc.dataset }}
       dataset:
-        {{- toYaml $dc.dataset | nindent 8 }}
+        {{- $dataset := deepCopy $dc.dataset }}
+        {{- if $dataset.config }}
+        {{- range $bucketName, $bucketConfig := $dataset.config.buckets }}
+        {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
+        {{- if $bucketConfig.default_credential.credentialSecretName }}
+        {{- $secretName := $bucketConfig.default_credential.credentialSecretName }}
+        {{- $_ := set $bucketConfig.default_credential "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $secretName) }}
+        {{- $_ := unset $bucketConfig.default_credential "credentialSecretName" }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- toYaml $dataset | nindent 8 }}
       {{- end }}
       {{- if $dc.pools }}
       pools:

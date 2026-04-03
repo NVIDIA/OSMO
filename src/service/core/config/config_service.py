@@ -25,7 +25,7 @@ import pydantic
 
 from src.lib.utils import common, osmo_errors
 from src.utils.job import workflow
-from src.service.core.config import config_history_helpers, helpers, objects
+from src.service.core.config import config_history_helpers, configmap_loader, helpers, objects
 from src.service.core.workflow import (
     helpers as workflow_helpers, objects as workflow_objects
 )
@@ -54,11 +54,20 @@ def _check_config_name(name: str, name_type: ConfigNameType):
              'be alphanumeric and contain dash or underscore.'
         )
 
+
+def _add_managed_by(response_dict: Dict, config_key: str) -> Dict:
+    """Add _managed_by field to a config GET response if the config is managed by ConfigMap."""
+    mode = configmap_loader.get_managed_mode(config_key)
+    if mode:
+        response_dict['_managed_by'] = mode
+    return response_dict
+
+
 @router.get('/api/configs/service', response_class=common.PrettyJSONResponse)
 def read_service_configs() -> Dict:
     """Read all the service configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_service_configs().dict(by_alias=True)
+    return _add_managed_by(postgres.get_service_configs().dict(by_alias=True), 'service')
 
 
 @router.put('/api/configs/service')
@@ -67,7 +76,6 @@ def put_service_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Put service configurations"""
-
     return helpers.put_configs(request, connectors.ConfigType.SERVICE, username)
 
 
@@ -84,7 +92,7 @@ def patch_service_configs(
 def read_workflow_configs() -> Dict:
     """Read all the workflow configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_workflow_configs().dict(by_alias=True)
+    return _add_managed_by(postgres.get_workflow_configs().dict(by_alias=True), 'workflow')
 
 
 @router.put('/api/configs/workflow')
@@ -109,7 +117,7 @@ def patch_workflow_configs(
 def read_dataset_configs() -> Dict:
     """Read all the dataset configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return postgres.get_dataset_configs().dict(by_alias=True)
+    return _add_managed_by(postgres.get_dataset_configs().dict(by_alias=True), 'dataset')
 
 
 @router.put('/api/configs/dataset')
@@ -364,6 +372,7 @@ def put_pools(
     # Update the queues in all backends
     for backend in connectors.Backend.list_from_db(postgres):
         helpers.update_backend_queues(backend)
+
 
 
 @router.get('/api/configs/pool/{name}', response_class=common.PrettyJSONResponse)

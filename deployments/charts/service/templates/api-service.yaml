@@ -217,6 +217,17 @@ spec:
           subPath: {{ $name }}.yaml
           readOnly: true
         {{- end }}
+        {{- if .Values.services.dynamicConfig.dataset }}
+        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.config.buckets }}
+        {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
+        {{- if $bucketConfig.default_credential.credentialSecretName }}
+        - name: {{ $bucketConfig.default_credential.credentialSecretName }}
+          mountPath: /etc/osmo/secrets/{{ $bucketConfig.default_credential.credentialSecretName }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
         {{- end }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
@@ -288,6 +299,18 @@ spec:
         - name: dynamic-secret-{{ $name }}
           secret:
             secretName: {{ $.Values.services.service.serviceName }}-dynamic-secret-{{ $name }}
+        {{- end }}
+        {{- if .Values.services.dynamicConfig.dataset }}
+        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.config.buckets }}
+        {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
+        {{- if $bucketConfig.default_credential.credentialSecretName }}
+        - name: {{ $bucketConfig.default_credential.credentialSecretName }}
+          secret:
+            secretName: {{ $bucketConfig.default_credential.credentialSecretName }}
+            optional: true
+        {{- end }}
+        {{- end }}
+        {{- end }}
         {{- end }}
         {{- end }}
 ---

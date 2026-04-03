@@ -98,6 +98,36 @@ _SINGLETON_CONFIG_TYPES = {
     'dataset': connectors.ConfigType.DATASET,
 }
 
+# Module-level reference to the active watcher instance.
+# Set by ConfigMapWatcher.start() so config_service endpoints can access
+# cached state for managed_by checks and immediate re-apply.
+_active_watcher: 'ConfigMapWatcher | None' = None
+
+
+def get_managed_mode(config_key: str) -> str | None:
+    """Return the managed_by mode for a config key, or None if not managed.
+
+    Called by config_service endpoints to check if a config is managed by
+    ConfigMap and what mode it's in. Returns 'configmap', 'seed', or None.
+    """
+    if _active_watcher is None or _active_watcher._cached_managed_configs is None:
+        return None
+    section = _active_watcher._cached_managed_configs.get(config_key)
+    if not section:
+        return None
+    return section.get('managed_by', ManagedByMode.SEED.value)
+
+
+def get_cached_section(config_key: str) -> Dict[str, Any] | None:
+    """Return the cached ConfigMap section for a config key, or None.
+
+    Called by config_service endpoints to re-apply ConfigMap values after
+    a CLI write to a configmap-managed config.
+    """
+    if _active_watcher is None or _active_watcher._cached_managed_configs is None:
+        return None
+    return _active_watcher._cached_managed_configs.get(config_key)
+
 
 class ConfigMapWatcher:
     """Watches a ConfigMap-mounted YAML file and reconciles DB state.
@@ -122,10 +152,23 @@ class ConfigMapWatcher:
 
     def start(self) -> None:
         """Load configs immediately, then start background polling thread."""
+        global _active_watcher  # noqa: PLW0603
+        _active_watcher = self
         self.load_and_apply()
+        self._persist_managed_modes()
         thread = threading.Thread(
             target=self._poll_loop, name='config-watcher', daemon=True)
         thread.start()
+
+    def _persist_managed_modes(self) -> None:
+        """Write managed_by modes to configmap_state table for API visibility."""
+        if not self._cached_managed_configs:
+            return
+        for config_key, section in self._cached_managed_configs.items():
+            if not isinstance(section, dict):
+                continue
+            mode = section.get('managed_by', ManagedByMode.SEED.value)
+            self._postgres.set_configmap_state(f'managed_by:{config_key}', mode)
 
     def load_and_apply(self) -> None:
         """Read the config file, apply all configs, cache values + hash."""
@@ -386,6 +429,12 @@ def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
         if not isinstance(default_credential, dict):
             continue
         secret_file_path = default_credential.get('secret_file')
+        if not secret_file_path:
+            credential_secret_name = default_credential.get('credentialSecretName')
+            if credential_secret_name:
+                secret_file_path = f'/etc/osmo/secrets/{credential_secret_name}/cred.yaml'
+                default_credential.pop('credentialSecretName')
+                default_credential['secret_file'] = secret_file_path
         if not secret_file_path:
             continue
 

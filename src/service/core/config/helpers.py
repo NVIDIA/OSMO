@@ -209,7 +209,32 @@ def patch_configs(
     )
 
     new_configs_dict = postgres.get_configs(config_type).dict(by_alias=True, exclude_unset=True)
+
+    # If the writer is not configmap-sync and this config is managed by ConfigMap
+    # in configmap mode, immediately re-apply the ConfigMap values to overwrite
+    # the CLI change. This avoids the need to wait for the next poll cycle.
+    from src.service.core.config import configmap_loader  # pylint: disable=import-outside-toplevel
+    if username != configmap_loader.CONFIGMAP_SYNC_USERNAME:
+        config_key_map = {
+            connectors.ConfigType.SERVICE: 'service',
+            connectors.ConfigType.WORKFLOW: 'workflow',
+            connectors.ConfigType.DATASET: 'dataset',
+        }
+        config_key = config_key_map.get(config_type)
+        if config_key:
+            mode = configmap_loader.get_managed_mode(config_key)
+            if mode == configmap_loader.ManagedByMode.CONFIGMAP.value:
+                section = configmap_loader.get_cached_section(config_key)
+                if section:
+                    logging.info('Re-applying ConfigMap values for %s after CLI write by %s',
+                                 config_key, username)
+                    pre_apply = (configmap_loader._resolve_dataset_secret_files
+                                 if config_key == 'dataset' else None)
+                    configmap_loader._apply_singleton_config(
+                        section, postgres, config_type, pre_apply=pre_apply)
+
     return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
+
 
 def backend_action_request_helper(payload: Dict[str, Any], name: str):
 

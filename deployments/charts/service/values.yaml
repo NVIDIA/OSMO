@@ -249,6 +249,18 @@ services:
     ##     config:
     ##       service_base_url: "https://osmo.example.com"
     ##
+    ## Dataset buckets support credentialSecretName to simplify secret wiring.
+    ## Instead of manually adding extraVolumes/extraVolumeMounts, just specify
+    ## the K8s Secret name and the chart auto-generates volume + mount:
+    ##   dataset:
+    ##     config:
+    ##       buckets:
+    ##         my-bucket:
+    ##           dataset_path: "s3://my-bucket"
+    ##           default_credential:
+    ##             credentialSecretName: my-secret-name
+    ## The Secret should contain a cred.yaml key with access_key_id and access_key fields.
+    ##
     service: {}
     workflow: {}
     dataset: {}
