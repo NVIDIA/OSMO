@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Tests for guardrails.py."""
 
@@ -27,8 +27,11 @@ class TestIsTestFile(unittest.TestCase):
     def test_matches_build_file(self):
         self.assertTrue(is_test_file("src/utils/job/tests/BUILD"))
 
-    def test_matches_build_in_nested_dir(self):
-        self.assertTrue(is_test_file("src/service/core/auth/BUILD"))
+    def test_rejects_build_outside_tests_dir(self):
+        self.assertFalse(is_test_file("src/service/core/auth/BUILD"))
+
+    def test_rejects_root_build(self):
+        self.assertFalse(is_test_file("BUILD"))
 
     def test_rejects_source_python(self):
         self.assertFalse(is_test_file("src/service/core/auth/auth_service.py"))

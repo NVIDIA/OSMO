@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Respond to PR review comments by delegating fixes to Claude Code CLI.
 
@@ -26,9 +26,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-MAX_AUTO_RESPONSES = int(os.environ.get("TESTBOT_MAX_RESPONSES", "10"))
 MAX_PUSH_RETRIES = 3
 SELF_AUTHORS = frozenset({"github-actions[bot]", "svc-osmo-ci"})
+ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
 THREADS_QUERY = """
 query($owner: String!, $repo: String!, $pr: Int!) {
@@ -45,6 +45,7 @@ query($owner: String!, $repo: String!, $pr: Int!) {
               databaseId
               body
               author { login }
+              authorAssociation
             }
           }
         }
@@ -138,6 +139,7 @@ def fetch_threads(owner: str, repo: str, pr_number: int) -> list[dict]:
                 "id": c["databaseId"],
                 "body": c.get("body", ""),
                 "author": c.get("author", {}).get("login", "unknown"),
+                "association": c.get("authorAssociation", "NONE"),
             }
             for c in raw_comments
         ]
@@ -165,6 +167,7 @@ def _has_trigger(body: str, trigger_phrase: str) -> bool:
 def filter_actionable(
     threads: list[dict],
     trigger_phrase: str,
+    max_responses: int = 10,
 ) -> list[dict]:
     """Filter threads to actionable ones, logging each skip reason.
 
@@ -200,19 +203,33 @@ def filter_actionable(
             )
             continue
 
-        # Find the last non-bot comment containing the trigger phrase
-        trigger_comment = None
+        # Only trigger if the LAST non-bot comment contains the trigger phrase.
+        # This prevents an old /testbot from re-firing when a human follows up
+        # with a non-trigger comment like "still failing".
+        last_human_comment = None
         for comment in reversed(comments):
-            if comment["author"] in SELF_AUTHORS:
-                continue
-            if _has_trigger(comment["body"], trigger_phrase):
-                trigger_comment = comment
+            if comment["author"] not in SELF_AUTHORS:
+                last_human_comment = comment
                 break
+
+        trigger_comment = None
+        if last_human_comment and _has_trigger(last_human_comment["body"], trigger_phrase):
+            trigger_comment = last_human_comment
 
         if not trigger_comment:
             logger.info(
                 "  SKIP (no trigger in %d comments) path=%s body=%s",
                 len(comments), path, first_body,
+            )
+            continue
+
+        # Only allow repo members to trigger the bot
+        association = trigger_comment.get("association", "NONE")
+        if association not in ALLOWED_ASSOCIATIONS:
+            logger.info(
+                "  SKIP (author %s has association %s, need %s) path=%s",
+                trigger_comment["author"], association,
+                ALLOWED_ASSOCIATIONS, path,
             )
             continue
 
@@ -235,12 +252,12 @@ def filter_actionable(
             "author": trigger_comment["author"],
         })
 
-    if len(actionable) > MAX_AUTO_RESPONSES:
+    if len(actionable) > max_responses:
         logger.info(
             "Capping from %d to %d actionable threads",
-            len(actionable), MAX_AUTO_RESPONSES,
+            len(actionable), max_responses,
         )
-        actionable = actionable[:MAX_AUTO_RESPONSES]
+        actionable = actionable[:max_responses]
 
     logger.info("Result: %d actionable thread(s)", len(actionable))
     return actionable
@@ -283,14 +300,16 @@ def build_prompt(threads: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def run_claude(prompt: str) -> dict:
+def run_claude(
+    prompt: str,
+    model: str = "aws/anthropic/claude-opus-4-5",
+    max_turns: int = 50,
+) -> dict:
     """Run Claude Code CLI and return parsed JSON output.
 
     Returns a dict with 'structured_output' and/or 'result' fields.
     Returns empty dict on failure.
     """
-    model = os.environ.get("ANTHROPIC_MODEL", "aws/anthropic/claude-opus-4-5")
-    max_turns = os.environ.get("TESTBOT_MAX_TURNS", "50")
     cmd = [
         "npx", "@anthropic-ai/claude-code@latest", "--print",
         "--model", model,
@@ -298,7 +317,7 @@ def run_claude(prompt: str) -> dict:
         "--json-schema", REPLY_SCHEMA,
         "--allowedTools",
         "Read,Edit,Write,Bash(bazel:*),Bash(pnpm:*),Glob,Grep",
-        "--max-turns", max_turns,
+        "--max-turns", str(max_turns),
         prompt,
     ]
     logger.info("Claude Code command: %s", " ".join(shlex.quote(c) for c in cmd))
@@ -340,9 +359,10 @@ def parse_replies(claude_output: dict, comments: list[dict]) -> list[dict]:
             start = result_text.index("{")
             end = result_text.rindex("}") + 1
             data = json.loads(result_text[start:end])
-            if isinstance(data, dict) and "replies" in data:
+            replies = data.get("replies") if isinstance(data, dict) else None
+            if isinstance(replies, list) and replies and isinstance(replies[0], dict):
                 logger.info("Parsed replies from result text (tier 2)")
-                return data["replies"]
+                return replies
         except (ValueError, json.JSONDecodeError):
             pass
 
@@ -367,11 +387,15 @@ def discard_changes() -> None:
 def commit_and_push(files: list[str], message: str) -> bool:
     """Stage specific files, commit, and push with retries."""
     logger.info("Commit message: %s", message.split("\n")[0])
-    subprocess.run(["git", "add"] + files, check=True)
-    subprocess.run(
-        ["git", "commit", "-F", "-"],
-        input=message, text=True, check=True,
-    )
+    try:
+        subprocess.run(["git", "add"] + files, check=True)
+        subprocess.run(
+            ["git", "commit", "-F", "-"],
+            input=message, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        logger.error("git add/commit failed: %s", exc)
+        return False
     for attempt in range(1, MAX_PUSH_RETRIES + 1):
         result = subprocess.run(
             ["git", "push"],
@@ -396,8 +420,8 @@ def reply_to_comment(
     pr_number: int,
     comment: dict,
     message: str,
-) -> None:
-    """Post an inline reply to a review comment."""
+) -> bool:
+    """Post an inline reply to a review comment. Returns True on success."""
     reply_comment_id = comment["reply_comment_id"]
     logger.info(
         "Posting inline reply to comment %s (path=%s, line=%s)",
@@ -413,6 +437,8 @@ def reply_to_comment(
             "Failed to post reply to comment %s: %s",
             reply_comment_id, result.stderr[:300],
         )
+        return False
+    return True
 
 
 def resolve_thread(thread_id: str) -> None:
@@ -433,6 +459,12 @@ def main() -> None:
     )
     parser.add_argument("--pr-number", type=int, required=True)
     parser.add_argument("--trigger-phrase", default="/testbot")
+    parser.add_argument("--max-responses", type=int, default=10,
+                        help="Max threads to address per trigger (default: 10)")
+    parser.add_argument("--max-turns", type=int, default=50,
+                        help="Max Claude Code agent turns (default: 50)")
+    parser.add_argument("--model", default="aws/anthropic/claude-opus-4-5",
+                        help="LLM model name (default: aws/anthropic/claude-opus-4-5)")
     args = parser.parse_args()
 
     github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")
@@ -440,7 +472,7 @@ def main() -> None:
 
     threads = fetch_threads(owner, repo, args.pr_number)
     logger.info("Filtering %d threads for trigger '%s':", len(threads), args.trigger_phrase)
-    actionable = filter_actionable(threads, args.trigger_phrase)
+    actionable = filter_actionable(threads, args.trigger_phrase, args.max_responses)
     if not actionable:
         logger.info("No actionable comments on PR #%d", args.pr_number)
         return
@@ -462,7 +494,7 @@ def main() -> None:
 
     prompt = build_prompt(actionable)
     logger.info("Running Claude Code for %d comment(s)...", len(actionable))
-    claude_output = run_claude(prompt)
+    claude_output = run_claude(prompt, model=args.model, max_turns=args.max_turns)
 
     if not claude_output:
         logger.error("Claude Code failed — discarding any partial changes")
@@ -505,6 +537,8 @@ def main() -> None:
     replied = 0
     for reply_data in replies:
         comment_id = reply_data.get("comment_id")
+        if isinstance(comment_id, str) and comment_id.isdigit():
+            comment_id = int(comment_id)
         logger.info(
             "Reply entry: comment_id=%s (type=%s) resolve=%s reply=%s",
             comment_id, type(comment_id).__name__,
@@ -528,10 +562,11 @@ def main() -> None:
             )
             should_resolve = False
 
-        reply_to_comment(owner, repo, args.pr_number, comment, message)
-        replied += 1
+        reply_posted = reply_to_comment(owner, repo, args.pr_number, comment, message)
+        if reply_posted:
+            replied += 1
 
-        if should_resolve and comment.get("thread_id"):
+        if reply_posted and should_resolve and comment.get("thread_id"):
             resolve_thread(comment["thread_id"])
 
     logger.info(

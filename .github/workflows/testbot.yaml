@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -116,7 +116,6 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Generate tests
-        if: inputs.dry_run != true
         run: |
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
           npx @anthropic-ai/claude-code@latest --print \
@@ -131,7 +130,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/claude-opus-4-5' }}
-          DISABLE_PROMPT_CACHING: "1"
+          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
 
       - name: Create PR
         if: inputs.dry_run != true

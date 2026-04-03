@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,8 +33,12 @@ concurrency:
 
 jobs:
   respond:
-    # Label gate only — /testbot trigger, author, and fork checks are in respond.py.
-    if: contains(github.event.pull_request.labels.*.name, 'ai-generated')
+    # Label gate + fork rejection. Author association is checked per-thread in
+    # respond.py, not here — a bot comment event must still let the workflow run
+    # so it can process pending /testbot threads from repo members.
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -81,12 +85,12 @@ jobs:
         run: |
           PYTHONPATH=src/scripts python -m testbot.respond \
             --pr-number ${{ github.event.pull_request.number }} \
-            --trigger-phrase /testbot
+            --trigger-phrase /testbot \
+            --max-responses 10 \
+            --max-turns 50 \
+            --model aws/anthropic/claude-opus-4-5
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
-          ANTHROPIC_MODEL: aws/anthropic/claude-opus-4-5
-          DISABLE_PROMPT_CACHING: "1"
-          TESTBOT_MAX_TURNS: "50"
-          TESTBOT_MAX_RESPONSES: "10"
+          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}

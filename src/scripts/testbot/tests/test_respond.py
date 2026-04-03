@@ -1,9 +1,8 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Tests for respond.py."""
 
 import json
-import os
 import subprocess
 import unittest
 from typing import Any
@@ -65,7 +64,10 @@ class TestFilterActionable(unittest.TestCase):
         comments=None,
     ):
         if comments is None:
-            comments = [{"id": 123, "body": "/testbot fix this", "author": "jiaenren"}]
+            comments = [{
+                "id": 123, "body": "/testbot fix this",
+                "author": "jiaenren", "association": "MEMBER",
+            }]
         return {
             "thread_id": "T_abc",
             "is_resolved": is_resolved,
@@ -97,62 +99,91 @@ class TestFilterActionable(unittest.TestCase):
 
     def test_skips_thread_where_bot_already_replied(self):
         comments = [
-            {"id": 100, "body": "/testbot fix this", "author": "jiaenren"},
-            {"id": 200, "body": "Fix applied.", "author": "svc-osmo-ci"},
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "Fix applied.", "author": "svc-osmo-ci", "association": "NONE"},
         ]
         threads = [self._make_thread(comments=comments)]
         result = filter_actionable(threads, "/testbot")
         self.assertEqual(result, [])
 
     def test_skips_thread_without_trigger(self):
-        comments = [{"id": 100, "body": "please fix this", "author": "jiaenren"}]
+        comments = [{"id": 100, "body": "please fix this", "author": "jiaenren", "association": "MEMBER"}]
         threads = [self._make_thread(comments=comments)]
         result = filter_actionable(threads, "/testbot")
         self.assertEqual(result, [])
 
     def test_skips_filename_false_positive(self):
-        comments = [{"id": 100, "body": "/testbot.yaml has issues", "author": "jiaenren"}]
+        comments = [{"id": 100, "body": "/testbot.yaml has issues", "author": "jiaenren", "association": "MEMBER"}]
         threads = [self._make_thread(comments=comments)]
         result = filter_actionable(threads, "/testbot")
         self.assertEqual(result, [])
 
     def test_finds_trigger_in_nested_reply(self):
         comments = [
-            {"id": 100, "body": "Add more tests", "author": "jiaenren"},
-            {"id": 200, "body": "No changes needed", "author": "coderabbitai[bot]"},
-            {"id": 300, "body": "/testbot remove the redundant tests", "author": "jiaenren"},
+            {"id": 100, "body": "Add more tests", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "No changes needed", "author": "coderabbitai[bot]", "association": "NONE"},
+            {"id": 300, "body": "/testbot remove the redundant tests", "author": "jiaenren", "association": "MEMBER"},
         ]
         threads = [self._make_thread(comments=comments)]
         result = filter_actionable(threads, "/testbot")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["reply_comment_id"], 300)
 
-    def test_uses_last_trigger_comment(self):
+    def test_uses_last_human_trigger_comment(self):
         comments = [
-            {"id": 100, "body": "/testbot add tests", "author": "jiaenren"},
-            {"id": 200, "body": "/testbot actually remove them", "author": "jiaenren"},
+            {"id": 100, "body": "/testbot add tests", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "/testbot actually remove them", "author": "jiaenren", "association": "MEMBER"},
         ]
         threads = [self._make_thread(comments=comments)]
         result = filter_actionable(threads, "/testbot")
         self.assertEqual(result[0]["reply_comment_id"], 200)
 
+    def test_skips_old_trigger_followed_by_non_trigger_human(self):
+        comments = [
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "Done.", "author": "svc-osmo-ci", "association": "NONE"},
+            {"id": 300, "body": "still failing", "author": "jiaenren", "association": "MEMBER"},
+        ]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(result, [])
+
+    def test_skips_non_member_trigger(self):
+        comments = [{"id": 100, "body": "/testbot fix this", "author": "random-user", "association": "NONE"}]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(result, [])
+
+    def test_allows_owner_trigger(self):
+        comments = [{"id": 100, "body": "/testbot fix this", "author": "org-owner", "association": "OWNER"}]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(len(result), 1)
+
+    def test_allows_collaborator_trigger(self):
+        comments = [{"id": 100, "body": "/testbot fix this", "author": "collab", "association": "COLLABORATOR"}]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(len(result), 1)
+
     def test_includes_full_thread_history(self):
         comments = [
-            {"id": 100, "body": "Original comment", "author": "reviewer"},
-            {"id": 200, "body": "/testbot fix this", "author": "jiaenren"},
+            {"id": 100, "body": "Original comment", "author": "reviewer", "association": "MEMBER"},
+            {"id": 200, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
         ]
         threads = [self._make_thread(comments=comments)]
         result = filter_actionable(threads, "/testbot")
         self.assertIn("[reviewer]: Original comment", result[0]["thread_history"])
         self.assertIn("[jiaenren]: /testbot fix this", result[0]["thread_history"])
 
-    @patch("src.scripts.testbot.respond.MAX_AUTO_RESPONSES", 2)
-    def test_caps_at_max_auto_responses(self):
+    def test_caps_at_max_responses(self):
         threads = [
-            self._make_thread(comments=[{"id": i, "body": "/testbot fix", "author": "jiaenren"}])
+            self._make_thread(comments=[{
+                "id": i, "body": "/testbot fix", "author": "jiaenren", "association": "MEMBER",
+            }])
             for i in range(5)
         ]
-        result = filter_actionable(threads, "/testbot")
+        result = filter_actionable(threads, "/testbot", max_responses=2)
         self.assertEqual(len(result), 2)
 
 
@@ -307,13 +338,12 @@ class TestRunClaude(unittest.TestCase):
         result = run_claude("test prompt")
         self.assertEqual(result, {})
 
-    @patch.dict(os.environ, {"ANTHROPIC_MODEL": "custom/model", "TESTBOT_MAX_TURNS": "10"})
     @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_uses_env_var_model_and_turns(self, mock_run):
+    def test_uses_model_and_turns_args(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess(
             [], 0, stdout="{}",
         )
-        run_claude("test")
+        run_claude("test", model="custom/model", max_turns=10)
         cmd = mock_run.call_args[0][0]
         self.assertIn("custom/model", cmd)
         self.assertIn("10", cmd)

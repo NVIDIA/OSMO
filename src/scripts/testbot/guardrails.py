@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Shared guardrails for testbot scripts.
 
@@ -16,13 +16,18 @@ TEST_FILE_PATTERNS = [
     "*_test.go",
     "*.test.ts",
     "*.test.tsx",
-    "BUILD",
 ]
 
 
 def is_test_file(file_path: str) -> bool:
-    """Check if a file path matches known test file patterns."""
+    """Check if a file path matches known test file patterns.
+
+    BUILD files are only allowed inside /tests/ directories to prevent
+    modifications to source-package BUILD files.
+    """
     basename = file_path.rsplit("/", maxsplit=1)[-1]
+    if basename == "BUILD" and "/tests/" in file_path:
+        return True
     return any(fnmatch.fnmatch(basename, pattern) for pattern in TEST_FILE_PATTERNS)
 
 

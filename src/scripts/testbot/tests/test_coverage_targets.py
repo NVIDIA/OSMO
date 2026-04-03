@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Tests for coverage_targets.py."""
 
@@ -17,8 +17,14 @@ from src.scripts.testbot.coverage_targets import (
 class TestIsIgnored(unittest.TestCase):
     """Tests for _is_ignored file path filtering."""
 
-    def test_ignores_test_directory(self):
+    def test_ignores_top_level_tests_dir(self):
         self.assertTrue(_is_ignored("src/tests/conftest.py"))
+
+    def test_ignores_nested_tests_dir(self):
+        self.assertTrue(_is_ignored("src/service/core/workflow/tests/fixture.py"))
+
+    def test_ignores_deeply_nested_tests_dir(self):
+        self.assertTrue(_is_ignored("src/lib/data/storage/backends/tests/smoke.py"))
 
     def test_ignores_scripts_directory(self):
         self.assertTrue(_is_ignored("src/scripts/testbot/main.py"))
@@ -40,6 +46,21 @@ class TestIsIgnored(unittest.TestCase):
 
     def test_ignores_grpc_generated(self):
         self.assertTrue(_is_ignored("src/service/core/proto_pb2_grpc.py"))
+
+    def test_ignores_python_test_file(self):
+        self.assertTrue(_is_ignored("src/utils/tests/test_task.py"))
+
+    def test_ignores_go_test_file(self):
+        self.assertTrue(_is_ignored("src/runtime/pkg/data/data_test.go"))
+
+    def test_ignores_vitest_file(self):
+        self.assertTrue(_is_ignored("src/ui/src/lib/foo.test.ts"))
+
+    def test_ignores_init_py(self):
+        self.assertTrue(_is_ignored("src/service/core/__init__.py"))
+
+    def test_ignores_build_file(self):
+        self.assertTrue(_is_ignored("src/service/core/BUILD"))
 
     def test_allows_source_file(self):
         self.assertFalse(_is_ignored("src/service/core/auth/auth_service.py"))

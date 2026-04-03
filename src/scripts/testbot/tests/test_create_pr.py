@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Tests for create_pr.py."""
 
@@ -28,19 +28,19 @@ class TestHasOpenTestbotPr(unittest.TestCase):
         self.assertTrue(has_open_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
-    def test_gh_command_fails_returns_false(self, mock_run):
+    def test_gh_command_fails_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 1, stdout="", stderr="error")
-        self.assertFalse(has_open_testbot_pr())
+        self.assertTrue(has_open_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
-    def test_non_numeric_output_returns_false(self, mock_run):
+    def test_non_numeric_output_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="unexpected\n")
-        self.assertFalse(has_open_testbot_pr())
+        self.assertTrue(has_open_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
-    def test_empty_output_returns_false(self, mock_run):
+    def test_empty_output_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="")
-        self.assertFalse(has_open_testbot_pr())
+        self.assertTrue(has_open_testbot_pr())
 
 
 if __name__ == "__main__":

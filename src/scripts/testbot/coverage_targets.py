@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 # SPDX-License-Identifier: Apache-2.0
 """Select low-coverage files from Codecov as targets for test generation.
 
@@ -24,17 +24,23 @@ logger = logging.getLogger(__name__)
 CODECOV_API_BASE = "https://api.codecov.io/api/v2"
 
 IGNORE_PATTERNS = [
-    "src/tests/**",
+    "*/tests/*",
     "src/scripts/**",
     "bzl/**",
     "run/**",
     "deployments/**",
 ]
 
-GENERATED_FILE_PATTERNS = [
+SKIP_BASENAME_PATTERNS = [
     "*generated.ts",
     "*_pb2.py",
     "*_pb2_grpc.py",
+    "test_*.py",
+    "*_test.go",
+    "*.test.ts",
+    "*.test.tsx",
+    "__init__.py",
+    "BUILD",
 ]
 
 MIN_FILE_LINES = 10
@@ -42,12 +48,18 @@ MAX_FILE_LINES = 0  # 0 = no cap
 
 
 def _is_ignored(file_path: str) -> bool:
-    """Check if a file path matches ignore or generated-file patterns."""
+    """Check if a file path matches ignore patterns.
+
+    Filters out:
+    - Files inside any tests/ directory (fixtures, helpers, etc.)
+    - Scripts, build config, and deployment files
+    - Generated code, test files, __init__.py, BUILD
+    """
     for pattern in IGNORE_PATTERNS:
         if fnmatch.fnmatch(file_path, pattern):
             return True
     basename = file_path.rsplit("/", maxsplit=1)[-1]
-    for pattern in GENERATED_FILE_PATTERNS:
+    for pattern in SKIP_BASENAME_PATTERNS:
         if fnmatch.fnmatch(basename, pattern):
             return True
     return False
@@ -111,6 +123,12 @@ def fetch_codecov_report(
             return json.loads(response.read())
     except urllib.error.HTTPError as exc:
         logger.error("Codecov API returned %d: %s", exc.code, exc.reason)
+        sys.exit(1)
+    except urllib.error.URLError as exc:
+        logger.error("Codecov API request failed: %s", exc.reason)
+        sys.exit(1)
+    except (json.JSONDecodeError, ValueError) as exc:
+        logger.error("Failed to parse Codecov response: %s", exc)
         sys.exit(1)
 
 
