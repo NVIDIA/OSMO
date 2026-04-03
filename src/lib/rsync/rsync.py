@@ -124,6 +124,17 @@ class RsyncDaemonMetadata:
     def from_dict(cls, data: Dict) -> 'RsyncDaemonMetadata':
         """Create RsyncDaemonMetadata from dictionary with nested objects."""
         rsync_request_data = data['rsync_request']
+        # Backward compat: map old field names from existing PID files
+        if 'src' in rsync_request_data:
+            rsync_request_data = {
+                'workflow_id': rsync_request_data['workflow_id'],
+                'task_name': rsync_request_data['task_name'],
+                'direction': RsyncDirection.UPLOAD,
+                'local_path': rsync_request_data['src'],
+                'remote_module': rsync_request_data['dst_module'],
+                'remote_path': rsync_request_data['dst_path'],
+                'original_remote_path': rsync_request_data['original_dst_path'],
+            }
         rsync_request = RsyncRequest(**rsync_request_data)
 
         return cls(
@@ -566,14 +577,18 @@ class RsyncClient:
 
         resolved_dst = paths.resolve_local_path(self._rsync_request.local_path)
 
-        # rsync treats the destination as a directory to copy into.
-        # Ensure the destination directory exists.
-        os.makedirs(resolved_dst, exist_ok=True)
-
-        logger.debug('Downloading from %s to %s, with flags %s',
-                     resolved_src, resolved_dst, RSYNC_FLAGS)
-
+        process = None
         try:
+            # rsync treats the destination as a directory to copy into.
+            if os.path.exists(resolved_dst) and not os.path.isdir(resolved_dst):
+                raise osmo_errors.OSMOUserError(
+                    f'Download destination must be a directory: '
+                    f'{self._rsync_request.local_path}')
+            os.makedirs(resolved_dst, exist_ok=True)
+
+            logger.debug('Downloading from %s to %s, with flags %s',
+                         resolved_src, resolved_dst, RSYNC_FLAGS)
+
             process = await asyncio.create_subprocess_exec(
                 self._rsync_bin_path,
                 RSYNC_FLAGS,
@@ -593,9 +608,13 @@ class RsyncClient:
                     self._rsync_request.task_name,
                 )
         except (asyncio.CancelledError, InterruptedError, KeyboardInterrupt):
+            if process is not None and process.returncode is None:
+                process.terminate()
+                await process.wait()
             logger.info('Rsync download cancelled for %s/%s',
                         self._rsync_request.workflow_id,
                         self._rsync_request.task_name)
+            raise
         except Exception as err:  # pylint: disable=broad-except
             logger.error('Error running rsync download: %s', err)
             raise
