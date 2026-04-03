@@ -447,9 +447,9 @@ Upload to lead task::
 
     osmo workflow rsync upload <workflow_id> <local_path>:<remote_path>
 
-Run a single upload::
+Run as a background daemon::
 
-    osmo workflow rsync upload <workflow_id> <local_path>:<remote_path> --once
+    osmo workflow rsync upload <workflow_id> <local_path>:<remote_path> --daemon
 
 Download from a task::
 
@@ -523,11 +523,10 @@ Stop a specific daemon::
     rsync_up_parser.add_argument('--verbose',
                                  action='store_true',
                                  help='Enable verbose logging for the daemon.')
-    rsync_up_parser.add_argument('--once',
+    rsync_up_parser.add_argument('--daemon',
                                  action='store_true',
-                                 help='Run a single rsync upload to the workflow. The upload will '
-                                      'be done in the foreground and will automatically exit once '
-                                      'the upload completes.')
+                                 help='Run as a background daemon that continuously monitors '
+                                      'the source path and uploads changes to the remote task.')
     rsync_up_parser.set_defaults(func=_rsync_upload)
 
     # --- download subcommand ---
@@ -1681,7 +1680,7 @@ def _rsync_upload(service_client: client.ServiceClient, args: argparse.Namespace
         args.workflow_id,
         args.task,
         args.path,
-        daemon=not args.once,
+        daemon=args.daemon,
         timeout=args.timeout,
         upload_rate_limit=args.upload_rate_limit,
         daemon_debounce_delay=args.debounce_delay,
