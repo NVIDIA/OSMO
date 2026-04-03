@@ -125,9 +125,7 @@ This chart installs and configures:
 | `service.services.agent.initContainers`                 | Init containers for agent service                                | Wait for postgres, redis, and localstack-s3 |
 | `service.services.delayedJobMonitor.imagePullPolicy`    | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent`                              |
 | `service.services.delayedJobMonitor.initContainers`     | Init containers for delayed job monitor service                  | Wait for postgres, redis, and localstack-s3 |
-| `service.sidecars.envoy.enabled`                        | Enable Envoy proxy sidecar container                             | `false`                                     |
 | `service.podMonitor.enabled`                            | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `false`         |
-| `service.sidecars.rateLimit.enabled`                    | Enable rate limiting service                                     | `false`                                     |
 
 ### Web UI Configuration
 
@@ -137,7 +135,6 @@ This chart installs and configures:
 | `web-ui.services.ui.skipAuth`           | Skip authentication for UI service   | `true`                |
 | `web-ui.services.ui.hostname`           | Hostname for UI service              | `quick-start.osmo`    |
 | `web-ui.services.ui.ingress.sslEnabled` | Enable SSL for UI ingress            | `false`               |
-| `web-ui.sidecars.envoy.enabled`         | Enable Envoy proxy sidecar container | `false`               |
 
 ### Router Service Configuration
 
@@ -152,7 +149,6 @@ This chart installs and configures:
 | `router.services.service.ingress.sslEnabled`  | Enable SSL for router ingress                           | `false`                      |
 | `router.services.service.initContainers`      | Init containers for router service                      | Wait for postgres and redis  |
 | `router.services.postgres.password`           | PostgreSQL password for router                          | `"osmo"`                     |
-| `router.sidecars.envoy.enabled`               | Enable Envoy proxy sidecar container                    | `false`                      |
 
 ### Backend Operator Configuration
 

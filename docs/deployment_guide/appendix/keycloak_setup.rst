@@ -246,7 +246,7 @@ d. Click on the ``Clients`` tab and for each of the ``osmo-browser-flow`` and ``
      Replace ``osmo.example.com`` with your actual OSMO domain name.
 
 e. On the ``osmo-browser-flow`` client details page, click on the ``Credentials`` tab and
-   create and save a client secret. You will need this when configuring OSMO's OAuth2 Proxy sidecar.
+   create and save a client secret. You will need this when configuring OSMO's OAuth2 Proxy.
 
 Part 2: Configure OSMO to use Keycloak
 =======================================
@@ -316,11 +316,11 @@ deployment guide. Replace ``<your-domain>`` with your actual domain (e.g., ``osm
          token_endpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/token
          logout_endpoint: https://auth-<your-domain>/realms/osmo/protocol/openid-connect/logout
 
-**OAuth2 Proxy sidecar** (in ``osmo_values.yaml``):
+**Gateway OAuth2 Proxy** (in ``osmo_values.yaml``):
 
 .. code-block:: yaml
 
-   sidecars:
+   gateway:
      oauth2Proxy:
        enabled: true
        provider: oidc
@@ -341,11 +341,11 @@ deployment guide. Replace ``<your-domain>`` with your actual domain (e.g., ``osm
    because Keycloak does not set the ``email_verified`` claim to ``true`` by default. Without
    this flag, OAuth2 Proxy will reject logins from users whose email is not marked as verified.
 
-**Envoy JWT providers** (in ``osmo_values.yaml``):
+**Gateway Envoy JWT providers** (in ``osmo_values.yaml``):
 
 .. code-block:: yaml
 
-   sidecars:
+   gateway:
      envoy:
        jwt:
          user_header: x-osmo-user
@@ -362,15 +362,15 @@ deployment guide. Replace ``<your-domain>`` with your actual domain (e.g., ``osm
            cluster: idp
          - issuer: osmo
            audience: osmo
-           jwks_uri: http://localhost:8000/api/auth/keys
+           jwks_uri: http://osmo-service/api/auth/keys
            user_claim: unique_name
-           cluster: service
+           cluster: osmo-service-jwks
 
 .. note::
 
    With Keycloak, two IdP JWT providers are configured — one for the ``osmo-device`` client (CLI) and one for the ``osmo-browser-flow`` client (Web UI) — because each client has its own audience. The third provider is for OSMO-issued JWTs (access tokens).
 
-Apply the same Keycloak endpoints to the **router** and **UI** values files. For the complete
+The gateway handles authentication for all services (API, router, UI) — no separate auth configuration is needed in the router or UI values files. For the complete
 deployment procedure including all other configuration steps, see
 :doc:`../getting_started/deploy_service`.
 

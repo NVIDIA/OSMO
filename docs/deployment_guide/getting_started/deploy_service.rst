@@ -209,14 +209,14 @@ Create a values file for each OSMO component.
 
    See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``oauth2Proxy``, ``jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
+Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``gateway.oauth2Proxy``, ``gateway.envoy.jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
 
 .. dropdown:: ``osmo_values.yaml``
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 19-31, 38-46, 50, 146, 151, 158-162, 173-183
+    :emphasize-lines: 4, 21, 23, 29, 38, 41-46, 50, 133, 137, 156-158, 173-175
 
     # Global configuration shared across all OSMO services
     global:
@@ -344,31 +344,29 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           limits:
             memory: "512Mi"
 
-    # Sidecar container configurations
-    sidecars:
-      # Global Envoy proxy configuration
+    # Gateway — deploys Envoy, OAuth2 Proxy, and Authz as separate services
+    gateway:
+      enabled: true
+
       envoy:
         enabled: true
+        hostname: <your-domain>
 
-        # Paths that don't require authentication
-        skipAuthPaths:
-        - /api/version
-        - /api/auth/login
-        - /api/auth/keys
-        - /api/auth/refresh_token
-        - /api/auth/jwt/refresh_token
-        - /api/auth/jwt/access_token
-        - /client/version
-
-        # Service configuration
-        service:
-          port: 8000
-          hostname: <your-domain>
-          address: 127.0.0.1
+        ingress:
+          enabled: true
+          ingressClass: <your-ingress-class>  # e.g. alb, nginx
+          sslEnabled: false
 
         # IDP hostname for JWT JWKS fetching
         idp:
           host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
+
+        # Internal JWKS cluster — points to osmo-service for OSMO-issued JWTs
+        internalJwks:
+          enabled: true
+          cluster: osmo-service-jwks
+          host: osmo-service
+          port: 80
 
         # JWT validation: configure providers for your IdP and (if using access tokens) for OSMO-issued tokens
         jwt:
@@ -383,12 +381,11 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           # OSMO-issued JWTs (e.g. for access-token-based access)
           - issuer: osmo
             audience: osmo
-            jwks_uri: http://localhost:8000/api/auth/keys
+            jwks_uri: http://osmo-service/api/auth/keys
             user_claim: unique_name
-            cluster: service
+            cluster: osmo-service-jwks
 
-
-      # OAuth2 Proxy sidecar configuration
+      # OAuth2 Proxy configuration
       # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
       oauth2Proxy:
         enabled: true
@@ -402,17 +399,17 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
         clientSecretKey: client_secret
         cookieSecretKey: cookie_secret
 
-      # OpenTelemetry configuration (optional)
-      otel:
-        enabled: false
-
-      # Rate limiting configuration (optional)
-      rateLimit:
-        enabled: false
-        # Uncomment and configure if using rate limiting
-        # redis:
-        #   serviceName: <your-redis-host>
-        #   port: 6379
+      # Upstream services that the gateway routes to
+      upstreams:
+        service:
+          host: osmo-service
+          port: 80
+        router:
+          host: osmo-router
+          port: 80
+        ui:
+          host: osmo-ui
+          port: 80
 
   .. code-annotations::
 
@@ -429,7 +426,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 22, 29, 57-60, 76, 80, 87-91, 102, 114-124
+    :emphasize-lines: 4, 22, 29, 57
 
     # Global configuration shared across router services
     global:
@@ -492,72 +489,6 @@ Create ``router_values.yaml`` for router with the following sample configuration
         db: osmo
         user: postgres
 
-    # Sidecar container configurations
-    sidecars:
-      # Envoy proxy configuration
-      envoy:
-        enabled: true
-
-        skipAuthPaths:
-        - /api/router/version
-
-        image: envoyproxy/envoy:v1.29.0
-        imagePullPolicy: IfNotPresent
-
-        # Service configuration
-        service:
-          hostname: <your-domain>
-
-        # IDP hostname for JWT JWKS fetching
-        idp:
-          host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
-
-        # JWT validation: IdP provider(s) and OSMO-issued tokens
-        jwt:
-          enabled: true
-          user_header: x-osmo-user
-          providers:
-          - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
-            audience: <client-id>
-            jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
-            user_claim: preferred_username
-            cluster: idp
-          - issuer: osmo
-            audience: osmo
-            jwks_uri: http://osmo-service/api/auth/keys
-            user_claim: unique_name
-            cluster: osmoauth
-
-        # OSMO auth service configuration
-        osmoauth:
-          enabled: true
-          port: 80
-          hostname: <your-domain>
-          address: osmo-service
-
-        # (Optional): Enable for UI port forwarding
-        # routes:
-        # - match:
-        #     prefix: "/"
-        #   route:
-        #     cluster: service
-        #     timeout: 0s
-
-      # OAuth2 Proxy sidecar configuration
-      oauth2Proxy:
-        enabled: true
-        provider: oidc
-        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
-        clientId: <client-id>
-        cookieDomain: .<your-domain>
-        scope: "openid email profile"
-        useKubernetesSecrets: true
-        secretName: oauth2-proxy-secrets
-        clientSecretKey: client_secret
-        cookieSecretKey: cookie_secret
-
-
-
 Create ``ui_values.yaml`` for ui with the following sample configurations:
 
 .. TODO: Update this link to point to the public registry when we switch to GitHub.
@@ -567,7 +498,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 10, 15, 48, 54, 60-64, 67-77
+    :emphasize-lines: 4, 10, 15
 
     # Global configuration shared across UI services
     global:
@@ -608,45 +539,6 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
             memory: "512Mi"
           limits:
             memory: "512Mi"
-
-    sidecars:
-      # Envoy proxy configuration
-      envoy:
-        enabled: true
-
-        # Service configuration
-        service:
-          hostname: <your-domain>
-          address: 127.0.0.1
-          port: 8000
-
-        # IDP hostname for JWT JWKS fetching
-        idp:
-          host: login.microsoftonline.com  # hostname from jwt.providers.jwks_uri
-
-        # JWT configuration
-        jwt:
-          user_header: x-osmo-user
-          providers:
-          - issuer: https://login.microsoftonline.com/<tenant-id>/v2.0
-            audience: <client-id>
-            jwks_uri: https://login.microsoftonline.com/<tenant-id>/discovery/v2.0/keys
-            user_claim: preferred_username
-            cluster: idp
-
-      # OAuth2 Proxy sidecar configuration
-      oauth2Proxy:
-        enabled: true
-        provider: oidc
-        oidcIssuerUrl: https://login.microsoftonline.com/<tenant-id>/v2.0
-        clientId: <client-id>
-        cookieDomain: .<your-domain>
-        scope: "openid email profile"
-        useKubernetesSecrets: true
-        secretName: oauth2-proxy-secrets
-        clientSecretKey: client_secret
-        cookieSecretKey: cookie_secret
-
 
 .. important::
    Replace all ``<your-*>`` placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.
