@@ -388,8 +388,9 @@ class LocalExecutor:
                 docker_args += ['--gpus', f'device={",".join(str(i) for i in range(gpu_count))}']
             logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
-            shm_size = self._shm_size or self.DEFAULT_SHM_SIZE
-            docker_args += ['--shm-size', shm_size]
+            docker_args += ['--shm-size', self._shm_size or self.DEFAULT_SHM_SIZE]
+        elif self._shm_size:
+            docker_args += ['--shm-size', self._shm_size]
 
         for key, value in task_spec.environment.items():
             resolved_value = self._substitute_tokens(value, token_map)
@@ -463,11 +464,6 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
         raise ValueError(
             '--resume and --from-step require --work-dir pointing to a previous run directory.')
 
-    created_work_dir = work_dir is None
-    if created_work_dir:
-        work_dir = tempfile.mkdtemp(prefix='osmo-local-')
-        logger.info('Using temporary work directory: %s', work_dir)
-
     with open(spec_path, encoding='utf-8') as f:
         spec_text = f.read()
 
@@ -477,6 +473,11 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
             'This spec uses Jinja templates which require server-side expansion.\n'
             'Run "osmo workflow submit --dry-run -f <spec>" first to get the expanded spec,\n'
             'then save that output and run it locally.')
+
+    created_work_dir = work_dir is None
+    if created_work_dir:
+        work_dir = tempfile.mkdtemp(prefix='osmo-local-')
+        logger.info('Using temporary work directory: %s', work_dir)
 
     executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
                               docker_cmd=docker_cmd, shm_size=shm_size)

@@ -955,8 +955,8 @@ class TestShmSize(unittest.TestCase):
         self.assertEqual(docker_call_args[shm_index + 1], '32g')
 
     @mock.patch('subprocess.run')
-    def test_non_gpu_task_has_no_shm_size(self, mock_run):
-        """A task without GPU resources does not include --shm-size in Docker args."""
+    def test_non_gpu_task_has_no_default_shm_size(self, mock_run):
+        """A CPU-only task without explicit shm_size does not include --shm-size."""
         mock_run.return_value = mock.Mock(returncode=0)
         spec_text = textwrap.dedent('''\
             workflow:
@@ -975,6 +975,30 @@ class TestShmSize(unittest.TestCase):
 
         docker_call_args = mock_run.call_args[0][0]
         self.assertNotIn('--shm-size', docker_call_args)
+
+    @mock.patch('subprocess.run')
+    def test_non_gpu_task_gets_explicit_shm_size(self, mock_run):
+        """A CPU-only task gets --shm-size when the user explicitly specifies it."""
+        mock_run.return_value = mock.Mock(returncode=0)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: no-gpu
+              tasks:
+              - name: preprocess
+                image: alpine:3.18
+                command: ["echo", "ok"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True, shm_size='8g')
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        node = executor._task_nodes['preprocess']
+        executor._run_task(node, spec)
+
+        docker_call_args = mock_run.call_args[0][0]
+        self.assertIn('--shm-size', docker_call_args)
+        shm_index = docker_call_args.index('--shm-size')
+        self.assertEqual(docker_call_args[shm_index + 1], '8g')
 
 
 class TestJinjaTemplateDetection(unittest.TestCase):
