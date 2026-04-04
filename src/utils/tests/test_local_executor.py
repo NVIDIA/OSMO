@@ -156,7 +156,7 @@ class TestLoadSpec(unittest.TestCase):
                 command: ["echo", "ok"]
         ''')
         executor = LocalExecutor(work_dir='/tmp/unused')
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             executor.load_spec(spec_text)
 
     def test_both_tasks_and_groups_rejected(self):
@@ -176,7 +176,7 @@ class TestLoadSpec(unittest.TestCase):
                   command: ["echo"]
         ''')
         executor = LocalExecutor(work_dir='/tmp/unused')
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             executor.load_spec(spec_text)
 
     def test_empty_workflow_rejected(self):
@@ -186,7 +186,7 @@ class TestLoadSpec(unittest.TestCase):
               name: empty
         ''')
         executor = LocalExecutor(work_dir='/tmp/unused')
-        with self.assertRaises(Exception):
+        with self.assertRaises(ValueError):
             executor.load_spec(spec_text)
 
     def test_resources_spec_parsed(self):
@@ -757,10 +757,10 @@ class TestJinjaTemplateDetection(unittest.TestCase):
         return f.name
 
     def test_jinja_block_detected(self):
-        """A spec containing {%% %%} Jinja block tags is rejected."""
+        """A spec containing {% %} Jinja block tags is rejected."""
         path = self._write_temp_spec(textwrap.dedent('''\
             workflow:
-              name: {%% if true %%}test{%% endif %%}
+              name: {% if true %}test{% endif %}
               tasks:
               - name: task
                 image: alpine:3.18

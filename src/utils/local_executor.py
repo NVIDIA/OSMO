@@ -179,14 +179,14 @@ class LocalExecutor:
                 if result.exit_code != -1
             }
         }
-        with open(self._state_file_path, 'w') as f:
+        with open(self._state_file_path, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2)
 
     def _load_state(self) -> Dict | None:
         """Load previously saved task state from disk, returning None if no state file exists."""
         if not os.path.exists(self._state_file_path):
             return None
-        with open(self._state_file_path) as f:
+        with open(self._state_file_path, encoding='utf-8') as f:
             return json.load(f)
 
     def _restore_completed_tasks(self, from_step: str | None = None):
@@ -348,7 +348,7 @@ class LocalExecutor:
             resolved_contents = self._substitute_tokens(file_spec.contents, token_map)
             host_path = os.path.join(files_dir, file_spec.path.lstrip('/'))
             os.makedirs(os.path.dirname(host_path), exist_ok=True)
-            with open(host_path, 'w') as f:
+            with open(host_path, 'w', encoding='utf-8') as f:
                 f.write(resolved_contents)
 
         resolved_command = [self._substitute_tokens(c, token_map) for c in task_spec.command]
@@ -447,10 +447,10 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
         work_dir = tempfile.mkdtemp(prefix='osmo-local-')
         logger.info('Using temporary work directory: %s', work_dir)
 
-    with open(spec_path) as f:
+    with open(spec_path, encoding='utf-8') as f:
         spec_text = f.read()
 
-    template_markers = ('{%%', '{#', 'default-values')
+    template_markers = ('{%', '{#', 'default-values')
     if any(marker in spec_text for marker in template_markers):
         raise ValueError(
             'This spec uses Jinja templates which require server-side expansion.\n'
