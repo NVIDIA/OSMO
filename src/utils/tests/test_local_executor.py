@@ -1400,8 +1400,8 @@ class TestRunWorkflowLocally(unittest.TestCase):
         """Remove the temporary work directory after each test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
-    def test_success_cleans_up_when_not_keeping(self):
-        """On success with keep_work_dir=False, the work directory is removed."""
+    def test_caller_supplied_work_dir_preserved_on_success(self):
+        """A caller-supplied work_dir is never deleted, even with keep_work_dir=False."""
         work_dir = tempfile.mkdtemp(prefix='osmo-local-cleanup-')
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(textwrap.dedent('''\
@@ -1420,7 +1420,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
                 keep_work_dir=False,
             )
             self.assertTrue(result)
-            self.assertFalse(os.path.exists(work_dir))
+            self.assertTrue(os.path.exists(work_dir))
         finally:
             os.unlink(spec_path)
             if os.path.exists(work_dir):

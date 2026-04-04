@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ def _run_local(service_client, args: argparse.Namespace):
             from_step=args.from_step,
             docker_cmd=args.docker_cmd,
         )
-    except ValueError as error:
+    except (ValueError, FileNotFoundError, PermissionError) as error:
         print(f'Error: {error}', file=sys.stderr)
         sys.exit(1)
 

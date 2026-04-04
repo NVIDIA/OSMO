@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -289,6 +289,14 @@ class LocalExecutor:
                     unsupported_features.append(
                         f'Task "{task_spec.name}": volumeMounts require cluster-level host paths')
 
+                if task_spec.privileged:
+                    unsupported_features.append(
+                        f'Task "{task_spec.name}": privileged containers are not supported in local mode')
+
+                if task_spec.hostNetwork:
+                    unsupported_features.append(
+                        f'Task "{task_spec.name}": hostNetwork is not supported in local mode')
+
         if unsupported_features:
             raise ValueError(
                 'The following features are not supported in local execution mode:\n  - '
@@ -443,7 +451,8 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
         raise ValueError(
             '--resume and --from-step require --work-dir pointing to a previous run directory.')
 
-    if work_dir is None:
+    created_work_dir = work_dir is None
+    if created_work_dir:
         work_dir = tempfile.mkdtemp(prefix='osmo-local-')
         logger.info('Using temporary work directory: %s', work_dir)
 
@@ -463,7 +472,7 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
     success = executor.execute(spec, resume=resume or from_step is not None,
                                from_step=from_step)
 
-    if not keep_work_dir and success:
+    if created_work_dir and not keep_work_dir and success:
         logger.info('Cleaning up work directory: %s', work_dir)
         shutil.rmtree(work_dir, ignore_errors=True)
     elif not success:
