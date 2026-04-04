@@ -191,6 +191,118 @@ describe("parseDateRangeValue", () => {
       expect(result!.start.toISOString()).toBe("2024-06-08T00:00:00.000Z");
     });
   });
+
+  describe("time zone corner cases", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("handles date at UTC midnight boundary correctly", () => {
+      const result = parseDateRangeValue("2024-03-10");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-03-10T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-11T00:00:00.000Z");
+    });
+
+    it("handles DST spring forward date (US March 2024)", () => {
+      vi.setSystemTime(new Date("2024-03-10T12:00:00.000Z"));
+      const result = parseDateRangeValue("today");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-03-10T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-11T00:00:00.000Z");
+    });
+
+    it("handles DST fall back date (US November 2024)", () => {
+      vi.setSystemTime(new Date("2024-11-03T12:00:00.000Z"));
+      const result = parseDateRangeValue("today");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-11-03T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-11-04T00:00:00.000Z");
+    });
+
+    it("handles leap year February 29", () => {
+      const result = parseDateRangeValue("2024-02-29");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-02-29T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-01T00:00:00.000Z");
+    });
+
+    it("handles February 29 in non-leap year (JavaScript overflows to March 1)", () => {
+      // Note: JavaScript Date doesn't reject invalid dates like Feb 29, 2023
+      // Instead it overflows to the next valid date (March 1)
+      const result = parseDateRangeValue("2023-02-29");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2023-03-01T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2023-03-02T00:00:00.000Z");
+    });
+
+    it("handles year boundary crossing in date range", () => {
+      const result = parseDateRangeValue("2023-12-31..2024-01-01");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2023-12-31T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-01-02T00:00:00.000Z");
+    });
+
+    it("handles last day of December correctly", () => {
+      const result = parseDateRangeValue("2024-12-31");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-12-31T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2025-01-01T00:00:00.000Z");
+    });
+
+    it("handles datetime at 23:59 UTC correctly", () => {
+      const result = parseDateRangeValue("2024-06-15T23:59");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T23:59:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-16T00:00:00.000Z");
+    });
+
+    it("handles datetime at 00:00 UTC correctly", () => {
+      const result = parseDateRangeValue("2024-06-15T00:00");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-06-15T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-06-15T00:01:00.000Z");
+    });
+
+    it("handles range spanning DST transition", () => {
+      const result = parseDateRangeValue("2024-03-09..2024-03-11");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-03-09T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-12T00:00:00.000Z");
+    });
+
+    it("handles last 7 days preset crossing month boundary", () => {
+      vi.setSystemTime(new Date("2024-03-03T12:00:00.000Z"));
+      const result = parseDateRangeValue("last 7 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2024-02-25T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-03-04T00:00:00.000Z");
+    });
+
+    it("handles last 30 days preset crossing year boundary", () => {
+      vi.setSystemTime(new Date("2024-01-15T12:00:00.000Z"));
+      const result = parseDateRangeValue("last 30 days");
+
+      expect(result).not.toBeNull();
+      expect(result!.start.toISOString()).toBe("2023-12-16T00:00:00.000Z");
+      expect(result!.end.toISOString()).toBe("2024-01-16T00:00:00.000Z");
+    });
+  });
 });
 
 describe("DATE_RANGE_PRESETS", () => {
