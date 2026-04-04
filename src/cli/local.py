@@ -68,6 +68,13 @@ def setup_parser(parser: argparse._SubParsersAction):
         help='Resume from a specific task, re-running it and all downstream tasks. '
              'Tasks upstream of the specified step are skipped if they completed '
              'successfully. Requires --work-dir pointing to the previous run directory.')
+    run_parser.add_argument(
+        '--shm-size',
+        dest='shm_size',
+        default=None,
+        help='Shared memory size for GPU containers (e.g. 16g, 32g). '
+             'Defaults to 16g for tasks that request GPUs. '
+             'PyTorch DataLoader workers require large shared memory.')
     run_parser.set_defaults(func=_run_local)
 
 
@@ -81,6 +88,7 @@ def _run_local(service_client, args: argparse.Namespace):
             resume=args.resume,
             from_step=args.from_step,
             docker_cmd=args.docker_cmd,
+            shm_size=args.shm_size,
         )
     except (ValueError, FileNotFoundError, PermissionError) as error:
         print(f'Error: {error}', file=sys.stderr)
