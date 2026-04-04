@@ -358,7 +358,10 @@ class LocalExecutor:
 
         for file_spec in task_spec.files:
             resolved_contents = self._substitute_tokens(file_spec.contents, token_map)
-            host_path = os.path.join(files_dir, file_spec.path.lstrip('/'))
+            host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
+            if not host_path.startswith(os.path.realpath(files_dir) + os.sep):
+                raise ValueError(
+                    f'Task "{node.name}": file path "{file_spec.path}" escapes the task directory')
             os.makedirs(os.path.dirname(host_path), exist_ok=True)
             with open(host_path, 'w', encoding='utf-8') as f:
                 f.write(resolved_contents)
@@ -400,7 +403,7 @@ class LocalExecutor:
                 docker_args += ['-v', f'{upstream_result.output_dir}:{input_mount}:ro']
 
         for file_spec in task_spec.files:
-            host_path = os.path.join(files_dir, file_spec.path.lstrip('/'))
+            host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
             docker_args += ['-v', f'{host_path}:{file_spec.path}:ro']
 
         if resolved_command:

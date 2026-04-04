@@ -828,6 +828,65 @@ class TestValidateForLocalRemainingBranches(unittest.TestCase):
                 self.assertIn(case['expected_substring'], str(context.exception))
 
 
+class TestFilePathTraversal(unittest.TestCase):
+    """Verify that file paths cannot escape the task directory."""
+
+    def setUp(self):
+        """Create a temporary work directory."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-traversal-')
+
+    def tearDown(self):
+        """Remove the temporary work directory."""
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    @mock.patch('subprocess.run')
+    def test_path_traversal_rejected(self, mock_run):
+        """A file spec with a path that escapes the task directory raises ValueError."""
+        mock_run.return_value = mock.Mock(returncode=0)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: traversal
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo"]
+                files:
+                - contents: "malicious"
+                  path: /../../etc/evil.conf
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        node = executor._task_nodes['task']
+        with self.assertRaises(ValueError) as context:
+            executor._run_task(node, spec)
+        self.assertIn('escapes the task directory', str(context.exception))
+
+    @mock.patch('subprocess.run')
+    def test_safe_nested_path_accepted(self, mock_run):
+        """A file spec with a safe nested path is accepted without error."""
+        mock_run.return_value = mock.Mock(returncode=0)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: safe
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo"]
+                files:
+                - contents: "safe"
+                  path: /tmp/scripts/run.sh
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        node = executor._task_nodes['task']
+        executor._run_task(node, spec)
+        mock_run.assert_called_once()
+
+
 class TestShmSize(unittest.TestCase):
     """Verify that --shm-size is passed to Docker for GPU tasks."""
 
