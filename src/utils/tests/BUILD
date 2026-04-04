@@ -37,5 +37,8 @@ py_test(
     deps = [
         "//src/utils:local_executor",
     ],
+    data = [
+        "//cookbook/tutorials:tutorial_specs",
+    ],
     local = True,
 )

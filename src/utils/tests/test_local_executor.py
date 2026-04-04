@@ -745,6 +745,89 @@ class TestValidateForLocal(unittest.TestCase):
         executor._validate_for_local(spec)
 
 
+class TestValidateForLocalRemainingBranches(unittest.TestCase):
+    """Verify that _validate_for_local rejects credentials, checkpoint, volumeMounts, privileged, and hostNetwork."""
+
+    _UNSUPPORTED_SPECS = {
+        'credentials': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  tasks:
+                  - name: task
+                    image: ubuntu:24.04
+                    command: ["echo"]
+                    credentials:
+                      my-secret: NGC_API_KEY
+            '''),
+            'expected_substring': 'credentials',
+        },
+        'checkpoint': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  tasks:
+                  - name: task
+                    image: ubuntu:24.04
+                    command: ["echo"]
+                    checkpoint:
+                    - path: /output/model
+                      url: s3://bucket/checkpoints/
+                      frequency: 300
+            '''),
+            'expected_substring': 'checkpoint',
+        },
+        'volumeMounts': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  tasks:
+                  - name: task
+                    image: ubuntu:24.04
+                    command: ["echo"]
+                    volumeMounts:
+                    - "/data:/data:ro"
+            '''),
+            'expected_substring': 'volumeMounts',
+        },
+        'privileged': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  tasks:
+                  - name: task
+                    image: ubuntu:24.04
+                    command: ["echo"]
+                    privileged: true
+            '''),
+            'expected_substring': 'privileged',
+        },
+        'hostNetwork': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  tasks:
+                  - name: task
+                    image: ubuntu:24.04
+                    command: ["echo"]
+                    hostNetwork: true
+            '''),
+            'expected_substring': 'hostNetwork',
+        },
+    }
+
+    def test_unsupported_fields_rejected(self):
+        """Each unsupported task-level field is detected and rejected with a descriptive error."""
+        for feature, case in self._UNSUPPORTED_SPECS.items():
+            with self.subTest(feature=feature):
+                executor = LocalExecutor(work_dir='/tmp/unused')
+                spec = executor.load_spec(case['yaml'])
+                executor._build_dag(spec)
+                with self.assertRaises(ValueError) as context:
+                    executor._validate_for_local(spec)
+                self.assertIn(case['expected_substring'], str(context.exception))
+
+
 class TestShmSize(unittest.TestCase):
     """Verify that --shm-size is passed to Docker for GPU tasks."""
 
@@ -899,6 +982,108 @@ class TestJinjaTemplateDetection(unittest.TestCase):
             self.assertIn('Jinja', str(context.exception))
         finally:
             os.unlink(path)
+
+
+# ============================================================================
+# Tests that exercise error paths without requiring Docker
+# ============================================================================
+class TestDockerNotFoundHandling(unittest.TestCase):
+    """Verify graceful failure when Docker is not available (no Docker required to run)."""
+
+    def setUp(self):
+        """Create a temporary work directory."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-test-')
+
+    def tearDown(self):
+        """Remove the temporary work directory."""
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    def test_docker_not_found_graceful_failure(self):
+        """Using a non-existent docker binary results in a graceful failure rather than a crash."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: no-docker
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo", "ok"]
+        ''')
+        executor = LocalExecutor(
+            work_dir=self.work_dir,
+            keep_work_dir=True,
+            docker_cmd='nonexistent-docker-binary-12345',
+        )
+        spec = executor.load_spec(spec_text)
+        self.assertFalse(executor.execute(spec))
+
+
+class TestCookbookSpecValidation(unittest.TestCase):
+    """
+    Validate that cookbook specs using unsupported features are rejected
+    before any container is started (no Docker required to run).
+    """
+
+    COOKBOOK_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..',
+                               'cookbook', 'tutorials')
+
+    def setUp(self):
+        """Create a temporary work directory for cookbook validation tests."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-cookbook-')
+
+    def tearDown(self):
+        """Remove the temporary work directory after each test."""
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    def _run_cookbook_spec(self, filename: str) -> bool:
+        """Execute a cookbook tutorial spec file through the local executor."""
+        spec_path = os.path.join(self.COOKBOOK_DIR, filename)
+        self.assertTrue(os.path.exists(spec_path),
+                        f'Cookbook file not found: {spec_path}')
+        return run_workflow_locally(
+            spec_path=spec_path,
+            work_dir=self.work_dir,
+            keep_work_dir=True,
+        )
+
+    def test_unsupported_spec_data_download(self):
+        """data_download.yaml uses URL inputs — verify it is cleanly rejected."""
+        with self.assertRaises(ValueError) as context:
+            self._run_cookbook_spec('data_download.yaml')
+        self.assertIn('URL', str(context.exception))
+
+    def test_unsupported_spec_data_upload(self):
+        """data_upload.yaml uses URL outputs — verify it is cleanly rejected."""
+        with self.assertRaises(ValueError) as context:
+            self._run_cookbook_spec('data_upload.yaml')
+        self.assertIn('object storage', str(context.exception).lower())
+
+    def test_unsupported_spec_dataset_upload(self):
+        """dataset_upload.yaml uses dataset outputs — verify it is cleanly rejected."""
+        with self.assertRaises(ValueError) as context:
+            self._run_cookbook_spec('dataset_upload.yaml')
+        self.assertIn('dataset', str(context.exception).lower())
+
+    def test_unsupported_spec_template(self):
+        """template_hello_world.yaml uses default-values templating — verify it is rejected."""
+        spec_path = os.path.join(self.COOKBOOK_DIR, 'template_hello_world.yaml')
+        self.assertTrue(os.path.exists(spec_path),
+                        f'Cookbook file not found: {spec_path}')
+        with self.assertRaises(ValueError) as context:
+            run_workflow_locally(
+                spec_path=spec_path,
+                work_dir=self.work_dir,
+                keep_work_dir=True,
+            )
+        self.assertIn('Jinja', str(context.exception))
+
+
+class TestRunWorkflowLocallyErrors(unittest.TestCase):
+    """Test error handling in run_workflow_locally() that does not require Docker."""
+
+    def test_nonexistent_file_raises(self):
+        """Passing a non-existent spec file path raises FileNotFoundError."""
+        with self.assertRaises(FileNotFoundError):
+            run_workflow_locally(spec_path='/nonexistent/path/spec.yaml')
 
 
 # ============================================================================
@@ -1346,26 +1531,6 @@ class TestDockerExecution(unittest.TestCase):
         ''')
         self.assertTrue(self._execute_spec(spec_text))
 
-    # ---- Docker-not-found handling ----
-
-    def test_docker_not_found_graceful_failure(self):
-        """Using a non-existent docker binary results in a graceful failure rather than a crash."""
-        spec_text = textwrap.dedent('''\
-            workflow:
-              name: no-docker
-              tasks:
-              - name: task
-                image: alpine:3.18
-                command: ["echo", "ok"]
-        ''')
-        executor = LocalExecutor(
-            work_dir=self.work_dir,
-            keep_work_dir=True,
-            docker_cmd='nonexistent-docker-binary-12345',
-        )
-        spec = executor.load_spec(spec_text)
-        self.assertFalse(executor.execute(spec))
-
     # ---- Alternative container runtime ----
 
     def test_custom_docker_command(self):
@@ -1411,8 +1576,8 @@ class TestCookbookSpecs(unittest.TestCase):
     def _run_cookbook_spec(self, filename: str) -> bool:
         """Execute a cookbook tutorial spec file through the local executor."""
         spec_path = os.path.join(self.COOKBOOK_DIR, filename)
-        if not os.path.exists(spec_path):
-            self.skipTest(f'Cookbook file not found: {spec_path}')
+        self.assertTrue(os.path.exists(spec_path),
+                        f'Cookbook file not found: {spec_path}')
         return run_workflow_locally(
             spec_path=spec_path,
             work_dir=self.work_dir,
@@ -1442,37 +1607,6 @@ class TestCookbookSpecs(unittest.TestCase):
         of the same structure is tested in TestDockerExecution.test_groups_with_data_flow.
         """
         self.skipTest('Contains sleep 120; covered by test_groups_with_data_flow')
-
-    def test_unsupported_spec_data_download(self):
-        """data_download.yaml uses URL inputs — verify it is cleanly rejected."""
-        with self.assertRaises(ValueError) as context:
-            self._run_cookbook_spec('data_download.yaml')
-        self.assertIn('URL', str(context.exception))
-
-    def test_unsupported_spec_data_upload(self):
-        """data_upload.yaml uses URL outputs — verify it is cleanly rejected."""
-        with self.assertRaises(ValueError) as context:
-            self._run_cookbook_spec('data_upload.yaml')
-        self.assertIn('object storage', str(context.exception).lower())
-
-    def test_unsupported_spec_dataset_upload(self):
-        """dataset_upload.yaml uses dataset outputs — verify it is cleanly rejected."""
-        with self.assertRaises(ValueError) as context:
-            self._run_cookbook_spec('dataset_upload.yaml')
-        self.assertIn('dataset', str(context.exception).lower())
-
-    def test_unsupported_spec_template(self):
-        """template_hello_world.yaml uses default-values templating — verify it is rejected."""
-        spec_path = os.path.join(self.COOKBOOK_DIR, 'template_hello_world.yaml')
-        if not os.path.exists(spec_path):
-            self.skipTest('Cookbook file not found')
-        with self.assertRaises(ValueError) as context:
-            run_workflow_locally(
-                spec_path=spec_path,
-                work_dir=self.work_dir,
-                keep_work_dir=True,
-            )
-        self.assertIn('Jinja', str(context.exception))
 
 
 # ============================================================================
@@ -1561,11 +1695,6 @@ class TestRunWorkflowLocally(unittest.TestCase):
             self.assertTrue(os.path.exists(self.work_dir))
         finally:
             os.unlink(spec_path)
-
-    def test_nonexistent_file_raises(self):
-        """Passing a non-existent spec file path raises FileNotFoundError."""
-        with self.assertRaises(FileNotFoundError):
-            run_workflow_locally(spec_path='/nonexistent/path/spec.yaml')
 
 
 if __name__ == '__main__':
