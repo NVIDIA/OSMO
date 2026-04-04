@@ -745,6 +745,96 @@ class TestValidateForLocal(unittest.TestCase):
         executor._validate_for_local(spec)
 
 
+class TestShmSize(unittest.TestCase):
+    """Verify that --shm-size is passed to Docker for GPU tasks."""
+
+    def setUp(self):
+        """Create a temporary work directory for shm-size tests."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-shm-')
+
+    def tearDown(self):
+        """Remove the temporary work directory after each test."""
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    @mock.patch('subprocess.run')
+    def test_gpu_task_gets_default_shm_size(self, mock_run):
+        """A GPU task includes --shm-size with the default value when none is specified."""
+        mock_run.return_value = mock.Mock(returncode=0, stdout='0\n')
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: shm-test
+              resources:
+                gpu-resource:
+                  gpu: 1
+              tasks:
+              - name: train
+                image: pytorch:latest
+                resource: gpu-resource
+                command: ["python", "train.py"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        node = executor._task_nodes['train']
+        executor._run_task(node, spec)
+
+        docker_call_args = mock_run.call_args_list[-1][0][0]
+        self.assertIn('--shm-size', docker_call_args)
+        shm_index = docker_call_args.index('--shm-size')
+        self.assertEqual(docker_call_args[shm_index + 1], '16g')
+
+    @mock.patch('subprocess.run')
+    def test_gpu_task_gets_custom_shm_size(self, mock_run):
+        """A GPU task uses the user-specified --shm-size value."""
+        mock_run.return_value = mock.Mock(returncode=0, stdout='0\n')
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: shm-test
+              resources:
+                gpu-resource:
+                  gpu: 1
+              tasks:
+              - name: train
+                image: pytorch:latest
+                resource: gpu-resource
+                command: ["python", "train.py"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True, shm_size='32g')
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        node = executor._task_nodes['train']
+        executor._run_task(node, spec)
+
+        docker_call_args = mock_run.call_args_list[-1][0][0]
+        self.assertIn('--shm-size', docker_call_args)
+        shm_index = docker_call_args.index('--shm-size')
+        self.assertEqual(docker_call_args[shm_index + 1], '32g')
+
+    @mock.patch('subprocess.run')
+    def test_non_gpu_task_has_no_shm_size(self, mock_run):
+        """A task without GPU resources does not include --shm-size in Docker args."""
+        mock_run.return_value = mock.Mock(returncode=0)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: no-gpu
+              tasks:
+              - name: preprocess
+                image: alpine:3.18
+                command: ["echo", "ok"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        node = executor._task_nodes['preprocess']
+        executor._run_task(node, spec)
+
+        docker_call_args = mock_run.call_args[0][0]
+        self.assertNotIn('--shm-size', docker_call_args)
+
+
 class TestJinjaTemplateDetection(unittest.TestCase):
     """Verify that specs containing Jinja template markers are rejected before execution."""
 

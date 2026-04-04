@@ -75,11 +75,15 @@ class LocalExecutor:
       - Templated specs with Jinja (require server-side expansion; use --dry-run first)
     """
 
-    def __init__(self, work_dir: str, keep_work_dir: bool = False, docker_cmd: str = 'docker'):
+    DEFAULT_SHM_SIZE = '16g'
+
+    def __init__(self, work_dir: str, keep_work_dir: bool = False, docker_cmd: str = 'docker',
+                 shm_size: str | None = None):
         """Initialize the executor with a work directory, cleanup preference, and container runtime command."""
         self._work_dir = work_dir
         self._keep_work_dir = keep_work_dir
         self._docker_cmd = docker_cmd
+        self._shm_size = shm_size
         self._task_nodes: Dict[str, TaskNode] = {}
         self._results: Dict[str, TaskResult] = {}
         self._available_gpus: int | None = None
@@ -380,6 +384,9 @@ class LocalExecutor:
                 docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
             logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
+            shm_size = self._shm_size or self.DEFAULT_SHM_SIZE
+            docker_args += ['--shm-size', shm_size]
+
         for key, value in task_spec.environment.items():
             resolved_value = self._substitute_tokens(value, token_map)
             docker_args += ['-e', f'{key}={resolved_value}']
@@ -445,7 +452,8 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
                          keep_work_dir: bool = False,
                          resume: bool = False,
                          from_step: str | None = None,
-                         docker_cmd: str = 'docker') -> bool:
+                         docker_cmd: str = 'docker',
+                         shm_size: str | None = None) -> bool:
     """Load a workflow spec from disk and execute it locally via Docker, managing the work directory lifecycle."""
     if (resume or from_step) and work_dir is None:
         raise ValueError(
@@ -467,7 +475,7 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
             'then save that output and run it locally.')
 
     executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                              docker_cmd=docker_cmd)
+                              docker_cmd=docker_cmd, shm_size=shm_size)
     spec = executor.load_spec(spec_text)
     success = executor.execute(spec, resume=resume or from_step is not None,
                                from_step=from_step)
