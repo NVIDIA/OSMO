@@ -100,10 +100,21 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "spec_includes",
+    srcs = ["spec_includes.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/lib/utils:osmo_errors",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "local_executor",
     srcs = ["local_executor.py"],
     deps = [
         requirement("pyyaml"),
+        "//src/utils:spec_includes",
         "//src/utils/job",
     ],
     visibility = ["//visibility:public"],

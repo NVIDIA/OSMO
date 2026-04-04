@@ -42,3 +42,12 @@ py_test(
     ],
     local = True,
 )
+
+osmo_py_test(
+    name = "test_spec_includes",
+    srcs = ["test_spec_includes.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils:spec_includes",
+    ],
+)

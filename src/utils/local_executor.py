@@ -28,6 +28,7 @@ from typing import Dict, List, Set
 
 import yaml
 
+from src.utils import spec_includes
 from src.utils.job import task as task_module
 from src.utils.job import workflow as workflow_module
 
@@ -466,6 +467,18 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
 
     with open(spec_path, encoding='utf-8') as f:
         spec_text = f.read()
+
+    abs_path = os.path.abspath(spec_path)
+    original_has_defaults = 'default-values' in spec_text
+    spec_text = spec_includes.resolve_includes(
+        spec_text, os.path.dirname(abs_path), source_path=abs_path)
+
+    if not original_has_defaults:
+        resolved_dict = yaml.safe_load(spec_text)
+        if isinstance(resolved_dict, dict) and 'default-values' in resolved_dict:
+            del resolved_dict['default-values']
+            spec_text = yaml.safe_dump(
+                resolved_dict, default_flow_style=False, sort_keys=False)
 
     template_markers = ('{%', '{#', 'default-values')
     if any(marker in spec_text for marker in template_markers):

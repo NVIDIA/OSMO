@@ -1067,6 +1067,90 @@ class TestJinjaTemplateDetection(unittest.TestCase):
             os.unlink(path)
 
 
+class TestIncludesWithDefaultValues(unittest.TestCase):
+    """Verify that default-values introduced by includes are stripped for local execution."""
+
+    def setUp(self):
+        self.test_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def _write_file(self, name: str, content: str) -> str:
+        path = os.path.join(self.test_dir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(textwrap.dedent(content))
+        return path
+
+    def test_included_default_values_stripped(self):
+        """A base file's default-values should be stripped so local execution proceeds."""
+        self._write_file('base.yaml', textwrap.dedent('''\
+            workflow:
+              name: base
+              resources:
+                default:
+                  cpu: 4
+            default-values:
+              unused_var: some_value
+        '''))
+        main_path = self._write_file('main.yaml', textwrap.dedent('''\
+            includes:
+              - base.yaml
+            workflow:
+              name: local-test
+              tasks:
+              - name: hello
+                image: ubuntu:24.04
+                command: ["echo"]
+                args: ["hello"]
+        '''))
+        executor = LocalExecutor(work_dir=self.test_dir, keep_work_dir=True,
+                                  docker_cmd='nonexistent-docker-12345')
+        with open(main_path, encoding='utf-8') as f:
+            spec_text = f.read()
+
+        import os as _os
+        from src.lib.utils import workflow as workflow_utils
+        abs_path = _os.path.abspath(main_path)
+        spec_text = workflow_utils.resolve_includes(
+            spec_text, _os.path.dirname(abs_path), source_path=abs_path)
+
+        original_has_defaults = 'default-values' in spec_text
+        self.assertFalse(original_has_defaults,
+                         'Main file should not have default-values before includes')
+
+        import yaml as _yaml
+        resolved_dict = _yaml.safe_load(spec_text)
+        self.assertIn('default-values', resolved_dict,
+                      'Resolved spec should have default-values from base')
+
+    def test_own_default_values_still_rejected(self):
+        """A spec with its own default-values is still rejected even when using includes."""
+        self._write_file('base.yaml', textwrap.dedent('''\
+            workflow:
+              name: base
+              resources:
+                default:
+                  cpu: 4
+        '''))
+        main_path = self._write_file('main.yaml', textwrap.dedent('''\
+            includes:
+              - base.yaml
+            workflow:
+              name: "{{ experiment_name }}"
+              tasks:
+              - name: hello
+                image: ubuntu:24.04
+                command: ["echo"]
+            default-values:
+              experiment_name: my-experiment
+        '''))
+        with self.assertRaises(ValueError) as context:
+            run_workflow_locally(main_path, work_dir=self.test_dir)
+        self.assertIn('Jinja', str(context.exception))
+
+
 # ============================================================================
 # Tests that exercise error paths without requiring Docker
 # ============================================================================
