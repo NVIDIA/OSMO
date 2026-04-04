@@ -39,6 +39,8 @@ STATE_FILE_NAME = '.osmo-state.json'
 
 @dataclasses.dataclass
 class TaskNode:
+    """A node in the workflow DAG, linking a task spec to its upstream and downstream dependencies."""
+
     name: str
     spec: task_module.TaskSpec
     group: str
@@ -48,6 +50,8 @@ class TaskNode:
 
 @dataclasses.dataclass
 class TaskResult:
+    """Outcome of a single task execution, capturing its exit code and output directory path."""
+
     name: str
     exit_code: int
     output_dir: str
@@ -72,6 +76,7 @@ class LocalExecutor:
     """
 
     def __init__(self, work_dir: str, keep_work_dir: bool = False, docker_cmd: str = 'docker'):
+        """Initialize the executor with a work directory, cleanup preference, and container runtime command."""
         self._work_dir = work_dir
         self._keep_work_dir = keep_work_dir
         self._docker_cmd = docker_cmd
@@ -80,6 +85,7 @@ class LocalExecutor:
         self._available_gpus: int | None = None
 
     def _detect_available_gpus(self) -> int:
+        """Query nvidia-smi to count available GPUs, caching the result for subsequent calls."""
         if self._available_gpus is not None:
             return self._available_gpus
         try:
@@ -102,12 +108,14 @@ class LocalExecutor:
         return self._available_gpus
 
     def load_spec(self, spec_text: str) -> workflow_module.WorkflowSpec:
+        """Parse raw YAML text into a validated WorkflowSpec via the versioned spec model."""
         raw = yaml.safe_load(spec_text)
         versioned = workflow_module.VersionedWorkflowSpec(**raw)
         return versioned.workflow
 
     def execute(self, spec: workflow_module.WorkflowSpec,
                 resume: bool = False, from_step: str | None = None) -> bool:
+        """Run all tasks in topological order, returning True if the entire workflow succeeds."""
         self._build_dag(spec)
         self._validate_for_local(spec)
         self._setup_directories()
@@ -159,9 +167,11 @@ class LocalExecutor:
 
     @property
     def _state_file_path(self) -> str:
+        """Absolute path to the JSON state file used for resume tracking."""
         return os.path.join(self._work_dir, STATE_FILE_NAME)
 
     def _save_state(self):
+        """Persist current task results to the state file so runs can be resumed later."""
         state = {
             'tasks': {
                 name: {'exit_code': result.exit_code, 'output_dir': result.output_dir}
@@ -173,12 +183,14 @@ class LocalExecutor:
             json.dump(state, f, indent=2)
 
     def _load_state(self) -> Dict | None:
+        """Load previously saved task state from disk, returning None if no state file exists."""
         if not os.path.exists(self._state_file_path):
             return None
         with open(self._state_file_path) as f:
             return json.load(f)
 
     def _restore_completed_tasks(self, from_step: str | None = None):
+        """Reload completed tasks from a previous run, optionally invalidating from a given step onward."""
         state = self._load_state()
         if state is None:
             logger.info('No previous state found — starting from scratch')
@@ -205,6 +217,7 @@ class LocalExecutor:
             logger.info('Resuming: skipping completed task "%s"', name)
 
     def _get_downstream_tasks(self, task_name: str) -> Set[str]:
+        """Return all transitive downstream dependents of the given task via BFS."""
         visited: Set[str] = set()
         queue = [task_name]
         while queue:
@@ -216,11 +229,13 @@ class LocalExecutor:
         return visited
 
     def _groups(self, spec: workflow_module.WorkflowSpec) -> List[task_module.TaskGroupSpec]:
+        """Return the spec's groups, or synthesize one group per task when groups are absent."""
         if spec.groups:
             return spec.groups
         return [task_module.TaskGroupSpec(name=t.name, tasks=[t]) for t in spec.tasks]
 
     def _build_dag(self, spec: workflow_module.WorkflowSpec):
+        """Construct the internal DAG of TaskNodes from the workflow spec's tasks and input dependencies."""
         self._task_nodes.clear()
         task_to_group: Dict[str, str] = {}
 
@@ -245,6 +260,7 @@ class LocalExecutor:
                         self._task_nodes[upstream_task].downstream.add(task_spec.name)
 
     def _validate_for_local(self, spec: workflow_module.WorkflowSpec):
+        """Raise ValueError if the spec uses features unsupported in local mode (datasets, URLs, credentials, etc.)."""
         unsupported_features = []
         for group in self._groups(spec):
             for task_spec in group.tasks:
@@ -279,11 +295,13 @@ class LocalExecutor:
                 + '\n  - '.join(unsupported_features))
 
     def _setup_directories(self):
+        """Create the work directory and per-task output directories on the host filesystem."""
         os.makedirs(self._work_dir, exist_ok=True)
         for task_name in self._task_nodes:
             os.makedirs(os.path.join(self._work_dir, task_name, 'output'), exist_ok=True)
 
     def _find_ready_tasks(self) -> List[str]:
+        """Return tasks whose upstream dependencies have all completed successfully."""
         completed = set(self._results.keys())
         ready = []
         for name, node in self._task_nodes.items():
@@ -296,6 +314,7 @@ class LocalExecutor:
         return ready
 
     def _cancel_downstream(self, failed_task: str):
+        """Mark all transitive downstream tasks of a failed task as cancelled (exit_code -1)."""
         visited: Set[str] = set()
         queue = [failed_task]
         while queue:
@@ -309,12 +328,14 @@ class LocalExecutor:
 
     def _task_gpu_count(self, task_spec: task_module.TaskSpec,
                         spec: workflow_module.WorkflowSpec) -> int:
+        """Return the number of GPUs requested by a task's resource spec, defaulting to 0."""
         resource_spec = spec.resources.get(task_spec.resource)
         if resource_spec and resource_spec.gpu:
             return resource_spec.gpu
         return 0
 
     def _run_task(self, node: TaskNode, spec: workflow_module.WorkflowSpec) -> TaskResult:
+        """Execute a single task as a Docker container, mounting inputs/outputs/files and returning the result."""
         task_spec = node.spec
         task_dir = os.path.join(self._work_dir, node.name)
         output_dir = os.path.join(task_dir, 'output')
@@ -394,6 +415,7 @@ class LocalExecutor:
             return TaskResult(name=node.name, exit_code=127, output_dir=output_dir)
 
     def _build_token_map(self, node: TaskNode, output_dir: str) -> Dict[str, str]:
+        """Build a mapping of {{token}} keys to host paths for output and each upstream input."""
         tokens: Dict[str, str] = {
             'output': output_dir,
         }
@@ -405,6 +427,7 @@ class LocalExecutor:
         return tokens
 
     def _substitute_tokens(self, text: str, tokens: Dict[str, str]) -> str:
+        """Replace all {{key}} placeholders in text with their corresponding token values."""
         for key, value in tokens.items():
             text = re.sub(r'\{\{\s*' + re.escape(key) + r'\s*\}\}', value, text)
         return text
@@ -415,6 +438,7 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
                          resume: bool = False,
                          from_step: str | None = None,
                          docker_cmd: str = 'docker') -> bool:
+    """Load a workflow spec from disk and execute it locally via Docker, managing the work directory lifecycle."""
     if (resume or from_step) and work_dir is None:
         raise ValueError(
             '--resume and --from-step require --work-dir pointing to a previous run directory.')

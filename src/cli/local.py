@@ -25,6 +25,7 @@ from src.utils import local_executor
 
 
 def setup_parser(parser: argparse._SubParsersAction):
+    """Register the 'local' subcommand and its nested 'run' action with the CLI argument parser."""
     local_parser = parser.add_parser(
         'local',
         help='Run workflows locally using Docker (no Kubernetes cluster required).')
@@ -71,6 +72,7 @@ def setup_parser(parser: argparse._SubParsersAction):
 
 
 def _run_local(service_client, args: argparse.Namespace):
+    """Execute a workflow locally via Docker using the parsed CLI arguments."""
     try:
         success = local_executor.run_workflow_locally(
             spec_path=args.workflow_file,
