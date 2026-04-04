@@ -120,6 +120,7 @@ class LocalExecutor:
     def execute(self, spec: workflow_module.WorkflowSpec,
                 resume: bool = False, from_step: str | None = None) -> bool:
         """Run all tasks in topological order, returning True if the entire workflow succeeds."""
+        self._results.clear()
         self._build_dag(spec)
         self._validate_for_local(spec)
         self._setup_directories()
@@ -382,9 +383,9 @@ class LocalExecutor:
                 logger.warning(
                     'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
                     node.name, gpu_count, available, available)
-                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(available))}"']
+                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(available))}']
             else:
-                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
+                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(gpu_count))}']
             logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
             shm_size = self._shm_size or self.DEFAULT_SHM_SIZE
