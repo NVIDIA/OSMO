@@ -1037,6 +1037,9 @@ class Task(pydantic.BaseModel):
     node_name: str | None
     pod_ip: str | None
     lead: bool
+    # NULL = predates this column; -1 = initialized at submission, not yet finalized;
+    # >= 0 = finalized by CleanupWorkflow (0 = confirmed zero lines).
+    log_line_count: int | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -1064,7 +1067,7 @@ class Task(pydantic.BaseModel):
         for i in range(0, len(task_entries), batch_size):
             chunk = task_entries[i:i + batch_size]
             values_clause = ','.join(
-                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
+                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
                 * len(chunk)
             )
             flat_args: List[Any] = []
@@ -1075,7 +1078,7 @@ class Task(pydantic.BaseModel):
                 INSERT INTO tasks
                 (workflow_id, name, group_name, task_db_key, retry_id, task_uuid,
                  status, pod_name, failure_message, gpu_count, cpu_count,
-                 disk_count, memory_count, exit_actions, lead)
+                 disk_count, memory_count, exit_actions, lead, log_line_count)
                 VALUES {values_clause} ON CONFLICT DO NOTHING;
             '''
             database.execute_commit_command(insert_cmd, tuple(flat_args))
@@ -1087,8 +1090,9 @@ class Task(pydantic.BaseModel):
         insert_cmd = '''
             INSERT INTO tasks
             (workflow_id, name, group_name, task_db_key, retry_id, task_uuid, status, pod_name,
-             failure_message, gpu_count, cpu_count, disk_count, memory_count, exit_actions, lead)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING;
+             failure_message, gpu_count, cpu_count, disk_count, memory_count, exit_actions, lead,
+             log_line_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING;
         '''
         workflow_uuid = self.workflow_uuid if self.workflow_uuid else ''
         self.database.execute_commit_command(
@@ -1099,7 +1103,7 @@ class Task(pydantic.BaseModel):
              failure_message, gpu_count, cpu_count,
              disk_count, memory_count,
              json.dumps(self.exit_actions, default=common.pydantic_encoder),
-             self.lead))
+             self.lead, -1))
 
     @property
     def workflow_id(self) -> str:
@@ -1118,6 +1122,14 @@ class Task(pydantic.BaseModel):
                 'be inserted in the database first.') from err
         return fetched_workflow_id
 
+
+    def update_log_line_count_to_db(self, count: int) -> None:
+        """ Writes the final log line count. Only updates if the sentinel -1 is still present. """
+        cmd = '''
+            UPDATE tasks SET log_line_count = %s
+            WHERE task_db_key = %s AND log_line_count = -1;
+        '''
+        self.database.execute_commit_command(cmd, (count, self.task_db_key))
 
     def add_refresh_token_to_db(self, refresh_token: str):
         """ Hash and store refresh token in the database. """
@@ -1210,7 +1222,8 @@ class Task(pydantic.BaseModel):
                     database=database,
                     exit_actions=task_row['exit_actions'],
                     node_name=task_row['node_name'],
-                    lead=task_row['lead'])
+                    lead=task_row['lead'],
+                    log_line_count=task_row.get('log_line_count'))
 
     @classmethod
     def fetch_row_from_db(cls, database: connectors.PostgresConnector,

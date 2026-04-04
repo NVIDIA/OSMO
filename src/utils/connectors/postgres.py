@@ -819,6 +819,7 @@ class PostgresConnector:
                 app_version INT,
                 plugins JSONB,
                 priority TEXT DEFAULT 'NORMAL',
+                log_line_count INTEGER,
                 PRIMARY KEY (workflow_uuid),
                 CONSTRAINT workflows_name_job UNIQUE(workflow_name, job_id),
                 CONSTRAINT workflows_workflow_id UNIQUE(workflow_id)
@@ -909,6 +910,7 @@ class PostgresConnector:
                 refresh_token BYTEA,
                 pod_name TEXT,
                 pod_ip TEXT,
+                log_line_count INTEGER,
                 PRIMARY KEY (task_db_key),
                 CONSTRAINT tasks_uuid_retry UNIQUE(task_uuid, retry_id),
                 CONSTRAINT tasks_id_name UNIQUE(workflow_id, retry_id, name)

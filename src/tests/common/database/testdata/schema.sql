@@ -59,5 +59,6 @@ CREATE TABLE IF NOT EXISTS pools (
 
 CREATE TABLE IF NOT EXISTS workflows (
     workflow_id TEXT PRIMARY KEY,
-    pool TEXT NOT NULL DEFAULT ''
+    pool TEXT NOT NULL DEFAULT '',
+    log_line_count INTEGER
 );

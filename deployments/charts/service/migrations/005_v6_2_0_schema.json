@@ -1,0 +1,14 @@
+{
+  "operations": [
+    {
+      "sql": {
+        "up": "ALTER TABLE workflows ADD COLUMN IF NOT EXISTS log_line_count INTEGER;"
+      }
+    },
+    {
+      "sql": {
+        "up": "ALTER TABLE tasks ADD COLUMN IF NOT EXISTS log_line_count INTEGER;"
+      }
+    }
+  ]
+}

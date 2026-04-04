@@ -1083,6 +1083,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                         task_obj_spec.resources.memory or '0', 'GiB'),
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
+                    -1,
                 ))
         task.Task.batch_insert_to_db(postgres, task_entries)
 

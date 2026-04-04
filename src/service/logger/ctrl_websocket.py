@@ -204,6 +204,10 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                                     workflow_obj.workflow_id, task_name, retry_id),
                                 json.loads(logs.json()),
                                 maxlen=workflow_config.max_task_log_lines)
+                            await redis_client.incr(
+                                f'{workflow_obj.workflow_id}-log-count')
+                            await redis_client.incr(
+                                f'{workflow_obj.workflow_id}-{task_name}-{retry_id}-log-count')
                         # Set expiration on first log message
                         if first_run:
                             first_run = False
@@ -212,6 +216,12 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                             await redis_client.expire(
                                 common.get_redis_task_log_name(
                                     workflow_obj.workflow_id, task_name, retry_id),
+                                connectors.MAX_LOG_TTL)
+                            await redis_client.expire(
+                                f'{workflow_obj.workflow_id}-log-count',
+                                connectors.MAX_LOG_TTL)
+                            await redis_client.expire(
+                                f'{workflow_obj.workflow_id}-{task_name}-{retry_id}-log-count',
                                 connectors.MAX_LOG_TTL)
 
                 # If there is an action request (i.e. exec and port-forward), pull it from the queue
