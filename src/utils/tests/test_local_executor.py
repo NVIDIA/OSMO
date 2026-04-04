@@ -32,6 +32,7 @@ from src.utils.local_executor import LocalExecutor, TaskNode, TaskResult, run_wo
 # Helper: detect Docker availability once for the entire module
 # ---------------------------------------------------------------------------
 def _docker_available() -> bool:
+    """Return True if the Docker daemon is reachable via 'docker info', False otherwise."""
     try:
         result = subprocess.run(
             ['docker', 'info'],
@@ -54,6 +55,7 @@ class TestLoadSpec(unittest.TestCase):
     """Verify that real OSMO YAML specs are parsed correctly via the existing Pydantic models."""
 
     def test_single_task_spec(self):
+        """Parse a minimal single-task workflow and verify name, task count, and image."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: hello-osmo
@@ -71,6 +73,7 @@ class TestLoadSpec(unittest.TestCase):
         self.assertEqual(spec.tasks[0].image, 'ubuntu:24.04')
 
     def test_serial_tasks_spec(self):
+        """Parse a two-task serial workflow and verify the task input dependency is resolved."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial-tasks
@@ -105,6 +108,7 @@ class TestLoadSpec(unittest.TestCase):
             self.assertEqual(first_input.task, 'task1')
 
     def test_groups_spec(self):
+        """Parse a grouped workflow and verify group structure and the lead task flag."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: grouped
@@ -126,6 +130,7 @@ class TestLoadSpec(unittest.TestCase):
         self.assertTrue(spec.groups[0].tasks[0].lead)
 
     def test_versioned_spec(self):
+        """Parse a spec with an explicit version field and verify it loads correctly."""
         spec_text = textwrap.dedent('''\
             version: 2
             workflow:
@@ -140,6 +145,7 @@ class TestLoadSpec(unittest.TestCase):
         self.assertEqual(spec.name, 'versioned')
 
     def test_invalid_version_rejected(self):
+        """Reject a spec with an unsupported version number."""
         spec_text = textwrap.dedent('''\
             version: 99
             workflow:
@@ -154,6 +160,7 @@ class TestLoadSpec(unittest.TestCase):
             executor.load_spec(spec_text)
 
     def test_both_tasks_and_groups_rejected(self):
+        """Reject a spec that defines both top-level tasks and groups simultaneously."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: invalid
@@ -173,6 +180,7 @@ class TestLoadSpec(unittest.TestCase):
             executor.load_spec(spec_text)
 
     def test_empty_workflow_rejected(self):
+        """Reject a spec with no tasks or groups defined."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: empty
@@ -182,6 +190,7 @@ class TestLoadSpec(unittest.TestCase):
             executor.load_spec(spec_text)
 
     def test_resources_spec_parsed(self):
+        """Parse a spec with resource definitions and verify cpu/memory values."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: with-resources
@@ -201,6 +210,7 @@ class TestLoadSpec(unittest.TestCase):
         self.assertEqual(spec.resources['default'].memory, '4Gi')
 
     def test_environment_parsed(self):
+        """Parse a spec with environment variables and verify key-value pairs are preserved."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: env-test
@@ -222,9 +232,11 @@ class TestBuildDag(unittest.TestCase):
     """Verify DAG construction from task dependencies."""
 
     def _make_executor(self) -> LocalExecutor:
+        """Create a LocalExecutor with a throwaway work directory for DAG-only tests."""
         return LocalExecutor(work_dir='/tmp/unused')
 
     def test_no_dependencies(self):
+        """All tasks with no input dependencies have empty upstream and downstream sets."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: parallel
@@ -249,6 +261,7 @@ class TestBuildDag(unittest.TestCase):
             self.assertEqual(len(node.downstream), 0)
 
     def test_serial_chain(self):
+        """A three-task chain produces correct upstream/downstream links at each step."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial
@@ -279,6 +292,7 @@ class TestBuildDag(unittest.TestCase):
         self.assertEqual(executor._task_nodes['third'].downstream, set())
 
     def test_diamond_dependency(self):
+        """A diamond DAG (root -> left/right -> join) wires fan-out and fan-in edges correctly."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: diamond
@@ -311,6 +325,7 @@ class TestBuildDag(unittest.TestCase):
         self.assertEqual(executor._task_nodes['join'].upstream, {'left', 'right'})
 
     def test_unknown_dependency_raises(self):
+        """Referencing a non-existent upstream task raises ValueError."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: broken
@@ -328,6 +343,7 @@ class TestBuildDag(unittest.TestCase):
         self.assertIn('nonexistent', str(context.exception))
 
     def test_groups_with_cross_group_deps(self):
+        """Dependencies between tasks in different groups are wired correctly."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: cross-group
@@ -359,6 +375,7 @@ class TestFindReadyTasks(unittest.TestCase):
     """Verify correct identification of tasks ready to execute."""
 
     def test_all_root_tasks_ready(self):
+        """Tasks with no upstream dependencies are immediately ready."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: parallel
@@ -378,6 +395,7 @@ class TestFindReadyTasks(unittest.TestCase):
         self.assertEqual(set(ready), {'a', 'b'})
 
     def test_dependent_not_ready_until_upstream_completes(self):
+        """A downstream task only becomes ready after its upstream dependency completes."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial
@@ -403,6 +421,7 @@ class TestFindReadyTasks(unittest.TestCase):
         self.assertEqual(ready, ['second'])
 
     def test_failed_upstream_blocks_downstream(self):
+        """A failed upstream task prevents its downstream dependents from becoming ready."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial
@@ -426,8 +445,10 @@ class TestFindReadyTasks(unittest.TestCase):
 
 
 class TestCancelDownstream(unittest.TestCase):
+    """Verify that downstream tasks are cancelled when an upstream task fails."""
 
     def test_cascading_cancel(self):
+        """Cancellation of a failed task propagates to all transitive downstream dependents."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: chain
@@ -460,46 +481,55 @@ class TestCancelDownstream(unittest.TestCase):
 
 
 class TestSubstituteTokens(unittest.TestCase):
+    """Verify {{token}} placeholder replacement in command strings and file contents."""
 
     def test_output_token(self):
+        """The {{output}} token is replaced with the task output directory path."""
         executor = LocalExecutor(work_dir='/tmp/unused')
         tokens = {'output': '/work/task1/output'}
         result = executor._substitute_tokens('echo data > {{output}}/file.txt', tokens)
         self.assertEqual(result, 'echo data > /work/task1/output/file.txt')
 
     def test_input_by_index(self):
+        """The {{input:N}} token is replaced with the Nth upstream output directory."""
         executor = LocalExecutor(work_dir='/tmp/unused')
         tokens = {'input:0': '/work/upstream/output'}
         result = executor._substitute_tokens('cat {{input:0}}/data.csv', tokens)
         self.assertEqual(result, 'cat /work/upstream/output/data.csv')
 
     def test_input_by_name(self):
+        """The {{input:taskname}} token is replaced with the named task's output directory."""
         executor = LocalExecutor(work_dir='/tmp/unused')
         tokens = {'input:task1': '/work/task1/output'}
         result = executor._substitute_tokens('cat {{ input:task1 }}/data.csv', tokens)
         self.assertEqual(result, 'cat /work/task1/output/data.csv')
 
     def test_whitespace_around_tokens(self):
+        """Whitespace inside {{ token }} braces is tolerated during substitution."""
         executor = LocalExecutor(work_dir='/tmp/unused')
         tokens = {'output': '/out'}
         result = executor._substitute_tokens('{{ output }}/file.txt', tokens)
         self.assertEqual(result, '/out/file.txt')
 
     def test_multiple_tokens_in_one_string(self):
+        """Multiple distinct tokens in the same string are all replaced."""
         executor = LocalExecutor(work_dir='/tmp/unused')
         tokens = {'output': '/out', 'input:0': '/in0'}
         result = executor._substitute_tokens('cp {{input:0}}/src {{output}}/dst', tokens)
         self.assertEqual(result, 'cp /in0/src /out/dst')
 
     def test_no_tokens_unchanged(self):
+        """Text without any token placeholders passes through unchanged."""
         executor = LocalExecutor(work_dir='/tmp/unused')
         result = executor._substitute_tokens('plain text no tokens', {})
         self.assertEqual(result, 'plain text no tokens')
 
 
 class TestBuildTokenMap(unittest.TestCase):
+    """Verify that token maps are built correctly from task DAG relationships."""
 
     def test_output_only(self):
+        """A task with no inputs produces a token map containing only the output key."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: simple
@@ -518,6 +548,7 @@ class TestBuildTokenMap(unittest.TestCase):
         self.assertEqual(len(tokens), 1)
 
     def test_with_upstream_inputs(self):
+        """A task with upstream inputs gets both index-based and name-based input tokens."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial
@@ -550,9 +581,11 @@ class TestValidateForLocal(unittest.TestCase):
     """Verify that unsupported features are detected and rejected."""
 
     def _make_executor(self) -> LocalExecutor:
+        """Create a LocalExecutor with a throwaway work directory for validation-only tests."""
         return LocalExecutor(work_dir='/tmp/unused')
 
     def test_simple_spec_passes(self):
+        """A spec using only task-to-task inputs passes local validation."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: ok
@@ -567,6 +600,7 @@ class TestValidateForLocal(unittest.TestCase):
         executor._validate_for_local(spec)
 
     def test_dataset_input_rejected(self):
+        """A spec with dataset inputs is rejected as unsupported in local mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -586,6 +620,7 @@ class TestValidateForLocal(unittest.TestCase):
         self.assertIn('dataset', str(context.exception))
 
     def test_url_input_rejected(self):
+        """A spec with URL inputs is rejected as unsupported in local mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -604,6 +639,7 @@ class TestValidateForLocal(unittest.TestCase):
         self.assertIn('URL', str(context.exception))
 
     def test_dataset_output_rejected(self):
+        """A spec with dataset outputs is rejected as unsupported in local mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -623,6 +659,7 @@ class TestValidateForLocal(unittest.TestCase):
         self.assertIn('dataset', str(context.exception).lower())
 
     def test_url_output_rejected(self):
+        """A spec with URL outputs is rejected as unsupported in local mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -641,6 +678,7 @@ class TestValidateForLocal(unittest.TestCase):
         self.assertIn('object storage', str(context.exception).lower())
 
     def test_multiple_unsupported_features_all_reported(self):
+        """All unsupported features across multiple tasks are reported in a single error."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -667,6 +705,7 @@ class TestValidateForLocal(unittest.TestCase):
         self.assertIn('task2', error_message)
 
     def test_task_deps_only_passes(self):
+        """A spec with only task-to-task dependencies passes local validation."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: ok
@@ -686,6 +725,7 @@ class TestValidateForLocal(unittest.TestCase):
         executor._validate_for_local(spec)
 
     def test_files_and_env_pass(self):
+        """A spec using files and environment variables passes local validation."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: ok
@@ -706,8 +746,10 @@ class TestValidateForLocal(unittest.TestCase):
 
 
 class TestJinjaTemplateDetection(unittest.TestCase):
+    """Verify that specs containing Jinja template markers are rejected before execution."""
 
     def _write_temp_spec(self, content: str) -> str:
+        """Write YAML content to a temporary file and return its path."""
         f = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
         f.write(content)
         f.flush()
@@ -715,6 +757,7 @@ class TestJinjaTemplateDetection(unittest.TestCase):
         return f.name
 
     def test_jinja_block_detected(self):
+        """A spec containing {%% %%} Jinja block tags is rejected."""
         path = self._write_temp_spec(textwrap.dedent('''\
             workflow:
               name: {%% if true %%}test{%% endif %%}
@@ -731,6 +774,7 @@ class TestJinjaTemplateDetection(unittest.TestCase):
             os.unlink(path)
 
     def test_jinja_comment_detected(self):
+        """A spec containing {# #} Jinja comment tags is rejected."""
         path = self._write_temp_spec(textwrap.dedent('''\
             {# A comment #}
             workflow:
@@ -748,6 +792,7 @@ class TestJinjaTemplateDetection(unittest.TestCase):
             os.unlink(path)
 
     def test_default_values_section_detected(self):
+        """A spec containing a 'default-values' section is rejected as a Jinja template."""
         path = self._write_temp_spec(textwrap.dedent('''\
             workflow:
               name: "{{experiment_name}}"
@@ -777,12 +822,15 @@ class TestDockerExecution(unittest.TestCase):
     """
 
     def setUp(self):
+        """Create a temporary work directory for each Docker execution test."""
         self.work_dir = tempfile.mkdtemp(prefix='osmo-local-test-')
 
     def tearDown(self):
+        """Remove the temporary work directory after each test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
     def _execute_spec(self, spec_text: str) -> bool:
+        """Parse and execute a workflow spec string, returning the success status."""
         executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         return executor.execute(spec)
@@ -790,6 +838,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Single task tests ----
 
     def test_hello_world(self):
+        """Run a minimal single-task workflow that echoes a message."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: hello-osmo
@@ -801,6 +850,7 @@ class TestDockerExecution(unittest.TestCase):
         self.assertTrue(self._execute_spec(spec_text))
 
     def test_single_task_with_args(self):
+        """Run a task with separate command and args fields."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: args-test
@@ -813,6 +863,7 @@ class TestDockerExecution(unittest.TestCase):
         self.assertTrue(self._execute_spec(spec_text))
 
     def test_task_failure_returns_false(self):
+        """A task that exits with a non-zero code causes execute() to return False."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: will-fail
@@ -826,6 +877,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Environment variable tests ----
 
     def test_environment_variables(self):
+        """Environment variables declared in the spec are passed to the Docker container."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: env-test
@@ -843,6 +895,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Files mount tests ----
 
     def test_inline_file_mounted(self):
+        """An inline file declared in the spec is mounted and executable inside the container."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: files-test
@@ -858,6 +911,7 @@ class TestDockerExecution(unittest.TestCase):
         self.assertTrue(self._execute_spec(spec_text))
 
     def test_multiple_files_mounted(self):
+        """Multiple inline files at different paths are all mounted into the container."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: multi-files
@@ -878,6 +932,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Data output tests ----
 
     def test_output_directory_writable(self):
+        """The {{output}} directory is writable from inside the container and persists on the host."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: output-test
@@ -896,6 +951,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Serial data flow tests ----
 
     def test_serial_data_flow_two_tasks(self):
+        """Data written to {{output}} by a producer is readable via {{input:0}} by the consumer."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial-data
@@ -959,7 +1015,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Parallel execution tests ----
 
     def test_parallel_independent_tasks(self):
-        """Mimics cookbook/tutorials/parallel_tasks.yaml"""
+        """Independent tasks with no dependencies all execute and produce their respective outputs."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: parallel-tasks
@@ -986,6 +1042,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Diamond DAG tests ----
 
     def test_diamond_dag(self):
+        """A diamond-shaped DAG executes correctly with fan-out and fan-in data flow."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: diamond
@@ -1025,6 +1082,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Failure propagation tests ----
 
     def test_failure_cancels_downstream(self):
+        """A failed task prevents its downstream dependent from running."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: fail-chain
@@ -1043,6 +1101,7 @@ class TestDockerExecution(unittest.TestCase):
         self.assertFalse(os.path.exists(output_file))
 
     def test_parallel_failure_does_not_affect_independent_branch(self):
+        """When one branch of a parallel DAG fails, the executor stops with overall failure."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: partial-fail
@@ -1071,6 +1130,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Groups (ganged tasks) tests ----
 
     def test_group_with_single_task(self):
+        """A group containing a single lead task executes and produces output."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: single-group
@@ -1125,6 +1185,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Input by task name tests ----
 
     def test_input_by_task_name(self):
+        """The {{input:taskname}} token resolves to the named upstream task's output directory."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: named-input
@@ -1198,6 +1259,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Docker-not-found handling ----
 
     def test_docker_not_found_graceful_failure(self):
+        """Using a non-existent docker binary results in a graceful failure rather than a crash."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: no-docker
@@ -1217,6 +1279,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Alternative container runtime ----
 
     def test_custom_docker_command(self):
+        """An explicitly specified docker command is used to run the container."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: custom-cmd
@@ -1248,12 +1311,15 @@ class TestCookbookSpecs(unittest.TestCase):
                                'cookbook', 'tutorials')
 
     def setUp(self):
+        """Create a temporary work directory for cookbook spec tests."""
         self.work_dir = tempfile.mkdtemp(prefix='osmo-local-cookbook-')
 
     def tearDown(self):
+        """Remove the temporary work directory after each cookbook test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
     def _run_cookbook_spec(self, filename: str) -> bool:
+        """Execute a cookbook tutorial spec file through the local executor."""
         spec_path = os.path.join(self.COOKBOOK_DIR, filename)
         if not os.path.exists(spec_path):
             self.skipTest(f'Cookbook file not found: {spec_path}')
@@ -1264,15 +1330,19 @@ class TestCookbookSpecs(unittest.TestCase):
         )
 
     def test_hello_world_yaml(self):
+        """Execute the hello_world.yaml cookbook tutorial spec."""
         self.assertTrue(self._run_cookbook_spec('hello_world.yaml'))
 
     def test_parallel_tasks_yaml(self):
+        """Execute the parallel_tasks.yaml cookbook tutorial spec."""
         self.assertTrue(self._run_cookbook_spec('parallel_tasks.yaml'))
 
     def test_serial_workflow_yaml(self):
+        """Execute the serial_workflow.yaml cookbook tutorial spec."""
         self.assertTrue(self._run_cookbook_spec('serial_workflow.yaml'))
 
     def test_resources_basic_yaml(self):
+        """Execute the resources_basic.yaml cookbook tutorial spec."""
         self.assertTrue(self._run_cookbook_spec('resources_basic.yaml'))
 
     def test_combination_workflow_simple_yaml(self):
@@ -1323,12 +1393,15 @@ class TestRunWorkflowLocally(unittest.TestCase):
     """Test the top-level run_workflow_locally() convenience function."""
 
     def setUp(self):
+        """Create a temporary work directory for run_workflow_locally tests."""
         self.work_dir = tempfile.mkdtemp(prefix='osmo-local-func-')
 
     def tearDown(self):
+        """Remove the temporary work directory after each test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
     def test_success_cleans_up_when_not_keeping(self):
+        """On success with keep_work_dir=False, the work directory is removed."""
         work_dir = tempfile.mkdtemp(prefix='osmo-local-cleanup-')
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(textwrap.dedent('''\
@@ -1354,6 +1427,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
                 shutil.rmtree(work_dir, ignore_errors=True)
 
     def test_failure_preserves_work_dir(self):
+        """On failure, the work directory is preserved for debugging regardless of the keep flag."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(textwrap.dedent('''\
                 workflow:
@@ -1376,6 +1450,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
             os.unlink(spec_path)
 
     def test_keep_flag_preserves_on_success(self):
+        """With keep_work_dir=True, the work directory is preserved even on success."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(textwrap.dedent('''\
                 workflow:
@@ -1398,6 +1473,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
             os.unlink(spec_path)
 
     def test_nonexistent_file_raises(self):
+        """Passing a non-existent spec file path raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
             run_workflow_locally(spec_path='/nonexistent/path/spec.yaml')
 
