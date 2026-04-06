@@ -74,9 +74,20 @@ describe("parseDateRangeValue", () => {
       expect(result!.end.toISOString()).toBe("2024-03-01T00:00:00.000Z");
     });
 
-    // SUSPECTED BUG: date-range-utils.ts:parseIsoDate — Invalid dates like "2025-02-29" silently roll
-    // over to the next valid date (March 1) instead of returning null. The function should validate
-    // that the parsed date's year/month/day match the input components to catch JavaScript Date rollover.
+    // CONFIRMED BUG: date-range-utils.ts:parseIsoDate — Invalid dates like "2025-02-29" silently roll
+    // over to the next valid date (March 1) instead of returning null.
+    //
+    // Call site analysis (2025-04-06):
+    // - datasets-shim.ts:89,101 — Filters datasets by created_at/updated_at; invalid date would
+    //   silently filter by wrong date (March 1 instead of intended Feb 29)
+    // - workflows-shim.ts:99 — Parses submitted chip for API params; would send wrong date range
+    //
+    // This is a bug because:
+    // 1. The function returns null for other invalid inputs (malformed, partial dates)
+    // 2. Users entering "2025-02-29" intend that date, not March 1
+    // 3. Silent date rollover causes incorrect filtering without user awareness
+    //
+    // Fix: parseIsoDate should validate parsed date components match input string.
     it.skip("returns null for invalid February 29th in non-leap year", () => {
       const result = parseDateRangeValue("2025-02-29");
       // Expected: should return null for invalid calendar dates
