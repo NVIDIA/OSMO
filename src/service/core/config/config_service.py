@@ -26,7 +26,7 @@ import pydantic
 from src.lib.utils import common, osmo_errors
 from src.utils.job import workflow
 from src.service.core.config import (
-    config_history_helpers, configmap_guard, configmap_loader, helpers, objects
+    config_history_helpers, configmap_guard, helpers, objects
 )
 from src.service.core.workflow import (
     helpers as workflow_helpers, objects as workflow_objects
@@ -1113,7 +1113,7 @@ def rollback_config(
     }
     config_key = config_type_to_key.get(request.config_type)
     if config_key:
-        configmap_loader.reject_if_managed(config_key, username)
+        configmap_guard.reject_if_managed(config_key, username)
 
     postgres = connectors.PostgresConnector.get_instance()
 
