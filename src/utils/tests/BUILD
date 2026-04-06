@@ -31,7 +31,7 @@ osmo_py_test(
     ]
 )
 
-py_test(
+osmo_py_test(
     name = "test_local_executor",
     srcs = ["test_local_executor.py"],
     deps = [

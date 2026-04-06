@@ -214,7 +214,7 @@ def resolve_includes(spec_text: str, base_directory: str,
                 'Failed to parse workflow spec for includes resolution. '
                 'Specs using "includes" must be valid YAML — Jinja template '
                 'variables like {{ }} must be in quoted strings. '
-                f'Parse error: {yaml_err}')
+                f'Parse error: {yaml_err}') from yaml_err
         return spec_text
 
     if not isinstance(spec_dict, dict) or 'includes' not in spec_dict:
@@ -265,7 +265,7 @@ def _resolve_includes(spec_dict: Dict[str, Any], base_directory: str,
             included_dict = yaml.safe_load(included_text)
         except yaml.YAMLError as yaml_err:
             raise osmo_errors.OSMOUserError(
-                f'Failed to parse included file "{include_path}": {yaml_err}')
+                f'Failed to parse included file "{include_path}": {yaml_err}') from yaml_err
 
         if not isinstance(included_dict, dict):
             raise osmo_errors.OSMOUserError(

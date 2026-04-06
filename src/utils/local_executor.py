@@ -15,6 +15,10 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+# Security: This module executes workflow specs by invoking Docker via
+# subprocess.run with caller-supplied docker_args.  Specs must come from
+# trusted sources.  Path-traversal protections are in place for data
+# directories, but the spec itself is not sandboxed.
 
 import dataclasses
 import json

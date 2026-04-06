@@ -22,8 +22,12 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from typing import Any, ClassVar, Dict
 from unittest import mock
 
+import yaml
+
+from src.utils import spec_includes
 from src.utils.job import task as task_module
 from src.utils.local_executor import LocalExecutor, TaskNode, TaskResult, run_workflow_locally
 
@@ -748,7 +752,7 @@ class TestValidateForLocal(unittest.TestCase):
 class TestValidateForLocalRemainingBranches(unittest.TestCase):
     """Verify that _validate_for_local rejects credentials, checkpoint, volumeMounts, privileged, and hostNetwork."""
 
-    _UNSUPPORTED_SPECS = {
+    _UNSUPPORTED_SPECS: ClassVar[Dict[str, Any]] = {
         'credentials': {
             'yaml': textwrap.dedent('''\
                 workflow:
@@ -1110,18 +1114,15 @@ class TestIncludesWithDefaultValues(unittest.TestCase):
         with open(main_path, encoding='utf-8') as f:
             spec_text = f.read()
 
-        import os as _os
-        from src.lib.utils import workflow as workflow_utils
-        abs_path = _os.path.abspath(main_path)
-        spec_text = workflow_utils.resolve_includes(
-            spec_text, _os.path.dirname(abs_path), source_path=abs_path)
+        abs_path = os.path.abspath(main_path)
+        spec_text = spec_includes.resolve_includes(
+            spec_text, os.path.dirname(abs_path), source_path=abs_path)
 
         original_has_defaults = 'default-values' in spec_text
         self.assertFalse(original_has_defaults,
                          'Main file should not have default-values before includes')
 
-        import yaml as _yaml
-        resolved_dict = _yaml.safe_load(spec_text)
+        resolved_dict = yaml.safe_load(spec_text)
         self.assertIn('default-values', resolved_dict,
                       'Resolved spec should have default-values from base')
 
