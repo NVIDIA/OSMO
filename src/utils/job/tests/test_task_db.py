@@ -489,5 +489,117 @@ class BatchSetGroupsToProcessingDbTest(TaskDbFixture):
         self.assertEqual(row2['status'], 'WAITING')
 
 
+class ListAllTaskRowsByWorkflowDbTest(TaskDbFixture):
+    """DB-backed tests for Task.list_all_task_rows_by_workflow."""
+
+    def test_returns_tasks_grouped_by_group_name(self):
+        self._insert_workflow()
+        group2_uuid = common.generate_unique_id()
+        self._insert_group('group1')
+        self._insert_group('group2', group_uuid=group2_uuid)
+        self._insert_task('task1', group_name='group1', lead=True)
+        self._insert_task('task2', group_name='group1')
+        self._insert_task('task3', group_name='group2', lead=True)
+        self._insert_task('task4', group_name='group2')
+
+        result = task.Task.list_all_task_rows_by_workflow(
+            self._get_db(), WORKFLOW_ID)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(len(result['group1']), 2)
+        self.assertEqual(len(result['group2']), 2)
+        group1_names = {row['name'] for row in result['group1']}
+        group2_names = {row['name'] for row in result['group2']}
+        self.assertEqual(group1_names, {'task1', 'task2'})
+        self.assertEqual(group2_names, {'task3', 'task4'})
+
+    def test_returns_empty_dict_for_no_tasks(self):
+        self._insert_workflow()
+        self._insert_group()
+
+        result = task.Task.list_all_task_rows_by_workflow(
+            self._get_db(), WORKFLOW_ID)
+
+        self.assertEqual(result, {})
+
+    def test_only_returns_latest_retry_non_verbose(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', retry_id=0, lead=True)
+        self._insert_task('task1', retry_id=1, lead=True)
+
+        result = task.Task.list_all_task_rows_by_workflow(
+            self._get_db(), WORKFLOW_ID, verbose=False)
+
+        self.assertEqual(len(result[GROUP_NAME]), 1)
+        self.assertEqual(result[GROUP_NAME][0]['retry_id'], 1)
+
+    def test_verbose_returns_all_retries(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', retry_id=0, lead=True)
+        self._insert_task('task1', retry_id=1, lead=True)
+
+        result = task.Task.list_all_task_rows_by_workflow(
+            self._get_db(), WORKFLOW_ID, verbose=True)
+
+        self.assertEqual(len(result[GROUP_NAME]), 2)
+        retry_ids = {row['retry_id'] for row in result[GROUP_NAME]}
+        self.assertEqual(retry_ids, {0, 1})
+
+    def test_multiple_groups_partitioned_correctly(self):
+        self._insert_workflow()
+        self._insert_group('g1')
+        self._insert_group('g2', group_uuid=common.generate_unique_id())
+        self._insert_group('g3', group_uuid=common.generate_unique_id())
+        self._insert_task('t1', group_name='g1', lead=True)
+        self._insert_task('t2', group_name='g2', lead=True)
+        self._insert_task('t3', group_name='g2')
+        self._insert_task('t4', group_name='g3', lead=True)
+        self._insert_task('t5', group_name='g3')
+        self._insert_task('t6', group_name='g3')
+
+        result = task.Task.list_all_task_rows_by_workflow(
+            self._get_db(), WORKFLOW_ID)
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(len(result['g1']), 1)
+        self.assertEqual(len(result['g2']), 2)
+        self.assertEqual(len(result['g3']), 3)
+
+
+class PreloadedTasksDbTest(TaskDbFixture):
+    """DB-backed tests for TaskGroup.from_db_row with preloaded_tasks."""
+
+    def test_from_db_row_uses_preloaded_tasks(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', lead=True)
+        self._insert_task('task2')
+
+        group_rows = self._get_db().execute_fetch_command(
+            'SELECT * FROM groups WHERE workflow_id = %s AND name = %s',
+            (WORKFLOW_ID, GROUP_NAME))
+        group = task.TaskGroup.from_db_row(
+            group_rows[0], self._get_db(), preloaded_tasks=[])
+
+        self.assertEqual(group.name, GROUP_NAME)
+        self.assertEqual(group.tasks, [])
+
+    def test_from_db_row_preloaded_overrides_load_tasks(self):
+        self._insert_workflow()
+        self._insert_group()
+        self._insert_task('task1', lead=True)
+        self._insert_task('task2')
+
+        group_rows = self._get_db().execute_fetch_command(
+            'SELECT * FROM groups WHERE workflow_id = %s AND name = %s',
+            (WORKFLOW_ID, GROUP_NAME))
+        group = task.TaskGroup.from_db_row(
+            group_rows[0], self._get_db(), load_tasks=True, preloaded_tasks=[])
+
+        self.assertEqual(group.tasks, [])
+
+
 if __name__ == '__main__':
     runner.run_test()
