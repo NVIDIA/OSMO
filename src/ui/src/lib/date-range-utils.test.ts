@@ -155,6 +155,121 @@ describe("date-range-utils", () => {
         expect(result).toBeNull();
       });
     });
+
+    describe("time zone corner cases", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("handles preset calculation at UTC midnight boundary", () => {
+        vi.useFakeTimers();
+        // Set time to exactly UTC midnight - edge case for day boundary
+        vi.setSystemTime(new Date("2024-03-10T00:00:00.000Z"));
+        const result = parseDateRangeValue("last 7 days");
+        expect(result).not.toBeNull();
+        // At midnight, "today" is 2024-03-10, so 7 days ago is 2024-03-03
+        expect(result!.start).toEqual(new Date("2024-03-03T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-03-11T00:00:00.000Z"));
+      });
+
+      it("handles preset calculation at UTC just before midnight", () => {
+        vi.useFakeTimers();
+        // Set time to 23:59:59 UTC - still same calendar day
+        vi.setSystemTime(new Date("2024-03-10T23:59:59.999Z"));
+        const result = parseDateRangeValue("today");
+        expect(result).not.toBeNull();
+        // Should still be March 10th since we're using UTC
+        expect(result!.start).toEqual(new Date("2024-03-10T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-03-11T00:00:00.000Z"));
+      });
+
+      it("handles DST spring forward date (March) for preset calculations", () => {
+        vi.useFakeTimers();
+        // March 10, 2024 is DST spring forward in US - but UTC is unaffected
+        vi.setSystemTime(new Date("2024-03-10T12:00:00.000Z"));
+        const result = parseDateRangeValue("last 7 days");
+        expect(result).not.toBeNull();
+        // UTC calculations should be unaffected by DST
+        expect(result!.start).toEqual(new Date("2024-03-03T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-03-11T00:00:00.000Z"));
+      });
+
+      it("handles DST fall back date (November) for preset calculations", () => {
+        vi.useFakeTimers();
+        // November 3, 2024 is DST fall back in US - but UTC is unaffected
+        vi.setSystemTime(new Date("2024-11-03T12:00:00.000Z"));
+        const result = parseDateRangeValue("last 7 days");
+        expect(result).not.toBeNull();
+        // UTC calculations should be unaffected by DST
+        expect(result!.start).toEqual(new Date("2024-10-27T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-11-04T00:00:00.000Z"));
+      });
+
+      it("parses date-only range consistently regardless of system time", () => {
+        vi.useFakeTimers();
+        // Set system time to a different timezone-like offset
+        vi.setSystemTime(new Date("2024-06-15T04:00:00.000Z"));
+        const result = parseDateRangeValue("2024-01-15..2024-01-20");
+        expect(result).not.toBeNull();
+        // Should always parse as UTC midnight regardless of when parsing occurs
+        expect(result!.start).toEqual(new Date("2024-01-15T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-01-21T00:00:00.000Z"));
+      });
+
+      it("parses datetime range at UTC midnight boundary", () => {
+        const result = parseDateRangeValue("2024-01-15T00:00..2024-01-15T23:59");
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2024-01-15T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-01-15T23:59:00.000Z"));
+      });
+
+      it("parses single date at year boundary (Dec 31)", () => {
+        const result = parseDateRangeValue("2024-12-31");
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2024-12-31T00:00:00.000Z"));
+        // End should be Jan 1 of next year
+        expect(result!.end).toEqual(new Date("2025-01-01T00:00:00.000Z"));
+      });
+
+      it("parses single date at year boundary (Jan 1)", () => {
+        const result = parseDateRangeValue("2024-01-01");
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2024-01-01T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-01-02T00:00:00.000Z"));
+      });
+
+      it("parses leap year date (Feb 29)", () => {
+        const result = parseDateRangeValue("2024-02-29");
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2024-02-29T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2024-03-01T00:00:00.000Z"));
+      });
+
+      it("rolls over Feb 29 on non-leap year to March 1 (JavaScript Date behavior)", () => {
+        const result = parseDateRangeValue("2023-02-29");
+        // JavaScript Date rolls over invalid dates - Feb 29, 2023 becomes March 1, 2023
+        // This is expected behavior from the Date constructor
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2023-03-01T00:00:00.000Z"));
+        expect(result!.end).toEqual(new Date("2023-03-02T00:00:00.000Z"));
+      });
+
+      it("handles datetime at UTC midnight exactly", () => {
+        const result = parseDateRangeValue("2024-06-15T00:00");
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2024-06-15T00:00:00.000Z"));
+        // Datetime advances by 1 minute
+        expect(result!.end).toEqual(new Date("2024-06-15T00:01:00.000Z"));
+      });
+
+      it("handles datetime at end of day (23:59)", () => {
+        const result = parseDateRangeValue("2024-06-15T23:59");
+        expect(result).not.toBeNull();
+        expect(result!.start).toEqual(new Date("2024-06-15T23:59:00.000Z"));
+        // Advancing by 1 minute crosses to next day
+        expect(result!.end).toEqual(new Date("2024-06-16T00:00:00.000Z"));
+      });
+    });
   });
 
   describe("DATE_RANGE_PRESETS", () => {
