@@ -37,3 +37,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_agent_skill",
+    srcs = [
+        "test_agent_skill.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
