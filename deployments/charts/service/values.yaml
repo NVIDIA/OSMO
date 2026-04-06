@@ -1068,9 +1068,24 @@ gateway:
     ##
     enabled: true
 
-    ## Number of Envoy replicas
+    ## Horizontal Pod Autoscaler (HPA) configuration for Envoy
     ##
-    replicas: 2
+    scaling:
+      ## Minimum number of Envoy replicas
+      ##
+      minReplicas: 2
+
+      ## Maximum number of Envoy replicas when scaling
+      ##
+      maxReplicas: 6
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
 
     ## Envoy container image
     ##
@@ -1262,7 +1277,26 @@ gateway:
   ## -----------------------------------------------------------------------
   oauth2Proxy:
     enabled: true
-    replicas: 1
+
+    ## Horizontal Pod Autoscaler (HPA) configuration for OAuth2 Proxy
+    ##
+    scaling:
+      ## Minimum number of OAuth2 Proxy replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of OAuth2 Proxy replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
     image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
     imagePullPolicy: IfNotPresent
     httpPort: 4180
@@ -1316,7 +1350,26 @@ gateway:
   ## -----------------------------------------------------------------------
   authz:
     enabled: true
-    replicas: 1
+
+    ## Horizontal Pod Autoscaler (HPA) configuration for Authz
+    ##
+    scaling:
+      ## Minimum number of Authz replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of Authz replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
     imageName: "authz-sidecar"
     ## Override the image tag for authz. Defaults to global.osmoImageTag.
     imageTag: ""

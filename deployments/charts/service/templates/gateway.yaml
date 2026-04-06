@@ -40,7 +40,7 @@ kind: Deployment
 metadata:
   name: {{ $gwName }}-envoy
 spec:
-  replicas: {{ $gw.envoy.replicas }}
+  replicas: {{ $gw.envoy.scaling.minReplicas }}
   selector:
     matchLabels:
       {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 6 }}
@@ -196,6 +196,35 @@ spec:
   {{- end }}
 {{- end }}
 
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $gwName }}-envoy
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $gwName }}-envoy
+  minReplicas: {{ $gw.envoy.scaling.minReplicas }}
+  maxReplicas: {{ $gw.envoy.scaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: envoy
+      target:
+        type: Utilization
+        averageUtilization: {{ $gw.envoy.scaling.hpaCpuTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: envoy
+      target:
+        type: Utilization
+        averageUtilization: {{ $gw.envoy.scaling.hpaMemoryTarget }}
+
 {{- end }}{{/* end envoy.enabled */}}
 
 ---
@@ -209,7 +238,7 @@ kind: Deployment
 metadata:
   name: {{ $gwName }}-oauth2-proxy
 spec:
-  replicas: {{ $gw.oauth2Proxy.replicas }}
+  replicas: {{ $gw.oauth2Proxy.scaling.minReplicas }}
   selector:
     matchLabels:
       {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
@@ -336,6 +365,35 @@ spec:
       name: metrics
   selector:
     {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 4 }}
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $gwName }}-oauth2-proxy
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $gwName }}-oauth2-proxy
+  minReplicas: {{ $gw.oauth2Proxy.scaling.minReplicas }}
+  maxReplicas: {{ $gw.oauth2Proxy.scaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: oauth2-proxy
+      target:
+        type: Utilization
+        averageUtilization: {{ $gw.oauth2Proxy.scaling.hpaCpuTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: oauth2-proxy
+      target:
+        type: Utilization
+        averageUtilization: {{ $gw.oauth2Proxy.scaling.hpaMemoryTarget }}
 {{- end }}
 
 ---
@@ -349,7 +407,7 @@ kind: Deployment
 metadata:
   name: {{ $gwName }}-authz
 spec:
-  replicas: {{ $gw.authz.replicas }}
+  replicas: {{ $gw.authz.scaling.minReplicas }}
   selector:
     matchLabels:
       {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 6 }}
@@ -454,6 +512,35 @@ spec:
       name: grpc
   selector:
     {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 4 }}
+
+---
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $gwName }}-authz
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $gwName }}-authz
+  minReplicas: {{ $gw.authz.scaling.minReplicas }}
+  maxReplicas: {{ $gw.authz.scaling.maxReplicas }}
+  metrics:
+  - type: ContainerResource
+    containerResource:
+      name: cpu
+      container: authz
+      target:
+        type: Utilization
+        averageUtilization: {{ $gw.authz.scaling.hpaCpuTarget }}
+  - type: ContainerResource
+    containerResource:
+      name: memory
+      container: authz
+      target:
+        type: Utilization
+        averageUtilization: {{ $gw.authz.scaling.hpaMemoryTarget }}
 {{- end }}
 
 ---
