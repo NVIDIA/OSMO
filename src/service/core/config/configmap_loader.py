@@ -103,13 +103,6 @@ _SINGLETON_CONFIG_TYPES = {
 }
 
 
-# Delegate guard functions to configmap_guard module (avoids circular imports)
-get_managed_mode = configmap_guard.get_managed_mode
-get_cached_section = configmap_guard.get_cached_section
-is_singleton_managed = configmap_guard.is_singleton_managed
-is_named_item_managed = configmap_guard.is_named_item_managed
-reject_if_managed = configmap_guard.reject_if_managed
-
 
 class ConfigMapWatcher:
     """Watches a ConfigMap-mounted YAML file and reconciles DB state.

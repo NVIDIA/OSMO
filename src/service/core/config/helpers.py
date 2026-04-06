@@ -749,7 +749,6 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
 
         logging.info('Fetched %d test configs for backend %s', len(test_configs), backend_name,
                      extra={'workflow_uuid': getattr(context, 'workflow_uuid', None)})
-        print(test_configs)
         # Create SynchronizeBackendTest job with test configurations
         sync_job = backend_jobs.BackendSynchronizeBackendTest(
             backend=backend_name,
