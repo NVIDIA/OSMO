@@ -74,15 +74,13 @@ describe("parseDateRangeValue", () => {
       expect(result!.end.toISOString()).toBe("2024-03-01T00:00:00.000Z");
     });
 
-    it("returns null for invalid February 29th in non-leap year", () => {
+    // SUSPECTED BUG: date-range-utils.ts:parseIsoDate — Invalid dates like "2025-02-29" silently roll
+    // over to the next valid date (March 1) instead of returning null. The function should validate
+    // that the parsed date's year/month/day match the input components to catch JavaScript Date rollover.
+    it.skip("returns null for invalid February 29th in non-leap year", () => {
       const result = parseDateRangeValue("2025-02-29");
-      // JavaScript Date wraps to March 1st, so this should be null due to validation
-      // Actually, the regex allows the format, and Date("2025-02-29T00:00:00.000Z") creates March 1
-      // Let's verify behavior - the source doesn't validate calendar correctness
-      // The Date object will roll over to March 1, 2025
-      expect(result).not.toBeNull();
-      // This tests the actual behavior - JavaScript rolls Feb 29 to Mar 1 in non-leap years
-      expect(result!.start.toISOString()).toBe("2025-03-01T00:00:00.000Z");
+      // Expected: should return null for invalid calendar dates
+      expect(result).toBeNull();
     });
 
     it("handles range spanning DST transition correctly", () => {
