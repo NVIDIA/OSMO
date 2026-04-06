@@ -1075,14 +1075,61 @@ gateway:
     ##
     serviceAccountName: ""
 
-    ## Kubernetes Service configuration for the gateway
+    ## Kubernetes Service configuration for the external gateway Service.
+    ## Creates a LoadBalancer Service for external traffic (one NLB per deployment).
+    ## Disable this and use gateway.envoy.ingress when multiple namespaces need
+    ## to share a single load balancer (e.g. ALB with group.name).
     ##
     service:
+      ## Enable the external LoadBalancer Service
+      ##
+      enabled: true
+
       ## Service type — LoadBalancer works everywhere (cloud, KIND, on-prem)
       ##
       type: LoadBalancer
 
+      ## Expose an HTTPS port on the Service for NLB TLS termination.
+      ## The NLB terminates TLS on this port and forwards plaintext to Envoy.
+      ## Leave null to expose only port 80.
+      ##
+      httpsPort: null
+
       ## Annotations for the Service (e.g. AWS NLB annotations)
+      ##
+      annotations: {}
+
+    ## Ingress configuration for the gateway.
+    ## Use this instead of gateway.envoy.service when multiple namespaces share
+    ## a single load balancer (e.g. ALB with group.name). The Ingress routes
+    ## external traffic to the internal ClusterIP gateway service.
+    ##
+    ingress:
+      ## Enable the Ingress resource (disable gateway.envoy.service when using this)
+      ##
+      enabled: false
+
+      ## Ingress controller class
+      ##
+      ingressClass: alb
+
+      ## AWS ALB-specific annotations
+      ##
+      albAnnotations:
+        enabled: false
+        groupName: osmo
+        groupOrder: "10"
+        sslCertArn: ""
+
+      ## Enable TLS on the Ingress
+      ##
+      sslEnabled: false
+
+      ## Secret name for TLS certificates
+      ##
+      sslSecret: osmo-tls
+
+      ## Additional annotations
       ##
       annotations: {}
 
