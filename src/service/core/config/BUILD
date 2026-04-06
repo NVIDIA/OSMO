@@ -25,6 +25,7 @@ osmo_py_library(
     srcs = [
         "config_history_helpers.py",
         "config_service.py",
+        "configmap_guard.py",
         "configmap_loader.py",
         "helpers.py",
         "objects.py",

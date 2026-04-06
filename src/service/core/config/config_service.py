@@ -25,7 +25,9 @@ import pydantic
 
 from src.lib.utils import common, osmo_errors
 from src.utils.job import workflow
-from src.service.core.config import config_history_helpers, configmap_loader, helpers, objects
+from src.service.core.config import (
+    config_history_helpers, configmap_guard, configmap_loader, helpers, objects
+)
 from src.service.core.workflow import (
     helpers as workflow_helpers, objects as workflow_objects
 )
@@ -57,30 +59,16 @@ def _check_config_name(name: str, name_type: ConfigNameType):
 
 def _add_managed_by(response_dict: Dict, config_key: str) -> Dict:
     """Add _managed_by field to a config GET response if the config is managed by ConfigMap."""
-    mode = configmap_loader.get_managed_mode(config_key)
+    mode = configmap_guard.get_managed_mode(config_key)
     if mode:
         response_dict['_managed_by'] = mode
     return response_dict
 
 
-def _reject_if_singleton_managed(config_key: str) -> None:
-    """Raise 409 if a singleton config is managed by ConfigMap in configmap mode."""
-    if configmap_loader.is_singleton_managed(config_key):
-        raise osmo_errors.OSMOUserError(
-            f'{config_key.capitalize()} config is managed by ConfigMap '
-            f'(managed_by=configmap) and cannot be modified via API. '
-            f'Update the Helm values instead.',
-            status_code=409)
-
-
-def _reject_if_named_item_managed(config_key: str, item_name: str) -> None:
-    """Raise 409 if a named config item is managed by ConfigMap in configmap mode."""
-    if configmap_loader.is_named_item_managed(config_key, item_name):
-        raise osmo_errors.OSMOUserError(
-            f'{item_name} is managed by ConfigMap (managed_by=configmap) '
-            f'and cannot be modified via API. '
-            f'Update the Helm values instead.',
-            status_code=409)
+def _reject_if_named_item_managed(config_key: str, item_name: str,
+                                   username: str) -> None:
+    """Raise 409 if a named config item is managed by ConfigMap."""
+    configmap_guard.reject_if_managed(config_key, username, item_name=item_name)
 
 
 @router.get('/api/configs/service', response_class=common.PrettyJSONResponse)
@@ -96,7 +84,7 @@ def put_service_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Put service configurations"""
-    _reject_if_singleton_managed('service')
+
     return helpers.put_configs(request, connectors.ConfigType.SERVICE, username)
 
 
@@ -106,7 +94,7 @@ def patch_service_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Patch service configurations"""
-    _reject_if_singleton_managed('service')
+
     return helpers.patch_configs(request, connectors.ConfigType.SERVICE, username)
 
 
@@ -123,7 +111,7 @@ def put_workflow_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Put workflow configurations"""
-    _reject_if_singleton_managed('workflow')
+
     return helpers.put_configs(request, connectors.ConfigType.WORKFLOW, username)
 
 
@@ -133,7 +121,7 @@ def patch_workflow_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Patch workflow configurations"""
-    _reject_if_singleton_managed('workflow')
+
     return helpers.patch_configs(request, connectors.ConfigType.WORKFLOW, username)
 
 
@@ -150,7 +138,7 @@ def put_dataset_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Put dataset configurations"""
-    _reject_if_singleton_managed('dataset')
+
     return helpers.put_configs(request, connectors.ConfigType.DATASET, username)
 
 
@@ -160,7 +148,7 @@ def patch_dataset_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Patch dataset configurations"""
-    _reject_if_singleton_managed('dataset')
+
     return helpers.patch_configs(request, connectors.ConfigType.DATASET, username)
 
 
@@ -256,7 +244,7 @@ def update_backend(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Override the config for a specific backend. """
-    _reject_if_named_item_managed('backends', name)
+    _reject_if_named_item_managed('backends', name, username)
     helpers.update_backend(name, request, username)
 
 
@@ -274,7 +262,7 @@ def delete_backend(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Remove a backend."""
-    _reject_if_named_item_managed('backends', name)
+    _reject_if_named_item_managed('backends', name, username)
     # TODO: Resolve race condition where a workflow is submitted between checking for
     # running workflow and deleting backend
     if not request.force:
@@ -367,6 +355,9 @@ def put_pools(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Pool configurations """
+    for name in request.configs:
+        _reject_if_named_item_managed('pools', name, username)
+
     postgres = connectors.PostgresConnector.get_instance()
 
     # Check all pool names in response before inserting any pool into the database
@@ -424,7 +415,7 @@ def put_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Pool configurations """
-    _reject_if_named_item_managed('pools', name)
+    _reject_if_named_item_managed('pools', name, username)
     _check_config_name(name, ConfigNameType.POOL)
     for platform_name in request.configs.platforms.keys():
         _check_config_name(platform_name, ConfigNameType.PLATFORM)
@@ -464,7 +455,7 @@ def patch_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Patch Pool configurations """
-    _reject_if_named_item_managed('pools', name)
+    _reject_if_named_item_managed('pools', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     # Check platform names if they exist in the patch
     if 'platforms' in request.configs_dict:
@@ -515,7 +506,7 @@ def rename_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Rename Pool """
-    _reject_if_named_item_managed('pools', name)
+    _reject_if_named_item_managed('pools', name, username)
     _check_config_name(request.new_name, ConfigNameType.POOL)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.Pool.rename(postgres, name, request.new_name)
@@ -541,7 +532,7 @@ def delete_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete Pool configurations """
-    _reject_if_named_item_managed('pools', name)
+    _reject_if_named_item_managed('pools', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     try:
         pool = connectors.Pool.fetch_from_db(postgres, name)
@@ -603,7 +594,7 @@ def put_platform_in_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Platform configurations """
-    _reject_if_named_item_managed('pools', name)
+    _reject_if_named_item_managed('pools', name, username)
     _check_config_name(platform_name, ConfigNameType.PLATFORM)
     postgres = connectors.PostgresConnector.get_instance()
     old_platform: connectors.Platform | None = None
@@ -633,7 +624,7 @@ def rename_platform_in_pool(name: str, platform_name: str,
                             request: objects.RenamePoolPlatformRequest,
                             username: str = fastapi.Depends(connectors.parse_username)):
     """ Rename Platform """
-    _reject_if_named_item_managed('pools', name)
+    _reject_if_named_item_managed('pools', name, username)
     _check_config_name(request.new_name, ConfigNameType.PLATFORM)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.Pool.rename_platform(postgres, name, platform_name, request.new_name)
@@ -666,6 +657,7 @@ def put_pod_templates(request: objects.PutPodTemplatesRequest,
                       username: str = fastapi.Depends(connectors.parse_username)):
     """ Set Dict of Pod Templates configurations """
     for name in request.configs.keys():
+        _reject_if_named_item_managed('pod_templates', name, username)
         _check_config_name(name, ConfigNameType.POD_TEMPLATE)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -699,7 +691,7 @@ def put_pod_template(name: str,
                      request: objects.PutPodTemplateRequest,
                      username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Pod Template configurations """
-    _reject_if_named_item_managed('pod_templates', name)
+    _reject_if_named_item_managed('pod_templates', name, username)
     _check_config_name(name, ConfigNameType.POD_TEMPLATE)
     postgres = connectors.PostgresConnector.get_instance()
     old_pod_template = None
@@ -734,7 +726,7 @@ def delete_pod_template(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete Pod Template configurations """
-    _reject_if_named_item_managed('pod_templates', name)
+    _reject_if_named_item_managed('pod_templates', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.PodTemplate.delete_from_db(postgres, name)
 
@@ -765,6 +757,7 @@ def put_group_templates(request: objects.PutGroupTemplatesRequest,
                         username: str = fastapi.Depends(connectors.parse_username)):
     """ Set Dict of Group Templates configurations """
     for name in request.configs.keys():
+        _reject_if_named_item_managed('group_templates', name, username)
         _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -785,7 +778,7 @@ def put_group_template(name: str,
                        request: objects.PutGroupTemplateRequest,
                        username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Group Template configurations """
-    _reject_if_named_item_managed('group_templates', name)
+    _reject_if_named_item_managed('group_templates', name, username)
     _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
     postgres = connectors.PostgresConnector.get_instance()
     group_template = connectors.GroupTemplate(group_template=request.configs)
@@ -806,7 +799,7 @@ def delete_group_template(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete Group Template configurations """
-    _reject_if_named_item_managed('group_templates', name)
+    _reject_if_named_item_managed('group_templates', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.GroupTemplate.delete_from_db(postgres, name)
 
@@ -839,6 +832,7 @@ def put_resource_validations(
 ):
     """ Put Resource Validation configurations """
     for name in request.configs_dict.keys():
+        _reject_if_named_item_managed('resource_validations', name, username)
         _check_config_name(name, ConfigNameType.RESOURCE_VALIDATON)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -862,7 +856,7 @@ def put_resource_validation(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Resource Validation configurations """
-    _reject_if_named_item_managed('resource_validations', name)
+    _reject_if_named_item_managed('resource_validations', name, username)
     _check_config_name(name, ConfigNameType.RESOURCE_VALIDATON)
     postgres = connectors.PostgresConnector.get_instance()
     resource_validation = connectors.ResourceValidation(
@@ -884,7 +878,7 @@ def delete_resource_validation(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Delete Resource Validation configurations"""
-    _reject_if_named_item_managed('resource_validations', name)
+    _reject_if_named_item_managed('resource_validations', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.ResourceValidation.delete_from_db(postgres, name)
     helpers.create_resource_validation_config_history_entry(
@@ -913,6 +907,9 @@ def read_role(name: str) -> connectors.Role:
 def put_roles(request: objects.PutRolesRequest,
               username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Roles """
+    for role in request.configs:
+        _reject_if_named_item_managed('roles', role.name, username)
+
     postgres = connectors.PostgresConnector.get_instance()
     for role in request.configs:
         role.insert_into_db(postgres)
@@ -930,7 +927,7 @@ def put_role(name: str,
              request: objects.PutRoleRequest,
              username: str = fastapi.Depends(connectors.parse_username)):
     """ Patch Role configurations """
-    _reject_if_named_item_managed('roles', name)
+    _reject_if_named_item_managed('roles', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     request.configs.insert_into_db(postgres)
 
@@ -947,7 +944,7 @@ def delete_role(name: str,
                 request: objects.ConfigsRequest,
                 username: str = fastapi.Depends(connectors.parse_username)):
     """ Delete Role """
-    _reject_if_named_item_managed('roles', name)
+    _reject_if_named_item_managed('roles', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.Role.delete_from_db(postgres, name)
 
@@ -973,6 +970,7 @@ def put_backend_tests(
 ):
     """ Put backend test configurations """
     for name in request.configs.keys():
+        _reject_if_named_item_managed('backend_tests', name, username)
         _check_config_name(name, ConfigNameType.BACKEND_TEST)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -1003,7 +1001,7 @@ def put_backend_test(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put backend test configuration """
-    _reject_if_named_item_managed('backend_tests', name)
+    _reject_if_named_item_managed('backend_tests', name, username)
     _check_config_name(name, ConfigNameType.BACKEND_TEST)
     postgres = connectors.PostgresConnector.get_instance()
     request.configs.insert_into_db(postgres, name)
@@ -1025,7 +1023,7 @@ def patch_backend_test(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Patch backend test configuration """
-    _reject_if_named_item_managed('backend_tests', name)
+    _reject_if_named_item_managed('backend_tests', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     try:
         current_test = connectors.BackendTests.fetch_from_db(postgres, name)
@@ -1061,7 +1059,7 @@ def delete_backend_test(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete test configuration """
-    _reject_if_named_item_managed('backend_tests', name)
+    _reject_if_named_item_managed('backend_tests', name, username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.BackendTests.delete_from_db(postgres, name)
 
@@ -1107,6 +1105,16 @@ def rollback_config(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Roll back a config to a particular revision."""
+    # Reject rollback of configmap-managed singletons
+    config_type_to_key = {
+        connectors.ConfigHistoryType.SERVICE: 'service',
+        connectors.ConfigHistoryType.WORKFLOW: 'workflow',
+        connectors.ConfigHistoryType.DATASET: 'dataset',
+    }
+    config_key = config_type_to_key.get(request.config_type)
+    if config_key:
+        configmap_loader.reject_if_managed(config_key, username)
+
     postgres = connectors.PostgresConnector.get_instance()
 
     # Get the config history entry for the specified revision

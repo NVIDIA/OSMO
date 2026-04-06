@@ -1279,14 +1279,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-    def get_configmap_state(self, key: str) -> str | None:
-        """Get a value from the configmap_state key-value table."""
-        cmd = 'SELECT value FROM configmap_state WHERE key = %s;'
-        result = self.execute_fetch_command(cmd, (key,), return_raw=True)
-        if result:
-            return result[0]['value']
-        return None
-
     def set_configmap_state(self, key: str, value: str) -> None:
         """Set a value in the configmap_state key-value table (upsert)."""
         cmd = '''

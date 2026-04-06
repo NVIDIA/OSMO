@@ -35,8 +35,10 @@ from src.service.core.config import (
 from src.utils import connectors
 
 
-CONFIGMAP_SYNC_USERNAME = 'configmap-sync'
-CONFIGMAP_SYNC_TAGS = ['configmap']
+from src.service.core.config import configmap_guard
+
+CONFIGMAP_SYNC_USERNAME = configmap_guard.CONFIGMAP_SYNC_USERNAME
+CONFIGMAP_SYNC_TAGS = configmap_guard.CONFIGMAP_SYNC_TAGS
 
 
 class ManagedByMode(str, enum.Enum):
@@ -44,32 +46,34 @@ class ManagedByMode(str, enum.Enum):
     CONFIGMAP = 'configmap'
 
 
-def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresConnector) -> None:
-    """Load dynamic configs from a YAML file on startup.
+def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresConnector,
+                         managed_configs: Dict[str, Any] | None = None) -> None:
+    """Load dynamic configs from a YAML file (or pre-parsed dict) on startup.
 
+    If managed_configs is provided, skips file reading and uses the dict directly.
     Acquires a PostgreSQL advisory lock to prevent concurrent loading from
     multiple replicas. Applies configs in dependency order and continues
     on per-type errors so the service always starts.
     """
     logging.info('Loading dynamic configs from %s', config_file_path)
 
-    try:
-        with open(config_file_path, encoding='utf-8') as config_file:
-            raw_config = yaml.safe_load(config_file)
-    except (OSError, yaml.YAMLError) as error:
-        logging.error('Failed to read dynamic config file %s: %s', config_file_path, error)
-        return
+    if managed_configs is None:
+        try:
+            with open(config_file_path, encoding='utf-8') as config_file:
+                raw_config = yaml.safe_load(config_file)
+        except (OSError, yaml.YAMLError) as error:
+            logging.error('Failed to read dynamic config file %s: %s', config_file_path, error)
+            return
 
-    if not raw_config or 'managed_configs' not in raw_config:
-        logging.warning('Dynamic config file %s has no managed_configs section', config_file_path)
-        return
-
-    managed_configs = raw_config['managed_configs']
+        if not raw_config or 'managed_configs' not in raw_config:
+            logging.warning('Dynamic config file %s has no managed_configs section',
+                            config_file_path)
+            return
+        managed_configs = raw_config['managed_configs']
 
     # Acquire session-level advisory lock so only one replica applies configs.
     # Session-level (not xact-level) because execute_fetch_command auto-commits,
-    # which would release a xact-level lock immediately. Session-level locks
-    # persist until explicitly released or the connection closes.
+    # which would release a xact-level lock immediately.
     lock_result = postgres.execute_fetch_command(
         "SELECT pg_try_advisory_lock(hashtext('configmap-sync'))",
         (), return_raw=True)
@@ -98,52 +102,13 @@ _SINGLETON_CONFIG_TYPES = {
     'dataset': connectors.ConfigType.DATASET,
 }
 
-# Module-level reference to the active watcher instance.
-# Set by ConfigMapWatcher.start() so config_service endpoints can access
-# cached state for managed_by checks and immediate re-apply.
-_active_watcher: 'ConfigMapWatcher | None' = None
 
-
-def get_managed_mode(config_key: str) -> str | None:
-    """Return the managed_by mode for a config key, or None if not managed.
-
-    Called by config_service endpoints to check if a config is managed by
-    ConfigMap and what mode it's in. Returns 'configmap', 'seed', or None.
-    """
-    if _active_watcher is None or _active_watcher._cached_managed_configs is None:
-        return None
-    section = _active_watcher._cached_managed_configs.get(config_key)
-    if not section:
-        return None
-    return section.get('managed_by', ManagedByMode.SEED.value)
-
-
-def get_cached_section(config_key: str) -> Dict[str, Any] | None:
-    """Return the cached ConfigMap section for a config key, or None.
-
-    Called by config_service endpoints to re-apply ConfigMap values after
-    a CLI write to a configmap-managed config.
-    """
-    if _active_watcher is None or _active_watcher._cached_managed_configs is None:
-        return None
-    return _active_watcher._cached_managed_configs.get(config_key)
-
-
-def is_singleton_managed(config_key: str) -> bool:
-    """Return True if a singleton config is managed by ConfigMap in configmap mode."""
-    mode = get_managed_mode(config_key)
-    return mode == ManagedByMode.CONFIGMAP.value
-
-
-def is_named_item_managed(config_key: str, item_name: str) -> bool:
-    """Return True if a named config item is managed by ConfigMap in configmap mode."""
-    section = get_cached_section(config_key)
-    if not section:
-        return False
-    if section.get('managed_by', ManagedByMode.SEED.value) != ManagedByMode.CONFIGMAP.value:
-        return False
-    items = section.get('items', {})
-    return item_name in items
+# Delegate guard functions to configmap_guard module (avoids circular imports)
+get_managed_mode = configmap_guard.get_managed_mode
+get_cached_section = configmap_guard.get_cached_section
+is_singleton_managed = configmap_guard.is_singleton_managed
+is_named_item_managed = configmap_guard.is_named_item_managed
+reject_if_managed = configmap_guard.reject_if_managed
 
 
 class ConfigMapWatcher:
@@ -169,8 +134,6 @@ class ConfigMapWatcher:
 
     def start(self) -> None:
         """Load configs immediately, then start background polling thread."""
-        global _active_watcher  # noqa: PLW0603
-        _active_watcher = self
         self.load_and_apply()
         self._persist_managed_modes()
         thread = threading.Thread(
@@ -188,10 +151,42 @@ class ConfigMapWatcher:
             self._postgres.set_configmap_state(f'managed_by:{config_key}', mode)
 
     def load_and_apply(self) -> None:
-        """Read the config file, apply all configs, cache values + hash."""
-        load_dynamic_configs(self._config_file_path, self._postgres)
-        self._last_file_hash = self._compute_file_hash()
-        self._cached_managed_configs = self._parse_managed_configs()
+        """Read the config file once, apply all configs, cache values + hash."""
+        try:
+            with open(self._config_file_path, 'rb') as config_file:
+                content = config_file.read()
+        except OSError as error:
+            logging.error('Failed to read dynamic config file %s: %s',
+                          self._config_file_path, error)
+            return
+
+        self._last_file_hash = hashlib.sha256(content).hexdigest()
+
+        try:
+            raw_config = yaml.safe_load(content)
+        except yaml.YAMLError as error:
+            logging.error('Failed to parse dynamic config file %s: %s',
+                          self._config_file_path, error)
+            return
+
+        if not raw_config or 'managed_configs' not in raw_config:
+            logging.warning('Dynamic config file %s has no managed_configs section',
+                            self._config_file_path)
+            return
+
+        managed_configs = raw_config['managed_configs']
+
+        # Cache managed configs for drift comparison and 409 guard lookups
+        self._cached_managed_configs = managed_configs
+        configmap_guard.set_managed_configs(managed_configs)
+        dataset_section = managed_configs.get('dataset')
+        if dataset_section:
+            dataset_config = dataset_section.get('config')
+            if dataset_config:
+                _resolve_dataset_secret_files(dataset_config)
+
+        load_dynamic_configs(self._config_file_path, self._postgres,
+                             managed_configs=managed_configs)
 
     def _poll_loop(self) -> None:
         logging.info('Config watcher started (poll_interval=%ds, file=%s)',
@@ -283,28 +278,6 @@ class ConfigMapWatcher:
         except OSError:
             return None
 
-    def _parse_managed_configs(self) -> Dict[str, Any] | None:
-        """Parse the config file and return the managed_configs section.
-
-        Resolves secret_file references in dataset configs so the cached
-        values match the DB format (access_key_id/access_key instead of
-        secret_file path). Without this, drift detection would always see
-        a difference for dataset configs with credentials.
-        """
-        try:
-            with open(self._config_file_path, encoding='utf-8') as config_file:
-                raw_config = yaml.safe_load(config_file)
-            if raw_config and 'managed_configs' in raw_config:
-                managed = raw_config['managed_configs']
-                dataset_section = managed.get('dataset')
-                if dataset_section:
-                    dataset_config = dataset_section.get('config')
-                    if dataset_config:
-                        _resolve_dataset_secret_files(dataset_config)
-                return managed
-        except (OSError, yaml.YAMLError):
-            pass
-        return None
 
 
 _EXPECTED_CONFIG_KEYS = {

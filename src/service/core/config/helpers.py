@@ -26,6 +26,7 @@ import pydantic
 import yaml
 
 from src.lib.utils import common, osmo_errors
+from src.service.core.config import configmap_guard
 from src.utils.job import backend_jobs, kb_objects, workflow
 from src.service.core.config import objects as configs_objects
 from src.service.core.workflow import objects
@@ -104,9 +105,16 @@ def put_configs(
         should_serialize: Whether to serialize the config before storing.
                             Skip serialization when rolling back a config.
 
+    Raises:
+        OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
+
     Returns:
         Dict containing the updated configuration
     """
+    config_key = configmap_guard.CONFIG_TYPE_TO_KEY.get(config_type)
+    if config_key:
+        configmap_guard.reject_if_managed(config_key, username)
+
     postgres = connectors.PostgresConnector.get_instance()
     if should_serialize:
         updated_configs = request.configs.serialize(postgres)
@@ -151,7 +159,14 @@ def patch_configs(
 
     Returns:
         Dict containing the updated configuration fields.
+
+    Raises:
+        OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
     """
+    config_key = configmap_guard.CONFIG_TYPE_TO_KEY.get(config_type)
+    if config_key:
+        configmap_guard.reject_if_managed(config_key, username)
+
     postgres = connectors.PostgresConnector.get_instance()
     current_configs_dict = postgres.get_configs(config_type).plaintext_dict(
         by_alias=True, exclude_unset=True)

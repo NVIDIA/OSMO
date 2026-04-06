@@ -22,6 +22,7 @@ from typing import Any, Dict
 
 import yaml
 
+from src.lib.utils import osmo_errors
 from src.service.core.config import config_service, configmap_loader
 from src.service.core.config import helpers as config_helpers, objects as config_objects
 from src.service.core.config.configmap_loader import CONFIGMAP_SYNC_USERNAME
@@ -841,8 +842,8 @@ class ConfigMapLoaderIntegrationTestCase(fixture.ServiceTestFixture):
     # Drift reconciliation
     # -------------------------------------------------------------------
 
-    def test_drift_reconciliation_reverts_cli_change(self):
-        """CLI change to a configmap-mode config is reverted by drift reconciliation."""
+    def test_409_rejects_cli_write_to_configmap_managed(self):
+        """CLI write to a configmap-mode config is rejected with 409."""
         postgres = self._get_postgres()
 
         config_data = {
@@ -857,28 +858,25 @@ class ConfigMapLoaderIntegrationTestCase(fixture.ServiceTestFixture):
         }
         config_path = self._write_config_file(config_data)
         try:
-            # Initial apply via ConfigMap
             watcher = configmap_loader.ConfigMapWatcher(config_path, postgres)
             watcher.load_and_apply()
 
             workflow_config = postgres.get_configs(connectors.ConfigType.WORKFLOW)
             self.assertEqual(workflow_config.dict(by_alias=True)['max_num_tasks'], 42)
 
-            # Simulate CLI override
-            config_helpers.patch_configs(
-                request=config_objects.PatchConfigRequest(
-                    configs_dict={'max_num_tasks': 999},
-                    description='CLI override',
-                ),
-                config_type=connectors.ConfigType.WORKFLOW,
-                username='test-user',
-            )
-            workflow_config = postgres.get_configs(connectors.ConfigType.WORKFLOW)
-            self.assertEqual(workflow_config.dict(by_alias=True)['max_num_tasks'], 999)
+            # CLI write should be rejected with 409
+            with self.assertRaises(osmo_errors.OSMOUserError) as context:
+                config_helpers.patch_configs(
+                    request=config_objects.PatchConfigRequest(
+                        configs_dict={'max_num_tasks': 999},
+                        description='CLI override',
+                    ),
+                    config_type=connectors.ConfigType.WORKFLOW,
+                    username='test-user',
+                )
+            self.assertEqual(context.exception.status_code, 409)
 
-            # Drift reconciliation should revert to ConfigMap value
-            watcher._reconcile_drift()
-
+            # Value should be unchanged
             workflow_config = postgres.get_configs(connectors.ConfigType.WORKFLOW)
             self.assertEqual(workflow_config.dict(by_alias=True)['max_num_tasks'], 42)
         finally:
