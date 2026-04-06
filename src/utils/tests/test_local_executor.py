@@ -1051,8 +1051,8 @@ class TestJinjaTemplateDetection(unittest.TestCase):
         finally:
             os.unlink(path)
 
-    def test_default_values_section_detected(self):
-        """A spec containing a 'default-values' section is rejected as a Jinja template."""
+    def test_default_values_resolved_locally(self):
+        """A spec with default-values is resolved locally, not rejected."""
         path = self._write_temp_spec(textwrap.dedent('''\
             workflow:
               name: "{{experiment_name}}"
@@ -1064,15 +1064,18 @@ class TestJinjaTemplateDetection(unittest.TestCase):
               experiment_name: my-experiment
         '''))
         try:
-            with self.assertRaises(ValueError) as context:
-                run_workflow_locally(path)
-            self.assertIn('Jinja', str(context.exception))
+            with open(path, encoding='utf-8') as f:
+                spec_text = f.read()
+            resolved = spec_includes.resolve_default_values(spec_text)
+            self.assertNotIn('default-values', resolved)
+            self.assertIn('my-experiment', resolved)
+            self.assertNotIn('{{experiment_name}}', resolved)
         finally:
             os.unlink(path)
 
 
 class TestIncludesWithDefaultValues(unittest.TestCase):
-    """Verify that default-values introduced by includes are stripped for local execution."""
+    """Verify that default-values from includes are resolved for local execution."""
 
     def setUp(self):
         self.test_dir = tempfile.mkdtemp()
@@ -1088,7 +1091,7 @@ class TestIncludesWithDefaultValues(unittest.TestCase):
         return path
 
     def test_included_default_values_stripped(self):
-        """A base file's default-values should be stripped so local execution proceeds."""
+        """A base file's default-values should be resolved and stripped for local execution."""
         self._write_file('base.yaml', textwrap.dedent('''\
             workflow:
               name: base
@@ -1109,8 +1112,6 @@ class TestIncludesWithDefaultValues(unittest.TestCase):
                 command: ["echo"]
                 args: ["hello"]
         '''))
-        executor = LocalExecutor(work_dir=self.test_dir, keep_work_dir=True,
-                                  docker_cmd='nonexistent-docker-12345')
         with open(main_path, encoding='utf-8') as f:
             spec_text = f.read()
 
@@ -1118,16 +1119,16 @@ class TestIncludesWithDefaultValues(unittest.TestCase):
         spec_text = spec_includes.resolve_includes(
             spec_text, os.path.dirname(abs_path), source_path=abs_path)
 
-        original_has_defaults = 'default-values' in spec_text
-        self.assertFalse(original_has_defaults,
-                         'Main file should not have default-values before includes')
-
         resolved_dict = yaml.safe_load(spec_text)
         self.assertIn('default-values', resolved_dict,
                       'Resolved spec should have default-values from base')
 
-    def test_own_default_values_still_rejected(self):
-        """A spec with its own default-values is still rejected even when using includes."""
+        spec_text = spec_includes.resolve_default_values(spec_text)
+        self.assertNotIn('default-values', spec_text,
+                         'resolve_default_values should strip the section')
+
+    def test_included_default_values_resolved(self):
+        """A spec using default-values variables from an included base is resolved locally."""
         self._write_file('base.yaml', textwrap.dedent('''\
             workflow:
               name: base
@@ -1147,9 +1148,17 @@ class TestIncludesWithDefaultValues(unittest.TestCase):
             default-values:
               experiment_name: my-experiment
         '''))
-        with self.assertRaises(ValueError) as context:
-            run_workflow_locally(main_path, work_dir=self.test_dir)
-        self.assertIn('Jinja', str(context.exception))
+        with open(main_path, encoding='utf-8') as f:
+            spec_text = f.read()
+
+        abs_path = os.path.abspath(main_path)
+        spec_text = spec_includes.resolve_includes(
+            spec_text, os.path.dirname(abs_path), source_path=abs_path)
+        spec_text = spec_includes.resolve_default_values(spec_text)
+
+        self.assertNotIn('default-values', spec_text)
+        self.assertIn('my-experiment', spec_text)
+        self.assertNotIn('{{ experiment_name }}', spec_text)
 
 
 # ============================================================================
@@ -1231,18 +1240,20 @@ class TestCookbookSpecValidation(unittest.TestCase):
             self._run_cookbook_spec('dataset_upload.yaml')
         self.assertIn('dataset', str(context.exception).lower())
 
-    def test_unsupported_spec_template(self):
-        """template_hello_world.yaml uses default-values templating — verify it is rejected."""
+    def test_template_spec_resolved_locally(self):
+        """template_hello_world.yaml uses default-values — verify variables are resolved."""
         spec_path = os.path.join(self.COOKBOOK_DIR, 'template_hello_world.yaml')
         self.assertTrue(os.path.exists(spec_path),
                         f'Cookbook file not found: {spec_path}')
-        with self.assertRaises(ValueError) as context:
-            run_workflow_locally(
-                spec_path=spec_path,
-                work_dir=self.work_dir,
-                keep_work_dir=True,
-            )
-        self.assertIn('Jinja', str(context.exception))
+        with open(spec_path, encoding='utf-8') as f:
+            spec_text = f.read()
+        resolved = spec_includes.resolve_default_values(spec_text)
+        self.assertNotIn('default-values', resolved)
+        self.assertIn('hello-osmo', resolved)
+        self.assertNotIn('{{workflow_name}}', resolved)
+        self.assertNotIn('{{ubuntu_version}}', resolved)
+        self.assertNotIn('{{message}}', resolved)
+        self.assertIn('Hello from OSMO!', resolved)
 
 
 class TestRunWorkflowLocallyErrors(unittest.TestCase):

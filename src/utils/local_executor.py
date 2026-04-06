@@ -473,18 +473,11 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
         spec_text = f.read()
 
     abs_path = os.path.abspath(spec_path)
-    original_has_defaults = 'default-values' in spec_text
     spec_text = spec_includes.resolve_includes(
         spec_text, os.path.dirname(abs_path), source_path=abs_path)
+    spec_text = spec_includes.resolve_default_values(spec_text)
 
-    if not original_has_defaults:
-        resolved_dict = yaml.safe_load(spec_text)
-        if isinstance(resolved_dict, dict) and 'default-values' in resolved_dict:
-            del resolved_dict['default-values']
-            spec_text = yaml.safe_dump(
-                resolved_dict, default_flow_style=False, sort_keys=False)
-
-    template_markers = ('{%', '{#', 'default-values')
+    template_markers = ('{%', '{#')
     if any(marker in spec_text for marker in template_markers):
         raise ValueError(
             'This spec uses Jinja templates which require server-side expansion.\n'
@@ -492,20 +485,20 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
             'then save that output and run it locally.')
 
     created_work_dir = work_dir is None
+    effective_work_dir: str = work_dir if work_dir is not None else tempfile.mkdtemp(prefix='osmo-local-')
     if created_work_dir:
-        work_dir = tempfile.mkdtemp(prefix='osmo-local-')
-        logger.info('Using temporary work directory: %s', work_dir)
+        logger.info('Using temporary work directory: %s', effective_work_dir)
 
-    executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
+    executor = LocalExecutor(work_dir=effective_work_dir, keep_work_dir=keep_work_dir,
                               docker_cmd=docker_cmd, shm_size=shm_size)
     spec = executor.load_spec(spec_text)
     success = executor.execute(spec, resume=resume or from_step is not None,
                                from_step=from_step)
 
     if created_work_dir and not keep_work_dir and success:
-        logger.info('Cleaning up work directory: %s', work_dir)
-        shutil.rmtree(work_dir, ignore_errors=True)
+        logger.info('Cleaning up work directory: %s', effective_work_dir)
+        shutil.rmtree(effective_work_dir, ignore_errors=True)
     elif not success:
-        logger.info('Work directory preserved for debugging: %s', work_dir)
+        logger.info('Work directory preserved for debugging: %s', effective_work_dir)
 
     return success

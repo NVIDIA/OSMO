@@ -20,6 +20,7 @@ import shutil
 import tempfile
 import textwrap
 import unittest
+from typing import Any, Dict
 
 import yaml
 
@@ -88,14 +89,14 @@ class DeepMergeDictsTests(unittest.TestCase):
         self.assertEqual(result['tasks'][0]['val'], 10)
 
     def test_named_list_empty_base(self):
-        base = {'tasks': []}
-        override = {'tasks': [{'name': 'a', 'image': 'img'}]}
+        base: Dict[str, Any] = {'tasks': []}
+        override: Dict[str, Any] = {'tasks': [{'name': 'a', 'image': 'img'}]}
         result = deep_merge_dicts(base, override)
         self.assertEqual(result['tasks'], [{'name': 'a', 'image': 'img'}])
 
     def test_named_list_empty_override_clears(self):
-        base = {'tasks': [{'name': 'a', 'image': 'img'}]}
-        override = {'tasks': []}
+        base: Dict[str, Any] = {'tasks': [{'name': 'a', 'image': 'img'}]}
+        override: Dict[str, Any] = {'tasks': []}
         result = deep_merge_dicts(base, override)
         self.assertEqual(result['tasks'], [])
 

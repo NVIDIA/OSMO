@@ -26,6 +26,13 @@ from src.lib.utils import osmo_errors
 
 
 _VAR_REF_PATTERN = re.compile(r'^\{\{\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\}\}$')
+_ENV_REF_PATTERN = re.compile(r'\$\{env:([^}]+)\}')
+_SCALAR_REF_PATTERN = re.compile(r'(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})')
+_JINJA_VAR_PATTERN = re.compile(r'\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}')
+_DEFAULT_VALUES_BLOCK = re.compile(
+    r'^default-values:[ \t]*\n((?:(?:[ \t]+[^\n]*|[ \t]*)(?:\n|$))*)',
+    re.MULTILINE,
+)
 _MISSING = object()
 
 
@@ -300,3 +307,123 @@ def _resolve_includes(spec_dict: Dict[str, Any], base_directory: str,
 
     merged = deep_merge_dicts(base_dict, spec_dict)
     return yaml.safe_dump(merged, default_flow_style=False, sort_keys=False)
+
+
+def _resolve_env_refs(text: str) -> str:
+    """Replace ``${env:VAR}`` patterns with their values from ``os.environ``."""
+    def _replacer(match: re.Match) -> str:
+        return os.environ.get(match.group(1), '')
+    return _ENV_REF_PATTERN.sub(_replacer, text)
+
+
+def _resolve_env_refs_recursive(obj: Any) -> Any:
+    """Walk *obj* and resolve ``${env:VAR}`` patterns in every string."""
+    if isinstance(obj, str):
+        return _resolve_env_refs(obj)
+    if isinstance(obj, dict):
+        return {k: _resolve_env_refs_recursive(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_resolve_env_refs_recursive(item) for item in obj]
+    return obj
+
+
+def _collect_scalar_variables(default_values: Dict[str, Any]) -> Dict[str, str]:
+    """Return only the scalar (non-dict, non-list) entries from *default_values* as strings."""
+    variables: Dict[str, str] = {}
+    for key, value in default_values.items():
+        if isinstance(value, str):
+            variables[key] = value
+        elif isinstance(value, (int, float, bool)):
+            variables[key] = str(value)
+    return variables
+
+
+def _resolve_nested_variables(variables: Dict[str, str],
+                              max_iterations: int = 10) -> None:
+    """Iteratively resolve ``{ref}`` placeholders inside variable values themselves."""
+    for _ in range(max_iterations):
+        changed = False
+        for key, value in list(variables.items()):
+            if not isinstance(value, str):
+                continue
+            def _replacer(match: re.Match) -> str:
+                ref = match.group(1)
+                return variables.get(ref, match.group(0))
+            new_value = _SCALAR_REF_PATTERN.sub(_replacer, value)
+            if new_value != value:
+                variables[key] = new_value
+                changed = True
+        if not changed:
+            break
+
+
+def _extract_and_remove_default_values(
+        spec_text: str) -> tuple[Dict[str, Any] | None, str]:
+    """Extract the ``default-values`` block from raw YAML text.
+
+    Returns ``(default_values_dict, remaining_text)`` where the block has been
+    removed from *remaining_text*.  Returns ``(None, spec_text)`` when no
+    ``default-values`` section is found or when it cannot be parsed.
+    """
+    match = _DEFAULT_VALUES_BLOCK.search(spec_text)
+    if match is None:
+        return None, spec_text
+
+    dv_section = 'default-values:\n' + match.group(1)
+    try:
+        parsed = yaml.safe_load(dv_section)
+    except yaml.YAMLError:
+        return None, spec_text
+
+    default_values = parsed.get('default-values') if isinstance(parsed, dict) else None
+    if not isinstance(default_values, dict):
+        return None, spec_text
+
+    remaining = spec_text[:match.start()] + spec_text[match.end():]
+    return default_values, remaining
+
+
+def resolve_default_values(spec_text: str) -> str:
+    """Resolve ``default-values`` variables and ``${env:VAR}`` references.
+
+    All processing happens at the text level so that Jinja-style ``{{var}}``
+    patterns (which are invalid YAML when unquoted) can be substituted before
+    the spec is parsed.
+
+    Processing steps:
+
+    1.  Resolve ``${env:VAR}`` patterns everywhere against ``os.environ``.
+    2.  Extract and remove the ``default-values`` block from the raw text.
+    3.  Collect scalar entries into a variable map.
+    4.  Iteratively resolve ``{variable}`` references within the variable map
+        itself (handles chained references like ``local_dir: "{repo_dir}/local"``).
+    5.  Substitute ``{{variable}}`` (Jinja-style double-brace) and ``{variable}``
+        (single-brace) patterns in the spec text for every known variable key.
+        OSMO runtime tokens (``{{output}}``, ``{{input:0}}``, ``{{host:…}}``,
+        ``{{item}}``, etc.) are left intact because their names are not keys in
+        ``default-values``.
+    6.  Return the cleaned text without the ``default-values`` section.
+
+    If the spec has no ``default-values``, the text is returned with only
+    ``${env:VAR}`` references resolved.
+    """
+    spec_text = _resolve_env_refs(spec_text)
+
+    default_values, spec_text = _extract_and_remove_default_values(spec_text)
+    if default_values is None:
+        return spec_text
+
+    resolved_defaults: Dict[str, Any] = _resolve_env_refs_recursive(default_values)
+    variables = _collect_scalar_variables(resolved_defaults)
+    _resolve_nested_variables(variables)
+
+    def _jinja_replacer(match: re.Match) -> str:
+        return variables.get(match.group(1), match.group(0))
+
+    def _scalar_replacer(match: re.Match) -> str:
+        return variables.get(match.group(1), match.group(0))
+
+    spec_text = _JINJA_VAR_PATTERN.sub(_jinja_replacer, spec_text)
+    spec_text = _SCALAR_REF_PATTERN.sub(_scalar_replacer, spec_text)
+
+    return spec_text
