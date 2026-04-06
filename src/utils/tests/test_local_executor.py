@@ -23,33 +23,47 @@ import tempfile
 import textwrap
 import unittest
 from typing import Any, ClassVar, Dict
-from unittest import mock
 
 import yaml
 
 from src.utils import spec_includes
 from src.utils.job import task as task_module
-from src.utils.local_executor import LocalExecutor, TaskNode, TaskResult, run_workflow_locally
+from src.utils.local_executor import (
+    OSMO_INPUT_PATH_PREFIX,
+    OSMO_OUTPUT_PATH,
+    LocalExecutor,
+    TaskNode,
+    TaskResult,
+    check_unresolved_variables,
+    run_workflow_locally,
+)
 
 
 # ---------------------------------------------------------------------------
-# Helper: detect Docker availability once for the entire module
+# Helper: detect Docker + Compose availability once for the entire module
 # ---------------------------------------------------------------------------
 def _docker_available() -> bool:
-    """Return True if the Docker daemon is reachable via 'docker info', False otherwise."""
+    """Return True if the Docker daemon and Compose V2 are reachable."""
     try:
-        result = subprocess.run(
+        docker_result = subprocess.run(
             ['docker', 'info'],
             capture_output=True,
             timeout=10,
         )
-        return result.returncode == 0
+        if docker_result.returncode != 0:
+            return False
+        compose_result = subprocess.run(
+            ['docker', 'compose', 'version'],
+            capture_output=True,
+            timeout=10,
+        )
+        return compose_result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
 
 
 DOCKER_AVAILABLE = _docker_available()
-SKIP_DOCKER_MSG = 'Docker is not available on this machine'
+SKIP_DOCKER_MSG = 'Docker with Compose V2 is not available on this machine'
 
 
 # ============================================================================
@@ -375,11 +389,83 @@ class TestBuildDag(unittest.TestCase):
         self.assertEqual(executor._task_nodes['transform'].upstream, {'download'})
 
 
-class TestFindReadyTasks(unittest.TestCase):
-    """Verify correct identification of tasks ready to execute."""
+class TestCycleDetection(unittest.TestCase):
+    """Verify that circular dependencies are detected upfront."""
 
-    def test_all_root_tasks_ready(self):
-        """Tasks with no upstream dependencies are immediately ready."""
+    def _make_executor(self) -> LocalExecutor:
+        return LocalExecutor(work_dir='/tmp/unused')
+
+    @staticmethod
+    def _stub_spec() -> task_module.TaskSpec:
+        """Return a minimal TaskSpec usable as a placeholder in TaskNode."""
+        return task_module.TaskSpec(name='stub', image='alpine:3.18', command=['true'])
+
+    def test_no_cycle_passes(self):
+        """A valid DAG passes cycle detection without error."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: ok
+              tasks:
+              - name: a
+                image: alpine:3.18
+                command: ["echo"]
+              - name: b
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: a
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._detect_cycles()
+
+    def test_self_cycle_detected(self):
+        """A task depending on itself is detected as a cycle.
+
+        Note: Pydantic's TaskSpec validation actually prevents self-references
+        in practice, but this tests the DAG logic directly.
+        """
+        executor = self._make_executor()
+        executor._task_nodes['a'] = TaskNode(
+            name='a', spec=self._stub_spec(), group='g',
+            upstream={'a'}, downstream={'a'})
+        with self.assertRaises(ValueError) as context:
+            executor._detect_cycles()
+        self.assertIn('Circular dependency', str(context.exception))
+
+    def test_two_node_cycle_detected(self):
+        """A mutual dependency between two tasks is detected."""
+        executor = self._make_executor()
+        executor._task_nodes['a'] = TaskNode(
+            name='a', spec=self._stub_spec(), group='g',
+            upstream={'b'}, downstream={'b'})
+        executor._task_nodes['b'] = TaskNode(
+            name='b', spec=self._stub_spec(), group='g',
+            upstream={'a'}, downstream={'a'})
+        with self.assertRaises(ValueError) as context:
+            executor._detect_cycles()
+        self.assertIn('a', str(context.exception))
+        self.assertIn('b', str(context.exception))
+
+    def test_indirect_cycle_detected(self):
+        """A three-node cycle (a -> b -> c -> a) is detected."""
+        executor = self._make_executor()
+        executor._task_nodes['a'] = TaskNode(
+            name='a', spec=self._stub_spec(), group='g',
+            upstream={'c'}, downstream={'b'})
+        executor._task_nodes['b'] = TaskNode(
+            name='b', spec=self._stub_spec(), group='g',
+            upstream={'a'}, downstream={'c'})
+        executor._task_nodes['c'] = TaskNode(
+            name='c', spec=self._stub_spec(), group='g',
+            upstream={'b'}, downstream={'a'})
+        with self.assertRaises(ValueError) as context:
+            executor._detect_cycles()
+        self.assertIn('Circular dependency', str(context.exception))
+
+    def test_parallel_tasks_no_cycle(self):
+        """Independent parallel tasks pass cycle detection."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: parallel
@@ -391,122 +477,36 @@ class TestFindReadyTasks(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = self._make_executor()
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
-
-        ready = executor._find_ready_tasks()
-        self.assertEqual(set(ready), {'a', 'b'})
-
-    def test_dependent_not_ready_until_upstream_completes(self):
-        """A downstream task only becomes ready after its upstream dependency completes."""
-        spec_text = textwrap.dedent('''\
-            workflow:
-              name: serial
-              tasks:
-              - name: first
-                image: alpine:3.18
-                command: ["echo"]
-              - name: second
-                image: alpine:3.18
-                command: ["echo"]
-                inputs:
-                - task: first
-        ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
-        spec = executor.load_spec(spec_text)
-        executor._build_dag(spec)
-
-        ready = executor._find_ready_tasks()
-        self.assertEqual(ready, ['first'])
-
-        executor._results['first'] = TaskResult(name='first', exit_code=0, output_dir='/tmp/out')
-        ready = executor._find_ready_tasks()
-        self.assertEqual(ready, ['second'])
-
-    def test_failed_upstream_blocks_downstream(self):
-        """A failed upstream task prevents its downstream dependents from becoming ready."""
-        spec_text = textwrap.dedent('''\
-            workflow:
-              name: serial
-              tasks:
-              - name: first
-                image: alpine:3.18
-                command: ["echo"]
-              - name: second
-                image: alpine:3.18
-                command: ["echo"]
-                inputs:
-                - task: first
-        ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
-        spec = executor.load_spec(spec_text)
-        executor._build_dag(spec)
-
-        executor._results['first'] = TaskResult(name='first', exit_code=1, output_dir='/tmp/out')
-        ready = executor._find_ready_tasks()
-        self.assertEqual(ready, [])
-
-
-class TestCancelDownstream(unittest.TestCase):
-    """Verify that downstream tasks are cancelled when an upstream task fails."""
-
-    def test_cascading_cancel(self):
-        """Cancellation of a failed task propagates to all transitive downstream dependents."""
-        spec_text = textwrap.dedent('''\
-            workflow:
-              name: chain
-              tasks:
-              - name: a
-                image: alpine:3.18
-                command: ["echo"]
-              - name: b
-                image: alpine:3.18
-                command: ["echo"]
-                inputs:
-                - task: a
-              - name: c
-                image: alpine:3.18
-                command: ["echo"]
-                inputs:
-                - task: b
-        ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
-        spec = executor.load_spec(spec_text)
-        executor._build_dag(spec)
-
-        executor._results['a'] = TaskResult(name='a', exit_code=1, output_dir='/tmp')
-        executor._cancel_downstream('a')
-
-        self.assertIn('b', executor._results)
-        self.assertIn('c', executor._results)
-        self.assertEqual(executor._results['b'].exit_code, -1)
-        self.assertEqual(executor._results['c'].exit_code, -1)
+        executor._detect_cycles()
 
 
 class TestSubstituteTokens(unittest.TestCase):
     """Verify {{token}} placeholder replacement in command strings and file contents."""
 
     def test_output_token(self):
-        """The {{output}} token is replaced with the task output directory path."""
+        """The {{output}} token is replaced with the on-cluster output path."""
         executor = LocalExecutor(work_dir='/tmp/unused')
-        tokens = {'output': '/work/task1/output'}
-        result = executor._substitute_tokens('echo data > {{output}}/file.txt', tokens)
-        self.assertEqual(result, 'echo data > /work/task1/output/file.txt')
+        tokens = {'output': OSMO_OUTPUT_PATH}
+        result = executor._substitute_tokens(
+            'echo data > {{output}}/file.txt', tokens)
+        self.assertEqual(result, f'echo data > {OSMO_OUTPUT_PATH}/file.txt')
 
     def test_input_by_index(self):
-        """The {{input:N}} token is replaced with the Nth upstream output directory."""
+        """The {{input:N}} token is replaced with the Nth upstream input path."""
         executor = LocalExecutor(work_dir='/tmp/unused')
-        tokens = {'input:0': '/work/upstream/output'}
+        tokens = {'input:0': f'{OSMO_INPUT_PATH_PREFIX}/0'}
         result = executor._substitute_tokens('cat {{input:0}}/data.csv', tokens)
-        self.assertEqual(result, 'cat /work/upstream/output/data.csv')
+        self.assertEqual(result, f'cat {OSMO_INPUT_PATH_PREFIX}/0/data.csv')
 
     def test_input_by_name(self):
-        """The {{input:taskname}} token is replaced with the named task's output directory."""
+        """The {{input:taskname}} token is replaced with the named task's input path."""
         executor = LocalExecutor(work_dir='/tmp/unused')
-        tokens = {'input:task1': '/work/task1/output'}
+        tokens = {'input:task1': f'{OSMO_INPUT_PATH_PREFIX}/task1'}
         result = executor._substitute_tokens('cat {{ input:task1 }}/data.csv', tokens)
-        self.assertEqual(result, 'cat /work/task1/output/data.csv')
+        self.assertEqual(result, f'cat {OSMO_INPUT_PATH_PREFIX}/task1/data.csv')
 
     def test_whitespace_around_tokens(self):
         """Whitespace inside {{ token }} braces is tolerated during substitution."""
@@ -518,9 +518,12 @@ class TestSubstituteTokens(unittest.TestCase):
     def test_multiple_tokens_in_one_string(self):
         """Multiple distinct tokens in the same string are all replaced."""
         executor = LocalExecutor(work_dir='/tmp/unused')
-        tokens = {'output': '/out', 'input:0': '/in0'}
-        result = executor._substitute_tokens('cp {{input:0}}/src {{output}}/dst', tokens)
-        self.assertEqual(result, 'cp /in0/src /out/dst')
+        tokens = {'output': OSMO_OUTPUT_PATH, 'input:0': f'{OSMO_INPUT_PATH_PREFIX}/0'}
+        result = executor._substitute_tokens(
+            'cp {{input:0}}/src {{output}}/dst', tokens)
+        self.assertEqual(
+            result,
+            f'cp {OSMO_INPUT_PATH_PREFIX}/0/src {OSMO_OUTPUT_PATH}/dst')
 
     def test_no_tokens_unchanged(self):
         """Text without any token placeholders passes through unchanged."""
@@ -528,12 +531,20 @@ class TestSubstituteTokens(unittest.TestCase):
         result = executor._substitute_tokens('plain text no tokens', {})
         self.assertEqual(result, 'plain text no tokens')
 
+    def test_host_token(self):
+        """The {{host:taskname}} token is replaced with the compose service name."""
+        executor = LocalExecutor(work_dir='/tmp/unused')
+        tokens = {'host:worker': 'worker'}
+        result = executor._substitute_tokens(
+            'http://{{ host:worker }}:8080/health', tokens)
+        self.assertEqual(result, 'http://worker:8080/health')
 
-class TestBuildTokenMap(unittest.TestCase):
-    """Verify that token maps are built correctly from task DAG relationships."""
+
+class TestBuildContainerTokenMap(unittest.TestCase):
+    """Verify that token maps use on-cluster container paths."""
 
     def test_output_only(self):
-        """A task with no inputs produces a token map containing only the output key."""
+        """A task with no inputs produces a token map with the on-cluster output path."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: simple
@@ -547,12 +558,13 @@ class TestBuildTokenMap(unittest.TestCase):
         executor._build_dag(spec)
 
         node = executor._task_nodes['task1']
-        tokens = executor._build_token_map(node, '/tmp/work/task1/output')
-        self.assertEqual(tokens['output'], '/tmp/work/task1/output')
-        self.assertEqual(len(tokens), 1)
+        tokens = executor._build_container_token_map(node)
+        self.assertEqual(tokens['output'], OSMO_OUTPUT_PATH)
+        self.assertIn('host:task1', tokens)
+        self.assertEqual(tokens['host:task1'], 'task1')
 
     def test_with_upstream_inputs(self):
-        """A task with upstream inputs gets both index-based and name-based input tokens."""
+        """A task with upstream inputs gets on-cluster input paths by index and name."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial
@@ -570,15 +582,215 @@ class TestBuildTokenMap(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
-        executor._results['producer'] = TaskResult(
-            name='producer', exit_code=0, output_dir='/tmp/work/producer/output')
-
         node = executor._task_nodes['consumer']
-        tokens = executor._build_token_map(node, '/tmp/work/consumer/output')
+        tokens = executor._build_container_token_map(node)
 
-        self.assertEqual(tokens['output'], '/tmp/work/consumer/output')
-        self.assertEqual(tokens['input:0'], '/tmp/work/producer/output')
-        self.assertEqual(tokens['input:producer'], '/tmp/work/producer/output')
+        self.assertEqual(tokens['output'], OSMO_OUTPUT_PATH)
+        self.assertEqual(tokens['input:0'], f'{OSMO_INPUT_PATH_PREFIX}/0')
+        self.assertEqual(tokens['input:producer'], f'{OSMO_INPUT_PATH_PREFIX}/producer')
+        self.assertIn('host:producer', tokens)
+        self.assertIn('host:consumer', tokens)
+
+
+class TestComposeConfigGeneration(unittest.TestCase):
+    """Verify that the generated Docker Compose config is correct."""
+
+    def setUp(self):
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-compose-')
+
+    def tearDown(self):
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    def test_single_task_compose_config(self):
+        """A single-task workflow generates a valid compose config with correct volumes."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: simple
+              tasks:
+              - name: hello
+                image: alpine:3.18
+                command: ["echo", "hi"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        config = executor._generate_compose_config(spec, {'hello'})
+
+        self.assertIn('services', config)
+        self.assertIn('hello', config['services'])
+        service = config['services']['hello']
+        self.assertEqual(service['image'], 'alpine:3.18')
+        self.assertEqual(service['entrypoint'], ['echo'])
+        self.assertEqual(service['command'], ['hi'])
+
+        output_mount = f'{self.work_dir}/hello/output:{OSMO_OUTPUT_PATH}'
+        self.assertIn(output_mount, service['volumes'])
+
+    def test_serial_tasks_have_depends_on(self):
+        """A serial workflow generates depends_on with service_completed_successfully."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: serial
+              tasks:
+              - name: task1
+                image: alpine:3.18
+                command: ["echo"]
+              - name: task2
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: task1
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        config = executor._generate_compose_config(spec, {'task1', 'task2'})
+
+        task2_service = config['services']['task2']
+        self.assertIn('depends_on', task2_service)
+        self.assertEqual(
+            task2_service['depends_on']['task1'],
+            {'condition': 'service_completed_successfully'})
+
+        task1_service = config['services']['task1']
+        self.assertNotIn('depends_on', task1_service)
+
+    def test_parallel_tasks_no_depends_on(self):
+        """Independent parallel tasks have no depends_on entries."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: parallel
+              tasks:
+              - name: a
+                image: alpine:3.18
+                command: ["echo"]
+              - name: b
+                image: alpine:3.18
+                command: ["echo"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        config = executor._generate_compose_config(spec, {'a', 'b'})
+
+        self.assertNotIn('depends_on', config['services']['a'])
+        self.assertNotIn('depends_on', config['services']['b'])
+
+    def test_input_volumes_mount_at_cluster_paths(self):
+        """Input volumes mount at /osmo/data/input/N and /osmo/data/input/taskname."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: serial
+              tasks:
+              - name: producer
+                image: alpine:3.18
+                command: ["echo"]
+              - name: consumer
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: producer
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        config = executor._generate_compose_config(spec, {'producer', 'consumer'})
+
+        consumer_volumes = config['services']['consumer']['volumes']
+        upstream_output = f'{self.work_dir}/producer/output'
+
+        self.assertIn(f'{upstream_output}:{OSMO_INPUT_PATH_PREFIX}/0:ro',
+                      consumer_volumes)
+        self.assertIn(f'{upstream_output}:{OSMO_INPUT_PATH_PREFIX}/producer:ro',
+                      consumer_volumes)
+
+    def test_environment_in_compose_config(self):
+        """Environment variables appear in the compose service config."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: env-test
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["printenv"]
+                environment:
+                  MY_VAR: hello
+                  SECOND: "42"
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        config = executor._generate_compose_config(spec, {'task'})
+
+        env = config['services']['task']['environment']
+        self.assertEqual(env['MY_VAR'], 'hello')
+        self.assertEqual(env['SECOND'], '42')
+
+    def test_files_written_and_mounted(self):
+        """Inline files are written to host and mounted into the compose service."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: files-test
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["sh", "/tmp/run.sh"]
+                files:
+                - contents: |
+                    echo "hello"
+                  path: /tmp/run.sh
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+        config = executor._generate_compose_config(spec, {'task'})
+
+        task_files_dir = os.path.join(self.work_dir, 'task', 'files')
+        host_file = os.path.join(task_files_dir, 'tmp', 'run.sh')
+        self.assertTrue(os.path.exists(host_file))
+        with open(host_file) as f:
+            self.assertIn('echo "hello"', f.read())
+
+        volumes = config['services']['task']['volumes']
+        expected_mount = f'{os.path.realpath(host_file)}:/tmp/run.sh:ro'
+        self.assertIn(expected_mount, volumes)
+
+    def test_resume_skips_completed_tasks(self):
+        """When resuming, completed tasks are excluded from the compose config."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: resume
+              tasks:
+              - name: task1
+                image: alpine:3.18
+                command: ["echo"]
+              - name: task2
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: task1
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir)
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+        executor._setup_directories()
+
+        executor._results['task1'] = TaskResult(
+            name='task1', exit_code=0,
+            output_dir=os.path.join(self.work_dir, 'task1', 'output'))
+
+        tasks_to_run = set(executor._task_nodes.keys()) - set(executor._results.keys())
+        config = executor._generate_compose_config(spec, tasks_to_run)
+
+        self.assertNotIn('task1', config['services'])
+        self.assertIn('task2', config['services'])
+        self.assertNotIn('depends_on', config['services']['task2'])
 
 
 class TestValidateForLocal(unittest.TestCase):
@@ -843,10 +1055,8 @@ class TestFilePathTraversal(unittest.TestCase):
         """Remove the temporary work directory."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
-    @mock.patch('subprocess.run')
-    def test_path_traversal_rejected(self, mock_run):
+    def test_path_traversal_rejected(self):
         """A file spec with a path that escapes the task directory raises ValueError."""
-        mock_run.return_value = mock.Mock(returncode=0)
         spec_text = textwrap.dedent('''\
             workflow:
               name: traversal
@@ -862,15 +1072,12 @@ class TestFilePathTraversal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
-        node = executor._task_nodes['task']
         with self.assertRaises(ValueError) as context:
-            executor._run_task(node, spec)
+            executor._generate_compose_config(spec, {'task'})
         self.assertIn('escapes the task directory', str(context.exception))
 
-    @mock.patch('subprocess.run')
-    def test_safe_nested_path_accepted(self, mock_run):
+    def test_safe_nested_path_accepted(self):
         """A file spec with a safe nested path is accepted without error."""
-        mock_run.return_value = mock.Mock(returncode=0)
         spec_text = textwrap.dedent('''\
             workflow:
               name: safe
@@ -886,13 +1093,12 @@ class TestFilePathTraversal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
-        node = executor._task_nodes['task']
-        executor._run_task(node, spec)
-        mock_run.assert_called_once()
+        config = executor._generate_compose_config(spec, {'task'})
+        self.assertIn('task', config['services'])
 
 
 class TestShmSize(unittest.TestCase):
-    """Verify that --shm-size is passed to Docker for GPU tasks."""
+    """Verify that shm_size appears in the compose config for GPU tasks."""
 
     def setUp(self):
         """Create a temporary work directory for shm-size tests."""
@@ -902,10 +1108,8 @@ class TestShmSize(unittest.TestCase):
         """Remove the temporary work directory after each test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
-    @mock.patch('subprocess.run')
-    def test_gpu_task_gets_default_shm_size(self, mock_run):
-        """A GPU task includes --shm-size with the default value when none is specified."""
-        mock_run.return_value = mock.Mock(returncode=0, stdout='0\n')
+    def test_gpu_task_gets_default_shm_size(self):
+        """A GPU task includes shm_size with the default value when none is specified."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: shm-test
@@ -922,18 +1126,12 @@ class TestShmSize(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
-        node = executor._task_nodes['train']
-        executor._run_task(node, spec)
+        config = executor._generate_compose_config(spec, {'train'})
 
-        docker_call_args = mock_run.call_args_list[-1][0][0]
-        self.assertIn('--shm-size', docker_call_args)
-        shm_index = docker_call_args.index('--shm-size')
-        self.assertEqual(docker_call_args[shm_index + 1], '16g')
+        self.assertEqual(config['services']['train']['shm_size'], '16g')
 
-    @mock.patch('subprocess.run')
-    def test_gpu_task_gets_custom_shm_size(self, mock_run):
-        """A GPU task uses the user-specified --shm-size value."""
-        mock_run.return_value = mock.Mock(returncode=0, stdout='0\n')
+    def test_gpu_task_gets_custom_shm_size(self):
+        """A GPU task uses the user-specified shm_size value."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: shm-test
@@ -950,18 +1148,12 @@ class TestShmSize(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
-        node = executor._task_nodes['train']
-        executor._run_task(node, spec)
+        config = executor._generate_compose_config(spec, {'train'})
 
-        docker_call_args = mock_run.call_args_list[-1][0][0]
-        self.assertIn('--shm-size', docker_call_args)
-        shm_index = docker_call_args.index('--shm-size')
-        self.assertEqual(docker_call_args[shm_index + 1], '32g')
+        self.assertEqual(config['services']['train']['shm_size'], '32g')
 
-    @mock.patch('subprocess.run')
-    def test_non_gpu_task_has_no_default_shm_size(self, mock_run):
-        """A CPU-only task without explicit shm_size does not include --shm-size."""
-        mock_run.return_value = mock.Mock(returncode=0)
+    def test_non_gpu_task_has_no_default_shm_size(self):
+        """A CPU-only task without explicit shm_size does not include shm_size."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: no-gpu
@@ -974,16 +1166,12 @@ class TestShmSize(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
-        node = executor._task_nodes['preprocess']
-        executor._run_task(node, spec)
+        config = executor._generate_compose_config(spec, {'preprocess'})
 
-        docker_call_args = mock_run.call_args[0][0]
-        self.assertNotIn('--shm-size', docker_call_args)
+        self.assertNotIn('shm_size', config['services']['preprocess'])
 
-    @mock.patch('subprocess.run')
-    def test_non_gpu_task_gets_explicit_shm_size(self, mock_run):
-        """A CPU-only task gets --shm-size when the user explicitly specifies it."""
-        mock_run.return_value = mock.Mock(returncode=0)
+    def test_non_gpu_task_gets_explicit_shm_size(self):
+        """A CPU-only task gets shm_size when the user explicitly specifies it."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: no-gpu
@@ -996,13 +1184,9 @@ class TestShmSize(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
-        node = executor._task_nodes['preprocess']
-        executor._run_task(node, spec)
+        config = executor._generate_compose_config(spec, {'preprocess'})
 
-        docker_call_args = mock_run.call_args[0][0]
-        self.assertIn('--shm-size', docker_call_args)
-        shm_index = docker_call_args.index('--shm-size')
-        self.assertEqual(docker_call_args[shm_index + 1], '8g')
+        self.assertEqual(config['services']['preprocess']['shm_size'], '8g')
 
 
 class TestJinjaTemplateDetection(unittest.TestCase):
@@ -1072,6 +1256,99 @@ class TestJinjaTemplateDetection(unittest.TestCase):
             self.assertNotIn('{{experiment_name}}', resolved)
         finally:
             os.unlink(path)
+
+
+class TestUnresolvedVariables(unittest.TestCase):
+    """Verify that unresolved template variables are detected."""
+
+    def test_unresolved_variable_detected(self):
+        """A bare {{ variable }} without a default-values entry is rejected."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: "{{ missing_var }}"
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo"]
+        ''')
+        with self.assertRaises(ValueError) as context:
+            check_unresolved_variables(spec_text)
+        self.assertIn('missing_var', str(context.exception))
+
+    def test_osmo_runtime_tokens_allowed(self):
+        """OSMO runtime tokens (output, input, host, etc.) are not flagged."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: ok
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["sh", "-c"]
+                args: ["echo data > {{output}}/file.txt && cat {{input:0}}/data.csv"]
+                environment:
+                  HOST: "{{ host:worker }}"
+        ''')
+        check_unresolved_variables(spec_text)
+
+    def test_mixed_resolved_and_unresolved(self):
+        """OSMO tokens pass but an unresolved variable is caught."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: "{{ undefined_name }}"
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["sh", "-c"]
+                args: ["echo > {{output}}/file.txt"]
+        ''')
+        with self.assertRaises(ValueError) as context:
+            check_unresolved_variables(spec_text)
+        self.assertIn('undefined_name', str(context.exception))
+        self.assertNotIn('output', str(context.exception))
+
+    def test_unresolved_variable_in_run_workflow_locally(self):
+        """run_workflow_locally rejects specs with unresolved variables."""
+        path = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
+        path.write(textwrap.dedent('''\
+            workflow:
+              name: "{{ missing }}"
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo"]
+        '''))
+        path.flush()
+        path.close()
+        try:
+            with self.assertRaises(ValueError) as context:
+                run_workflow_locally(path.name)
+            self.assertIn('Unresolved template variables', str(context.exception))
+        finally:
+            os.unlink(path.name)
+
+    def test_default_values_prevents_unresolved_error(self):
+        """Variables defined in default-values are resolved and don't trigger the check."""
+        path = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
+        path.write(textwrap.dedent('''\
+            workflow:
+              name: "{{ my_name }}"
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo"]
+            default-values:
+              my_name: resolved-name
+        '''))
+        path.flush()
+        path.close()
+        try:
+            with open(path.name, encoding='utf-8') as f:
+                spec_text = f.read()
+            resolved = spec_includes.resolve_default_values(spec_text)
+            check_unresolved_variables(resolved)
+            self.assertIn('resolved-name', resolved)
+        finally:
+            os.unlink(path.name)
 
 
 class TestIncludesWithDefaultValues(unittest.TestCase):
@@ -1460,13 +1737,13 @@ class TestRunWorkflowLocallyErrors(unittest.TestCase):
 
 
 # ============================================================================
-# Integration tests — require Docker; test actual container execution
+# Integration tests — require Docker + Compose; test actual container execution
 # ============================================================================
 @unittest.skipUnless(DOCKER_AVAILABLE, SKIP_DOCKER_MSG)
 class TestDockerExecution(unittest.TestCase):
     """
     Integration tests that run real OSMO workflow specs through the local executor
-    using Docker. Each test uses a spec that would normally run on a Kubernetes cluster.
+    using Docker Compose. Each test uses a spec that would normally run on a Kubernetes cluster.
     """
 
     def setUp(self):
@@ -1771,8 +2048,6 @@ class TestDockerExecution(unittest.TestCase):
                 - task: root
         ''')
         result = self._execute_spec(spec_text)
-        # The executor should stop on first failure, so the overall result is False.
-        # root succeeds, then one of the branches fails.
         self.assertFalse(result)
 
     # ---- Groups (ganged tasks) tests ----
@@ -1923,6 +2198,26 @@ class TestDockerExecution(unittest.TestCase):
         )
         spec = executor.load_spec(spec_text)
         self.assertTrue(executor.execute(spec))
+
+    # ---- Compose file is generated ----
+
+    def test_compose_file_generated(self):
+        """Executing a workflow generates a docker-compose.yml in the work directory."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: compose-check
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo", "ok"]
+        ''')
+        self.assertTrue(self._execute_spec(spec_text))
+        compose_path = os.path.join(self.work_dir, 'docker-compose.yml')
+        self.assertTrue(os.path.exists(compose_path))
+        with open(compose_path) as f:
+            config = yaml.safe_load(f.read())
+        self.assertIn('services', config)
+        self.assertIn('task', config['services'])
 
 
 # ============================================================================

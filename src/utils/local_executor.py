@@ -15,10 +15,10 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
-# Security: This module executes workflow specs by invoking Docker via
-# subprocess.run with caller-supplied docker_args.  Specs must come from
-# trusted sources.  Path-traversal protections are in place for data
-# directories, but the spec itself is not sandboxed.
+# Security: This module executes workflow specs by generating a
+# docker-compose.yml and invoking Docker Compose via subprocess.
+# Specs must come from trusted sources.  Path-traversal protections
+# are in place for data directories, but the spec itself is not sandboxed.
 
 import dataclasses
 import json
@@ -28,6 +28,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections import deque
 from typing import Dict, List, Set
 
 import yaml
@@ -40,6 +41,14 @@ from src.utils.job import workflow as workflow_module
 logger = logging.getLogger(__name__)
 
 STATE_FILE_NAME = '.osmo-state.json'
+COMPOSE_FILE_NAME = 'docker-compose.yml'
+
+OSMO_OUTPUT_PATH = '/osmo/data/output'
+OSMO_INPUT_PATH_PREFIX = '/osmo/data/input'
+
+_OSMO_RUNTIME_TOKEN = re.compile(
+    r'\{\{\s*(uuid|workflow_id|output|input:[^}]+|host:[^}]+|item)\s*\}\}')
+_ANY_DOUBLE_BRACE = re.compile(r'\{\{[^}]+?\}\}')
 
 
 @dataclasses.dataclass
@@ -65,15 +74,18 @@ class TaskResult:
 
 class LocalExecutor:
     """
-    Executes an OSMO workflow spec locally using Docker, without Kubernetes.
+    Executes an OSMO workflow spec locally using Docker Compose, without Kubernetes.
 
-    Supports:
-      - Serial and parallel task DAGs (groups flattened to individual tasks)
-      - {{output}} and {{input:N}} / {{input:taskname}} token substitution
-      - Inline `files:` written to the container
-      - `environment:` passed as Docker env vars
-      - Task-to-task data flow via shared local directories
-      - GPU passthrough via --gpus for tasks that declare gpu > 0 in resources
+    Generates a docker-compose.yml from the workflow spec and runs
+    ``docker compose up``, giving:
+
+      - Correct container paths matching on-cluster behavior
+        (``/osmo/data/output``, ``/osmo/data/input/N``)
+      - Real parallel execution with native dependency ordering
+        via ``depends_on: condition: service_completed_successfully``
+      - Cycle detection (Compose validates the DAG; also checked upfront)
+      - DNS-addressable service names for ``{{host:taskname}}``
+      - GPU passthrough via ``deploy.resources.reservations.devices``
 
     Does NOT support (raises clear errors):
       - Dataset / URL inputs/outputs (require object storage)
@@ -88,7 +100,7 @@ class LocalExecutor:
                  shm_size: str | None = None):
         """Initialize the executor with a work directory, cleanup preference,
         and container runtime command."""
-        self._work_dir = work_dir
+        self._work_dir = os.path.abspath(work_dir)
         self._keep_work_dir = keep_work_dir
         self._docker_cmd = docker_cmd
         self._shm_size = shm_size
@@ -135,57 +147,323 @@ class LocalExecutor:
 
     def execute(self, spec: workflow_module.WorkflowSpec,
                 resume: bool = False, from_step: str | None = None) -> bool:
-        """Run all tasks in topological order, returning True if the entire workflow succeeds."""
+        """Run all tasks via Docker Compose, returning True if the entire workflow succeeds."""
         self._results.clear()
         self._build_dag(spec)
+        self._detect_cycles()
         self._validate_for_local(spec)
         self._setup_directories()
 
         if resume or from_step:
             self._restore_completed_tasks(from_step)
 
+        tasks_to_run = set(self._task_nodes.keys()) - set(self._results.keys())
+        if not tasks_to_run:
+            logger.info('Workflow "%s": all tasks already completed', spec.name)
+            return True
+
         total_tasks = sum(len(g.tasks) for g in self._groups(spec))
         skipped = len(self._results)
-        remaining = total_tasks - skipped
         if skipped > 0:
             logger.info('Workflow "%s": resuming — %d task(s) skipped, %d remaining',
-                         spec.name, skipped, remaining)
+                         spec.name, skipped, len(tasks_to_run))
         else:
             logger.info('Workflow "%s": %d task(s) across %d group(s)',
                          spec.name, total_tasks, len(self._groups(spec)))
 
-        ready = self._find_ready_tasks()
-        while ready:
-            for task_name in ready:
-                node = self._task_nodes[task_name]
-                logger.info('--- Running task: %s (image: %s) ---', task_name, node.spec.image)
-                result = self._run_task(node, spec)
-                self._results[task_name] = result
-                self._save_state()
+        compose_config = self._generate_compose_config(spec, tasks_to_run)
+        compose_path = os.path.join(self._work_dir, COMPOSE_FILE_NAME)
+        with open(compose_path, 'w', encoding='utf-8') as f:
+            yaml.dump(compose_config, f, default_flow_style=False, sort_keys=False)
 
-                if result.exit_code != 0:
-                    logger.error('Task "%s" failed with exit code %d', task_name, result.exit_code)
-                    self._cancel_downstream(task_name)
-                    return False
+        logger.info('Generated %s', compose_path)
 
-                logger.info('Task "%s" completed successfully', task_name)
+        project_name = re.sub(r'[^a-z0-9-]', '-', os.path.basename(self._work_dir).lower())
+        compose_cmd = [
+            self._docker_cmd, 'compose',
+            '-f', compose_path,
+            '--project-name', project_name,
+            'up',
+        ]
 
-            ready = self._find_ready_tasks()
+        logger.info('Starting Docker Compose execution')
+
+        try:
+            process = subprocess.run(compose_cmd, capture_output=False, check=False)
+            compose_exit_code = process.returncode
+        except FileNotFoundError:
+            logger.error(
+                '%s not found. Is Docker (with Compose V2) installed and in your PATH?',
+                self._docker_cmd)
+            return False
+
+        self._collect_compose_results(compose_path, project_name, tasks_to_run)
+        self._save_state()
+        self._compose_down(compose_path, project_name)
+
+        failed = [name for name, r in self._results.items()
+                  if r.exit_code != 0 and r.exit_code != -1]
+        not_run = [name for name, r in self._results.items() if r.exit_code == -1]
+
+        if failed:
+            logger.error('Workflow failed. Failed tasks: %s', ', '.join(sorted(failed)))
+            if not_run:
+                logger.error('Tasks not started (blocked by failures): %s',
+                             ', '.join(sorted(not_run)))
+            return False
 
         unexecuted = set(self._task_nodes.keys()) - set(self._results.keys())
         if unexecuted:
             logger.error(
-                'Workflow "%s" stalled — tasks not schedulable (possible cycle): %s',
+                'Workflow "%s" stalled — tasks not completed: %s',
                 spec.name, ', '.join(sorted(unexecuted)))
             return False
 
-        failed = [name for name, r in self._results.items() if r.exit_code != 0]
-        if failed:
-            logger.error('Workflow failed. Failed tasks: %s', ', '.join(failed))
+        if compose_exit_code != 0:
+            logger.error('Docker Compose exited with code %d', compose_exit_code)
             return False
 
         logger.info('Workflow "%s" completed successfully', spec.name)
         return True
+
+    def _detect_cycles(self):
+        """Detect cycles in the task DAG using Kahn's algorithm (topological sort).
+
+        Raises ValueError with the names of tasks involved in the cycle."""
+        in_degree = {name: len(node.upstream) for name, node in self._task_nodes.items()}
+        queue: deque[str] = deque(
+            name for name, degree in in_degree.items() if degree == 0)
+        visited_count = 0
+
+        while queue:
+            current = queue.popleft()
+            visited_count += 1
+            for downstream in self._task_nodes[current].downstream:
+                in_degree[downstream] -= 1
+                if in_degree[downstream] == 0:
+                    queue.append(downstream)
+
+        if visited_count != len(self._task_nodes):
+            cycle_members = sorted(
+                name for name, degree in in_degree.items() if degree > 0)
+            raise ValueError(
+                f'Circular dependency detected among tasks: {", ".join(cycle_members)}')
+
+    def _generate_compose_config(self, spec: workflow_module.WorkflowSpec,
+                                 tasks_to_run: Set[str]) -> Dict:
+        """Generate a docker-compose.yml configuration dict for the tasks that need to run."""
+        services: Dict[str, Dict] = {}
+        for task_name in self._topological_order():
+            if task_name not in tasks_to_run:
+                continue
+            node = self._task_nodes[task_name]
+            services[task_name] = self._build_service_config(node, spec, tasks_to_run)
+        return {'services': services}
+
+    def _topological_order(self) -> List[str]:
+        """Return task names in topological order (stable, respecting insertion order)."""
+        in_degree = {name: len(node.upstream) for name, node in self._task_nodes.items()}
+        queue: deque[str] = deque(
+            name for name in self._task_nodes if in_degree[name] == 0)
+        order: List[str] = []
+        while queue:
+            current = queue.popleft()
+            order.append(current)
+            for downstream in self._task_nodes[current].downstream:
+                in_degree[downstream] -= 1
+                if in_degree[downstream] == 0:
+                    queue.append(downstream)
+        return order
+
+    @staticmethod
+    def _escape_compose_interpolation(text: str) -> str:
+        """Escape ``$`` as ``$$`` to prevent Docker Compose host-variable interpolation.
+
+        Docker Compose expands ``$VAR`` and ``${VAR}`` from the host
+        environment before passing values to containers.  Doubling the
+        dollar sign makes it a literal ``$`` that the container's shell
+        can then expand from the container's own environment."""
+        return text.replace('$', '$$')
+
+    def _build_service_config(self, node: TaskNode,
+                              spec: workflow_module.WorkflowSpec,
+                              tasks_to_run: Set[str]) -> Dict:
+        """Build a single Docker Compose service configuration for a task."""
+        task_spec = node.spec
+        task_dir = os.path.join(self._work_dir, node.name)
+        output_dir = os.path.join(task_dir, 'output')
+        os.makedirs(output_dir, exist_ok=True)
+
+        token_map = self._build_container_token_map(node)
+        service: Dict = {'image': task_spec.image}
+
+        volumes = [f'{output_dir}:{OSMO_OUTPUT_PATH}']
+        for index, input_source in enumerate(task_spec.inputs):
+            if isinstance(input_source, task_module.TaskInputOutput):
+                upstream_task = input_source.task
+                if upstream_task in self._results:
+                    upstream_output = self._results[upstream_task].output_dir
+                else:
+                    upstream_output = os.path.join(self._work_dir, upstream_task, 'output')
+
+                container_index = f'{OSMO_INPUT_PATH_PREFIX}/{index}'
+                container_named = f'{OSMO_INPUT_PATH_PREFIX}/{upstream_task}'
+                volumes.append(f'{upstream_output}:{container_index}:ro')
+                if container_index != container_named:
+                    volumes.append(f'{upstream_output}:{container_named}:ro')
+
+        files_dir = os.path.join(task_dir, 'files')
+        os.makedirs(files_dir, exist_ok=True)
+        for file_spec in task_spec.files:
+            resolved_contents = self._substitute_tokens(file_spec.contents, token_map)
+            host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
+            if not host_path.startswith(os.path.realpath(files_dir) + os.sep):
+                raise ValueError(
+                    f'Task "{node.name}": file path "{file_spec.path}" escapes the task directory')
+            os.makedirs(os.path.dirname(host_path), exist_ok=True)
+            with open(host_path, 'w', encoding='utf-8') as f:
+                f.write(resolved_contents)
+            volumes.append(f'{host_path}:{file_spec.path}:ro')
+
+        service['volumes'] = volumes
+
+        resolved_command = [
+            self._escape_compose_interpolation(self._substitute_tokens(c, token_map))
+            for c in task_spec.command]
+        resolved_args = [
+            self._escape_compose_interpolation(self._substitute_tokens(a, token_map))
+            for a in task_spec.args]
+
+        if resolved_command:
+            service['entrypoint'] = [resolved_command[0]]
+            rest = resolved_command[1:] + resolved_args
+            if rest:
+                service['command'] = rest
+
+        if task_spec.environment:
+            service['environment'] = {
+                key: self._escape_compose_interpolation(
+                    self._substitute_tokens(value, token_map))
+                for key, value in task_spec.environment.items()
+            }
+
+        gpu_count = self._task_gpu_count(task_spec, spec)
+        if gpu_count > 0:
+            available = self._detect_available_gpus()
+            effective_count = min(gpu_count, available) if available > 0 else 0
+            if effective_count > 0:
+                service['deploy'] = {
+                    'resources': {
+                        'reservations': {
+                            'devices': [{
+                                'driver': 'nvidia',
+                                'count': effective_count,
+                                'capabilities': [['gpu']],
+                            }]
+                        }
+                    }
+                }
+                logger.info(
+                    'Task "%s" requesting %d GPU(s), using %d',
+                    node.name, gpu_count, effective_count)
+            else:
+                logger.warning(
+                    'Task "%s" requests %d GPU(s) but no GPUs available'
+                    ' — running without GPU support',
+                    node.name, gpu_count)
+            service['shm_size'] = self._shm_size or self.DEFAULT_SHM_SIZE
+        elif self._shm_size:
+            service['shm_size'] = self._shm_size
+
+        depends_on: Dict[str, Dict] = {}
+        for upstream_task in sorted(node.upstream):
+            if upstream_task in tasks_to_run:
+                depends_on[upstream_task] = {
+                    'condition': 'service_completed_successfully'}
+        if depends_on:
+            service['depends_on'] = depends_on
+
+        return service
+
+    def _build_container_token_map(self, node: TaskNode) -> Dict[str, str]:
+        """Build a mapping of {{token}} keys to on-cluster container paths."""
+        tokens: Dict[str, str] = {
+            'output': OSMO_OUTPUT_PATH,
+        }
+        for index, input_source in enumerate(node.spec.inputs):
+            if isinstance(input_source, task_module.TaskInputOutput):
+                tokens[f'input:{input_source.task}'] = (
+                    f'{OSMO_INPUT_PATH_PREFIX}/{input_source.task}')
+                tokens[f'input:{index}'] = f'{OSMO_INPUT_PATH_PREFIX}/{index}'
+
+        for task_name in self._task_nodes:
+            tokens[f'host:{task_name}'] = task_name
+
+        return tokens
+
+    def _collect_compose_results(self, compose_path: str, project_name: str,
+                                 tasks_to_run: Set[str]):
+        """Collect exit codes from Docker Compose services after execution."""
+        try:
+            result = subprocess.run(
+                [self._docker_cmd, 'compose', '-f', compose_path,
+                 '--project-name', project_name,
+                 'ps', '-a', '--format', 'json'],
+                capture_output=True, text=True, check=False, timeout=30)
+
+            if result.returncode == 0 and result.stdout.strip():
+                for info in self._parse_compose_ps_output(result.stdout):
+                    service_name = info.get('Service', '')
+                    if service_name in tasks_to_run and service_name not in self._results:
+                        exit_code = info.get('ExitCode', -1)
+                        output_dir = os.path.join(
+                            self._work_dir, service_name, 'output')
+                        self._results[service_name] = TaskResult(
+                            name=service_name,
+                            exit_code=exit_code,
+                            output_dir=output_dir)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+        for task_name in tasks_to_run:
+            if task_name not in self._results:
+                output_dir = os.path.join(self._work_dir, task_name, 'output')
+                self._results[task_name] = TaskResult(
+                    name=task_name, exit_code=-1, output_dir=output_dir)
+
+    @staticmethod
+    def _parse_compose_ps_output(output: str) -> List[Dict]:
+        """Parse the JSON output from ``docker compose ps --format json``.
+
+        Handles both a single JSON array and newline-delimited JSON objects."""
+        output = output.strip()
+        try:
+            data = json.loads(output)
+            if isinstance(data, list):
+                return data
+            return [data]
+        except json.JSONDecodeError:
+            results: List[Dict] = []
+            for line in output.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    results.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+            return results
+
+    def _compose_down(self, compose_path: str, project_name: str):
+        """Clean up Docker Compose containers and networks (preserves bind-mounted data)."""
+        try:
+            subprocess.run(
+                [self._docker_cmd, 'compose', '-f', compose_path,
+                 '--project-name', project_name,
+                 'down', '--remove-orphans'],
+                capture_output=True, check=False, timeout=60)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
 
     @property
     def _state_file_path(self) -> str:
@@ -339,32 +617,6 @@ class LocalExecutor:
         for task_name in self._task_nodes:
             os.makedirs(os.path.join(self._work_dir, task_name, 'output'), exist_ok=True)
 
-    def _find_ready_tasks(self) -> List[str]:
-        """Return tasks whose upstream dependencies have all completed successfully."""
-        completed = set(self._results.keys())
-        ready = []
-        for name, node in self._task_nodes.items():
-            if name in completed:
-                continue
-            if node.upstream.issubset(completed):
-                all_upstream_ok = all(self._results[u].exit_code == 0 for u in node.upstream)
-                if all_upstream_ok:
-                    ready.append(name)
-        return ready
-
-    def _cancel_downstream(self, failed_task: str):
-        """Mark all transitive downstream tasks of a failed task as cancelled (exit_code -1)."""
-        visited: Set[str] = set()
-        queue = [failed_task]
-        while queue:
-            current = queue.pop(0)
-            for downstream in self._task_nodes[current].downstream:
-                if downstream not in visited and downstream not in self._results:
-                    visited.add(downstream)
-                    self._results[downstream] = TaskResult(
-                        name=downstream, exit_code=-1, output_dir='')
-                    queue.append(downstream)
-
     def _task_gpu_count(self, task_spec: task_module.TaskSpec,
                         spec: workflow_module.WorkflowSpec) -> int:
         """Return the number of GPUs requested by a task's resource spec, defaulting to 0."""
@@ -373,115 +625,37 @@ class LocalExecutor:
             return resource_spec.gpu
         return 0
 
-    def _run_task(self, node: TaskNode, spec: workflow_module.WorkflowSpec) -> TaskResult:
-        """Execute a single task as a Docker container, mounting
-        inputs/outputs/files and returning the result."""
-        task_spec = node.spec
-        task_dir = os.path.join(self._work_dir, node.name)
-        output_dir = os.path.join(task_dir, 'output')
-        files_dir = os.path.join(task_dir, 'files')
-        os.makedirs(files_dir, exist_ok=True)
-
-        token_map = self._build_token_map(node, output_dir)
-
-        for file_spec in task_spec.files:
-            resolved_contents = self._substitute_tokens(file_spec.contents, token_map)
-            host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
-            if not host_path.startswith(os.path.realpath(files_dir) + os.sep):
-                raise ValueError(
-                    f'Task "{node.name}": file path "{file_spec.path}" escapes the task directory')
-            os.makedirs(os.path.dirname(host_path), exist_ok=True)
-            with open(host_path, 'w', encoding='utf-8') as f:
-                f.write(resolved_contents)
-
-        resolved_command = [self._substitute_tokens(c, token_map) for c in task_spec.command]
-        resolved_args = [self._substitute_tokens(a, token_map) for a in task_spec.args]
-
-        docker_args = [self._docker_cmd, 'run', '--rm']
-
-        gpu_count = self._task_gpu_count(task_spec, spec)
-        if gpu_count > 0:
-            available = self._detect_available_gpus()
-            if available == 0:
-                logger.warning(
-                    'Task "%s" requests %d GPU(s) but no GPUs available'
-                    ' — running without GPU support',
-                    node.name, gpu_count)
-            elif gpu_count > available:
-                logger.warning(
-                    'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
-                    node.name, gpu_count, available, available)
-                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(available))}']
-            else:
-                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(gpu_count))}']
-            logger.info(
-                'Task "%s" requesting %d GPU(s), using %d',
-                node.name, gpu_count, min(gpu_count, available))
-
-            docker_args += ['--shm-size', self._shm_size or self.DEFAULT_SHM_SIZE]
-        elif self._shm_size:
-            docker_args += ['--shm-size', self._shm_size]
-
-        for key, value in task_spec.environment.items():
-            resolved_value = self._substitute_tokens(value, token_map)
-            docker_args += ['-e', f'{key}={resolved_value}']
-
-        docker_args += ['-v', f'{output_dir}:{output_dir}']
-
-        for index, input_source in enumerate(task_spec.inputs):
-            if isinstance(input_source, task_module.TaskInputOutput):
-                upstream_result = self._results[input_source.task]
-                input_mount = token_map.get(f'input:{index}', upstream_result.output_dir)
-                docker_args += ['-v', f'{upstream_result.output_dir}:{input_mount}:ro']
-
-        for file_spec in task_spec.files:
-            host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
-            docker_args += ['-v', f'{host_path}:{file_spec.path}:ro']
-
-        if resolved_command:
-            docker_args += ['--entrypoint', resolved_command[0]]
-        docker_args.append(task_spec.image)
-        docker_args += resolved_command[1:] + resolved_args
-
-        if logger.isEnabledFor(logging.DEBUG):
-            redacted_args = []
-            skip_next = False
-            for arg in docker_args:
-                if skip_next:
-                    redacted_args.append(arg.split('=', 1)[0] + '=REDACTED')
-                    skip_next = False
-                elif arg == '-e':
-                    redacted_args.append(arg)
-                    skip_next = True
-                else:
-                    redacted_args.append(arg)
-            logger.debug('Docker command: %s', ' '.join(redacted_args))
-
-        try:
-            process = subprocess.run(docker_args, capture_output=False,
-                                        check=False)
-            return TaskResult(name=node.name, exit_code=process.returncode, output_dir=output_dir)
-        except FileNotFoundError:
-            logger.error('Docker not found. Is Docker installed and in your PATH?')
-            return TaskResult(name=node.name, exit_code=127, output_dir=output_dir)
-
-    def _build_token_map(self, node: TaskNode, output_dir: str) -> Dict[str, str]:
-        """Build a mapping of {{token}} keys to host paths for output and each upstream input."""
-        tokens: Dict[str, str] = {
-            'output': output_dir,
-        }
-        for index, input_source in enumerate(node.spec.inputs):
-            if isinstance(input_source, task_module.TaskInputOutput):
-                upstream_result = self._results[input_source.task]
-                tokens[f'input:{input_source.task}'] = upstream_result.output_dir
-                tokens[f'input:{index}'] = upstream_result.output_dir
-        return tokens
-
     def _substitute_tokens(self, text: str, tokens: Dict[str, str]) -> str:
         """Replace all {{key}} placeholders in text with their corresponding token values."""
         for key, value in tokens.items():
             text = re.sub(r'\{\{\s*' + re.escape(key) + r'\s*\}\}', value, text)
         return text
+
+
+def check_unresolved_variables(spec_text: str):
+    """Raise ValueError if the spec contains ``{{ variable }}`` placeholders
+    that are not OSMO runtime tokens.
+
+    OSMO runtime tokens (``{{output}}``, ``{{input:…}}``, ``{{host:…}}``,
+    ``{{uuid}}``, ``{{workflow_id}}``, ``{{item}}``) are left intact since
+    they are resolved at container runtime.  Any other ``{{ }}`` pattern
+    indicates a template variable that was not expanded by ``default-values``
+    and would pass through silently, causing subtle breakage.
+    """
+    all_braces = _ANY_DOUBLE_BRACE.findall(spec_text)
+    unresolved = [
+        token for token in all_braces
+        if not _OSMO_RUNTIME_TOKEN.match(token)
+    ]
+    if unresolved:
+        unique = sorted(set(unresolved))
+        raise ValueError(
+            'Unresolved template variables found in spec (did you forget to '
+            'add them to default-values?):\n  '
+            + '\n  '.join(unique)
+            + '\nHint: use "osmo workflow submit --dry-run -f <spec>" to '
+            'expand Jinja templates server-side, or add the variables to '
+            'the default-values section.')
 
 
 def run_workflow_locally(spec_path: str, work_dir: str | None = None,
@@ -490,7 +664,7 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
                          from_step: str | None = None,
                          docker_cmd: str = 'docker',
                          shm_size: str | None = None) -> bool:
-    """Load a workflow spec from disk and execute it locally via Docker,
+    """Load a workflow spec from disk and execute it locally via Docker Compose,
     managing the work directory lifecycle."""
     if (resume or from_step) and work_dir is None:
         raise ValueError(
@@ -511,9 +685,11 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
             'Run "osmo workflow submit --dry-run -f <spec>" first to get the expanded spec,\n'
             'then save that output and run it locally.')
 
+    check_unresolved_variables(spec_text)
+
     created_work_dir = work_dir is None
     effective_work_dir: str = (
-        work_dir if work_dir is not None
+        os.path.abspath(work_dir) if work_dir is not None
         else tempfile.mkdtemp(prefix='osmo-local-')
     )
     if created_work_dir:

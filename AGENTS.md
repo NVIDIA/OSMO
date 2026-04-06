@@ -120,7 +120,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `utils/job/` | `Task`, `FrontendJob`, `K8sObjectFactory`, `PodGroupTopologyBuilder` | Workflow execution framework. Task → K8s spec generation. Gang scheduling via PodGroup. Topology constraints. Backend job definitions. |
 | `utils/connectors/` | `ClusterConnector`, `PostgresConnector`, `RedisConnector` | K8s API wrapper, PostgreSQL operations, Redis job queue management. |
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
-| `utils/local_executor.py` | `LocalExecutor`, `run_workflow_locally` | Local Docker-based workflow execution. Runs workflow specs without Kubernetes by mapping tasks to `docker run` commands with volume mounts for data flow. Supports DAG scheduling, resume (`--from-step`), and GPU passthrough. |
+| `utils/local_executor.py` | `LocalExecutor`, `run_workflow_locally` | Local Docker Compose-based workflow execution. Generates a `docker-compose.yml` from workflow specs and runs `docker compose up`, providing on-cluster container paths (`/osmo/data/output`, `/osmo/data/input/N`), real parallel execution via `depends_on`, cycle detection, DNS-addressable `{{host:taskname}}`, resume (`--from-step`), and GPU passthrough. |
 | `utils/spec_includes.py` | `resolve_includes` | Helpers to resolve and merge workflow spec `includes` directives into fully composed specs. Supports recursive inclusion, cycle detection, deep-merging, and `default-values` variable expansion. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
