@@ -230,7 +230,10 @@ Benefits of the separate gateway model:
 | `gateway.enabled` | Deploy the standalone gateway | `false` |
 | `gateway.name` | Name prefix for all gateway resources | `osmo-gateway` |
 | `gateway.envoy.enabled` | Enable Envoy deployment | `true` |
-| `gateway.envoy.replicas` | Number of Envoy replicas | `2` |
+| `gateway.envoy.scaling.minReplicas` | Minimum number of Envoy replicas | `2` |
+| `gateway.envoy.scaling.maxReplicas` | Maximum number of Envoy replicas | `6` |
+| `gateway.envoy.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
+| `gateway.envoy.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
 | `gateway.envoy.image` | Envoy image | `envoyproxy/envoy:v1.29.0` |
 | `gateway.envoy.logLevel` | Envoy log level | `info` |
 | `gateway.envoy.listenerPort` | Listener port | `8080` |
@@ -254,18 +257,27 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.upstreams.service.host` | osmo-service K8s DNS name | `osmo-service` |
 | `gateway.upstreams.service.port` | osmo-service port | `80` |
 | `gateway.upstreams.router.enabled` | Route to osmo-router | `true` |
-| `gateway.upstreams.router.host` | osmo-router K8s DNS name | `osmo-router` |
-| `gateway.upstreams.router.port` | osmo-router port | `80` |
+| `gateway.upstreams.router.host` | osmo-router headless K8s DNS name | `osmo-router-headless` |
+| `gateway.upstreams.router.port` | osmo-router pod port (headless resolves to pod IPs) | `8000` |
 | `gateway.upstreams.ui.enabled` | Route to osmo-ui | `true` |
 | `gateway.upstreams.ui.host` | osmo-ui K8s DNS name | `osmo-ui` |
 | `gateway.upstreams.ui.port` | osmo-ui port | `80` |
+| `gateway.upstreams.agent.enabled` | Route to osmo-agent | `true` |
+| `gateway.upstreams.agent.host` | osmo-agent K8s DNS name | `osmo-agent` |
+| `gateway.upstreams.agent.port` | osmo-agent port | `80` |
+| `gateway.upstreams.logger.enabled` | Route to osmo-logger | `true` |
+| `gateway.upstreams.logger.host` | osmo-logger K8s DNS name | `osmo-logger` |
+| `gateway.upstreams.logger.port` | osmo-logger port | `80` |
 
 #### Gateway OAuth2 Proxy
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `gateway.oauth2Proxy.enabled` | Enable OAuth2 Proxy deployment | `true` |
-| `gateway.oauth2Proxy.replicas` | Number of replicas | `1` |
+| `gateway.oauth2Proxy.scaling.minReplicas` | Minimum number of OAuth2 Proxy replicas | `1` |
+| `gateway.oauth2Proxy.scaling.maxReplicas` | Maximum number of OAuth2 Proxy replicas | `3` |
+| `gateway.oauth2Proxy.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
+| `gateway.oauth2Proxy.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
 | `gateway.oauth2Proxy.image` | OAuth2 Proxy image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
 | `gateway.oauth2Proxy.provider` | OIDC provider type | `oidc` |
 | `gateway.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
@@ -278,7 +290,10 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `gateway.authz.enabled` | Enable Authz deployment | `true` |
-| `gateway.authz.replicas` | Number of replicas | `1` |
+| `gateway.authz.scaling.minReplicas` | Minimum number of Authz replicas | `1` |
+| `gateway.authz.scaling.maxReplicas` | Maximum number of Authz replicas | `3` |
+| `gateway.authz.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
+| `gateway.authz.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
 | `gateway.authz.imageName` | Authz image name | `authz-sidecar` |
 | `gateway.authz.imageTag` | Override image tag (defaults to `global.osmoImageTag`) | `""` |
 | `gateway.authz.grpcPort` | gRPC port | `50052` |
