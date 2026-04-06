@@ -1,0 +1,609 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{- if .Values.gateway.enabled }}
+{{- $gw := .Values.gateway }}
+{{- $gwName := include "osmo.gateway-name" . }}
+
+{{/* Validate required fields */}}
+{{- if and $gw.oauth2Proxy.enabled (not $gw.envoy.hostname) }}
+  {{- fail "gateway.envoy.hostname is required when gateway.oauth2Proxy.enabled is true (used for the OAuth2 redirect URL)" }}
+{{- end }}
+
+{{/* ================================================================ */}}
+{{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
+{{/* ================================================================ */}}
+{{- include "osmo.gateway-envoy-config" . }}
+
+---
+
+{{- if $gw.envoy.enabled }}
+
+{{/* ================================================================ */}}
+{{/* Envoy Deployment                                                 */}}
+{{/* ================================================================ */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $gwName }}-envoy
+spec:
+  replicas: {{ $gw.envoy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 8 }}
+      annotations:
+        {{- include "osmo.extra-annotations" $gw.envoy | nindent 8 }}
+    spec:
+      {{- with $gw.envoy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gw.envoy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" $gw.envoy.serviceAccountName "Values" .Values) }}
+      containers:
+      - name: envoy
+        securityContext:
+          {{- toYaml $gw.envoy.securityContext | nindent 10 }}
+        image: "{{ $gw.envoy.image }}"
+        imagePullPolicy: {{ $gw.envoy.imagePullPolicy }}
+        args:
+          - -c
+          - /var/config/bootstrap.yaml
+          - --log-level
+          - {{ $gw.envoy.logLevel | default "info" }}
+        ports:
+          {{- if $gw.envoy.ssl.enabled }}
+          - containerPort: 443
+            name: envoy-http
+          {{- else }}
+          - containerPort: {{ $gw.envoy.listenerPort }}
+            name: envoy-http
+          {{- end }}
+          - containerPort: 9901
+            name: envoy-admin
+        volumeMounts:
+          - mountPath: /var/config
+            name: envoy-config
+            readOnly: true
+          {{- if $gw.tls.enabled }}
+          - name: gateway-tls-ca
+            mountPath: /etc/gateway-tls
+            readOnly: true
+          {{- end }}
+          {{- if $gw.envoy.ssl.enabled }}
+          - name: ssl-cert
+            mountPath: /etc/ssl/envoy-certs
+            readOnly: true
+          {{- end }}
+        resources:
+          {{- toYaml $gw.envoy.resources | nindent 10 }}
+        {{- with $gw.envoy.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $gw.envoy.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $gw.envoy.startupProbe }}
+        startupProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+      volumes:
+        - name: envoy-config
+          configMap:
+            name: {{ $gwName }}-envoy-config
+        {{- if $gw.tls.enabled }}
+        - name: gateway-tls-ca
+          secret:
+            secretName: {{ $gwName }}-ca-tls
+            items:
+            - key: ca.crt
+              path: ca.crt
+        {{- end }}
+        {{- if $gw.envoy.ssl.enabled }}
+        - name: ssl-cert
+          secret:
+            secretName: {{ $gw.envoy.ssl.secretName | default "envoy-ssl-cert" }}
+        {{- end }}
+
+---
+
+{{/* ================================================================ */}}
+{{/* Envoy Service                                                    */}}
+{{/* ================================================================ */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $gwName }}
+spec:
+  ports:
+    - port: 80
+      targetPort: envoy-http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 4 }}
+
+---
+
+{{/* ================================================================ */}}
+{{/* Envoy Ingress                                                    */}}
+{{/* ================================================================ */}}
+{{- if $gw.envoy.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $gwName }}
+  annotations:
+    {{- if $gw.envoy.ingress.albAnnotations.enabled }}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: osmo
+    alb.ingress.kubernetes.io/group.order: "10"
+    alb.ingress.kubernetes.io/certificate-arn: {{ $gw.envoy.ingress.albAnnotations.sslCertArn }}
+    {{- if $gw.envoy.ssl.enabled }}
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    {{- end }}
+    {{- end }}
+    {{- if $gw.envoy.ssl.enabled }}
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    {{- end }}
+    {{- range $k, $v := $gw.envoy.ingress.annotations }}
+    {{ $k }}: {{ $v | quote }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $gw.envoy.ingress.ingressClass }}
+  rules:
+  - host: {{ $gw.envoy.hostname }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ $gwName }}
+            port:
+              number: 80
+  {{- if $gw.envoy.ingress.sslEnabled }}
+  tls:
+  - hosts:
+    - {{ $gw.envoy.hostname }}
+    secretName: {{ $gw.envoy.ingress.sslSecret | default "osmo-tls" }}
+  {{- end }}
+{{- end }}
+
+{{- end }}{{/* end envoy.enabled */}}
+
+---
+
+{{/* ================================================================ */}}
+{{/* OAuth2 Proxy Deployment + Service                                */}}
+{{/* ================================================================ */}}
+{{- if $gw.oauth2Proxy.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $gwName }}-oauth2-proxy
+spec:
+  replicas: {{ $gw.oauth2Proxy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 8 }}
+      annotations:
+        {{- include "osmo.extra-annotations" $gw.oauth2Proxy | nindent 8 }}
+    spec:
+      {{- with $gw.oauth2Proxy.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gw.oauth2Proxy.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" $gw.oauth2Proxy.serviceAccountName "Values" .Values) }}
+      containers:
+      - name: oauth2-proxy
+        image: "{{ $gw.oauth2Proxy.image }}"
+        imagePullPolicy: {{ $gw.oauth2Proxy.imagePullPolicy }}
+        securityContext:
+          {{- toYaml $gw.oauth2Proxy.securityContext | nindent 10 }}
+        args:
+          {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
+          - --client-secret-file=/etc/oauth2-proxy/client-secret
+          - --cookie-secret-file=/etc/oauth2-proxy/cookie-secret
+          {{- else }}
+          - --config={{ $gw.oauth2Proxy.secretPaths.cookieSecret }}
+          {{- end }}
+          - --http-address=0.0.0.0:{{ $gw.oauth2Proxy.httpPort }}
+          - --metrics-address=0.0.0.0:{{ $gw.oauth2Proxy.metricsPort }}
+          - --reverse-proxy=true
+          - --provider={{ $gw.oauth2Proxy.provider }}
+          - --oidc-issuer-url={{ $gw.oauth2Proxy.oidcIssuerUrl }}
+          - --client-id={{ $gw.oauth2Proxy.clientId }}
+          - --cookie-secure={{ $gw.oauth2Proxy.cookieSecure }}
+          - --cookie-name={{ $gw.oauth2Proxy.cookieName }}
+          {{- if $gw.oauth2Proxy.cookieDomain }}
+          - --cookie-domain={{ $gw.oauth2Proxy.cookieDomain }}
+          {{- end }}
+          - --cookie-expire={{ $gw.oauth2Proxy.cookieExpire }}
+          - --cookie-refresh={{ $gw.oauth2Proxy.cookieRefresh }}
+          - --scope={{ $gw.oauth2Proxy.scope }}
+          - --email-domain=*
+          - --set-xauthrequest=true
+          - --set-authorization-header=true
+          - --pass-access-token={{ $gw.oauth2Proxy.passAccessToken }}
+          {{- $redisHost := $gw.oauth2Proxy.redis.serviceName | default $.Values.services.redis.serviceName }}
+          {{- if $gw.oauth2Proxy.redisSessionStore }}
+          - --session-store-type=redis
+          - --redis-connection-url={{ if $gw.oauth2Proxy.redis.tlsEnabled }}rediss{{ else }}redis{{ end }}://{{ $redisHost }}:{{ $gw.oauth2Proxy.redis.port | default 6379 }}/{{ $gw.oauth2Proxy.redis.dbNumber | default 0 }}
+          {{- end }}
+          - --upstream=static://200
+          - --redirect-url=https://{{ $gw.envoy.hostname }}/oauth2/callback
+          - --silence-ping-logging=true
+          - --skip-provider-button=true
+          - --api-route=/api/.+
+          {{- range $gw.oauth2Proxy.extraArgs }}
+          - {{ . }}
+          {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ $gw.oauth2Proxy.httpPort }}
+        - name: oauth2-metrics
+          containerPort: {{ $gw.oauth2Proxy.metricsPort }}
+        livenessProbe:
+          httpGet: { path: /ping, port: http }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+        readinessProbe:
+          httpGet: { path: /ready, port: http }
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+        resources:
+          {{- toYaml $gw.oauth2Proxy.resources | nindent 10 }}
+        volumeMounts:
+          {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
+          - name: oauth2-proxy-secrets
+            mountPath: /etc/oauth2-proxy
+            readOnly: true
+          {{- end }}
+          {{- with $gw.oauth2Proxy.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+      volumes:
+        {{- if $gw.oauth2Proxy.useKubernetesSecrets }}
+        - name: oauth2-proxy-secrets
+          secret:
+            secretName: {{ $gw.oauth2Proxy.secretName | default "oauth2-proxy-secrets" }}
+            items:
+            - key: {{ $gw.oauth2Proxy.clientSecretKey | default "client_secret" }}
+              path: client-secret
+            - key: {{ $gw.oauth2Proxy.cookieSecretKey | default "cookie_secret" }}
+              path: cookie-secret
+        {{- end }}
+        {{- with $gw.oauth2Proxy.extraVolumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $gwName }}-oauth2-proxy
+spec:
+  ports:
+    - port: {{ $gw.oauth2Proxy.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ $gw.oauth2Proxy.metricsPort }}
+      targetPort: oauth2-metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "osmo.gateway-component-labels" (dict "component" "oauth2-proxy" "context" .) | nindent 4 }}
+{{- end }}
+
+---
+
+{{/* ================================================================ */}}
+{{/* Authz Deployment + Service                                       */}}
+{{/* ================================================================ */}}
+{{- if $gw.authz.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $gwName }}-authz
+spec:
+  replicas: {{ $gw.authz.replicas }}
+  selector:
+    matchLabels:
+      {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 8 }}
+      annotations:
+        {{- include "osmo.extra-annotations" $gw.authz | nindent 8 }}
+    spec:
+      {{- with $gw.authz.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gw.authz.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" $gw.authz.serviceAccountName "Values" .Values) }}
+      containers:
+      - name: authz
+        securityContext:
+          {{- toYaml $gw.authz.securityContext | nindent 10 }}
+        image: "{{ .Values.global.osmoImageLocation }}/{{ $gw.authz.imageName }}:{{ $gw.authz.imageTag | default .Values.global.osmoImageTag }}"
+        imagePullPolicy: {{ $gw.authz.imagePullPolicy }}
+        args:
+          - "--grpc-port={{ $gw.authz.grpcPort }}"
+          - "--postgres-host={{ .Values.services.postgres.serviceName }}"
+          - "--postgres-port={{ .Values.services.postgres.port }}"
+          - "--postgres-database={{ .Values.services.postgres.db }}"
+          - "--postgres-user={{ .Values.services.postgres.user }}"
+          - "--postgres-ssl-mode={{ $gw.authz.postgres.sslMode }}"
+          - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
+          - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
+          - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
+          - "--cache-ttl={{ $gw.authz.cache.ttl }}"
+          - "--cache-max-size={{ $gw.authz.cache.maxSize }}"
+          {{- if .Values.global.logs.enabled }}
+          - "--log-dir=/logs"
+          - "--log-name=authz_sidecar"
+          {{- end }}
+        env:
+          {{- if .Values.services.migration.enabled }}
+          - name: OSMO_SCHEMA_VERSION
+            value: {{ .Values.services.migration.targetSchema }}
+          {{- end }}
+          {{- include "osmo.extra-env" $gw.authz | nindent 10 }}
+          {{- if .Values.services.postgres.password }}
+          - name: OSMO_POSTGRES_PASSWORD
+            value: {{ .Values.services.postgres.password }}
+          {{- else if .Values.services.configFile.enabled }}
+          - name: OSMO_POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-secret
+                key: db-password
+          {{- end }}
+        {{- if or .Values.global.logs.enabled $gw.authz.extraVolumeMounts }}
+        volumeMounts:
+          {{- if .Values.global.logs.enabled }}
+          - name: logs
+            mountPath: /logs
+          {{- end }}
+          {{- with $gw.authz.extraVolumeMounts }}
+            {{- toYaml . | nindent 10 }}
+          {{- end }}
+        {{- end }}
+        {{- with $gw.authz.livenessProbe }}
+        livenessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $gw.authz.readinessProbe }}
+        readinessProbe:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        resources:
+          {{- toYaml $gw.authz.resources | nindent 10 }}
+      volumes:
+        {{- if .Values.global.logs.enabled }}
+        - name: logs
+          emptyDir: {}
+        {{- end }}
+        {{- with $gw.authz.extraVolumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $gwName }}-authz
+spec:
+  ports:
+    - port: {{ $gw.authz.grpcPort }}
+      targetPort: {{ $gw.authz.grpcPort }}
+      protocol: TCP
+      name: grpc
+  selector:
+    {{- include "osmo.gateway-component-labels" (dict "component" "authz" "context" .) | nindent 4 }}
+{{- end }}
+
+---
+
+{{/* ================================================================ */}}
+{{/* Rate Limit Deployment + Service + ConfigMap                      */}}
+{{/* ================================================================ */}}
+{{- if $gw.rateLimit.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $gwName }}-ratelimit-config
+data:
+  config.yaml: |
+    domain: {{ $gw.rateLimit.config.domain | default "ratelimit" }}
+    descriptors:
+      {{- toYaml $gw.rateLimit.config.descriptors | nindent 6 }}
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $gwName }}-ratelimit
+spec:
+  replicas: {{ $gw.rateLimit.replicas }}
+  selector:
+    matchLabels:
+      {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 8 }}
+      annotations:
+        checksum/ratelimit-config: {{ $gw.rateLimit.config | toYaml | sha256sum }}
+    spec:
+      {{- with $gw.rateLimit.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $gw.rateLimit.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+      {{- end }}
+      containers:
+      - name: ratelimit
+        image: "{{ $gw.rateLimit.image }}"
+        imagePullPolicy: "{{ $gw.rateLimit.imagePullPolicy }}"
+        securityContext:
+          {{- toYaml $gw.rateLimit.securityContext | nindent 10 }}
+        command: ["/bin/ratelimit"]
+        resources:
+          {{- toYaml $gw.rateLimit.resources | nindent 10 }}
+        env:
+        - name: LOG_LEVEL
+          value: info
+        - name: REDIS_SOCKET_TYPE
+          value: tcp
+        - name: REDIS_URL
+          value: {{ $gw.rateLimit.redis.serviceName }}:{{ $gw.rateLimit.redis.port | default 6379 }}
+        - name: REDIS_TLS
+          value: {{ $gw.rateLimit.redis.tlsEnabled | default true | quote }}
+        - name: USE_STATSD
+          value: "false"
+        - name: RUNTIME_ROOT
+          value: /data
+        - name: RUNTIME_SUBDIRECTORY
+          value: ratelimit
+        - name: RUNTIME_WATCH_ROOT
+          value: "false"
+        - name: RUNTIME_IGNOREDOTFILES
+          value: "true"
+        - name: HOST
+          value: "::"
+        - name: GRPC_HOST
+          value: "::"
+        ports:
+        - name: grpc
+          containerPort: {{ $gw.rateLimit.grpcPort }}
+        - name: http
+          containerPort: {{ $gw.rateLimit.httpPort }}
+        volumeMounts:
+        - name: ratelimit-config
+          mountPath: /data/ratelimit/config
+        livenessProbe:
+          tcpSocket:
+            port: {{ $gw.rateLimit.grpcPort }}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      volumes:
+      - name: ratelimit-config
+        configMap:
+          name: {{ $gwName }}-ratelimit-config
+          defaultMode: 420
+          items:
+          - key: config.yaml
+            path: config.yaml
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $gwName }}-ratelimit
+spec:
+  ports:
+    - port: {{ $gw.rateLimit.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    - port: {{ $gw.rateLimit.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "osmo.gateway-component-labels" (dict "component" "ratelimit" "context" .) | nindent 4 }}
+{{- end }}
+
+---
+
+{{/* ================================================================ */}}
+{{/* Network Policies                                                 */}}
+{{/* ================================================================ */}}
+{{- if $gw.networkPolicies.enabled }}
+{{- $envoyLabels := (include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | fromYaml) }}
+{{- range $gw.networkPolicies.upstreams }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $gwName }}-allow-envoy-to-{{ .name }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- toYaml .podSelector | nindent 6 }}
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          {{- toYaml $envoyLabels | nindent 10 }}
+    ports:
+    - port: {{ .port | default 8000 }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+
+{{- end }}{{/* end gateway.enabled */}}
