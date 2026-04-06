@@ -264,52 +264,6 @@ spec:
   selector:
     app: {{ .Values.services.service.serviceName }}
 
-{{- if .Values.services.service.ingress.enabled }}
----
-
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ .Values.services.service.serviceName }}
-  annotations:
-
-    {{- if .Values.services.service.ingress.albAnnotations.enabled}}
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: osmo
-    alb.ingress.kubernetes.io/group.order: "100"
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
-    {{- end }}
-    {{- range $k, $v := .Values.services.service.ingress.annotations }}
-    {{$k}}: {{ $v | quote }}
-    {{- end }}
-spec:
-  ingressClassName: {{ .Values.services.service.ingress.ingressClass }}
-  rules:
-  - host: {{ .Values.services.service.hostname }}
-    http:
-      paths:
-      - path: {{ .Values.services.service.ingress.prefix }}api
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Values.services.service.serviceName }}
-            port:
-              number: 80
-      - path: {{ .Values.services.service.ingress.prefix }}client
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Values.services.service.serviceName }}
-            port:
-              number: 80
-  {{- if .Values.services.service.ingress.sslEnabled }}
-  tls:
-  - hosts:
-    - {{ .Values.services.service.hostname }}
-    secretName: {{.Values.services.service.ingress.sslSecret }}
-  {{- end }}
-{{- end }}
-
 ---
 
 apiVersion: autoscaling/v2

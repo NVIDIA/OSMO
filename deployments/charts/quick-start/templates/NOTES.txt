@@ -21,11 +21,14 @@
 1. Add an entry to /etc/hosts:
    echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 
-2. Download and install the OSMO CLI:
+2. Access OSMO locally:
+   kubectl port-forward svc/osmo-gateway 80:80 -n osmo
+
+3. Download and install the OSMO CLI:
    curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
 
-3. Log in to OSMO:
+4. Log in to OSMO:
    osmo login http://quick-start.osmo --method=dev --username=testuser
 
-4. Explore next steps:
+5. Explore next steps:
    https://nvidia.github.io/OSMO/main/user_guide/getting_started/next_steps.html

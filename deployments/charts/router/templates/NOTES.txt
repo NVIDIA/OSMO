@@ -1,19 +1,5 @@
-1. Get the application URL by running these commands:
-{{- if .Values.services.service.ingress.sslEnabled }}
-  https://{{ .Values.services.service.hostname }}{{ .Values.services.service.ingress.prefix }}api/router
-{{- else }}
-  http://{{ .Values.services.service.hostname }}{{ .Values.services.service.ingress.prefix }}api/router
-{{- end }}
-
-2. The router service is available at:
+1. The router service is available at:
   kubectl get service {{ .Values.services.service.serviceName }}
 
-3. Check the deployment status:
+2. Check the deployment status:
   kubectl get deployment {{ .Values.services.service.serviceName }}
-
-{{- if .Values.services.service.ingress.sslEnabled }}
-
-4. Create a TLS secret for OSMO if not using ALB annotations:
-  kubectl create secret tls {{ .Values.services.service.ingress.sslSecret }} --key ${KEY_FILE} --cert ${CERT_FILE}
-
-{{- end }}

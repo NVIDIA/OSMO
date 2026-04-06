@@ -669,46 +669,6 @@ services:
       ##
       logout_endpoint: ""
 
-    ## Ingress configuration for external access to the API service
-    ##
-    ingress:
-      ## Enable ingress for external access
-      ##
-      enabled: true
-
-      ## URL path prefix for all ingress rules
-      ##
-      prefix: /
-
-      ## Ingress controller class to use for routing traffic
-      ##
-      ingressClass: nginx
-
-      ## AWS Application Load Balancer (ALB) specific annotations
-      ##
-      albAnnotations:
-        ## Enable ALB-specific annotations in the ingress
-        ##
-        enabled: false
-
-        ## ARN of the SSL certificate for HTTPS traffic
-        ##
-        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
-      ## Enable SSL/TLS encryption for the ingress
-      ##
-      sslEnabled: true
-
-      ## Name of the Kubernetes secret containing SSL/TLS certificates
-      ##
-      sslSecret: osmo-tls
-
-      ## Additional custom annotations for the ingress resource
-      ##
-      annotations: {}
-      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      # alb.ingress.kubernetes.io/target-type: ip
-
     ## Liveness probe configuration for the API service
     ##
     livenessProbe:
@@ -1052,10 +1012,6 @@ extraConfigMaps: []
 ## is updated — no pod restart required.
 ## ============================================================================
 gateway:
-  ## Enable the standalone gateway deployment
-  ##
-  enabled: false
-
   ## Name prefix for all gateway K8s resources (e.g. osmo-gateway-envoy)
   ##
   name: osmo-gateway
@@ -1119,16 +1075,15 @@ gateway:
     ##
     serviceAccountName: ""
 
-    ## Ingress configuration for the gateway
+    ## Kubernetes Service configuration for the gateway
     ##
-    ingress:
-      enabled: false
-      ingressClass: alb
-      albAnnotations:
-        enabled: false
-        sslCertArn: ""
-      sslEnabled: false
-      sslSecret: osmo-tls
+    service:
+      ## Service type — LoadBalancer works everywhere (cloud, KIND, on-prem)
+      ##
+      type: LoadBalancer
+
+      ## Annotations for the Service (e.g. AWS NLB annotations)
+      ##
       annotations: {}
 
     ## SSL/TLS configuration for the Envoy listener (downstream).
@@ -1276,7 +1231,7 @@ gateway:
   ## Deployed as its own pod so it can be scaled and updated independently.
   ## -----------------------------------------------------------------------
   oauth2Proxy:
-    enabled: true
+    enabled: false
 
     ## Horizontal Pod Autoscaler (HPA) configuration for OAuth2 Proxy
     ##
@@ -1349,7 +1304,7 @@ gateway:
   ## policies against PostgreSQL. Uses the shared services.postgres config.
   ## -----------------------------------------------------------------------
   authz:
-    enabled: true
+    enabled: false
 
     ## Horizontal Pod Autoscaler (HPA) configuration for Authz
     ##
