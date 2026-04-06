@@ -1384,6 +1384,52 @@ class Task(pydantic.BaseModel):
         task_rows = Task.list_task_rows_by_group_name(database, workflow_id, group_name, verbose)
         return [cls.from_db_row(task_row, database) for task_row in task_rows]
 
+    @classmethod
+    def list_all_task_rows_by_workflow(
+        cls,
+        database: connectors.PostgresConnector,
+        workflow_id: task_common.NamePattern,
+        verbose: bool = False,
+    ) -> Dict[str, List]:
+        """Fetch all task rows for a workflow in one query, grouped by group_name.
+
+        Args:
+            database: The Postgres connector instance.
+            workflow_id: The workflow id.
+            verbose: Whether to include all retries (not just latest).
+
+        Returns:
+            Dict mapping group_name to list of task rows.
+            Returns empty dict if no tasks found.
+        """
+        if verbose:
+            fetch_cmd = '''
+                SELECT tasks.*, workflows.workflow_uuid
+                FROM tasks
+                JOIN workflows ON tasks.workflow_id = workflows.workflow_id
+                WHERE tasks.workflow_id = %s;
+            '''
+            task_rows = database.execute_fetch_command(
+                fetch_cmd, (workflow_id,), True)
+        else:
+            fetch_cmd = '''
+                SELECT t.*, workflows.workflow_uuid FROM tasks t
+                JOIN workflows ON t.workflow_id = workflows.workflow_id
+                WHERE t.workflow_id = %s
+                    AND retry_id = (
+                        SELECT MAX(retry_id) FROM tasks
+                        WHERE name = t.name AND workflow_id = %s
+                            AND group_name = t.group_name
+                    );
+            '''
+            task_rows = database.execute_fetch_command(
+                fetch_cmd, (workflow_id, workflow_id), True)
+
+        result: Dict[str, List] = {}
+        for row in task_rows:
+            result.setdefault(row['group_name'], []).append(row)
+        return result
+
     def update_status_to_db(self, update_time: datetime.datetime, status: TaskGroupStatus,
                             message: str, exit_code: int | None = None):
         """
@@ -1689,7 +1735,8 @@ class TaskGroup(pydantic.BaseModel):
 
     @classmethod
     def from_db_row(cls, group_row, database, verbose: bool = False,
-                    load_tasks: bool = True) -> 'TaskGroup':
+                    load_tasks: bool = True,
+                    preloaded_tasks: List[Task] | None = None) -> 'TaskGroup':
         """
         Gets TaskGroup from DB row
 
@@ -1697,7 +1744,10 @@ class TaskGroup(pydantic.BaseModel):
             verbose (bool, optional): Whether to include rescheduled/restarted tasks.
             load_tasks (bool, optional): Whether to load task rows. When False,
                 tasks will be an empty list. Use False when only group-level
-                metadata is needed.
+                metadata is needed. Ignored if preloaded_tasks is provided.
+            preloaded_tasks (list, optional): Pre-fetched Task objects to use
+                instead of querying the database. When provided, load_tasks
+                is ignored.
         """
         remaining_upstream_groups = set()
         if group_row.remaining_upstream_groups:
@@ -1707,7 +1757,9 @@ class TaskGroup(pydantic.BaseModel):
             downstream_groups = decode_hstore(group_row.downstream_groups)
 
         tasks: List[Task] = []
-        if load_tasks:
+        if preloaded_tasks is not None:
+            tasks = preloaded_tasks
+        elif load_tasks:
             tasks = Task.list_by_group_name(
                 database, group_row.workflow_id, group_row.name, verbose)
 

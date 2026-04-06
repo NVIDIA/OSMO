@@ -1117,11 +1117,16 @@ class Workflow(pydantic.BaseModel):
         if fetch_groups:
             fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s order by start_time;'
             group_rows = database.execute_fetch_command(
-                fetch_cmd, (workflow_row['workflow_id'],), return_raw=True)
-            groups = [
-                task.TaskGroup.fetch_from_db(
-                    database, workflow_row['workflow_id'], row['name'], verbose)
-                for row in group_rows]
+                fetch_cmd, (workflow_row['workflow_id'],))
+            tasks_by_group = task.Task.list_all_task_rows_by_workflow(
+                database, workflow_row['workflow_id'], verbose)
+            for row in group_rows:
+                group_tasks = [
+                    task.Task.from_db_row(task_row, database)
+                    for task_row in tasks_by_group.get(row.name, [])
+                ]
+                groups.append(task.TaskGroup.from_db_row(
+                    row, database, verbose, preloaded_tasks=group_tasks))
 
         return Workflow(workflow_name=workflow_row['workflow_name'],
                         job_id=workflow_row['job_id'],
@@ -1260,14 +1265,10 @@ class Workflow(pydantic.BaseModel):
     def get_group_objs(self) -> List[task.TaskGroup]:
         """ Return task group objects by querying the task database. """
 
-        fetch_cmd = 'SELECT name FROM groups WHERE workflow_id = %s;'
-        groups_objs = []
+        fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s;'
         group_rows = self.database.execute_fetch_command(fetch_cmd, (self.workflow_id,))
-        for group_row in group_rows:
-            group_obj = task.TaskGroup.fetch_metadata_from_db(self.database, self.workflow_id,
-                                                              group_row.name)
-            groups_objs.append(group_obj)
-        return groups_objs
+        return [task.TaskGroup.from_db_row(row, self.database, load_tasks=False)
+                for row in group_rows]
 
     def _has_running_tasks(self) -> bool:
         """ Returns true if there are any running tasks in the workflow. """
