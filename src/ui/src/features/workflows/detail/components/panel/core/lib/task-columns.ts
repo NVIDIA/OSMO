@@ -51,13 +51,13 @@ const taskColumnConfig = createColumnConfig<TaskColumnId>({
     duration: "Duration",
     node: "Node",
     podIp: "IP",
-    exitCode: "Exit",
+    exitCode: "Exit Code",
     startTime: "Start",
     endTime: "End",
     retry: "Retry",
   },
   mandatory: ["name"],
-  defaultVisible: ["name", "status", "duration", "node", "exitCode"],
+  defaultVisible: ["name", "status", "duration", "node", "exitCode", "retry"],
   defaultOrder: ["name", "status", "duration", "node", "podIp", "exitCode", "startTime", "endTime", "retry"],
   sizeConfig: [
     {
@@ -87,8 +87,8 @@ const taskColumnConfig = createColumnConfig<TaskColumnId>({
     },
     {
       id: "exitCode",
-      minWidthRem: COLUMN_MIN_WIDTHS_REM.FLAG_SHORT,
-      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.FLAG_SHORT,
+      minWidthRem: COLUMN_MIN_WIDTHS_REM.NUMBER_SHORT,
+      preferredWidthRem: COLUMN_PREFERRED_WIDTHS_REM.NUMBER_SHORT,
     },
     {
       id: "startTime",
@@ -112,7 +112,7 @@ const taskColumnConfig = createColumnConfig<TaskColumnId>({
     { id: "duration", label: "Duration", menuLabel: "Duration" },
     { id: "node", label: "Node", menuLabel: "Node Name" },
     { id: "podIp", label: "IP", menuLabel: "Pod IP" },
-    { id: "exitCode", label: "Exit", menuLabel: "Exit Code" },
+    { id: "exitCode", label: "Exit Code", menuLabel: "Exit Code" },
     { id: "startTime", label: "Start", menuLabel: "Start Time" },
     { id: "endTime", label: "End", menuLabel: "End Time" },
     { id: "retry", label: "Retry", menuLabel: "Retry ID" },

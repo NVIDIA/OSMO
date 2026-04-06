@@ -16,6 +16,12 @@
 
 import { defineConfig, devices } from "@playwright/test";
 
+// Port is resolved by scripts/test-e2e.mjs before Playwright starts and
+// passed in via $PORT. Fallback to 3000 for direct `playwright test` invocations.
+const parsed = parseInt(process.env.PORT ?? "", 10);
+const PORT = Number.isFinite(parsed) ? parsed : 3000;
+const BASE_URL = `http://localhost:${PORT}`;
+
 /**
  * Playwright E2E test configuration.
  *
@@ -27,6 +33,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   // Run tests in parallel for speed
   fullyParallel: true,
   // Fail fast - stop on first failure in CI
@@ -42,13 +49,16 @@ export default defineConfig({
 
   use: {
     // Base URL for navigation
-    baseURL: "http://localhost:3000",
+    baseURL: BASE_URL,
     // Collect trace only on failure for debugging
     trace: "on-first-retry",
     // No screenshots by default
     screenshot: "off",
     // No video by default
     video: "off",
+    // Guarantee a clean browser context per test — prevents cookies/localStorage
+    // from leaking between tests when --ui "Reuse browser" is enabled.
+    storageState: { cookies: [], origins: [] },
   },
 
   projects: [
@@ -59,11 +69,14 @@ export default defineConfig({
     // Skip Firefox/Safari for speed - add if cross-browser bugs appear
   ],
 
-  // Start dev server before tests
+  // Start dev server before tests.
+  // Remove stale .next/dev/lock before starting — Next.js doesn't clean it up
+  // when the server crashes, which blocks a subsequent `next dev` from starting.
   webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:3000",
+    command: "node scripts/start-dev.mjs",
+    url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
+    env: { PORT: String(PORT) },
   },
 });

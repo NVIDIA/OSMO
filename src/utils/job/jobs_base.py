@@ -160,11 +160,14 @@ class Job(pydantic.BaseModel):
 
     def send_job(self, redis_client, redis_config: connectors.RedisConfig, key_name: str):
         exchange, jobs, options = self.get_redis_options()
+        priority = connectors.JOB_PRIORITY.get(
+            self.job_type or '', connectors.DEFAULT_JOB_PRIORITY)
         with kombu.Connection(redis_config.redis_url,
             transport_options=options) as conn:
             with kombu.pools.producers[conn].acquire(block=True) as producer:
                 producer.publish(json.loads(self.json()), exchange=exchange,
-                                 declare=jobs, routing_key=self.job_type)
+                                 declare=jobs, routing_key=self.job_type,
+                                 priority=priority)
         self.log_submission()
 
         # If this is the first copy of the job, store the uuid in the database.

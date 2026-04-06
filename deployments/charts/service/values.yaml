@@ -795,14 +795,6 @@ services:
     ##
     serviceAccountName: ""
 
-    ## Per-service Envoy proxy configuration overrides
-    ## These settings override the global sidecars.envoy configuration for this service only
-    ## Any field from sidecars.envoy can be specified here to override the global default
-    ##
-    envoy: {}
-    # maxRequests: 200
-    # routes: [...]
-    # skipAuthPaths: [...]
 
   ## Logger service configuration for log collection and processing
   ##
@@ -1038,313 +1030,115 @@ services:
 podMonitor:
   enabled: true
 
-## Configuration for service sidecar containers
+## Global configuration for extra ConfigMaps
+## These ConfigMaps can be used for custom configurations
 ##
-sidecars:
+extraConfigMaps: []
+# - name: custom-config
+#   data:
+#     config.yaml: |
+#       key: value
 
-  ## Global Envoy proxy configuration shared across all services
-  ## Applied to: osmo-service, osmo-logger, osmo-agent
-  ## To override these settings per-service, use services.<service>.envoy
-  ## Example: services.service.envoy.maxRequests to override maxRequests for API service only
+## ============================================================================
+## Gateway — standalone Envoy + OAuth2 Proxy + Authz as separate Deployments.
+##
+## When gateway.enabled is true, the chart deploys an independent Envoy proxy
+## tier that routes traffic to all upstream services (osmo-service, osmo-router,
+## osmo-ui). Authentication (OAuth2), authorization (Authz), and rate limiting
+## are handled at the gateway level rather than per-service.
+##
+## Envoy uses filesystem-based dynamic configuration (LDS/CDS) so that
+## listener and cluster changes are picked up automatically when the ConfigMap
+## is updated — no pod restart required.
+## ============================================================================
+gateway:
+  ## Enable the standalone gateway deployment
   ##
-  envoy:
-    ## List of IP addresses to block
-    ##
-    blockedIPs: []
+  enabled: false
 
-    ## Enable Envoy proxy sidecar container
+  ## Name prefix for all gateway K8s resources (e.g. osmo-gateway-envoy)
+  ##
+  name: osmo-gateway
+
+  ## -----------------------------------------------------------------------
+  ## Gateway Envoy Proxy
+  ## -----------------------------------------------------------------------
+  envoy:
+    ## Enable Envoy deployment
     ##
     enabled: true
 
-    livenessProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 3
-
-    readinessProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      timeoutSeconds: 3
-
-    startupProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 15
-      periodSeconds: 5
-      timeoutSeconds: 3
-
-    ## IDP (Identity Provider) configuration for JWT JWKS fetching
+    ## Horizontal Pod Autoscaler (HPA) configuration for Envoy
     ##
-    idp:
-      ## Hostname for the identity provider (e.g., login.microsoftonline.com)
+    scaling:
+      ## Minimum number of Envoy replicas
       ##
-      host: ""
-    ## Paths that are allowed to be accessed without authentication in the cluster
-    ##
-    inClusterPaths:
-      ## Enable in-cluster routing for specific paths
+      minReplicas: 2
+
+      ## Maximum number of Envoy replicas when scaling
       ##
-      enabled: false
+      maxReplicas: 6
 
-      ## Port for in-cluster communication
+      ## Target CPU utilization percentage for HPA scaling
       ##
-      port: 8081
+      hpaCpuTarget: 80
 
-      ## List of paths that are allowed to be accessed without authentication in the cluster
+      ## Target memory utilization percentage for HPA scaling
       ##
-      paths:
-      - /api/resources
-      - /api/configs/pool
-      - /api/bucket/list_dataset
-      - /api/workflow
-      - /api/router/version
-      - /api/task
+      hpaMemoryTarget: 80
 
-    ## Maximum number of concurrent requests Envoy will handle
-    ##
-    maxRequests: 100
-
-    ## Default service name for Envoy configuration
-    ##
-    serviceName: osmo
-
-    ## List of paths that are allowed to be accessed without authentication to the public
-    ##
-    skipAuthPaths:
-    - /api/version
-    - /api/auth/login
-    - /api/auth/keys
-    - /api/auth/refresh_token
-    - /api/auth/jwt/refresh_token
-    - /api/auth/jwt/access_token
-    - /client/version
-
-    ## Advanced routing configuration for Envoy proxy
-    ## Contains detailed regex-based routing rules for various API endpoints
-    ## including workflow logs, agent backends, pool management, data operations,
-    ## and client downloads. Each route specifies clusters, timeouts, and
-    ## rate limiting configurations as needed.
-    ##
-    routes:
-    - match:
-        safe_regex:
-          regex: "/api/workflow/[^/]+/logs"
-      route:
-        cluster: service
-        timeout: 0s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow_artifact
-              descriptor_value: workflow_artifact_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "/api/agent/worker/backend/[^/]+"
-      route:
-        cluster: service
-        timeout: 0s
-    - match:
-        safe_regex:
-          regex: "/api/agent/listener/[^/]+/backend/[^/]+"
-      route:
-        cluster: service
-        timeout: 0s
-    - match:
-        safe_regex:
-          regex: "^/api/pool(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "pool_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: pool
-              descriptor_value: pool_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "^/api/bucket(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "/api/workflow/[^/]+/spec"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow_artifact
-              descriptor_value: workflow_artifact_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "^/api/workflow(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow
-              descriptor_value: workflow_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "^/api/task(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "task_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: task
-              descriptor_value: task_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "^/api/resources(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "resource_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: resource
-              descriptor_value: resource_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: "/client"
-      route:
-        cluster: service
-        timeout: 0s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "client_path_limit"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: "/api/configs"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: /api/auth/jwt/refresh_token
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "refresh_token_path_limit"
-    - match:
-        prefix: /api/version
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - generic_key:
-              descriptor_key: version_path
-              descriptor_value: version_path_user_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "version_path_limit"
-    - match:
-        prefix: "/"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-
-    ## Envoy proxy container image
+    ## Envoy container image
     ##
     image: "envoyproxy/envoy:v1.29.0"
-
-    ## Init container image for setup tasks
-    ##
-    initImage: busybox
 
     ## Image pull policy for Envoy containers
     ##
     imagePullPolicy: IfNotPresent
+
+    ## Envoy log level
+    ##
+    logLevel: info
+
+    ## Listener port for incoming traffic
+    ##
+    listenerPort: 8080
+
+    ## Maximum size of all HTTP headers in KB
+    ##
+    maxHeadersSizeKb: 128
+
+    ## List of IP addresses to block at the gateway
+    ##
+    blockedIPs: []
+
+    ## External hostname (used for OAuth2 redirect URL)
+    ##
+    hostname: ""
+
+    ## Service account name for the Envoy pods
+    ##
+    serviceAccountName: ""
+
+    ## Ingress configuration for the gateway
+    ##
+    ingress:
+      enabled: false
+      ingressClass: alb
+      albAnnotations:
+        enabled: false
+        sslCertArn: ""
+      sslEnabled: false
+      sslSecret: osmo-tls
+      annotations: {}
+
+    ## SSL/TLS configuration for the Envoy listener (downstream).
+    ## The Secret must contain tls.crt and tls.key entries (kubernetes.io/tls type).
+    ## Mounted as a directory (not subPath) so Kubernetes symlink rotation
+    ## propagates cert renewals without a pod restart.
+    ##
+    ssl:
+      enabled: false
+      secretName: envoy-ssl-cert
 
     ## Security context for Envoy containers
     ##
@@ -1355,359 +1149,254 @@ sidecars:
       runAsNonRoot: true
       runAsUser: 1001
 
-
-    ## Volume mounts for Envoy containers
-    ##
-    extraVolumeMounts: []
-
-    ## Listener port for Envoy proxy
-    ##
-    listenerPort: 8080
-
-    ## Maximum size of all http headers in kb
-    ##
-    maxHeadersSizeKb: 128
-
-    ## Log level for Envoy proxy
-    ##
-    logLevel: info
-
     ## Resource limits and requests for Envoy containers
     ##
     resources:
       requests:
-        cpu: "100m"
-        memory: "64Mi"
-      limits:
+        cpu: "200m"
         memory: "128Mi"
+      limits:
+        memory: "256Mi"
 
-    ## SSL/TLS configuration
+    ## Health probes for Envoy containers
     ##
-    ssl:
-      enabled: false
-      cert:
-        secretName: envoy-ssl-cert
-        secretKey: cert
-      privateKey:
-        secretName: envoy-ssl-cert
-        secretKey: privateKey
+    livenessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+    startupProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
 
-    ## Service configuration for Envoy proxy
+    ## Node selector for Envoy pods
     ##
-    service:
-      ## Port on which Envoy proxy listens
-      ##
-      port: 8000
+    nodeSelector: {}
 
-      ## Hostname for the Envoy service (leave empty for default)
-      ##
-      hostname: ""
+    ## Tolerations for Envoy pods
+    ##
+    tolerations: []
 
-      ## Address for the main service backend
-      ##
-      address: 127.0.0.1
+    ## Identity Provider for JWKS discovery (e.g. login.microsoftonline.com)
+    ##
+    idp:
+      host: ""
 
-    ## JWT (JSON Web Token) authentication configuration
+    ## Internal JWKS cluster — used for the "osmo" JWT issuer.
+    ## Points to the osmo-service K8s Service so Envoy can fetch the JWKS.
+    ##
+    internalJwks:
+      enabled: true
+      cluster: osmo-service-jwks
+      host: ""
+      port: ""
+
+    ## JWT authentication configuration
     ##
     jwt:
-      ## HTTP header name that contains the user information
-      ##
       user_header: x-osmo-user
+      providers: []
 
-      ## List of JWT providers for token validation
-      ##
-      ## An example when using Keycloak is:
-      ##
-      ## providers:
-      ## - issuer: https://auth-name.osmo.nvidia.com/realms/osmo
-      ##   audience: osmo-device
-      ##   jwks_uri: https://auth-name.osmo.nvidia.com/realms/osmo/protocol/openid-connect/certs
-      ##   user_claim: preferred_username
-      ##   cluster: idp
-      ##
-      ## An example when using Microsoft Azure AD is:
-      ##
-      ## providers:
-      ## - issuer: https://sts.windows.net/<id>/
-      ##   audience: <client-id>
-      ##   jwks_uri: https://login.microsoftonline.com/<id>/discovery/v2.0/keys
-      ##   user_claim: unique_name
-      ##   cluster: idp
-      providers:
-      ## External OAuth provider configuration (provider 1)
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: unique_name
-        cluster: idp
-      ## External OAuth provider configuration (provider 2)
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: preferred_username
-        cluster: idp
-      ## Internal Osmo JWT provider configuration
-      ##
-      - issuer: osmo
-        audience: osmo
-        jwks_uri: http://localhost:8000/api/auth/keys
-        user_claim: unique_name
-        cluster: service
-
-  ## OAuth2 Proxy sidecar configuration
-  ##
-  oauth2Proxy:
-    ## Enable OAuth2 Proxy sidecar container
+    ## Paths that bypass authentication (served without OAuth2 or JWT checks)
     ##
+    skipAuthPaths:
+    - /api/version
+    - /api/auth/login
+    - /api/auth/keys
+    - /api/auth/refresh_token
+    - /api/auth/jwt/refresh_token
+    - /api/auth/jwt/access_token
+    - /api/router/version
+    - /client/version
+
+    ## Route configuration for the osmo-router upstream.
+    ## Uses RING_HASH lb_policy with a cookie for session affinity.
+    ##
+    routerRoute:
+      prefix: /api/router
+      timeout: 0s
+      cookie:
+        name: _osmo_router_affinity
+        ttl: 60s
+
+    ## Advanced service routes for the osmo-service upstream.
+    ## Each entry is a standard Envoy route YAML block (match + route).
+    ## When empty, default routes for /api/ and /client/ are used.
+    ##
+    serviceRoutes: []
+
+    ## Circuit breaker — max concurrent requests to the osmo-service upstream
+    ##
+    maxRequests: 100
+
+  ## -----------------------------------------------------------------------
+  ## Upstream services — K8s Service DNS names that the gateway routes to.
+  ## Override with FQDN (e.g. osmo-service.ns.svc.cluster.local) when the
+  ## gateway is in a different namespace than the upstream services.
+  ## -----------------------------------------------------------------------
+  upstreams:
+    service:
+      enabled: true
+      host: osmo-service
+      port: 80
+    router:
+      enabled: true
+      host: osmo-router-headless
+      ## Port 8000 (not 80) because the headless service resolves to pod IPs
+      ## directly, and Envoy connects to the pod port, not the Service port.
+      port: 8000
+    ui:
+      enabled: true
+      host: osmo-ui
+      port: 80
+    agent:
+      enabled: true
+      host: osmo-agent
+      port: 80
+    logger:
+      enabled: true
+      host: osmo-logger
+      port: 80
+
+  ## -----------------------------------------------------------------------
+  ## Gateway OAuth2 Proxy — handles OIDC authentication flows.
+  ## Deployed as its own pod so it can be scaled and updated independently.
+  ## -----------------------------------------------------------------------
+  oauth2Proxy:
     enabled: true
 
-    ## OAuth2 Proxy container image
+    ## Horizontal Pod Autoscaler (HPA) configuration for OAuth2 Proxy
     ##
+    scaling:
+      ## Minimum number of OAuth2 Proxy replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of OAuth2 Proxy replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
     image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
-
-    ## Image pull policy
-    ##
     imagePullPolicy: IfNotPresent
-
-    ## HTTP port for OAuth2 Proxy
-    ##
     httpPort: 4180
-
-    ## Metrics port for OAuth2 Proxy
-    ##
     metricsPort: 44180
-
-    ## OIDC provider type
-    ##
     provider: oidc
-
-    ## OIDC issuer URL
-    ##
     oidcIssuerUrl: ""
-
-    ## OAuth2 client ID
-    ##
     clientId: ""
-
-    ## Cookie name for session management
-    ##
     cookieName: _osmo_session
-
-    ## Whether to set the secure flag on cookies
-    ##
     cookieSecure: true
-
-    ## Cookie domain (leave empty for default)
-    ##
     cookieDomain: ""
-
-    ## Cookie expiration duration
-    ##
     cookieExpire: 168h
-
-    ## Cookie refresh interval
-    ##
     cookieRefresh: 1h
-
-    ## OAuth2 scopes to request
-    ##
     scope: "openid email profile"
-
-    ## Pass the access token to upstream (disabled to reduce cookie size)
-    ##
     passAccessToken: false
-
-    ## Use Redis (services.redis) as the session store instead of in-memory
-    ##
     redisSessionStore: true
-
-    ## Use Kubernetes secrets for credentials
-    ##
     useKubernetesSecrets: false
-
-    ## Kubernetes secret configuration (when useKubernetesSecrets is true)
-    ##
     secretName: oauth2-proxy-secrets
     clientSecretKey: client_secret
     cookieSecretKey: cookie_secret
-
-    ## Secret file paths (when using vault or other secret managers)
-    ##
     secretPaths:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
-
-    ## Additional arguments passed to oauth2-proxy
-    ##
     extraArgs: []
-
-    ## Additional volume mounts
-    ##
-    extraVolumeMounts: []
-
-    ## Security context for OAuth2 Proxy container
-    ##
+    redis:
+      serviceName: ""
+      port: 6379
+      tlsEnabled: true
+      dbNumber: 0
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
-    ## Resource limits and requests
-    ##
     resources:
       requests:
         cpu: "50m"
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
-  ## Rate limiting service configuration
-  ##
-  rateLimit:
-    ## Enable rate limiting service
-    ##
-    enabled: true
-
-    ## Rate limiting service image
-    ##
-    image: envoyproxy/ratelimit:9d8d70a8 # 2022/08/16
-
-    ## Image pull policy for rate limiting service
-    ##
-    imagePullPolicy: IfNotPresent
-
-    ## Redis configuration for rate limit storage
-    ##
-    redis:
-      ## Redis service name for rate limit data storage
-      ##
-      serviceName: ""
-
-      ## Redis port for rate limit data storage
-      ##
-      port: 6379
-
-    ## ConfigMap name for rate limiting configuration
-    ##
-    configName: ratelimit-config
-
-    ## Service name for rate limiting service
-    ##
-    serviceName: ratelimit
-
-    ## Node selector constraints for rate limiting pod scheduling
-    ##
     nodeSelector: {}
-    # kubernetes.io/os: linux
-
-    ## Tolerations for rate limiting pod scheduling on tainted nodes
-    ##
     tolerations: []
-    # - key: "dedicated"
-    #   operator: "Equal"
-    #   value: "ratelimit"
-    #   effect: "NoSchedule"
+    extraPodAnnotations: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    serviceAccountName: ""
 
-    ## Resource limits and requests for rate limiting service
-    ##
-    resources:
-      ## Resource requests (guaranteed allocation)
-      ##
-      requests:
-        cpu: "0.1"
-        memory: "200Mi"
-      ## Resource limits (maximum allocation)
-      ##
-      limits:
-        memory: "200Mi"
-
-    ## HTTP port for rate limiting service
-    ##
-    httpPort: 8090
-
-    ## gRPC port for rate limiting service
-    ##
-    grpcPort: 8091
-
-    ## Debug port for rate limiting service
-    ##
-    debugPort: 6070
-
-  ## Authorization sidecar configuration (role-based access control)
-  ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
-  ##
+  ## -----------------------------------------------------------------------
+  ## Gateway Authz — gRPC authorization service evaluating semantic RBAC
+  ## policies against PostgreSQL. Uses the shared services.postgres config.
+  ## -----------------------------------------------------------------------
   authz:
-    ## Enable authorization sidecar
-    ##
     enabled: true
 
-    ## Authorization sidecar Docker image
+    ## Horizontal Pod Autoscaler (HPA) configuration for Authz
     ##
+    scaling:
+      ## Minimum number of Authz replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of Authz replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
     imageName: "authz-sidecar"
-
-    ## Image pull policy for authorization sidecar
-    ##
+    ## Override the image tag for authz. Defaults to global.osmoImageTag.
+    imageTag: ""
     imagePullPolicy: Always
-
-    ## gRPC port for authorization service
-    ##
     grpcPort: 50052
-
-    ## Extra environment variables for the API service container
-    ##
     extraEnv: []
-
-    ## PostgreSQL connection pool configuration
-    ## Note: Host, port, database, user, and password are inherited from services.postgres
-    ##
     postgres:
-      ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
-      ##
       sslMode: prefer
-
-      ## Maximum number of connections in the pool
-      ##
       maxConns: 10
-
-      ## Minimum number of connections in the pool
-      ##
       minConns: 2
-
-      ## Maximum lifetime of a connection in minutes
-      ##
       maxConnLifetimeMin: 5
-
-    ## Role cache configuration
-    ##
     cache:
-      ## Cache time-to-live (how long to cache role policies in seconds)
-      ##
       ttl: 300
-
-      ## Maximum number of role combinations to cache
-      ##
       maxSize: 1000
-
-    ## Resource limits and requests for authorization sidecar
-    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 10001
     resources:
-      ## Resource requests (guaranteed allocation)
-      ##
       requests:
         cpu: 100m
         memory: 128Mi
-      ## Resource limits (maximum allocation)
-      ##
       limits:
         cpu: 500m
         memory: 256Mi
-
-    ## Liveness probe configuration
-    ##
     livenessProbe:
       grpc:
         port: 50052
@@ -1715,9 +1404,6 @@ sidecars:
       periodSeconds: 10
       timeoutSeconds: 3
       failureThreshold: 3
-
-    ## Readiness probe configuration
-    ##
     readinessProbe:
       grpc:
         port: 50052
@@ -1725,21 +1411,76 @@ sidecars:
       periodSeconds: 5
       timeoutSeconds: 3
       failureThreshold: 2
+    nodeSelector: {}
+    tolerations: []
+    extraPodAnnotations: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    serviceAccountName: ""
 
-    ## Security context for authorization sidecar
-    ##
+  ## -----------------------------------------------------------------------
+  ## Gateway Rate Limiting — Redis-backed rate limiting via Envoy's
+  ## ratelimit filter. Deploys a standalone ratelimit service pod.
+  ## -----------------------------------------------------------------------
+  rateLimit:
+    enabled: false
+    replicas: 1
+    image: envoyproxy/ratelimit:9d8d70a8
+    imagePullPolicy: IfNotPresent
+    grpcPort: 8091
+    httpPort: 8090
+
+    redis:
+      serviceName: ""
+      port: 6379
+      tlsEnabled: true
+
+    config:
+      domain: ratelimit
+      descriptors: []
+
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ["ALL"]
       runAsNonRoot: true
-      runAsUser: 10001
+      runAsUser: 1001
+    resources:
+      requests:
+        cpu: "0.1"
+        memory: "200Mi"
+      limits:
+        memory: "200Mi"
+    nodeSelector: {}
+    tolerations: []
 
-## Global configuration for extra ConfigMaps
-## These ConfigMaps can be used for custom configurations
-##
-extraConfigMaps: []
-# - name: custom-config
-#   data:
-#     config.yaml: |
-#       key: value
+  ## -----------------------------------------------------------------------
+  ## Network Policies — restrict ingress to upstream service pods so that
+  ## only the gateway Envoy pods can reach them. Requires a CNI that
+  ## enforces NetworkPolicy (e.g. Calico, Cilium, or AWS VPC CNI with
+  ## enable-network-policy-controller=true).
+  ## -----------------------------------------------------------------------
+  networkPolicies:
+    enabled: false
+    upstreams:
+    - name: osmo-service
+      podSelector:
+        app: osmo-service
+      port: 8000
+    - name: osmo-router
+      podSelector:
+        app: osmo-router
+      port: 8000
+    - name: osmo-ui
+      podSelector:
+        app: osmo-ui
+      port: 8000
+
+  ## -----------------------------------------------------------------------
+  ## TLS — self-signed certificates for encrypted gateway-to-upstream
+  ## communication. When enabled, Helm generates a CA and server cert;
+  ## Envoy uses the CA to verify upstream connections. The upstream
+  ## services must also be configured to serve HTTPS.
+  ## -----------------------------------------------------------------------
+  tls:
+    enabled: false

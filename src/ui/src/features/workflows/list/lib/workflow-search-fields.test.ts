@@ -94,12 +94,12 @@ describe("name field", () => {
     expect(values).toContain("gamma");
   });
 
-  it("limits values to 20 suggestions", () => {
+  it("returns all values without truncation", () => {
     const workflows = Array.from({ length: 30 }, (_, i) => createWorkflow({ name: `workflow-${i}` }));
 
     const values = getFieldValues(nameField, workflows);
 
-    expect(values.length).toBe(20);
+    expect(values.length).toBe(30);
   });
 });
 

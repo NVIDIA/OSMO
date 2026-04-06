@@ -967,3 +967,255 @@ func TestCheckPolicyAccessDenyPrecedence(t *testing.T) {
 		t.Errorf("CheckPolicyAccess(GET /api/workflow/abc): want allowed, got denied")
 	}
 }
+
+// TestMatchResourceTrailingWildcard verifies that trailing wildcard patterns
+// work across all resource types.
+func TestMatchResourceTrailingWildcard(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  string
+		resource string
+		want     bool
+	}{
+		// Pool resources
+		{
+			name:     "pool trailing wildcard matches longer name",
+			pattern:  "pool/team-a*",
+			resource: "pool/team-a-gpu-03",
+			want:     true,
+		},
+		{
+			name:     "pool trailing wildcard matches exact prefix",
+			pattern:  "pool/team-a*",
+			resource: "pool/team-a",
+			want:     true,
+		},
+		{
+			name:     "pool trailing wildcard does not match different prefix",
+			pattern:  "pool/team-a*",
+			resource: "pool/team-b",
+			want:     false,
+		},
+		{
+			name:     "pool trailing wildcard does not match different scope",
+			pattern:  "pool/team-a*",
+			resource: "bucket/team-a-gpu-03",
+			want:     false,
+		},
+
+		// Bucket resources
+		{
+			name:     "bucket trailing wildcard matches longer name",
+			pattern:  "bucket/data-v*",
+			resource: "bucket/data-v2-archive",
+			want:     true,
+		},
+		{
+			name:     "bucket trailing wildcard matches exact prefix",
+			pattern:  "bucket/data-v*",
+			resource: "bucket/data-v",
+			want:     true,
+		},
+		{
+			name:     "bucket trailing wildcard does not match different prefix",
+			pattern:  "bucket/data-v*",
+			resource: "bucket/logs-v2",
+			want:     false,
+		},
+
+		// Config resources
+		{
+			name:     "config trailing wildcard matches longer name",
+			pattern:  "config/service-*",
+			resource: "config/service-prod-01",
+			want:     true,
+		},
+		{
+			name:     "config trailing wildcard does not match different prefix",
+			pattern:  "config/service-*",
+			resource: "config/global-settings",
+			want:     false,
+		},
+
+		// Backend resources
+		{
+			name:     "backend trailing wildcard matches longer name",
+			pattern:  "backend/cluster-us*",
+			resource: "backend/cluster-us-east-1",
+			want:     true,
+		},
+		{
+			name:     "backend trailing wildcard does not match different prefix",
+			pattern:  "backend/cluster-us*",
+			resource: "backend/cluster-eu-west-1",
+			want:     false,
+		},
+
+		// User resources
+		{
+			name:     "user trailing wildcard matches longer name",
+			pattern:  "user/svc-*",
+			resource: "user/svc-pipeline-bot",
+			want:     true,
+		},
+		{
+			name:     "user trailing wildcard does not match different prefix",
+			pattern:  "user/svc-*",
+			resource: "user/admin-alice",
+			want:     false,
+		},
+
+		// General wildcard behavior
+		{
+			name:     "slash wildcard still works",
+			pattern:  "pool/*",
+			resource: "pool/team-a-gpu-03",
+			want:     true,
+		},
+		{
+			name:     "universal wildcard still works",
+			pattern:  "*",
+			resource: "pool/team-a-gpu-03",
+			want:     true,
+		},
+		{
+			name:     "exact match still works",
+			pattern:  "pool/team-a",
+			resource: "pool/team-a",
+			want:     true,
+		},
+		{
+			name:     "exact match does not prefix match without wildcard",
+			pattern:  "pool/team-a",
+			resource: "pool/team-a-gpu-03",
+			want:     false,
+		},
+		{
+			name:     "empty resource always matches",
+			pattern:  "pool/team-a*",
+			resource: "",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchResource(tt.pattern, tt.resource)
+			if got != tt.want {
+				t.Errorf("matchResource(%q, %q) = %v, want %v", tt.pattern, tt.resource, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCheckPolicyAccessTrailingWildcardPool verifies end-to-end that a role
+// with a trailing wildcard resource like "pool/team-a*" grants access to
+// workflow creation on pools matching that prefix.
+func TestCheckPolicyAccessTrailingWildcardPool(t *testing.T) {
+	role := &Role{
+		Name: "test-pool-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "workflow:*"}},
+				Resources: []string{"pool/team-a*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// POST /api/pool/team-a-gpu-03/workflow should be allowed
+	result := CheckPolicyAccess(ctx, converted, "/api/pool/team-a-gpu-03/workflow", "POST", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for pool/team-a-gpu-03, got denied")
+	}
+
+	// POST /api/pool/team-a/workflow should also be allowed
+	result = CheckPolicyAccess(ctx, converted, "/api/pool/team-a/workflow", "POST", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for pool/team-a, got denied")
+	}
+
+	// POST /api/pool/team-b/workflow should be denied
+	result = CheckPolicyAccess(ctx, converted, "/api/pool/team-b/workflow", "POST", nil)
+	if result.Allowed {
+		t.Errorf("want denied for pool/team-b, got allowed")
+	}
+}
+
+// TestCheckPolicyAccessTrailingWildcardBucket verifies end-to-end that
+// trailing wildcard resources work for dataset/bucket operations.
+func TestCheckPolicyAccessTrailingWildcardBucket(t *testing.T) {
+	role := &Role{
+		Name: "test-bucket-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "dataset:*"}},
+				Resources: []string{"bucket/data-v*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// GET /api/bucket/data-v2-archive should be allowed
+	result := CheckPolicyAccess(ctx, converted, "/api/bucket/data-v2-archive", "GET", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for bucket/data-v2-archive, got denied")
+	}
+
+	// GET /api/bucket/data-v should be allowed
+	result = CheckPolicyAccess(ctx, converted, "/api/bucket/data-v", "GET", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for bucket/data-v, got denied")
+	}
+
+	// GET /api/bucket/logs-v2 should be denied
+	result = CheckPolicyAccess(ctx, converted, "/api/bucket/logs-v2", "GET", nil)
+	if result.Allowed {
+		t.Errorf("want denied for bucket/logs-v2, got allowed")
+	}
+}
+
+// TestCheckPolicyAccessTrailingWildcardConfig verifies end-to-end that
+// trailing wildcard resources work for config operations.
+func TestCheckPolicyAccessTrailingWildcardConfig(t *testing.T) {
+	role := &Role{
+		Name: "test-config-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "config:*"}},
+				Resources: []string{"config/service-*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// GET /api/configs/service-prod-01 should be allowed
+	result := CheckPolicyAccess(ctx, converted, "/api/configs/service-prod-01", "GET", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for config/service-prod-01, got denied")
+	}
+
+	// GET /api/configs/global-settings should be denied
+	result = CheckPolicyAccess(ctx, converted, "/api/configs/global-settings", "GET", nil)
+	if result.Allowed {
+		t.Errorf("want denied for config/global-settings, got allowed")
+	}
+}

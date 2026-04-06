@@ -31,7 +31,7 @@ const BASE_POOL_SEARCH_FIELDS: SearchField<Pool>[] = [
     hint: "pool name",
     prefix: "pool:",
     freeFormHint: "Type any pool, press Enter",
-    getValues: (pools) => pools.map((p) => p.name).slice(0, 20),
+    getValues: (pools) => pools.map((p) => p.name),
     match: (pool, value) => pool.name.toLowerCase().includes(value.toLowerCase()),
   },
   {

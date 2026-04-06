@@ -14,29 +14,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Global Mock Configuration Store
- *
- * Persists mock config across Next.js module contexts using Node.js global.
- * This ensures Server Actions and MSW handlers share the same config state.
- *
- * PROBLEM: Next.js bundles Server Actions separately, creating duplicate
- * module instances. Standard module singletons don't work across contexts.
- *
- * SOLUTION: Use Node.js global object as the single source of truth.
- */
+// Uses Node.js globalThis so Server Actions and MSW handlers share the same config
+// (Next.js bundles them separately, so module-level singletons don't work).
 
-import type { MockVolumes } from "@/mocks/actions/mock-config.types";
 import { DEFAULT_VOLUME } from "@/mocks/seed/types";
 
-// Extend Node.js global type
+export interface MockVolumes {
+  workflows: number;
+  pools: number;
+  resourcesPerPool: number;
+  resourcesGlobal: number;
+  buckets: number;
+  datasets: number;
+}
+
 declare global {
   var __mockConfigData: MockVolumes | undefined;
 }
 
-// Initialize global config on first import (server-side only)
-// Client-side mocking is disabled - browser makes requests to Next.js API routes,
-// which are intercepted by MSW in Node.js
 const isServer = typeof globalThis.process !== "undefined";
 
 if (isServer && !globalThis.__mockConfigData) {
@@ -44,16 +39,12 @@ if (isServer && !globalThis.__mockConfigData) {
     workflows: DEFAULT_VOLUME.workflows,
     pools: DEFAULT_VOLUME.pools,
     resourcesPerPool: DEFAULT_VOLUME.resourcesPerPool,
-    resourcesGlobal: 80, // Default from config
+    resourcesGlobal: 80,
     buckets: 50,
     datasets: 100,
   };
 }
 
-/**
- * Get the global mock configuration.
- * Returns the same object across all Next.js contexts.
- */
 export function getGlobalMockConfig(): MockVolumes {
   if (!globalThis.__mockConfigData) {
     throw new Error("[Global Config] Not initialized");
@@ -61,10 +52,6 @@ export function getGlobalMockConfig(): MockVolumes {
   return globalThis.__mockConfigData;
 }
 
-/**
- * Update the global mock configuration.
- * Changes are immediately visible to all contexts (MSW handlers, Server Actions).
- */
 export function setGlobalMockConfig(updates: Partial<MockVolumes>): void {
   if (!globalThis.__mockConfigData) {
     throw new Error("[Global Config] Not initialized");

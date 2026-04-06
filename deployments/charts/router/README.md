@@ -18,25 +18,12 @@ SPDX-License-Identifier: Apache-2.0
 
 # NVIDIA OSMO - Router Service Helm Chart
 
-This Helm chart deploys the OSMO Router service with integrated Envoy proxy sidecar. The chart has been restructured to be self-contained, removing dependencies on external sidecar charts.
-
-## Architecture
-
-The router deployment includes:
-- **Main Router Container**: The core OSMO router service
-- **Envoy Proxy Sidecar**: Handles authentication, routing, and SSL termination
+This Helm chart deploys the OSMO Router service. Authentication, authorization, and traffic routing are handled by the gateway deployed via the service chart (`gateway.enabled: true`).
 
 ## Quick Start
 
 ```bash
-# Install with default values
-helm install my-router ./router
-
-# Install with custom values
 helm install my-router ./router -f my-values.yaml
-
-# Upgrade existing installation
-helm upgrade my-router ./router -f my-values.yaml
 ```
 
 ## Configuration Values
@@ -80,19 +67,12 @@ helm upgrade my-router ./router -f my-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `services.service.ingress.enabled` | Enable ingress for external access | `true`|
+| `services.service.ingress.enabled` | Enable ingress for direct access (disable when using the gateway) | `true` |
 | `services.service.ingress.prefix` | URL path prefix for ingress rules | `/` |
 | `services.service.ingress.ingressClass` | Ingress controller class | `nginx` |
 | `services.service.ingress.sslEnabled` | Enable SSL/TLS encryption | `true` |
 | `services.service.ingress.sslSecret` | Name of SSL/TLS certificate secret | `osmo-tls` |
 | `services.service.ingress.annotations` | Custom ingress annotations | `{}` |
-
-#### ALB Annotations
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `services.service.ingress.albAnnotations.enabled` | Enable ALB-specific annotations | `false` |
-| `services.service.ingress.albAnnotations.sslCertArn` | ARN of SSL certificate for HTTPS | `arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY` |
 
 #### Resource Configuration
 
@@ -102,14 +82,6 @@ helm upgrade my-router ./router -f my-values.yaml
 | `services.service.nodeSelector` | Node selector constraints for router pods | `{}` |
 | `services.service.tolerations` | Tolerations for pod scheduling on tainted nodes | `[]` |
 | `services.service.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
-
-#### Health Probe Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `services.service.livenessProbe` | Liveness probe configuration for router container | See values.yaml |
-| `services.service.startupProbe` | Startup probe configuration for router container | See values.yaml |
-| `services.service.readinessProbe` | Readiness probe configuration for router container | See values.yaml |
 
 ### Configuration File Settings
 
@@ -122,98 +94,21 @@ helm upgrade my-router ./router -f my-values.yaml
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `targetSchema` | Database schema for search_path. Leave empty to use the default `public` schema. | `""` |
 | `services.postgres.serviceName` | PostgreSQL service name | `postgres` |
 | `services.postgres.port` | PostgreSQL service port | `5432` |
 | `services.postgres.db` | PostgreSQL database name | `osmo` |
 | `services.postgres.user` | PostgreSQL username | `postgres` |
-| `services.postgres.password` | PostgreSQL password | `""` |
 
 ### Redis Settings
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `services.redis.serviceName` | Kubernetes service name for Redis (used for OAuth2-Proxy session store) | `redis` |
+| `services.redis.serviceName` | Kubernetes service name for Redis | `redis` |
 | `services.redis.port` | Redis service port | `6379` |
-| `services.redis.dbNumber` | Redis database number to use (0–15) | `0` |
+| `services.redis.dbNumber` | Redis database number to use (0-15) | `0` |
 | `services.redis.tlsEnabled` | Enable TLS encryption for Redis connections | `true` |
 
-## Sidecar Configuration
-
-### Envoy Proxy Sidecar
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.enabled` | Enable Envoy proxy sidecar | `true` |
-| `sidecars.envoy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
-| `sidecars.envoy.skipAuthPaths` | Paths that should skip authentication | `["/api/router/version"]` |
-| `sidecars.envoy.image` | Envoy proxy container image | `envoyproxy/envoy:v1.29.0` |
-| `sidecars.envoy.imagePullPolicy` | Image pull policy for Envoy | `IfNotPresent` |
-| `sidecars.envoy.listenerPort` | Port for incoming requests | `80` |
-| `sidecars.envoy.maxHeadersSizeKb` | Maximum size of HTTP headers in KB | `128` |
-| `sidecars.envoy.maxRequests` | Maximum request Envoy will handle for the router service | `1000` |
-| `sidecars.envoy.logLevel` | Log level for Envoy proxy | `info` |
-| `sidecars.envoy.resources` | Resource limits and requests | See values.yaml |
-
-#### Envoy Service Configuration
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.service.port` | Upstream service port | `8000` |
-| `sidecars.envoy.service.hostname` | Envoy service hostname | `""` |
-| `sidecars.envoy.service.address` | Local service address | `127.0.0.1` |
-
-#### Envoy Routing
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.routes` | Route configuration for Envoy | See values.yaml |
-
-#### JWT Authentication
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.jwt.enabled` | Enable JWT authentication | `true` |
-| `sidecars.envoy.jwt.user_header` | HTTP header for authenticated user | `x-osmo-user` |
-| `sidecars.envoy.jwt.providers` | List of JWT token providers | `[]` |
-
-#### OSMO Authentication
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.envoy.osmoauth.enabled` | Enable OSMO authentication service | `true` |
-| `sidecars.envoy.osmoauth.port` | OSMO auth service port | `80` |
-| `sidecars.envoy.osmoauth.hostname` | OSMO auth hostname | `""` |
-| `sidecars.envoy.osmoauth.address` | OSMO auth service address | `osmo-service` |
-
-### OAuth2 Proxy Sidecar
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `sidecars.oauth2Proxy.enabled` | Enable OAuth2 Proxy sidecar | `true` |
-| `sidecars.oauth2Proxy.image` | OAuth2 Proxy container image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
-| `sidecars.oauth2Proxy.imagePullPolicy` | Image pull policy | `IfNotPresent` |
-| `sidecars.oauth2Proxy.httpPort` | HTTP port for OAuth2 Proxy | `4180` |
-| `sidecars.oauth2Proxy.metricsPort` | Metrics port for OAuth2 Proxy | `44180` |
-| `sidecars.oauth2Proxy.provider` | OIDC provider type | `oidc` |
-| `sidecars.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
-| `sidecars.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
-| `sidecars.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
-| `sidecars.oauth2Proxy.cookieSecure` | Set Secure flag on cookies | `true` |
-| `sidecars.oauth2Proxy.cookieDomain` | Cookie domain | `""` |
-| `sidecars.oauth2Proxy.cookieExpire` | Cookie expiration duration | `168h` |
-| `sidecars.oauth2Proxy.cookieRefresh` | Cookie refresh interval | `1h` |
-| `sidecars.oauth2Proxy.scope` | OAuth2 scopes to request | `openid email profile` |
-| `sidecars.oauth2Proxy.passAccessToken` | Pass the access token to upstream | `false` |
-| `sidecars.oauth2Proxy.redisSessionStore` | Use Redis (`services.redis`) as the session store instead of in-memory | `true` |
-| `sidecars.oauth2Proxy.useKubernetesSecrets` | Use Kubernetes secrets for credentials | `false` |
-| `sidecars.oauth2Proxy.secretName` | Kubernetes secret name (when `useKubernetesSecrets` is true) | `oauth2-proxy-secrets` |
-| `sidecars.oauth2Proxy.secretPaths.clientSecret` | File path for client secret | `/etc/oauth2-proxy/client-secret` |
-| `sidecars.oauth2Proxy.secretPaths.cookieSecret` | File path for cookie secret | `/etc/oauth2-proxy/cookie-secret` |
-
-## Extensibility Configuration
-
-The chart provides several extension points for customization:
+### Extensibility
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -221,22 +116,14 @@ The chart provides several extension points for customization:
 | `extraVolumes` | Additional volumes | `[]` |
 | `extraPodLabels` | Additional pod labels | `{}` |
 | `extraPodAnnotations` | Additional pod annotations | `{}` |
-| `extraEnvs` | Additional environment variables | `[]` |
-| `extraArgs` | Additional command line arguments | `[]` |
-| `extraPorts` | Additional container ports | `[]` |
 | `extraVolumeMounts` | Additional volume mounts | `[]` |
 | `extraConfigMaps` | Additional ConfigMaps to create | `[]` |
 
-
 ## Health Checks
 
-The chart includes comprehensive health checks:
-
-### Router Container (Main Service)
 - **Liveness Probe**: `/api/router/version` on port `8000`
 - **Readiness Probe**: `/api/router/version` on port `8000`
 - **Startup Probe**: `/api/router/version` on port `8000`
-
 
 ## Dependencies
 
@@ -244,35 +131,7 @@ This chart requires:
 - Kubernetes cluster (1.19+)
 - Access to NVIDIA container registry
 - PostgreSQL database
-- OAuth2 authentication provider (Keycloak, Auth0, etc.)
-- Ingress controller (NGINX or AWS ALB)
-- Optional: CloudWatch for centralized logging
-
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Authentication failures**: Check OAuth2 configuration and secret paths
-2. **SSL/TLS issues**: Verify certificate configuration and ingress settings
-3. **Database connection**: Ensure PostgreSQL settings and network connectivity
-
-### Debugging
-
-```bash
-# Check pod status
-kubectl get pods -l app=osmo-router
-
-# View logs
-kubectl logs -l app=osmo-router -c router
-kubectl logs -l app=osmo-router -c envoy
-
-# Check configuration
-helm template my-router ./router -f my-values.yaml
-
-# Validate generated resources
-helm template my-router ./router -f my-values.yaml | kubectl apply --dry-run=client -f -
-```
+- Ingress controller (NGINX or AWS ALB), or the OSMO gateway from the service chart
 
 ## Examples
 

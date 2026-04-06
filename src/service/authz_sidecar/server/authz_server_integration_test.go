@@ -552,6 +552,80 @@ func TestIntegration(t *testing.T) {
 		}
 	})
 
+	// Tests that the default role (osmo-default) is appended to roleNames before
+	// SyncUserRoles, so external mappings from osmo-default are evaluated even
+	// when the user's request headers don't include osmo-default.
+	// Seed data maps: external role "osmo-default" → OSMO role "osmo-user" (sync_mode=import).
+	t.Run("DefaultRoleExternalMappingGrantsOsmoUser", func(t *testing.T) {
+		authzServer := fixture.resetAndSeed(t)
+
+		tests := []struct {
+			name      string
+			user      string
+			roles     string
+			tokenName string
+			path      string
+			method    string
+			wantCode  codes.Code
+		}{
+			{
+				name:     "new user with no header roles can read workflows via default role mapping",
+				user:     "newuser@example.com",
+				roles:    "",
+				path:     "/api/workflow/123",
+				method:   "GET",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "new user with no header roles can list pools via default role mapping",
+				user:     "newuser2@example.com",
+				roles:    "",
+				path:     "/api/pool",
+				method:   "GET",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "new user with unrelated role still gets mapped role via default role mapping",
+				user:     "newuser3@example.com",
+				roles:    "some-other-idp-role",
+				path:     "/api/workflow/123",
+				method:   "GET",
+				wantCode: codes.OK,
+			},
+			{
+				name:     "default role mapping only grants read - cannot create workflows",
+				user:     "newuser4@example.com",
+				roles:    "",
+				path:     "/api/pool/staging/workflow",
+				method:   "POST",
+				wantCode: codes.PermissionDenied,
+			},
+			{
+				name:      "token request does NOT get default role mapping - sync is skipped",
+				user:      "newuser5@example.com",
+				roles:     "",
+				tokenName: "some-token",
+				path:      "/api/workflow/123",
+				method:    "GET",
+				wantCode:  codes.PermissionDenied,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				req := makeCheckRequestWithHeaders(tt.user, tt.path, tt.method, tt.roles, tt.tokenName, "")
+				resp, err := authzServer.Check(context.Background(), req)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				gotCode := codes.Code(resp.Status.Code)
+				if gotCode != tt.wantCode {
+					t.Errorf("Check() status = %v, want %v", gotCode, tt.wantCode)
+				}
+			})
+		}
+	})
+
 	// When both token name and workflow ID are set, role sync is still skipped.
 	t.Run("BothTokenAndWorkflowIDBypassRoleSync", func(t *testing.T) {
 		authzServer := fixture.resetAndSeed(t)

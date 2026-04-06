@@ -14,306 +14,264 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  test,
-  expect,
-  createPoolResponse,
-  createResourcesResponse,
-  expandFiltersIfCollapsed,
-  // Generated enums - use instead of string literals
-  PoolStatus,
-  BackendResourceType,
-} from "../fixtures";
+import { test, expect } from "@playwright/test";
+import { createResourcesResponse, createPoolResponse, BackendResourceType, PoolStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupResources, setupPools } from "@/e2e/utils/mock-setup";
 
 /**
  * Resources Page Journey Tests
  *
- * Tests for the cross-pool resources view.
- * Each test defines its own scenario data inline.
+ * Architecture notes:
+ * - Resources live at /resources (flat table with side panel, no /resources/[name] routes)
+ * - Resource selection: click row → ?view=resource-name opens the details panel
+ * - Panel is an <aside> (role="complementary", aria-label="Resource details: {name}")
+ * - resource.name = exposed_fields.node (e.g. "gpu-node" from hostname "gpu-node.cluster")
+ * - Resources with no pool memberships are skipped by the adapter
+ * - URL state: ?view=name (panel), ?f=resource:name (chip filter), ?f=pool:name (pool filter)
+ * - Search creates chips on Enter (role="combobox", not role="searchbox")
  */
 
 test.describe("Resources List", () => {
-  test("shows resources from all pools", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "pool-a", status: PoolStatus.ONLINE },
-        { name: "pool-b", status: PoolStatus.ONLINE },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "node-from-pool-a.cluster",
-          exposed_fields: { node: "node-from-pool-a", "pool/platform": ["pool-a/base"] },
-          pool_platform_labels: { "pool-a": ["base"] },
-        },
-        {
-          hostname: "node-from-pool-b.cluster",
-          exposed_fields: { node: "node-from-pool-b", "pool/platform": ["pool-b/gpu"] },
-          pool_platform_labels: { "pool-b": ["gpu"] },
-        },
-        {
-          hostname: "shared-node.cluster",
-          exposed_fields: { node: "shared-node", "pool/platform": ["pool-a/base", "pool-b/base"] },
-          pool_platform_labels: { "pool-a": ["base"], "pool-b": ["base"] },
-        },
-      ]),
-    });
-
-    await page.goto("/resources");
-    await page.waitForLoadState("networkidle");
-
-    // Should show all resources (use level: 1 for main heading)
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/resources/i);
-    await expect(page.getByText("node-from-pool-a").first()).toBeVisible();
-    await expect(page.getByText("node-from-pool-b").first()).toBeVisible();
-    await expect(page.getByText("shared-node").first()).toBeVisible();
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
   });
 
-  test("searches resources by hostname", async ({ page, withData }) => {
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "dgx-a100-001.cluster",
-          exposed_fields: { node: "dgx-a100-001", "pool/platform": ["prod/dgx"] },
-        },
-        {
-          hostname: "dgx-a100-002.cluster",
-          exposed_fields: { node: "dgx-a100-002", "pool/platform": ["prod/dgx"] },
-        },
-        {
-          hostname: "cpu-worker-001.cluster",
-          exposed_fields: { node: "cpu-worker-001", "pool/platform": ["prod/cpu"] },
-        },
-      ]),
-    });
+  test("shows resources from all pools", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "node-a.cluster",
+        exposed_fields: { node: "node-a", "pool/platform": ["pool-a/base"] },
+        pool_platform_labels: { "pool-a": ["base"] },
+      },
+      {
+        hostname: "node-b.cluster",
+        exposed_fields: { node: "node-b", "pool/platform": ["pool-b/gpu"] },
+        pool_platform_labels: { "pool-b": ["gpu"] },
+      },
+    ]));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
-    // Expand filters if collapsed (responsive layout)
-    await expandFiltersIfCollapsed(page);
+    await expect(page.getByText("node-a").first()).toBeVisible();
+    await expect(page.getByText("node-b").first()).toBeVisible();
+  });
 
-    // Search for "dgx"
-    const searchInput = page.getByRole("searchbox");
-    await expect(searchInput).toBeVisible();
+  test("search creates a filter chip for the typed resource name", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "dgx-001.cluster",
+        exposed_fields: { node: "dgx-001", "pool/platform": ["prod/dgx"] },
+        pool_platform_labels: { prod: ["dgx"] },
+      },
+      {
+        hostname: "dgx-002.cluster",
+        exposed_fields: { node: "dgx-002", "pool/platform": ["prod/dgx"] },
+        pool_platform_labels: { prod: ["dgx"] },
+      },
+      {
+        hostname: "cpu-001.cluster",
+        exposed_fields: { node: "cpu-001", "pool/platform": ["prod/cpu"] },
+        pool_platform_labels: { prod: ["cpu"] },
+      },
+    ]));
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // The search input is a combobox (chip-based filter, not free-text search)
+    const searchInput = page.getByRole("combobox");
     await searchInput.fill("dgx");
+    await searchInput.press("Enter");
 
-    // Wait for search to filter results - count should show "2 of 3"
-    await expect(page.getByText(/2 of 3/)).toBeVisible({ timeout: 3000 });
-
-    // Re-expand filters in case auto-collapse was triggered by resize after filtering
-    await expandFiltersIfCollapsed(page);
-
-    // Clear search by clearing the input directly
-    await searchInput.clear();
-    await expect(searchInput).toHaveValue("");
+    // Pressing Enter commits a chip — the URL reflects the active filter with the value
+    await expect(page).toHaveURL(/f=resource(%3A|:)dgx/);
+    // Matched resources remain visible
+    await expect(page.getByText("dgx-001").first()).toBeVisible();
+    // Non-matching resource is filtered out
+    await expect(page.getByText("cpu-001")).not.toBeVisible();
   });
 
-  test("filters by pool", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "production", status: PoolStatus.ONLINE },
-        { name: "development", status: PoolStatus.ONLINE },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "prod-node.cluster",
-          exposed_fields: { node: "prod-node", "pool/platform": ["production/base"] },
-          pool_platform_labels: { production: ["base"] },
-        },
-        {
-          hostname: "dev-node.cluster",
-          exposed_fields: { node: "dev-node", "pool/platform": ["development/base"] },
-          pool_platform_labels: { development: ["base"] },
-        },
-      ]),
-    });
+  test("pool filter chip via URL shows only that pool's resources", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "prod-node.cluster",
+        exposed_fields: { node: "prod-node", "pool/platform": ["production/base"] },
+        pool_platform_labels: { production: ["base"] },
+      },
+      {
+        hostname: "dev-node.cluster",
+        exposed_fields: { node: "dev-node", "pool/platform": ["development/base"] },
+        pool_platform_labels: { development: ["base"] },
+      },
+    ]));
 
-    await page.goto("/resources");
+    // Navigate with a pool chip pre-applied
+    await page.goto("/resources?f=pool:production");
     await page.waitForLoadState("networkidle");
 
-    // Both should be visible initially
     await expect(page.getByText("prod-node").first()).toBeVisible();
-    await expect(page.getByText("dev-node").first()).toBeVisible();
-
-    // Expand filters if collapsed (responsive layout)
-    await expandFiltersIfCollapsed(page);
-
-    // Open pool filter (use aria-label which is more specific)
-    const poolFilter = page.getByLabel(/filter by pool/i);
-    if (await poolFilter.isVisible()) {
-      await poolFilter.click();
-    }
+    await expect(page.getByText("dev-node")).not.toBeVisible();
   });
 
-  test("filters by resource type", async ({ page, withData }) => {
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "shared-node.cluster",
-          resource_type: BackendResourceType.SHARED,
-          exposed_fields: { node: "shared-node", "pool/platform": ["prod/base"] },
-        },
-        {
-          hostname: "reserved-node.cluster",
-          resource_type: BackendResourceType.RESERVED,
-          exposed_fields: { node: "reserved-node", "pool/platform": ["prod/base"] },
-        },
-        {
-          hostname: "unused-node.cluster",
-          resource_type: BackendResourceType.UNUSED,
-          exposed_fields: { node: "unused-node", "pool/platform": ["prod/base"] },
-        },
-      ]),
-    });
+  test("shows all resource types in the table", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "shared-node.cluster",
+        resource_type: BackendResourceType.SHARED,
+        exposed_fields: { node: "shared-node", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+      {
+        hostname: "reserved-node.cluster",
+        resource_type: BackendResourceType.RESERVED,
+        exposed_fields: { node: "reserved-node", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+      {
+        hostname: "unused-node.cluster",
+        resource_type: BackendResourceType.UNUSED,
+        exposed_fields: { node: "unused-node", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+    ]));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
-    // All types should be visible
     await expect(page.getByText("shared-node").first()).toBeVisible();
     await expect(page.getByText("reserved-node").first()).toBeVisible();
     await expect(page.getByText("unused-node").first()).toBeVisible();
   });
-
-  test("clears all filters at once", async ({ page, withData }) => {
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "test-node.cluster",
-          exposed_fields: { node: "test-node", "pool/platform": ["pool/base"] },
-        },
-      ]),
-    });
-
-    await page.goto("/resources");
-    await page.waitForLoadState("networkidle");
-
-    // Expand filters if collapsed (responsive layout)
-    await expandFiltersIfCollapsed(page);
-
-    // Apply a search filter
-    const searchInput = page.getByRole("searchbox");
-    await searchInput.fill("filter-test");
-
-    // Look for clear all button
-    const clearAllButton = page.getByRole("button", { name: /clear all/i });
-    if (await clearAllButton.isVisible()) {
-      await clearAllButton.click();
-      await expect(searchInput).toHaveValue("");
-    }
-  });
 });
 
-test.describe("Resource Details", () => {
-  test("opens detail panel on row click", async ({ page, withData }) => {
-    const GiB = 1024 * 1024;
+test.describe("Resource Panel", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    // Panel's useResourceDetail fetches both /api/resources and /api/pool_quota
+    await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
+  });
 
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "detailed-node.cluster",
-          resource_type: BackendResourceType.SHARED,
-          conditions: ["Ready", "SchedulingEnabled"],
-          exposed_fields: { node: "detailed-node", "pool/platform": ["prod/dgx", "dev/base"] },
-          allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * GiB },
-          usage_fields: { gpu: 4, cpu: 64, memory: 256 * GiB },
-          pool_platform_labels: { prod: ["dgx"], dev: ["base"] },
-        },
-      ]),
-    });
+  test("clicking a resource row opens the details panel", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "gpu-node.cluster",
+        exposed_fields: { node: "gpu-node", "pool/platform": ["prod/dgx"] },
+        pool_platform_labels: { prod: ["dgx"] },
+      },
+    ]));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
-    // Click the resource
-    await page.getByText("detailed-node").first().click();
+    await page.getByText("gpu-node").first().click();
 
-    // Panel should open with details
-    const panel = page.getByRole("dialog");
+    // URL state reflects the selection
+    await expect(page).toHaveURL(/view=gpu-node/);
+
+    // Panel opens with resource name
+    const panel = page.getByRole("complementary", { name: "Resource details: gpu-node" });
     await expect(panel).toBeVisible();
-    await expect(panel.getByRole("heading").first()).toBeVisible();
+  });
 
-    // Close panel
-    await page.getByRole("button", { name: /close/i }).click();
+  test("navigating directly to a resource opens its panel", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "direct-node.cluster",
+        exposed_fields: { node: "direct-node", "pool/platform": ["prod/dgx"] },
+        pool_platform_labels: { prod: ["dgx"] },
+      },
+    ]));
+
+    await page.goto("/resources?view=direct-node");
+    await page.waitForLoadState("networkidle");
+
+    // Panel is open without any clicking
+    const panel = page.getByRole("complementary", { name: "Resource details: direct-node" });
+    await expect(panel).toBeVisible();
+  });
+
+  test("closes with the close button and clears URL state", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "closeable-node.cluster",
+        exposed_fields: { node: "closeable-node", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+    ]));
+
+    await page.goto("/resources?view=closeable-node");
+    await page.waitForLoadState("networkidle");
+
+    const panel = page.getByRole("complementary", { name: "Resource details: closeable-node" });
+    await expect(panel).toBeVisible();
+
+    await page.getByRole("button", { name: "Close panel" }).click();
+
+    await expect(page).not.toHaveURL(/view=/);
     await expect(panel).not.toBeVisible();
   });
 
-  test("shows pool memberships for shared resources", async ({ page, withData }) => {
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "multi-pool-node.cluster",
-          resource_type: BackendResourceType.SHARED,
-          exposed_fields: {
-            node: "multi-pool-node",
-            "pool/platform": ["production/dgx", "research/dgx", "development/base"],
-          },
-          pool_platform_labels: {
-            production: ["dgx"],
-            research: ["dgx"],
-            development: ["base"],
-          },
-        },
-      ]),
-    });
+  test("shows resource name in panel header", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "named-node.cluster",
+        exposed_fields: { node: "named-node", "pool/platform": ["prod/dgx"] },
+        pool_platform_labels: { prod: ["dgx"] },
+      },
+    ]));
 
-    await page.goto("/resources");
+    await page.goto("/resources?view=named-node");
     await page.waitForLoadState("networkidle");
 
-    // Click to open panel
-    await page.getByText("multi-pool-node").first().click();
-
-    // Panel should show pool memberships
-    const panel = page.getByRole("dialog");
-    await expect(panel).toBeVisible();
+    const panel = page.getByRole("complementary", { name: "Resource details: named-node" });
+    await expect(panel.getByRole("heading").first()).toContainText("named-node");
   });
 });
 
-test.describe("Edge Cases", () => {
-  test("handles empty resources gracefully", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([{ name: "empty", status: PoolStatus.ONLINE }]),
-      resources: { resources: [] },
-    });
-
-    await page.goto("/resources");
-    await page.waitForLoadState("networkidle");
-
-    // Should show heading but handle empty state
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/resources/i);
+test.describe("Resource Edge Cases", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
   });
 
-  test("handles resources with issues", async ({ page, withData }) => {
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "problematic-node.cluster",
-          resource_type: BackendResourceType.SHARED,
-          conditions: ["Ready", "SchedulingDisabled", "MemoryPressure", "DiskPressure"],
-          exposed_fields: { node: "problematic-node", "pool/platform": ["prod/base"] },
-        },
-      ]),
-    });
+  test("shows error state when resource API fails", async ({ page }) => {
+    // Use 400 to avoid TanStack Query retries (5xx errors are retried with backoff)
+    await setupResources(page, { status: 400, detail: "Bad request" });
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
 
-    // Should display the node with its conditions
+    await expect(page.locator("body")).not.toBeEmpty();
+    await expect(page.getByText(/unable to load/i)).toBeVisible();
+  });
+
+  test("shows resources with node conditions", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "problematic-node.cluster",
+        conditions: ["Ready", "SchedulingDisabled", "MemoryPressure"],
+        exposed_fields: { node: "problematic-node", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+    ]));
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
     await expect(page.getByText("problematic-node").first()).toBeVisible();
   });
 
-  test("handles CPU-only nodes (no GPU)", async ({ page, withData }) => {
-    await withData({
-      resources: createResourcesResponse([
-        {
-          hostname: "cpu-only-node.cluster",
-          resource_type: BackendResourceType.SHARED,
-          exposed_fields: { node: "cpu-only-node", "pool/platform": ["prod/cpu"] },
-          allocatable_fields: { gpu: 0, cpu: 256, memory: 1024 * 1024 * 1024 },
-          usage_fields: { gpu: 0, cpu: 128, memory: 512 * 1024 * 1024 },
-        },
-      ]),
-    });
+  test("shows CPU-only nodes with zero GPU", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "cpu-only-node.cluster",
+        resource_type: BackendResourceType.SHARED,
+        exposed_fields: { node: "cpu-only-node", "pool/platform": ["prod/cpu"] },
+        pool_platform_labels: { prod: ["cpu"] },
+        allocatable_fields: { gpu: 0, cpu: 256, memory: 1024 * 1024, storage: 0 },
+        usage_fields: { gpu: 0, cpu: 128, memory: 512 * 1024, storage: 0 },
+      },
+    ]));
 
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");

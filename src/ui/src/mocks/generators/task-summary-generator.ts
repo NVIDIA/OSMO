@@ -22,7 +22,7 @@
  * matching the shape returned by GET /api/task?summary=true.
  *
  * Coverage:
- *   - 10 users with distinct workload profiles
+ *   - 33 users with distinct workload profiles
  *   - 12 pools (cloud, on-prem, shared, specialised tiers)
  *   - All three priorities across realistic user/pool combinations
  *   - Edge cases: GPU=0 CPU-only tasks, single-priority users, users spanning
@@ -32,32 +32,16 @@
  */
 
 import { faker } from "@faker-js/faker";
-import type { ListTaskSummaryEntry } from "@/lib/api/generated";
-
-// ============================================================================
-// Deterministic seeding helpers
-// ============================================================================
+import { delay, HttpResponse, passthrough } from "msw";
+import type { ListTaskSummaryEntry, ListTaskSummaryResponse } from "@/lib/api/generated";
+import { getMockDelay, hashString } from "@/mocks/utils";
 
 const BASE_SEED = 0xdeadbeef;
 
-function hashKey(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = Math.imul(31, h) + s.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
-/** Deterministic integer in [min, max] keyed by an arbitrary string. */
 function rng(key: string, min: number, max: number): number {
-  faker.seed(BASE_SEED ^ hashKey(key));
+  faker.seed(BASE_SEED ^ hashString(key));
   return faker.number.int({ min, max });
 }
-
-// ============================================================================
-// Resource range presets
-// ============================================================================
 
 interface ResourceRange {
   gpu: [number, number];
@@ -74,10 +58,6 @@ const GPU_MINIMAL: ResourceRange = { gpu: [0, 1], cpu: [4, 16], memory: [16, 64]
 const CPU_ONLY: ResourceRange = { gpu: [0, 0], cpu: [8, 64], memory: [32, 256], storage: [0, 1000] };
 const INFERENCE: ResourceRange = { gpu: [1, 8], cpu: [8, 32], memory: [64, 512], storage: [0, 200] };
 const BENCH: ResourceRange = { gpu: [4, 16], cpu: [32, 128], memory: [256, 1024], storage: [0, 100] };
-
-// ============================================================================
-// User profiles
-// ============================================================================
 
 type Priority = "HIGH" | "NORMAL" | "LOW";
 
@@ -97,9 +77,6 @@ interface UserProfile {
 }
 
 const USER_PROFILES: UserProfile[] = [
-  // -------------------------------------------------------------------------
-  // alice.chen — ML researcher, heavy GPU LLM training, cloud + dedicated pools
-  // -------------------------------------------------------------------------
   {
     user: "alice.chen",
     pools: [
@@ -121,9 +98,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // bob.smith — Data engineer, CPU preprocessing + minimal GPU eval
-  // -------------------------------------------------------------------------
   {
     user: "bob.smith",
     pools: [
@@ -145,9 +119,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // carol.jones — Fine-tuning specialist, HIGH priority GPU work across regions
-  // -------------------------------------------------------------------------
   {
     user: "carol.jones",
     pools: [
@@ -172,9 +143,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // david.kim — Platform engineer, runs jobs on many pools across all priorities
-  // -------------------------------------------------------------------------
   {
     user: "david.kim",
     pools: [
@@ -193,9 +161,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // eve.wilson — Inference specialist, low-priority serving workloads
-  // -------------------------------------------------------------------------
   {
     user: "eve.wilson",
     pools: [
@@ -213,9 +178,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // frank.zhang — Benchmarking lead, HIGH priority short-burst GPU jobs
-  // -------------------------------------------------------------------------
   {
     user: "frank.zhang",
     pools: [
@@ -237,9 +199,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // grace.lee — Research team lead, moderate GPU, research + training clusters
-  // -------------------------------------------------------------------------
   {
     user: "grace.lee",
     pools: [
@@ -264,9 +223,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // henry.patel — Experimenter, minimal GPU, dev cluster only (single pool)
-  // -------------------------------------------------------------------------
   {
     user: "henry.patel",
     pools: [
@@ -280,9 +236,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // system-scheduler — Automated orchestration, NORMAL priority, spans all pools
-  // -------------------------------------------------------------------------
   {
     user: "system-scheduler",
     pools: [
@@ -297,9 +250,6 @@ const USER_PROFILES: UserProfile[] = [
     ],
   },
 
-  // -------------------------------------------------------------------------
-  // ci-pipeline — CI/CD, LOW priority, CPU-only on shared + dev pools
-  // -------------------------------------------------------------------------
   {
     user: "ci-pipeline",
     pools: [
@@ -314,11 +264,172 @@ const USER_PROFILES: UserProfile[] = [
       },
     ],
   },
-];
 
-// ============================================================================
-// Build the flat entry list once at module load (deterministic)
-// ============================================================================
+  // -------------------------------------------------------------------------
+  // Additional users to exceed the old 20-user cap for filter testing
+  // -------------------------------------------------------------------------
+  {
+    user: "ivan.novak",
+    pools: [
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+    ],
+  },
+  {
+    user: "julia.martinez",
+    pools: [
+      { pool: "training-pool", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "research-cluster", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "kevin.oshea",
+    pools: [
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+      { pool: "shared-pool-alpha", buckets: [{ priority: "NORMAL", resources: CPU_ONLY }] },
+    ],
+  },
+  {
+    user: "linda.nakamura",
+    pools: [
+      { pool: "dgx-cloud-eu-west-1", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+      { pool: "inference-pool", buckets: [{ priority: "NORMAL", resources: INFERENCE }] },
+    ],
+  },
+  {
+    user: "marcus.berg",
+    pools: [
+      { pool: "dedicated-h100-80gb", buckets: [{ priority: "HIGH", resources: GPU_XLARGE }] },
+      { pool: "benchmark-pool", buckets: [{ priority: "NORMAL", resources: BENCH }] },
+    ],
+  },
+  {
+    user: "nina.petrova",
+    pools: [
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "dgx-cloud-us-east-1", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "oscar.diaz",
+    pools: [
+      { pool: "shared-pool-beta", buckets: [{ priority: "LOW", resources: CPU_ONLY }] },
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "NORMAL", resources: GPU_MINIMAL }] },
+    ],
+  },
+  {
+    user: "priya.sharma",
+    pools: [
+      { pool: "training-pool", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "quinn.taylor",
+    pools: [
+      { pool: "research-cluster", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "dedicated-a100-80gb", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+    ],
+  },
+  {
+    user: "rafael.costa",
+    pools: [
+      { pool: "inference-pool", buckets: [{ priority: "LOW", resources: INFERENCE }] },
+      { pool: "shared-pool-alpha", buckets: [{ priority: "NORMAL", resources: CPU_ONLY }] },
+    ],
+  },
+  {
+    user: "sarah.oconnor",
+    pools: [
+      { pool: "dgx-cloud-eu-west-1", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+    ],
+  },
+  {
+    user: "thomas.weber",
+    pools: [
+      { pool: "benchmark-pool", buckets: [{ priority: "HIGH", resources: BENCH }] },
+      { pool: "dgx-cloud-us-east-1", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "ursula.fischer",
+    pools: [
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+      { pool: "training-pool", buckets: [{ priority: "LOW", resources: GPU_MINIMAL }] },
+    ],
+  },
+  {
+    user: "victor.santos",
+    pools: [
+      { pool: "dedicated-h100-80gb", buckets: [{ priority: "NORMAL", resources: GPU_HEAVY }] },
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "wendy.liu",
+    pools: [
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+      { pool: "research-cluster", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "xavier.dupont",
+    pools: [
+      { pool: "shared-pool-beta", buckets: [{ priority: "NORMAL", resources: CPU_ONLY }] },
+      { pool: "inference-pool", buckets: [{ priority: "LOW", resources: INFERENCE }] },
+    ],
+  },
+  {
+    user: "yuki.tanaka",
+    pools: [
+      { pool: "dgx-cloud-eu-west-1", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+      { pool: "training-pool", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "zara.ahmed",
+    pools: [
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+      { pool: "dedicated-a100-80gb", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+    ],
+  },
+  {
+    user: "alex.volkov",
+    pools: [
+      { pool: "benchmark-pool", buckets: [{ priority: "NORMAL", resources: BENCH }] },
+      { pool: "dgx-cloud-us-west-2", buckets: [{ priority: "LOW", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "bianca.rossi",
+    pools: [
+      { pool: "shared-pool-alpha", buckets: [{ priority: "LOW", resources: CPU_ONLY }] },
+      { pool: "gpu-cluster-dev", buckets: [{ priority: "NORMAL", resources: GPU_MINIMAL }] },
+    ],
+  },
+  {
+    user: "carlos.mendoza",
+    pools: [
+      { pool: "dgx-cloud-us-east-1", buckets: [{ priority: "HIGH", resources: GPU_MED }] },
+      { pool: "research-cluster", buckets: [{ priority: "NORMAL", resources: GPU_LIGHT }] },
+    ],
+  },
+  {
+    user: "diana.park",
+    pools: [
+      { pool: "training-pool", buckets: [{ priority: "HIGH", resources: GPU_HEAVY }] },
+      { pool: "inference-pool", buckets: [{ priority: "NORMAL", resources: INFERENCE }] },
+    ],
+  },
+  {
+    user: "ethan.wright",
+    pools: [
+      { pool: "gpu-cluster-prod", buckets: [{ priority: "NORMAL", resources: GPU_MED }] },
+      { pool: "shared-pool-beta", buckets: [{ priority: "LOW", resources: CPU_ONLY }] },
+    ],
+  },
+];
 
 function buildEntries(): ListTaskSummaryEntry[] {
   const entries: ListTaskSummaryEntry[] = [];
@@ -347,11 +458,7 @@ function buildEntries(): ListTaskSummaryEntry[] {
 
 const ALL_ENTRIES: ListTaskSummaryEntry[] = buildEntries();
 
-// ============================================================================
-// Generator class
-// ============================================================================
-
-export interface TaskSummaryFilters {
+interface TaskSummaryFilters {
   users?: string[];
   pools?: string[];
   priorities?: string[];
@@ -359,10 +466,6 @@ export interface TaskSummaryFilters {
 }
 
 export class TaskSummaryGenerator {
-  /**
-   * Return summary entries, optionally filtered.
-   * Mirrors the behaviour of GET /api/task?summary=true.
-   */
   getSummaries(filters: TaskSummaryFilters = {}): ListTaskSummaryEntry[] {
     let result = ALL_ENTRIES;
 
@@ -388,15 +491,26 @@ export class TaskSummaryGenerator {
     return result;
   }
 
-  /** All distinct pool names in the dataset. */
-  getPools(): string[] {
-    return [...new Set(ALL_ENTRIES.map((e) => e.pool).filter(Boolean) as string[])].sort();
-  }
+  handleGetTaskSummary = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
 
-  /** All distinct user names in the dataset. */
-  getUsers(): string[] {
-    return [...new Set(ALL_ENTRIES.map((e) => e.user))].sort();
-  }
+    if (url.searchParams.get("summary") !== "true") return passthrough();
+
+    const users = url.searchParams.getAll("users");
+    const pools = url.searchParams.getAll("pools");
+    const priorities = url.searchParams.getAll("priority");
+    const limit = parseInt(url.searchParams.get("limit") ?? "10000", 10);
+
+    const summaries = this.getSummaries({
+      users: users.length > 0 ? users : undefined,
+      pools: pools.length > 0 ? pools : undefined,
+      priorities: priorities.length > 0 ? priorities : undefined,
+      limit: isNaN(limit) ? undefined : limit,
+    });
+
+    return HttpResponse.json<ListTaskSummaryResponse>({ summaries });
+  };
 }
 
 export const taskSummaryGenerator = new TaskSummaryGenerator();

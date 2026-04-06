@@ -23,16 +23,6 @@ spec:
   - interval: 15s
     port: metrics
     path: /metrics
-  {{- if .Values.sidecars.envoy.enabled }}
-  - interval: 15s
-    port: envoy-admin
-    path: /stats/prometheus
-  {{- end }}
-  {{- if .Values.sidecars.oauth2Proxy.enabled }}
-  - interval: 15s
-    port: oauth2-metrics
-    path: /metrics
-  {{- end }}
   selector:
     matchExpressions:
     - { key: app,

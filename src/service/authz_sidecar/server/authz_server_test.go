@@ -25,6 +25,49 @@ import (
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
 
+func TestDeduplicateRoles(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{
+			name:  "no duplicates",
+			input: []string{"a", "b", "c"},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "with duplicates preserves first occurrence",
+			input: []string{"a", "b", "a", "c", "b"},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "default role appended does not duplicate",
+			input: []string{"osmo-admin", "osmo-default", "osmo-default"},
+			want:  []string{"osmo-admin", "osmo-default"},
+		},
+		{
+			name:  "empty input",
+			input: []string{},
+			want:  []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := deduplicateRoles(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("deduplicateRoles() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("deduplicateRoles()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestLegacyMatchMethod(t *testing.T) {
 	// Test the legacy method matching from the roles package
 	tests := []struct {

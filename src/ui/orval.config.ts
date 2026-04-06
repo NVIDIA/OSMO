@@ -49,7 +49,7 @@ export default defineConfig({
       target: './openapi.json',
     },
     output: {
-      target: './e2e/mocks/generated-mocks.ts',
+      target: './src/mocks/generated-mocks.ts',
       mode: 'single',
       client: 'fetch',
       mock: {

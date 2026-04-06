@@ -25,7 +25,6 @@ import { useLogViewerUrlState } from "@/components/log-viewer/lib/use-log-viewer
 import { useLogViewerLocalState } from "@/components/log-viewer/lib/use-log-viewer-local-state";
 import type { WorkflowMetadata } from "@/components/log-viewer/lib/types";
 import { useTick, useTickController } from "@/hooks/use-tick";
-import { formatDateTimeFull } from "@/lib/format-date";
 
 export interface LogViewerContainerProps {
   /** Backend-provided log URL (e.g., task.logs, workflow.logs) */
@@ -124,51 +123,10 @@ function LogViewerContainerImpl({
   // Render states
   const containerClasses = cn(showBorder && "border-border bg-card overflow-hidden rounded-lg border", className);
 
-  if (workflowMetadata && !workflowMetadata.startTime) {
-    return (
-      <div className={containerClasses}>
-        <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-          <div className="bg-muted text-muted-foreground rounded-full p-4">
-            <svg
-              className="size-8"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="10"
-              />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-          </div>
-          <div className="space-y-1">
-            <p className="text-foreground text-sm font-medium">Workflow Not Started</p>
-            <p className="text-muted-foreground text-xs">
-              {workflowMetadata.submitTime
-                ? `Submitted ${formatDateTimeFull(workflowMetadata.submitTime)}, waiting to start`
-                : "Workflow has been submitted but hasn't started yet"}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if ((phase === "connecting" || phase === "reconnecting" || phase === "idle") && rawEntries.length === 0) {
     return (
       <div className={containerClasses}>
         <LogViewerSkeleton className={viewerClassName} />
-      </div>
-    );
-  }
-
-  if (!workflowMetadata?.startTime || !timelineProps) {
-    return (
-      <div className={containerClasses}>
-        <div className="text-muted-foreground p-4 text-center text-sm">Workflow has not started yet</div>
       </div>
     );
   }
@@ -178,7 +136,7 @@ function LogViewerContainerImpl({
       <LogViewer
         data={dataProps}
         filter={filterProps}
-        timeline={timelineProps}
+        timeline={timelineProps ?? undefined}
         className={viewerClassName}
         showTimeline={showTimeline}
       />

@@ -65,3 +65,23 @@ INSERT INTO access_token (user_name, token_name, description) VALUES
 INSERT INTO access_token_roles (user_name, token_name, user_role_id, assigned_by) VALUES
     ('user@example.com', 'my-api-token', 'a0000000-0000-0000-0000-000000000003', 'seed'),
     ('user@example.com', 'full-access-token', 'a0000000-0000-0000-0000-000000000002', 'seed');
+
+-- Role granted via the osmo-default external mapping. sync_mode='import' allows
+-- IDP sync to assign this role when the external role "osmo-default" is present.
+-- This is separate from osmo-user to avoid affecting existing test expectations.
+-- Only grants read-level access (workflow:Read, pool:Read, pool:List).
+INSERT INTO roles (name, description, policies, immutable, sync_mode) VALUES (
+    'osmo-default-mapped',
+    'Role auto-assigned via osmo-default external mapping',
+    ARRAY[
+        '{"actions": ["workflow:Read", "pool:Read", "pool:List"], "resources": ["*"]}'::jsonb
+    ],
+    FALSE,
+    'import'
+);
+
+-- External role mappings: osmo-default external role maps to osmo-default-mapped.
+-- The authz server appends "osmo-default" to every request before SyncUserRoles,
+-- so this mapping fires for every user who goes through role sync.
+INSERT INTO role_external_mappings (role_name, external_role) VALUES
+    ('osmo-default-mapped', 'osmo-default');

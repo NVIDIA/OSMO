@@ -16,56 +16,24 @@
 
 "use server";
 
-/**
- * Server Actions for Mock Configuration
- *
- * These actions run in the same Node.js process as the MSW server,
- * allowing direct manipulation of mock data generators.
- *
- * IMPORTANT: This file is only imported by MockProvider.tsx, which is
- * aliased to a no-op stub in production. Therefore, this file is never
- * part of the production bundle.
- *
- * Usage (from browser console):
- *   __mockConfig.setWorkflowTotal(100000)
- *   __mockConfig.getVolumes()
- *
- * ARCHITECTURE NOTE: Uses global config store to ensure consistency across
- * Next.js contexts (Server Actions run in separate bundle from MSW handlers).
- */
-
-import type { MockVolumes } from "@/mocks/actions/mock-config.types";
+import type { MockVolumes } from "@/mocks/global-config";
 import { getGlobalMockConfig, setGlobalMockConfig } from "@/mocks/global-config";
 
-/**
- * Set mock data volumes on the server.
- * Changes take effect immediately for subsequent API requests.
- *
- * Uses global config store to ensure changes are visible across all
- * Next.js contexts (Server Actions, MSW handlers, etc.).
- */
 export async function setMockVolumes(volumes: Partial<MockVolumes>): Promise<MockVolumes> {
-  // Update global config (shared across all Next.js contexts)
   setGlobalMockConfig(volumes);
 
-  // Clear generator caches so they regenerate with new totals
   if (volumes.workflows !== undefined) {
     try {
-      const generators = await import("@/mocks/handlers");
-      generators.workflowGenerator.clearCache();
+      const { workflowGenerator } = await import("@/mocks/generators/workflow-generator");
+      workflowGenerator.clearCache();
     } catch {
       // Cache clear failed, not critical
     }
   }
 
-  // Return current volumes from global config
   return getGlobalMockConfig();
 }
 
-/**
- * Get current mock data volumes from the server.
- * Reads from global config store.
- */
 export async function getMockVolumes(): Promise<MockVolumes> {
   return getGlobalMockConfig();
 }

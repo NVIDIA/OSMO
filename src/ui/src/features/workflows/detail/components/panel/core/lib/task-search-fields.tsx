@@ -223,7 +223,7 @@ export const TASK_SEARCH_FIELDS: readonly SearchField<TaskWithDuration>[] = [
     id: "name",
     label: "Name",
     prefix: "",
-    getValues: (tasks) => [...new Set(tasks.map((t) => t.name))].slice(0, 10),
+    getValues: (tasks) => [...new Set(tasks.map((t) => t.name))],
     match: (task, value) => task.name.toLowerCase().includes(value.toLowerCase()),
   },
   {
