@@ -10405,8 +10405,7 @@
           "duration": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "duration"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -15121,8 +15120,7 @@
           "exec_timeout": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "duration"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -15133,8 +15131,7 @@
           "queue_timeout": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "duration"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -15145,8 +15142,7 @@
           "duration": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "duration"
+                "type": "number"
               },
               {
                 "type": "null"
@@ -15155,8 +15151,7 @@
             "title": "Duration"
           },
           "queued_time": {
-            "type": "string",
-            "format": "duration",
+            "type": "number",
             "title": "Queued Time"
           },
           "status": {
@@ -15403,15 +15398,13 @@
             "title": "End Time"
           },
           "queued_time": {
-            "type": "string",
-            "format": "duration",
+            "type": "number",
             "title": "Queued Time"
           },
           "duration": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "duration"
+                "type": "number"
               },
               {
                 "type": "null"

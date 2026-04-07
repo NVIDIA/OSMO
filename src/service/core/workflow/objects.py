@@ -188,8 +188,10 @@ class CancelResponse(pydantic.BaseModel, extra='forbid'):
     name: str
 
 
-class ListEntry(pydantic.BaseModel, extra='forbid'):
+class ListEntry(pydantic.BaseModel):
     """ Entry for list API results. """
+    model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
+
     user: str
     name: str
     workflow_uuid: str
@@ -336,8 +338,10 @@ class TaskEntry(pydantic.BaseModel, extra='forbid'):
         )
 
 
-class ListTaskEntry(pydantic.BaseModel, extra='forbid'):
+class ListTaskEntry(pydantic.BaseModel):
     """ Entry for task list API results. """
+    model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
+
     user: str
     workflow_id: str
     workflow_uuid: str
@@ -449,8 +453,10 @@ class GroupQueryResponse(pydantic.BaseModel, extra='forbid'):
     tasks: List[TaskQueryResponse] = []
 
 
-class WorkflowQueryResponse(pydantic.BaseModel, extra='forbid'):
+class WorkflowQueryResponse(pydantic.BaseModel):
     """ Represents the queryed workflow information. """
+    model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
+
     name: str
     uuid: str
     submitted_by: str

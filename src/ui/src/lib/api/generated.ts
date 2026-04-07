@@ -879,7 +879,7 @@ export interface ListTaskEntry {
   node?: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  duration?: string | null;
+  duration?: number | null;
   status: TaskGroupStatus;
   overview: string;
   logs: string;
@@ -2007,10 +2007,10 @@ export interface WorkflowQueryResponse {
   submit_time: string;
   start_time?: string | null;
   end_time?: string | null;
-  exec_timeout?: string | null;
-  queue_timeout?: string | null;
-  duration?: string | null;
-  queued_time: string;
+  exec_timeout?: number | null;
+  queue_timeout?: number | null;
+  duration?: number | null;
+  queued_time: number;
   status: WorkflowStatus;
   outputs?: string;
   groups: GroupQueryResponse[];
@@ -2047,8 +2047,8 @@ export interface SrcServiceCoreWorkflowObjectsListEntry {
   submit_time: string;
   start_time?: string | null;
   end_time?: string | null;
-  queued_time: string;
-  duration?: string | null;
+  queued_time: number;
+  duration?: number | null;
   status: WorkflowStatus;
   overview: string;
   logs: string;

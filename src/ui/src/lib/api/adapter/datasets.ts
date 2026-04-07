@@ -223,7 +223,7 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
     created_at: raw.create_time,
     created_by: undefined, // Not available in list view
     updated_at: raw.last_created || raw.create_time,
-    size_bytes: ensureNumber(raw.hash_location_size),
+    size_bytes: ensureNumber(raw.hash_location_size ?? undefined),
     labels: {}, // Not available in list view
   };
 }
@@ -278,9 +278,9 @@ export function transformDatasetDetail(raw: DataInfoResponse): DetailResponse {
         type: DatasetType.COLLECTION,
         path: raw.hash_location || "",
         created_at: raw.created_date || "",
-        created_by: raw.created_by,
+        created_by: raw.created_by ?? undefined,
         updated_at: raw.created_date || "",
-        size_bytes: ensureNumber(raw.hash_location_size),
+        size_bytes: ensureNumber(raw.hash_location_size ?? undefined),
         labels,
       },
       members: collectionEntries.map((e) => ({
@@ -314,9 +314,9 @@ export function transformDatasetDetail(raw: DataInfoResponse): DetailResponse {
       path: raw.hash_location || "",
       version: currentVersionNumber,
       created_at: raw.created_date || "",
-      created_by: raw.created_by,
+      created_by: raw.created_by ?? undefined,
       updated_at: latestVersion?.created_date || raw.created_date || "",
-      size_bytes: ensureNumber(raw.hash_location_size),
+      size_bytes: ensureNumber(raw.hash_location_size ?? undefined),
       labels,
     },
     versions: datasetVersions as DatasetVersion[],
