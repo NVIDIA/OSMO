@@ -17,11 +17,6 @@
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
 
-{{/* Validate required fields */}}
-{{- if and $gw.oauth2Proxy.enabled (not $gw.envoy.hostname) }}
-  {{- fail "gateway.envoy.hostname is required when gateway.oauth2Proxy.enabled is true (used for the OAuth2 redirect URL)" }}
-{{- end }}
-
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
 {{/* ================================================================ */}}
