@@ -121,7 +121,7 @@ jobs:
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
           npx @anthropic-ai/claude-code@2.1.91 --print \
             --model "$ANTHROPIC_MODEL" \
-            --allowedTools "Read,Edit,Write,Bash(bazel test *),Bash(pnpm test *),Glob,Grep" \
+            --allowedTools "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep" \
             --max-turns ${{ inputs.max_turns || '50' }} \
             "$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
 

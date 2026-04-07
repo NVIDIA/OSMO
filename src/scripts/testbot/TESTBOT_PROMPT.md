@@ -1,7 +1,8 @@
 # Testbot Instructions
 
 You are generating tests for the OSMO codebase to improve code coverage.
-Read `AGENTS.md` at the repo root for full project coding standards.
+Read `AGENTS.md` at the repo root for project coding standards (import rules,
+naming conventions, type annotations, assertion style).
 
 ## Coverage Targets
 
@@ -18,16 +19,41 @@ The targets are appended below this prompt. For each target you receive:
    - Go: `<dir>/<name>_test.go`
    - TypeScript: `<dir>/<name>.test.ts` or `<name>.test.tsx`
 3. If a test file exists, read it so you can extend it without duplicating.
-4. Write (or extend) the test file targeting the uncovered line ranges.
-5. **Python only — BUILD file**:
+4. Analyze the uncovered line ranges before writing tests:
+   - Read the function's docstring/comments to understand intended behavior.
+   - Read the conditional (`if`/`except`/`match`) that gates each uncovered block.
+   - Identify what input or state would trigger that branch.
+   - Check callers of the function for real-world input patterns.
+   - Target: boundary values, empty/None inputs, error paths, off-by-one.
+5. Write (or extend) the test file targeting the uncovered line ranges.
+   Place new test files in the same location convention as step 2.
+6. **Python only — BUILD file**:
    - Check the `BUILD` file in the test directory for an existing `py_test()` entry.
    - If missing, add a `py_test()` rule. Infer `deps` from other `py_test` entries
      in the same BUILD file. Do NOT guess target names.
-6. Run the test:
+7. Run the test:
    - Python/Go: `bazel test <target>` (derive the target from the BUILD file)
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
-7. If the test fails, read the error output and fix the test. Retry up to 3 times.
-8. Move to the next target.
+8. If the test fails, read the error output and fix. Retry up to 3 times.
+   - **Setup errors** (import, mock, syntax): fix the test.
+   - **Assertion failures**: re-read the source to understand WHY the actual
+     output differs. If your expectation was wrong, update the assertion.
+     If the output contradicts the function's docstring/name/comments,
+     do NOT change the assertion to match — this is likely a source bug.
+     Skip the test with a reason (`@unittest.skip`, `t.Skip`, `it.skip`)
+     and add a comment above the skipped test using the language's comment
+     syntax: `# SUSPECTED BUG: <file>:<function> — <description>` (Python)
+     or `// SUSPECTED BUG: <file>:<function> — <description>` (Go/TypeScript).
+     Never blindly match assertions to actual output.
+9. Verify code style (same checks as PR CI). Fix and re-verify until clean:
+   - Python: `bazel test <target>-pylint` (append `-pylint` to the test target
+     name). If pylint reports errors, fix the test code and re-run.
+   - TypeScript: `pnpm --dir src/ui validate` (runs type-check, lint,
+     format:check, tests, and build). If formatting fails, run
+     `pnpm --dir src/ui format` to auto-fix. If lint or type-check
+     fails, fix the code manually. Re-run validate until it passes.
+   - Go: no additional checks beyond step 7.
+10. Move to the next target.
 
 ## Guardrails
 
