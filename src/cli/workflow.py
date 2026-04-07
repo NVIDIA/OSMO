@@ -527,6 +527,10 @@ Stop a specific daemon::
                                  action='store_true',
                                  help='Run as a background daemon that continuously monitors '
                                       'the source path and uploads changes to the remote task.')
+    rsync_up_parser.add_argument('--no-progress',
+                                 action='store_true',
+                                 help='Suppress transfer progress output. By default, progress '
+                                      'is shown for foreground transfers.')
     rsync_up_parser.set_defaults(func=_rsync_upload)
 
     # --- download subcommand ---
@@ -550,6 +554,10 @@ Stop a specific daemon::
                                    default=10,
                                    help='The connection timeout period in seconds. '
                                         'Default is 10 seconds.')
+    rsync_down_parser.add_argument('--no-progress',
+                                   action='store_true',
+                                   help='Suppress transfer progress output. By default, progress '
+                                        'is shown.')
     rsync_down_parser.set_defaults(func=_rsync_download)
 
     # --- status subcommand ---
@@ -1688,6 +1696,7 @@ def _rsync_upload(service_client: client.ServiceClient, args: argparse.Namespace
         daemon_reconcile_interval=args.reconcile_interval,
         daemon_max_log_size=args.max_log_size,
         daemon_verbose_logging=args.verbose,
+        show_progress=not args.daemon and not args.no_progress,
     )
 
 
@@ -1710,4 +1719,5 @@ def _rsync_download(service_client: client.ServiceClient, args: argparse.Namespa
         args.task,
         args.path,
         timeout=args.timeout,
+        show_progress=not args.no_progress,
     )

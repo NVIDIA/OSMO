@@ -1,13 +1,13 @@
 module go.corp.nvidia.com/osmo
 
-go 1.24.3
+go 1.25.0
 
 require (
 	// Runtime dependencies
 	github.com/conduitio/bwlimit v0.1.0
 	github.com/creack/pty v1.1.18
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
-	github.com/gokrazy/rsync v0.0.0-20250601185929-d3cb1d4a4fcd
+	github.com/gokrazy/rsync v0.3.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -46,7 +46,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/google/renameio/v2 v2.0.0 // indirect
+	github.com/google/renameio/v2 v2.0.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

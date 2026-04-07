@@ -371,6 +371,7 @@ class RsyncClient:
         upload_rate_limit: int | None = None,
         reconcile_interval: float = 60.0,
         upload_callback: Callable | None = None,
+        show_progress: bool = False,
     ):
         self._service_client: client.ServiceClient = service_client
         self._rsync_bin_path: str = self._resolve_rsync_bin_path()
@@ -397,6 +398,7 @@ class RsyncClient:
                 refill_rate=upload_rate_limit,
             )
         self._upload_callback = upload_callback
+        self._show_progress = show_progress
 
     @property
     def local_path(self) -> str:
@@ -515,13 +517,15 @@ class RsyncClient:
             cur_pending_counter = await self._upload_counter.get_pending()
 
             try:
+                rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+                if self._show_progress:
+                    rsync_args.append('--progress')
+                rsync_args.extend([self._rsync_request.local_path, resolved_dst])
+
                 process = await asyncio.create_subprocess_exec(
-                    self._rsync_bin_path,
-                    RSYNC_FLAGS,
-                    self._rsync_request.local_path,
-                    resolved_dst,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    *rsync_args,
+                    stdout=None if self._show_progress else asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
 
                 _, stderr = await process.communicate()
@@ -586,14 +590,16 @@ class RsyncClient:
                     f'{self._rsync_request.local_path}')
             os.makedirs(resolved_dst, exist_ok=True)
 
+            rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+            if self._show_progress:
+                rsync_args.append('--progress')
+            rsync_args.extend([resolved_src, resolved_dst])
+
             logger.debug('Downloading from %s to %s, with flags %s',
                          resolved_src, resolved_dst, RSYNC_FLAGS)
 
             process = await asyncio.create_subprocess_exec(
-                self._rsync_bin_path,
-                RSYNC_FLAGS,
-                resolved_src,
-                resolved_dst,
+                *rsync_args,
                 stdout=None,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -1451,6 +1457,7 @@ async def rsync_upload_task(
     *,
     timeout: int = 10,
     rate_limit: int | None = None,
+    show_progress: bool = False,
 ):
     """
     Convenience method for uploading a file/directory to a single remote workflow task.
@@ -1459,12 +1466,14 @@ async def rsync_upload_task(
     :param rsync_request: The rsync request.
     :param timeout: Optional. The connection timeout.
     :param rate_limit: Optional. The rate limit for the upload.
+    :param show_progress: Optional. Whether to show transfer progress.
     """
     rsync_client = RsyncClient(
         service_client,
         rsync_request,
         timeout=timeout,
         upload_rate_limit=rate_limit,
+        show_progress=show_progress,
     )
     try:
         await rsync_client.start()
@@ -1479,6 +1488,7 @@ async def rsync_download_task(
     rsync_request: RsyncRequest,
     *,
     timeout: int = 10,
+    show_progress: bool = False,
 ):
     """
     Convenience method for downloading a file/directory from a single remote workflow task.
@@ -1486,11 +1496,13 @@ async def rsync_download_task(
     :param service_client: The service client to use.
     :param rsync_request: The rsync request.
     :param timeout: Optional. The connection timeout.
+    :param show_progress: Optional. Whether to show transfer progress.
     """
     rsync_client = RsyncClient(
         service_client,
         rsync_request,
         timeout=timeout,
+        show_progress=show_progress,
     )
     try:
         await rsync_client.start(validate_module=False)
@@ -1743,6 +1755,7 @@ def rsync_upload(
     daemon_max_log_size: int = DEFAULT_DAEMON_MAX_LOG_SIZE,
     daemon_verbose_logging: bool = False,
     quiet: bool = False,
+    show_progress: bool = False,
 ):
     """
     Rsync uploads to a remote workflow task.
@@ -1782,6 +1795,7 @@ def rsync_upload(
                 rsync_request,
                 timeout=timeout,
                 rate_limit=rate_limit,
+                show_progress=show_progress,
             )
         )
     else:
@@ -1825,6 +1839,7 @@ def rsync_download(
     path: str,
     *,
     timeout: int = 10,
+    show_progress: bool = False,
 ):
     """
     Rsync downloads from a remote workflow task.
@@ -1836,6 +1851,7 @@ def rsync_download(
     :param task_name: The task name.
     :param path: The rsync path in <remote_path>:<local_path> format.
     :param timeout: The connection timeout.
+    :param show_progress: Whether to show transfer progress.
     """
     rsync_config = get_rsync_config(service_client)
     task_name = task_name or get_lead_task_name(service_client, workflow_id)
@@ -1847,5 +1863,6 @@ def rsync_download(
             service_client,
             rsync_request,
             timeout=timeout,
+            show_progress=show_progress,
         )
     )
