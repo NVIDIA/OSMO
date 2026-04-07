@@ -10,8 +10,8 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 # ConfigMap-Sourced Dynamic Configuration
 
-**Author**: @vivianp<br>
-**PIC**: @vivianp<br>
+**Author**: @vvnpn-nv<br>
+**PIC**: @vvnpn-nv<br>
 **Status**: MVP validated on dev instance
 
 ## Overview
@@ -36,10 +36,10 @@ Today, after every OSMO deployment, an administrator must manually run `osmo con
 |---|---|
 | GitOps config management | An operator defines all OSMO configs in Helm values files, commits to Git, and the CD tool (e.g., ArgoCD, Flux) applies them automatically |
 | Fresh deployment setup | A new OSMO instance starts with all configs pre-populated from ConfigMap — no manual CLI commands needed |
-| Config enforcement | Critical configs (workflow limits, pod templates) are continuously enforced from ConfigMap — CLI overrides are reverted within 30 seconds |
+| Config enforcement | Critical configs (workflow limits, pod templates) are enforced from ConfigMap — CLI writes are rejected with 409 Conflict |
 | Config seeding | Default configs (resource validations) are seeded on first deploy but can be customized via CLI afterward |
 | Credential management | Dataset bucket credentials are injected via K8s Secrets (not in ConfigMap or Git) and encrypted before DB storage |
-| Drift detection | If someone changes a configmap-managed config via CLI, the system detects the drift and automatically corrects it |
+| Write protection | CLI/API writes to configmap-managed configs are rejected with 409 Conflict; direct DB manipulation is corrected by the watcher as a safety net |
 
 ## Requirements
 
@@ -48,7 +48,7 @@ Today, after every OSMO deployment, an administrator must manually run `osmo con
 | Declarative config | Configs shall be definable in Helm values and applied via K8s ConfigMap | Functional |
 | Two management modes | Each config type shall support `seed` (apply once) and `configmap` (continuously enforce) modes | Functional |
 | CLI compatibility | The existing `osmo config update` CLI shall continue to work alongside ConfigMap configs | Functional |
-| Drift reconciliation | Configmap-mode singleton configs shall be automatically corrected within one poll interval when modified via CLI | Functional |
+| Write protection | CLI/API writes to configmap-managed configs shall be rejected with 409 Conflict before any DB mutation | Functional |
 | Secret handling | Dataset bucket credentials shall be injected via K8s Secrets, not stored in ConfigMap or Helm values | Security |
 | Error isolation | A validation error in one config type shall not prevent other config types from being applied | Reliability |
 | Multi-replica safety | Only one replica shall apply configs at a time via advisory lock | Reliability |
@@ -64,62 +64,65 @@ Today, after every OSMO deployment, an administrator must manually run `osmo con
 │                        ConfigMap Config Flow                             │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  Helm Values ──► K8s ConfigMap ──► Mounted File ──► ConfigMapWatcher    │
-│                                    (/etc/osmo/      │                    │
-│                                     dynamic-config/  │                    │
-│                                     config.yaml)     │                    │
+│  Helm Values ──► K8s ConfigMap ──► Mounted File ──► ConfigMapWatcher     │
+│                                    (/etc/osmo/       │                   │
+│                                     dynamic-config/  │                   │
+│                                     config.yaml)     │                   │
 │                                                      ▼                   │
-│                                               ┌─────────────┐           │
-│                                               │ Two-Tier     │           │
-│                                               │ Polling      │           │
-│                                               └──────┬──────┘           │
-│                                                      │                   │
-│                              ┌────────────────────────┼──────────────┐   │
-│                              │                        │              │   │
-│                              ▼                        ▼              │   │
-│                     Tier 1: File Change      Tier 2: Drift          │   │
-│                     (hash comparison)        Reconciliation          │   │
-│                     Re-apply ALL configs     (configmap mode only)   │   │
-│                              │               Compare DB vs cached    │   │
-│                              │               Re-apply only drifted   │   │
-│                              │                        │              │   │
-│                              └────────────┬───────────┘              │   │
-│                                           │                          │   │
-│                                           ▼                          │   │
-│                                    ┌─────────────┐                   │   │
-│                                    │ PostgreSQL   │                   │   │
-│                                    │ (configs,    │                   │   │
-│                                    │  config_     │                   │   │
-│                                    │  history)    │                   │   │
-│                                    └─────────────┘                   │   │
-│                                                                      │   │
-│  K8s Secret ──► Mounted File ──► Loader reads & encrypts ──► DB     │   │
-│  (credentials)  (/etc/osmo/       via SecretManager                  │   │
-│                  secrets/)                                            │   │
+│                                            ┌──────────────────┐          │
+│                                            │ Watcher (30s)    │          │
+│                                            │                  │          │
+│                                            │ File changed?    │          │
+│                                            │ YES → re-apply   │          │
+│                                            │       all configs│          │
+│                                            │                  │          │
+│                                            │ NO → check DB    │          │
+│                                            │      drift for   │          │
+│                                            │      configs     │          │
+│                                            └────────┬─────────┘          │
+│                                                     │                    │
+│                                                     ▼                    │
+│                                            ┌──────────────────┐          │
+│                                            │ PostgreSQL       │          │
+│                                            │ (configs,        │          │
+│                                            │  config_history) │          │
+│                                            └──────────────────┘          │
+│                                                     ▲                    │
+│                                                     │                    │
+│  CLI / API ──► config_service ──► 409 Guard ──X     │                    │
+│                (configmap_guard.py)                 │                    │
+│                                                     │                    │
+│  CLI / API ──► config_service ──► (seed/unmanaged) ─┘                    │
+│                                   Write allowed                          │
+│                                                                          │
+│  K8s Secret ──► Mounted File ──► Loader reads & encrypts ──► DB          │
+│  (credentials)  (/etc/osmo/       via SecretManager                      │
+│                  secrets/)                                               │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Components
 
-1. **ConfigMapWatcher** (`configmap_loader.py`): Class that encapsulates file watching, hash-based change detection, drift reconciliation, and config application
-2. **Helm ConfigMap template** (`dynamic-config.yaml`): Renders Helm values into a ConfigMap with a `config.yaml` data key
-3. **Helm Secret template** (`dynamic-config-secrets.yaml`): Renders credential values into K8s Secrets (for local dev; production uses Vault/ExternalSecrets)
-4. **Checksum annotation** on the pod spec: Triggers pod restart when ConfigMap content changes
+1. **ConfigMapWatcher** (`configmap_loader.py`): File watching, hash-based change detection, DB drift checks, and config application
+2. **409 Guard** (`configmap_guard.py`): Standalone module holding managed config state and write rejection logic — blocks CLI/API writes to configmap-managed configs
+3. **Helm ConfigMap template** (`dynamic-config.yaml`): Renders Helm values into a ConfigMap with a `config.yaml` data key
+4. **Helm Secret template** (`dynamic-config-secrets.yaml`): Renders credential values into K8s Secrets (for local dev; production uses Vault/ExternalSecrets)
+5. **Checksum annotation** on the pod spec: Triggers pod restart when ConfigMap content changes via Helm upgrade
 
 ### Management Modes
 
 | Mode | Behavior | Source of Truth | CLI Changes |
 |---|---|---|---|
 | `seed` | Apply from ConfigMap only if config doesn't exist in DB (checked via config_history) | DB after first apply | Persist across restarts |
-| `configmap` | Always apply from ConfigMap on startup; drift reconciliation reverts CLI changes within 30s | ConfigMap | Ephemeral — reverted within one poll interval |
+| `configmap` | Always apply from ConfigMap on startup; CLI/API writes rejected with 409 | ConfigMap | Blocked — API returns 409 Conflict |
 
 ### Config Types Supported
 
 | Type | Storage | Enforced on file change | CLI write enforcement |
 |---|---|---|---|
-| SERVICE | `configs` table (singleton) | Yes | Rejected with 409 Conflict |
-| WORKFLOW | `configs` table (singleton) | Yes | Rejected with 409 Conflict |
-| DATASET | `configs` table (singleton) | Yes | Rejected with 409 Conflict |
+| SERVICE | `configs` table (global — one per instance) | Yes | Rejected with 409 Conflict |
+| WORKFLOW | `configs` table (global — one per instance) | Yes | Rejected with 409 Conflict |
+| DATASET | `configs` table (global — one per instance) | Yes | Rejected with 409 Conflict |
 | BACKEND | `backends` table (named) | Yes | Rejected with 409 Conflict |
 | POOL | `pools` table (named) | Yes | Rejected with 409 Conflict |
 | POD_TEMPLATE | `pod_templates` table (named) | Yes | Rejected with 409 Conflict |
@@ -204,25 +207,35 @@ Configs are applied in 5 phases to respect referential integrity:
 2. Backends, backend tests (depend on templates)
 3. Pools (depend on backends and templates)
 4. Roles
-5. Singleton configs: service, workflow, dataset
+5. Global configs: service, workflow, dataset
 
 ### Advisory Lock
 
 - Session-level `pg_try_advisory_lock` prevents multiple replicas from applying configs simultaneously
-- Separate lock keys for full apply (`configmap-sync`) and drift reconciliation (`configmap-reconcile`)
 - Lock released in `finally` block to prevent leaks
 
-### Drift Reconciliation
+### How Config Changes Are Detected and Applied
 
-The `ConfigMapWatcher._reconcile_drift()` method runs on every poll cycle where the file hasn't changed:
+The system handles three scenarios:
 
-1. Iterates over singleton config types (service, workflow, dataset) where `managed_by=configmap`
-2. Reads current DB values via `postgres.get_configs()`
-3. Compares each desired key against current DB value
-4. If any key differs → acquires advisory lock → calls `_apply_singleton_config()` to correct
-5. If no drift → no DB writes, no history entries
+**1. ConfigMap file changed** (Helm upgrade, ArgoCD sync, or direct ConfigMap edit):
+- K8s propagates the change to the mounted file (~60s kubelet sync)
+- Watcher detects the file hash change on its next 30s poll
+- **All config types are re-applied** — global configs (service, workflow, dataset) and named configs, both seed and configmap modes
+- Seed-mode items that already exist are skipped; new items are created
+- Configmap-mode items are applied unconditionally, overwriting DB values
+- No pod restart needed
 
-Named configs (pools, backends, etc.) are not drift-reconciled in this version — they are only enforced on file changes.
+**2. CLI/API write to a configmap-managed config**:
+- The API returns **409 Conflict** immediately — the write never reaches the DB
+- Applies to all config types: global configs (service, workflow, dataset), named configs, bulk endpoints, and rollback
+- The loader's own writes bypass the guard via the `configmap-sync` username
+- Seed-mode configs are not blocked — CLI writes are allowed and persist
+
+**3. Direct DB manipulation** (safety net — bypasses the API entirely):
+- For global configs (service, workflow, dataset) in configmap mode, the watcher compares cached ConfigMap values against current DB state on each poll cycle where the file hasn't changed
+- If values differ, the watcher corrects the DB automatically
+- Named configs are not checked in this scenario, but the 409 guard prevents the normal API paths from modifying them
 
 ### Alternatives Considered
 
@@ -237,12 +250,13 @@ Named configs (pools, backends, etc.) are not drift-reconciled in this version �
 
 - Fully backwards compatible — no changes to existing APIs, CLI, or config behavior
 - `dynamicConfig.enabled: false` (default) preserves current behavior entirely
-- Existing CLI workflows continue to work in both modes
+- In seed mode, existing CLI workflows continue to work normally
+- In configmap mode, CLI writes to managed configs are rejected with 409 — users are directed to update Helm values instead
 
 ### Performance
 
 - File hash check: 1 SHA-256 computation per 30s poll (negligible)
-- Drift reconciliation: up to 3 DB reads per 30s poll (one per singleton config type in configmap mode)
+- Drift reconciliation: up to 3 DB reads per 30s poll (one per global config type in configmap mode)
 - Advisory lock: 2 DB calls per apply cycle (acquire + release)
 - Named config filtering in seed mode: 1 DB query per item (N+1 pattern — acceptable for typical config counts of 5-20)
 
@@ -272,7 +286,7 @@ Named configs (pools, backends, etc.) are not drift-reconciled in this version �
 - None managed_configs handling
 
 #### Integration Tests (21 tests, testcontainers PostgreSQL)
-- Singleton configs: seed new, seed existing (skip), configmap overwrite
+- Global configs: seed new, seed existing (skip), configmap overwrite
 - Named configs: pod templates (seed, configmap), backends (create, update, seed skip, error isolation), pools with dependencies, roles, resource validations
 - Dataset with secret file credentials
 - Full end-to-end: all config types in one YAML
@@ -280,7 +294,7 @@ Named configs (pools, backends, etc.) are not drift-reconciled in this version �
 - Config history: configmap-sync username and tags verified
 - Backend conflict: no history on INSERT conflict
 - **409 rejection**: CLI write to configmap-managed config rejected with 409, value unchanged
-- **Drift reconciliation**: Singleton drift detected and corrected, seed-mode configs preserved, no history when no drift
+- **Drift reconciliation**: Global config drift detected and corrected, seed-mode configs preserved, no history when no drift
 
 #### E2E Tests (validated on live dev instance)
 
@@ -295,11 +309,11 @@ Named configs (pools, backends, etc.) are not drift-reconciled in this version �
 | Multi-replica (2 replicas) | Advisory lock prevented duplicate config_history entries | PASS |
 | Mode switch (seed→configmap) | Changed service from seed to configmap mode, ConfigMap values now enforced | PASS |
 | Config history audit trail | `configmap-sync` entries clearly distinguishable from CLI entries | PASS |
-| 409 — singleton PATCH | PATCH workflow/service/dataset all return 409 | PASS |
+| 409 — global config PATCH | PATCH workflow/service/dataset all return 409 | PASS |
 | 409 — named PUT/DELETE | PUT pod_template, DELETE backend all return 409 | PASS |
 | 409 — bulk PUT with managed item | PUT /api/configs/pod_template with default_ctrl returns 409 | PASS |
 | 409 — bulk PUT non-managed only | PUT /api/configs/pod_template with non-managed item returns 200 | PASS |
-| 409 — rollback singleton | Rollback WORKFLOW and SERVICE return 409 | PASS |
+| 409 — rollback global config | Rollback WORKFLOW and SERVICE return 409 | PASS |
 | 409 — rollback named config | Rollback POD_TEMPLATE returns 409 | PASS |
 | Non-managed write allowed | PATCH pool/default returns 200 | PASS |
 | `_managed_by` in GET | workflow, service, dataset all include `_managed_by: configmap` | PASS |
@@ -323,11 +337,11 @@ Named configs (pools, backends, etc.) are not drift-reconciled in this version �
 ### 409 Rejection for ConfigMap-Managed Configs
 - All write/delete API endpoints reject modifications to configmap-managed configs with HTTP 409 Conflict
 - Error message: `"<name> is managed by ConfigMap (managed_by=configmap) and cannot be modified via API. Update the Helm values instead."`
-- Applies consistently to all 10 config types — singletons and named configs
+- Applies consistently to all 10 config types — global configs (service, workflow, dataset) and named configs
 - Zero performance impact (in-memory dict lookup), zero race conditions, zero duplicate history entries
 
 **Write path coverage:**
-- **Singletons**: guarded in `helpers.put_configs()` and `helpers.patch_configs()` — covers all PUT/PATCH endpoints and rollback
+- **Global configs**: guarded in `helpers.put_configs()` and `helpers.patch_configs()` — covers all PUT/PATCH endpoints and rollback
 - **Named configs**: guarded in each single-item endpoint (19 total) + all bulk endpoints (6 total) + rollback endpoint
 - **Configmap-sync bypass**: the loader's own writes pass `username='configmap-sync'` which skips the guard via `reject_if_managed()` in `configmap_guard.py`
 

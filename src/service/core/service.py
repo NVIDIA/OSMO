@@ -467,10 +467,14 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     setup_default_admin(postgres, config)
 
     if config.dynamic_config_file:
-        watcher = configmap_loader.ConfigMapWatcher(
-            config.dynamic_config_file, postgres,
-            poll_interval=config.dynamic_config_poll_interval)
-        watcher.start()
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                config.dynamic_config_file, postgres,
+                poll_interval=config.dynamic_config_poll_interval)
+            watcher.start()
+        except Exception:
+            logging.exception('Failed to start dynamic config watcher — '
+                              'service will continue without ConfigMap config management')
 
     # Instantiate QueryParser
     query.QueryParser()
