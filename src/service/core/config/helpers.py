@@ -20,7 +20,7 @@ from collections import abc
 from datetime import datetime
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type
 
 import pydantic
 import yaml
@@ -166,7 +166,7 @@ def patch_configs(
             updated_configs_fields[key] = value
 
     try:
-        configs: connectors.DynamicConfig
+        config_class: Type[connectors.DynamicConfig]
         if config_type == connectors.ConfigType.SERVICE:
             config_class = connectors.ServiceConfig
         elif config_type == connectors.ConfigType.WORKFLOW:
@@ -178,7 +178,8 @@ def patch_configs(
 
         configs = config_class(**updated_configs_fields)
 
-        if config_type == connectors.ConfigType.DATASET:
+        if config_type == connectors.ConfigType.DATASET and isinstance(
+                configs, connectors.DatasetConfig):
             try:
                 for _, bucket_config in configs.buckets.items():
                     connectors.BucketMode(bucket_config.mode.lower())
