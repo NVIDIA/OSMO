@@ -101,17 +101,6 @@ Install `nvkind <https://github.com/NVIDIA/nvkind>`_ by following the `prerequis
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=ingress,nvidia.com/gpu.deploy.operands=false"
-        extraPortMappings:
-          - containerPort: 30080
-            hostPort: 80
-            protocol: TCP
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
               node-labels: "node_group=kai-scheduler,nvidia.com/gpu.deploy.operands=false"
       - role: worker
         kubeadmConfigPatches:
@@ -196,17 +185,6 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=ingress"
-        extraPortMappings:
-          - containerPort: 30080
-            hostPort: 80
-            protocol: TCP
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
               node-labels: "node_group=kai-scheduler"
       - role: worker
         kubeadmConfigPatches:
@@ -253,8 +231,7 @@ Both commands create a Kubernetes cluster on your workstation with a control pla
 
 **Control Plane**
 
-* 2 worker nodes labeled ``node_group=service`` for API server and workflow engine
-* 1 worker node labeled ``node_group=ingress`` for NGINX ingress
+* 2 worker nodes labeled ``node_group=service`` for API server, workflow engine, and gateway (Envoy)
 * 1 worker node labeled ``node_group=kai-scheduler`` for KAI scheduler
 
 **Compute Layer**
@@ -305,13 +282,19 @@ Deploy the complete OSMO platform with a single Helm command:
 Step 4: Configure Access
 =========================
 
-Add a host entry to access OSMO from your browser:
+Access OSMO by port-forwarding the gateway service:
+
+.. code-block:: bash
+
+   $ kubectl port-forward svc/osmo-gateway 8080:80 --namespace osmo
+
+Then add an entry to /etc/hosts:
 
 .. code-block:: bash
 
    $ echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 
-This allows you to visit ``http://quick-start.osmo`` in your web browser.
+This allows you to visit ``http://quick-start.osmo:8080`` in your web browser.
 
 Step 5: Install OSMO CLI
 =========================
@@ -329,7 +312,7 @@ Authenticate with your local OSMO instance:
 
 .. code-block:: bash
 
-   $ osmo login http://quick-start.osmo --method=dev --username=testuser
+   $ osmo login http://quick-start.osmo:8080 --method=dev --username=testuser
 
 .. admonition:: Success!
    :class: tip
@@ -343,7 +326,7 @@ Now that you have OSMO running locally, explore the platform:
 
 1. **Run Your First Workflow**: Visit the :ref:`User Guide <getting_started_next_steps>` for tutorials on submitting workflows, interactive development, distributed training, and more.
 
-2. **Explore the Web UI**: Visit ``http://quick-start.osmo`` to access the OSMO dashboard.
+2. **Explore the Web UI**: Visit ``http://quick-start.osmo:8080`` to access the OSMO dashboard.
 
 3. **Test Your Own Workflows**: Use your own Docker images and datasets to validate OSMO for your use case.
 

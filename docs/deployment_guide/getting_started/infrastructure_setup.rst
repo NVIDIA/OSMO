@@ -152,7 +152,7 @@ Configure Networking
 **External Connections:**
 
 - Kubernetes → Cloud Storage *(Outbound internet or VPC endpoint)*
-- User → Kubernetes *(Internet access via load balancer/ingress)*
+- User → OSMO Gateway *(Internet access via LoadBalancer service)*
 
 
 Best Practices
