@@ -254,10 +254,44 @@ class TestBuildDag(unittest.TestCase):
         return LocalExecutor(work_dir='/tmp/unused')
 
     def test_no_dependencies(self):
-        """All tasks with no input dependencies have empty upstream and downstream sets."""
+        """Tasks in separate groups with no input dependencies have empty upstream/downstream."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: parallel
+              groups:
+              - name: group-a
+                tasks:
+                - name: a
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "a"]
+              - name: group-b
+                tasks:
+                - name: b
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "b"]
+              - name: group-c
+                tasks:
+                - name: c
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "c"]
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+
+        self.assertEqual(len(executor._task_nodes), 3)
+        for node in executor._task_nodes.values():
+            self.assertEqual(len(node.upstream), 0)
+            self.assertEqual(len(node.downstream), 0)
+
+    def test_flat_task_list_gets_implicit_sequential_deps(self):
+        """A flat task list (no groups) gets implicit sequential dependencies."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: sequential
               tasks:
               - name: a
                 image: alpine:3.18
@@ -274,9 +308,12 @@ class TestBuildDag(unittest.TestCase):
         executor._build_dag(spec)
 
         self.assertEqual(len(executor._task_nodes), 3)
-        for node in executor._task_nodes.values():
-            self.assertEqual(len(node.upstream), 0)
-            self.assertEqual(len(node.downstream), 0)
+        self.assertEqual(executor._task_nodes['a'].upstream, set())
+        self.assertEqual(executor._task_nodes['a'].downstream, {'b'})
+        self.assertEqual(executor._task_nodes['b'].upstream, {'a'})
+        self.assertEqual(executor._task_nodes['b'].downstream, {'c'})
+        self.assertEqual(executor._task_nodes['c'].upstream, {'b'})
+        self.assertEqual(executor._task_nodes['c'].downstream, set())
 
     def test_serial_chain(self):
         """A three-task chain produces correct upstream/downstream links at each step."""
@@ -621,8 +658,8 @@ class TestComposeConfigGeneration(unittest.TestCase):
         self.assertIn('hello', config['services'])
         service = config['services']['hello']
         self.assertEqual(service['image'], 'alpine:3.18')
-        self.assertEqual(service['entrypoint'], ['echo'])
-        self.assertEqual(service['command'], ['hi'])
+        self.assertNotIn('entrypoint', service)
+        self.assertEqual(service['command'], ['echo', 'hi'])
 
         output_mount = f'{self.work_dir}/hello/output:{OSMO_OUTPUT_PATH}'
         self.assertIn(output_mount, service['volumes'])
@@ -658,17 +695,23 @@ class TestComposeConfigGeneration(unittest.TestCase):
         self.assertNotIn('depends_on', task1_service)
 
     def test_parallel_tasks_no_depends_on(self):
-        """Independent parallel tasks have no depends_on entries."""
+        """Independent parallel tasks (in separate groups) have no depends_on entries."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: parallel
-              tasks:
-              - name: a
-                image: alpine:3.18
-                command: ["echo"]
-              - name: b
-                image: alpine:3.18
-                command: ["echo"]
+              groups:
+              - name: group-a
+                tasks:
+                - name: a
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo"]
+              - name: group-b
+                tasks:
+                - name: b
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo"]
         ''')
         executor = LocalExecutor(work_dir=self.work_dir)
         spec = executor.load_spec(spec_text)

@@ -217,7 +217,7 @@ class LocalExecutor:
         self._compose_down(compose_path, project_name)
 
         failed = [name for name, r in self._results.items()
-                  if r.exit_code != 0 and r.exit_code != -1]
+                  if r.exit_code not in (0, -1)]
         not_run = [name for name, r in self._results.items() if r.exit_code == -1]
 
         if failed:
