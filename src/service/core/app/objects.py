@@ -33,7 +33,7 @@ class ListEntry(pydantic.BaseModel):
     description: str
     created_date: datetime.datetime
     owner: str
-    latest_version: str
+    latest_version: int
 
 
 class ListResponse(pydantic.BaseModel, extra='forbid'):

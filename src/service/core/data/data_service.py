@@ -198,7 +198,7 @@ def get_dataset_info(postgres: connectors.PostgresConnector,
             created_date=row.created_date.replace(microsecond=0),
             last_used=row.last_used.replace(microsecond=0),
             size=row.size if row.size else 0,
-            checksum=row.checksum if row.checksum else 0,
+            checksum=row.checksum if row.checksum else "",
             location=storage.construct_storage_backend(row.location)\
                 .parse_uri_to_link(bucket_config.region),
             uri=row.location,
@@ -1178,7 +1178,7 @@ def query_dataset(
                 created_date=row.created_date.replace(microsecond=0),
                 last_used=row.last_used.replace(microsecond=0),
                 size=row.size if row.size else 0,
-                checksum=row.checksum if row.checksum else 0,
+                checksum=row.checksum if row.checksum else "",
                 location=storage.construct_storage_backend(row.location)\
                     .parse_uri_to_link(bucket_config.region),
                 uri=row.location,

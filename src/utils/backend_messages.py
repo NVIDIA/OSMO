@@ -109,7 +109,7 @@ class ConditionMessage(pydantic.BaseModel, extra='forbid'):
     reason: str | None = None
     message: str | None = None
     timestamp: datetime.datetime
-    status: bool
+    status: str
     type: str
 
 

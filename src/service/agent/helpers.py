@@ -411,7 +411,7 @@ def keep_pod_conditions(message: backend_messages.ConditionMessage) -> bool:
     """
     if message.type == 'ContainersReady':
         return False
-    if message.type in ['Initialized', 'Ready'] and message.status is False:
+    if message.type in ['Initialized', 'Ready'] and message.status == 'False':
         return False
     return True
 

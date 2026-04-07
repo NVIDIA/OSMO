@@ -258,9 +258,9 @@ class ListTaskSummaryEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task list API results. """
     user: str
     pool: str | None = None
-    storage: int # Gi
+    storage: float # GiB
     cpu: int
-    memory: int # Gi
+    memory: float # GiB
     gpu: int
     priority: str
 
@@ -271,9 +271,9 @@ class ListTaskSummaryEntry(pydantic.BaseModel, extra='forbid'):
             user=row['submitted_by'],
             pool=row['pool'],
             storage=row['disk_count'],
-            cpu=row['cpu_count'],
+            cpu=round(row['cpu_count']),
             memory=row['memory_count'],
-            gpu=row['gpu_count'],
+            gpu=round(row['gpu_count']),
             priority=row['priority'],
             )
 
@@ -313,9 +313,9 @@ class TaskEntry(pydantic.BaseModel, extra='forbid'):
     start_time: datetime.datetime | None = None
     end_time: datetime.datetime | None = None
     status: task.TaskGroupStatus
-    storage: int  # Gi
+    storage: float  # GiB
     cpu: int
-    memory: int  # Gi
+    memory: float  # GiB
     gpu: int
 
 
@@ -330,9 +330,9 @@ class TaskEntry(pydantic.BaseModel, extra='forbid'):
             end_time=row['end_time'],
             status=task.TaskGroupStatus(row['status']),
             storage=row['disk_count'],
-            cpu=row['cpu_count'],
+            cpu=round(row['cpu_count']),
             memory=row['memory_count'],
-            gpu=row['gpu_count'],
+            gpu=round(row['gpu_count']),
         )
 
 
@@ -354,9 +354,9 @@ class ListTaskEntry(pydantic.BaseModel, extra='forbid'):
     error_logs: str | None = None
     grafana_url: str | None = None
     dashboard_url: str | None = None
-    storage: int # Gi
+    storage: float # GiB
     cpu: int
-    memory: int # Gi
+    memory: float # GiB
     gpu: int
     priority: str
 
@@ -392,9 +392,9 @@ class ListTaskEntry(pydantic.BaseModel, extra='forbid'):
             dashboard_url=generate_dashboard_url(row['workflow_uuid'],
                                                          row['backend'], backend_lookup),
             storage=row['disk_count'],
-            cpu=row['cpu_count'],
+            cpu=round(row['cpu_count']),
             memory=row['memory_count'],
-            gpu=row['gpu_count'],
+            gpu=round(row['gpu_count']),
             priority=row['priority'],
             )
 
