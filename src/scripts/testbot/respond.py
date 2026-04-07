@@ -18,7 +18,7 @@ import re
 import shlex
 import subprocess
 
-from src.scripts.testbot.guardrails import get_changed_test_files
+from src.scripts.testbot.guardrails import get_changed_files
 
 logging.basicConfig(
     level=logging.INFO,
@@ -312,14 +312,15 @@ def build_prompt(threads: list[dict]) -> str:
         "Steps:",
         "1. Read the relevant source and test files.",
         "2. Apply the requested changes from the LATEST /testbot comment in each thread.",
-        "3. Run tests to validate:",
-        "   - Python/Go: bazel test <target>",
-        "   - TypeScript: pnpm --dir src/ui test -- --run <test_file>",
-        "4. If tests fail, fix and re-run.",
-        "5. Do NOT create git commits or branches. Do NOT modify source code — only test files and BUILD files.",
+        "3. Follow the test run, bug detection, and verification steps in TESTBOT_PROMPT.md.",
+        "   Pay special attention to assertion failures: if the output looks like a source",
+        "   bug (contradicts the function's docstring/name/comments), skip the test with",
+        "   a SUSPECTED BUG marker — do NOT change the assertion to match buggy output.",
+        "4. Do NOT create git commits or branches.",
         "",
         "After completing all work, produce a structured JSON reply for each thread.",
         "Each reply should explain what you did and whether the issue is resolved.",
+        "If you flagged any SUSPECTED BUG markers, mention them in the reply.",
         "Use the reply_comment_id as comment_id so replies are posted to the right thread.",
     ])
     return "\n".join(lines)
@@ -341,7 +342,7 @@ def run_claude(
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
         "--allowedTools",
-        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm test *),Glob,Grep",
+        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep",
         "--max-turns", str(max_turns),
         prompt,
     ]
@@ -545,7 +546,7 @@ def main() -> None:
     )
     commit_message = sanitize_commit_message(raw_commit_message)
 
-    modified_files = get_changed_test_files()
+    modified_files = get_changed_files()
     push_succeeded = False
     if modified_files:
         logger.info("Modified files: %s", modified_files)
