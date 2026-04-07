@@ -31,6 +31,7 @@ from src.lib.utils import credentials, common, osmo_errors, priority as wf_prior
 from src.lib.utils.redact import redact_secrets
 import src.lib.utils.logging
 from src.utils.job import app, common as task_common, jobs, kb_objects, task, workflow
+from src.utils.job.task import _encode_hstore
 from src.utils import connectors, static_config, yaml as util_yaml
 from src.utils.metrics import metrics
 
@@ -1060,12 +1061,22 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         # Write workflow and group objects to the database
         workflow_obj.insert_to_db()
         task_entries: list[tuple] = []
+        group_entries: list[tuple] = []
         for group_obj in workflow_obj.groups:
             group_obj.workflow_id_internal = workflow_obj.workflow_id
             group_obj.spec = \
                 group_obj.spec.parse(
                     postgres, workflow_obj.workflow_id, group_and_task_uuids)
-            group_obj.insert_to_db()
+            group_entries.append((
+                group_obj.workflow_id_internal, group_obj.name,
+                group_obj.group_uuid, group_obj.spec.json(),
+                task.TaskGroupStatus.SUBMITTING.name, None,
+                _encode_hstore(group_obj.remaining_upstream_groups),
+                _encode_hstore(group_obj.downstream_groups),
+                group_obj.scheduler_settings.json()
+                if group_obj.scheduler_settings else None,
+                json.dumps(group_obj.group_template_resource_types),
+            ))
             for task_obj, task_obj_spec in zip(group_obj.tasks, group_obj.spec.tasks):
                 task_obj.workflow_id_internal = workflow_obj.workflow_id
                 workflow_uuid = task_obj.workflow_uuid if task_obj.workflow_uuid else ''
@@ -1084,6 +1095,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
                 ))
+        task.TaskGroup.batch_insert_to_db(postgres, group_entries)
         task.Task.batch_insert_to_db(postgres, task_entries)
 
         logs = f'{service_url}/api/workflow/{workflow_obj.workflow_id}/logs'
