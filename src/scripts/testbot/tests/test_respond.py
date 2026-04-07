@@ -291,8 +291,8 @@ class TestBuildPrompt(unittest.TestCase):
             "thread_history": "  [user]: /testbot fix",
         }]
         prompt = build_prompt(threads)
-        self.assertIn("bazel test", prompt)
-        self.assertIn("pnpm --dir src/ui test", prompt)
+        self.assertIn("TESTBOT_PROMPT.md", prompt)
+        self.assertIn("SUSPECTED BUG", prompt)
 
     def test_includes_no_git_instruction(self):
         threads = [{

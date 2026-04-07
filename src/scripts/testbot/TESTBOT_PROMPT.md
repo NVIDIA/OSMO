@@ -57,9 +57,11 @@ The targets are appended below this prompt. For each target you receive:
 
 ## Guardrails
 
-- **Test files only**: You may ONLY create or modify test files (`test_*.py`,
-  `*_test.go`, `*.test.ts`, `*.test.tsx`) and `BUILD` files (for `py_test` entries).
-  Do NOT modify any source code, configuration, or other non-test files.
+- **Test files only (generate workflow)**: When generating tests from coverage
+  targets, you may ONLY create or modify test files (`test_*.py`, `*_test.go`,
+  `*.test.ts`, `*.test.tsx`) and `BUILD` files (for `py_test` entries).
+  Do NOT modify source code, configuration, or other non-test files.
+  (The respond workflow may override this when explicitly asked to fix source bugs.)
 - **No git or gh commands**: Do NOT run `git`, `gh`, or any commands that
   modify version control state. The harness script handles branch creation,
   committing, pushing, and PR creation.
