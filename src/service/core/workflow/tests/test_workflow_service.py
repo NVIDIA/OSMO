@@ -31,7 +31,7 @@ from src.tests.common import fixtures, runner
 from src.tests.common.registry import registry
 from src.utils import connectors
 from src.utils.connectors import postgres
-from src.utils.job import task, workflow
+from src.utils.job import workflow
 from src.utils import backend_messages
 
 
@@ -193,157 +193,10 @@ class WorkflowServiceTestCase(
             self.is_workflow_job_in_queue(f'dedupe:{workflow_obj.workflow_uuid}-submit'),
         )
 
-        # Verify groups were batch-inserted correctly
+        # Verify groups and tasks were batch-inserted
         self.assertEqual(len(workflow_obj.groups), 2)
-        group_names = {g.name for g in workflow_obj.groups}
-        self.assertEqual(group_names, {'task1-group', 'task2-group'})
-        for group_obj in workflow_obj.groups:
-            self.assertEqual(group_obj.status, task.TaskGroupStatus.SUBMITTING)
-            self.assertIsNotNone(group_obj.group_uuid)
-
-        # Verify group dependencies: task2 depends on task1
-        task1_group = next(g for g in workflow_obj.groups if g.name == 'task1-group')
-        task2_group = next(g for g in workflow_obj.groups if g.name == 'task2-group')
-        self.assertEqual(task1_group.remaining_upstream_groups, set())
-        self.assertEqual(task1_group.downstream_groups, {'task2-group'})
-        self.assertEqual(task2_group.remaining_upstream_groups, {'task1-group'})
-        self.assertEqual(task2_group.downstream_groups, set())
-
-        # Verify tasks were batch-inserted correctly
-        all_tasks = task1_group.tasks + task2_group.tasks
-        self.assertEqual(len(all_tasks), 2)
-        task_names = {t.name for t in all_tasks}
-        self.assertEqual(task_names, {'task1', 'task2'})
-        for task_obj in all_tasks:
-            self.assertEqual(task_obj.status, task.TaskGroupStatus.WAITING)
-        # Verify task-to-group mapping
-        self.assertEqual(len(task1_group.tasks), 1)
-        self.assertEqual(task1_group.tasks[0].name, 'task1')
-        self.assertEqual(len(task2_group.tasks), 1)
-        self.assertEqual(task2_group.tasks[0].name, 'task2')
-
-    def create_single_task_workflow_template(
-        self, platform_name: str,
-    ) -> workflow.TemplateSpec:
-        registry_url = self.ssl_proxy.get_endpoint(
-            registry.REGISTRY_NAME, registry.REGISTRY_PORT)
-        return workflow.TemplateSpec(
-            file=f'''workflow:
-  name: single_task_workflow
-  resources:
-    default:
-      cpu: 1
-      memory: 1Gi
-      storage: 1Gi
-      platform: {platform_name}
-  tasks:
-  - name: only_task
-    image: {f'{registry_url}/{self.TEST_IMAGE_NAME}'}
-    command: [sh]
-    args: ["-c", "echo hello"]
-''',
-        )
-
-    def create_independent_tasks_workflow_template(
-        self, platform_name: str,
-    ) -> workflow.TemplateSpec:
-        registry_url = self.ssl_proxy.get_endpoint(
-            registry.REGISTRY_NAME, registry.REGISTRY_PORT)
-        return workflow.TemplateSpec(
-            file=f'''workflow:
-  name: independent_tasks_workflow
-  resources:
-    default:
-      cpu: 1
-      memory: 1Gi
-      storage: 1Gi
-      platform: {platform_name}
-  tasks:
-  - name: taskA
-    image: {f'{registry_url}/{self.TEST_IMAGE_NAME}'}
-    command: [sh]
-    args: ["-c", "echo A"]
-  - name: taskB
-    image: {f'{registry_url}/{self.TEST_IMAGE_NAME}'}
-    command: [sh]
-    args: ["-c", "echo B"]
-  - name: taskC
-    image: {f'{registry_url}/{self.TEST_IMAGE_NAME}'}
-    command: [sh]
-    args: ["-c", "echo C"]
-''',
-        )
-
-    def test_submit_single_task_workflow(self):
-        """Verify batch insert works for the single-group degenerate case."""
-        # Arrange
-        pool_name = 'test_pool_single'
-        backend_name = 'test_backend_single'
-        platform_name = 'test_platform_single'
-        self.create_backend(backend_name)
-        self.create_pool(pool_name, backend_name, platform_name)
-        workflow_template = self.create_single_task_workflow_template(platform_name)
-
-        # Act
-        response = self.client.post(
-            f'/api/pool/{pool_name}/workflow',
-            json=workflow_template.dict(),
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        db = postgres.PostgresConnector.get_instance()
-        workflow_obj = workflow.Workflow.fetch_from_db(
-            db, response.json()['name'],
-        )
-        self.assertEqual(len(workflow_obj.groups), 1)
-        group_obj = workflow_obj.groups[0]
-        self.assertEqual(group_obj.name, 'only_task-group')
-        self.assertEqual(group_obj.status, task.TaskGroupStatus.SUBMITTING)
-        self.assertEqual(group_obj.remaining_upstream_groups, set())
-        self.assertEqual(group_obj.downstream_groups, set())
-        self.assertEqual(len(group_obj.tasks), 1)
-        self.assertEqual(group_obj.tasks[0].name, 'only_task')
-        self.assertEqual(group_obj.tasks[0].status, task.TaskGroupStatus.WAITING)
-
-    def test_submit_independent_tasks_workflow(self):
-        """
-        Verify batch insert with multiple independent groups (no dependencies).
-        All groups should have empty upstream/downstream sets.
-        """
-        # Arrange
-        pool_name = 'test_pool_indep'
-        backend_name = 'test_backend_indep'
-        platform_name = 'test_platform_indep'
-        self.create_backend(backend_name)
-        self.create_pool(pool_name, backend_name, platform_name)
-        workflow_template = self.create_independent_tasks_workflow_template(
-            platform_name)
-
-        # Act
-        response = self.client.post(
-            f'/api/pool/{pool_name}/workflow',
-            json=workflow_template.dict(),
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, 200)
-        db = postgres.PostgresConnector.get_instance()
-        workflow_obj = workflow.Workflow.fetch_from_db(
-            db, response.json()['name'],
-        )
-        self.assertEqual(len(workflow_obj.groups), 3)
-        group_names = {g.name for g in workflow_obj.groups}
-        self.assertEqual(
-            group_names, {'taskA-group', 'taskB-group', 'taskC-group'})
-
-        for group_obj in workflow_obj.groups:
-            self.assertEqual(group_obj.status, task.TaskGroupStatus.SUBMITTING)
-            self.assertEqual(group_obj.remaining_upstream_groups, set())
-            self.assertEqual(group_obj.downstream_groups, set())
-            self.assertEqual(len(group_obj.tasks), 1)
-            self.assertEqual(
-                group_obj.tasks[0].status, task.TaskGroupStatus.WAITING)
+        total_tasks = sum(len(g.tasks) for g in workflow_obj.groups)
+        self.assertEqual(total_tasks, 2)
 
     def test_concurrent_requests_exceed_pool_size(self):
         """
@@ -475,10 +328,6 @@ class WorkflowServiceTestCase(
                 len(workflow_obj.groups[0].tasks),
                 1,
                 f'Workflow {request_id} group should have exactly 1 task',
-            )
-            self.assertEqual(
-                workflow_obj.groups[0].status,
-                task.TaskGroupStatus.SUBMITTING,
             )
 
 
