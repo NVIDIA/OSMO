@@ -19,82 +19,31 @@ SPDX-License-Identifier: Apache-2.0
 from typing import Any, Dict
 
 from src.lib.utils import osmo_errors
-from src.utils import connectors
+from src.utils import configmap_state
 
 CONFIGMAP_SYNC_USERNAME = 'configmap-sync'
 CONFIGMAP_SYNC_TAGS = ['configmap']
 
-# Module-level reference to managed config state, set by ConfigMapWatcher.start()
-_managed_configs: Dict[str, Any] | None = None
+# Delegate state to configmap_state (dependency-free module importable
+# by both the service layer and the utils/connectors layer).
+set_configmap_mode = configmap_state.set_configmap_mode
+is_configmap_mode = configmap_state.is_configmap_mode
+set_parsed_configs = configmap_state.set_parsed_configs
+get_snapshot = configmap_state.get_snapshot
 
 
-# Maps ConfigType enum to the config key string used in managed_configs
-CONFIG_TYPE_TO_KEY = {
-    connectors.ConfigType.SERVICE: 'service',
-    connectors.ConfigType.WORKFLOW: 'workflow',
-    connectors.ConfigType.DATASET: 'dataset',
-}
-
-
-def set_managed_configs(managed_configs: Dict[str, Any] | None) -> None:
-    """Called by ConfigMapWatcher to update the cached managed configs."""
-    global _managed_configs  # noqa: PLW0603
-    _managed_configs = managed_configs
-
-
-def get_managed_mode(config_key: str) -> str | None:
-    """Return the managed_by mode for a config key, or None if not managed."""
-    if _managed_configs is None:
-        return None
-    section = _managed_configs.get(config_key)
-    if not section:
-        return None
-    return section.get('managed_by', 'seed')
-
-
-def get_cached_section(config_key: str) -> Dict[str, Any] | None:
-    """Return the cached ConfigMap section for a config key, or None."""
-    if _managed_configs is None:
-        return None
-    return _managed_configs.get(config_key)
-
-
-def is_singleton_managed(config_key: str) -> bool:
-    """Return True if a singleton config is managed by ConfigMap in configmap mode."""
-    return get_managed_mode(config_key) == 'configmap'
-
-
-def is_named_item_managed(config_key: str, item_name: str) -> bool:
-    """Return True if a named config item is managed by ConfigMap in configmap mode."""
-    section = get_cached_section(config_key)
-    if not section:
-        return False
-    if section.get('managed_by', 'seed') != 'configmap':
-        return False
-    items = section.get('items', {})
-    return item_name in items
-
-
-def reject_if_managed(config_key: str, username: str,
-                      item_name: str | None = None) -> None:
-    """Raise 409 if a config is managed by ConfigMap and caller is not configmap-sync.
+def reject_if_configmap_mode(username: str) -> None:
+    """Raise 409 if ConfigMap mode is active and caller is not
+    configmap-sync.
 
     Single enforcement point for all config write protection.
+    In ConfigMap mode, ALL config writes are blocked — configs are
+    managed via GitOps/kubectl only.
     """
     if username == CONFIGMAP_SYNC_USERNAME:
         return
-
-    if item_name is not None:
-        if is_named_item_managed(config_key, item_name):
-            raise osmo_errors.OSMOUserError(
-                f'{item_name} is managed by ConfigMap (managed_by=configmap) '
-                f'and cannot be modified via API. '
-                f'Update the Helm values instead.',
-                status_code=409)
-    else:
-        if is_singleton_managed(config_key):
-            raise osmo_errors.OSMOUserError(
-                f'{config_key.capitalize()} config is managed by ConfigMap '
-                f'(managed_by=configmap) and cannot be modified via API. '
-                f'Update the Helm values instead.',
-                status_code=409)
+    if configmap_state.is_configmap_mode():
+        raise osmo_errors.OSMOUserError(
+            'Configs are managed by ConfigMap and cannot be modified '
+            'via CLI/API. Update the Helm values and redeploy instead.',
+            status_code=409)

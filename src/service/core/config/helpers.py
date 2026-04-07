@@ -111,9 +111,7 @@ def put_configs(
     Returns:
         Dict containing the updated configuration
     """
-    config_key = configmap_guard.CONFIG_TYPE_TO_KEY.get(config_type)
-    if config_key:
-        configmap_guard.reject_if_managed(config_key, username)
+    configmap_guard.reject_if_configmap_mode(username)
 
     postgres = connectors.PostgresConnector.get_instance()
     if should_serialize:
@@ -163,9 +161,7 @@ def patch_configs(
     Raises:
         OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
     """
-    config_key = configmap_guard.CONFIG_TYPE_TO_KEY.get(config_type)
-    if config_key:
-        configmap_guard.reject_if_managed(config_key, username)
+    configmap_guard.reject_if_configmap_mode(username)
 
     postgres = connectors.PostgresConnector.get_instance()
     current_configs_dict = postgres.get_configs(config_type).plaintext_dict(

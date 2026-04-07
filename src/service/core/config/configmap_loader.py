@@ -16,169 +16,140 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import enum
-import hashlib
+import copy
 import json
 import logging
+import os
 import threading
-import time
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 import yaml
+from watchdog import events, observers
 
-from src.lib.utils import common, osmo_errors
 from src.lib.utils import role as role_lib
 from src.service.core.config import (
     config_service,
-    helpers as config_helpers,
+    configmap_guard,
     objects as config_objects,
 )
 from src.utils import connectors
 
-
-from src.service.core.config import configmap_guard
-
 CONFIGMAP_SYNC_USERNAME = configmap_guard.CONFIGMAP_SYNC_USERNAME
 CONFIGMAP_SYNC_TAGS = configmap_guard.CONFIGMAP_SYNC_TAGS
 
+# ---------------------------------------------------------------------------
+# Module-level config cache is in configmap_guard (avoids circular imports
+# since postgres.py needs to read configs but configmap_loader imports
+# from connectors/postgres). See configmap_guard.get_snapshot().
+# ---------------------------------------------------------------------------
 
-class ManagedByMode(str, enum.Enum):
-    SEED = 'seed'
-    CONFIGMAP = 'configmap'
 
+# ---------------------------------------------------------------------------
+# File event handler (watchdog)
+# ---------------------------------------------------------------------------
 
-def load_dynamic_configs(config_file_path: str, postgres: connectors.PostgresConnector,
-                         managed_configs: Dict[str, Any] | None = None) -> None:
-    """Load dynamic configs from a YAML file (or pre-parsed dict) on startup.
+class ConfigFileEventHandler(events.FileSystemEventHandler):
+    """Watches for ConfigMap file changes with debounce.
 
-    If managed_configs is provided, skips file reading and uses the dict directly.
-    Acquires a PostgreSQL advisory lock to prevent concurrent loading from
-    multiple replicas. Applies configs in dependency order and continues
-    on per-type errors so the service always starts.
+    K8s ConfigMap volume mounts use atomic symlink swaps (..data → timestamped dir).
+    We watch the parent directory and filter for events affecting our config file
+    or the ..data symlink.
     """
-    logging.info('Loading dynamic configs from %s', config_file_path)
 
-    if managed_configs is None:
-        try:
-            with open(config_file_path, encoding='utf-8') as config_file:
-                raw_config = yaml.safe_load(config_file)
-        except (OSError, yaml.YAMLError) as error:
-            logging.error('Failed to read dynamic config file %s: %s', config_file_path, error)
+    def __init__(self, config_filename: str, reload_callback: Callable):
+        super().__init__()
+        self._config_filename = config_filename
+        self._reload_callback = reload_callback
+        self._debounce_timer: threading.Timer | None = None
+        self._debounce_delay = 2.0
+        self._lock = threading.Lock()
+
+    def on_any_event(self, event: events.FileSystemEvent) -> None:
+        path = str(event.src_path)
+        if not (path.endswith(self._config_filename)
+                or '..data' in path):
             return
-
-        if not raw_config or 'managed_configs' not in raw_config:
-            logging.warning('Dynamic config file %s has no managed_configs section',
-                            config_file_path)
-            return
-        managed_configs = raw_config['managed_configs']
-
-    # Acquire session-level advisory lock so only one replica applies configs.
-    # Session-level (not xact-level) because execute_fetch_command auto-commits,
-    # which would release a xact-level lock immediately.
-    lock_result = postgres.execute_fetch_command(
-        "SELECT pg_try_advisory_lock(hashtext('configmap-sync'))",
-        (), return_raw=True)
-    if not lock_result or not lock_result[0]['pg_try_advisory_lock']:
-        logging.info('Another replica is applying dynamic configs, skipping')
-        return
-
-    try:
-        _apply_all_configs(managed_configs, postgres)
-    finally:
-        postgres.execute_fetch_command(
-            "SELECT pg_advisory_unlock(hashtext('configmap-sync'))",
-            (), return_raw=True)
-
-    logging.info('Dynamic config loading complete')
+        with self._lock:
+            if self._debounce_timer:
+                self._debounce_timer.cancel()
+            self._debounce_timer = threading.Timer(
+                self._debounce_delay, self._reload_callback)
+            self._debounce_timer.daemon = True
+            self._debounce_timer.start()
 
 
 # ---------------------------------------------------------------------------
-# Config file watcher with drift reconciliation
+# ConfigMap watcher
 # ---------------------------------------------------------------------------
-
-# Singleton config types that support drift reconciliation
-_SINGLETON_CONFIG_TYPES = {
-    'service': connectors.ConfigType.SERVICE,
-    'workflow': connectors.ConfigType.WORKFLOW,
-    'dataset': connectors.ConfigType.DATASET,
-}
-
-
 
 class ConfigMapWatcher:
-    """Watches a ConfigMap-mounted YAML file and reconciles DB state.
+    """Watches a ConfigMap-mounted YAML file and serves configs from memory.
 
-    Two-tier polling:
-    1. File change detection: SHA-256 hash check. When the file changes,
-       re-apply everything (both seed and configmap modes).
-    2. Drift reconciliation: for managed_by=configmap singletons, compare
-       the last-applied values against current DB state. If someone changed
-       a config via CLI, re-apply the ConfigMap values to correct the drift.
-       Only fires when the file HASN'T changed (tier 1 already handles that).
+    On startup: parse file → validate → populate module-level dict → start watchdog.
+    On file change: re-parse → validate → atomic swap of dict reference.
+    Configs are served from the in-memory dict; DB is only used for:
+    - Roles (Go authz_sidecar reads roles directly from DB)
+    - Backend runtime data (agent writes heartbeats to backends table)
     """
 
     def __init__(self, config_file_path: str,
-                 postgres: connectors.PostgresConnector,
-                 poll_interval: int = 30):
+                 postgres: connectors.PostgresConnector):
         self._config_file_path = config_file_path
         self._postgres = postgres
-        self._poll_interval = poll_interval
-        self._last_file_hash: str | None = None
-        self._cached_managed_configs: Dict[str, Any] | None = None
+        self._watch_directory = os.path.dirname(config_file_path)
+        self._config_filename = os.path.basename(config_file_path)
+        self._observer: Any = None
 
     def start(self) -> None:
-        """Load configs immediately, then start background polling thread."""
-        self.load_and_apply()
-        self._persist_managed_modes()
-        thread = threading.Thread(
-            target=self._poll_loop, name='config-watcher', daemon=True)
-        thread.start()
+        """Load configs, activate ConfigMap mode, start file watcher."""
+        success = self._load_and_apply()
+        if success:
+            configmap_guard.set_configmap_mode(True)
+            logging.info('ConfigMap mode activated — all config writes via CLI/API are blocked')
 
-    def _persist_managed_modes(self) -> None:
-        """Write managed_by modes to configmap_state table for API visibility."""
-        if not self._cached_managed_configs:
-            return
-        for config_key, section in self._cached_managed_configs.items():
-            if not isinstance(section, dict):
-                continue
-            mode = section.get('managed_by', ManagedByMode.SEED.value)
-            self._postgres.set_configmap_state(f'managed_by:{config_key}', mode)
+        self._observer = observers.Observer()
+        self._observer.schedule(
+            ConfigFileEventHandler(self._config_filename, self._load_and_apply),
+            path=self._watch_directory,
+            recursive=False)
+        self._observer.daemon = True
+        self._observer.start()
+        logging.info('Config file watcher started for %s', self._config_file_path)
 
-    def load_and_apply(self) -> None:
-        """Read the config file once, apply all configs, cache values + hash."""
+    def stop(self) -> None:
+        if self._observer:
+            self._observer.stop()
+            self._observer.join(timeout=5)
+
+    def _load_and_apply(self) -> bool:
+        """Parse, resolve secrets, validate, swap dict, write roles to DB.
+
+        Returns True if configs were successfully loaded.
+        """
         try:
-            with open(self._config_file_path, 'rb') as config_file:
-                content = config_file.read()
-        except OSError as error:
-            logging.error('Failed to read dynamic config file %s: %s',
-                          self._config_file_path, error)
-            return
-
-        self._last_file_hash = hashlib.sha256(content).hexdigest()
-
-        try:
-            raw_config = yaml.safe_load(content)
-        except yaml.YAMLError as error:
-            logging.error('Failed to parse dynamic config file %s: %s',
-                          self._config_file_path, error)
-            return
+            with open(self._config_file_path, encoding='utf-8') as f:
+                raw_config = yaml.safe_load(f)
+        except (OSError, yaml.YAMLError) as error:
+            logging.error(
+                'Failed to read/parse dynamic config file %s: %s',
+                self._config_file_path, error)
+            return False
 
         if not raw_config or 'managed_configs' not in raw_config:
-            logging.warning('Dynamic config file %s has no managed_configs section',
-                            self._config_file_path)
-            return
+            logging.warning(
+                'Dynamic config file %s has no managed_configs section',
+                self._config_file_path)
+            return False
 
-        managed_configs = raw_config['managed_configs']
+        managed_configs = copy.deepcopy(raw_config['managed_configs'])
 
-        # Cache managed configs for drift comparison and 409 guard lookups
-        self._cached_managed_configs = managed_configs
-        # Resolve secret references in cached configs so drift comparison
-        # uses the same format as DB values (resolved credentials, not file paths)
+        # Resolve secret file references (reads mounted K8s Secret files)
         for section in managed_configs.values():
             if isinstance(section, dict):
                 config_data = section.get('config')
                 if isinstance(config_data, dict):
                     _resolve_secret_file_references(config_data)
+
         # Dataset-specific: default endpoint from dataset_path
         dataset_section = managed_configs.get('dataset')
         if dataset_section:
@@ -186,102 +157,90 @@ class ConfigMapWatcher:
             if dataset_config:
                 _default_dataset_credential_endpoints(dataset_config)
 
-        configmap_guard.set_managed_configs(managed_configs)
+        # Validate ConfigMap-provided fields BEFORE injecting runtime
+        # fields. Runtime fields (service_auth) are already validated
+        # by configure_app().
+        validation_errors = _validate_configs(managed_configs)
+        if validation_errors:
+            logging.error(
+                'ConfigMap validation failed, keeping previous config: %s',
+                validation_errors)
+            return False
 
-        load_dynamic_configs(self._config_file_path, self._postgres,
-                             managed_configs=managed_configs)
+        # Inject runtime-generated fields (service_auth, service_base_url)
+        # that are not in the ConfigMap but are needed by the service.
+        self._inject_runtime_fields(managed_configs)
 
-    def _poll_loop(self) -> None:
-        logging.info('Config watcher started (poll_interval=%ds, file=%s)',
-                     self._poll_interval, self._config_file_path)
-        while True:
-            time.sleep(self._poll_interval)
-            try:
-                current_hash = self._compute_file_hash()
-                if current_hash is None:
-                    continue
-                if current_hash != self._last_file_hash:
-                    # Tier 1: file changed — full re-apply
-                    logging.info('Config file changed (hash %s -> %s), reloading',
-                                 self._last_file_hash, current_hash)
-                    self.load_and_apply()
-                else:
-                    # Tier 2: file unchanged — check for DB drift on configmap-mode singletons
-                    self._reconcile_drift()
-            except Exception:  # pylint: disable=broad-exception-caught
-                logging.exception('Error during config file poll')
+        # Atomic swap — in-flight requests holding a reference to the old
+        # dict continue using it; new requests get the new dict.
+        configmap_guard.set_parsed_configs(managed_configs)
+        logging.info(
+            'ConfigMap configs loaded from %s', self._config_file_path)
 
-    def _reconcile_drift(self) -> None:
-        """Re-apply configmap-mode singleton configs if the DB has drifted.
+        # Write roles to DB — authz_sidecar reads roles from PostgreSQL
+        self._write_roles_to_db(managed_configs)
 
-        Compares the desired config values (from the cached ConfigMap) against
-        the current DB state. Only calls patch_configs when values actually
-        differ, avoiding spurious config_history entries.
+        return True
 
-        Uses an advisory lock to prevent multiple replicas from reconciling
-        the same drift simultaneously (which would create duplicate history).
+    def _inject_runtime_fields(
+        self, managed_configs: Dict[str, Any],
+    ) -> None:
+        """Inject runtime-generated fields not present in ConfigMap.
+
+        service_auth and service_base_url are auto-generated by
+        configure_app() on startup. On first load we read them from DB;
+        on subsequent reloads we carry them forward from the previous
+        snapshot so we never need ongoing DB reads.
         """
-        if not self._cached_managed_configs:
+        previous = configmap_guard.get_snapshot()
+        if previous is not None:
+            prev_service = previous.get('service', {}).get('config', {})
+        else:
+            db_config = self._postgres.get_service_configs()
+            prev_service = db_config.plaintext_dict(
+                by_alias=True, exclude_unset=True)
+
+        if 'service' not in managed_configs:
+            managed_configs['service'] = {'config': {}}
+        service_config = managed_configs['service'].setdefault('config', {})
+
+        for field in ('service_auth', 'service_base_url'):
+            if field not in service_config and field in prev_service:
+                service_config[field] = prev_service[field]
+
+    def _write_roles_to_db(self, managed_configs: Dict[str, Any]) -> None:
+        """Write roles to the roles DB table for the Go authz_sidecar."""
+        roles_section = managed_configs.get('roles')
+        if not roles_section:
             return
-
-        # Collect drifted configs before acquiring lock (read-only check)
-        drifted_configs = []
-        for config_key, config_type in _SINGLETON_CONFIG_TYPES.items():
-            section = self._cached_managed_configs.get(config_key)
-            if not section:
-                continue
-            managed_by = _parse_managed_by(section)
-            if managed_by != ManagedByMode.CONFIGMAP:
-                continue
-            desired_config = section.get('config', {})
-            if not desired_config:
-                continue
-
-            try:
-                current_db = self._postgres.get_configs(config_type).plaintext_dict(
-                    by_alias=True, exclude_unset=True)
-                for key, desired_value in desired_config.items():
-                    if current_db.get(key) != desired_value:
-                        drifted_configs.append((config_key, config_type, section))
-                        break
-            except Exception:  # pylint: disable=broad-exception-caught
-                logging.exception('Error checking drift for %s', config_key)
-
-        if not drifted_configs:
-            return
-
-        # Acquire lock only when we have drift to correct
-        lock_result = self._postgres.execute_fetch_command(
-            "SELECT pg_try_advisory_lock(hashtext('configmap-reconcile'))",
-            (), return_raw=True)
-        if not lock_result or not lock_result[0]['pg_try_advisory_lock']:
-            logging.info('Another replica is reconciling drift, skipping')
+        items = roles_section.get('items', {})
+        if not items:
             return
 
         try:
-            for config_key, config_type, section in drifted_configs:
-                try:
-                    logging.info('Drift detected for %s config, re-applying from ConfigMap',
-                                 config_key)
-                    _apply_singleton_config(
-                        section, self._postgres, config_type,
-                        pre_apply=(_default_dataset_credential_endpoints
-                                   if config_key == 'dataset' else None))
-                except Exception:  # pylint: disable=broad-exception-caught
-                    logging.exception('Error reconciling drift for %s', config_key)
-        finally:
-            self._postgres.execute_fetch_command(
-                "SELECT pg_advisory_unlock(hashtext('configmap-reconcile'))",
-                (), return_raw=True)
+            configs: List[connectors.Role] = []
+            for name, role_data in items.items():
+                raw_policies = role_data.get('policies', [])
+                policies = [role_lib.RolePolicy(**policy) for policy in raw_policies]
+                role_fields = {**role_data, 'policies': policies}
+                configs.append(connectors.Role(name=name, **role_fields))
 
-    def _compute_file_hash(self) -> str | None:
-        try:
-            with open(self._config_file_path, 'rb') as config_file:
-                return hashlib.sha256(config_file.read()).hexdigest()
-        except OSError:
-            return None
+            config_service.put_roles(
+                request=config_objects.PutRolesRequest(
+                    configs=configs,
+                    description='Applied from ConfigMap',
+                    tags=CONFIGMAP_SYNC_TAGS,
+                ),
+                username=CONFIGMAP_SYNC_USERNAME,
+            )
+            logging.info('Wrote %d roles to DB for authz_sidecar', len(configs))
+        except Exception:  # pylint: disable=broad-exception-caught
+            logging.exception('Failed to write roles to DB for authz_sidecar')
 
 
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
 
 _EXPECTED_CONFIG_KEYS = {
     'service', 'workflow', 'dataset', 'resource_validations', 'pod_templates',
@@ -289,125 +248,51 @@ _EXPECTED_CONFIG_KEYS = {
 }
 
 
-def _apply_all_configs(managed_configs: Dict[str, Any] | None,
-                       postgres: connectors.PostgresConnector) -> None:
-    """Apply all config types in dependency order."""
-    if not managed_configs:
-        logging.info('managed_configs is empty, nothing to apply')
-        return
+def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
+    """Validate ConfigMap data by constructing typed Pydantic models.
+
+    Returns a list of error strings. Empty list means all valid.
+    """
+    errors: List[str] = []
 
     unknown_keys = set(managed_configs.keys()) - _EXPECTED_CONFIG_KEYS
     for key in unknown_keys:
         logging.warning('Unknown key in managed_configs: %s (expected one of: %s)',
                         key, ', '.join(sorted(_EXPECTED_CONFIG_KEYS)))
 
-    # Phase 1: Templates and validations (no dependencies)
-    _safe_apply('resource_validations', managed_configs, postgres, _apply_resource_validations)
-    _safe_apply('pod_templates', managed_configs, postgres, _apply_pod_templates)
-    _safe_apply('group_templates', managed_configs, postgres, _apply_group_templates)
+    # Validate singleton configs by constructing Pydantic models
+    for config_key, config_class in [
+        ('service', connectors.ServiceConfig),
+        ('workflow', connectors.WorkflowConfig),
+        ('dataset', connectors.DatasetConfig),
+    ]:
+        section = managed_configs.get(config_key)
+        if not section:
+            continue
+        config_data = section.get('config')
+        if not config_data:
+            continue
+        try:
+            config_class(**config_data)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            errors.append(f'{config_key}: {error}')
 
-    # Phase 2: Backends and backend tests (depend on templates)
-    _safe_apply('backends', managed_configs, postgres, _apply_backends)
-    _safe_apply('backend_tests', managed_configs, postgres, _apply_backend_tests)
+    # Validate named config sections have the expected shape
+    for config_key in ['resource_validations', 'pod_templates', 'group_templates',
+                       'backends', 'backend_tests', 'pools', 'roles']:
+        section = managed_configs.get(config_key)
+        if not section:
+            continue
+        items = section.get('items')
+        if items is not None and not isinstance(items, dict):
+            errors.append(f'{config_key}: items must be a dict, got {type(items).__name__}')
 
-    # Phase 3: Pools (depend on backends and templates)
-    _safe_apply('pools', managed_configs, postgres, _apply_pools)
-
-    # Phase 4: Roles
-    _safe_apply('roles', managed_configs, postgres, _apply_roles)
-
-    # Phase 5: Singleton configs
-    _safe_apply('service', managed_configs, postgres,
-                lambda s, pg: _apply_singleton_config(s, pg, connectors.ConfigType.SERVICE))
-    _safe_apply('workflow', managed_configs, postgres,
-                lambda s, pg: _apply_singleton_config(s, pg, connectors.ConfigType.WORKFLOW))
-    _safe_apply('dataset', managed_configs, postgres,
-                lambda s, pg: _apply_singleton_config(
-                    s, pg, connectors.ConfigType.DATASET,
-                    pre_apply=_default_dataset_credential_endpoints))
-
-
-def _safe_apply(config_key: str, managed_configs: Dict[str, Any],
-                postgres: connectors.PostgresConnector,
-                apply_function: Callable[[Dict[str, Any], connectors.PostgresConnector], None],
-                ) -> None:
-    """Call apply_function if config_key is present, catching all errors."""
-    if config_key not in managed_configs:
-        return
-    try:
-        apply_function(managed_configs[config_key], postgres)
-    except Exception:
-        logging.exception('Failed to apply dynamic config for %s', config_key)
-
-
-def _parse_managed_by(section: Dict[str, Any]) -> ManagedByMode:
-    """Extract and validate managed_by from a config section."""
-    raw_value = section.get('managed_by', ManagedByMode.SEED.value)
-    try:
-        return ManagedByMode(raw_value)
-    except ValueError as error:
-        raise ValueError(
-            f'Invalid managed_by value: {raw_value}. '
-            f'Must be one of: {", ".join(m.value for m in ManagedByMode)}') from error
+    return errors
 
 
 # ---------------------------------------------------------------------------
-# Singleton configs: SERVICE, WORKFLOW, DATASET
+# Secret resolution (kept from original)
 # ---------------------------------------------------------------------------
-
-def _singleton_config_exists(config_type: connectors.ConfigType,
-                             postgres: connectors.PostgresConnector) -> bool:
-    """Check if a singleton config has been explicitly configured.
-
-    Uses config_history to determine if a human or prior configmap-sync has
-    ever written to this config type. This avoids false positives from
-    configure_app() seeding defaults into the configs table on startup,
-    which would cause seed mode to always skip.
-    """
-    try:
-        result = postgres.execute_fetch_command(
-            'SELECT 1 FROM config_history WHERE config_type = %s LIMIT 1',
-            (config_type.value.lower(),), return_raw=True)
-        return len(result) > 0
-    except osmo_errors.OSMODatabaseError:
-        return False
-
-
-def _apply_singleton_config(
-    section: Dict[str, Any],
-    postgres: connectors.PostgresConnector,
-    config_type: connectors.ConfigType,
-    pre_apply: Callable[[Dict[str, Any]], None] | None = None,
-) -> None:
-    """Apply a singleton config (SERVICE, WORKFLOW, or DATASET)."""
-    managed_by = _parse_managed_by(section)
-    config_data = section.get('config', {})
-    if not config_data:
-        return
-
-    label = config_type.value.lower()
-    if managed_by == ManagedByMode.SEED and _singleton_config_exists(
-            config_type, postgres):
-        logging.info('%s config already exists, skipping (managed_by=seed)',
-                     label.capitalize())
-        return
-
-    # Resolve secret_file / secretName references for all config types
-    _resolve_secret_file_references(config_data)
-    if pre_apply:
-        pre_apply(config_data)
-
-    logging.info('Applying %s config (managed_by=%s)', label, managed_by.value)
-    config_helpers.patch_configs(
-        request=config_objects.PatchConfigRequest(
-            configs_dict=config_data,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        config_type=config_type,
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
 
 def _resolve_secret_file_references(config_data: Dict[str, Any],
                                      parent_key: str = '') -> None:
@@ -416,13 +301,7 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
     Walks the dict tree. When it finds a dict with 'secret_file' or 'secretName':
     - Reads the YAML file from the mounted K8s Secret path
     - If the file contains a dict: merges the file contents into the parent dict
-      (replacing the secret_file/secretName reference)
     - If the file contains a 'value' key: replaces the entire dict with that value
-      (for simple string secrets like slack_token, smtp password)
-
-    This is the generic version of the old _default_dataset_credential_endpoints.
-    Works for all config types: dataset credentials, workflow credentials,
-    backend_images credentials, notification tokens, etc.
     """
     if not isinstance(config_data, dict):
         return
@@ -433,7 +312,6 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
         if not isinstance(value, dict):
             continue
 
-        # Check for secret_file or secretName at this level
         secret_file_path = value.get('secret_file')
         if not secret_file_path:
             secret_name = value.get('secretName')
@@ -445,7 +323,6 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
             _resolve_single_secret(config_data, key, value, secret_file_path,
                                    f'{parent_key}.{key}' if parent_key else key)
         else:
-            # Recurse into nested dicts
             _resolve_secret_file_references(value, f'{parent_key}.{key}' if parent_key else key)
 
 
@@ -455,9 +332,8 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
     """Read a secret file and replace the reference with actual values.
 
     Supports three formats:
-    1. Simple string: {value: "..."} → replaces dict with the string
+    1. Simple string: {value: "..."} -> replaces dict with the string
     2. Docker registry: {auths: {registry: {username, password, auth}}}
-       → extracts registry, username, auth fields
     3. YAML dict: merges all keys into the current dict
     """
     try:
@@ -468,7 +344,6 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
                       secret_file_path, path_label, error)
         return
 
-    # Try JSON first (for .dockerconfigjson), then YAML
     try:
         secret_data = json.loads(content)
     except (json.JSONDecodeError, ValueError):
@@ -484,14 +359,11 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
                       secret_file_path, path_label)
         return
 
-    # Format 1: simple string secret (e.g., slack_token, smtp password)
     if 'value' in secret_data and len(secret_data) == 1:
         parent_dict[key] = secret_data['value']
         logging.info('Loaded secret for %s from secret file', path_label)
         return
 
-    # Format 2: Docker registry .dockerconfigjson format
-    # {auths: {registry-url: {username: ..., password: ..., auth: ...}}}
     if 'auths' in secret_data:
         auths = secret_data['auths']
         if isinstance(auths, dict) and auths:
@@ -510,7 +382,6 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
                          path_label, registry_url)
             return
 
-    # Format 3: regular YAML dict — merge all keys
     current_value.pop('secret_file', None)
     current_value.pop('secretName', None)
     current_value.pop('secretKey', None)
@@ -519,11 +390,7 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
 
 
 def _default_dataset_credential_endpoints(config_data: Dict[str, Any]) -> None:
-    """Dataset-specific: default 'endpoint' from 'dataset_path' for each bucket credential.
-
-    StaticDataCredential requires 'endpoint' (the storage URI).
-    Default to dataset_path since they share the same format (e.g. s3://bucket).
-    """
+    """Dataset-specific: default 'endpoint' from 'dataset_path' for each bucket credential."""
     buckets = config_data.get('buckets', {})
     for bucket_config in buckets.values():
         if not isinstance(bucket_config, dict):
@@ -531,298 +398,3 @@ def _default_dataset_credential_endpoints(config_data: Dict[str, Any]) -> None:
         credential = bucket_config.get('default_credential')
         if isinstance(credential, dict) and 'endpoint' not in credential:
             credential['endpoint'] = bucket_config.get('dataset_path', '')
-
-
-# ---------------------------------------------------------------------------
-# Named configs: POOLS, POD_TEMPLATES, GROUP_TEMPLATES, etc.
-# ---------------------------------------------------------------------------
-
-def _apply_resource_validations(section: Dict[str, Any],
-                                postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    items_to_apply = _filter_named_items(
-        items, managed_by, connectors.ResourceValidation, postgres)
-    if not items_to_apply:
-        return
-
-    logging.info('Applying %d resource validations (managed_by=%s)',
-                 len(items_to_apply), managed_by.value)
-    config_service.put_resource_validations(
-        request=config_objects.PutResourceValidationsRequest(
-            configs_dict=items_to_apply,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_pod_templates(section: Dict[str, Any],
-                         postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    items_to_apply = _filter_named_items(
-        items, managed_by, connectors.PodTemplate, postgres)
-    if not items_to_apply:
-        return
-
-    logging.info('Applying %d pod templates (managed_by=%s)',
-                 len(items_to_apply), managed_by.value)
-    config_service.put_pod_templates(
-        request=config_objects.PutPodTemplatesRequest(
-            configs=items_to_apply,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_group_templates(section: Dict[str, Any],
-                           postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    items_to_apply = _filter_named_items(
-        items, managed_by, connectors.GroupTemplate, postgres)
-    if not items_to_apply:
-        return
-
-    logging.info('Applying %d group templates (managed_by=%s)',
-                 len(items_to_apply), managed_by.value)
-    config_service.put_group_templates(
-        request=config_objects.PutGroupTemplatesRequest(
-            configs=items_to_apply,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_backends(section: Dict[str, Any],
-                    postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    for name, backend_data in items.items():
-        try:
-            backend_exists = _named_config_exists(name, connectors.Backend, postgres)
-            if managed_by == ManagedByMode.SEED and backend_exists:
-                logging.info('Backend %s already exists, skipping (managed_by=seed)', name)
-                continue
-
-            if backend_exists:
-                # Update existing backend
-                logging.info('Updating backend %s (managed_by=%s)', name, managed_by.value)
-                config_helpers.update_backend(
-                    name=name,
-                    request=config_objects.PostBackendRequest(
-                        configs=config_objects.BackendConfig(**backend_data),
-                        description=f'Applied from dynamic config (managed_by={managed_by.value})',
-                        tags=CONFIGMAP_SYNC_TAGS,
-                    ),
-                    username=CONFIGMAP_SYNC_USERNAME,
-                )
-            else:
-                # Insert new backend
-                logging.info('Creating backend %s (managed_by=%s)', name, managed_by.value)
-                _insert_backend(name, backend_data, postgres)
-        except Exception:
-            logging.exception('Failed to apply backend config for %s', name)
-
-
-
-def _insert_backend(name: str, backend_data: Dict[str, Any],
-                    postgres: connectors.PostgresConnector) -> None:
-    """Insert a new backend into the database with minimal defaults.
-
-    Schema reference: backends table is defined in
-    src/utils/connectors/postgres.py and tests/common/database/testdata/schema.sql.
-    """
-    now = common.current_time()
-    description = backend_data.get('description', '')
-    scheduler_settings = backend_data.get('scheduler_settings')
-    if scheduler_settings:
-        scheduler_settings_json = connectors.BackendSchedulerSettings(
-            **scheduler_settings).json()
-    else:
-        scheduler_settings_json = connectors.BackendSchedulerSettings().json()
-
-    node_conditions = backend_data.get('node_conditions')
-    if node_conditions:
-        node_conditions_json = connectors.BackendNodeConditions(**node_conditions).json()
-    else:
-        node_conditions_json = connectors.BackendNodeConditions().json()
-
-    router_address = backend_data.get('router_address', '')
-    dashboard_url = backend_data.get('dashboard_url', '')
-    grafana_url = backend_data.get('grafana_url', '')
-    tests = backend_data.get('tests', [])
-
-    insert_cmd = '''
-        INSERT INTO backends (name, k8s_uid, k8s_namespace,
-            dashboard_url, grafana_url,
-            scheduler_settings, node_conditions,
-            last_heartbeat, created_date,
-            description, router_address, version, tests)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (name) DO NOTHING
-        RETURNING name;
-    '''
-    result: list[Any] = postgres.execute_fetch_command(
-        insert_cmd,
-        (name, '', '', dashboard_url, grafana_url,
-         scheduler_settings_json, node_conditions_json,
-         now, now, description, router_address, '', tests),
-        return_raw=True)
-
-    if not result:
-        logging.info('Backend %s already exists (conflict), skipping history entry', name)
-        return
-
-    config_helpers.create_backend_config_history_entry(
-        postgres=postgres,
-        name=name,
-        username=CONFIGMAP_SYNC_USERNAME,
-        description=f'Created backend {name} from dynamic config',
-        tags=CONFIGMAP_SYNC_TAGS,
-    )
-
-
-def _apply_backend_tests(section: Dict[str, Any],
-                         postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    items_to_apply = _filter_named_items(
-        items, managed_by, connectors.BackendTests, postgres)
-    if not items_to_apply:
-        return
-
-    logging.info('Applying %d backend tests (managed_by=%s)',
-                 len(items_to_apply), managed_by.value)
-
-    configs = {}
-    for name, test_data in items_to_apply.items():
-        configs[name] = connectors.BackendTests(**test_data)
-
-    config_service.put_backend_tests(
-        request=config_objects.PutBackendTestsRequest(
-            configs=configs,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_pools(section: Dict[str, Any],
-                 postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    items_to_apply = _filter_named_items(
-        items, managed_by, connectors.Pool, postgres)
-    if not items_to_apply:
-        return
-
-    logging.info('Applying %d pools (managed_by=%s)',
-                 len(items_to_apply), managed_by.value)
-
-    configs = {}
-    for name, pool_data in items_to_apply.items():
-        configs[name] = connectors.Pool(**pool_data)
-
-    config_service.put_pools(
-        request=config_objects.PutPoolsRequest(
-            configs=configs,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-def _apply_roles(section: Dict[str, Any],
-                 postgres: connectors.PostgresConnector) -> None:
-    managed_by = _parse_managed_by(section)
-    items = section.get('items', {})
-    if not items:
-        return
-
-    items_to_apply = _filter_named_items(
-        items, managed_by, connectors.Role, postgres)
-    if not items_to_apply:
-        return
-
-    logging.info('Applying %d roles (managed_by=%s)',
-                 len(items_to_apply), managed_by.value)
-
-    configs = []
-    for name, role_data in items_to_apply.items():
-        # Pre-construct RolePolicy objects from raw dicts because pydantic v1
-        # cannot always coerce nested dicts into model instances automatically.
-        raw_policies = role_data.get('policies', [])
-        policies = [role_lib.RolePolicy(**policy) for policy in raw_policies]
-        role_fields = {**role_data, 'policies': policies}
-        configs.append(connectors.Role(name=name, **role_fields))
-
-    config_service.put_roles(
-        request=config_objects.PutRolesRequest(
-            configs=configs,
-            description=f'Applied from dynamic config (managed_by={managed_by.value})',
-            tags=CONFIGMAP_SYNC_TAGS,
-        ),
-        username=CONFIGMAP_SYNC_USERNAME,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _filter_named_items(items: Dict[str, Any], managed_by: ManagedByMode,
-                        model_class: Any, postgres: connectors.PostgresConnector) -> Dict[str, Any]:
-    """Filter named config items based on managed_by mode.
-
-    In 'seed' mode, only return items that don't already exist in the DB.
-    In 'configmap' mode, return all items.
-    """
-    if managed_by == ManagedByMode.CONFIGMAP:
-        return items
-
-    # seed mode: only include items that don't exist yet
-    filtered = {}
-    for name in items:
-        if not _named_config_exists(name, model_class, postgres):
-            filtered[name] = items[name]
-        else:
-            logging.info('%s %s already exists, skipping (managed_by=seed)',
-                         model_class.__name__, name)
-    return filtered
-
-
-def _named_config_exists(name: str, model_class: Any,
-                         postgres: connectors.PostgresConnector) -> bool:
-    """Check if a named config item exists in the database."""
-    try:
-        model_class.fetch_from_db(postgres, name)
-        return True
-    except (osmo_errors.OSMOUserError, osmo_errors.OSMOBackendError):
-        return False

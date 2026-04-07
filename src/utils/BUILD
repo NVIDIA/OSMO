@@ -88,6 +88,12 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "configmap_state",
+    srcs = ["configmap_state.py"],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "backend_messages",
     srcs = ["backend_messages.py"],
     deps = [

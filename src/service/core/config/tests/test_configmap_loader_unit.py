@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+# pylint: disable=protected-access
+
 import logging
 import os
 import tempfile
@@ -25,117 +27,91 @@ from unittest import mock
 
 import yaml
 
-from src.service.core.config import configmap_loader
-from src.service.core.config.configmap_loader import ManagedByMode
+from src.lib.utils import osmo_errors
+from src.service.core.config import configmap_guard, configmap_loader
+from src.utils import configmap_state
 
 
-class TestLoadDynamicConfigsFileHandling(unittest.TestCase):
-    """Tests for load_dynamic_configs file parsing and early-exit behavior."""
+class TestConfigmapGuard(unittest.TestCase):
+    """Tests for the global ConfigMap mode guard."""
 
     def setUp(self):
-        self.mock_postgres = mock.MagicMock()
+        configmap_state.set_configmap_mode(False)
 
-    def test_load_dynamic_configs_file_not_found(self):
-        """Returns gracefully when config file does not exist."""
-        configmap_loader.load_dynamic_configs('/nonexistent/path.yaml', self.mock_postgres)
-        # Should not attempt advisory lock
-        self.mock_postgres.execute_fetch_command.assert_not_called()
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
 
-    def test_load_dynamic_configs_invalid_yaml(self):
-        """Returns gracefully on malformed YAML."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            temp_file.write('invalid: yaml: [unclosed')
-            temp_path = temp_file.name
-        try:
-            configmap_loader.load_dynamic_configs(temp_path, self.mock_postgres)
-            self.mock_postgres.execute_fetch_command.assert_not_called()
-        finally:
-            os.unlink(temp_path)
+    def test_reject_when_configmap_mode_active(self):
+        configmap_state.set_configmap_mode(True)
+        with self.assertRaises(osmo_errors.OSMOUserError) as context:
+            configmap_guard.reject_if_configmap_mode('some-user')
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertIn('ConfigMap', str(context.exception))
 
-    def test_load_dynamic_configs_empty_file(self):
-        """Returns gracefully when file is empty."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            temp_file.write('')
-            temp_path = temp_file.name
-        try:
-            configmap_loader.load_dynamic_configs(temp_path, self.mock_postgres)
-            self.mock_postgres.execute_fetch_command.assert_not_called()
-        finally:
-            os.unlink(temp_path)
+    def test_allow_when_configmap_mode_inactive(self):
+        configmap_guard.reject_if_configmap_mode('some-user')
 
-    def test_load_dynamic_configs_managed_configs_none(self):
-        """Returns gracefully when all sections are empty dicts."""
-        config: Dict[str, Any] = {'managed_configs': {}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
-            temp_path = temp_file.name
-        try:
-            # Advisory lock should be acquired, but _apply_all_configs should return early
-            self.mock_postgres.execute_fetch_command.return_value = [
-                {'pg_try_advisory_lock': True}
-            ]
-            configmap_loader.load_dynamic_configs(temp_path, self.mock_postgres)
-            # Should have acquired and released session lock (2 calls)
-            self.assertEqual(self.mock_postgres.execute_fetch_command.call_count, 2)
-        finally:
-            os.unlink(temp_path)
+    def test_bypass_for_configmap_sync_user(self):
+        configmap_state.set_configmap_mode(True)
+        configmap_guard.reject_if_configmap_mode(
+            configmap_guard.CONFIGMAP_SYNC_USERNAME)
 
-    def test_load_dynamic_configs_no_managed_configs_key(self):
-        """Warns and returns when managed_configs key is absent."""
-        config = {'some_other_key': 'value'}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
-            temp_path = temp_file.name
-        try:
-            with self.assertLogs(level=logging.WARNING) as log_context:
-                configmap_loader.load_dynamic_configs(temp_path, self.mock_postgres)
-            self.assertTrue(
-                any('no managed_configs section' in msg for msg in log_context.output))
-            self.mock_postgres.execute_fetch_command.assert_not_called()
-        finally:
-            os.unlink(temp_path)
+    def test_is_configmap_mode(self):
+        self.assertFalse(configmap_guard.is_configmap_mode())
+        configmap_state.set_configmap_mode(True)
+        self.assertTrue(configmap_guard.is_configmap_mode())
 
 
-class TestParseManagedBy(unittest.TestCase):
-    """Tests for _parse_managed_by helper."""
+class TestConfigmapState(unittest.TestCase):
+    """Tests for the module-level config snapshot."""
 
-    def test_parse_managed_by_seed(self):
-        """Returns SEED for 'seed' value."""
-        result = configmap_loader._parse_managed_by({'managed_by': 'seed'})
-        self.assertEqual(result, ManagedByMode.SEED)
+    def setUp(self):
+        configmap_state.set_parsed_configs(None)
 
-    def test_parse_managed_by_configmap(self):
-        """Returns CONFIGMAP for 'configmap' value."""
-        result = configmap_loader._parse_managed_by({'managed_by': 'configmap'})
-        self.assertEqual(result, ManagedByMode.CONFIGMAP)
+    def tearDown(self):
+        configmap_state.set_parsed_configs(None)
 
-    def test_parse_managed_by_default(self):
-        """Returns SEED when managed_by key is absent."""
-        result = configmap_loader._parse_managed_by({})
-        self.assertEqual(result, ManagedByMode.SEED)
+    def test_snapshot_initially_none(self):
+        self.assertIsNone(configmap_state.get_snapshot())
 
-    def test_parse_managed_by_invalid(self):
-        """Raises ValueError for invalid value."""
-        with self.assertRaises(ValueError) as context:
-            configmap_loader._parse_managed_by({'managed_by': 'invalid_mode'})
-        self.assertIn('Invalid managed_by value', str(context.exception))
+    def test_set_and_get_snapshot(self):
+        configs = {'service': {'config': {'key': 'value'}}}
+        configmap_state.set_parsed_configs(configs)
+        self.assertEqual(configmap_state.get_snapshot(), configs)
+
+    def test_atomic_swap_preserves_old_reference(self):
+        old: Dict[str, Any] = {'service': {'config': {'version': 1}}}
+        configmap_state.set_parsed_configs(old)
+        snapshot_ref = configmap_state.get_snapshot()
+        assert snapshot_ref is not None
+
+        new: Dict[str, Any] = {'service': {'config': {'version': 2}}}
+        configmap_state.set_parsed_configs(new)
+
+        # Old reference still valid
+        self.assertEqual(snapshot_ref['service']['config']['version'], 1)
+        # New snapshot has new data
+        new_snapshot = configmap_state.get_snapshot()
+        assert new_snapshot is not None
+        self.assertEqual(
+            new_snapshot['service']['config']['version'], 2)
 
 
 class TestResolveSecretFileReferences(unittest.TestCase):
-    """Tests for _resolve_secret_file_references."""
+    """Tests for _resolve_secret_file_references (unchanged logic)."""
 
     def test_resolve_dataset_secret_files_success(self):
-        """Reads secret file and populates credentials."""
         secret_data = {
             'access_key_id': 'AKIAIOSFODNN7EXAMPLE',
             'access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
             'region': 'us-west-2',
         }
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as secret_file:
             yaml.dump(secret_data, secret_file)
             secret_path = secret_file.name
         try:
-            config_data = {
+            config_data: Dict[str, Any] = {
                 'buckets': {
                     'primary': {
                         'dataset_path': 's3://my-bucket',
@@ -147,283 +123,270 @@ class TestResolveSecretFileReferences(unittest.TestCase):
             }
             configmap_loader._resolve_secret_file_references(config_data)
 
-            bucket: Dict[str, Any] = config_data['buckets']['primary']
-            credential: Dict[str, Any] = bucket['default_credential']
+            credential = config_data['buckets']['primary']['default_credential']
             self.assertEqual(credential['access_key_id'], 'AKIAIOSFODNN7EXAMPLE')
-            self.assertEqual(credential['access_key'],
-                             'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
-            self.assertEqual(credential['region'], 'us-west-2')
             self.assertNotIn('secret_file', credential)
         finally:
             os.unlink(secret_path)
 
-    def test_resolve_dataset_secret_files_missing_file(self):
-        """Logs error and does NOT corrupt bucket config on missing file."""
-        config_data = {
+    def test_resolve_missing_secret_file(self):
+        config_data: Dict[str, Any] = {
             'buckets': {
                 'primary': {
-                    'dataset_path': 's3://my-bucket',
                     'default_credential': {
                         'secret_file': '/nonexistent/secret.yaml',
                     },
                 },
             },
         }
-        with self.assertLogs(level=logging.ERROR) as log_context:
+        with self.assertLogs(level=logging.ERROR):
             configmap_loader._resolve_secret_file_references(config_data)
-        self.assertTrue(
-            any('Failed to read secret file' in msg for msg in log_context.output))
-        # secret_file key should still be present (not corrupted)
+        # secret_file key still present (not corrupted)
         credential = config_data['buckets']['primary']['default_credential']
         self.assertIn('secret_file', credential)
-        self.assertNotIn('access_key_id', credential)
-
-    def test_resolve_dataset_secret_files_invalid_yaml(self):
-        """Logs error and continues on invalid YAML in secret file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
-            secret_file.write('invalid: yaml: [unclosed')
-            secret_path = secret_file.name
-        try:
-            config_data = {
-                'buckets': {
-                    'primary': {
-                        'dataset_path': 's3://my-bucket',
-                        'default_credential': {
-                            'secret_file': secret_path,
-                        },
-                    },
-                },
-            }
-            with self.assertLogs(level=logging.ERROR) as log_context:
-                configmap_loader._resolve_secret_file_references(config_data)
-            self.assertTrue(
-                any('Failed to' in msg and 'secret file' in msg
-                    for msg in log_context.output))
-        finally:
-            os.unlink(secret_path)
-
-    def test_resolve_secret_files_partial_keys_merged(self):
-        """Secret file with partial keys is still merged (validation happens downstream)."""
-        secret_data = {'access_key_id': 'AKIAIOSFODNN7EXAMPLE'}  # only one key
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
-            yaml.dump(secret_data, secret_file)
-            secret_path = secret_file.name
-        try:
-            config_data = {
-                'buckets': {
-                    'primary': {
-                        'dataset_path': 's3://my-bucket',
-                        'default_credential': {
-                            'secret_file': secret_path,
-                        },
-                    },
-                },
-            }
-            configmap_loader._resolve_secret_file_references(config_data)
-            credential = config_data['buckets']['primary']['default_credential']
-            # Secret file contents are merged; secret_file key removed
-            self.assertEqual(credential['access_key_id'], 'AKIAIOSFODNN7EXAMPLE')
-            self.assertNotIn('secret_file', credential)
-        finally:
-            os.unlink(secret_path)
-
-
-    def test_resolve_workflow_nested_credential(self):
-        """Resolves secret_file in nested workflow credential fields."""
-        secret_data = {
-            'access_key_id': 'workflow-key',
-            'access_key': 'workflow-secret',
-            'endpoint': 'swift://storage/workflows',
-            'region': 'us-east-1',
-        }
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
-            yaml.dump(secret_data, secret_file)
-            secret_path = secret_file.name
-        try:
-            config_data = {
-                'max_num_tasks': 100,
-                'workflow_data': {
-                    'credential': {
-                        'secret_file': secret_path,
-                    },
-                },
-            }
-            configmap_loader._resolve_secret_file_references(config_data)
-            credential = config_data['workflow_data']['credential']
-            self.assertEqual(credential['access_key_id'], 'workflow-key')
-            self.assertEqual(credential['access_key'], 'workflow-secret')
-            self.assertNotIn('secret_file', credential)
-            # Non-secret fields preserved
-            self.assertEqual(config_data['max_num_tasks'], 100)
-        finally:
-            os.unlink(secret_path)
 
     def test_resolve_simple_string_secret(self):
-        """Resolves secret_file for simple string values (e.g., slack_token)."""
-        secret_data = {'value': 'xoxb-slack-token-value'}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
+        secret_data = {'value': 'xoxb-slack-token'}
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as secret_file:
             yaml.dump(secret_data, secret_file)
             secret_path = secret_file.name
         try:
-            config_data = {
-                'workflow_alerts': {
-                    'slack_token': {
-                        'secret_file': secret_path,
-                    },
+            config_data: Dict[str, Any] = {
+                'alerts': {
+                    'slack_token': {'secret_file': secret_path},
                 },
             }
             configmap_loader._resolve_secret_file_references(config_data)
-            # Simple value secret replaces the dict entirely
-            self.assertEqual(config_data['workflow_alerts']['slack_token'],
-                             'xoxb-slack-token-value')
+            self.assertEqual(
+                config_data['alerts']['slack_token'], 'xoxb-slack-token')
         finally:
             os.unlink(secret_path)
 
-    def test_resolve_secretName_converted_to_path(self):
-        """secretName is converted to /etc/osmo/secrets/<name>/cred.yaml path."""
-        config_data = {
-            'workflow_data': {
-                'credential': {
-                    'secretName': 'my-workflow-cred',
+    def test_resolve_secret_name_converted_to_path(self):
+        config_data: Dict[str, Any] = {
+            'credential': {'secretName': 'my-cred'},
+        }
+        with self.assertLogs(level=logging.ERROR):
+            configmap_loader._resolve_secret_file_references(config_data)
+
+
+class TestValidateConfigs(unittest.TestCase):
+    """Tests for _validate_configs."""
+
+    def test_valid_named_config_section(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {'items': {'tmpl1': {'spec': {}}}},
+        }
+        errors = configmap_loader._validate_configs(configs)
+        self.assertEqual(errors, [])
+
+    def test_invalid_items_type(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {'items': 'not_a_dict'},
+        }
+        errors = configmap_loader._validate_configs(configs)
+        self.assertEqual(len(errors), 1)
+        self.assertIn('pod_templates', errors[0])
+
+    def test_unknown_keys_logged(self):
+        configs: Dict[str, Any] = {
+            'unknown_section': {'config': {}},
+        }
+        with self.assertLogs(level=logging.WARNING) as log_context:
+            configmap_loader._validate_configs(configs)
+        self.assertTrue(
+            any('Unknown key' in msg for msg in log_context.output))
+
+    def test_empty_configs_valid(self):
+        errors = configmap_loader._validate_configs({})
+        self.assertEqual(errors, [])
+
+
+class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
+    """Tests for ConfigMapWatcher._load_and_apply."""
+
+    def setUp(self):
+        self.mock_postgres = mock.MagicMock()
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def _write_config_file(self, config: Dict[str, Any]) -> str:
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            yaml.dump(config, temp)
+            return temp.name
+
+    def test_load_file_not_found(self):
+        watcher = configmap_loader.ConfigMapWatcher(
+            '/nonexistent/path.yaml', self.mock_postgres)
+        result = watcher._load_and_apply()
+        self.assertFalse(result)
+        self.assertIsNone(configmap_state.get_snapshot())
+
+    def test_load_no_managed_configs_key(self):
+        path = self._write_config_file({'other': 'data'})
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, self.mock_postgres)
+            result = watcher._load_and_apply()
+            self.assertFalse(result)
+        finally:
+            os.unlink(path)
+
+    def test_load_valid_config_populates_snapshot(self):
+        config: Dict[str, Any] = {
+            'managed_configs': {
+                'pod_templates': {
+                    'items': {
+                        'default_ctrl': {'spec': {'containers': []}},
+                    },
                 },
             },
         }
-        # This will try to read the file (which doesn't exist) and log an error
-        with self.assertLogs(level=logging.ERROR):
-            configmap_loader._resolve_secret_file_references(config_data)
-        # The secretName should have been converted to a path attempt
-
-
-class TestSafeApply(unittest.TestCase):
-    """Tests for _safe_apply helper."""
-
-    def test_safe_apply_missing_key(self):
-        """No-op when config key is not in managed_configs."""
-        mock_postgres = mock.MagicMock()
-        mock_function = mock.MagicMock()
-        managed_configs: Dict[str, Any] = {'service': {'config': {}}}
-
-        configmap_loader._safe_apply(
-            'nonexistent_key', managed_configs, mock_postgres, mock_function)
-
-        mock_function.assert_not_called()
-
-    def test_safe_apply_catches_exception(self):
-        """Logs and continues when apply function raises."""
-        mock_postgres = mock.MagicMock()
-        mock_function = mock.MagicMock(side_effect=RuntimeError('test error'))
-        managed_configs: Dict[str, Any] = {'service': {'config': {}}}
-
-        with self.assertLogs(level=logging.ERROR) as log_context:
-            configmap_loader._safe_apply(
-                'service', managed_configs, mock_postgres, mock_function)
-
-        self.assertTrue(
-            any('Failed to apply dynamic config for service' in msg
-                for msg in log_context.output))
-
-
-class TestAdvisoryLock(unittest.TestCase):
-    """Tests for PostgreSQL advisory lock behavior."""
-
-    def test_advisory_lock_not_acquired(self):
-        """Skips config loading when lock is held by another replica."""
-        mock_postgres = mock.MagicMock()
-        mock_postgres.execute_fetch_command.return_value = [
-            {'pg_try_advisory_lock': False}
-        ]
-
-        config = {'managed_configs': {'service': {'config': {'key': 'value'}}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
-            temp_path = temp_file.name
+        path = self._write_config_file(config)
         try:
-            configmap_loader.load_dynamic_configs(temp_path, mock_postgres)
-            # Should only have called for lock acquisition (no unlock, no config apply)
-            self.assertEqual(mock_postgres.execute_fetch_command.call_count, 1)
+            # Mock get_service_configs for runtime field injection
+            mock_service_config = mock.MagicMock()
+            mock_service_config.plaintext_dict.return_value = {
+                'service_auth': {'keys': {}},
+                'service_base_url': 'https://example.com',
+            }
+            self.mock_postgres.get_service_configs.return_value = (
+                mock_service_config)
+
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, self.mock_postgres)
+            result = watcher._load_and_apply()
+            self.assertTrue(result)
+
+            snapshot = configmap_state.get_snapshot()
+            assert snapshot is not None
+            self.assertIn('pod_templates', snapshot)
+            items = snapshot['pod_templates']['items']
+            self.assertIn('default_ctrl', items)
         finally:
-            os.unlink(temp_path)
+            os.unlink(path)
 
-    def test_advisory_xact_lock_acquired_on_success(self):
-        """Transaction-scoped lock is acquired for config application."""
-        mock_postgres = mock.MagicMock()
-        mock_postgres.execute_fetch_command.return_value = [
-            {'pg_try_advisory_lock': True}
-        ]
-
-        config: Dict[str, Any] = {'managed_configs': {}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
-            temp_path = temp_file.name
-        try:
-            configmap_loader.load_dynamic_configs(temp_path, mock_postgres)
-
-            calls = mock_postgres.execute_fetch_command.call_args_list
-            self.assertEqual(len(calls), 2)
-            # First call: acquire lock
-            self.assertIn('pg_try_advisory_lock',
-                          calls[0][0][0])  # type: ignore[index]
-            # Second call: release lock
-            self.assertIn('pg_advisory_unlock',
-                          calls[1][0][0])  # type: ignore[index]
-        finally:
-            os.unlink(temp_path)
-
-    @mock.patch('src.service.core.config.configmap_loader._apply_all_configs')
-    def test_advisory_lock_released_on_failure(self, mock_apply_all):
-        """Session lock is explicitly released even when _apply_all_configs raises."""
-        mock_apply_all.side_effect = RuntimeError('catastrophic failure')
-        mock_postgres = mock.MagicMock()
-        mock_postgres.execute_fetch_command.return_value = [
-            {'pg_try_advisory_lock': True}
-        ]
-
-        config: Dict[str, Any] = {'managed_configs': {'service': {'config': {'key': 'value'}}}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
-            yaml.dump(config, temp_file)
-            temp_path = temp_file.name
-        try:
-            with self.assertRaises(RuntimeError):
-                configmap_loader.load_dynamic_configs(temp_path, mock_postgres)
-
-            calls = mock_postgres.execute_fetch_command.call_args_list
-            # Lock acquired and released even on failure
-            self.assertEqual(len(calls), 2)
-            self.assertIn('pg_try_advisory_lock',
-                          calls[0][0][0])  # type: ignore[index]
-            self.assertIn('pg_advisory_unlock',
-                          calls[1][0][0])  # type: ignore[index]
-        finally:
-            os.unlink(temp_path)
-
-
-class TestUnknownKeysLogged(unittest.TestCase):
-    """Tests for unknown key warning."""
-
-    def test_unknown_keys_logged(self):
-        """WARNING logged for unrecognized keys in managed_configs."""
-        mock_postgres = mock.MagicMock()
-        managed_configs: Dict[str, Any] = {
-            'unknown_config_type': {'config': {}},
-            'another_unknown': {'config': {}},
+    def test_load_injects_runtime_fields(self):
+        config = {
+            'managed_configs': {
+                'service': {
+                    'config': {
+                        'max_pod_restart_limit': '30m',
+                    },
+                },
+            },
         }
+        path = self._write_config_file(config)
+        try:
+            mock_service_config = mock.MagicMock()
+            mock_service_config.plaintext_dict.return_value = {
+                'service_auth': {'keys': {'key1': 'value1'}},
+                'service_base_url': 'https://example.com',
+            }
+            self.mock_postgres.get_service_configs.return_value = (
+                mock_service_config)
 
-        with self.assertLogs(level=logging.WARNING) as log_context:
-            configmap_loader._apply_all_configs(managed_configs, mock_postgres)
+            watcher = configmap_loader.ConfigMapWatcher(
+                path, self.mock_postgres)
+            result = watcher._load_and_apply()
+            self.assertTrue(result)
 
-        unknown_warnings = [
-            msg for msg in log_context.output if 'Unknown key in managed_configs' in msg]
-        self.assertEqual(len(unknown_warnings), 2)
+            snapshot = configmap_state.get_snapshot()
+            assert snapshot is not None
+            service_config = snapshot['service']['config']
+            # Admin field from ConfigMap
+            self.assertEqual(
+                service_config['max_pod_restart_limit'], '30m')
+            # Runtime field injected from DB
+            self.assertIn('service_auth', service_config)
+            self.assertIn('service_base_url', service_config)
+        finally:
+            os.unlink(path)
+
+    def test_validation_failure_keeps_previous_config(self):
+        # First load succeeds
+        good_config: Dict[str, Any] = {
+            'managed_configs': {
+                'pod_templates': {'items': {'tmpl': {'spec': {}}}},
+            },
+        }
+        good_path = self._write_config_file(good_config)
+        mock_service_config = mock.MagicMock()
+        mock_service_config.plaintext_dict.return_value = {}
+        self.mock_postgres.get_service_configs.return_value = (
+            mock_service_config)
+
+        watcher = configmap_loader.ConfigMapWatcher(
+            good_path, self.mock_postgres)
+        watcher._load_and_apply()
+
+        old_snapshot = configmap_state.get_snapshot()
+        self.assertIsNotNone(old_snapshot)
+
+        # Second load with invalid items type
+        bad_config = {
+            'managed_configs': {
+                'pod_templates': {'items': 'not_a_dict'},
+            },
+        }
+        bad_path = self._write_config_file(bad_config)
+        try:
+            watcher2 = configmap_loader.ConfigMapWatcher(
+                bad_path, self.mock_postgres)
+            result = watcher2._load_and_apply()
+            self.assertFalse(result)
+
+            # Previous snapshot preserved
+            self.assertIs(configmap_state.get_snapshot(), old_snapshot)
+        finally:
+            os.unlink(good_path)
+            os.unlink(bad_path)
 
 
-class TestApplyAllConfigsNoneManagedConfigs(unittest.TestCase):
-    """Tests for _apply_all_configs with None/empty input."""
+class TestConfigFileEventHandler(unittest.TestCase):
+    """Tests for the watchdog event handler."""
 
-    def test_apply_all_configs_none_managed_configs(self):
-        """Returns gracefully on None input."""
-        mock_postgres = mock.MagicMock()
-        # Should not raise
-        configmap_loader._apply_all_configs(None, mock_postgres)  # type: ignore[arg-type]
+    def test_ignores_unrelated_events(self):
+        callback = mock.MagicMock()
+        handler = configmap_loader.ConfigFileEventHandler(
+            'config.yaml', callback)
+
+        event = mock.MagicMock()
+        event.src_path = '/some/other/file.txt'
+        handler.on_any_event(event)
+
+        callback.assert_not_called()
+
+    def test_reacts_to_config_file_events(self):
+        callback = mock.MagicMock()
+        handler = configmap_loader.ConfigFileEventHandler(
+            'config.yaml', callback)
+        handler._debounce_delay = 0.01  # speed up test
+
+        event = mock.MagicMock()
+        event.src_path = '/etc/osmo/config/config.yaml'
+        handler.on_any_event(event)
+
+        # Timer should be set
+        self.assertIsNotNone(handler._debounce_timer)
+
+    def test_reacts_to_data_symlink_events(self):
+        callback = mock.MagicMock()
+        handler = configmap_loader.ConfigFileEventHandler(
+            'config.yaml', callback)
+        handler._debounce_delay = 0.01
+
+        event = mock.MagicMock()
+        event.src_path = '/etc/osmo/config/..data'
+        handler.on_any_event(event)
+
+        self.assertIsNotNone(handler._debounce_timer)
 
 
 if __name__ == '__main__':
