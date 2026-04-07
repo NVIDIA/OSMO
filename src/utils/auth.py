@@ -43,15 +43,12 @@ class AsymmetricKeyPair(pydantic.BaseModel):
     def generate(cls) -> 'AsymmetricKeyPair':
         return AsymmetricKeyPair()  # type: ignore
 
-    @pydantic.model_validator(mode='before')
-    @classmethod
-    def validate_valid_key(cls, values):
-
-        public = values['public_key']
+    @pydantic.model_validator(mode='after')
+    def validate_valid_key(self) -> 'AsymmetricKeyPair':
         # Make sure the keys are valid
-        jwk.JWK.from_json(public)
+        jwk.JWK.from_json(self.public_key)
         # TODO: Properly validate the private/public key match
-        return values
+        return self
 
     def _get_cached_pem_key(self) -> bytes:
         cached = self.__dict__.get('_pem_key_cache')
@@ -120,14 +117,11 @@ class AuthenticationConfig(pydantic.BaseModel):
             issuer=issuer,
             audience=issuer)
 
-    @pydantic.model_validator(mode='before')
-    @classmethod
-    def validate_active_key(cls, values):
-        active_key = values.get('active_key')
-        keys = values.get('keys', [])
-        if active_key not in keys:
-            raise ValueError(f'active_key "{active_key}" not in keys')
-        return values
+    @pydantic.model_validator(mode='after')
+    def validate_active_key(self) -> 'AuthenticationConfig':
+        if self.active_key not in self.keys:
+            raise ValueError(f'active_key "{self.active_key}" not in keys')
+        return self
 
     def get_keyset(self) -> Dict:
         return {'keys': [

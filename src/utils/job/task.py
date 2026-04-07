@@ -349,10 +349,8 @@ class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
             Raises:
                 ValueError: path fails validation.
             """
-            try:
-                re.fullmatch(PATH_REGEX, path)
-            except re.error as err:
-                raise ValueError(f'Invalid path: {path}') from err
+            if re.fullmatch(PATH_REGEX, path) is None:
+                raise ValueError(f'Invalid path: {path}')
             return path
 
         @pydantic.field_validator('metadata')
@@ -365,10 +363,8 @@ class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
                 ValueError: metadata fails validation.
             """
             for path in metadata:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return metadata
 
         @pydantic.field_validator('labels')
@@ -381,10 +377,8 @@ class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
                 ValueError: labels fails validation.
             """
             for path in labels:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return labels
 
         @pydantic.field_validator('regex')
@@ -445,10 +439,8 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra='forbid'):
                 ValueError: paths fails validation.
             """
             for path in paths:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return paths
 
         @pydantic.field_validator('metadata')
@@ -461,10 +453,8 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra='forbid'):
                 ValueError: metadata fails validation.
             """
             for path in metadata:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return metadata
 
         @pydantic.field_validator('labels')
@@ -477,10 +467,8 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra='forbid'):
                 ValueError: labels fails validation.
             """
             for path in labels:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return labels
 
     update_dataset: _Dataset
@@ -682,7 +670,9 @@ class TaskSpec(pydantic.BaseModel):
             valid_types = [dt.value for dt in connectors.DownloadType]
             raise ValueError(f'Task "{name}" uses invalid downloadType "{download_type}". '
                            f'Valid types are: {valid_types}')
-
+        raise ValueError(
+            f'Task "{name}" has unsupported downloadType type: {type(download_type).__name__}'
+        )
 
     @pydantic.field_validator('name')
     @classmethod

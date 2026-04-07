@@ -108,6 +108,8 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         """
         Validate that if default_admin_username is set, default_admin_password must also be set
         """
+        if not isinstance(values, dict):
+            return values
         username = values.get('default_admin_username')
         password = values.get('default_admin_password')
         if username and not password:

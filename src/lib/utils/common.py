@@ -618,6 +618,8 @@ def _parse_iso8601_duration(duration: str) -> datetime.timedelta | None:
     match = _ISO8601_DURATION_RE.match(duration)
     if not match:
         return None
+    if not any(match.group(i) for i in range(1, 5)):
+        return None
     days = int(match.group(1)) if match.group(1) else 0
     hours = int(match.group(2)) if match.group(2) else 0
     minutes = int(match.group(3)) if match.group(3) else 0

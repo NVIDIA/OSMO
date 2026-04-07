@@ -59,7 +59,8 @@ def update_metrics(
     ):
     """ Updates the metrics with the given workflow and group_name in the database. """
     database = connectors.PostgresConnector.get_instance()
-    metrics = getattr(metrics_options, metrics_options.model_fields_set.pop())
+    field_name = next(iter(metrics_options.model_fields_set))
+    metrics = getattr(metrics_options, field_name)
     if isinstance(metrics, task.TaskGroupMetrics):
         task.TaskGroup.patch_metrics_in_db(
             database=database,

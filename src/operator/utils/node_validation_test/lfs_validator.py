@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import logging
 import pydantic
 import time
-from typing import Dict, List, Any
+from typing import Any, Dict, List, Sequence
 import sys
 from kubernetes import client as k8s_client
 
@@ -92,8 +92,8 @@ class LFSTestConfig(test_base.NodeTestConfig):
 
     @pydantic.model_validator(mode='before')
     @classmethod
-    def validate_mount_configs(cls, values):
-        def _check_length(required_fields):
+    def validate_mount_configs(cls, values: dict[str, Any]) -> dict[str, Any]:
+        def _check_length(required_fields: Sequence[str]) -> dict[str, Any]:
             length = len(values.get(required_fields[0], {}))
             if all(len(values.get(field, {})) == length for field in required_fields):
                 return values

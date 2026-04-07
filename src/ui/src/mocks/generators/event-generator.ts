@@ -673,7 +673,7 @@ export class EventGenerator {
     const events = this.generateEventsForWorkflow(workflow, taskName ?? undefined);
     const lines = this.formatEventLines(events);
 
-    if (workflow.end_time !== undefined) {
+    if (workflow.end_time !== undefined && workflow.end_time !== null) {
       return new HttpResponse(buildChunkedStream(lines.join("\n")), { headers: EVENT_HEADERS });
     }
 

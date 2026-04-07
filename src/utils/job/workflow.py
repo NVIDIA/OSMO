@@ -280,20 +280,32 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             name_set.add(name)
 
         for task_spec in values.get('tasks', []):
-            spec_name = task_spec.name if hasattr(task_spec, 'name') else task_spec.get('name', '')
+            if hasattr(task_spec, 'name'):
+                spec_name = task_spec.name
+            elif isinstance(task_spec, dict) and 'name' in task_spec:
+                spec_name = task_spec['name']
+            else:
+                continue
             _validate_name(spec_name)
 
         for group_spec in values.get('groups', []):
-            group_name = (group_spec.name if hasattr(group_spec, 'name')
-                          else group_spec.get('name', ''))
+            if hasattr(group_spec, 'name'):
+                group_name = group_spec.name
+            elif isinstance(group_spec, dict) and 'name' in group_spec:
+                group_name = group_spec['name']
+            else:
+                continue
             _validate_name(group_name)
             group_tasks = (group_spec.tasks
                            if hasattr(group_spec, 'tasks')
                            else group_spec.get('tasks', []))
             for task_spec in group_tasks:
-                spec_name = (task_spec.name
-                             if hasattr(task_spec, 'name')
-                             else task_spec.get('name', ''))
+                if hasattr(task_spec, 'name'):
+                    spec_name = task_spec.name
+                elif isinstance(task_spec, dict) and 'name' in task_spec:
+                    spec_name = task_spec['name']
+                else:
+                    continue
                 _validate_name(spec_name)
 
         return values
@@ -376,7 +388,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)
                       for group in self.groups]
-            if 'timeout' in self.model_dump(exclude_defaults=True):
+            if 'timeout' in self.model_fields_set:
                 return WorkflowSpec(name=self.name, groups=groups, timeout=self.timeout,
                                     resources=self.resources, backend=self.backend, pool=self.pool)
             return WorkflowSpec(name=self.name, groups=groups,
@@ -756,7 +768,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             'resources': {key: resource.model_dump(exclude_defaults=True)
                           for key, resource in self.resources.items()}
         }
-        if 'timeout' in self.model_dump(exclude_defaults=True):
+        if 'timeout' in self.model_fields_set:
             base_spec['timeout'] = self.timeout.model_dump()
         return base_spec
 
@@ -774,10 +786,21 @@ class VersionedWorkflowSpec(pydantic.BaseModel, extra='forbid'):
         mode='before' receives raw input (may be str from YAML/JSON),
         so we must coerce before comparing.
         """
-        try:
+        if isinstance(value, bool):
+            raise ValueError(f'Unsupported workflow version: {value}.')
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError(f'Unsupported workflow version: {value}.')
             coerced = int(value)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f'Unsupported workflow version: {value}.') from exc
+        elif isinstance(value, str):
+            try:
+                coerced = int(value)
+            except ValueError as exc:
+                raise ValueError(f'Unsupported workflow version: {value}.') from exc
+        elif isinstance(value, int):
+            coerced = value
+        else:
+            raise ValueError(f'Unsupported workflow version: {value}.')
         if coerced != 2:
             raise ValueError(f'Unsupported workflow version: {value}.')
         return coerced

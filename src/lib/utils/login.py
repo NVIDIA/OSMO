@@ -145,6 +145,8 @@ class LoginStorage(pydantic.BaseModel):
     @pydantic.model_validator(mode='before')
     @classmethod
     def validate_one_login_type(cls, values):
+        if not isinstance(values, dict):
+            return values
         fields = ('token_login', 'dev_login')
         login_fields = [field for field in fields if values.get(field) is not None]
         if len(login_fields) != 1:

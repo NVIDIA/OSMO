@@ -233,8 +233,8 @@ class TestRunnerConfig(BackendBaseConfig):
         description='Whether to read test config from OSMO service',
         json_schema_extra={'command_line': 'read_from_osmo'})
     read_from_file: str | None = pydantic.Field(
-        default='/tmp/test_config.json',
-        description='Whether to read test config from file',
+        default=None,
+        description='Path to read test config from file (required when read_from_osmo is False)',
         json_schema_extra={'command_line': 'read_from_file'})
     service_account: str | None = pydantic.Field(
         default='test-runner',

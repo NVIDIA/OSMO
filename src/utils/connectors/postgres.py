@@ -1752,7 +1752,11 @@ class ExtraArgBaseModel(pydantic.BaseModel):
         if not isinstance(values, dict):
             return values
         if info.context and info.context.get('_from_db'):
-            return {k: v for k, v in values.items() if k in cls.model_fields}
+            allowed_keys = set(cls.model_fields.keys())
+            for field_info in cls.model_fields.values():
+                if field_info.alias:
+                    allowed_keys.add(field_info.alias)
+            return {k: v for k, v in values.items() if k in allowed_keys}
         return values
 
 

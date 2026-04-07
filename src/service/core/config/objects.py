@@ -431,6 +431,8 @@ class UpdateConfigTagsRequest(pydantic.BaseModel):
     @pydantic.model_validator(mode='before')
     @classmethod
     def validate_at_least_one_tag_operation(cls, values):
+        if not isinstance(values, dict):
+            return values
         if not values.get('set_tags') and not values.get('delete_tags'):
             raise ValueError('At least one of set_tags or delete_tags must be provided')
         return values

@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import signal
 import time
@@ -124,7 +124,8 @@ class NodeCondition(pydantic.BaseModel):
         try:
             # Try to parse the input as datetime
             dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
-            return dt.strftime('%Y-%m-%dT%H:%M:%SZ''')
+            dt = dt.astimezone(tz=timezone.utc)
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         except ValueError as error:
             raise osmo_errors.OSMOUserError(
                 f'Timestamp must be in RFC3339 format like \'2024-03-21T15:30:00Z\', Error {error}')

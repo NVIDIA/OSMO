@@ -53,12 +53,12 @@ class StaticConfig(pydantic.BaseModel):
                                  'times. If a config parameter is duplicated in more than one ' \
                                  'file, the value in the last file is used.')
 
-        for name, field in cls.model_fields.items():
+        for _, field in cls.model_fields.items():
             extras = _get_field_extras(field)
             if 'command_line' in extras:
                 help_message = field.description or ''
                 if field.default is not None:
-                    help_message += f' (default: {str(field.default)})'
+                    help_message += f' (default: {field.default!s})'
                 parser.add_argument(f'--{extras["command_line"]}',
                                     action=extras.get('action', 'store'),
                                     help=help_message)
