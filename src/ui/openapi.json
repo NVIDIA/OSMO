@@ -19,7 +19,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ServiceConfig"
+                  "$ref": "#/components/schemas/ServiceConfig-Output"
                 }
               }
             }
@@ -161,7 +161,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorkflowConfig"
+                  "$ref": "#/components/schemas/WorkflowConfig-Output"
                 }
               }
             }
@@ -303,7 +303,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DatasetConfig"
+                  "$ref": "#/components/schemas/DatasetConfig-Output"
                 }
               }
             }
@@ -923,7 +923,7 @@
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/Pool"
+                      "$ref": "#/components/schemas/Pool-Output"
                     },
                     {
                       "$ref": "#/components/schemas/PoolEditable"
@@ -1244,6 +1244,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "additionalProperties": {
                     "anyOf": [
                       {
@@ -1253,11 +1254,10 @@
                         "$ref": "#/components/schemas/PlatformEditable"
                       },
                       {
-                        "$ref": "#/components/schemas/Platform"
+                        "$ref": "#/components/schemas/Platform-Output"
                       }
                     ]
                   },
-                  "type": "object",
                   "title": "Response List Platforms In Pool Api Configs Pool  Name  Platform Get"
                 }
               }
@@ -1328,7 +1328,7 @@
                       "$ref": "#/components/schemas/PlatformEditable"
                     },
                     {
-                      "$ref": "#/components/schemas/Platform"
+                      "$ref": "#/components/schemas/Platform-Output"
                     }
                   ],
                   "title": "Response Read Platform In Pool Api Configs Pool  Name  Platform  Platform Name  Get"
@@ -1514,6 +1514,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response List Pod Templates Api Configs Pod Template Get"
                 }
               }
@@ -1604,6 +1605,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Read Pod Template Api Configs Pod Template  Name  Get"
                 }
               }
@@ -1766,10 +1768,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
                   "type": "object",
+                  "additionalProperties": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
                   "title": "Response List Group Templates Api Configs Group Template Get"
                 }
               }
@@ -1860,6 +1863,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Read Group Template Api Configs Group Template  Name  Get"
                 }
               }
@@ -2022,13 +2026,13 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "additionalProperties": {
+                    "type": "array",
                     "items": {
                       "$ref": "#/components/schemas/ResourceAssertion"
-                    },
-                    "type": "array"
+                    }
                   },
-                  "type": "object",
                   "title": "Response List Resource Validations Api Configs Resource Validation Get"
                 }
               }
@@ -2118,10 +2122,10 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ResourceAssertion"
                   },
-                  "type": "array",
                   "title": "Response Read Resource Validation Api Configs Resource Validation  Name  Get"
                 }
               }
@@ -2284,10 +2288,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/Role"
-                  },
                   "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Role-Output"
+                  },
                   "title": "Response List Roles Api Configs Role Get"
                 }
               }
@@ -2377,7 +2381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Role"
+                  "$ref": "#/components/schemas/Role-Output"
                 }
               }
             }
@@ -2539,10 +2543,10 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "additionalProperties": {
                     "$ref": "#/components/schemas/BackendTests"
                   },
-                  "type": "object",
                   "title": "Response List Backend Tests Api Configs Backend Test Get"
                 }
               }
@@ -8319,7 +8323,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PluginsConfig"
+                  "$ref": "#/components/schemas/PluginsConfig-Output"
                 }
               }
             }
@@ -9774,7 +9778,28 @@
         "title": "DataTagResponse",
         "description": "Object storing Tag Response. "
       },
-      "DatasetConfig": {
+      "DatasetConfig-Input": {
+        "properties": {
+          "buckets": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/BucketConfig"
+            },
+            "type": "object",
+            "title": "Buckets",
+            "default": {}
+          },
+          "default_bucket": {
+            "type": "string",
+            "title": "Default Bucket",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DatasetConfig",
+        "description": "Stores any dataset configs External Admins control "
+      },
+      "DatasetConfig-Output": {
         "properties": {
           "buckets": {
             "additionalProperties": {
@@ -10172,15 +10197,36 @@
       "JwtTokenResponse": {
         "properties": {
           "token": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Token"
           },
           "expires_at": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Expires At"
           },
           "error": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Error"
           }
         },
@@ -11132,7 +11178,29 @@
         "title": "PlatformMinimal",
         "description": "Single Platform Entry "
       },
-      "PluginsConfig": {
+      "PluginsConfig-Input": {
+        "properties": {
+          "rsync": {
+            "$ref": "#/components/schemas/RsyncConfig",
+            "default": {
+              "enabled": false,
+              "enable_telemetry": false,
+              "read_bandwidth_limit": 2621440,
+              "write_bandwidth_limit": 2621440,
+              "allowed_paths": {},
+              "daemon_debounce_delay": 30.0,
+              "daemon_poll_interval": 120.0,
+              "daemon_reconcile_interval": 60.0,
+              "client_upload_rate_limit": 2097152
+            }
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PluginsConfig",
+        "description": "Stores any plugins configs "
+      },
+      "PluginsConfig-Output": {
         "properties": {
           "rsync": {
             "$ref": "#/components/schemas/RsyncConfig",
@@ -12200,7 +12268,7 @@
             "title": "Tags"
           },
           "configs": {
-            "$ref": "#/components/schemas/DatasetConfig"
+            "$ref": "#/components/schemas/DatasetConfig-Input"
           }
         },
         "type": "object",
@@ -12691,7 +12759,7 @@
             "title": "Tags"
           },
           "configs": {
-            "$ref": "#/components/schemas/ServiceConfig"
+            "$ref": "#/components/schemas/ServiceConfig-Input"
           }
         },
         "type": "object",
@@ -12729,7 +12797,7 @@
             "title": "Tags"
           },
           "configs": {
-            "$ref": "#/components/schemas/WorkflowConfig"
+            "$ref": "#/components/schemas/WorkflowConfig-Input"
           }
         },
         "type": "object",
@@ -13404,7 +13472,37 @@
         "type": "object",
         "title": "SMTPConfig"
       },
-      "ServiceConfig": {
+      "ServiceConfig-Input": {
+        "properties": {
+          "service_base_url": {
+            "type": "string",
+            "title": "Service Base Url",
+            "default": ""
+          },
+          "service_auth": {
+            "$ref": "#/components/schemas/AuthenticationConfig"
+          },
+          "cli_config": {
+            "$ref": "#/components/schemas/CliConfig",
+            "default": {}
+          },
+          "max_pod_restart_limit": {
+            "type": "string",
+            "title": "Max Pod Restart Limit",
+            "default": "30m"
+          },
+          "agent_queue_size": {
+            "type": "integer",
+            "title": "Agent Queue Size",
+            "default": 1024
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ServiceConfig",
+        "description": "Stores any configs OSMO Admins control "
+      },
+      "ServiceConfig-Output": {
         "properties": {
           "service_base_url": {
             "type": "string",
@@ -14529,7 +14627,7 @@
         "title": "Version",
         "description": "A class to maintain version information. "
       },
-      "WorkflowConfig": {
+      "WorkflowConfig-Input": {
         "properties": {
           "workflow_data": {
             "$ref": "#/components/schemas/DataConfig",
@@ -14594,7 +14692,168 @@
             }
           },
           "plugins_config": {
-            "$ref": "#/components/schemas/PluginsConfig",
+            "$ref": "#/components/schemas/PluginsConfig-Input",
+            "default": {
+              "rsync": {
+                "allowed_paths": {},
+                "client_upload_rate_limit": 2097152,
+                "daemon_debounce_delay": 30.0,
+                "daemon_poll_interval": 120.0,
+                "daemon_reconcile_interval": 60.0,
+                "enable_telemetry": false,
+                "enabled": false,
+                "read_bandwidth_limit": 2621440,
+                "write_bandwidth_limit": 2621440
+              }
+            }
+          },
+          "max_num_tasks": {
+            "type": "integer",
+            "title": "Max Num Tasks",
+            "default": 20
+          },
+          "max_num_ports_per_task": {
+            "type": "integer",
+            "title": "Max Num Ports Per Task",
+            "default": 30
+          },
+          "max_retry_per_task": {
+            "type": "integer",
+            "title": "Max Retry Per Task",
+            "default": 0
+          },
+          "max_retry_per_job": {
+            "type": "integer",
+            "title": "Max Retry Per Job",
+            "default": 5
+          },
+          "default_schedule_timeout": {
+            "type": "integer",
+            "title": "Default Schedule Timeout",
+            "default": 30
+          },
+          "default_exec_timeout": {
+            "type": "string",
+            "title": "Default Exec Timeout",
+            "default": "60d"
+          },
+          "default_queue_timeout": {
+            "type": "string",
+            "title": "Default Queue Timeout",
+            "default": "60d"
+          },
+          "max_exec_timeout": {
+            "type": "string",
+            "title": "Max Exec Timeout",
+            "default": "60d"
+          },
+          "max_queue_timeout": {
+            "type": "string",
+            "title": "Max Queue Timeout",
+            "default": "60d"
+          },
+          "force_cleanup_delay": {
+            "type": "string",
+            "title": "Force Cleanup Delay",
+            "default": "1h"
+          },
+          "max_log_lines": {
+            "type": "integer",
+            "title": "Max Log Lines",
+            "default": 10000
+          },
+          "max_task_log_lines": {
+            "type": "integer",
+            "title": "Max Task Log Lines",
+            "default": 1000
+          },
+          "max_error_log_lines": {
+            "type": "integer",
+            "title": "Max Error Log Lines",
+            "default": 100
+          },
+          "max_event_log_lines": {
+            "type": "integer",
+            "title": "Max Event Log Lines",
+            "default": 100
+          },
+          "task_heartbeat_frequency": {
+            "type": "string",
+            "title": "Task Heartbeat Frequency",
+            "default": "10m"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "WorkflowConfig",
+        "description": "Stores any workflow configs External Admins control "
+      },
+      "WorkflowConfig-Output": {
+        "properties": {
+          "workflow_data": {
+            "$ref": "#/components/schemas/DataConfig",
+            "default": {
+              "base_url": "",
+              "websocket_timeout": 1440,
+              "data_timeout": 10,
+              "download_type": "download"
+            }
+          },
+          "workflow_log": {
+            "$ref": "#/components/schemas/LogConfig",
+            "default": {}
+          },
+          "workflow_app": {
+            "$ref": "#/components/schemas/LogConfig",
+            "default": {}
+          },
+          "workflow_info": {
+            "$ref": "#/components/schemas/WorkflowInfo",
+            "default": {
+              "tags": [],
+              "max_name_length": 64
+            }
+          },
+          "backend_images": {
+            "$ref": "#/components/schemas/OsmoImageConfig",
+            "default": {
+              "init": "",
+              "client": "",
+              "credential": {
+                "auth": "",
+                "registry": "",
+                "username": ""
+              }
+            }
+          },
+          "workflow_alerts": {
+            "$ref": "#/components/schemas/NotificationConfig",
+            "default": {
+              "slack_token": "",
+              "smtp_settings": {
+                "host": "",
+                "password": "",
+                "sender": ""
+              }
+            }
+          },
+          "credential_config": {
+            "$ref": "#/components/schemas/CredentialConfig",
+            "default": {
+              "disable_registry_validation": [],
+              "disable_data_validation": []
+            }
+          },
+          "user_workflow_limits": {
+            "$ref": "#/components/schemas/UserWorkflowLimitConfig",
+            "default": {
+              "jinja_sandbox_workers": 2,
+              "jinja_sandbox_max_time": 0.5,
+              "jinja_sandbox_memory_limit": 104857600
+            }
+          },
+          "plugins_config": {
+            "$ref": "#/components/schemas/PluginsConfig-Output",
             "default": {
               "rsync": {
                 "allowed_paths": {},
