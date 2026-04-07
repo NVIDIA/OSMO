@@ -231,7 +231,7 @@ spec:
             "$BASE_URL/api/configs/backend/default" \
             -d '{
               "configs": {
-                "router_address": "ws://osmo-gateway"
+                "router_address": "ws://'${EXTERNAL_HOSTNAME}'"
               },
               "description": "Update default backend config"
             }'
@@ -286,3 +286,5 @@ spec:
           value: {{ .Values.global.osmoImageLocation | quote }}
         - name: OSMO_IMAGE_TAG
           value: {{ .Values.global.osmoImageTag | quote }}
+        - name: EXTERNAL_HOSTNAME
+          value: {{ .Values.service.services.service.hostname | quote }}
