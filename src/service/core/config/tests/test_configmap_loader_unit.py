@@ -197,7 +197,8 @@ class TestResolveSecretFileReferences(unittest.TestCase):
             with self.assertLogs(level=logging.ERROR) as log_context:
                 configmap_loader._resolve_secret_file_references(config_data)
             self.assertTrue(
-                any('Failed to read secret file' in msg for msg in log_context.output))
+                any('Failed to' in msg and 'secret file' in msg
+                    for msg in log_context.output))
         finally:
             os.unlink(secret_path)
 

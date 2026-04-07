@@ -152,8 +152,10 @@ Expects a dict context. If the dict has a "secretName" key, replaces it with
 {{- define "osmo.resolve-secret-name" -}}
 {{- if .secretName -}}
 {{- $secretName := .secretName -}}
-{{- $_ := set . "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $secretName) -}}
+{{- $secretKey := default "cred.yaml" .secretKey -}}
+{{- $_ := set . "secret_file" (printf "/etc/osmo/secrets/%s/%s" $secretName $secretKey) -}}
 {{- $_ := unset . "secretName" -}}
+{{- $_ := unset . "secretKey" -}}
 {{- end -}}
 {{- end -}}
 
@@ -168,7 +170,9 @@ Expects a dict as context.
 {{- if kindIs "map" $value }}
 {{- if hasKey $value "secretName" }}
 {{- $secretName := $value.secretName }}
-{{- $_ := set $value "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $secretName) }}
+{{- $secretKey := default "cred.yaml" (index $value "secretKey") }}
+{{- $_ := set $value "secret_file" (printf "/etc/osmo/secrets/%s/%s" $secretName $secretKey) }}
+{{- $_ := unset $value "secretKey" }}
 {{- $_ := unset $value "secretName" }}
 {{- else }}
 {{/* Recurse one level deeper */}}
@@ -176,7 +180,9 @@ Expects a dict as context.
 {{- if kindIs "map" $v2 }}
 {{- if hasKey $v2 "secretName" }}
 {{- $sn := $v2.secretName }}
-{{- $_ := set $v2 "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $sn) }}
+{{- $sk := default "cred.yaml" (index $v2 "secretKey") }}
+{{- $_ := set $v2 "secret_file" (printf "/etc/osmo/secrets/%s/%s" $sn $sk) }}
+{{- $_ := unset $v2 "secretKey" }}
 {{- $_ := unset $v2 "secretName" }}
 {{- else }}
 {{/* Recurse another level deeper */}}
@@ -184,7 +190,9 @@ Expects a dict as context.
 {{- if kindIs "map" $v3 }}
 {{- if hasKey $v3 "secretName" }}
 {{- $sn := $v3.secretName }}
-{{- $_ := set $v3 "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $sn) }}
+{{- $sk := default "cred.yaml" (index $v3 "secretKey") }}
+{{- $_ := set $v3 "secret_file" (printf "/etc/osmo/secrets/%s/%s" $sn $sk) }}
+{{- $_ := unset $v3 "secretKey" }}
 {{- $_ := unset $v3 "secretName" }}
 {{- else }}
 {{/* One more level */}}
@@ -192,7 +200,9 @@ Expects a dict as context.
 {{- if kindIs "map" $v4 }}
 {{- if hasKey $v4 "secretName" }}
 {{- $sn := $v4.secretName }}
-{{- $_ := set $v4 "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $sn) }}
+{{- $sk := default "cred.yaml" (index $v4 "secretKey") }}
+{{- $_ := set $v4 "secret_file" (printf "/etc/osmo/secrets/%s/%s" $sn $sk) }}
+{{- $_ := unset $v4 "secretKey" }}
 {{- $_ := unset $v4 "secretName" }}
 {{- end }}
 {{- end }}

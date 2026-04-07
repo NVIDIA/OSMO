@@ -18,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import enum
 import hashlib
+import json
 import logging
 import threading
 import time
@@ -437,7 +438,8 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
         if not secret_file_path:
             secret_name = value.get('secretName')
             if secret_name:
-                secret_file_path = f'/etc/osmo/secrets/{secret_name}/cred.yaml'
+                secret_key = value.get('secretKey', 'cred.yaml')
+                secret_file_path = f'/etc/osmo/secrets/{secret_name}/{secret_key}'
 
         if secret_file_path:
             _resolve_single_secret(config_data, key, value, secret_file_path,
@@ -450,31 +452,68 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
 def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
                            current_value: Dict[str, Any],
                            secret_file_path: str, path_label: str) -> None:
-    """Read a secret file and replace the reference with actual values."""
+    """Read a secret file and replace the reference with actual values.
+
+    Supports three formats:
+    1. Simple string: {value: "..."} → replaces dict with the string
+    2. Docker registry: {auths: {registry: {username, password, auth}}}
+       → extracts registry, username, auth fields
+    3. YAML dict: merges all keys into the current dict
+    """
     try:
         with open(secret_file_path, encoding='utf-8') as secret_file:
-            secret_data = yaml.safe_load(secret_file)
-    except (OSError, yaml.YAMLError) as error:
+            content = secret_file.read()
+    except OSError as error:
         logging.error('Failed to read secret file %s for %s: %s',
                       secret_file_path, path_label, error)
         return
+
+    # Try JSON first (for .dockerconfigjson), then YAML
+    try:
+        secret_data = json.loads(content)
+    except (json.JSONDecodeError, ValueError):
+        try:
+            secret_data = yaml.safe_load(content)
+        except yaml.YAMLError as error:
+            logging.error('Failed to parse secret file %s for %s: %s',
+                          secret_file_path, path_label, error)
+            return
 
     if not isinstance(secret_data, dict):
         logging.error('Secret file %s for %s does not contain a mapping',
                       secret_file_path, path_label)
         return
 
-    # If the secret file has a 'value' key, this is a simple string secret
-    # (e.g., slack_token, smtp password). Replace the dict with the value.
+    # Format 1: simple string secret (e.g., slack_token, smtp password)
     if 'value' in secret_data and len(secret_data) == 1:
         parent_dict[key] = secret_data['value']
         logging.info('Loaded secret for %s from secret file', path_label)
         return
 
-    # Otherwise, merge the secret file contents into the current dict,
-    # removing the secret_file/secretName reference
+    # Format 2: Docker registry .dockerconfigjson format
+    # {auths: {registry-url: {username: ..., password: ..., auth: ...}}}
+    if 'auths' in secret_data:
+        auths = secret_data['auths']
+        if isinstance(auths, dict) and auths:
+            registry_url = next(iter(auths))
+            registry_data = auths[registry_url]
+            extracted = {
+                'registry': registry_url,
+                'username': registry_data.get('username', ''),
+                'auth': registry_data.get('auth', ''),
+            }
+            current_value.pop('secret_file', None)
+            current_value.pop('secretName', None)
+            current_value.pop('secretKey', None)
+            current_value.update(extracted)
+            logging.info('Loaded Docker registry credentials for %s from %s',
+                         path_label, registry_url)
+            return
+
+    # Format 3: regular YAML dict — merge all keys
     current_value.pop('secret_file', None)
     current_value.pop('secretName', None)
+    current_value.pop('secretKey', None)
     current_value.update(secret_data)
     logging.info('Loaded credentials for %s from secret file', path_label)
 
