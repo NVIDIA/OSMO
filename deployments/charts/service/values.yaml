@@ -1089,11 +1089,11 @@ gateway:
       ##
       type: LoadBalancer
 
-      ## Expose an HTTPS port on the Service for NLB TLS termination.
+      ## HTTPS port for NLB TLS termination.
       ## The NLB terminates TLS on this port and forwards plaintext to Envoy.
-      ## Leave null to expose only port 80.
+      ## Set to null to expose only port 80 (e.g. for local development).
       ##
-      httpsPort: null
+      httpsPort: 443
 
       ## Annotations for the Service (e.g. AWS NLB annotations)
       ##

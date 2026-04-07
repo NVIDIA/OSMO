@@ -82,6 +82,10 @@ service:
       scaling:
         minReplicas: 1
         maxReplicas: 1
+      ## No TLS for local development
+      ##
+      service:
+        httpsPort: null
     ## Disable auth components for local development
     ##
     oauth2Proxy:
