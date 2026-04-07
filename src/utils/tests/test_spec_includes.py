@@ -25,7 +25,10 @@ from typing import Any, Dict
 import yaml
 
 from src.lib.utils import osmo_errors
-from src.utils.spec_includes import deep_merge_dicts, resolve_includes
+from src.utils.spec_includes import (
+    deep_merge_dicts, find_unresolved_env_variables, resolve_default_values,
+    resolve_includes,
+)
 
 
 class DeepMergeDictsTests(unittest.TestCase):
@@ -912,6 +915,184 @@ class VariableReferenceTests(unittest.TestCase):
 
         task_names = [t['name'] for t in parsed['workflow']['tasks']]
         self.assertEqual(task_names, ['task_a', 'task_c'])
+
+
+class ResolveDefaultValuesTests(unittest.TestCase):
+    """Unit tests for resolve_default_values."""
+
+    def test_basic_substitution(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              greeting: hello
+            workflow:
+              name: "{{greeting}}-world"
+        ''')
+        result = resolve_default_values(spec)
+        self.assertNotIn('default-values', result)
+        self.assertIn('hello-world', result)
+
+    def test_single_brace_substitution(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              base_dir: /data
+            workflow:
+              name: test
+              tasks:
+              - name: task1
+                args: ["{base_dir}/output"]
+        ''')
+        result = resolve_default_values(spec)
+        self.assertIn('/data/output', result)
+
+    def test_nested_variable_resolution(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              root: /opt
+              sub_dir: "{root}/app"
+              data_dir: "{sub_dir}/data"
+            workflow:
+              name: test
+              tasks:
+              - name: task1
+                args: ["{data_dir}/file.txt"]
+        ''')
+        result = resolve_default_values(spec)
+        self.assertIn('/opt/app/data/file.txt', result)
+        self.assertNotIn('{root}', result)
+        self.assertNotIn('{sub_dir}', result)
+
+    def test_none_value_leaves_references_unresolved(self):
+        """A None value in default-values leaves {var} references in the output."""
+        spec = textwrap.dedent('''\
+            default-values:
+              missing_var:
+              sub_dir: "{missing_var}/app"
+            workflow:
+              name: test
+              tasks:
+              - name: task1
+                args: ["{sub_dir}/data"]
+        ''')
+        result = resolve_default_values(spec)
+        self.assertIn('{missing_var}', result)
+
+    def test_env_ref_unset_resolves_to_empty(self):
+        """An unset ${env:VAR} in a quoted YAML value resolves to empty string."""
+        spec = textwrap.dedent('''\
+            default-values:
+              root: "${env:__OSMO_TEST_UNSET_VAR_12345__}"
+              local_dir: "{root}/local"
+            workflow:
+              name: test
+              tasks:
+              - name: task1
+                args: ["{local_dir}/output"]
+        ''')
+        result = resolve_default_values(spec)
+        self.assertIn('/local/output', result)
+        self.assertNotIn('${env:', result)
+
+    def test_env_ref_set_resolves(self):
+        """A set ${env:VAR} resolves correctly through variable chain."""
+        original = os.environ.get('__OSMO_TEST_VAR__')
+        os.environ['__OSMO_TEST_VAR__'] = '/my/path'
+        try:
+            spec = textwrap.dedent('''\
+                default-values:
+                  root: "${env:__OSMO_TEST_VAR__}"
+                  sub: "{root}/data"
+                workflow:
+                  name: test
+                  tasks:
+                  - name: task1
+                    args: ["{sub}/file"]
+            ''')
+            result = resolve_default_values(spec)
+            self.assertIn('/my/path/data/file', result)
+            self.assertNotIn('{root}', result)
+            self.assertNotIn('${env:', result)
+        finally:
+            if original is None:
+                del os.environ['__OSMO_TEST_VAR__']
+            else:
+                os.environ['__OSMO_TEST_VAR__'] = original
+
+    def test_no_default_values_returns_text(self):
+        spec = 'workflow:\n  name: test\n'
+        result = resolve_default_values(spec)
+        self.assertEqual(result, spec)
+
+
+class FindUnresolvedEnvVariablesTests(unittest.TestCase):
+    """Unit tests for find_unresolved_env_variables."""
+
+    def test_no_default_values(self):
+        spec = 'workflow:\n  name: test\n'
+        self.assertEqual(find_unresolved_env_variables(spec), {})
+
+    def test_no_env_refs(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              greeting: hello
+            workflow:
+              name: test
+        ''')
+        self.assertEqual(find_unresolved_env_variables(spec), {})
+
+    def test_set_env_var_not_reported(self):
+        original = os.environ.get('__OSMO_TEST_SET_VAR__')
+        os.environ['__OSMO_TEST_SET_VAR__'] = '/some/path'
+        try:
+            spec = textwrap.dedent('''\
+                default-values:
+                  root: "${env:__OSMO_TEST_SET_VAR__}"
+                workflow:
+                  name: test
+            ''')
+            self.assertEqual(find_unresolved_env_variables(spec), {})
+        finally:
+            if original is None:
+                del os.environ['__OSMO_TEST_SET_VAR__']
+            else:
+                os.environ['__OSMO_TEST_SET_VAR__'] = original
+
+    def test_unset_env_var_reported(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              root: "${env:__OSMO_TEST_DEFINITELY_UNSET__}"
+            workflow:
+              name: test
+        ''')
+        result = find_unresolved_env_variables(spec)
+        self.assertEqual(result, {'root': '__OSMO_TEST_DEFINITELY_UNSET__'})
+
+    def test_multiple_unset_env_vars(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              var_a: "${env:__OSMO_UNSET_A__}"
+              var_b: "${env:__OSMO_UNSET_B__}"
+              var_c: "no-env-ref"
+            workflow:
+              name: test
+        ''')
+        result = find_unresolved_env_variables(spec)
+        self.assertEqual(result, {
+            'var_a': '__OSMO_UNSET_A__',
+            'var_b': '__OSMO_UNSET_B__',
+        })
+
+    def test_dict_entries_ignored(self):
+        spec = textwrap.dedent('''\
+            default-values:
+              my_task:
+                name: task1
+                image: ubuntu
+              root: "${env:__OSMO_UNSET_X__}"
+            workflow:
+              name: test
+        ''')
+        result = find_unresolved_env_variables(spec)
+        self.assertEqual(result, {'root': '__OSMO_UNSET_X__'})
 
 
 if __name__ == '__main__':

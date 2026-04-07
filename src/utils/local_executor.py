@@ -709,6 +709,17 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
     abs_path = os.path.abspath(spec_path)
     spec_text = spec_includes.resolve_includes(
         spec_text, os.path.dirname(abs_path), source_path=abs_path)
+
+    unresolved_env = spec_includes.find_unresolved_env_variables(spec_text)
+    if unresolved_env:
+        lines = [f'  {name} (from ${env_var})'
+                 for name, env_var in sorted(unresolved_env.items())]
+        raise ValueError(
+            'The following environment variables are required but not set:\n'
+            + '\n'.join(lines)
+            + '\nSet them before running, or use "osmo local compose" to '
+            'inspect what needs to be configured.')
+
     spec_text = spec_includes.resolve_default_values(spec_text)
 
     template_markers = ('{%', '{#')

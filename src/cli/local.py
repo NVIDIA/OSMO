@@ -19,9 +19,11 @@ SPDX-License-Identifier: Apache-2.0
 
 import argparse
 import os
+import re
 import sys
 
 import shtab
+import yaml
 
 from src.utils import local_executor, spec_includes
 
@@ -81,7 +83,8 @@ def setup_parser(parser: argparse._SubParsersAction):
 
     compose_parser = subparsers.add_parser(
         'compose',
-        help='Resolve includes and default-values, then print the flat workflow spec.')
+        help='Flatten includes and expand task refs into a single spec with a '
+             'default-values variable map (no variable substitution).')
     compose_parser.add_argument(
         '-f', '--file',
         required=True,
@@ -115,8 +118,31 @@ def _run_local(service_client, args: argparse.Namespace):  # pylint: disable=unu
         sys.exit(1)
 
 
+_ENV_REF_RE = re.compile(r'\$\{env:([^}]+)\}')
+
+
+def _resolve_set_env_refs(value: str) -> str:
+    """Replace ``${env:VAR}`` patterns only when VAR is present in ``os.environ``."""
+    def _replacer(match: re.Match) -> str:
+        env_var = match.group(1)
+        if env_var in os.environ:
+            return os.environ[env_var]
+        return match.group(0)
+    return _ENV_REF_RE.sub(_replacer, value)
+
+
 def _compose(service_client, args: argparse.Namespace):  # pylint: disable=unused-argument
-    """Resolve includes and default-values, then output the flat spec."""
+    """Flatten includes, resolve variables, and output a submittable spec.
+
+    When all ``${env:VAR}`` references can be resolved the output is fully
+    flat: no ``default-values`` section, no ``{variable}`` references —
+    ready to submit to the OSMO server or run locally.
+
+    When environment variables are missing the output keeps a
+    ``default-values`` section with the unresolvable entries so the user
+    can fill them in and re-compose.
+    """
+    unresolved_env: dict = {}
     try:
         abs_path = os.path.abspath(args.workflow_file)
         with open(abs_path, encoding='utf-8') as f:
@@ -124,10 +150,25 @@ def _compose(service_client, args: argparse.Namespace):  # pylint: disable=unuse
 
         spec_text = spec_includes.resolve_includes(
             spec_text, os.path.dirname(abs_path), source_path=abs_path)
-        spec_text = spec_includes.resolve_default_values(spec_text)
+
+        unresolved_env = spec_includes.find_unresolved_env_variables(spec_text)
+
+        if unresolved_env:
+            spec_text = _compose_with_unresolved(spec_text, unresolved_env)
+        else:
+            spec_text = _compose_fully_resolved(spec_text)
     except (ValueError, FileNotFoundError, PermissionError) as error:
         print(f'Error: {error}', file=sys.stderr)
         sys.exit(1)
+
+    if unresolved_env:
+        env_list = ', '.join(
+            f'${v}' for v in sorted(set(unresolved_env.values())))
+        print(
+            f'Warning: environment variables not set: {env_list}\n'
+            'Set them and re-compose, or edit the default-values section '
+            'in the output.',
+            file=sys.stderr)
 
     if args.output_file:
         with open(args.output_file, 'w', encoding='utf-8') as f:
@@ -135,3 +176,34 @@ def _compose(service_client, args: argparse.Namespace):  # pylint: disable=unuse
         print(f'Composed spec written to {args.output_file}', file=sys.stderr)
     else:
         print(spec_text, end='')
+
+
+def _compose_fully_resolved(spec_text: str) -> str:
+    """Resolve all variables and produce a submittable spec."""
+    return spec_includes.resolve_default_values(spec_text)
+
+
+def _compose_with_unresolved(spec_text: str,
+                             unresolved_env: dict) -> str:
+    """Keep a ``default-values`` map for variables that cannot be resolved."""
+    parsed = yaml.safe_load(spec_text)
+    raw_defaults = parsed.pop('default-values', None) or {}
+
+    scalar_defaults: dict = {}
+    for key in sorted(raw_defaults):
+        value = raw_defaults[key]
+        if isinstance(value, (str, int, float, bool)):
+            scalar_defaults[key] = value
+        elif value is None:
+            scalar_defaults[key] = value
+
+    for key, value in scalar_defaults.items():
+        if isinstance(value, str):
+            scalar_defaults[key] = _resolve_set_env_refs(value)
+
+    output: dict = {}
+    if scalar_defaults:
+        output['default-values'] = scalar_defaults
+    output.update(parsed)
+
+    return yaml.safe_dump(output, default_flow_style=False, sort_keys=False)

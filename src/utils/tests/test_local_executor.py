@@ -1778,6 +1778,30 @@ class TestRunWorkflowLocallyErrors(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             run_workflow_locally(spec_path='/nonexistent/path/spec.yaml')
 
+    def test_unset_env_var_raises_with_helpful_message(self):
+        """Specs referencing unset ${env:VAR} in default-values raise with env var name."""
+        path = tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False)
+        path.write(textwrap.dedent('''\
+            default-values:
+              root: "${env:__OSMO_TEST_NEVER_SET_12345__}"
+            workflow:
+              name: test
+              tasks:
+              - name: task
+                image: alpine:3.18
+                command: ["echo"]
+                args: ["{root}/data"]
+        '''))
+        path.flush()
+        path.close()
+        try:
+            with self.assertRaises(ValueError) as context:
+                run_workflow_locally(path.name)
+            self.assertIn('__OSMO_TEST_NEVER_SET_12345__', str(context.exception))
+            self.assertIn('not set', str(context.exception))
+        finally:
+            os.unlink(path.name)
+
 
 # ============================================================================
 # Integration tests — require Docker + Compose; test actual container execution

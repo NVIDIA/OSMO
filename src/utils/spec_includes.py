@@ -384,6 +384,33 @@ def _extract_and_remove_default_values(
     return default_values, remaining
 
 
+def find_unresolved_env_variables(spec_text: str) -> Dict[str, str]:
+    """Find ``default-values`` variables whose ``${env:VAR}`` source is not set.
+
+    Call this on spec text **after** ``resolve_includes`` (so that
+    ``default-values`` from all included files are merged) and **before**
+    ``resolve_default_values`` (which replaces ``${env:…}`` patterns).
+
+    Returns:
+        A dict mapping *variable_name* → *env_var_name* for every scalar
+        entry whose value contains an ``${env:VAR}`` reference where ``VAR``
+        is not present in ``os.environ``.
+    """
+    default_values, _ = _extract_and_remove_default_values(spec_text)
+    if default_values is None:
+        return {}
+
+    unresolved: Dict[str, str] = {}
+    for key, value in default_values.items():
+        if not isinstance(value, str):
+            continue
+        for match in _ENV_REF_PATTERN.finditer(value):
+            env_var = match.group(1)
+            if env_var not in os.environ:
+                unresolved[key] = env_var
+    return unresolved
+
+
 def resolve_default_values(spec_text: str) -> str:
     """Resolve ``default-values`` variables and ``${env:VAR}`` references.
 
