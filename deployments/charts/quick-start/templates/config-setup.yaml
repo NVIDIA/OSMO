@@ -23,17 +23,17 @@ spec:
     spec:
       restartPolicy: OnFailure
       initContainers:
-      - name: wait-for-ingress
+      - name: wait-for-gateway
         image: busybox:1.37.0
         command:
         - sh
         - -c
         - |
-          until nc -z quick-start 80; do
-            echo "Waiting for quick-start..."
+          until nc -z osmo-gateway 80; do
+            echo "Waiting for osmo-gateway..."
             sleep 2
           done
-          echo "OSMO quick start ingress is ready"
+          echo "OSMO gateway is ready"
       containers:
       - name: config-setup
         image: alpine/curl:8.14.1
@@ -45,7 +45,7 @@ spec:
 
           apk add --no-cache jq
 
-          BASE_URL="http://quick-start.osmo"
+          BASE_URL="http://osmo-gateway"
           echo "Using URL: $BASE_URL"
 
           echo "Configuring OSMO settings..."
@@ -231,7 +231,7 @@ spec:
             "$BASE_URL/api/configs/backend/default" \
             -d '{
               "configs": {
-                "router_address": "ws://quick-start.osmo"
+                "router_address": "ws://osmo-gateway"
               },
               "description": "Update default backend config"
             }'

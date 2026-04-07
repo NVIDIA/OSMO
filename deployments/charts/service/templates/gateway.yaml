@@ -169,11 +169,17 @@ spec:
       targetPort: envoy-http
       protocol: TCP
       name: https
+      {{- if $gw.envoy.service.nodePort }}
+      nodePort: {{ $gw.envoy.service.nodePort }}
+      {{- end }}
     {{- else }}
     - port: 80
       targetPort: envoy-http
       protocol: TCP
       name: http
+      {{- if $gw.envoy.service.nodePort }}
+      nodePort: {{ $gw.envoy.service.nodePort }}
+      {{- end }}
     {{- end }}
   selector:
     {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 4 }}

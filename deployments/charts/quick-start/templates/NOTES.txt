@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,14 +21,11 @@
 1. Add an entry to /etc/hosts:
    echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 
-2. Access OSMO locally:
-   kubectl port-forward svc/osmo-gateway 8080:80 -n osmo
-
-3. Download and install the OSMO CLI:
+2. Download and install the OSMO CLI:
    curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
 
-4. Log in to OSMO:
-   osmo login http://quick-start.osmo:8080 --method=dev --username=testuser
+3. Log in to OSMO:
+   osmo login http://quick-start.osmo --method=dev --username=testuser
 
-5. Explore next steps:
+4. Explore next steps:
    https://nvidia.github.io/OSMO/main/user_guide/getting_started/next_steps.html

@@ -479,7 +479,7 @@ Step 8: Install Backend Operator
 Step 9: Access OSMO
 ====================
 
-Port forward the gateway to access all OSMO services:
+Port forward the gateway to access all OSMO services if you have not already:
 
 .. code-block:: bash
 

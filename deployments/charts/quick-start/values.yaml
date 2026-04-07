@@ -85,6 +85,8 @@ service:
       ## No TLS for local development
       ##
       service:
+        type: NodePort
+        nodePort: 30080
         httpsPort: null
     ## Disable auth components for local development
     ##
