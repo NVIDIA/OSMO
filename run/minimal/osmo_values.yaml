@@ -97,6 +97,8 @@ gateway:
     scaling:
       minReplicas: 1
       maxReplicas: 1
+    service:
+      httpsPort: null
   oauth2Proxy:
     enabled: false
   authz:
