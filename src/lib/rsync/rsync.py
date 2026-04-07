@@ -1872,6 +1872,7 @@ def rsync_upload(
     :param daemon_max_log_size: The maximum log size for the daemon.
     :param daemon_verbose_logging: Whether to enable verbose logging for the daemon.
     :param quiet: Whether to suppress the output.
+    :param show_progress: Whether to show transfer progress for foreground uploads.
     """
     rsync_config = get_rsync_config(service_client)
     task_name = task_name or get_lead_task_name(service_client, workflow_id)
