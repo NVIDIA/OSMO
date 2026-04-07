@@ -261,6 +261,31 @@ services:
     ##             credentialSecretName: my-secret-name
     ## The Secret should contain a cred.yaml key with access_key_id and access_key fields.
     ##
+    ## Workflow and service configs support a generic secretName pattern.
+    ## Any dict value with a "secretName" key is auto-wired: the chart generates
+    ## the volume + volumeMount, and transforms secretName to a secret_file path
+    ## in the rendered ConfigMap. The Python config loader reads the mounted file
+    ## at startup. Works at any nesting depth (up to 4 levels within config).
+    ##
+    ## For dict credentials (e.g., storage keys), the K8s Secret should contain
+    ## a cred.yaml key with the credential fields. For simple string secrets
+    ## (e.g., tokens, passwords), the Secret should contain a cred.yaml key
+    ## with a single "value" field.
+    ##
+    ## Examples:
+    ##   workflow:
+    ##     managed_by: configmap
+    ##     config:
+    ##       workflow_data:
+    ##         credential:
+    ##           secretName: my-storage-cred
+    ##       workflow_alerts:
+    ##         slack_token:
+    ##           secretName: my-slack-token
+    ##         smtp_settings:
+    ##           password:
+    ##             secretName: my-smtp-password
+    ##
     service: {}
     workflow: {}
     dataset: {}

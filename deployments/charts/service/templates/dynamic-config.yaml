@@ -26,11 +26,19 @@ data:
       {{- $dc := .Values.services.dynamicConfig }}
       {{- if $dc.service }}
       service:
-        {{- toYaml $dc.service | nindent 8 }}
+        {{- $service := deepCopy $dc.service }}
+        {{- if $service.config }}
+        {{- include "osmo.resolve-secret-names-in-config" $service.config }}
+        {{- end }}
+        {{- toYaml $service | nindent 8 }}
       {{- end }}
       {{- if $dc.workflow }}
       workflow:
-        {{- toYaml $dc.workflow | nindent 8 }}
+        {{- $workflow := deepCopy $dc.workflow }}
+        {{- if $workflow.config }}
+        {{- include "osmo.resolve-secret-names-in-config" $workflow.config }}
+        {{- end }}
+        {{- toYaml $workflow | nindent 8 }}
       {{- end }}
       {{- if $dc.dataset }}
       dataset:

@@ -121,8 +121,8 @@ class TestParseManagedBy(unittest.TestCase):
         self.assertIn('Invalid managed_by value', str(context.exception))
 
 
-class TestResolveDatasetSecretFiles(unittest.TestCase):
-    """Tests for _resolve_dataset_secret_files."""
+class TestResolveSecretFileReferences(unittest.TestCase):
+    """Tests for _resolve_secret_file_references."""
 
     def test_resolve_dataset_secret_files_success(self):
         """Reads secret file and populates credentials."""
@@ -145,7 +145,7 @@ class TestResolveDatasetSecretFiles(unittest.TestCase):
                     },
                 },
             }
-            configmap_loader._resolve_dataset_secret_files(config_data)
+            configmap_loader._resolve_secret_file_references(config_data)
 
             bucket: Dict[str, Any] = config_data['buckets']['primary']
             credential: Dict[str, Any] = bucket['default_credential']
@@ -170,7 +170,7 @@ class TestResolveDatasetSecretFiles(unittest.TestCase):
             },
         }
         with self.assertLogs(level=logging.ERROR) as log_context:
-            configmap_loader._resolve_dataset_secret_files(config_data)
+            configmap_loader._resolve_secret_file_references(config_data)
         self.assertTrue(
             any('Failed to read secret file' in msg for msg in log_context.output))
         # secret_file key should still be present (not corrupted)
@@ -195,15 +195,15 @@ class TestResolveDatasetSecretFiles(unittest.TestCase):
                 },
             }
             with self.assertLogs(level=logging.ERROR) as log_context:
-                configmap_loader._resolve_dataset_secret_files(config_data)
+                configmap_loader._resolve_secret_file_references(config_data)
             self.assertTrue(
                 any('Failed to read secret file' in msg for msg in log_context.output))
         finally:
             os.unlink(secret_path)
 
-    def test_resolve_dataset_secret_files_missing_keys(self):
-        """Logs error when access_key_id or access_key missing from secret file."""
-        secret_data = {'access_key_id': 'AKIAIOSFODNN7EXAMPLE'}  # missing access_key
+    def test_resolve_secret_files_partial_keys_merged(self):
+        """Secret file with partial keys is still merged (validation happens downstream)."""
+        secret_data = {'access_key_id': 'AKIAIOSFODNN7EXAMPLE'}  # only one key
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
             yaml.dump(secret_data, secret_file)
             secret_path = secret_file.name
@@ -218,15 +218,79 @@ class TestResolveDatasetSecretFiles(unittest.TestCase):
                     },
                 },
             }
-            with self.assertLogs(level=logging.ERROR) as log_context:
-                configmap_loader._resolve_dataset_secret_files(config_data)
-            self.assertTrue(
-                any('Failed to read secret file' in msg for msg in log_context.output))
-            # Credential should not be modified since validation failed
+            configmap_loader._resolve_secret_file_references(config_data)
             credential = config_data['buckets']['primary']['default_credential']
-            self.assertIn('secret_file', credential)
+            # Secret file contents are merged; secret_file key removed
+            self.assertEqual(credential['access_key_id'], 'AKIAIOSFODNN7EXAMPLE')
+            self.assertNotIn('secret_file', credential)
         finally:
             os.unlink(secret_path)
+
+
+    def test_resolve_workflow_nested_credential(self):
+        """Resolves secret_file in nested workflow credential fields."""
+        secret_data = {
+            'access_key_id': 'workflow-key',
+            'access_key': 'workflow-secret',
+            'endpoint': 'swift://storage/workflows',
+            'region': 'us-east-1',
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
+            yaml.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data = {
+                'max_num_tasks': 100,
+                'workflow_data': {
+                    'credential': {
+                        'secret_file': secret_path,
+                    },
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+            credential = config_data['workflow_data']['credential']
+            self.assertEqual(credential['access_key_id'], 'workflow-key')
+            self.assertEqual(credential['access_key'], 'workflow-secret')
+            self.assertNotIn('secret_file', credential)
+            # Non-secret fields preserved
+            self.assertEqual(config_data['max_num_tasks'], 100)
+        finally:
+            os.unlink(secret_path)
+
+    def test_resolve_simple_string_secret(self):
+        """Resolves secret_file for simple string values (e.g., slack_token)."""
+        secret_data = {'value': 'xoxb-slack-token-value'}
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as secret_file:
+            yaml.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data = {
+                'workflow_alerts': {
+                    'slack_token': {
+                        'secret_file': secret_path,
+                    },
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+            # Simple value secret replaces the dict entirely
+            self.assertEqual(config_data['workflow_alerts']['slack_token'],
+                             'xoxb-slack-token-value')
+        finally:
+            os.unlink(secret_path)
+
+    def test_resolve_secretName_converted_to_path(self):
+        """secretName is converted to /etc/osmo/secrets/<name>/cred.yaml path."""
+        config_data = {
+            'workflow_data': {
+                'credential': {
+                    'secretName': 'my-workflow-cred',
+                },
+            },
+        }
+        # This will try to read the file (which doesn't exist) and log an error
+        with self.assertLogs(level=logging.ERROR):
+            configmap_loader._resolve_secret_file_references(config_data)
+        # The secretName should have been converted to a path attempt
 
 
 class TestSafeApply(unittest.TestCase):

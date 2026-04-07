@@ -228,6 +228,32 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
+        {{- $allSecretNames := dict }}
+        {{- if .Values.services.dynamicConfig.workflow }}
+        {{- if .Values.services.dynamicConfig.workflow.config }}
+        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow.config }}
+        {{- range (splitList "," $wfSecrets) }}
+        {{- if . }}
+        {{- $_ := set $allSecretNames . "1" }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.services.dynamicConfig.service }}
+        {{- if .Values.services.dynamicConfig.service.config }}
+        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service.config }}
+        {{- range (splitList "," $svcSecrets) }}
+        {{- if . }}
+        {{- $_ := set $allSecretNames . "1" }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- range $name, $_ := $allSecretNames }}
+        - name: dynamic-secret-ref-{{ $name }}
+          mountPath: /etc/osmo/secrets/{{ $name }}
+          readOnly: true
+        {{- end }}
         {{- end }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
@@ -311,6 +337,33 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
+        {{- end }}
+        {{- $allSecretNames := dict }}
+        {{- if .Values.services.dynamicConfig.workflow }}
+        {{- if .Values.services.dynamicConfig.workflow.config }}
+        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow.config }}
+        {{- range (splitList "," $wfSecrets) }}
+        {{- if . }}
+        {{- $_ := set $allSecretNames . "1" }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.services.dynamicConfig.service }}
+        {{- if .Values.services.dynamicConfig.service.config }}
+        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service.config }}
+        {{- range (splitList "," $svcSecrets) }}
+        {{- if . }}
+        {{- $_ := set $allSecretNames . "1" }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- range $name, $_ := $allSecretNames }}
+        - name: dynamic-secret-ref-{{ $name }}
+          secret:
+            secretName: {{ $name }}
+            optional: true
         {{- end }}
         {{- end }}
 ---

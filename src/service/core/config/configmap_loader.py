@@ -171,12 +171,21 @@ class ConfigMapWatcher:
 
         # Cache managed configs for drift comparison and 409 guard lookups
         self._cached_managed_configs = managed_configs
-        configmap_guard.set_managed_configs(managed_configs)
+        # Resolve secret references in cached configs so drift comparison
+        # uses the same format as DB values (resolved credentials, not file paths)
+        for section in managed_configs.values():
+            if isinstance(section, dict):
+                config_data = section.get('config')
+                if isinstance(config_data, dict):
+                    _resolve_secret_file_references(config_data)
+        # Dataset-specific: default endpoint from dataset_path
         dataset_section = managed_configs.get('dataset')
         if dataset_section:
             dataset_config = dataset_section.get('config')
             if dataset_config:
-                _resolve_dataset_secret_files(dataset_config)
+                _default_dataset_credential_endpoints(dataset_config)
+
+        configmap_guard.set_managed_configs(managed_configs)
 
         load_dynamic_configs(self._config_file_path, self._postgres,
                              managed_configs=managed_configs)
@@ -255,7 +264,7 @@ class ConfigMapWatcher:
                                  config_key)
                     _apply_singleton_config(
                         section, self._postgres, config_type,
-                        pre_apply=(_resolve_dataset_secret_files
+                        pre_apply=(_default_dataset_credential_endpoints
                                    if config_key == 'dataset' else None))
                 except Exception:  # pylint: disable=broad-exception-caught
                     logging.exception('Error reconciling drift for %s', config_key)
@@ -314,7 +323,7 @@ def _apply_all_configs(managed_configs: Dict[str, Any] | None,
     _safe_apply('dataset', managed_configs, postgres,
                 lambda s, pg: _apply_singleton_config(
                     s, pg, connectors.ConfigType.DATASET,
-                    pre_apply=_resolve_dataset_secret_files))
+                    pre_apply=_default_dataset_credential_endpoints))
 
 
 def _safe_apply(config_key: str, managed_configs: Dict[str, Any],
@@ -382,6 +391,8 @@ def _apply_singleton_config(
                      label.capitalize())
         return
 
+    # Resolve secret_file / secretName references for all config types
+    _resolve_secret_file_references(config_data)
     if pre_apply:
         pre_apply(config_data)
 
@@ -397,57 +408,90 @@ def _apply_singleton_config(
     )
 
 
-def _resolve_dataset_secret_files(config_data: Dict[str, Any]) -> None:
-    """Replace secret_file references with actual credential values.
+def _resolve_secret_file_references(config_data: Dict[str, Any],
+                                     parent_key: str = '') -> None:
+    """Recursively resolve secret_file / secretName references in a config dict.
 
-    For each bucket's default_credential that has a secret_file key,
-    read the YAML file and replace the secret_file reference with the
-    actual access_key_id and access_key values.
+    Walks the dict tree. When it finds a dict with 'secret_file' or 'secretName':
+    - Reads the YAML file from the mounted K8s Secret path
+    - If the file contains a dict: merges the file contents into the parent dict
+      (replacing the secret_file/secretName reference)
+    - If the file contains a 'value' key: replaces the entire dict with that value
+      (for simple string secrets like slack_token, smtp password)
+
+    This is the generic version of the old _default_dataset_credential_endpoints.
+    Works for all config types: dataset credentials, workflow credentials,
+    backend_images credentials, notification tokens, etc.
+    """
+    if not isinstance(config_data, dict):
+        return
+
+    keys_to_process = list(config_data.keys())
+    for key in keys_to_process:
+        value = config_data[key]
+        if not isinstance(value, dict):
+            continue
+
+        # Check for secret_file or secretName at this level
+        secret_file_path = value.get('secret_file')
+        if not secret_file_path:
+            secret_name = value.get('secretName')
+            if secret_name:
+                secret_file_path = f'/etc/osmo/secrets/{secret_name}/cred.yaml'
+
+        if secret_file_path:
+            _resolve_single_secret(config_data, key, value, secret_file_path,
+                                   f'{parent_key}.{key}' if parent_key else key)
+        else:
+            # Recurse into nested dicts
+            _resolve_secret_file_references(value, f'{parent_key}.{key}' if parent_key else key)
+
+
+def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
+                           current_value: Dict[str, Any],
+                           secret_file_path: str, path_label: str) -> None:
+    """Read a secret file and replace the reference with actual values."""
+    try:
+        with open(secret_file_path, encoding='utf-8') as secret_file:
+            secret_data = yaml.safe_load(secret_file)
+    except (OSError, yaml.YAMLError) as error:
+        logging.error('Failed to read secret file %s for %s: %s',
+                      secret_file_path, path_label, error)
+        return
+
+    if not isinstance(secret_data, dict):
+        logging.error('Secret file %s for %s does not contain a mapping',
+                      secret_file_path, path_label)
+        return
+
+    # If the secret file has a 'value' key, this is a simple string secret
+    # (e.g., slack_token, smtp password). Replace the dict with the value.
+    if 'value' in secret_data and len(secret_data) == 1:
+        parent_dict[key] = secret_data['value']
+        logging.info('Loaded secret for %s from secret file', path_label)
+        return
+
+    # Otherwise, merge the secret file contents into the current dict,
+    # removing the secret_file/secretName reference
+    current_value.pop('secret_file', None)
+    current_value.pop('secretName', None)
+    current_value.update(secret_data)
+    logging.info('Loaded credentials for %s from secret file', path_label)
+
+
+def _default_dataset_credential_endpoints(config_data: Dict[str, Any]) -> None:
+    """Dataset-specific: default 'endpoint' from 'dataset_path' for each bucket credential.
+
+    StaticDataCredential requires 'endpoint' (the storage URI).
+    Default to dataset_path since they share the same format (e.g. s3://bucket).
     """
     buckets = config_data.get('buckets', {})
-    for bucket_name, bucket_config in buckets.items():
+    for bucket_config in buckets.values():
         if not isinstance(bucket_config, dict):
             continue
-        default_credential = bucket_config.get('default_credential')
-        if not isinstance(default_credential, dict):
-            continue
-        secret_file_path = default_credential.get('secret_file')
-        if not secret_file_path:
-            credential_secret_name = default_credential.get('credentialSecretName')
-            if credential_secret_name:
-                secret_file_path = f'/etc/osmo/secrets/{credential_secret_name}/cred.yaml'
-                default_credential.pop('credentialSecretName')
-                default_credential['secret_file'] = secret_file_path
-        if not secret_file_path:
-            continue
-
-        try:
-            with open(secret_file_path, encoding='utf-8') as secret_file:
-                secret_data = yaml.safe_load(secret_file)
-            if not isinstance(secret_data, dict):
-                logging.error('Secret file %s for bucket %s does not contain a mapping',
-                              secret_file_path, bucket_name)
-                continue
-            # Validate required keys before modifying state
-            access_key_id = secret_data['access_key_id']
-            access_key = secret_data['access_key']
-        except (OSError, KeyError, yaml.YAMLError) as error:
-            logging.error('Failed to read secret file %s for bucket %s: %s',
-                          secret_file_path, bucket_name, error)
-            continue
-
-        default_credential.pop('secret_file')
-        default_credential['access_key_id'] = access_key_id
-        default_credential['access_key'] = access_key
-        # StaticDataCredential requires 'endpoint' (the storage URI).
-        # Default to dataset_path since they share the same format (e.g. s3://bucket).
-        if 'endpoint' not in default_credential and 'endpoint' not in secret_data:
-            default_credential['endpoint'] = bucket_config.get('dataset_path', '')
-        for optional_field in ('region', 'endpoint', 'override_url'):
-            if optional_field in secret_data:
-                default_credential[optional_field] = secret_data[optional_field]
-        logging.info('Loaded credentials for bucket %s from secret file',
-                     bucket_name)
+        credential = bucket_config.get('default_credential')
+        if isinstance(credential, dict) and 'endpoint' not in credential:
+            credential['endpoint'] = bucket_config.get('dataset_path', '')
 
 
 # ---------------------------------------------------------------------------
