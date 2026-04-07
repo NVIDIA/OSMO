@@ -61,6 +61,97 @@ DEFAULT_DAEMON_MAX_LOG_SIZE = 2 * 1024 * 1024  # 2MB
 logger = logging.getLogger(__name__)
 
 
+def _format_bytes(num_bytes: int) -> str:
+    """Format byte count to human-readable string."""
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if abs(num_bytes) < 1024:
+            return f'{num_bytes:.1f}{unit}' if unit != 'B' else f'{num_bytes}{unit}'
+        num_bytes /= 1024
+    return f'{num_bytes:.1f}TB'
+
+
+def _parse_progress_line(line: str) -> tuple:
+    """
+    Parse an rsync progress line into (bytes, pct, rate, eta).
+
+    Example input: '  75261 100%  199.31MB/s    0:00:00'
+    Returns: (75261, 100, '199.31MB/s', '0:00:00') or None if parse fails.
+    """
+    parts = line.split()
+    if len(parts) < 4:
+        return None
+    try:
+        num_bytes = int(parts[0])
+        pct = int(parts[1].rstrip('%'))
+        rate = parts[2]
+        eta = parts[3]
+        return (num_bytes, pct, rate, eta)
+    except (ValueError, IndexError):
+        return None
+
+
+def _render_progress_bar(pct: int, width: int) -> str:
+    """Render a progress bar of given width."""
+    filled = int(width * pct / 100)
+    return '\u2588' * filled + '\u2591' * (width - filled)
+
+
+async def _stream_progress(stdout: asyncio.StreamReader) -> None:
+    """
+    Reads rsync stdout and displays a progress bar in-place.
+
+    Rsync outputs filename on one line, then progress on the next:
+        cli/workflow.py
+                   75261 100%  199.31MB/s    0:00:00
+
+    This function renders:
+        cli/workflow.py  ████████████████████ 100%  71.8KB  199.31MB/s  0:00:00
+    """
+    current_file = ''
+    file_count = 0
+    try:
+        terminal_width = os.get_terminal_size().columns
+    except OSError:
+        terminal_width = 80
+    bar_width = 20
+
+    while True:
+        line_bytes = await stdout.readline()
+        if not line_bytes:
+            break
+        line = line_bytes.decode('utf-8', errors='replace').rstrip()
+        if not line:
+            continue
+
+        if line.startswith(' '):
+            parsed = _parse_progress_line(line)
+            if parsed:
+                num_bytes, pct, rate, eta = parsed
+                bar = _render_progress_bar(pct, bar_width)
+                size = _format_bytes(num_bytes)
+                # Truncate filename to fit
+                info = f' {bar} {pct:3d}%  {size}  {rate}  {eta}'
+                max_name_len = terminal_width - len(info) - 1
+                name = current_file
+                if len(name) > max_name_len:
+                    name = '...' + name[-(max_name_len - 3):]
+                display = f'{name}{info}'
+            else:
+                display = f'{current_file}  {line.strip()}'
+            padding = max(0, terminal_width - len(display))
+            sys.stdout.write(f'\r{display}{" " * padding}')
+            sys.stdout.flush()
+        else:
+            file_count += 1
+            current_file = line
+
+    # Final newline to move past the in-place line
+    if file_count > 0:
+        sys.stdout.write(f'\rSynced {file_count} file{"s" if file_count != 1 else ""}'
+                         f'{" " * (terminal_width - 20)}\n')
+        sys.stdout.flush()
+
+
 @dataclasses.dataclass(frozen=True)
 class RsyncPortForwardParams:
     """
@@ -524,9 +615,12 @@ class RsyncClient:
 
                 process = await asyncio.create_subprocess_exec(
                     *rsync_args,
-                    stdout=None if self._show_progress else asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
+
+                if self._show_progress:
+                    await _stream_progress(process.stdout)
 
                 _, stderr = await process.communicate()
                 if process.returncode != 0:
@@ -600,9 +694,12 @@ class RsyncClient:
 
             process = await asyncio.create_subprocess_exec(
                 *rsync_args,
-                stdout=None,
+                stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+
+            if self._show_progress:
+                await _stream_progress(process.stdout)
 
             _, stderr = await process.communicate()
             if process.returncode != 0:
