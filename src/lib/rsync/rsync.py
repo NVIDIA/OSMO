@@ -61,16 +61,16 @@ DEFAULT_DAEMON_MAX_LOG_SIZE = 2 * 1024 * 1024  # 2MB
 logger = logging.getLogger(__name__)
 
 
-def _format_bytes(num_bytes: int) -> str:
+def _format_bytes(num_bytes: float) -> str:
     """Format byte count to human-readable string."""
     for unit in ('B', 'KB', 'MB', 'GB'):
         if abs(num_bytes) < 1024:
-            return f'{num_bytes:.1f}{unit}' if unit != 'B' else f'{num_bytes}{unit}'
+            return f'{num_bytes:.1f}{unit}' if unit != 'B' else f'{int(num_bytes)}{unit}'
         num_bytes /= 1024
     return f'{num_bytes:.1f}TB'
 
 
-def _parse_progress_line(line: str) -> tuple:
+def _parse_progress_line(line: str) -> Tuple[int, int, str, str] | None:
     """
     Parse an rsync progress line into (bytes, pct, rate, eta).
 
@@ -619,7 +619,7 @@ class RsyncClient:
                     stderr=asyncio.subprocess.PIPE,
                 )
 
-                if self._show_progress:
+                if self._show_progress and process.stdout is not None:
                     await _stream_progress(process.stdout)
 
                 _, stderr = await process.communicate()
@@ -698,7 +698,7 @@ class RsyncClient:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            if self._show_progress:
+            if self._show_progress and process.stdout is not None:
                 await _stream_progress(process.stdout)
 
             _, stderr = await process.communicate()
