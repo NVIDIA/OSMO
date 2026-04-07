@@ -20,9 +20,8 @@
 # pip-compile ./docs_requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
 # Building documentation
-# Pin pydantic v1 for autodoc_pydantic compatibility (src/ uses v2)
-pydantic==1.10.26
-autodoc_pydantic==1.9.1
+pydantic==2.12.5
+autodoc_pydantic==2.2.0
 commonmark==0.9.1
 nvidia-sphinx-theme==0.0.8
 sphinx==7.4.7
