@@ -1278,7 +1278,7 @@ gateway:
   ## Deployed as its own pod so it can be scaled and updated independently.
   ## -----------------------------------------------------------------------
   oauth2Proxy:
-    enabled: false
+    enabled: true
 
     ## Horizontal Pod Autoscaler (HPA) configuration for OAuth2 Proxy
     ##
@@ -1351,7 +1351,7 @@ gateway:
   ## policies against PostgreSQL. Uses the shared services.postgres config.
   ## -----------------------------------------------------------------------
   authz:
-    enabled: false
+    enabled: true
 
     ## Horizontal Pod Autoscaler (HPA) configuration for Authz
     ##

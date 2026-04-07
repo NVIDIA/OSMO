@@ -75,12 +75,11 @@ services:
     ##
     hostname: ""
 
-    ## Hostname on which the osmo API server is hosted
-    ## Default is the local cluster hostname
-    ## Can be overridden to serve the API from public domain
-    ## When using the gateway, point this at the gateway service so that
-    ## server-side API calls go through Envoy's auth filters.
-    ## e.g. "osmo-gateway.your-domain.com"
+    ## Internal hostname for server-side rendering (SSR) API calls.
+    ## Used only by the Next.js server process (not the browser).
+    ## Must point at the gateway so SSR requests go through Envoy's auth filters.
+    ## Browser API calls use window.location.host automatically.
+    ## Override with FQDN for cross-namespace deployments.
     ##
     apiHostname: "osmo-gateway:80"
 

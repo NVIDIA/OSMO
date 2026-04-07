@@ -2,5 +2,5 @@
   kubectl get service {{ .Values.services.ui.serviceName }}
 
 2. To access the UI locally:
-  kubectl port-forward svc/osmo-gateway 8080:80
+  kubectl port-forward svc/{{ .Values.services.ui.serviceName }} 8080:80
   Visit http://localhost:8080
