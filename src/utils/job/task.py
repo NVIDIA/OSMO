@@ -1041,45 +1041,6 @@ class Task(pydantic.BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    @staticmethod
-    def batch_insert_to_db(
-        database: connectors.PostgresConnector,
-        task_entries: List[Tuple],
-        batch_size: int = 100,
-    ):
-        """Batch-insert multiple tasks in a single query.
-
-        Args:
-            database: The Postgres connector instance.
-            task_entries: List of tuples, each containing the full set of
-                column values for a single task row (same order as insert_to_db).
-            batch_size: Maximum number of rows per INSERT statement.
-        """
-        if not task_entries:
-            return
-
-        if batch_size <= 0:
-            batch_size = 100
-
-        for i in range(0, len(task_entries), batch_size):
-            chunk = task_entries[i:i + batch_size]
-            values_clause = ','.join(
-                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
-                * len(chunk)
-            )
-            flat_args: List[Any] = []
-            for entry in chunk:
-                flat_args.extend(entry)
-
-            insert_cmd = f'''
-                INSERT INTO tasks
-                (workflow_id, name, group_name, task_db_key, retry_id, task_uuid,
-                 status, pod_name, failure_message, gpu_count, cpu_count,
-                 disk_count, memory_count, exit_actions, lead)
-                VALUES {values_clause} ON CONFLICT DO NOTHING;
-            '''
-            database.execute_commit_command(insert_cmd, tuple(flat_args))
-
     def insert_to_db(self, gpu_count: float, cpu_count: float, disk_count: float,
                      memory_count: float, status: TaskGroupStatus = TaskGroupStatus.WAITING,
                      failure_message: str | None = None):
@@ -1623,24 +1584,30 @@ class TaskGroup(pydantic.BaseModel):
              json.dumps(self.group_template_resource_types)))
 
     @staticmethod
-    def batch_insert_to_db(
+    def batch_insert_groups_and_tasks(
         database: connectors.PostgresConnector,
         group_entries: List[Tuple],
+        task_entries: List[Tuple],
         batch_size: int = 100,
     ):
-        """Batch-insert multiple groups in a single query.
+        """Batch-insert groups and tasks in a single transaction.
+
+        Both inserts are committed atomically: either all groups and tasks
+        are written, or none are.
 
         Args:
             database: The Postgres connector instance.
-            group_entries: List of tuples, each containing the full set of
-                column values for a single group row (same order as insert_to_db).
+            group_entries: List of group column-value tuples.
+            task_entries: List of task column-value tuples.
             batch_size: Maximum number of rows per INSERT statement.
         """
-        if not group_entries:
+        if not group_entries and not task_entries:
             return
 
         if batch_size <= 0:
             batch_size = 100
+
+        commands: List[Tuple[str, Tuple]] = []
 
         for i in range(0, len(group_entries), batch_size):
             chunk = group_entries[i:i + batch_size]
@@ -1651,15 +1618,34 @@ class TaskGroup(pydantic.BaseModel):
             flat_args: List[Any] = []
             for entry in chunk:
                 flat_args.extend(entry)
+            commands.append((
+                f'''INSERT INTO groups
+                    (workflow_id, name, group_uuid, spec, status, failure_message,
+                     remaining_upstream_groups, downstream_groups, cleaned_up,
+                     scheduler_settings, group_template_resource_types)
+                    VALUES {values_clause} ON CONFLICT DO NOTHING;''',
+                tuple(flat_args),
+            ))
 
-            insert_cmd = f'''
-                INSERT INTO groups
-                (workflow_id, name, group_uuid, spec, status, failure_message,
-                 remaining_upstream_groups, downstream_groups, cleaned_up,
-                 scheduler_settings, group_template_resource_types)
-                VALUES {values_clause} ON CONFLICT DO NOTHING;
-            '''
-            database.execute_commit_command(insert_cmd, tuple(flat_args))
+        for i in range(0, len(task_entries), batch_size):
+            chunk = task_entries[i:i + batch_size]
+            values_clause = ','.join(
+                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
+                * len(chunk)
+            )
+            flat_args = []
+            for entry in chunk:
+                flat_args.extend(entry)
+            commands.append((
+                f'''INSERT INTO tasks
+                    (workflow_id, name, group_name, task_db_key, retry_id, task_uuid,
+                     status, pod_name, failure_message, gpu_count, cpu_count,
+                     disk_count, memory_count, exit_actions, lead)
+                    VALUES {values_clause} ON CONFLICT DO NOTHING;''',
+                tuple(flat_args),
+            ))
+
+        database.execute_commit_commands(commands)
 
     def update_group_template_resource_types(self) -> None:
         """ Persists group_template_resource_types to the database. """

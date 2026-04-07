@@ -1095,8 +1095,8 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
                 ))
-        task.TaskGroup.batch_insert_to_db(postgres, group_entries)
-        task.Task.batch_insert_to_db(postgres, task_entries)
+        task.TaskGroup.batch_insert_groups_and_tasks(
+            postgres, group_entries, task_entries)
 
         logs = f'{service_url}/api/workflow/{workflow_obj.workflow_id}/logs'
         context = WorkflowServiceContext.get()

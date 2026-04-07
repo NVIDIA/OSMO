@@ -506,6 +506,46 @@ class PostgresConnector:
                 if cur is not None:
                     cur.close()
 
+    @retry
+    def execute_commit_commands(self, commands: List[Tuple[str, Tuple]]):
+        """
+        Executes multiple commands in a single transaction.
+
+        All commands are executed on the same connection and committed
+        together.  If any command fails the entire transaction is rolled back.
+
+        Args:
+            commands: List of (command, args) tuples to execute.
+
+        Raises:
+            OSMODatabaseError: Error while executing a database command.
+        """
+        if not commands:
+            return
+
+        with self._get_connection() as conn:
+            cur = None
+            try:
+                cur = conn.cursor()
+                for command, args in commands:
+                    cur.execute(command, args)
+                cur.close()
+                conn.commit()
+            except (psycopg2.DatabaseError, psycopg2.InterfaceError) as error:
+                try:
+                    if cur is not None:
+                        cur.close()
+                    conn.rollback()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                raise error
+            except Exception as error:  # pylint: disable=broad-except
+                raise osmo_errors.OSMODatabaseError(
+                    f'Error during executing commands: {error}')
+            finally:
+                if cur is not None:
+                    cur.close()
+
     @retry(reconnect=False)
     def execute_autocommit_command(self, command: str, args: Tuple):
         """

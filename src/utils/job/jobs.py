@@ -258,8 +258,8 @@ class SubmitWorkflow(WorkflowJob):
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
                 ))
-        task.TaskGroup.batch_insert_to_db(postgres, group_entries)
-        task.Task.batch_insert_to_db(postgres, task_entries)
+        task.TaskGroup.batch_insert_groups_and_tasks(
+            postgres, group_entries, task_entries)
         progress_writer.report_progress()
 
         # Fetch workflow_obj to get latest info
