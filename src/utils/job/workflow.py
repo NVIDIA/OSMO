@@ -768,11 +768,19 @@ class VersionedWorkflowSpec(pydantic.BaseModel, extra='forbid'):
 
     @pydantic.field_validator('version', mode='before')
     @classmethod
-    def validate_version(cls, value: int) -> int:
-        """ Validates that the version is supported.  """
-        if value !=  2:
+    def validate_version(cls, value: Any) -> int:
+        """Validates that the version is supported.
+
+        mode='before' receives raw input (may be str from YAML/JSON),
+        so we must coerce before comparing.
+        """
+        try:
+            coerced = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f'Unsupported workflow version: {value}.') from exc
+        if coerced != 2:
             raise ValueError(f'Unsupported workflow version: {value}.')
-        return value
+        return coerced
 
 
 class TemplateSpec(pydantic.BaseModel, extra='forbid'):

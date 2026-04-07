@@ -83,6 +83,8 @@ class RolePolicy(pydantic.BaseModel):
     @classmethod
     def validate_actions(cls, value) -> List[str]:
         """Parse and validate actions from various input formats."""
+        if isinstance(value, str):
+            value = [value]
         return [validate_semantic_action(action) for action in value]
 
     def to_dict(self) -> Dict[str, Any]:

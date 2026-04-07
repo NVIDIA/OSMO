@@ -88,7 +88,7 @@ class TaskDbFixture(
                (workflow_id, name, group_uuid, spec, status, cleaned_up,
                 remaining_upstream_groups, downstream_groups)
                VALUES (%s, %s, %s, %s, %s, FALSE, NULL, NULL)''',
-            (WORKFLOW_ID, group_name, group_uuid, spec.json(), status))
+            (WORKFLOW_ID, group_name, group_uuid, spec.model_dump_json(), status))
 
     def _insert_task(self, task_name: str, retry_id: int = 0,
                      status: str = 'RUNNING', lead: bool = False,
@@ -363,7 +363,7 @@ class BatchInsertGroupDbTest(TaskDbFixture):
         for name in ['group1', 'group2', 'group3']:
             entries.append((
                 WORKFLOW_ID, name, common.generate_unique_id(),
-                spec.json(), 'SUBMITTING', None, '', '', None, '[]',
+                spec.model_dump_json(), 'SUBMITTING', None, '', '', None, '[]',
             ))
 
         task.TaskGroup.batch_insert_to_db(self._get_db(), entries)
@@ -394,9 +394,9 @@ class BatchInsertGroupDbTest(TaskDbFixture):
         )
         entries = [
             (WORKFLOW_ID, 'group1', common.generate_unique_id(),
-             spec.json(), 'SUBMITTING', None, '', '', None, '[]'),
+             spec.model_dump_json(), 'SUBMITTING', None, '', '', None, '[]'),
             (WORKFLOW_ID, 'group2', common.generate_unique_id(),
-             spec.json(), 'SUBMITTING', None, '', '', None, '[]'),
+             spec.model_dump_json(), 'SUBMITTING', None, '', '', None, '[]'),
         ]
         task.TaskGroup.batch_insert_to_db(self._get_db(), entries)
 

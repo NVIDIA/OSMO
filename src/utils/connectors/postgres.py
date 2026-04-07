@@ -1782,7 +1782,7 @@ class TopologyRequirement(pydantic.BaseModel, extra='forbid'):
 
 class ResourceSpec(pydantic.BaseModel):
     """ Represents the resource spec in an OSMO2 workflow. """
-    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+    model_config = pydantic.ConfigDict(extra='forbid')
 
     cpu: int | None = None
     storage: str | None = None

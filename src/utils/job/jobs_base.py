@@ -21,7 +21,7 @@ import datetime
 import enum
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 
 import pydantic
@@ -89,10 +89,12 @@ class Job(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='before')
     @classmethod
-    def validate_job_type_and_id(cls, values) -> str:
+    def validate_job_type_and_id(cls, values) -> Any:
         """
         Validates job_type. Returns the value of job_type if valid.
         """
+        if not isinstance(values, dict):
+            return values
         # If no value is provided, then this is a newly created job. Set the job type based on the
         # class name
         if 'job_type' not in values or values['job_type'] is None:

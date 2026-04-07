@@ -269,7 +269,7 @@ class ListTaskSummaryEntry(pydantic.BaseModel, extra='forbid'):
     @classmethod
     def from_db_row(cls, row: Any) -> 'ListTaskSummaryEntry':
         """ Create ListEntry from the DB query result. """
-        return ListTaskSummaryEntry.construct(
+        return ListTaskSummaryEntry.model_construct(
             user=row['submitted_by'],
             pool=row['pool'],
             storage=row['disk_count'],
@@ -296,7 +296,7 @@ class ListTaskSummaryResponse(pydantic.BaseModel, extra='forbid'):
     @classmethod
     def from_db_rows(cls, rows: Any) -> 'ListTaskSummaryResponse':
         summaries = [ListTaskSummaryEntry.from_db_row(row) for row in rows]
-        return ListTaskSummaryResponse.construct(summaries=summaries)
+        return ListTaskSummaryResponse.model_construct(summaries=summaries)
 
 
 class ListTaskAggregatedResponse(pydantic.BaseModel, extra='forbid'):
@@ -373,7 +373,7 @@ class ListTaskEntry(pydantic.BaseModel):
         overview = f'{base_url}/workflows/{row["workflow_id"]}'
         if config.method == 'dev':
             overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
-        return ListTaskEntry.construct(
+        return ListTaskEntry.model_construct(
             user=row['submitted_by'],
             workflow_id=row['workflow_id'],
             workflow_uuid=row['workflow_uuid'],
@@ -410,7 +410,7 @@ class ListTaskResponse(pydantic.BaseModel, extra='forbid'):
     def from_db_rows(cls, rows: Any, base_url: str) -> 'ListTaskResponse':
         backend_lookup: Dict = {}
         tasks = [ListTaskEntry.from_db_row(row, base_url, backend_lookup) for row in rows]
-        return ListTaskResponse.construct(tasks=tasks)
+        return ListTaskResponse.model_construct(tasks=tasks)
 
 
 class TaskQueryResponse(pydantic.BaseModel):
@@ -748,6 +748,8 @@ class CredentialOptions(pydantic.BaseModel):
     @classmethod
     def validate_credential(cls, values):  # pylint: disable=no-self-argument
         """ A valid credential can only be one of the three types """
+        if not isinstance(values, dict):
+            return values
         num_fields_set = sum(1 for value in values.values()
                              if value is not None)
         if num_fields_set != 1:

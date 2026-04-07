@@ -20,7 +20,7 @@
 # pip-compile ./docs_requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
 # Building documentation
-# Pin pydantic to match src/requirements.txt
+# Pin pydantic v1 for autodoc_pydantic compatibility (src/ uses v2)
 pydantic==1.10.26
 autodoc_pydantic==1.9.1
 commonmark==0.9.1

@@ -230,11 +230,11 @@ class SubmitWorkflow(WorkflowJob):
                                      self.group_and_task_uuids)
             group_entries.append((
                 group_obj.workflow_id_internal, group_obj.name,
-                group_obj.group_uuid, group_obj.spec.json(),
+                group_obj.group_uuid, group_obj.spec.model_dump_json(),
                 task.TaskGroupStatus.SUBMITTING.name, None,
                 _encode_hstore(group_obj.remaining_upstream_groups),
                 _encode_hstore(group_obj.downstream_groups),
-                group_obj.scheduler_settings.json()
+                group_obj.scheduler_settings.model_dump_json()
                 if group_obj.scheduler_settings else None,
                 json.dumps(group_obj.group_template_resource_types),
             ))
@@ -293,7 +293,7 @@ class SubmitWorkflow(WorkflowJob):
                     ready_group_names.append(group_obj.name)
                     if backend.scheduler_settings is not None:
                         scheduler_settings_by_group[group_obj.name] = (
-                            backend.scheduler_settings.json())
+                            backend.scheduler_settings.model_dump_json())
 
             transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
                 context.postgres, workflow_obj.workflow_id,
@@ -1036,7 +1036,7 @@ class UpdateGroup(WorkflowJob):
                 if backend.scheduler_settings is not None:
                     for group_name in downstream_names:
                         scheduler_settings_by_group[group_name] = (
-                            backend.scheduler_settings.json())
+                            backend.scheduler_settings.model_dump_json())
 
                 transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
                     context.postgres, self.workflow_id,

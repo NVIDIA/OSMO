@@ -232,7 +232,8 @@ class MessageOptions(pydantic.BaseModel):
     node_hash: Optional[NodeBody] = pydantic.Field(
         default=None, description='Message for list of current nodes')
     task_list: Optional[TaskListBody] = pydantic.Field(
-        default=None, description='Message for list of current pods in backend based on the task_uuids')
+        default=None,
+        description='Message for list of current pods in backend based on the task_uuids')
     heartbeat: Optional[HeartbeatBody] = pydantic.Field(
         default=None, description='Message for service heartbeat')
     job_status: Optional[jobs_base.JobResult] = pydantic.Field(
@@ -254,6 +255,8 @@ class MessageOptions(pydantic.BaseModel):
     @classmethod
     def validate(cls, values):  # pylint: disable=no-self-argument
         """ A valid message can only be one of the two types """
+        if not isinstance(values, dict):
+            return values
         num_fields_set = sum(1 for value in values.values()
                              if value is not None)
         if num_fields_set != 1:
