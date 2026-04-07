@@ -18,7 +18,7 @@ import re
 import shlex
 import subprocess
 
-from src.scripts.testbot.guardrails import get_changed_test_files
+from src.scripts.testbot.guardrails import get_changed_files
 
 logging.basicConfig(
     level=logging.INFO,
@@ -341,7 +341,7 @@ def run_claude(
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
         "--allowedTools",
-        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm test *),Glob,Grep",
+        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep",
         "--max-turns", str(max_turns),
         prompt,
     ]
@@ -545,7 +545,7 @@ def main() -> None:
     )
     commit_message = sanitize_commit_message(raw_commit_message)
 
-    modified_files = get_changed_test_files()
+    modified_files = get_changed_files()
     push_succeeded = False
     if modified_files:
         logger.info("Modified files: %s", modified_files)

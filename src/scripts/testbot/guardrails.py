@@ -32,11 +32,10 @@ def is_test_file(file_path: str) -> bool:
     return any(fnmatch.fnmatch(basename, pattern) for pattern in TEST_FILE_PATTERNS)
 
 
-def get_changed_test_files() -> list[str]:
-    """Return list of changed test files only. Discards non-test changes.
+def _detect_changes() -> tuple[set[str], set[str]]:
+    """Detect tracked modifications and untracked files.
 
-    Detects both modified tracked files and new untracked files.
-    Any non-test file changes are reverted via git checkout.
+    Returns (tracked_changed, untracked) sets, excluding .claude/ paths.
     """
     diff_result = subprocess.run(
         ["git", "diff", "--name-only"],
@@ -61,6 +60,36 @@ def get_changed_test_files() -> list[str]:
         if line and not line.startswith(".claude/"):
             untracked.add(line)
 
+    return tracked_changed, untracked
+
+
+def get_changed_files() -> list[str]:
+    """Return all changed files (tracked and untracked).
+
+    Used by the respond workflow where source code fixes are allowed.
+    Logs test vs non-test breakdown for visibility.
+    """
+    tracked_changed, untracked = _detect_changes()
+    all_files = sorted(tracked_changed | untracked)
+
+    test_files = [f for f in all_files if is_test_file(f)]
+    non_test_files = [f for f in all_files if not is_test_file(f)]
+
+    if test_files:
+        logger.info("Test files changed: %s", test_files)
+    if non_test_files:
+        logger.info("Non-test files changed: %s", non_test_files)
+
+    return all_files
+
+
+def get_changed_test_files() -> list[str]:
+    """Return changed test files only. Discards non-test changes.
+
+    Used by the generate workflow where only test files are allowed.
+    Non-test tracked files are reverted; non-test untracked files are deleted.
+    """
+    tracked_changed, untracked = _detect_changes()
     all_files = tracked_changed | untracked
 
     test_files = []

@@ -26,8 +26,24 @@ The targets are appended below this prompt. For each target you receive:
 6. Run the test:
    - Python/Go: `bazel test <target>` (derive the target from the BUILD file)
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
-7. If the test fails, read the error output and fix the test. Retry up to 3 times.
-8. Move to the next target.
+7. If the test fails, read the error output and fix. Retry up to 3 times.
+   - **Setup errors** (import, mock, syntax): fix the test.
+   - **Assertion failures**: re-read the source to understand WHY the actual
+     output differs. If your expectation was wrong, update the assertion.
+     If the output contradicts the function's docstring/name/comments,
+     do NOT change the assertion to match — this is likely a source bug.
+     Skip the test with a reason (`@unittest.skip`, `t.Skip`, `it.skip`)
+     and add a `# SUSPECTED BUG: <file>:<function> — <description>` comment
+     above the skipped test. Never blindly match assertions to actual output.
+8. Verify code style (same checks as PR CI). Fix and re-verify until clean:
+   - Python: `bazel test <target>-pylint` (append `-pylint` to the test target
+     name). If pylint reports errors, fix the test code and re-run.
+   - TypeScript: `pnpm --dir src/ui validate` (runs type-check, lint,
+     format:check, tests, and build). If formatting fails, run
+     `pnpm --dir src/ui format` to auto-fix. If lint or type-check
+     fails, fix the code manually. Re-run validate until it passes.
+   - Go: no additional checks beyond step 6.
+9. Move to the next target.
 
 ## Guardrails
 

@@ -6,7 +6,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from src.scripts.testbot.guardrails import get_changed_test_files, is_test_file
+from src.scripts.testbot.guardrails import get_changed_files, get_changed_test_files, is_test_file
 
 
 class TestIsTestFile(unittest.TestCase):
@@ -150,6 +150,65 @@ class TestGetChangedTestFiles(unittest.TestCase):
             ["git", "checkout", "--", "src/tracked_source.py"],
         )
         mock_remove.assert_called_once_with("src/new_malicious.py")
+
+
+class TestGetChangedFiles(unittest.TestCase):
+    """Tests for get_changed_files (no filtering, used by respond workflow)."""
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_returns_all_files_including_non_test(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout="src/service/core/service.py\nsrc/utils/tests/test_task.py\n"),
+            subprocess.CompletedProcess([], 0, stdout=""),
+        ]
+        result = get_changed_files()
+        self.assertEqual(result, ["src/service/core/service.py", "src/utils/tests/test_task.py"])
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_includes_untracked_files(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout=""),
+            subprocess.CompletedProcess([], 0, stdout="src/new_file.py\n"),
+        ]
+        result = get_changed_files()
+        self.assertEqual(result, ["src/new_file.py"])
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_filters_claude_artifacts(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout=".claude/tmp/foo.py\nsrc/fix.py\n"),
+            subprocess.CompletedProcess([], 0, stdout=""),
+        ]
+        result = get_changed_files()
+        self.assertEqual(result, ["src/fix.py"])
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_empty_diff_returns_empty(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout=""),
+            subprocess.CompletedProcess([], 0, stdout=""),
+        ]
+        result = get_changed_files()
+        self.assertEqual(result, [])
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_does_not_revert_or_delete(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout="src/source.py\n"),
+            subprocess.CompletedProcess([], 0, stdout="src/new.py\n"),
+        ]
+        result = get_changed_files()
+        self.assertEqual(result, ["src/new.py", "src/source.py"])
+        self.assertEqual(mock_run.call_count, 2)
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_returns_sorted(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess([], 0, stdout="z.py\na.py\n"),
+            subprocess.CompletedProcess([], 0, stdout="m.py\n"),
+        ]
+        result = get_changed_files()
+        self.assertEqual(result, ["a.py", "m.py", "z.py"])
 
 
 if __name__ == "__main__":
