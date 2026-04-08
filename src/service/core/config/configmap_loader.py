@@ -88,7 +88,7 @@ class ConfigMapWatcher:
     """
 
     def __init__(self, config_file_path: str,
-                 postgres: connectors.PostgresConnector):
+                 postgres: connectors.PostgresConnector | None = None):
         self._config_file_path = config_file_path
         self._postgres = postgres
         self._watch_directory = os.path.dirname(config_file_path)
@@ -187,10 +187,12 @@ class ConfigMapWatcher:
         previous = configmap_guard.get_snapshot()
         if previous is not None:
             prev_service = previous.get('service', {}).get('config', {})
-        else:
+        elif self._postgres is not None:
             db_config = self._postgres.get_service_configs()
             prev_service = db_config.plaintext_dict(
                 by_alias=True, exclude_unset=True)
+        else:
+            prev_service = {}
 
         if 'service' not in managed_configs:
             managed_configs['service'] = {'config': {}}

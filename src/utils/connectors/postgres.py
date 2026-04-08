@@ -4502,6 +4502,19 @@ class Role(role.Role):
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> List['Role']:
         """ Fetches the list of roles from the roles table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('roles', {}).get('items', {})
+            result = []
+            for role_name, role_data in sorted(items.items()):
+                if names and role_name not in names:
+                    continue
+                if not isinstance(role_data, dict):
+                    continue
+                result.append(cls(
+                    name=role_name, **role_data))
+            return result
+
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -4527,6 +4540,14 @@ class Role(role.Role):
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Role':
         """ Fetches the role from the role table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('roles', {}).get('items', {})
+            if name not in items:
+                raise osmo_errors.OSMOUserError(
+                    f'Role {name} does not exist.')
+            return cls(name=name, **items[name])
+
         fetch_cmd = 'SELECT * FROM roles WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
