@@ -17,11 +17,6 @@
 name: Brev Launchable
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main, 'feature/**', 'release/**']
-    paths:
-      - 'deployments/brev/**'
   schedule:
     - cron: '0 9 * * 1'  # Every Monday at 9:00 AM UTC
   workflow_dispatch:
@@ -30,27 +25,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-############################
-#  Shellcheck (on PR only) #
-############################
 jobs:
-  shellcheck:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-
-      - name: Run shellcheck on setup.sh
-        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # 2.0.0
-        with:
-          scandir: './deployments/brev'
-          severity: warning
-          additional_files: 'setup.sh'
-
-#########################################
-#  End-to-End (scheduled + manual only) #
-#########################################
   e2e:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest

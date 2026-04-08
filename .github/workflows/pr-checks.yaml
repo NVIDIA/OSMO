@@ -36,6 +36,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       docs: ${{ steps.filter.outputs.docs }}
       ui: ${{ steps.filter.outputs.ui }}
+      brev: ${{ steps.filter.outputs.brev }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -63,6 +64,10 @@ jobs:
             ui:
               - '.github/workflows/pr-checks.yaml'
               - 'src/ui/**'
+            brev:
+              - '.github/workflows/pr-checks.yaml'
+              - 'deployments/brev/**'
+              - 'MODULE.bazel'
 
   #######################
   #      CI Tests       #
@@ -254,6 +259,26 @@ jobs:
           docker image prune -f 2>/dev/null || true
           echo "Host Docker disk:"
           docker system df 2>/dev/null || true
+
+  #######################
+  #    Brev Checks      #
+  #######################
+  brev:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.brev == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+
+      - name: Run brev tests
+        run: bazel test --test_output=errors //deployments/brev/...
 
   #######################
   #    Docs Build       #

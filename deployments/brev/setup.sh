@@ -72,7 +72,7 @@ sudo sysctl -p
 print_status "Checking Docker permissions..."
 if ! docker ps >/dev/null 2>&1; then
     print_warning "Docker permission denied. Adding user to docker group..."
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
     print_warning "Please log out and log back in, then run this script again."
     exit 1
 fi
@@ -159,9 +159,10 @@ if [ "$current_version" = "0.0.0" ] || [ "$(printf '%s\n' "$NVIDIA_CTK_MIN_VERSI
         print_warning "nvidia-ctk version ${current_version} is below minimum ${NVIDIA_CTK_MIN_VERSION}, upgrading..."
     fi
 
-    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    # shellcheck source=/dev/null
+    distribution=$(. /etc/os-release;echo "$ID$VERSION_ID")
     curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo apt-key add -
-    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+    curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" | \
         sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
     sudo apt-get update
 
@@ -254,12 +255,15 @@ if ! command_exists nvkind; then
         sudo rm -rf /usr/local/go
         sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
         export PATH=$PATH:/usr/local/go/bin
+        # shellcheck disable=SC2016
         echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
     fi
 
     print_status "Installing nvkind via go install..."
     go install github.com/NVIDIA/nvkind/cmd/nvkind@latest
-    export PATH=$PATH:$(go env GOPATH)/bin
+    GOPATH_BIN=$(go env GOPATH)/bin
+    export PATH="$PATH:$GOPATH_BIN"
+    # shellcheck disable=SC2016
     echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
     cd ..
 else
@@ -429,6 +433,7 @@ sudo bash install.sh
 # Add OSMO to PATH if not already there
 if [[ ":$PATH:" != *":$HOME/.osmo/bin:"* ]]; then
     export PATH="$HOME/.osmo/bin:$PATH"
+    # shellcheck disable=SC2016
     echo 'export PATH="$HOME/.osmo/bin:$PATH"' >> ~/.bashrc
 fi
 
