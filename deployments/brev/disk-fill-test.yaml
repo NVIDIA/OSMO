@@ -14,25 +14,24 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Reproduces the /var/lib/docker disk-fill issue on Brev instances with small root filesystems.
-# nvcr.io/nvidia/pytorch:24.12-py3 is ~25 GB and requires an NGC registry credential.
+# CI validation workflow for the Brev launchable (deployments/brev/).
 #
-# Prerequisites:
-#   Register your NGC API key once after OSMO setup:
+# Purpose:
+#   Validates that the Docker data-root relocation in setup.sh correctly moves image
+#   storage off the root partition. Pulls nvcr.io/nvidia/nemo:24.12 (~40 GB), which is
+#   large enough to exhaust the root filesystem on a Brev instance if the fix is absent.
+#   A successful run confirms that image layers are written to the larger mounted disk.
+#
+# Used by: .github/workflows/brev.yml (weekly E2E job, "Test: large image" step)
+#
+# Manual use:
+#   Prerequisites — register your NGC API key once after OSMO setup:
 #     osmo credential set my-ngc-cred \
 #         --type REGISTRY \
 #         --payload registry=nvcr.io \
 #         username='$oauthtoken' \
 #         auth=<your_ngc_api_key>
-#   OSMO will automatically use this credential when pulling from nvcr.io.
-#
-# To reproduce the bug:   deploy brev launchable WITHOUT the data-root fix, then submit this workflow.
-#                         Expected: workflow stuck in Pending/Failed; KIND cluster may become unresponsive.
-# To verify the fix:      deploy brev launchable WITH the data-root fix, then submit this workflow.
-#                         Expected: workflow completes and prints PyTorch version.
-#
-# Submit with:
-#   osmo workflow submit disk-fill-test.yaml
+#   Then: osmo workflow submit disk-fill-test.yaml
 
 workflow:
   name: disk-fill-test
