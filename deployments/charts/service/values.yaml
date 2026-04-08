@@ -238,64 +238,163 @@ services:
   ##   configmap: Always overwrite DB from ConfigMap on startup. CLI changes are ephemeral.
   ##
   dynamicConfig:
-    ## Enable dynamic configuration loading from ConfigMap
+    ## Enable ConfigMap-based dynamic configuration.
+    ## When true: all configs served from in-memory (parsed from ConfigMap),
+    ## CLI/API writes return 409, authz_sidecar reads roles from file.
+    ## When false: configs in database, CLI/API works normally.
     ##
     enabled: false
 
-    ## Per-type configuration sections. Each section supports managed_by and config/items.
-    ## Example:
-    ##   service:
-    ##     managed_by: seed
-    ##     config:
-    ##       service_base_url: "https://osmo.example.com"
-    ##
-    ## Dataset buckets support credentialSecretName to simplify secret wiring.
-    ## Instead of manually adding extraVolumes/extraVolumeMounts, just specify
-    ## the K8s Secret name and the chart auto-generates volume + mount:
-    ##   dataset:
-    ##     config:
-    ##       buckets:
-    ##         my-bucket:
-    ##           dataset_path: "s3://my-bucket"
-    ##           default_credential:
-    ##             credentialSecretName: my-secret-name
-    ## The Secret should contain a cred.yaml key with access_key_id and access_key fields.
-    ##
-    ## Workflow and service configs support a generic secretName pattern.
-    ## Any dict value with a "secretName" key is auto-wired: the chart generates
-    ## the volume + volumeMount, and transforms secretName to a secret_file path
-    ## in the rendered ConfigMap. The Python config loader reads the mounted file
-    ## at startup. Works at any nesting depth (up to 4 levels within config).
-    ##
-    ## For dict credentials (e.g., storage keys), the K8s Secret should contain
-    ## a cred.yaml key with the credential fields. For simple string secrets
-    ## (e.g., tokens, passwords), the Secret should contain a cred.yaml key
-    ## with a single "value" field.
-    ##
-    ## Examples:
-    ##   workflow:
-    ##     managed_by: configmap
-    ##     config:
-    ##       workflow_data:
-    ##         credential:
-    ##           secretName: my-storage-cred
-    ##       workflow_alerts:
-    ##         slack_token:
-    ##           secretName: my-slack-token
-    ##         smtp_settings:
-    ##           password:
-    ##             secretName: my-smtp-password
+    ## Service config. service_base_url is auto-derived from
+    ## services.service.hostname if not set here.
     ##
     service: {}
-    workflow: {}
+
+    ## Workflow config (limits, timeouts, image credentials).
+    ## Secrets use secretName to reference K8s Secrets.
+    ##
+    workflow:
+      config:
+        max_num_tasks: 100
+        max_exec_timeout: "30d"
+        default_exec_timeout: "7d"
+
+    ## Dataset config (buckets, credentials).
+    ## Use credentialSecretName to reference K8s Secrets for bucket creds.
+    ##
     dataset: {}
-    pools: {}
-    podTemplates: {}
-    resourceValidations: {}
+
+    ## Pod templates applied to workflow containers.
+    ##
+    podTemplates:
+      items:
+        default_ctrl:
+          spec:
+            containers:
+            - name: osmo-ctrl
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: "1Gi"
+                limits:
+                  memory: "1Gi"
+        default_user:
+          spec:
+            containers:
+            - name: "{{USER_CONTAINER_NAME}}"
+              resources:
+                requests:
+                  cpu: "{{USER_CPU}}"
+                  memory: "{{USER_MEMORY}}"
+                  nvidia.com/gpu: "{{USER_GPU}}"
+                  ephemeral-storage: "{{USER_STORAGE}}"
+                limits:
+                  memory: "{{USER_MEMORY}}"
+                  nvidia.com/gpu: "{{USER_GPU}}"
+                  ephemeral-storage: "{{USER_STORAGE}}"
+
+    ## Resource validation rules.
+    ##
+    resourceValidations:
+      items:
+        default_cpu:
+        - left_operand: cpu
+          operator: LE
+          right_operand: node_cpu
+          assert_message: "cpu must be <= node_cpu"
+        - left_operand: cpu
+          operator: GT
+          right_operand: "0"
+          assert_message: "cpu must be > 0"
+        default_memory:
+        - left_operand: memory
+          operator: LE
+          right_operand: node_memory
+          assert_message: "memory must be <= node_memory"
+        - left_operand: memory
+          operator: GT
+          right_operand: "0"
+          assert_message: "memory must be > 0"
+
+    ## RBAC role definitions. Policies are product defaults.
+    ## Override external_roles per deployment to map IDP groups.
+    ##
+    roles:
+      items:
+        osmo-admin:
+          description: "Admin role — full access to all resources"
+          policies:
+          - effect: Allow
+            actions: ["*:*"]
+            resources: ["*"]
+          external_roles: [osmo-admin]
+        osmo-user:
+          description: "User role — standard workflow and data operations"
+          policies:
+          - effect: Allow
+            actions:
+            - "app:*"
+            - "auth:Token"
+            - "credentials:*"
+            - "dataset:*"
+            - "pool:List"
+            - "profile:Read"
+            - "profile:Update"
+            - "resources:Read"
+            - "user:List"
+            - "workflow:Cancel"
+            - "workflow:Create"
+            - "workflow:Delete"
+            - "workflow:Exec"
+            - "workflow:List"
+            - "workflow:PortForward"
+            - "workflow:Read"
+            - "workflow:Rsync"
+            - "workflow:Update"
+            resources: ["*"]
+          external_roles: [osmo-user]
+        osmo-default:
+          description: "Default role — login, profile, health check"
+          policies:
+          - effect: Allow
+            actions:
+            - "auth:Login"
+            - "auth:Refresh"
+            - "auth:Token"
+            - "profile:*"
+            - "system:Health"
+            resources: ["*"]
+          external_roles: []
+        osmo-ctrl:
+          description: "Controller role — internal container communication"
+          policies:
+          - effect: Allow
+            actions: ["internal:Logger", "internal:Router"]
+            resources: ["*"]
+          external_roles: [osmo-ctrl]
+        osmo-backend:
+          description: "Backend role — internal operator communication"
+          policies:
+          - effect: Allow
+            actions: ["internal:Operator", "config:Read", "pool:List"]
+            resources: ["*"]
+          external_roles: [osmo-backend]
+
+    ## Backend cluster definitions (site-specific).
+    ##
     backends: {}
+
+    ## Pool definitions (site-specific).
+    ##
+    pools: {}
+
+    ## Backend test definitions.
+    ##
     backendTests: {}
+
+    ## Group templates.
+    ##
     groupTemplates: {}
-    roles: {}
 
     ## Secret credential files mounted from K8s Secrets.
     ## Each entry creates a K8s Secret + volume mount at /etc/osmo/secrets/<name>.yaml

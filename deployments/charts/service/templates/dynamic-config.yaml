@@ -24,14 +24,16 @@ data:
   config.yaml: |
     managed_configs:
       {{- $dc := .Values.services.dynamicConfig }}
-      {{- if $dc.service }}
       service:
-        {{- $service := deepCopy $dc.service }}
-        {{- if $service.config }}
-        {{- include "osmo.resolve-secret-names-in-config" $service.config }}
+        {{- $service := deepCopy (default (dict) $dc.service) }}
+        {{- if not $service.config }}
+        {{- $_ := set $service "config" (dict) }}
         {{- end }}
+        {{- if and (not (index $service.config "service_base_url")) .Values.services.service.hostname }}
+        {{- $_ := set $service.config "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
+        {{- end }}
+        {{- include "osmo.resolve-secret-names-in-config" $service.config }}
         {{- toYaml $service | nindent 8 }}
-      {{- end }}
       {{- if $dc.workflow }}
       workflow:
         {{- $workflow := deepCopy $dc.workflow }}
