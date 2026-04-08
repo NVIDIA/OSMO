@@ -83,12 +83,6 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             'cli_config': {
                 'latest_version': 'test-cli',
                 'min_supported_version': '1.0.0',
-                'credential': {
-                    'endpoint': 's3://test-bucket',
-                    'access_key_id': 'test-key',
-                    'access_key': 'test-secret',
-                    'region': 'us-east-1',
-                },
             }
         }
         first_tags = ['service-update', 'cli-config']
@@ -106,12 +100,6 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             'cli_config': {
                 'latest_version': 'updated-cli',
                 'min_supported_version': '2.0.0',
-                'credential': {
-                    'endpoint': 's3://new-bucket',
-                    'access_key_id': 'new-key',
-                    'access_key': 'new-secret',
-                    'region': 'us-west-1',
-                },
             }
         }
         second_tags = ['service-update', 'cli-update']
@@ -173,9 +161,6 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         config = history['configs'][-1]['data']
         self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
         self.assertEqual(config['cli_config']['min_supported_version'], '1.0.0')
-        self.assertEqual(config['cli_config']['credential']['endpoint'], 's3://test-bucket')
-        self.assertEqual(config['cli_config']['credential']['access_key_id'], 'test-key')
-        self.assertEqual(config['cli_config']['credential']['region'], 'us-east-1')
 
     def test_workflow_config_history(self):
         """Test history entries for workflow config operations."""
@@ -1290,7 +1275,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
                 second_revision=initial_history_entry['revision'],
             ),
         )
-        self.assertEqual(response.first_data, initial_history_entry['data'])
+        self.assertEqual(response.first_data.model_dump(mode='json'), initial_history_entry['data'])
         self.assertEqual(response.second_data, initial_history_entry['data'])
 
         # Test 2: Add the new bucket
@@ -1302,7 +1287,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             ),
         )
         self.assertEqual(
-            response.first_data,
+            response.first_data.model_dump(mode='json'),
             initial_history_entry['data']
         )
         self.assertEqual(

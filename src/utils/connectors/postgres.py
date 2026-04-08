@@ -45,7 +45,7 @@ from jwcrypto.common import JWException  # type: ignore
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
-                           osmo_errors, role, validation)
+                           osmo_errors, role)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
 
@@ -53,12 +53,6 @@ from src.utils.secret_manager import Encrypted, SecretManager
 def backend_action_queue_name(backend_name: str) -> str:
     return f'backend-connections:{backend_name}'
 
-
-class ExtraType(enum.Enum):
-    """ Setting for Pydantic Extra """
-    ALLOW = pydantic.Extra.allow
-    FORBID = pydantic.Extra.forbid
-    IGNORE = pydantic.Extra.ignore
 
 
 class CredentialType(enum.Enum):
@@ -128,82 +122,83 @@ class ClusterResources(pydantic.BaseModel):
 class PostgresConfig(pydantic.BaseModel):
     """ Manages the config for the postgres database. """
     postgres_host: str = pydantic.Field(
-        command_line='postgres_host',
-        env='OSMO_POSTGRES_HOST',
         default='localhost',
-        description='The hostname of the postgres server to connect to.')
+        description='The hostname of the postgres server to connect to.',
+        json_schema_extra={'command_line': 'postgres_host', 'env': 'OSMO_POSTGRES_HOST'})
     postgres_port: int = pydantic.Field(
-        command_line='postgres_port',
-        env='OSMO_POSTGRES_PORT',
         default=5432,
-        description='The port of the postgres server to connect to.')
+        description='The port of the postgres server to connect to.',
+        json_schema_extra={'command_line': 'postgres_port', 'env': 'OSMO_POSTGRES_PORT'})
     postgres_user: str = pydantic.Field(
-        command_line='postgres_user',
-        env='OSMO_POSTGRES_USER',
         default='postgres',
-        description='The user of the postgres server.')
+        description='The user of the postgres server.',
+        json_schema_extra={'command_line': 'postgres_user', 'env': 'OSMO_POSTGRES_USER'})
     postgres_password: str = pydantic.Field(
-        command_line='postgres_password',
-        env='OSMO_POSTGRES_PASSWORD',
-        description='The password to connect to the postgres server.')
+        description='The password to connect to the postgres server.',
+        json_schema_extra={'command_line': 'postgres_password', 'env': 'OSMO_POSTGRES_PASSWORD'})
     postgres_database_name: str = pydantic.Field(
-        command_line='postgres_database_name',
-        env='OSMO_POSTGRES_DATABASE_NAME',
         default='osmo_db',
-        description='The database name for postgres server.')
+        description='The database name for postgres server.',
+        json_schema_extra={
+            'command_line': 'postgres_database_name',
+            'env': 'OSMO_POSTGRES_DATABASE_NAME'
+        })
     postgres_reconnect_retry: int = pydantic.Field(
-        command_line='postgres_reconnect_retry',
-        env='OSMO_POSTGRES_RECONNECT_RETRY',
-        type=validation.positive_integer,
         default=5,
-        description='Reconnect try count after connection error')
+        gt=0,
+        description='Reconnect try count after connection error',
+        json_schema_extra={
+            'command_line': 'postgres_reconnect_retry',
+            'env': 'OSMO_POSTGRES_RECONNECT_RETRY'
+        })
     mek_file: str = pydantic.Field(
-        command_line='mek_file',
-        env='OSMO_MEK_FILE',
         default='/home/osmo/vault-agent/secrets/vault-secrets.yaml',
-        description='Path to the file that stores master encryption keys'
-    )
+        description='Path to the file that stores master encryption keys',
+        json_schema_extra={'command_line': 'mek_file', 'env': 'OSMO_MEK_FILE'})
     method: Literal['dev'] | None = pydantic.Field(
-        command_line='method',
         default=None,
         description='If set to "dev", use the default local mek file'
-                    'ingoring `mek_file` field.')
+                    'ingoring `mek_file` field.',
+        json_schema_extra={'command_line': 'method'})
     dev_user: str = pydantic.Field(
-        command_line='dev_user',
         default='testuser',
         description='If method is set to "dev", the browser flow to the service will use this '
-                    'user name.')
+                    'user name.',
+        json_schema_extra={'command_line': 'dev_user'})
     # Deployment configuration fields from Helm values for auto-initialization
     osmo_image_location: str | None = pydantic.Field(
-        command_line='osmo_image_location',
         default=None,
-        description='The image registry location for OSMO images')
+        description='The image registry location for OSMO images',
+        json_schema_extra={'command_line': 'osmo_image_location'})
     osmo_image_tag: str | None = pydantic.Field(
-        command_line='osmo_image_tag',
         default=None,
-        description='The image tag for OSMO images')
+        description='The image tag for OSMO images',
+        json_schema_extra={'command_line': 'osmo_image_tag'})
     service_hostname: str | None = pydantic.Field(
-        command_line='service_hostname',
         default=None,
-        description='The public hostname for the OSMO service (used for URL generation)')
+        description='The public hostname for the OSMO service (used for URL generation)',
+        json_schema_extra={'command_line': 'service_hostname'})
     postgres_pool_minconn: int = pydantic.Field(
-        command_line='postgres_pool_minconn',
-        type=validation.positive_integer,
-        env='OSMO_POSTGRES_POOL_MINCONN',
         default=1,
-        description='Minimum number of connections to keep in the connection pool')
+        gt=0,
+        description='Minimum number of connections to keep in the connection pool',
+        json_schema_extra={
+            'command_line': 'postgres_pool_minconn',
+            'env': 'OSMO_POSTGRES_POOL_MINCONN'
+        })
     postgres_pool_maxconn: int = pydantic.Field(
-        command_line='postgres_pool_maxconn',
-        type=validation.positive_integer,
-        env='OSMO_POSTGRES_POOL_MAXCONN',
         default=10,
-        description='Maximum number of connections allowed in the connection pool')
+        gt=0,
+        description='Maximum number of connections allowed in the connection pool',
+        json_schema_extra={
+            'command_line': 'postgres_pool_maxconn',
+            'env': 'OSMO_POSTGRES_POOL_MAXCONN'
+        })
     schema_version: str = pydantic.Field(
-        command_line='schema_version',
-        env='OSMO_SCHEMA_VERSION',
         default='public',
         description='pgroll schema version to use. '
-                    'Set to "public" to use the default schema without pgroll versioning.')
+                    'Set to "public" to use the default schema without pgroll versioning.',
+        json_schema_extra={'command_line': 'schema_version', 'env': 'OSMO_SCHEMA_VERSION'})
 
 
 def retry(func=None, *, reconnect: bool = True):
@@ -379,7 +374,6 @@ class PostgresConnector:
         PostgresConnector._instance = self
         mek_file = self.config.mek_file
         if self.config.method == 'dev':
-            ExtraArgBaseModel.set_extra(ExtraType.ALLOW)
             mek_file = os.path.join(os.path.dirname(__file__), '..', 'secret_manager', 'mek.yaml')
         self.secret_manager = SecretManager(
             mek_file,
@@ -1369,7 +1363,7 @@ class PostgresConnector:
                 )
             elif config_type == ConfigHistoryType.BACKEND:
                 data = [
-                    backend.dict(by_alias=True, exclude_unset=True)
+                    backend.model_dump(by_alias=True, exclude_unset=True)
                     for backend in Backend.list_from_db(self)
                 ]
             elif config_type == ConfigHistoryType.POOL:
@@ -1405,7 +1399,7 @@ class PostgresConnector:
                     'system',                   # username
                     ['initial-config'],         # tags
                     'Initial configuration',    # description
-                    json.dumps(data, default=pydantic.json.pydantic_encoder),  # data
+                    json.dumps(data, default=common.pydantic_encoder),  # data
                     config_type.value.lower(),  # for WHERE NOT EXISTS
                 ),
             )
@@ -1618,7 +1612,7 @@ class PostgresConnector:
                 username,
                 tags,
                 description,
-                json.dumps(data, default=pydantic.json.pydantic_encoder),
+                json.dumps(data, default=common.pydantic_encoder),
             ),
         )
 
@@ -1779,13 +1773,31 @@ class UserProfile(pydantic.BaseModel):
         )
 
 class ExtraArgBaseModel(pydantic.BaseModel):
-    """ BaseModel class which can be used to enable validation """
-    class Config:
-        extra = ExtraType.IGNORE.value
+    """BaseModel that rejects unknown fields by default.
+
+    User input is validated strictly (extra='forbid').  Database reads go
+    through ``from_db`` which constructs with extra='ignore' so that legacy
+    columns that no longer exist in code are silently dropped.
+    """
+    model_config = pydantic.ConfigDict(extra='forbid', populate_by_name=True)
 
     @classmethod
-    def set_extra(cls, extra_type: ExtraType):
-        cls.__config__.extra = extra_type.value
+    def from_db(cls, data: Dict):
+        """Construct from database data, tolerating unknown fields at all nesting levels."""
+        return cls.model_validate(data, context={'_from_db': True})
+
+    @pydantic.model_validator(mode='before')
+    @classmethod
+    def _strip_extra_from_db(cls, values: Any, info: pydantic.ValidationInfo) -> Any:
+        if not isinstance(values, dict):
+            return values
+        if info.context and info.context.get('_from_db'):
+            allowed_keys = set(cls.model_fields.keys())
+            for field_info in cls.model_fields.values():
+                if field_info.alias:
+                    allowed_keys.add(field_info.alias)
+            return {k: v for k, v in values.items() if k in allowed_keys}
+        return values
 
 
 class OsmoImageConfig(ExtraArgBaseModel):
@@ -1805,15 +1817,17 @@ class TopologyRequirementType(str, enum.Enum):
     PREFERRED = 'preferred'
 
 
-class TopologyRequirement(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TopologyRequirement(pydantic.BaseModel, extra='forbid'):
     """Single topology requirement for a resource"""
     key: str  # References pool's topology_keys[].key
     group: str = 'default'  # Logical grouping of tasks
     requirementType: TopologyRequirementType = TopologyRequirementType.REQUIRED  # pylint: disable=invalid-name
 
 
-class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ResourceSpec(pydantic.BaseModel):
     """ Represents the resource spec in an OSMO2 workflow. """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     cpu: int | None = None
     storage: str | None = None
     memory: str | None = None
@@ -1824,8 +1838,8 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
     def update(self, other: 'ResourceSpec') -> 'ResourceSpec':
         """ Apply all fields from the other resource spec to this one """
-        self_dict = self.dict(exclude_none=True)
-        other_dict = other.dict(exclude_none=True)
+        self_dict = self.model_dump(exclude_none=True)
+        other_dict = other.model_dump(exclude_none=True)
         return ResourceSpec(**common.recursive_dict_update(self_dict, other_dict))
 
     @classmethod
@@ -1850,12 +1864,12 @@ class ResourceSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             value = f'{common.convert_resource_value_str(value, target="Ki")}Ki'
         return value
 
-    @pydantic.validator('memory')
+    @pydantic.field_validator('memory')
     @classmethod
     def validate_memory(cls, value: str | None) -> str | None:
         return cls.validate_unit_value(value, 'memory')
 
-    @pydantic.validator('storage')
+    @pydantic.field_validator('storage')
     @classmethod
     def validate_storage(cls, value: str | None) -> str | None:
         return cls.validate_unit_value(value, 'storage')
@@ -2006,9 +2020,7 @@ class ResourceAssertion(pydantic.BaseModel):
     right_operand: str
     assert_message: str
 
-    class Config:
-        use_enum_values = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(use_enum_values=True, extra='forbid')
 
     def evaluate(self, tokens: Dict[str, Any],
                  task_name: str):
@@ -2045,8 +2057,8 @@ class ResourceAssertion(pydantic.BaseModel):
         )
 
         comparison_function = self.get_comparison_function(self.operator)
-        assert comparison_function(processed_left_operand, \
-            processed_right_operand), processed_assert_msg
+        if not comparison_function(processed_left_operand, processed_right_operand):
+            raise AssertionError(processed_assert_msg)
 
 
 class BackendResourceConfig(pydantic.BaseModel):
@@ -2072,7 +2084,7 @@ class BackendResource(pydantic.BaseModel):
     usage_fields: Dict[str, str]
     non_workflow_usage_fields: Dict[str, str]
     taint_fields: List[Dict]
-    config_fields: Dict[str, Dict[str, BackendResourceConfig]] | None
+    config_fields: Dict[str, Dict[str, BackendResourceConfig]] | None = None
     pool_platform_labels: Dict[str, List[str]]
     updated_allocatable_fields: Dict[str, Dict[str, Dict]]
     # Allocatable field accounting for osmo-ctrl usage and non-workflow pod usage
@@ -2421,7 +2433,7 @@ class BackendResource(pydantic.BaseModel):
                 config_fields = cls._create_config_fields(
                     pool_platform_labels, pool_config) \
                     if pool_config else None
-                all_resources.append(BackendResource.construct(
+                all_resources.append(BackendResource.model_construct(
                     label_fields=label_fields,
                     taint_fields=taints,
                     allocatable_fields=allocatable_fields,
@@ -2647,7 +2659,6 @@ class BucketConfig(ExtraArgBaseModel):
     description: str = ''
     # Mode for read-only or read-write or write-only
     mode: str = BucketMode.READ_WRITE.value
-
     # Default cred to use doesn't have one
     # Only applies to workflow operations, NOT user cli since we cannot forward the credential
     # to the user
@@ -2665,8 +2676,7 @@ class BucketConfig(ExtraArgBaseModel):
 class DynamicConfig(ExtraArgBaseModel):
     """ Manages the dynamic configs for the postgres database. """
 
-    class Config:
-        validate_assignment = True
+    model_config = pydantic.ConfigDict(validate_assignment=True)
 
     @classmethod
     def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):
@@ -2742,9 +2752,9 @@ class DynamicConfig(ExtraArgBaseModel):
             else:
                 return encrypted_data, None
 
-        dynamic_config = cls(**config_dict)
-        encrypted_dict = dynamic_config.dict(exclude_unset=True)
-        decrypted_dict = dynamic_config.dict(exclude_unset=True)
+        dynamic_config = cls.from_db(config_dict)
+        encrypted_dict = dynamic_config.model_dump(exclude_unset=True)
+        decrypted_dict = dynamic_config.model_dump(exclude_unset=True)
 
         for key in config_dict:
             if not hasattr(dynamic_config, key):
@@ -2797,13 +2807,13 @@ class DynamicConfig(ExtraArgBaseModel):
 
     def serialize(self, postgres: PostgresConnector, exclude_unset=True) -> Dict[str, str | None]:
         """Encrypts all secret fields and returns a dictionary """
-        config_dict = self.dict(by_alias=True, exclude_unset=exclude_unset)
+        config_dict = self.model_dump(by_alias=True, exclude_unset=exclude_unset)
         result = self.serialize_helper(config_dict, postgres, top_level=True)
         return result
 
     def plaintext_dict(self, *args, **kwargs):
         """Returns as a dictionary with all SecretStrs converted to str"""
-        data = self.dict(*args, **kwargs)
+        data = self.model_dump(*args, **kwargs)
         def _convert_secrets(node):
             # Recurse for dict and list
             if isinstance(node, dict):
@@ -3021,7 +3031,13 @@ class ResourceValidation(pydantic.BaseModel):
         fetch_cmd = f'SELECT * FROM resource_validations {list_of_names} ORDER BY name;'
         spec_rows = database.execute_fetch_command(fetch_cmd, fetch_input, True)
 
-        return {spec_row['name']: spec_row['resource_validations'] for spec_row in spec_rows}
+        return {
+            spec_row['name']: [
+                item if isinstance(item, ResourceAssertion) else ResourceAssertion(**item)
+                for item in spec_row['resource_validations']
+            ]
+            for spec_row in spec_rows
+        }
 
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> List[ResourceAssertion]:
@@ -3033,7 +3049,10 @@ class ResourceValidation(pydantic.BaseModel):
 
         spec_row = spec_rows[0]
 
-        return spec_row['resource_validations']
+        return [
+            item if isinstance(item, ResourceAssertion) else ResourceAssertion(**item)
+            for item in spec_row['resource_validations']
+        ]
 
     @classmethod
     def get_pools(cls, database: PostgresConnector, name: str) -> List[Dict]:
@@ -3073,7 +3092,9 @@ class ResourceValidation(pydantic.BaseModel):
             '''
         database.execute_commit_command(
             insert_cmd,
-            (name,[json.dumps(validation.dict()) for validation in self.resource_validations]))
+            (name,
+             [json.dumps(validation.model_dump())
+              for validation in self.resource_validations]))
 
         for pool_info in ResourceValidation.get_pools(database, name):
             Pool.update_resource_validations(database, pool_info['name'])
@@ -3272,8 +3293,10 @@ class PlatformMinimal(PlatformBase):
     default_mounts: List[str] = []
 
 
-class PlatformEditable(PlatformBase, extra=pydantic.Extra.ignore):
+class PlatformEditable(PlatformBase):
     """ Single Platform Entry """
+
+    model_config = pydantic.ConfigDict(extra='ignore')
 
     default_variables: Dict = {}
     resource_validations: List[str] = []
@@ -3354,7 +3377,7 @@ class PoolMinimal(PoolBase):
     platforms: Dict[str, PlatformMinimal] = {}
 
 
-class PoolEditable(PoolBase, extra=pydantic.Extra.ignore):
+class PoolEditable(PoolBase, extra='ignore'):
     common_default_variables: Dict = {}
     common_resource_validations: List[str] = []
     common_pod_template: List[str] = []
@@ -3362,7 +3385,7 @@ class PoolEditable(PoolBase, extra=pydantic.Extra.ignore):
     platforms: Dict[str, PlatformEditable] = {}
 
 
-class Pool(PoolBase, extra=pydantic.Extra.ignore):
+class Pool(PoolBase, extra='ignore'):
     """ Single Pool Entry """
     common_default_variables: Dict = {}
     common_resource_validations: List[str] = []
@@ -3406,7 +3429,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         database.execute_commit_command(
             insert_cmd,
             (json.dumps(pool_info.platforms, default=common.pydantic_encoder),
-             json.dumps(pool_info.parsed_resource_validations),
+             json.dumps(pool_info.parsed_resource_validations, default=common.pydantic_encoder),
              name))
 
     @classmethod
@@ -3733,7 +3756,9 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
              self.max_exec_timeout, self.max_queue_timeout,
              json.dumps(self.default_exit_actions),
              json.dumps(self.common_default_variables),
-             self.common_resource_validations, json.dumps(self.parsed_resource_validations),
+             self.common_resource_validations,
+             json.dumps(self.parsed_resource_validations,
+                        default=common.pydantic_encoder),
              self.common_pod_template, json.dumps(self.parsed_pod_template),
              self.common_group_templates, json.dumps(self.parsed_group_templates),
              self.enable_maintenance,
@@ -3808,10 +3833,10 @@ def fetch_platform_config(
     if pool_type == PoolType.VERBOSE:
         return platforms
     elif pool_type == PoolType.EDITABLE:
-        return {platform_name: PlatformEditable(**platform.dict())
+        return {platform_name: PlatformEditable(**platform.model_dump())
                 for platform_name, platform in platforms.items()}
     elif pool_type == PoolType.MINIMAL:
-        return {platform_name: PlatformMinimal(**platform.dict())
+        return {platform_name: PlatformMinimal(**platform.model_dump())
                 for platform_name, platform in platforms.items()}
     else:
         raise osmo_errors.OSMOServerError(f'Unknown pool type: {pool_type.name}')
@@ -3823,7 +3848,7 @@ class ListOrder(enum.Enum):
     DESC = 'DESC'
 
 
-class PostgresUpdateCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PostgresUpdateCommand(pydantic.BaseModel, extra='forbid'):
     """ A class for creating database updating command. """
     table: str
     conditions: List[str] = []
@@ -3879,7 +3904,7 @@ class PostgresUpdateCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return command, tuple(args)
 
 
-class PostgresSelectCommand(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PostgresSelectCommand(pydantic.BaseModel, extra='forbid'):
     """ A class for creating database selecting command. """
     table: str
     conditions: List[str] = []
@@ -3977,9 +4002,9 @@ class BackendTestBase(pydantic.BaseModel):
     description: str
     cron_schedule: str = pydantic.Field(..., min_length=1)
     test_timeout: str = pydantic.Field(default='300s')
-    node_conditions: List[str] = pydantic.Field(min_items=1)
+    node_conditions: List[str] = pydantic.Field(min_length=1)
 
-    @pydantic.validator('name')
+    @pydantic.field_validator('name')
     @classmethod
     def validate_name_rfc1123(cls, v: str) -> str:
         """
@@ -4003,7 +4028,7 @@ class BackendTestBase(pydantic.BaseModel):
 
         return v
 
-    @pydantic.validator('cron_schedule')
+    @pydantic.field_validator('cron_schedule')
     @classmethod
     def validate_cron_schedule(cls, v: str) -> str:
         """
@@ -4058,7 +4083,7 @@ class BackendTestBase(pydantic.BaseModel):
 
         return v
 
-    @pydantic.validator('test_timeout')
+    @pydantic.field_validator('test_timeout')
     @classmethod
     def validate_test_timeout(cls, v: str) -> str:
         """
@@ -4093,7 +4118,7 @@ class BackendTestBase(pydantic.BaseModel):
 
         return v
 
-    @pydantic.validator('node_conditions')
+    @pydantic.field_validator('node_conditions')
     @classmethod
     def validate_node_conditions(cls, v: List[str]) -> List[str]:
         """
@@ -4216,7 +4241,7 @@ class BackendTestBase(pydantic.BaseModel):
 
 class BackendTests(BackendTestBase):
     """ Represents a test config. """
-    common_pod_template: List[str] = pydantic.Field(min_items=1)
+    common_pod_template: List[str] = pydantic.Field(min_length=1)
     parsed_pod_template: Dict = {}
 
     @classmethod

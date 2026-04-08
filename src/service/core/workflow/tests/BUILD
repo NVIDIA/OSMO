@@ -47,3 +47,12 @@ py_test(
     ],
 )
 
+py_test(
+    name = "test_task_entry_resources",
+    srcs = ["test_task_entry_resources.py"],
+    deps = [
+        "//src/service/core/workflow",
+        "//src/utils/job",
+    ],
+)
+

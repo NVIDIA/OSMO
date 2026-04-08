@@ -37,13 +37,13 @@ const BASE_SEED = 22222;
 export interface EventWorkflowInput {
   name: string;
   submit_time: string;
-  end_time?: string;
+  end_time?: string | null;
   groups: Array<{
     tasks?: Array<{
       name: string;
       status: TaskGroupStatus;
-      start_time?: string;
-      node_name?: string;
+      start_time?: string | null;
+      node_name?: string | null;
     }>;
   }>;
 }
@@ -85,7 +85,7 @@ export class EventGenerator {
         new Date(task.start_time || workflow.submit_time),
         lifecycleStatus,
         task.status,
-        task.node_name,
+        task.node_name ?? undefined,
       );
       events.push(...taskEvents);
     }
@@ -673,7 +673,7 @@ export class EventGenerator {
     const events = this.generateEventsForWorkflow(workflow, taskName ?? undefined);
     const lines = this.formatEventLines(events);
 
-    if (workflow.end_time !== undefined) {
+    if (workflow.end_time !== undefined && workflow.end_time !== null) {
       return new HttpResponse(buildChunkedStream(lines.join("\n")), { headers: EVENT_HEADERS });
     }
 

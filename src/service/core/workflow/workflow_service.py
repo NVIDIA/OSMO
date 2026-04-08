@@ -271,7 +271,7 @@ def calculate_pool_quotas(
             )
 
             node_set_response.pools.append(objects.PoolResourceUsage(
-                **pool_config.dict(),
+                **pool_config.model_dump(),
                 resource_usage=resource_usage
             ))
 
@@ -1118,7 +1118,7 @@ def action_request_helper(action_type: ActionType, payload: Dict[str, Any], name
         router_info = objects.RouterResponse(router_address=router_address, key=key, cookie=cookie)
         router_infos[task_obj.name] = router_info
         action_attributes: Dict[str, Any] = {
-            'action': action_type.value, **router_info.dict(), **payload}
+            'action': action_type.value, **router_info.model_dump(), **payload}
 
         # Create redis object
         redis_client.set(key, json.dumps(action_attributes))

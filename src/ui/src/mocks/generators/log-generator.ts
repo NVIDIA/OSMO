@@ -37,8 +37,8 @@ const LOG_RESPONSE_HEADERS = {
 /** Minimal workflow shape needed by log handlers — satisfied by MockWorkflow and WorkflowQueryResponse. */
 export interface LogWorkflowInput {
   name: string;
-  start_time?: string;
-  end_time?: string;
+  start_time?: string | null;
+  end_time?: string | null;
   groups: Array<{
     name: string;
     tasks?: Array<{ name: string; task_uuid?: string }>;
@@ -48,8 +48,8 @@ export interface LogWorkflowInput {
 /** Minimal task shape needed by handleTaskLogs. */
 export interface LogTaskInput {
   name: string;
-  start_time?: string;
-  end_time?: string;
+  start_time?: string | null;
+  end_time?: string | null;
 }
 
 const BASE_SEED = 11111;
@@ -330,7 +330,7 @@ export class LogGenerator {
 
     const workflowStartTime = workflow.start_time ? new Date(workflow.start_time) : undefined;
 
-    if (workflow.end_time !== undefined) {
+    if (workflow.end_time != null) {
       const allLogs = this.generateForWorkflow({
         workflowName: name,
         taskNames,

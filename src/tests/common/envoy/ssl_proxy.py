@@ -123,7 +123,7 @@ class SSLProxy(network.NetworkAwareContainer):
 
         for eligible_backend in eligible_backends:
             ssl_proxy_backends.append(SslProxyBackend(
-                **eligible_backend.dict(),
+                **eligible_backend.model_dump(),
                 assigned_ports=[next(assigned_ports)
                                 for _ in eligible_backend.ports]
             ))

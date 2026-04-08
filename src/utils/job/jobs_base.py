@@ -21,11 +21,11 @@ import datetime
 import enum
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 
 import pydantic
-import kombu # type: ignore
+import kombu  # type: ignore
 import kombu.pools  # type: ignore
 
 from src.lib.utils import osmo_errors
@@ -50,7 +50,7 @@ class JobStatus(enum.Enum):
 class JobResult(pydantic.BaseModel):
     """ Describes the result of a job """
     status: JobStatus = JobStatus.SUCCESS
-    message: Optional[str]
+    message: Optional[str] = None
 
     @property
     def retry(self):
@@ -63,7 +63,6 @@ class JobResult(pydantic.BaseModel):
             return self.status.name
 
 
-
 class Job(pydantic.BaseModel):
     """
     Represents some task that needs to be executed by a worker. Pydantic
@@ -73,7 +72,7 @@ class Job(pydantic.BaseModel):
     super_type: str = 'frontend'
     job_type: str | None = None
     job_id: str | None = None
-    job_uuid: str = ''
+    job_uuid: str = pydantic.Field(default_factory=lambda: str(uuid.uuid4()))
 
     @classmethod
     def _get_job_id(cls, values):
@@ -88,22 +87,24 @@ class Job(pydantic.BaseModel):
     def _get_allowed_super_type(cls) -> List[str]:
         return ['frontend', 'backend']
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
     @classmethod
-    def validate_job_type_and_id(cls, values) -> str:
+    def validate_job_type_and_id(cls, values) -> Any:
         """
         Validates job_type. Returns the value of job_type if valid.
         """
+        if not isinstance(values, dict):
+            return values
         # If no value is provided, then this is a newly created job. Set the job type based on the
         # class name
         if 'job_type' not in values or values['job_type'] is None:
             values['job_type'] = cls.__name__
         # If a value is provided, make sure it is correct.
         # values['job_type'] not in cls.__name__ and
-        elif  not (values['job_type'] == cls.__name__ or \
-                   values['job_type'] in cls._get_allowed_job_type()):
+        elif not (values['job_type'] == cls.__name__ or
+                  values['job_type'] in cls._get_allowed_job_type()):
             raise osmo_errors.OSMOServerError(
-                f'Tried to initialize a {cls.__name__} instance with ' \
+                f'Tried to initialize a {cls.__name__} instance with '
                 f'job_type as {values["job_type"]} or not in {cls._get_allowed_job_type()}')
 
         if 'job_id' not in values or values['job_id'] is None:
@@ -111,7 +112,7 @@ class Job(pydantic.BaseModel):
 
         return values
 
-    @pydantic.validator('super_type', always=True)
+    @pydantic.field_validator('super_type')
     @classmethod
     def validate_super_type(cls, value) -> str:
         """
@@ -122,7 +123,7 @@ class Job(pydantic.BaseModel):
                 f'Tried to initialize a {cls.__name__} instance with super_type as {value}')
         return value
 
-    @pydantic.validator('job_uuid', always=True)
+    @pydantic.field_validator('job_uuid')
     @classmethod
     def validate_job_uuid(cls, value: str) -> str:
         """
@@ -140,10 +141,6 @@ class Job(pydantic.BaseModel):
 
     def __str__(self) -> str:
         return f'(type={self.job_type}, id={self.job_id})'
-
-    class Config:
-        allow_extra = False
-        ignore_extra = False
 
     def log_submission(self):
         logging.info('Submitted new job %s to the job queue', self)
@@ -163,9 +160,9 @@ class Job(pydantic.BaseModel):
         priority = connectors.JOB_PRIORITY.get(
             self.job_type or '', connectors.DEFAULT_JOB_PRIORITY)
         with kombu.Connection(redis_config.redis_url,
-            transport_options=options) as conn:
+                              transport_options=options) as conn:
             with kombu.pools.producers[conn].acquire(block=True) as producer:
-                producer.publish(json.loads(self.json()), exchange=exchange,
+                producer.publish(json.loads(self.model_dump_json()), exchange=exchange,
                                  declare=jobs, routing_key=self.job_type,
                                  priority=priority)
         self.log_submission()

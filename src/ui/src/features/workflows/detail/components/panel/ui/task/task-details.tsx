@@ -295,7 +295,7 @@ const OverviewTab = memo(function OverviewTab({
               </Link>
             ) : null,
             copyable: true,
-            copyValue: task.node_name,
+            copyValue: task.node_name ?? undefined,
             mono: true,
             truncate: true,
             show: !!task.node_name,

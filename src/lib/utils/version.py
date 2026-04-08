@@ -32,6 +32,8 @@ WARNING_HEADER = 'x-osmo-warning'
 
 class Version(pydantic.BaseModel):
     """ A class to maintain version information. """
+    model_config = pydantic.ConfigDict(coerce_numbers_to_str=True)
+
     major: str
     minor: str = '0'
     revision: str = '0'
@@ -93,7 +95,7 @@ def write_version(version: Version) -> None:
     """ Replaces the version into version file. """
     release_file_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'version.yaml')
     data = ''
-    for key, value in version.dict().items():
+    for key, value in version.model_dump().items():
         data += F'{key.lower()}: {value}\n'
     with open(release_file_path, 'w+', encoding='UTF-8') as file:
         file.write(data)

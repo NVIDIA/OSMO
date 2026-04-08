@@ -47,6 +47,7 @@ from typing import (
 )
 
 import pydantic
+import pydantic_settings
 
 from . import progress, provider
 from ....utils import common, logging as logging_utils, osmo_errors
@@ -67,32 +68,30 @@ _R = TypeVar('_R', bound='ThreadWorkerOutput')  # Result type
 #   Executor Schemas (External)   #
 ###################################
 
-class ExecutorParameters(pydantic.BaseSettings):
+class ExecutorParameters(pydantic_settings.BaseSettings):
     """
     A class for storing parameters regarding multi-process/thread operations.
 
     Allows for environment variable overrides of the parameters.
     """
 
-    class Config:
-        """
-        Pydantic configuration for the ExecutorParameters class.
-        """
-        env_prefix = 'OSMO_EXECUTOR_'
+    model_config = pydantic_settings.SettingsConfigDict(env_prefix='OSMO_EXECUTOR_')
 
-        @classmethod
-        def customise_sources(
-            cls,
-            init_settings,
-            env_settings,
-            file_secret_settings,
-        ):
-            # Treat explicit None as "unset" so env vars can apply
-            def init_without_none(settings):
-                data = init_settings(settings)
-                return {k: v for k, v in data.items() if v is not None}
-
-            return (init_without_none, env_settings, file_secret_settings)
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,  # pylint: disable=unused-argument
+        init_settings,
+        env_settings,
+        dotenv_settings,  # pylint: disable=unused-argument
+        file_secret_settings,
+    ):
+        # Treat explicit None as "unset" so env vars can apply.
+        # Override init_settings to filter out None values.
+        init_settings.init_kwargs = {
+            k: v for k, v in init_settings.init_kwargs.items() if v is not None
+        }
+        return (init_settings, env_settings, file_secret_settings)
 
     num_processes: int | None = pydantic.Field(
         default=None,
@@ -130,10 +129,7 @@ class ExecutorParameters(pydantic.BaseSettings):
         description='The size of the log queue for the executor. Only used for multi-process jobs.',
     )
 
-    @pydantic.validator(
-        'num_threads_inflight_multiplier',
-        'chunk_queue_size_multiplier',
-    )
+    @pydantic.field_validator('num_threads_inflight_multiplier', 'chunk_queue_size_multiplier')
     @classmethod
     def _validate_multiplier_max(cls, v: int) -> int:
         if v > MAX_MULTIPLIER:
