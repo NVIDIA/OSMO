@@ -101,12 +101,6 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
         env='OSMO_DYNAMIC_CONFIG_FILE',
         default=None,
         description='Path to YAML file with dynamic configs to load on startup.')
-    dynamic_config_poll_interval: int = pydantic.Field(
-        command_line='dynamic_config_poll_interval',
-        env='OSMO_DYNAMIC_CONFIG_POLL_INTERVAL',
-        default=30,
-        description='Interval in seconds to poll the dynamic config file for changes.')
-
     @pydantic.root_validator()
     @classmethod
     def validate_default_admin(cls, values):

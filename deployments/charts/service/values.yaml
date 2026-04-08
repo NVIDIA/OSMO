@@ -229,13 +229,10 @@ services:
     ##
     passwordSecretKey: password
 
-  ## Dynamic configuration loaded from ConfigMap on service startup
-  ## When enabled, renders a ConfigMap with all config types and mounts it into the API service.
-  ## The service reads the file on startup and applies configs to the database.
-  ##
-  ## managed_by modes:
-  ##   seed: Only apply if config doesn't exist in DB (default). CLI changes are preserved.
-  ##   configmap: Always overwrite DB from ConfigMap on startup. CLI changes are ephemeral.
+  ## Dynamic configuration loaded from ConfigMap.
+  ## When enabled, all configs are served from in-memory (parsed from the mounted
+  ## ConfigMap file). CLI/API writes return 409. The authz_sidecar reads roles
+  ## from the same file instead of PostgreSQL. Changes are detected via watchdog/inotify.
   ##
   dynamicConfig:
     ## Enable ConfigMap-based dynamic configuration.
