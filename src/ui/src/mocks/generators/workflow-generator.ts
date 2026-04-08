@@ -166,6 +166,8 @@ export class WorkflowGenerator {
   private config: GeneratorConfig;
   private nameToIndexCache: Map<string, number> = new Map();
   private cachedUpToIndex: number = -1;
+  /** Pre-computed sequenced names (e.g. "train-llama-1", "train-llama-2") */
+  private sequenceNameCache: Map<number, string> | null = null;
 
   constructor(config: Partial<GeneratorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -174,6 +176,7 @@ export class WorkflowGenerator {
   clearCache(): void {
     this.nameToIndexCache.clear();
     this.cachedUpToIndex = -1;
+    this.sequenceNameCache = null;
   }
 
   get total(): number {
@@ -446,11 +449,46 @@ export class WorkflowGenerator {
     return Object.keys(distribution)[0];
   }
 
+  /**
+   * Pre-compute sequenced workflow names for all indices.
+   * Each base name (prefix-suffix) gets a sequence number starting at 1,
+   * e.g. "train-llama-1", "train-llama-2", "eval-bert-1".
+   */
+  private ensureSequenceNames(): Map<number, string> {
+    if (this.sequenceNameCache) return this.sequenceNameCache;
+
+    const indexToBaseName = new Map<number, string>();
+    for (let i = 0; i < this.total; i++) {
+      faker.seed(this.config.baseSeed + i);
+      const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+      const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+      indexToBaseName.set(i, `${prefix}-${suffix}`);
+    }
+
+    const baseNameCounter = new Map<string, number>();
+    this.sequenceNameCache = new Map();
+    for (let i = 0; i < this.total; i++) {
+      const baseName = indexToBaseName.get(i)!;
+      const seq = (baseNameCounter.get(baseName) ?? 0) + 1;
+      baseNameCounter.set(baseName, seq);
+      this.sequenceNameCache.set(i, `${baseName}-${seq}`);
+    }
+
+    return this.sequenceNameCache;
+  }
+
   private generateName(_index: number): string {
-    const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
-    const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
-    const id = faker.string.alphanumeric(8).toLowerCase();
-    return `${prefix}-${suffix}-${id}`;
+    const cache = this.ensureSequenceNames();
+
+    // Re-seed after ensureSequenceNames (which may have changed faker state
+    // during pre-computation), then consume the same faker calls as the
+    // original implementation to keep downstream generation deterministic.
+    faker.seed(this.config.baseSeed + _index);
+    faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+    faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+    faker.string.alphanumeric(8);
+
+    return cache.get(_index) ?? `workflow-${_index + 1}`;
   }
 
   private generateSubmitTime(index: number): string {
