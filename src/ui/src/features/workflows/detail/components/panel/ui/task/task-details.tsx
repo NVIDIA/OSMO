@@ -299,6 +299,7 @@ const OverviewTab = memo(function OverviewTab({
           },
           { label: "Pod", value: task.pod_name, copyable: true, mono: true, truncate: true, show: !!task.pod_name },
           { label: "Pod IP", value: task.pod_ip, copyable: true, mono: true, truncate: true, show: !!task.pod_ip },
+          { label: "Failure Message", value: task.failure_message, copyable: true, show: !!task.failure_message },
         ]}
       />
 
