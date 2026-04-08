@@ -349,6 +349,8 @@ class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
             Raises:
                 ValueError: path fails validation.
             """
+            if not path:
+                return path
             if re.fullmatch(PATH_REGEX, path) is None:
                 raise ValueError(f'Invalid path: {path}')
             return path
