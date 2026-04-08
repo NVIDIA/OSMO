@@ -199,11 +199,11 @@ class BackendConfig(pydantic.BaseModel):
         dict_data['scheduler_settings'] = (
             None
             if not self.scheduler_settings
-            else str(self.scheduler_settings.model_dump_json())
+            else self.scheduler_settings.model_dump_json()
         )
 
         dict_data['node_conditions'] = (
-            None if not self.node_conditions else str(self.node_conditions.model_dump_json())
+            None if not self.node_conditions else self.node_conditions.model_dump_json()
         )
         return dict_data
 
@@ -434,7 +434,7 @@ class UpdateConfigTagsRequest(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='before')
     @classmethod
-    def validate_at_least_one_tag_operation(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_at_least_one_tag_operation(cls, values: Any) -> Any:
         if not isinstance(values, dict):
             return values
         if not values.get('set_tags') and not values.get('delete_tags'):

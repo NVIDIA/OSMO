@@ -2017,8 +2017,8 @@ class ResourceAssertion(pydantic.BaseModel):
         )
 
         comparison_function = self.get_comparison_function(self.operator)
-        assert comparison_function(processed_left_operand, \
-            processed_right_operand), processed_assert_msg
+        if not comparison_function(processed_left_operand, processed_right_operand):
+            raise AssertionError(processed_assert_msg)
 
 
 class BackendResourceConfig(pydantic.BaseModel):

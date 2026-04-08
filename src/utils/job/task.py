@@ -522,6 +522,8 @@ class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
     @pydantic.field_validator('frequency', mode='before')
     @classmethod
     def validate_frequency(cls, value) -> datetime.timedelta:
+        if isinstance(value, bool):
+            raise ValueError('Checkpoint frequency must be a duration, not a boolean')
         if isinstance(value, (int, float)):
             return datetime.timedelta(seconds=value)
         if isinstance(value, datetime.timedelta):
@@ -622,14 +624,18 @@ class TaskSpec(pydantic.BaseModel):
     @pydantic.field_validator('environment', 'exitActions', mode='before')
     @classmethod
     def coerce_dict_str_values(cls, value: Any) -> Any:
-        """Coerce non-string dict values (e.g. YAML booleans/ints) to strings.
+        """Coerce non-string scalar dict values (e.g. YAML booleans/ints) to strings.
 
         coerce_numbers_to_str handles int/float but not bool. YAML users write
         environment: {DEBUG: true} or exitActions: {RESCHEDULE: 3} which parse
-        as bool/int, so we coerce here.
+        as bool/int, so we coerce here. Non-scalar values (None, list, dict) are
+        left as-is so they fail downstream validation.
         """
         if isinstance(value, dict):
-            return {str(k): str(v) for k, v in value.items()}
+            return {
+                str(k): str(v) if isinstance(v, (str, int, float, bool)) else v
+                for k, v in value.items()
+            }
         return value
 
     @pydantic.field_validator('credentials', mode='before')
@@ -641,7 +647,8 @@ class TaskSpec(pydantic.BaseModel):
         YAML may parse values as int/bool instead of str.
 
         Raises:
-            ValueError: If value is not a str or dict.
+            ValueError: If value is not a str or dict, or contains invalid
+                inner types (None, list, object).
         """
         if isinstance(value, str):
             return value
@@ -649,9 +656,20 @@ class TaskSpec(pydantic.BaseModel):
             result: Dict[str, Union[str, Dict[str, str]]] = {}
             for k, v in value.items():
                 if isinstance(v, dict):
+                    for dk, dv in v.items():
+                        if not isinstance(dv, (str, int, float, bool)):
+                            raise ValueError(
+                                f'credential key mapping value for {k}.{dk} must be a scalar, '
+                                f'got {type(dv).__name__}'
+                            )
                     result[str(k)] = {str(dk): str(dv) for dk, dv in v.items()}
-                else:
+                elif isinstance(v, (str, int, float, bool)):
                     result[str(k)] = str(v)
+                else:
+                    raise ValueError(
+                        f'credential value for {k} must be a str or dict, '
+                        f'got {type(v).__name__}'
+                    )
             return result
         raise ValueError(
             f'credentials must be a str or dict, got {type(value).__name__}'
