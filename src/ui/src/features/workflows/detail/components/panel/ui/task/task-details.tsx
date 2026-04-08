@@ -65,7 +65,7 @@ import { useShellSession } from "@/components/shell/lib/shell-cache";
 import type { SiblingTask, BreadcrumbSegment } from "@/features/workflows/detail/components/panel/core/lib/panel-types";
 import type { TaskDetailsProps } from "@/features/workflows/detail/components/panel/ui/task/task-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import { isTaskTerminal } from "@/lib/api/status-metadata.generated";
+import { isTaskFailed, isTaskTerminal } from "@/lib/api/status-metadata.generated";
 import { toProxiedPath } from "@/lib/config";
 
 interface OverviewTabProps {
@@ -219,6 +219,7 @@ const OverviewTab = memo(function OverviewTab({
   isStandaloneTask,
 }: OverviewTabProps) {
   const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
+  const isFailed = isTaskFailed(task.status);
 
   // Render function for dependency pills
   const renderDependencyPill = useCallback(
@@ -244,17 +245,19 @@ const OverviewTab = memo(function OverviewTab({
           <CardContent className="min-w-0 overflow-hidden p-3">
             <TaskTimeline task={task} />
 
-            {/* Exit status - shown after timeline when non-zero */}
-            {hasError && (
+            {/* Error/failure info - shown for any failed status */}
+            {isFailed && (
               <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
                 <div className="flex items-start gap-2">
                   <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
-                      Exit Code: {task.exit_code}
-                    </div>
+                    {hasError && (
+                      <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
+                        Exit Code: {task.exit_code}
+                      </div>
+                    )}
                     {task.failure_message && (
-                      <p className="mt-1 text-xs wrap-break-word text-red-700 dark:text-red-400">
+                      <p className={cn("text-xs wrap-break-word text-red-700 dark:text-red-400", hasError && "mt-1")}>
                         {task.failure_message}
                       </p>
                     )}
@@ -299,7 +302,6 @@ const OverviewTab = memo(function OverviewTab({
           },
           { label: "Pod", value: task.pod_name, copyable: true, mono: true, truncate: true, show: !!task.pod_name },
           { label: "Pod IP", value: task.pod_ip, copyable: true, mono: true, truncate: true, show: !!task.pod_ip },
-          { label: "Failure Message", value: task.failure_message, copyable: true, show: !!task.failure_message },
         ]}
       />
 
