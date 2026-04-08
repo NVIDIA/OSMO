@@ -56,11 +56,8 @@ export function useWorkflowSequenceNav(workflowName: string): SequenceNav | null
     router.push(`/workflows/${encodeURIComponent(parsed.prefix + (parsed.number + 1))}`);
   }, [parsed, router]);
 
-  if (!parsed) return null;
-
-  return {
-    onPrevious,
-    onNext,
-    hasPrevious: parsed.number > 1,
-  };
+  return useMemo(() => {
+    if (!parsed) return null;
+    return { onPrevious, onNext, hasPrevious: parsed.number > 1 };
+  }, [parsed, onPrevious, onNext]);
 }
