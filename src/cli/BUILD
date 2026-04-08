@@ -29,6 +29,7 @@ osmo_py_library(
     name = "cli_lib",
     srcs = [
         "access_token.py",
+        "agent_skill_installer.py",
         "app.py",
         "bucket.py",
         "config.py",

@@ -49,4 +49,9 @@ if [ -f "$OSMO_CLI_INSTALL_PATH/autocomplete.zsh" ]; then
     fi
 fi
 
+# OSMO Agent Skill Installation
+if [ -t 0 ]; then
+    "$OSMO_CLI_INSTALL_PATH/osmo" skills install --prompt || true
+fi
+
 exit 0

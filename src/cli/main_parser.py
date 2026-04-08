@@ -21,6 +21,7 @@ Main parser for the CLI.
 import argparse
 
 from src.cli import (
+    agent_skill_installer,
     app,
     access_token,
     bucket,
@@ -55,7 +56,8 @@ PARSERS = (
     profile.setup_parser,
     pool.setup_parser,
     user.setup_parser,
-    config.setup_parser
+    config.setup_parser,
+    agent_skill_installer.setup_parser,
 )
 
 

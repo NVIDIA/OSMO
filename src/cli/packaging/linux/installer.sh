@@ -120,4 +120,9 @@ fi
 # Clean up temp directory
 rm -rf "$OSMO_CLI_TMP_DIR"
 
+# OSMO Agent Skill Installation
+if [ -t 0 ]; then
+    "$OSMO_CLI_INSTALL_PATH/osmo" skills install --prompt || true
+fi
+
 exit 0
