@@ -1007,7 +1007,7 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
   "mock-canceled-idle": {
     ...MOCK_WORKFLOW_BASE,
     name: "mock-canceled-idle",
-    uuid: "550e8400-e29b-41d4-a716-446655440009",
+    uuid: "550e8400-e29b-41d4-a716-44665544000b",
     submitted_by: "jsmith@example.com",
     cancelled_by: "idle-job-shutdown",
     status: WorkflowStatus.FAILED_CANCELED,

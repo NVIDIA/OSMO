@@ -89,13 +89,13 @@ export const GroupOverviewTab = memo(function GroupOverviewTab({
 
   return (
     <div className="space-y-6 p-4">
-      {/* Timeline section */}
-      {hasTimeline && (
+      {/* Timeline section (also renders failure message inside the card) */}
+      {(hasTimeline || hasFailureMessage) && (
         <div>
           <h3 className={SECTION_HEADER}>Timeline</h3>
           <Card className="gap-0 overflow-hidden py-0">
             <CardContent className="min-w-0 overflow-hidden p-3">
-              <GroupTimeline group={group} />
+              {hasTimeline && <GroupTimeline group={group} />}
 
               {/* Failure message - inside timeline card, matching task view layout */}
               {hasFailureMessage && (
