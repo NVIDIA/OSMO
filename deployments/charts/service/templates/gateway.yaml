@@ -128,35 +128,16 @@ spec:
 ---
 
 {{/* ================================================================ */}}
-{{/* Envoy Service (internal) — ClusterIP for in-cluster callers     */}}
-{{/* (UI SSR, backend operator, etc.)                                 */}}
+{{/* Envoy Service                                                    */}}
+{{/*                                                                  */}}
+{{/* Service type controls external access:                           */}}
+{{/*   LoadBalancer (default) — NLB for direct external access        */}}
+{{/*   ClusterIP — use with gateway.envoy.ingress for shared ALB      */}}
 {{/* ================================================================ */}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ $gwName }}
-spec:
-  type: ClusterIP
-  ports:
-    - port: 80
-      targetPort: envoy-http
-      protocol: TCP
-      name: http
-  selector:
-    {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 4 }}
-
-{{- if $gw.envoy.service.enabled }}
----
-
-{{/* ================================================================ */}}
-{{/* Envoy Service (external) — LoadBalancer for external traffic.    */}}
-{{/* Disable this and use gateway.envoy.ingress when multiple         */}}
-{{/* namespaces need to share a single load balancer (e.g. ALB).      */}}
-{{/* ================================================================ */}}
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ $gwName }}-external
   {{- with $gw.envoy.service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
@@ -164,15 +145,6 @@ metadata:
 spec:
   type: {{ $gw.envoy.service.type | default "LoadBalancer" }}
   ports:
-    {{- if $gw.envoy.service.httpsPort }}
-    - port: {{ $gw.envoy.service.httpsPort }}
-      targetPort: envoy-http
-      protocol: TCP
-      name: https
-      {{- if $gw.envoy.service.nodePort }}
-      nodePort: {{ $gw.envoy.service.nodePort }}
-      {{- end }}
-    {{- else }}
     - port: 80
       targetPort: envoy-http
       protocol: TCP
@@ -180,18 +152,22 @@ spec:
       {{- if $gw.envoy.service.nodePort }}
       nodePort: {{ $gw.envoy.service.nodePort }}
       {{- end }}
+    {{- if $gw.envoy.service.httpsPort }}
+    - port: {{ $gw.envoy.service.httpsPort }}
+      targetPort: envoy-http
+      protocol: TCP
+      name: https
     {{- end }}
   selector:
     {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 4 }}
-{{- end }}
 
 {{- if $gw.envoy.ingress.enabled }}
 ---
 
 {{/* ================================================================ */}}
 {{/* Envoy Ingress — use when multiple namespaces share a single      */}}
-{{/* load balancer (e.g. ALB with group.name). Routes external        */}}
-{{/* traffic to the internal ClusterIP gateway service.                */}}
+{{/* load balancer (e.g. ALB with group.name). Set service type to    */}}
+{{/* ClusterIP and enable this to route external traffic via ALB.      */}}
 {{/* ================================================================ */}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress

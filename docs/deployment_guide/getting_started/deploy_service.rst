@@ -529,27 +529,25 @@ Step 5: Verify Deployment
    .. code-block:: bash
 
     $ kubectl get services -n osmo
-      NAME                     TYPE           CLUSTER-IP        EXTERNAL-IP   PORT(S)    AGE
-      osmo-agent               ClusterIP      xxx               <none>        80/TCP     <age>
-      osmo-gateway             ClusterIP      xxx               <none>        80/TCP     <age>
-      osmo-gateway-external    LoadBalancer   xxx               <external>    443/TCP    <age>
-      osmo-logger              ClusterIP      xxx               <none>        80/TCP     <age>
-      osmo-router              ClusterIP      xxx               <none>        80/TCP     <age>
-      osmo-service             ClusterIP      xxx               <none>        80/TCP     <age>
-      osmo-ui                  ClusterIP      xxx               <none>        80/TCP     <age>
+      NAME                TYPE           CLUSTER-IP        EXTERNAL-IP   PORT(S)           AGE
+      osmo-agent          ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
+      osmo-logger         ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-router         ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-service        ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-ui             ClusterIP      xxx               <none>        80/TCP            <age>
 
 3. Verify gateway service:
 
    .. code-block:: bash
 
     $ kubectl get services -n osmo | grep gateway
-      osmo-gateway             ClusterIP      xxx               <none>        80/TCP     <age>
-      osmo-gateway-external    LoadBalancer   xxx               <external>    443/TCP    <age>
+      osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
 
 Step 6: Post-deployment Configuration
 =====================================
 
-1. Configure DNS records to point to the ``osmo-gateway-external`` service's external IP or hostname. For example, create a record for ``osmo.example.com`` to point to the external IP of the ``osmo-gateway-external`` LoadBalancer service.
+1. Configure DNS records to point to the ``osmo-gateway`` service's external IP or hostname. For example, create a CNAME record for ``osmo.example.com`` pointing to the LoadBalancer hostname shown in ``kubectl get svc osmo-gateway -n osmo``.
 
 2. Test authentication flow
 
@@ -576,6 +574,6 @@ Troubleshooting
 
    * **Database connection failures**: Verify the database is running and accessible
    * **Authentication configuration issues**: Verify the authentication configuration is correct
-   * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway-external`` service has an external IP
+   * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct

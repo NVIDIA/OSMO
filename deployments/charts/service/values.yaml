@@ -1075,17 +1075,18 @@ gateway:
     ##
     serviceAccountName: ""
 
-    ## Kubernetes Service configuration for the external gateway Service.
-    ## Creates a LoadBalancer Service for external traffic (one NLB per deployment).
-    ## Disable this and use gateway.envoy.ingress when multiple namespaces need
-    ## to share a single load balancer (e.g. ALB with group.name).
+    ## Kubernetes Service configuration for the gateway.
+    ##
+    ## Two modes for external access:
+    ##   NLB (default): type=LoadBalancer — each deployment gets its own NLB
+    ##   ALB (shared):  type=ClusterIP + ingress.enabled=true — multiple
+    ##                  namespaces share a single ALB via group.name
     ##
     service:
-      ## Enable the external LoadBalancer Service
-      ##
-      enabled: true
-
-      ## Service type — LoadBalancer works everywhere (cloud, KIND, on-prem)
+      ## Service type:
+      ##   LoadBalancer — direct NLB access (default, one LB per deployment)
+      ##   ClusterIP    — use with gateway.envoy.ingress for shared ALB
+      ##   NodePort     — use with KIND port mapping for local development
       ##
       type: LoadBalancer
 
@@ -1095,17 +1096,21 @@ gateway:
       ##
       httpsPort: 443
 
+      ## Fixed NodePort for the HTTP port (only used when type=NodePort).
+      ## KIND maps this to a host port for local access.
+      ##
+      nodePort: null
+
       ## Annotations for the Service (e.g. AWS NLB annotations)
       ##
       annotations: {}
 
-    ## Ingress configuration for the gateway.
-    ## Use this instead of gateway.envoy.service when multiple namespaces share
-    ## a single load balancer (e.g. ALB with group.name). The Ingress routes
-    ## external traffic to the internal ClusterIP gateway service.
+    ## Ingress configuration for shared ALB mode.
+    ## Enable this and set service.type=ClusterIP when multiple namespaces
+    ## need to share a single load balancer (e.g. ALB with group.name).
     ##
     ingress:
-      ## Enable the Ingress resource (disable gateway.envoy.service when using this)
+      ## Enable ALB Ingress (set service.type to ClusterIP when using this)
       ##
       enabled: false
 

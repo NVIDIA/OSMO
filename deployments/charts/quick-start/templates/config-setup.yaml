@@ -29,8 +29,8 @@ spec:
         - sh
         - -c
         - |
-          until nc -z osmo-gateway 80; do
-            echo "Waiting for osmo-gateway..."
+          until nc -z {{ .Values.service.gateway.name | default "osmo-gateway" }} 80; do
+            echo "Waiting for {{ .Values.service.gateway.name | default "osmo-gateway" }}..."
             sleep 2
           done
           echo "OSMO gateway is ready"
@@ -45,7 +45,7 @@ spec:
 
           apk add --no-cache jq
 
-          BASE_URL="http://osmo-gateway"
+          BASE_URL="http://{{ .Values.service.gateway.name | default "osmo-gateway" }}"
           echo "Using URL: $BASE_URL"
 
           echo "Configuring OSMO settings..."
@@ -222,20 +222,6 @@ spec:
           done
           echo "Backend default is now available"
 
-          echo "Configuring backend settings..."
-
-          # Update backend configuration (POST /api/configs/backend/default)
-          curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -H "x-osmo-user: testuser" \
-            "$BASE_URL/api/configs/backend/default" \
-            -d '{
-              "configs": {
-                "router_address": "ws://'${EXTERNAL_HOSTNAME}'"
-              },
-              "description": "Update default backend config"
-            }'
-
           echo "Setting default pool..."
 
           # Set default pool (POST /api/profile/settings)
@@ -286,5 +272,3 @@ spec:
           value: {{ .Values.global.osmoImageLocation | quote }}
         - name: OSMO_IMAGE_TAG
           value: {{ .Values.global.osmoImageTag | quote }}
-        - name: EXTERNAL_HOSTNAME
-          value: {{ .Values.service.services.service.hostname | quote }}
