@@ -110,7 +110,7 @@ class NodeCondition(pydantic.BaseModel):
 
     @pydantic.field_validator('last_heartbeat_time', 'last_transition_time')
     @classmethod
-    def validate_rfc3339_timestamp(cls, v):
+    def validate_rfc3339_timestamp(cls, v: str | None) -> str | None:
         """Validate RFC3339 timestamp format if value is provided.
 
         Args:

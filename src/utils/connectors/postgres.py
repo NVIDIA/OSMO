@@ -3253,8 +3253,10 @@ class PlatformMinimal(PlatformBase):
     default_mounts: List[str] = []
 
 
-class PlatformEditable(PlatformBase, extra='ignore'):
+class PlatformEditable(PlatformBase):
     """ Single Platform Entry """
+
+    model_config = pydantic.ConfigDict(extra='ignore')
 
     default_variables: Dict = {}
     resource_validations: List[str] = []

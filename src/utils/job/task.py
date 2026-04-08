@@ -521,7 +521,7 @@ class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
 
     @pydantic.field_validator('frequency', mode='before')
     @classmethod
-    def validate_frequency(cls, value) ->datetime.timedelta:
+    def validate_frequency(cls, value) -> datetime.timedelta:
         if isinstance(value, (int, float)):
             return datetime.timedelta(seconds=value)
         if isinstance(value, datetime.timedelta):
@@ -635,11 +635,16 @@ class TaskSpec(pydantic.BaseModel):
     @pydantic.field_validator('credentials', mode='before')
     @classmethod
     def coerce_credential_values(cls, value: Any) -> Any:
-        """Coerce non-string credential values to strings.
+        """Coerce credential values to their expected types.
 
         Credential values can be str (path) or Dict[str, str] (key mappings).
         YAML may parse values as int/bool instead of str.
+
+        Raises:
+            ValueError: If value is not a str or dict.
         """
+        if isinstance(value, str):
+            return value
         if isinstance(value, dict):
             result: Dict[str, Union[str, Dict[str, str]]] = {}
             for k, v in value.items():
@@ -648,7 +653,9 @@ class TaskSpec(pydantic.BaseModel):
                 else:
                     result[str(k)] = str(v)
             return result
-        return value
+        raise ValueError(
+            f'credentials must be a str or dict, got {type(value).__name__}'
+        )
 
     @pydantic.field_validator('downloadType', mode='before')
     @classmethod
@@ -969,7 +976,7 @@ class TaskGroupSpec(pydantic.BaseModel):
         Raises:
             ValueError: Containers fails validation.
         """
-        group_name = info.data['name']
+        group_name = info.data.get('name', '<unknown>')
 
         # Need at least one task
         if not value:

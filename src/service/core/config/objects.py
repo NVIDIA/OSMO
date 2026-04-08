@@ -362,25 +362,29 @@ class ConfigHistoryQueryParams(pydantic.BaseModel):
 
     @pydantic.field_validator('config_types')
     @classmethod
-    def validate_config_types(cls, v):
-        if v is not None:
+    def validate_config_types(
+        cls, config_types: List[config_history.ConfigHistoryType] | None
+    ) -> List[config_history.ConfigHistoryType] | None:
+        if config_types is not None:
             valid_types = [t.value.lower() for t in config_history.ConfigHistoryType]
-            invalid_types = [t for t in v if t.value.lower() not in valid_types]
+            invalid_types = [t for t in config_types if t.value.lower() not in valid_types]
             if invalid_types:
                 raise ValueError(
                     f'Invalid config types: {invalid_types}. Valid types are: {valid_types}'
                 )
-        return v
+        return config_types
 
     @pydantic.field_validator('at_timestamp')
     @classmethod
-    def validate_at_timestamp(cls, v, info: pydantic.ValidationInfo):
-        if v is not None:
+    def validate_at_timestamp(
+        cls, at_timestamp: datetime.datetime | None, info: pydantic.ValidationInfo
+    ) -> datetime.datetime | None:
+        if at_timestamp is not None:
             if 'created_before' in info.data and info.data['created_before'] is not None:
                 raise ValueError('Cannot specify both at_timestamp and created_before')
             if 'created_after' in info.data and info.data['created_after'] is not None:
                 raise ValueError('Cannot specify both at_timestamp and created_after')
-        return v
+        return at_timestamp
 
 
 class ConfigHistory(pydantic.BaseModel):
@@ -423,14 +427,14 @@ class UpdateConfigTagsRequest(pydantic.BaseModel):
 
     @pydantic.field_validator('set_tags', 'delete_tags')
     @classmethod
-    def validate_tags(cls, v):
-        if v is not None and not v:
+    def validate_tags(cls, tags: List[str] | None) -> List[str] | None:
+        if tags is not None and not tags:
             raise ValueError('Tags list cannot be empty')
-        return v
+        return tags
 
     @pydantic.model_validator(mode='before')
     @classmethod
-    def validate_at_least_one_tag_operation(cls, values):
+    def validate_at_least_one_tag_operation(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(values, dict):
             return values
         if not values.get('set_tags') and not values.get('delete_tags'):

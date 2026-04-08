@@ -100,7 +100,7 @@ class AuthenticationConfig(pydantic.BaseModel):
         try:
             common.to_timedelta(value)
         except ValueError as e:
-            raise osmo_errors.OSMOUserError(f'Invalid max_token_duration format: {str(e)}')
+            raise osmo_errors.OSMOUserError(f'Invalid max_token_duration format: {str(e)}') from e
         return value
 
     @classmethod
