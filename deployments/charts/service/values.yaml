@@ -380,13 +380,29 @@ services:
             resources: ["*"]
           external_roles: [osmo-backend]
 
-    ## Backend cluster definitions (site-specific).
+    ## Backend cluster definitions. The "default" backend is created by
+    ## configure_app() on first deploy — include it here so ConfigMap mode
+    ## serves it from memory.
     ##
-    backends: {}
+    backends:
+      items:
+        default:
+          description: "Default backend"
+          scheduler_settings:
+            scheduler_type: kai
+            scheduler_name: kai-scheduler
+            scheduler_timeout: 30
 
-    ## Pool definitions (site-specific).
+    ## Pool definitions. The "default" pool references the "default" backend.
     ##
-    pools: {}
+    pools:
+      items:
+        default:
+          description: "Default pool"
+          backend: default
+          default_platform: default
+          platforms:
+            default: {}
 
     ## Backend test definitions.
     ##
