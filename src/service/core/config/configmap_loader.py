@@ -26,12 +26,7 @@ from typing import Any, Callable, Dict, List
 import yaml
 from watchdog import events, observers
 
-from src.lib.utils import role as role_lib
-from src.service.core.config import (
-    config_service,
-    configmap_guard,
-    objects as config_objects,
-)
+from src.service.core.config import configmap_guard
 from src.utils import connectors
 
 CONFIGMAP_SYNC_USERNAME = configmap_guard.CONFIGMAP_SYNC_USERNAME
@@ -177,9 +172,6 @@ class ConfigMapWatcher:
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
 
-        # Write roles to DB — authz_sidecar reads roles from PostgreSQL
-        self._write_roles_to_db(managed_configs)
-
         return True
 
     def _inject_runtime_fields(
@@ -208,34 +200,6 @@ class ConfigMapWatcher:
             if field not in service_config and field in prev_service:
                 service_config[field] = prev_service[field]
 
-    def _write_roles_to_db(self, managed_configs: Dict[str, Any]) -> None:
-        """Write roles to the roles DB table for the Go authz_sidecar."""
-        roles_section = managed_configs.get('roles')
-        if not roles_section:
-            return
-        items = roles_section.get('items', {})
-        if not items:
-            return
-
-        try:
-            configs: List[connectors.Role] = []
-            for name, role_data in items.items():
-                raw_policies = role_data.get('policies', [])
-                policies = [role_lib.RolePolicy(**policy) for policy in raw_policies]
-                role_fields = {**role_data, 'policies': policies}
-                configs.append(connectors.Role(name=name, **role_fields))
-
-            config_service.put_roles(
-                request=config_objects.PutRolesRequest(
-                    configs=configs,
-                    description='Applied from ConfigMap',
-                    tags=CONFIGMAP_SYNC_TAGS,
-                ),
-                username=CONFIGMAP_SYNC_USERNAME,
-            )
-            logging.info('Wrote %d roles to DB for authz_sidecar', len(configs))
-        except Exception:  # pylint: disable=broad-exception-caught
-            logging.exception('Failed to write roles to DB for authz_sidecar')
 
 
 # ---------------------------------------------------------------------------
