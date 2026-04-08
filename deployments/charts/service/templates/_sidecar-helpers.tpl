@@ -305,6 +305,9 @@ Authorization sidecar container
   imagePullPolicy: {{ .Values.sidecars.authz.imagePullPolicy }}
   args:
     - "--grpc-port={{ .Values.sidecars.authz.grpcPort }}"
+    {{- if .Values.services.dynamicConfig.enabled }}
+    - "--roles-file=/etc/osmo/dynamic-config/config.yaml"
+    {{- else }}
     - "--postgres-host={{ .Values.services.postgres.serviceName }}"
     - "--postgres-port={{ .Values.services.postgres.port }}"
     - "--postgres-database={{ .Values.services.postgres.db }}"
@@ -313,6 +316,7 @@ Authorization sidecar container
     - "--postgres-max-conns={{ .Values.sidecars.authz.postgres.maxConns }}"
     - "--postgres-min-conns={{ .Values.sidecars.authz.postgres.minConns }}"
     - "--postgres-max-conn-lifetime={{ .Values.sidecars.authz.postgres.maxConnLifetimeMin }}"
+    {{- end }}
     - "--cache-ttl={{ .Values.sidecars.authz.cache.ttl }}"
     - "--cache-max-size={{ .Values.sidecars.authz.cache.maxSize }}"
     {{- if .Values.global.logs.enabled }}
@@ -340,10 +344,15 @@ Authorization sidecar container
           name: redis-secret
           key: redis-password
     {{- end }}
-  {{- if .Values.global.logs.enabled }}
   volumeMounts:
+  {{- if .Values.global.logs.enabled }}
     - name: logs
       mountPath: /logs
+  {{- end }}
+  {{- if .Values.services.dynamicConfig.enabled }}
+    - name: dynamic-config
+      mountPath: /etc/osmo/dynamic-config
+      readOnly: true
   {{- end }}
   {{- with .Values.sidecars.authz.livenessProbe }}
   livenessProbe:
