@@ -102,9 +102,7 @@ export const GroupOverviewTab = memo(function GroupOverviewTab({
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
-                    <p className="text-xs wrap-break-word text-red-700 dark:text-red-400">
-                      {group.failure_message}
-                    </p>
+                    <p className="text-xs wrap-break-word text-red-700 dark:text-red-400">{group.failure_message}</p>
                   </div>
                 </div>
               )}
