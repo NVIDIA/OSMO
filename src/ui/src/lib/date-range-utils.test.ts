@@ -223,9 +223,7 @@ describe("date-range-utils", () => {
     });
 
     it("has 'last 365 days' preset that returns correct range", () => {
-      const preset = DATE_RANGE_PRESETS.find(
-        (p) => p.label === "last 365 days"
-      );
+      const preset = DATE_RANGE_PRESETS.find((p) => p.label === "last 365 days");
       expect(preset).toBeDefined();
       expect(preset!.getValue()).toBe("2025-03-15..2026-03-15");
     });
