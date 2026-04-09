@@ -1,0 +1,97 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Responds to /testbot commands in review comments and PR comments on
+# AI-generated PRs. Delegates fixes to Claude Code CLI, posts inline
+# replies, and resolves addressed threads.
+name: Testbot - Respond to Reviews
+
+on:
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: testbot-respond-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  respond:
+    environment: testbot-respond
+    # Label gate + fork rejection. Author association is checked per-thread in
+    # respond.py, not here — a bot comment event must still let the workflow run
+    # so it can process pending /testbot threads from repo members.
+    if: >-
+      contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.10'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: src/ui/package.json
+
+      - name: Install UI dependencies
+        working-directory: src/ui
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
+
+      - name: Configure git
+        run: |
+          git config user.name "testbot[bot]"
+          git config user.email "testbot[bot]@users.noreply.github.com"
+
+      - name: Respond to review comments
+        run: |
+          PYTHONPATH=src/scripts python -m testbot.respond \
+            --pr-number ${{ github.event.pull_request.number }} \
+            --trigger-phrase /testbot \
+            --max-responses 10 \
+            --max-turns 50 \
+            --model aws/anthropic/claude-opus-4-5
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}

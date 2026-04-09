@@ -127,7 +127,7 @@ DEFAULT_VARIABLES = {
 }
 
 
-class ListBackendsResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListBackendsResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing info for all backends. """
     backends: List[connectors.Backend]
 
@@ -195,15 +195,15 @@ class BackendConfig(pydantic.BaseModel):
 
     def plaintext_dict(self, *args, **kwargs):
         """Convert the BackendConfig to a dictionary."""
-        dict_data = super().dict(*args, **kwargs)
+        dict_data = super().model_dump(*args, **kwargs)
         dict_data['scheduler_settings'] = (
             None
             if not self.scheduler_settings
-            else str(self.scheduler_settings.json())
+            else self.scheduler_settings.model_dump_json()
         )
 
         dict_data['node_conditions'] = (
-            None if not self.node_conditions else str(self.node_conditions.json())
+            None if not self.node_conditions else self.node_conditions.model_dump_json()
         )
         return dict_data
 
@@ -360,27 +360,31 @@ class ConfigHistoryQueryParams(pydantic.BaseModel):
         default=False, description='Whether to omit data from the response'
     )
 
-    @pydantic.validator('config_types')
+    @pydantic.field_validator('config_types')
     @classmethod
-    def validate_config_types(cls, v):
-        if v is not None:
+    def validate_config_types(
+        cls, config_types: List[config_history.ConfigHistoryType] | None
+    ) -> List[config_history.ConfigHistoryType] | None:
+        if config_types is not None:
             valid_types = [t.value.lower() for t in config_history.ConfigHistoryType]
-            invalid_types = [t for t in v if t.value.lower() not in valid_types]
+            invalid_types = [t for t in config_types if t.value.lower() not in valid_types]
             if invalid_types:
                 raise ValueError(
                     f'Invalid config types: {invalid_types}. Valid types are: {valid_types}'
                 )
-        return v
+        return config_types
 
-    @pydantic.validator('at_timestamp')
+    @pydantic.field_validator('at_timestamp')
     @classmethod
-    def validate_at_timestamp(cls, v, values):
-        if v is not None:
-            if 'created_before' in values and values['created_before'] is not None:
+    def validate_at_timestamp(
+        cls, at_timestamp: datetime.datetime | None, info: pydantic.ValidationInfo
+    ) -> datetime.datetime | None:
+        if at_timestamp is not None:
+            if 'created_before' in info.data and info.data['created_before'] is not None:
                 raise ValueError('Cannot specify both at_timestamp and created_before')
-            if 'created_after' in values and values['created_after'] is not None:
+            if 'created_after' in info.data and info.data['created_after'] is not None:
                 raise ValueError('Cannot specify both at_timestamp and created_after')
-        return v
+        return at_timestamp
 
 
 class ConfigHistory(pydantic.BaseModel):
@@ -392,8 +396,8 @@ class ConfigHistory(pydantic.BaseModel):
     username: str
     created_at: datetime.datetime
     description: str
-    tags: List[str] | None
-    data: Any
+    tags: List[str] | None = None
+    data: Any = None
 
 
 class GetConfigsHistoryResponse(pydantic.BaseModel):
@@ -421,16 +425,18 @@ class UpdateConfigTagsRequest(pydantic.BaseModel):
         description='Tags to remove from the config'
     )
 
-    @pydantic.validator('set_tags', 'delete_tags')
+    @pydantic.field_validator('set_tags', 'delete_tags')
     @classmethod
-    def validate_tags(cls, v):
-        if v is not None and not v:
+    def validate_tags(cls, tags: List[str] | None) -> List[str] | None:
+        if tags is not None and not tags:
             raise ValueError('Tags list cannot be empty')
-        return v
+        return tags
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
-    def validate_at_least_one_tag_operation(cls, values):
+    def validate_at_least_one_tag_operation(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
         if not values.get('set_tags') and not values.get('delete_tags'):
             raise ValueError('At least one of set_tags or delete_tags must be provided')
         return values
@@ -447,5 +453,5 @@ class ConfigDiffRequest(pydantic.BaseModel):
 class ConfigDiffResponse(pydantic.BaseModel):
     """Response body for config diff endpoint."""
 
-    first_data: Any
-    second_data: Any
+    first_data: Any = None
+    second_data: Any = None

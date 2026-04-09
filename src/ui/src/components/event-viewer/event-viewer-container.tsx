@@ -37,9 +37,9 @@ import "@/components/event-viewer/event-viewer.css";
 /** OSMO Postgres timestamps for a single task attempt. */
 export interface TaskTiming {
   /** ISO string from TaskQueryResponse.processing_start_time */
-  processingStartTime?: string;
+  processingStartTime?: string | null;
   /** ISO string from TaskQueryResponse.end_time — absent for live tasks */
-  endTime?: string;
+  endTime?: string | null;
 }
 
 interface EventViewerContainerProps {

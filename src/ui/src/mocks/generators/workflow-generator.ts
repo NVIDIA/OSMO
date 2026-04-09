@@ -166,6 +166,10 @@ export class WorkflowGenerator {
   private config: GeneratorConfig;
   private nameToIndexCache: Map<string, number> = new Map();
   private cachedUpToIndex: number = -1;
+  /** Incrementally-built sequenced names (e.g. "train-llama-1", "train-llama-2") */
+  private sequenceNameCache: Map<number, string> = new Map();
+  private sequenceBuiltUpTo: number = -1;
+  private baseNameCounter: Map<string, number> = new Map();
 
   constructor(config: Partial<GeneratorConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -174,6 +178,9 @@ export class WorkflowGenerator {
   clearCache(): void {
     this.nameToIndexCache.clear();
     this.cachedUpToIndex = -1;
+    this.sequenceNameCache.clear();
+    this.sequenceBuiltUpTo = -1;
+    this.baseNameCounter.clear();
   }
 
   get total(): number {
@@ -446,11 +453,37 @@ export class WorkflowGenerator {
     return Object.keys(distribution)[0];
   }
 
-  private generateName(_index: number): string {
-    const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
-    const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
-    const id = faker.string.alphanumeric(8).toLowerCase();
-    return `${prefix}-${suffix}-${id}`;
+  /**
+   * Incrementally build sequenced names up to the requested index.
+   * Each base name (prefix-suffix) gets a sequence number starting at 1,
+   * e.g. "train-llama-1", "train-llama-2", "eval-bert-1".
+   */
+  private ensureSequenceBuiltUpTo(index: number): void {
+    for (let i = this.sequenceBuiltUpTo + 1; i <= index; i++) {
+      faker.seed(this.config.baseSeed + i);
+      const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+      const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+      const baseName = `${prefix}-${suffix}`;
+      const seq = (this.baseNameCounter.get(baseName) ?? 0) + 1;
+      this.baseNameCounter.set(baseName, seq);
+      this.sequenceNameCache.set(i, `${baseName}-${seq}`);
+    }
+    if (index > this.sequenceBuiltUpTo) {
+      this.sequenceBuiltUpTo = index;
+    }
+  }
+
+  private generateName(index: number): string {
+    this.ensureSequenceBuiltUpTo(index);
+
+    // Re-seed and consume the same faker calls as the original implementation
+    // to keep downstream generation (buildWorkflowBody) deterministic.
+    faker.seed(this.config.baseSeed + index);
+    faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+    faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+    faker.string.alphanumeric(8);
+
+    return this.sequenceNameCache.get(index) ?? `workflow-${index + 1}`;
   }
 
   private generateSubmitTime(index: number): string {

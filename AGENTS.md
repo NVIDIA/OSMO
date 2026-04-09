@@ -193,6 +193,11 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 - `backend_worker.py` — Job execution engine for backend tasks
 - `backend_test_runner/` — Test orchestration for backend validation
 - `utils/node_validation_test/` — GPU validation (nvidia-smi, tflops benchmark, stuck pod detection)
+
+### Testbot (`scripts/testbot/`)
+
+AI-powered test generation and review response using Claude Code CLI. See `scripts/testbot/README.md` for details.
+
 ### Tests
 
 
@@ -204,6 +209,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 | `utils/*_test.go`                           | Go testing                     | Go utility tests (roles, postgres, redis)                                                                                                                  |
 | `ui/src/**/*.test.ts`                       | Vitest                         | Frontend unit tests                                                                                                                                        |
 | `ui/e2e/`                                   | Playwright                     | Frontend E2E tests with page object models                                                                                                                 |
+| `scripts/testbot/tests/`                    | unittest                       | Testbot unit tests (coverage targets, guardrails, respond, create_pr)                                                                                      |
 
 ### Key Architecture Patterns
 

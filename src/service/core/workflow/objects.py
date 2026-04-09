@@ -20,7 +20,7 @@ import collections
 import datetime
 import json
 import math
-from typing import Any, Dict, List, NamedTuple, Optional, Protocol, Set
+from typing import Any, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Set
 import yaml
 
 import pydantic
@@ -31,6 +31,7 @@ from src.lib.utils import credentials, common, osmo_errors, priority as wf_prior
 from src.lib.utils.redact import redact_secrets
 import src.lib.utils.logging
 from src.utils.job import app, common as task_common, jobs, kb_objects, task, workflow
+from src.utils.job.task import _encode_hstore
 from src.utils import connectors, static_config, yaml as util_yaml
 from src.utils.metrics import metrics
 
@@ -40,69 +41,76 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                             static_config.StaticConfig, metrics.MetricsCreatorConfig):
     """ Manages configuration specific to the workflow service. """
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the workflow service.')
+        description='The url to bind to when serving the workflow service.',
+        json_schema_extra={'command_line': 'host'})
     device_endpoint: str | None = pydantic.Field(
-        command_line='device_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the device endpoint.')
+        description='The url to bind to when authenticating with the device endpoint.',
+        json_schema_extra={'command_line': 'device_endpoint'})
     device_client_id: str | None = pydantic.Field(
-        command_line='device_client_id',
         default=None,
-        description='The client id to use when authenticating with the device endpoint.')
+        description='The client id to use when authenticating with the device endpoint.',
+        json_schema_extra={'command_line': 'device_client_id'})
     browser_endpoint: str | None = pydantic.Field(
-        command_line='browser_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the browser endpoint.')
+        description='The url to bind to when authenticating with the browser endpoint.',
+        json_schema_extra={'command_line': 'browser_endpoint'})
     browser_client_id: str | None = pydantic.Field(
-        command_line='browser_client_id',
         default=None,
-        description='The client id to use when authenticating with the browser endpoint.')
+        description='The client id to use when authenticating with the browser endpoint.',
+        json_schema_extra={'command_line': 'browser_client_id'})
     token_endpoint: str | None = pydantic.Field(
-        command_line='token_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the token endpoint.')
+        description='The url to bind to when authenticating with the token endpoint.',
+        json_schema_extra={'command_line': 'token_endpoint'})
     logout_endpoint: str | None = pydantic.Field(
-        command_line='logout_endpoint',
         default=None,
-        description='The url to bind to when authenticating with the logout endpoint.')
+        description='The url to bind to when authenticating with the logout endpoint.',
+        json_schema_extra={'command_line': 'logout_endpoint'})
     client_install_url: str | None = pydantic.Field(
-        command_line='client_install_url',
         default=None,
-        description='The URL for the client install script shown in version update messages.')
+        description='The URL for the client install script shown in version update messages.',
+        json_schema_extra={'command_line': 'client_install_url'})
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write progress timestamps to (For liveness/startup probes)')
+        description='The file to write progress timestamps to (For liveness/startup probes)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_iter_frequency: str = pydantic.Field(
-        command_line='progress_iter_frequency',
-        env='OSMO_PROGRESS_ITER_FREQUENCY',
         default='15s',
         description='How often to write to progress file when processing tasks in a loop ('
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
-                    'm (minutes).')
+                    'm (minutes).',
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
+        })
     default_admin_username: str | None = pydantic.Field(
-        command_line='default_admin_username',
-        env='OSMO_DEFAULT_ADMIN_USERNAME',
         default=None,
         description='The username for the default admin user to create on startup. '
-                    'If set, default_admin_password must also be set.')
+                    'If set, default_admin_password must also be set.',
+        json_schema_extra={
+            'command_line': 'default_admin_username',
+            'env': 'OSMO_DEFAULT_ADMIN_USERNAME'
+        })
     default_admin_password: str | None = pydantic.Field(
-        command_line='default_admin_password',
-        env='OSMO_DEFAULT_ADMIN_PASSWORD',
         default=None,
         description='The password (access token value) for the default admin user. '
-                    'Must be set if default_admin_username is set.')
+                    'Must be set if default_admin_username is set.',
+        json_schema_extra={
+            'command_line': 'default_admin_password',
+            'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
+        })
 
-    @pydantic.root_validator()
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_default_admin(cls, values):
         """
         Validate that if default_admin_username is set, default_admin_password must also be set
         """
+        if not isinstance(values, dict):
+            return values
         username = values.get('default_admin_username')
         password = values.get('default_admin_password')
         if username and not password:
@@ -115,11 +123,9 @@ class WorkflowServiceContext(pydantic.BaseModel):
     """ Shared context that needs to be access from all api methods. """
     config: WorkflowServiceConfig
     database: connectors.PostgresConnector
-    _instance: Optional['WorkflowServiceContext'] = None
+    _instance: ClassVar[Optional['WorkflowServiceContext']] = None
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     @classmethod
     def set(cls, instance: 'WorkflowServiceContext'):
@@ -132,8 +138,9 @@ class WorkflowServiceContext(pydantic.BaseModel):
                 'Using WorkflowServiceContext before initialization.')
         return cls._instance
 
-class ResourceUsage(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ResourceUsage(pydantic.BaseModel):
     """ Object storing resource usage information. """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
     quota_used: str
     quota_free: str
     quota_limit: str
@@ -142,64 +149,70 @@ class ResourceUsage(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     total_free: str
 
 
-class PoolResourceUsage(connectors.PoolMinimal, extra=pydantic.Extra.forbid):
+class PoolResourceUsage(connectors.PoolMinimal, extra='forbid'):
     """ Object storing pool information. """
     resource_usage: ResourceUsage
 
 
-class PoolNodeSetResourceUsage(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PoolNodeSetResourceUsage(pydantic.BaseModel, extra='forbid'):
     """ Object storing pool node set information. """
     pools: List[PoolResourceUsage]
 
 
-class PoolResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PoolResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing pool information. """
     node_sets: List[PoolNodeSetResourceUsage]
     resource_sum: ResourceUsage
 
 
-class SubmitResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class SubmitResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing workflow name, logs, and spec after submission. """
     # The name of the newly created workflow
     name: str
-    overview: Optional[str]
-    logs: Optional[str]
-    spec: Optional[str]
-    dashboard_url: Optional[str]
+    overview: Optional[str] = None
+    logs: Optional[str] = None
+    spec: Optional[str] = None
+    dashboard_url: Optional[str] = None
 
+    @pydantic.model_validator(mode='before')
     @classmethod
-    @pydantic.root_validator
     def logs_or_spec(cls, values):
-        if (values['logs'] is not None, values['spec'] is not None).count(True) != 1:
+        # In Pydantic v2, mode='before' receives raw input, so optional
+        # fields may be absent from the dict — use .get() with defaults.
+        logs = values.get('logs') if isinstance(values, dict) else getattr(values, 'logs', None)
+        spec = values.get('spec') if isinstance(values, dict) else getattr(values, 'spec', None)
+        if (logs is not None, spec is not None).count(True) != 1:
             raise ValueError('Exactly one of "logs" or "spec" must be set')
         return values
 
 
-class CancelResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class CancelResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing workflow name. """
     name: str
 
 
-class ListEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListEntry(pydantic.BaseModel):
     """ Entry for list API results. """
+    model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
+
     user: str
     name: str
     workflow_uuid: str
     submit_time: datetime.datetime
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
     queued_time: datetime.timedelta
-    duration: datetime.timedelta | None
+    duration: datetime.timedelta | None = None
     status: workflow.WorkflowStatus
     overview: str
     logs: str
-    error_logs: str | None
-    grafana_url: str | None
-    dashboard_url: str | None
-    pool: str | None
-    app_owner: str | None
-    app_name: str | None
-    app_version: int | None
+    error_logs: str | None = None
+    grafana_url: str | None = None
+    dashboard_url: str | None = None
+    pool: str | None = None
+    app_owner: str | None = None
+    app_name: str | None = None
+    app_version: int | None = None
     priority: str
 
     @classmethod
@@ -211,7 +224,7 @@ class ListEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         overview = f'{base_url}/workflows/{row["workflow_id"]}'
         if config.method == 'dev':
             overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
-        return ListEntry.construct(
+        return ListEntry.model_construct(
             user=row['submitted_by'], name=row['workflow_id'],
             workflow_uuid=row['workflow_uuid'],
             submit_time=row['submit_time'],
@@ -235,7 +248,7 @@ class ListEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             priority=row['priority'])
 
 
-class ListResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListResponse(pydantic.BaseModel, extra='forbid'):
     workflows: List[ListEntry]
     more_entries: bool
 
@@ -243,53 +256,53 @@ class ListResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     def from_db_rows(cls, rows: Any, base_url: str, more_entries: bool) -> 'ListResponse':
         backend_lookup: Dict = {}
         workflows = [ListEntry.from_db_row(row, base_url, backend_lookup) for row in rows]
-        return ListResponse.construct(workflows=workflows, more_entries=more_entries)
+        return ListResponse.model_construct(workflows=workflows, more_entries=more_entries)
 
 
-class ListTaskSummaryEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListTaskSummaryEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task list API results. """
     user: str
-    pool: str | None
-    storage: int # Gi
+    pool: str | None = None
+    storage: float # GiB
     cpu: int
-    memory: int # Gi
+    memory: float # GiB
     gpu: int
     priority: str
 
     @classmethod
     def from_db_row(cls, row: Any) -> 'ListTaskSummaryEntry':
         """ Create ListEntry from the DB query result. """
-        return ListTaskSummaryEntry.construct(
+        return ListTaskSummaryEntry.model_construct(
             user=row['submitted_by'],
             pool=row['pool'],
             storage=row['disk_count'],
-            cpu=row['cpu_count'],
+            cpu=round(row['cpu_count']),
             memory=row['memory_count'],
-            gpu=row['gpu_count'],
+            gpu=round(row['gpu_count']),
             priority=row['priority'],
             )
 
-class ListTaskAggregatedEntry(ListTaskSummaryEntry, extra=pydantic.Extra.forbid):
+class ListTaskAggregatedEntry(ListTaskSummaryEntry, extra='forbid'):
     """ Entry for task list API results, aggregated by workflow. """
     workflow_id: str
 
     @classmethod
     def from_db_row(cls, row: Any) -> 'ListTaskAggregatedEntry':
-        return ListTaskAggregatedEntry.construct(
+        return ListTaskAggregatedEntry.model_construct(
             workflow_id=row['workflow_id'],
-            **ListTaskSummaryEntry.from_db_row(row).dict()
+            **ListTaskSummaryEntry.from_db_row(row).model_dump()
             )
 
-class ListTaskSummaryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListTaskSummaryResponse(pydantic.BaseModel, extra='forbid'):
     summaries: List[ListTaskSummaryEntry]
 
     @classmethod
     def from_db_rows(cls, rows: Any) -> 'ListTaskSummaryResponse':
         summaries = [ListTaskSummaryEntry.from_db_row(row) for row in rows]
-        return ListTaskSummaryResponse.construct(summaries=summaries)
+        return ListTaskSummaryResponse.model_construct(summaries=summaries)
 
 
-class ListTaskAggregatedResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListTaskAggregatedResponse(pydantic.BaseModel, extra='forbid'):
     summaries: List[ListTaskAggregatedEntry]
 
     @classmethod
@@ -297,17 +310,17 @@ class ListTaskAggregatedResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid
         summaries = [ListTaskAggregatedEntry.from_db_row(row) for row in rows]
         return ListTaskAggregatedResponse(summaries=summaries)
 
-class TaskEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TaskEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for task GET API result. """
     workflow_id: str
     task_name: str
-    node: str | None
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
+    node: str | None = None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
     status: task.TaskGroupStatus
-    storage: int  # Gi
+    storage: float  # GiB
     cpu: int
-    memory: int  # Gi
+    memory: float  # GiB
     gpu: int
 
 
@@ -322,33 +335,35 @@ class TaskEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             end_time=row['end_time'],
             status=task.TaskGroupStatus(row['status']),
             storage=row['disk_count'],
-            cpu=row['cpu_count'],
+            cpu=round(row['cpu_count']),
             memory=row['memory_count'],
-            gpu=row['gpu_count'],
+            gpu=round(row['gpu_count']),
         )
 
 
-class ListTaskEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListTaskEntry(pydantic.BaseModel):
     """ Entry for task list API results. """
+    model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
+
     user: str
     workflow_id: str
     workflow_uuid: str
     task_name: str
     retry_id: int
-    pool: str | None
-    node: str | None
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
-    duration: datetime.timedelta | None
+    pool: str | None = None
+    node: str | None = None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
+    duration: datetime.timedelta | None = None
     status: task.TaskGroupStatus
     overview: str
     logs: str
-    error_logs: str | None
-    grafana_url: str | None
-    dashboard_url: str | None
-    storage: int # Gi
+    error_logs: str | None = None
+    grafana_url: str | None = None
+    dashboard_url: str | None = None
+    storage: float # GiB
     cpu: int
-    memory: int # Gi
+    memory: float # GiB
     gpu: int
     priority: str
 
@@ -361,7 +376,7 @@ class ListTaskEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         overview = f'{base_url}/workflows/{row["workflow_id"]}'
         if config.method == 'dev':
             overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
-        return ListTaskEntry.construct(
+        return ListTaskEntry.model_construct(
             user=row['submitted_by'],
             workflow_id=row['workflow_id'],
             workflow_uuid=row['workflow_uuid'],
@@ -384,21 +399,21 @@ class ListTaskEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             dashboard_url=generate_dashboard_url(row['workflow_uuid'],
                                                          row['backend'], backend_lookup),
             storage=row['disk_count'],
-            cpu=row['cpu_count'],
+            cpu=round(row['cpu_count']),
             memory=row['memory_count'],
-            gpu=row['gpu_count'],
+            gpu=round(row['gpu_count']),
             priority=row['priority'],
             )
 
 
-class ListTaskResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListTaskResponse(pydantic.BaseModel, extra='forbid'):
     tasks: List[ListTaskEntry]
 
     @classmethod
     def from_db_rows(cls, rows: Any, base_url: str) -> 'ListTaskResponse':
         backend_lookup: Dict = {}
         tasks = [ListTaskEntry.from_db_row(row, base_url, backend_lookup) for row in rows]
-        return ListTaskResponse.construct(tasks=tasks)
+        return ListTaskResponse.model_construct(tasks=tasks)
 
 
 class TaskQueryResponse(pydantic.BaseModel):
@@ -406,7 +421,7 @@ class TaskQueryResponse(pydantic.BaseModel):
     name: str
     retry_id: int
     status: task.TaskGroupStatus
-    failure_message: str | None
+    failure_message: str | None = None
     exit_code: int | None = None
     logs: str
     error_logs: str | None = None
@@ -426,7 +441,7 @@ class TaskQueryResponse(pydantic.BaseModel):
     node_name: str | None = None
     lead: bool = False
 
-class GroupQueryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class GroupQueryResponse(pydantic.BaseModel, extra='forbid'):
     """ Represents the queryed task information. """
     name: str
     status: task.TaskGroupStatus
@@ -435,43 +450,45 @@ class GroupQueryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     processing_start_time: datetime.datetime | None = None
     scheduling_start_time: datetime.datetime | None = None
     initializing_start_time: datetime.datetime | None = None
-    remaining_upstream_groups: Set[str] | None
-    downstream_groups: Set[str] | None
+    remaining_upstream_groups: Set[str] | None = None
+    downstream_groups: Set[str] | None = None
     failure_message: str | None = None
     tasks: List[TaskQueryResponse] = []
 
 
-class WorkflowQueryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class WorkflowQueryResponse(pydantic.BaseModel):
     """ Represents the queryed workflow information. """
+    model_config = pydantic.ConfigDict(extra='forbid', ser_json_timedelta='float')
+
     name: str
     uuid: str
     submitted_by: str
-    cancelled_by: str | None
+    cancelled_by: str | None = None
     spec: str
     template_spec: str
     logs: str
     events: str
     overview: str
-    parent_name: str | None
-    parent_job_id: int | None
-    dashboard_url: str | None
-    grafana_url: str | None
+    parent_name: str | None = None
+    parent_job_id: int | None = None
+    dashboard_url: str | None = None
+    grafana_url: str | None = None
     tags: List[str] = []
     submit_time: datetime.datetime
-    start_time: datetime.datetime | None
-    end_time: datetime.datetime | None
-    exec_timeout: datetime.timedelta | None
-    queue_timeout: datetime.timedelta | None
-    duration: datetime.timedelta | None
+    start_time: datetime.datetime | None = None
+    end_time: datetime.datetime | None = None
+    exec_timeout: datetime.timedelta | None = None
+    queue_timeout: datetime.timedelta | None = None
+    duration: datetime.timedelta | None = None
     queued_time: datetime.timedelta
     status: workflow.WorkflowStatus
     outputs: str = ''
     groups: List[GroupQueryResponse]
-    pool: str | None
-    backend: str | None
-    app_owner: str | None
-    app_name: str | None
-    app_version: int | None
+    pool: str | None = None
+    backend: str | None = None
+    app_owner: str | None = None
+    app_name: str | None = None
+    app_version: int | None = None
     plugins: task_common.WorkflowPlugins
     priority: str
 
@@ -537,12 +554,12 @@ class WorkflowQueryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             priority=workflow_obj.priority)
 
 
-class ResourcesResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ResourcesResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing execution cluster node resource information. """
     resources: List[workflow.ResourcesEntry]
 
 
-class PoolResourcesEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PoolResourcesEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for resources API results. """
     pool: str
     platform: str
@@ -552,12 +569,12 @@ class PoolResourcesEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     backend: str
 
 
-class PoolResourcesResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PoolResourcesResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing execution cluster node resource information. """
     pools: List[PoolResourcesEntry]
 
 
-class DataUploadResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataUploadResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing Upload Response. """
     version_id: str
     container: str
@@ -565,7 +582,7 @@ class DataUploadResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     path: str
 
 
-class DataDownloadResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataDownloadResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing Download Response. """
     location: str
     container: str
@@ -593,7 +610,7 @@ class CredentialProtocol(Protocol):
 
 class UserRegistryCredential(
     credentials.RegistryCredential,
-    extra=pydantic.Extra.forbid,
+    extra='forbid',
 ):
     """ Authentication information for a Docker registry. """
     auth: str = pydantic.Field(
@@ -622,7 +639,7 @@ class UserRegistryCredential(
 
 class UserDataCredential(
     data_credentials.DataCredentialBase,
-    extra=pydantic.Extra.forbid,
+    extra='forbid',
 ):
     """ Authentication information for a data service. """
 
@@ -678,7 +695,7 @@ class UserDataCredential(
 
 class UserCredential(
     pydantic.BaseModel,
-    extra=pydantic.Extra.forbid,
+    extra='forbid',
 ):
     """ Generic authentication information. """
     credential: Dict[str, str] = pydantic.Field(
@@ -724,20 +741,23 @@ class UserCredential(
 class CredentialOptions(pydantic.BaseModel):
     """ Credential options """
     registry_credential: Optional[UserRegistryCredential] = pydantic.Field(
-        description='Authentication information for a Docker registry')
+        default=None, description='Authentication information for a Docker registry')
     data_credential: Optional[UserDataCredential] = pydantic.Field(
-        description='Authentication information for a data service')
+        default=None, description='Authentication information for a data service')
     generic_credential: Optional[UserCredential] = pydantic.Field(
-        description='Generic authentication information')
+        default=None, description='Generic authentication information')
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
+    @classmethod
     def validate_credential(cls, values):  # pylint: disable=no-self-argument
         """ A valid credential can only be one of the three types """
+        if not isinstance(values, dict):
+            return values
         num_fields_set = sum(1 for value in values.values()
                              if value is not None)
         if num_fields_set != 1:
             raise osmo_errors.OSMOUserError(
-                f'Exactly one of the following must be set {cls.__fields__.keys()}')
+                f'Exactly one of the following must be set {cls.model_fields.keys()}')
         return values
 
     def get_credential(self) -> CredentialProtocol:
@@ -749,7 +769,7 @@ class CredentialOptions(pydantic.BaseModel):
             return self.generic_credential
         else:
             raise osmo_errors.OSMOUserError(
-                f'Exactly one of the following must be set: {self.__fields__.keys()}')
+                f'Exactly one of the following must be set: {type(self).model_fields.keys()}')
 
 
 class CredentialGetResponse(pydantic.BaseModel):
@@ -769,7 +789,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
     context: WorkflowServiceContext
     base32_id: str = ''
     name: str = ''
-    parent_workflow_id: str | None
+    parent_workflow_id: str | None = None
     app_uuid: str | None = None
     app_version: int | None = None
     user: str
@@ -1018,7 +1038,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                     downstream_groups=downstream_groups)
                 workflow_obj.insert_to_db()
                 uploaded_workflow_dict = {'version': 2,
-                                        'workflow': rendered_spec.dict(exclude_defaults=True)}
+                                        'workflow': rendered_spec.model_dump(exclude_defaults=True)}
                 self.send_workflow_spec_to_queue(workflow_obj.workflow_id,
                                                  uploaded_workflow_dict,
                                                  original_templated_spec)
@@ -1060,12 +1080,22 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         # Write workflow and group objects to the database
         workflow_obj.insert_to_db()
         task_entries: list[tuple] = []
+        group_entries: list[tuple] = []
         for group_obj in workflow_obj.groups:
             group_obj.workflow_id_internal = workflow_obj.workflow_id
             group_obj.spec = \
                 group_obj.spec.parse(
                     postgres, workflow_obj.workflow_id, group_and_task_uuids)
-            group_obj.insert_to_db()
+            group_entries.append((
+                group_obj.workflow_id_internal, group_obj.name,
+                group_obj.group_uuid, group_obj.spec.json(),
+                task.TaskGroupStatus.SUBMITTING.name, None,
+                _encode_hstore(group_obj.remaining_upstream_groups),
+                _encode_hstore(group_obj.downstream_groups),
+                group_obj.scheduler_settings.json()
+                if group_obj.scheduler_settings else None,
+                json.dumps(group_obj.group_template_resource_types),
+            ))
             for task_obj, task_obj_spec in zip(group_obj.tasks, group_obj.spec.tasks):
                 task_obj.workflow_id_internal = workflow_obj.workflow_id
                 workflow_uuid = task_obj.workflow_uuid if task_obj.workflow_uuid else ''
@@ -1084,7 +1114,8 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
                 ))
-        task.Task.batch_insert_to_db(postgres, task_entries)
+        task.TaskGroup.batch_insert_groups_and_tasks(
+            postgres, group_entries, task_entries)
 
         logs = f'{service_url}/api/workflow/{workflow_obj.workflow_id}/logs'
         context = WorkflowServiceContext.get()

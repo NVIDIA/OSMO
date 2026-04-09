@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import signal
 import time
@@ -52,38 +52,38 @@ DEFAULT_NODE_CONDITION_PREFIX = 'osmo.nvidia.com/'
 class NodeTestConfig(static_config.StaticConfig, logging_utils.LoggingConfig):
     """Configuration for node validation tests."""
     exit_after_validation: bool = pydantic.Field(
-        command_line='exit_after_validation',
         default=False,
-        description='Flag to exit after validation')
+        description='Flag to exit after validation',
+        json_schema_extra={'command_line': 'exit_after_validation'})
 
     # Node/Pod infomation
     node_name: str = pydantic.Field(
-        command_line='node_name',
-        env='OSMO_NODE_NAME',
-        description='Name of the node to validate')
+        description='Name of the node to validate',
+        json_schema_extra={'command_line': 'node_name', 'env': 'OSMO_NODE_NAME'})
     node_condition_prefix: str = pydantic.Field(
-        command_line='node_condition_prefix',
-        env='OSMO_NODE_CONDITION_PREFIX',
         default=DEFAULT_NODE_CONDITION_PREFIX,
-        description='Prefix for node conditions')
+        description='Prefix for node conditions',
+        json_schema_extra={
+            'command_line': 'node_condition_prefix',
+            'env': 'OSMO_NODE_CONDITION_PREFIX'})
 
     # Stability
     max_retries: int = pydantic.Field(
-        command_line='max_retries',
         default=3,
-        description='Maximum number of retries for the LFS mount test')
+        description='Maximum number of retries for the LFS mount test',
+        json_schema_extra={'command_line': 'max_retries'})
     base_wait_seconds: int = pydantic.Field(
-        command_line='base_wait_seconds',
         default=10,
-        description='Base wait time in seconds between retries')
+        description='Base wait time in seconds between retries',
+        json_schema_extra={'command_line': 'base_wait_seconds'})
 
-    @pydantic.validator('node_condition_prefix')
+    @pydantic.field_validator('node_condition_prefix')
     @classmethod
-    def validate_node_condition_prefix(cls, v: str) -> str:
+    def validate_node_condition_prefix(cls, value: str) -> str:
         """Validate that node_condition_prefix ends with 'osmo.nvidia.com/'.
 
         Args:
-            v: The value to validate
+            value: The value to validate
 
         Returns:
             The validated value
@@ -91,10 +91,10 @@ class NodeTestConfig(static_config.StaticConfig, logging_utils.LoggingConfig):
         Raises:
             ValueError: If the prefix doesn't end with DEFAULT_NODE_CONDITION_PREFIX
         """
-        if not v.endswith(DEFAULT_NODE_CONDITION_PREFIX):
+        if not value.endswith(DEFAULT_NODE_CONDITION_PREFIX):
             raise ValueError(
                 f"node_condition_prefix must end with '{DEFAULT_NODE_CONDITION_PREFIX}'")
-        return v
+        return value
 
 
 class NodeCondition(pydantic.BaseModel):
@@ -106,27 +106,27 @@ class NodeCondition(pydantic.BaseModel):
     last_heartbeat_time: Optional[str] = pydantic.Field(None, alias='lastHeartbeatTime')
     last_transition_time: Optional[str] = pydantic.Field(None, alias='lastTransitionTime')
 
-    class Config:
-        allow_population_by_field_name = True
-        populate_by_name = True
+    model_config = pydantic.ConfigDict(populate_by_name=True)
 
-    @pydantic.validator('last_heartbeat_time', 'last_transition_time')
+    @pydantic.field_validator('last_heartbeat_time', 'last_transition_time')
     @classmethod
-    def validate_rfc3339_timestamp(cls, v):
+    def validate_rfc3339_timestamp(cls, value: str | None) -> str | None:
         """Validate RFC3339 timestamp format if value is provided.
 
         Args:
-            v: Current value of the field
+            value: Current value of the field
 
         Returns:
             Validated RFC3339 formatted timestamp string or None
         """
-        if v is None:
+        if value is None:
             return None
         try:
-            # Try to parse the input as datetime
-            dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
-            return dt.strftime('%Y-%m-%dT%H:%M:%SZ''')
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                raise ValueError('Timestamp must include a timezone offset')
+            dt = dt.astimezone(tz=timezone.utc)
+            return dt.strftime('%Y-%m-%dT%H:%M:%SZ')
         except ValueError as error:
             raise osmo_errors.OSMOUserError(
                 f'Timestamp must be in RFC3339 format like \'2024-03-21T15:30:00Z\', Error {error}')
@@ -213,7 +213,7 @@ class NodeTestBase:
         if labels is not None:
             patch['metadata'] = {'labels': labels}
         if taints is not None:
-            patch['spec'] = {'taints': [t.dict() for t in taints]}
+            patch['spec'] = {'taints': [t.model_dump() for t in taints]}
 
         # Update metadata and spec if needed
         if patch:

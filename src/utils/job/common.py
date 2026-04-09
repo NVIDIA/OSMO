@@ -34,8 +34,8 @@ LOGIN_LOCATION = '/osmo/login'
 USER_BIN_LOCATION = '/osmo/usr/bin'
 RUN_LOCATION = '/osmo/run'
 
-NamePattern = Annotated[str, pydantic.Field(regex=f'^{NAMEREGEX}$')]
-TaskNamePattern = Annotated[str, pydantic.Field(regex=f'^{TASKNAMEREGEX}$')]
+NamePattern = Annotated[str, pydantic.Field(pattern=f'^{NAMEREGEX}$')]
+TaskNamePattern = Annotated[str, pydantic.Field(pattern=f'^{TASKNAMEREGEX}$')]
 
 
 def get_log_path(workflow_config: connectors.WorkflowConfig) -> storage.StoragePath:

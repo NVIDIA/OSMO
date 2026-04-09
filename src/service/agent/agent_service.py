@@ -37,10 +37,9 @@ class BackendServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                            src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
     """Config settings for the backend service"""
     progress_period: int = pydantic.Field(
-        command_line='progress_period',
-        env='OSMO_PROGRESS_PERIOD',
         default=30,
-        description='The amount of time to wait between updating progress')
+        description='The amount of time to wait between updating progress',
+        json_schema_extra={'command_line': 'progress_period', 'env': 'OSMO_PROGRESS_PERIOD'})
 
 
 app = fastapi.FastAPI(docs_url=None, redoc_url=None, openapi_url=None)

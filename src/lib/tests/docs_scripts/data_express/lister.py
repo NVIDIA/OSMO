@@ -56,7 +56,7 @@ def chunk_files(input_location: str, output_location: str, chunk_size: float, ch
             and file_chunk:
             return True
 
-        file_chunk.append(file_obj.dict())
+        file_chunk.append(file_obj.model_dump())
         current_chunk_size += data_utils.convert_to_gib(str(file_size))
         if len(file_chunk) >= chunk_amount:
             return True
@@ -97,7 +97,7 @@ def process_benchmark(body: Dict, kombu_message: message.Message, benchmark_loca
 
         # Write download result to json file
         with open(benchmark_path, 'w', encoding='utf-8') as f:
-            json.dump(benchmark_result.dict(), f, indent=4)
+            json.dump(benchmark_result.model_dump(), f, indent=4)
 
     kombu_message.ack()
 

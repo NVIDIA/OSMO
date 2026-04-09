@@ -25,18 +25,18 @@ import pydantic
 from src.lib.utils import common
 
 
-DatasetPattern = Annotated[str, pydantic.Field(regex=common.DATASET_NAME_REGEX)]
-DatasetTagPattern = Annotated[str, pydantic.Field(regex=common.DATASET_BUCKET_TAG_REGEX)]
+DatasetPattern = Annotated[str, pydantic.Field(pattern=common.DATASET_NAME_REGEX)]
+DatasetTagPattern = Annotated[str, pydantic.Field(pattern=common.DATASET_BUCKET_TAG_REGEX)]
 
 
 class DatasetType(enum.Enum):
-    COLLECTION = 'COLLECTION'
-    DATASET = 'DATASET'
+    COLLECTION = "COLLECTION"
+    DATASET = "DATASET"
 
 
 class DatasetQueryType(enum.Enum):
-    VERSION = 'VERSION'
-    DATASET = 'DATASET'
+    VERSION = "VERSION"
+    DATASET = "DATASET"
 
 
 class DatasetStatus(enum.Enum):
@@ -44,27 +44,27 @@ class DatasetStatus(enum.Enum):
     The status of a dataset / dataset version.
     """
     # The dataset has been "allocated" but needs to be uploaded
-    PENDING = 'PENDING'
+    PENDING = "PENDING"
     # The dataset has been uploaded and is ready to use
-    READY = 'READY'
+    READY = "READY"
     # The dataset has been marked for delete but needs to be deleted
-    PENDING_DELETE = 'PENDING_DELETE'
+    PENDING_DELETE = "PENDING_DELETE"
     # The dataset version has been deleted. When the all versions are DELETED, the dataset will be
     # removed from the table
-    DELETED = 'DELETED'
+    DELETED = "DELETED"
 
     @staticmethod
     def is_active(name: str) -> bool:
         return name not in [DatasetStatus.PENDING_DELETE.value, DatasetStatus.DELETED.value]
 
 
-class DatasetStructure(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DatasetStructure(pydantic.BaseModel, extra="forbid"):
     """ Object storing execution cluster node resource information. """
     name: DatasetPattern
     tag: DatasetTagPattern
 
 
-class BucketInfoEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class BucketInfoEntry(pydantic.BaseModel, extra="forbid"):
     """ Object storing Upload Response. """
     path: str
     description: str
@@ -72,21 +72,21 @@ class BucketInfoEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     default_cred: bool
 
 
-class BucketInfoResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class BucketInfoResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Upload Response. """
-    default: Optional[str]
+    default: Optional[str] = None
     buckets: Dict[str, BucketInfoEntry]
 
 
-class DataUploadResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataUploadResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Upload Response. """
     version_id: str
-    region: str = ''
-    storage_path: str = ''
-    manifest_path: str = ''
+    region: str = ""
+    storage_path: str = ""
+    manifest_path: str = ""
 
 
-class DataDownloadResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataDownloadResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Download Response. """
     dataset_names: List[str]
     dataset_versions: List[str]
@@ -95,14 +95,14 @@ class DataDownloadResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     is_collection: bool
 
 
-class DataDeleteResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataDeleteResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Download Response. """
     versions: List[str] = []
     delete_locations: List[str] = []
     cleaned_size: int = 0
 
 
-class DataInfoDatasetEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataInfoDatasetEntry(pydantic.BaseModel, extra="forbid"):
     """ Object storing Info Element. """
     name: str
     version: str
@@ -119,92 +119,92 @@ class DataInfoDatasetEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     collections: List[str]
 
 
-class DataInfoCollectionEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataInfoCollectionEntry(pydantic.BaseModel, extra="forbid"):
     """ Object storing Info Element. """
     name: str
     version: str
     location: str
     uri: str
-    hash_location: str | None
+    hash_location: str | None = None
     size: int
 
 
-class DataInfoResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataInfoResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Data Info Elements. """
     name: str
     id: str
     bucket: str
-    created_by: str | None
-    created_date: datetime.datetime | None
-    hash_location: str | None
-    hash_location_size: int | None
+    created_by: str | None = None
+    created_date: datetime.datetime | None = None
+    hash_location: str | None = None
+    hash_location_size: int | None = None
     labels: Dict
     type: DatasetType
     versions: List[DataInfoDatasetEntry | DataInfoCollectionEntry]
 
 
-class DataQueryResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataQueryResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Dataset and Dataset Version Info. """
     type: DatasetQueryType
     datasets: List[DataInfoResponse | DataInfoDatasetEntry]
 
 
-class DataListEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataListEntry(pydantic.BaseModel, extra="forbid"):
     """ Object storing Data List Element. """
     name: str
     id: str
     bucket: str
     create_time: datetime.datetime
-    last_created: datetime.datetime | None
-    hash_location: str | None
-    hash_location_size: int | None
-    version_id: str | None
+    last_created: datetime.datetime | None = None
+    hash_location: str | None = None
+    hash_location_size: int | None = None
+    version_id: str | None = None
     type: DatasetType
 
 
-class DataListResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataListResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Data List Elements. """
     datasets: List[DataListEntry]
 
 
-class DataTagResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataTagResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Tag Response. """
     version_id: str
     tags: List[str]
 
 
-class DataCopyResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataCopyResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Inspect Response. """
     inital_datasets: List[DatasetStructure]
     created_datasets: List[DatasetStructure]
 
 
-class DataMetadataResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataMetadataResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Label/Metadata Response. """
     metadata: Dict
 
 
-class DataAttributeResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataAttributeResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Tag/Label/Metadata Response. """
-    tag_response: DataTagResponse | None
-    label_response: DataMetadataResponse | None
-    metadata_response: DataMetadataResponse | None
+    tag_response: DataTagResponse | None = None
+    label_response: DataMetadataResponse | None = None
+    metadata_response: DataMetadataResponse | None = None
 
-class DataLocationResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataLocationResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Label/Metadata Response. """
     path: str
     region: str
 
-class DataUpdateEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataUpdateEntry(pydantic.BaseModel, extra="forbid"):
     """ Object storing Info Element. """
     dataset_name: str
     version: str
 
-class DataUpdateResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataUpdateResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Info Element. """
     versions: List[DataUpdateEntry]
 
-class DataShareResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DataShareResponse(pydantic.BaseModel, extra="forbid"):
     """ Object storing Shared Failure Datasets. """
     duplicates: List[str]
     success: List[str]

@@ -181,8 +181,58 @@ print_status "Configuring nvidia-ctk runtime..."
 sudo nvidia-ctk runtime configure --runtime=docker --set-as-default --cdi.enabled
 sudo nvidia-ctk config --set accept-nvidia-visible-devices-as-volume-mounts=true --in-place
 sudo nvidia-ctk config --set accept-nvidia-visible-devices-envvar-when-unprivileged=false --in-place
+
+# Relocate Docker data-root to the largest available filesystem to prevent /var/lib/docker
+# from filling the root partition when large workflow container images are pulled.
+# Different providers mount storage at different paths (e.g. /ephemeral on Crusoe, /data after
+# an upcoming Brev rename), so we detect the largest disk at runtime rather than hardcoding.
+print_status "Detecting largest mounted filesystem for Docker data-root..."
+
+DOCKER_DATA_ROOT_MOUNT=""
+DOCKER_DATA_ROOT_AVAIL=0
+
+while IFS= read -r line; do
+    MNT=$(echo "$line" | awk '{print $6}')
+    AVAIL=$(echo "$line" | awk '{print $4}')
+    # Skip virtual/system filesystems
+    case "$MNT" in
+        /dev|/dev/*|/proc|/sys|/sys/*|/run|/run/*|/boot|/boot/*|/snap/*) continue ;;
+    esac
+    if [ "$AVAIL" -gt "$DOCKER_DATA_ROOT_AVAIL" ] 2>/dev/null; then
+        DOCKER_DATA_ROOT_AVAIL=$AVAIL
+        DOCKER_DATA_ROOT_MOUNT=$MNT
+    fi
+done < <(df -B1 --output=source,fstype,size,avail,used,target 2>/dev/null | tail -n +2)
+
+DOCKER_DATA_ROOT_AVAIL_GB=$((DOCKER_DATA_ROOT_AVAIL / 1073741824))
+print_status "Largest filesystem: $DOCKER_DATA_ROOT_MOUNT (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+
+DAEMON_JSON="/etc/docker/daemon.json"
+if [ -n "$DOCKER_DATA_ROOT_MOUNT" ] && [ "$DOCKER_DATA_ROOT_MOUNT" != "/" ]; then
+    DOCKER_DATA_ROOT="$DOCKER_DATA_ROOT_MOUNT/docker"
+    print_status "Relocating Docker data-root to $DOCKER_DATA_ROOT..."
+    sudo mkdir -p "$DOCKER_DATA_ROOT"
+    if [ -f "$DAEMON_JSON" ]; then
+        # Merge data-root into the existing daemon.json written by nvidia-ctk above
+        sudo python3 -c "
+import json
+with open('$DAEMON_JSON') as f:
+    cfg = json.load(f)
+cfg['data-root'] = '$DOCKER_DATA_ROOT'
+with open('$DAEMON_JSON', 'w') as f:
+    json.dump(cfg, f, indent=2)
+"
+    else
+        printf '{\n  "data-root": "%s"\n}\n' "$DOCKER_DATA_ROOT" | sudo tee "$DAEMON_JSON" > /dev/null
+    fi
+    print_status "Docker data-root set to $DOCKER_DATA_ROOT (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+else
+    print_warning "No larger filesystem found — Docker will use default /var/lib/docker on root (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+fi
+
 print_status "Restarting Docker..."
 sudo systemctl restart docker
+print_status "Docker root dir: $(sudo docker info 2>/dev/null | awk '/Docker Root Dir/{print $NF}')"
 
 # Capture final nvidia-ctk version
 NVIDIA_CTK_VERSION=$(nvidia-ctk --version 2>&1 | grep -oP 'version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "Not detected")
@@ -411,6 +461,7 @@ print_status "System Information:"
 print_status "  • Current User: $CURRENT_USER"
 print_status "  • NVIDIA Driver Version: $NVIDIA_DRIVER_FULL_VERSION (minimum: $NVIDIA_MIN_DRIVER_VERSION)"
 print_status "  • nvidia-ctk Version: $NVIDIA_CTK_VERSION (minimum: $NVIDIA_CTK_MIN_VERSION)"
+print_status "  • Docker Data Root: $(sudo docker info 2>/dev/null | awk '/Docker Root Dir/{print $NF}') (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
 echo ""
 
 # Display warnings if versions are insufficient

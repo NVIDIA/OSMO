@@ -27,14 +27,15 @@ import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
  * WORKFLOW NAMING CONVENTION: mock-{scenario}-{status}
  *
  * Available Mock Workflows:
- * - mock-typical-completed: Standard 3-stage training (500-2000 lines)
- * - mock-typical-running: Standard 2-stage job in progress
- * - mock-typical-failed: CUDA OOM with 3 retries
- * - mock-streaming-running: Infinite log stream (100ms delay)
- * - mock-high-error-failed: 30% error rate for error handling testing
- * - mock-large-running: 50k-75k lines for performance testing
- * - mock-empty-completed: No logs (edge case testing)
- * - mock-multi-task: Complex 8-task DAG
+ * - mock-typical-completed-1: Standard 3-stage training (500-2000 lines)
+ * - mock-typical-running-1: Standard 2-stage job in progress
+ * - mock-typical-failed-1: CUDA OOM with 3 retries
+ * - mock-streaming-running-1: Infinite log stream (100ms delay)
+ * - mock-high-error-failed-1: 30% error rate for error handling testing
+ * - mock-large-running-1: 50k-75k lines for performance testing
+ * - mock-empty-completed-1: No logs (edge case testing)
+ * - mock-multi-task-1: Complex 8-task DAG
+ * - mock-canceled-idle-1: Canceled due to idle shutdown, null exit codes with failure messages
  *
  * HOW TO ADD A NEW SCENARIO:
  * 1. Add entry to MOCK_WORKFLOWS with descriptive ID
@@ -45,10 +46,10 @@ import type { LogLevel, LogIOType } from "@/lib/api/log-adapter/types";
  * EXAMPLE USAGE:
  * ```typescript
  * // In test or dev:
- * <LogViewerContainer workflowId="mock-high-error-failed" />
+ * <LogViewerContainer workflowId="mock-high-error-failed-1" />
  *
  * // URL:
- * /log-viewer?workflow=mock-high-error-failed
+ * /log-viewer?workflow=mock-high-error-failed-1
  *
  * // MSW automatically generates 28% error logs!
  * ```
@@ -127,9 +128,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Standard completed workflow - typical 3-stage training job.
    * Default scenario for testing completed workflows.
    */
-  "mock-typical-completed": {
+  "mock-typical-completed-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-typical-completed",
+    name: "mock-typical-completed-1",
     uuid: "550e8400-e29b-41d4-a716-446655440001",
     status: WorkflowStatus.COMPLETED,
     priority: WorkflowPriority.NORMAL,
@@ -156,8 +157,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-1",
             start_time: new Date(BASE_SUBMIT_TIME.getTime() + 60_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 360_000).toISOString(),
-            logs: "/api/workflow/mock-typical-completed/logs?task_id=preprocess&retry_id=0",
-            events: "/api/workflow/mock-typical-completed/events?task_id=preprocess&retry_id=0",
+            logs: "/api/workflow/mock-typical-completed-1/logs?task_id=preprocess&retry_id=0",
+            events: "/api/workflow/mock-typical-completed-1/events?task_id=preprocess&retry_id=0",
           },
         ],
       },
@@ -177,8 +178,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-2",
             start_time: new Date(BASE_SUBMIT_TIME.getTime() + 420_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 2_400_000).toISOString(),
-            logs: "/api/workflow/mock-typical-completed/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-typical-completed/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-typical-completed-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-typical-completed-1/events?task_id=train&retry_id=0",
           },
         ],
       },
@@ -198,17 +199,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-3",
             start_time: new Date(BASE_SUBMIT_TIME.getTime() + 2_460_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 2_700_000).toISOString(),
-            logs: "/api/workflow/mock-typical-completed/logs?task_id=evaluate&retry_id=0",
-            events: "/api/workflow/mock-typical-completed/events?task_id=evaluate&retry_id=0",
+            logs: "/api/workflow/mock-typical-completed-1/logs?task_id=evaluate&retry_id=0",
+            events: "/api/workflow/mock-typical-completed-1/events?task_id=evaluate&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-typical-completed/spec",
-    template_spec: "/api/workflow/mock-typical-completed/template-spec",
-    logs: "/api/workflow/mock-typical-completed/logs",
-    events: "/api/workflow/mock-typical-completed/events",
-    overview: "/api/workflow/mock-typical-completed/overview",
+    spec: "/api/workflow/mock-typical-completed-1/spec",
+    template_spec: "/api/workflow/mock-typical-completed-1/template-spec",
+    logs: "/api/workflow/mock-typical-completed-1/logs",
+    events: "/api/workflow/mock-typical-completed-1/events",
+    overview: "/api/workflow/mock-typical-completed-1/overview",
     _logConfig: {
       volume: { min: 500, max: 2000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -228,9 +229,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Standard running workflow - typical 2-stage job in progress.
    * Default scenario for testing running workflows.
    */
-  "mock-typical-running": {
+  "mock-typical-running-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-typical-running",
+    name: "mock-typical-running-1",
     uuid: "550e8400-e29b-41d4-a716-446655440002",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.HIGH,
@@ -255,8 +256,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-1",
             start_time: new Date(Date.now() - 540_000).toISOString(),
             end_time: new Date(Date.now() - 480_000).toISOString(),
-            logs: "/api/workflow/mock-typical-running/logs?task_id=setup&retry_id=0",
-            events: "/api/workflow/mock-typical-running/events?task_id=setup&retry_id=0",
+            logs: "/api/workflow/mock-typical-running-1/logs?task_id=setup&retry_id=0",
+            events: "/api/workflow/mock-typical-running-1/events?task_id=setup&retry_id=0",
           },
         ],
       },
@@ -275,17 +276,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             pod_name: "train-0-abc789",
             node_name: "node-2",
             start_time: new Date(Date.now() - 450_000).toISOString(),
-            logs: "/api/workflow/mock-typical-running/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-typical-running/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-typical-running-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-typical-running-1/events?task_id=train&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-typical-running/spec",
-    template_spec: "/api/workflow/mock-typical-running/template-spec",
-    logs: "/api/workflow/mock-typical-running/logs",
-    events: "/api/workflow/mock-typical-running/events",
-    overview: "/api/workflow/mock-typical-running/overview",
+    spec: "/api/workflow/mock-typical-running-1/spec",
+    template_spec: "/api/workflow/mock-typical-running-1/template-spec",
+    logs: "/api/workflow/mock-typical-running-1/logs",
+    events: "/api/workflow/mock-typical-running-1/events",
+    overview: "/api/workflow/mock-typical-running-1/overview",
     _logConfig: {
       volume: { min: 500, max: 2000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -305,9 +306,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Failed workflow with retries - CUDA OOM after 3 attempts.
    * Good for testing retry UI and failure messages.
    */
-  "mock-typical-failed": {
+  "mock-typical-failed-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-typical-failed",
+    name: "mock-typical-failed-1",
     uuid: "550e8400-e29b-41d4-a716-446655440003",
     status: WorkflowStatus.FAILED,
     priority: WorkflowPriority.NORMAL,
@@ -334,8 +335,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-1",
             start_time: new Date(BASE_SUBMIT_TIME.getTime() + 30_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 180_000).toISOString(),
-            logs: "/api/workflow/mock-typical-failed/logs?task_id=data_load&retry_id=0",
-            events: "/api/workflow/mock-typical-failed/events?task_id=data_load&retry_id=0",
+            logs: "/api/workflow/mock-typical-failed-1/logs?task_id=data_load&retry_id=0",
+            events: "/api/workflow/mock-typical-failed-1/events?task_id=data_load&retry_id=0",
           },
         ],
       },
@@ -358,8 +359,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 320_000).toISOString(),
             failure_message: "CUDA out of memory",
             exit_code: 1,
-            logs: "/api/workflow/mock-typical-failed/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-typical-failed/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-typical-failed-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-typical-failed-1/events?task_id=train&retry_id=0",
           },
           {
             name: "train",
@@ -372,8 +373,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 520_000).toISOString(),
             failure_message: "CUDA out of memory",
             exit_code: 1,
-            logs: "/api/workflow/mock-typical-failed/logs?task_id=train&retry_id=1",
-            events: "/api/workflow/mock-typical-failed/events?task_id=train&retry_id=1",
+            logs: "/api/workflow/mock-typical-failed-1/logs?task_id=train&retry_id=1",
+            events: "/api/workflow/mock-typical-failed-1/events?task_id=train&retry_id=1",
           },
           {
             name: "train",
@@ -386,17 +387,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 900_000).toISOString(),
             failure_message: "CUDA out of memory",
             exit_code: 1,
-            logs: "/api/workflow/mock-typical-failed/logs?task_id=train&retry_id=2",
-            events: "/api/workflow/mock-typical-failed/events?task_id=train&retry_id=2",
+            logs: "/api/workflow/mock-typical-failed-1/logs?task_id=train&retry_id=2",
+            events: "/api/workflow/mock-typical-failed-1/events?task_id=train&retry_id=2",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-typical-failed/spec",
-    template_spec: "/api/workflow/mock-typical-failed/template-spec",
-    logs: "/api/workflow/mock-typical-failed/logs",
-    events: "/api/workflow/mock-typical-failed/events",
-    overview: "/api/workflow/mock-typical-failed/overview",
+    spec: "/api/workflow/mock-typical-failed-1/spec",
+    template_spec: "/api/workflow/mock-typical-failed-1/template-spec",
+    logs: "/api/workflow/mock-typical-failed-1/logs",
+    events: "/api/workflow/mock-typical-failed-1/events",
+    overview: "/api/workflow/mock-typical-failed-1/overview",
     _logConfig: {
       volume: { min: 500, max: 2000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -416,9 +417,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Streaming running workflow - live tailing simulation.
    * Infinite log stream for testing real-time updates and auto-scroll.
    */
-  "mock-streaming-running": {
+  "mock-streaming-running-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-streaming-running",
+    name: "mock-streaming-running-1",
     uuid: "550e8400-e29b-41d4-a716-446655440004",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.NORMAL,
@@ -442,17 +443,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             pod_name: "train-streaming-abc",
             node_name: "node-1",
             start_time: new Date(Date.now() - 240_000).toISOString(),
-            logs: "/api/workflow/mock-streaming-running/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-streaming-running/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-streaming-running-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-streaming-running-1/events?task_id=train&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-streaming-running/spec",
-    template_spec: "/api/workflow/mock-streaming-running/template-spec",
-    logs: "/api/workflow/mock-streaming-running/logs",
-    events: "/api/workflow/mock-streaming-running/events",
-    overview: "/api/workflow/mock-streaming-running/overview",
+    spec: "/api/workflow/mock-streaming-running-1/spec",
+    template_spec: "/api/workflow/mock-streaming-running-1/template-spec",
+    logs: "/api/workflow/mock-streaming-running-1/logs",
+    events: "/api/workflow/mock-streaming-running-1/events",
+    overview: "/api/workflow/mock-streaming-running-1/overview",
     _logConfig: {
       volume: { min: 500, max: 1000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -472,9 +473,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * High-error failed workflow - extreme error rate for UI stress testing.
    * 30% errors, 20% warnings - tests error highlighting and filtering.
    */
-  "mock-high-error-failed": {
+  "mock-high-error-failed-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-high-error-failed",
+    name: "mock-high-error-failed-1",
     uuid: "550e8400-e29b-41d4-a716-446655440005",
     status: WorkflowStatus.FAILED,
     priority: WorkflowPriority.HIGH,
@@ -504,17 +505,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 600_000).toISOString(),
             failure_message: "Excessive errors during training",
             exit_code: 1,
-            logs: "/api/workflow/mock-high-error-failed/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-high-error-failed/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-high-error-failed-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-high-error-failed-1/events?task_id=train&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-high-error-failed/spec",
-    template_spec: "/api/workflow/mock-high-error-failed/template-spec",
-    logs: "/api/workflow/mock-high-error-failed/logs",
-    events: "/api/workflow/mock-high-error-failed/events",
-    overview: "/api/workflow/mock-high-error-failed/overview",
+    spec: "/api/workflow/mock-high-error-failed-1/spec",
+    template_spec: "/api/workflow/mock-high-error-failed-1/template-spec",
+    logs: "/api/workflow/mock-high-error-failed-1/logs",
+    events: "/api/workflow/mock-high-error-failed-1/events",
+    overview: "/api/workflow/mock-high-error-failed-1/overview",
     _logConfig: {
       volume: { min: 500, max: 1000 },
       levelDistribution: {
@@ -547,9 +548,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Large running workflow - performance testing with 50k+ lines.
    * Tests virtualization, memory usage, and scroll performance.
    */
-  "mock-large-running": {
+  "mock-large-running-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-large-running",
+    name: "mock-large-running-1",
     uuid: "550e8400-e29b-41d4-a716-446655440006",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.NORMAL,
@@ -573,17 +574,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             pod_name: "train-large-abc",
             node_name: "node-1",
             start_time: new Date(Date.now() - 3_540_000).toISOString(),
-            logs: "/api/workflow/mock-large-running/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-large-running/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-large-running-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-large-running-1/events?task_id=train&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-large-running/spec",
-    template_spec: "/api/workflow/mock-large-running/template-spec",
-    logs: "/api/workflow/mock-large-running/logs",
-    events: "/api/workflow/mock-large-running/events",
-    overview: "/api/workflow/mock-large-running/overview",
+    spec: "/api/workflow/mock-large-running-1/spec",
+    template_spec: "/api/workflow/mock-large-running-1/template-spec",
+    logs: "/api/workflow/mock-large-running-1/logs",
+    events: "/api/workflow/mock-large-running-1/events",
+    overview: "/api/workflow/mock-large-running-1/overview",
     _logConfig: {
       volume: { min: 50000, max: 75000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -603,9 +604,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Empty completed workflow - instant completion with no logs.
    * Tests empty state UI and edge cases.
    */
-  "mock-empty-completed": {
+  "mock-empty-completed-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-empty-completed",
+    name: "mock-empty-completed-1",
     uuid: "550e8400-e29b-41d4-a716-446655440007",
     status: WorkflowStatus.COMPLETED,
     priority: WorkflowPriority.LOW,
@@ -632,17 +633,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-1",
             start_time: new Date(BASE_SUBMIT_TIME.getTime() + 6_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 10_000).toISOString(),
-            logs: "/api/workflow/mock-empty-completed/logs?task_id=noop&retry_id=0",
-            events: "/api/workflow/mock-empty-completed/events?task_id=noop&retry_id=0",
+            logs: "/api/workflow/mock-empty-completed-1/logs?task_id=noop&retry_id=0",
+            events: "/api/workflow/mock-empty-completed-1/events?task_id=noop&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-empty-completed/spec",
-    template_spec: "/api/workflow/mock-empty-completed/template-spec",
-    logs: "/api/workflow/mock-empty-completed/logs",
-    events: "/api/workflow/mock-empty-completed/events",
-    overview: "/api/workflow/mock-empty-completed/overview",
+    spec: "/api/workflow/mock-empty-completed-1/spec",
+    template_spec: "/api/workflow/mock-empty-completed-1/template-spec",
+    logs: "/api/workflow/mock-empty-completed-1/logs",
+    events: "/api/workflow/mock-empty-completed-1/events",
+    overview: "/api/workflow/mock-empty-completed-1/overview",
     _logConfig: {
       volume: { min: 0, max: 0 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -660,8 +661,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Workflow with logs available but task still scheduling (no start_time).
    * Tests that logs/events are fetched even before the task starts running.
    */
-  "mock-has-logs-not-started": {
-    name: "mock-has-logs-not-started",
+  "mock-has-logs-not-started-1": {
+    name: "mock-has-logs-not-started-1",
     uuid: "550e8400-e29b-41d4-a716-446655440009",
     submitted_by: "user@example.com",
     status: WorkflowStatus.PENDING,
@@ -687,17 +688,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             pod_name: "",
             // No start_time — task hasn't started yet
             // But logs and events URLs are present
-            logs: "/api/workflow/mock-has-logs-not-started/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-has-logs-not-started/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-has-logs-not-started-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-has-logs-not-started-1/events?task_id=train&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-has-logs-not-started/spec",
-    template_spec: "/api/workflow/mock-has-logs-not-started/template-spec",
-    logs: "/api/workflow/mock-has-logs-not-started/logs",
-    events: "/api/workflow/mock-has-logs-not-started/events",
-    overview: "/api/workflow/mock-has-logs-not-started/overview",
+    spec: "/api/workflow/mock-has-logs-not-started-1/spec",
+    template_spec: "/api/workflow/mock-has-logs-not-started-1/template-spec",
+    logs: "/api/workflow/mock-has-logs-not-started-1/logs",
+    events: "/api/workflow/mock-has-logs-not-started-1/events",
+    overview: "/api/workflow/mock-has-logs-not-started-1/overview",
     outputs: undefined,
     plugins: {},
     _logConfig: {
@@ -720,8 +721,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * task2 retry_id=0 failed with RESCHEDULED, then retry_id=1 succeeded.
    * Based on real restart-1067 workflow from staging.
    */
-  "mock-restart-completed": {
-    name: "mock-restart-completed",
+  "mock-restart-completed-1": {
+    name: "mock-restart-completed-1",
     uuid: "550e8400-e29b-41d4-a716-44665544000a",
     submitted_by: "user@example.com",
     status: WorkflowStatus.COMPLETED,
@@ -762,8 +763,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             output_upload_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 430_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 437_000).toISOString(),
             exit_code: 0,
-            logs: "/api/workflow/mock-restart-completed/logs?task_id=task1&retry_id=0",
-            events: "/api/workflow/mock-restart-completed/events?task_id=task1&retry_id=0",
+            logs: "/api/workflow/mock-restart-completed-1/logs?task_id=task1&retry_id=0",
+            events: "/api/workflow/mock-restart-completed-1/events?task_id=task1&retry_id=0",
           },
           // task2 retry 1: rescheduled attempt that succeeded
           {
@@ -783,8 +784,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             output_upload_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 432_000).toISOString(),
             end_time: new Date(BASE_SUBMIT_TIME.getTime() + 437_000).toISOString(),
             exit_code: 0,
-            logs: "/api/workflow/mock-restart-completed/logs?task_id=task2&retry_id=1",
-            events: "/api/workflow/mock-restart-completed/events?task_id=task2&retry_id=1",
+            logs: "/api/workflow/mock-restart-completed-1/logs?task_id=task2&retry_id=1",
+            events: "/api/workflow/mock-restart-completed-1/events?task_id=task2&retry_id=1",
           },
           // task2 retry 0: original attempt that was rescheduled
           {
@@ -806,18 +807,18 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             failure_message:
               "Failure reason:\n- Exit code 1 due to Task task2 failure. Exit Action: RESCHEDULE the task for exit code 1.",
             exit_code: 1,
-            logs: "/api/workflow/mock-restart-completed/logs?task_id=task2&retry_id=0",
-            error_logs: "/api/workflow/mock-restart-completed/error_logs?task_name=task2&retry_id=0",
-            events: "/api/workflow/mock-restart-completed/events?task_id=task2&retry_id=0",
+            logs: "/api/workflow/mock-restart-completed-1/logs?task_id=task2&retry_id=0",
+            error_logs: "/api/workflow/mock-restart-completed-1/error_logs?task_name=task2&retry_id=0",
+            events: "/api/workflow/mock-restart-completed-1/events?task_id=task2&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-restart-completed/spec",
-    template_spec: "/api/workflow/mock-restart-completed/template-spec",
-    logs: "/api/workflow/mock-restart-completed/logs",
-    events: "/api/workflow/mock-restart-completed/events",
-    overview: "/api/workflow/mock-restart-completed/overview",
+    spec: "/api/workflow/mock-restart-completed-1/spec",
+    template_spec: "/api/workflow/mock-restart-completed-1/template-spec",
+    logs: "/api/workflow/mock-restart-completed-1/logs",
+    events: "/api/workflow/mock-restart-completed-1/events",
+    overview: "/api/workflow/mock-restart-completed-1/overview",
     outputs: undefined,
     plugins: { rsync: true },
     _logConfig: {
@@ -839,9 +840,9 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
    * Multi-task workflow - complex DAG with many groups and tasks.
    * Tests UI with large task counts and complex dependencies.
    */
-  "mock-multi-task": {
+  "mock-multi-task-1": {
     ...MOCK_WORKFLOW_BASE,
-    name: "mock-multi-task",
+    name: "mock-multi-task-1",
     uuid: "550e8400-e29b-41d4-a716-446655440008",
     status: WorkflowStatus.RUNNING,
     priority: WorkflowPriority.NORMAL,
@@ -867,8 +868,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-1",
             start_time: new Date(Date.now() - 1_740_000).toISOString(),
             end_time: new Date(Date.now() - 1_620_000).toISOString(),
-            logs: "/api/workflow/mock-multi-task/logs?task_id=download&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=download&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=download&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=download&retry_id=0",
           },
           {
             name: "validate",
@@ -879,8 +880,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-2",
             start_time: new Date(Date.now() - 1_740_000).toISOString(),
             end_time: new Date(Date.now() - 1_620_000).toISOString(),
-            logs: "/api/workflow/mock-multi-task/logs?task_id=validate&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=validate&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=validate&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=validate&retry_id=0",
           },
           {
             name: "clean",
@@ -891,8 +892,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-3",
             start_time: new Date(Date.now() - 1_740_000).toISOString(),
             end_time: new Date(Date.now() - 1_620_000).toISOString(),
-            logs: "/api/workflow/mock-multi-task/logs?task_id=clean&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=clean&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=clean&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=clean&retry_id=0",
           },
         ],
       },
@@ -913,8 +914,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-1",
             start_time: new Date(Date.now() - 1_560_000).toISOString(),
             end_time: new Date(Date.now() - 1_320_000).toISOString(),
-            logs: "/api/workflow/mock-multi-task/logs?task_id=extract&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=extract&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=extract&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=extract&retry_id=0",
           },
           {
             name: "transform",
@@ -925,8 +926,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             node_name: "node-2",
             start_time: new Date(Date.now() - 1_560_000).toISOString(),
             end_time: new Date(Date.now() - 1_320_000).toISOString(),
-            logs: "/api/workflow/mock-multi-task/logs?task_id=transform&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=transform&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=transform&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=transform&retry_id=0",
           },
         ],
       },
@@ -946,8 +947,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             pod_name: "train-pqr",
             node_name: "node-3",
             start_time: new Date(Date.now() - 1_200_000).toISOString(),
-            logs: "/api/workflow/mock-multi-task/logs?task_id=train&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=train&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=train&retry_id=0",
           },
         ],
       },
@@ -965,8 +966,8 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             lead: true,
             task_uuid: "task-multi-007",
             pod_name: "",
-            logs: "/api/workflow/mock-multi-task/logs?task_id=metrics&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=metrics&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=metrics&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=metrics&retry_id=0",
           },
           {
             name: "report",
@@ -974,17 +975,17 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
             status: TaskGroupStatus.WAITING,
             task_uuid: "task-multi-008",
             pod_name: "",
-            logs: "/api/workflow/mock-multi-task/logs?task_id=report&retry_id=0",
-            events: "/api/workflow/mock-multi-task/events?task_id=report&retry_id=0",
+            logs: "/api/workflow/mock-multi-task-1/logs?task_id=report&retry_id=0",
+            events: "/api/workflow/mock-multi-task-1/events?task_id=report&retry_id=0",
           },
         ],
       },
     ],
-    spec: "/api/workflow/mock-multi-task/spec",
-    template_spec: "/api/workflow/mock-multi-task/template-spec",
-    logs: "/api/workflow/mock-multi-task/logs",
-    events: "/api/workflow/mock-multi-task/events",
-    overview: "/api/workflow/mock-multi-task/overview",
+    spec: "/api/workflow/mock-multi-task-1/spec",
+    template_spec: "/api/workflow/mock-multi-task-1/template-spec",
+    logs: "/api/workflow/mock-multi-task-1/logs",
+    events: "/api/workflow/mock-multi-task-1/events",
+    overview: "/api/workflow/mock-multi-task-1/overview",
     _logConfig: {
       volume: { min: 2000, max: 5000 },
       levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
@@ -997,6 +998,275 @@ export const MOCK_WORKFLOWS: Record<string, MockWorkflowResponse> = {
         streamDelayMs: 200,
         taskCount: 8,
       },
+    },
+  },
+  /**
+   * Canceled workflow - idle job shutdown with multiple workers.
+   * Tests failure_message display when exit_code is null (canceled, not crashed).
+   */
+  "mock-canceled-idle-1": {
+    ...MOCK_WORKFLOW_BASE,
+    name: "mock-canceled-idle-1",
+    uuid: "550e8400-e29b-41d4-a716-44665544000b",
+    submitted_by: "jsmith@example.com",
+    cancelled_by: "idle-job-shutdown",
+    status: WorkflowStatus.FAILED_CANCELED,
+    priority: WorkflowPriority.HIGH,
+    tags: ["training", "distributed", "h100"],
+    submit_time: BASE_SUBMIT_TIME.toISOString(),
+    start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_000).toISOString(),
+    end_time: new Date(BASE_SUBMIT_TIME.getTime() + 11_460_000).toISOString(), // ~3h11m
+    queued_time: 68,
+    duration: 11454,
+    groups: [
+      {
+        name: "training",
+        status: TaskGroupStatus.FAILED_CANCELED,
+        start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_000).toISOString(),
+        end_time: new Date(BASE_SUBMIT_TIME.getTime() + 11_460_000).toISOString(),
+        processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_000).toISOString(),
+        scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_000).toISOString(),
+        initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_500).toISOString(),
+        remaining_upstream_groups: [],
+        downstream_groups: [],
+        failure_message: "Task was canceled by user: idle-job-shutdown. Auto-cancel due to sustained idleness",
+        tasks: [
+          {
+            name: "master",
+            retry_id: 0,
+            status: TaskGroupStatus.FAILED_CANCELED,
+            failure_message: "Task was canceled by user: idle-job-shutdown. Auto-cancel due to sustained idleness",
+            exit_code: undefined,
+            lead: true,
+            task_uuid: "task-cancel-001",
+            pod_name: "dc243f12-master-0",
+            pod_ip: "10.244.224.254",
+            node_name: "gpu-node-001",
+            processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_000).toISOString(),
+            scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_000).toISOString(),
+            initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_500).toISOString(),
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 69_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 11_460_000).toISOString(),
+            input_download_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 12_000).toISOString(),
+            input_download_end_time: new Date(BASE_SUBMIT_TIME.getTime() + 12_000).toISOString(),
+            logs: "/api/workflow/mock-canceled-idle-1/logs?task_id=master&retry_id=0",
+            events: "/api/workflow/mock-canceled-idle-1/events?task_id=master&retry_id=0",
+          },
+          {
+            name: "worker_1",
+            retry_id: 0,
+            status: TaskGroupStatus.FAILED_CANCELED,
+            failure_message: "Task was canceled by user: idle-job-shutdown. Auto-cancel due to sustained idleness",
+            exit_code: undefined,
+            lead: false,
+            task_uuid: "task-cancel-002",
+            pod_name: "dc243f12-worker1-0",
+            pod_ip: "10.244.208.202",
+            node_name: "gpu-node-002",
+            processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_000).toISOString(),
+            scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_000).toISOString(),
+            initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_300).toISOString(),
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_800).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 11_460_000).toISOString(),
+            input_download_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 12_000).toISOString(),
+            input_download_end_time: new Date(BASE_SUBMIT_TIME.getTime() + 12_000).toISOString(),
+            logs: "/api/workflow/mock-canceled-idle-1/logs?task_id=worker_1&retry_id=0",
+            events: "/api/workflow/mock-canceled-idle-1/events?task_id=worker_1&retry_id=0",
+          },
+          {
+            name: "worker_2",
+            retry_id: 0,
+            status: TaskGroupStatus.FAILED_CANCELED,
+            failure_message: "Task was canceled by user: idle-job-shutdown. Auto-cancel due to sustained idleness",
+            exit_code: undefined,
+            lead: false,
+            task_uuid: "task-cancel-003",
+            pod_name: "dc243f12-worker2-0",
+            pod_ip: "10.244.141.159",
+            node_name: "gpu-node-003",
+            processing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_000).toISOString(),
+            scheduling_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_000).toISOString(),
+            initializing_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_400).toISOString(),
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 68_900).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 11_460_000).toISOString(),
+            input_download_start_time: new Date(BASE_SUBMIT_TIME.getTime() + 12_500).toISOString(),
+            input_download_end_time: new Date(BASE_SUBMIT_TIME.getTime() + 12_500).toISOString(),
+            logs: "/api/workflow/mock-canceled-idle-1/logs?task_id=worker_2&retry_id=0",
+            events: "/api/workflow/mock-canceled-idle-1/events?task_id=worker_2&retry_id=0",
+          },
+        ],
+      },
+    ],
+    spec: "/api/workflow/mock-canceled-idle-1/spec",
+    template_spec: "/api/workflow/mock-canceled-idle-1/template-spec",
+    logs: "/api/workflow/mock-canceled-idle-1/logs",
+    events: "/api/workflow/mock-canceled-idle-1/events",
+    overview: "/api/workflow/mock-canceled-idle-1/overview",
+    _logConfig: {
+      volume: { min: 200, max: 500 },
+      levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
+      ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
+      features: {
+        retries: false,
+        multiLine: true,
+        ansiCodes: false,
+        infinite: false,
+        streamDelayMs: 200,
+        taskCount: 3,
+      },
+    },
+  },
+
+  /**
+   * Sequential workflow series (1 of 3) - for testing sequence navigation buttons.
+   */
+  "mock-sequence-1": {
+    ...MOCK_WORKFLOW_BASE,
+    name: "mock-sequence-1",
+    uuid: "550e8400-e29b-41d4-a716-446655440101",
+    status: WorkflowStatus.COMPLETED,
+    priority: WorkflowPriority.NORMAL,
+    tags: ["sequence-test"],
+    submit_time: BASE_SUBMIT_TIME.toISOString(),
+    start_time: new Date(BASE_SUBMIT_TIME.getTime() + 30_000).toISOString(),
+    end_time: new Date(BASE_SUBMIT_TIME.getTime() + 600_000).toISOString(),
+    queued_time: 30,
+    duration: 570,
+    groups: [
+      {
+        name: "train",
+        status: TaskGroupStatus.COMPLETED,
+        remaining_upstream_groups: [],
+        downstream_groups: [],
+        tasks: [
+          {
+            name: "train",
+            retry_id: 0,
+            status: TaskGroupStatus.COMPLETED,
+            lead: true,
+            task_uuid: "task-seq-1-001",
+            pod_name: "train-0-seq1",
+            node_name: "node-1",
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 60_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 600_000).toISOString(),
+            logs: "/api/workflow/mock-sequence-1/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-sequence-1/events?task_id=train&retry_id=0",
+          },
+        ],
+      },
+    ],
+    spec: "/api/workflow/mock-sequence-1/spec",
+    template_spec: "/api/workflow/mock-sequence-1/template-spec",
+    logs: "/api/workflow/mock-sequence-1/logs",
+    events: "/api/workflow/mock-sequence-1/events",
+    overview: "/api/workflow/mock-sequence-1/overview",
+    _logConfig: {
+      volume: { min: 50, max: 100 },
+      levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
+      ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
+      features: { retries: false, multiLine: false, ansiCodes: false },
+    },
+  },
+
+  /**
+   * Sequential workflow series (2 of 3) - for testing sequence navigation buttons.
+   */
+  "mock-sequence-2": {
+    ...MOCK_WORKFLOW_BASE,
+    name: "mock-sequence-2",
+    uuid: "550e8400-e29b-41d4-a716-446655440102",
+    status: WorkflowStatus.COMPLETED,
+    priority: WorkflowPriority.NORMAL,
+    tags: ["sequence-test"],
+    submit_time: new Date(BASE_SUBMIT_TIME.getTime() + 700_000).toISOString(),
+    start_time: new Date(BASE_SUBMIT_TIME.getTime() + 730_000).toISOString(),
+    end_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_300_000).toISOString(),
+    queued_time: 30,
+    duration: 570,
+    groups: [
+      {
+        name: "train",
+        status: TaskGroupStatus.COMPLETED,
+        remaining_upstream_groups: [],
+        downstream_groups: [],
+        tasks: [
+          {
+            name: "train",
+            retry_id: 0,
+            status: TaskGroupStatus.COMPLETED,
+            lead: true,
+            task_uuid: "task-seq-2-001",
+            pod_name: "train-0-seq2",
+            node_name: "node-1",
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 760_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_300_000).toISOString(),
+            logs: "/api/workflow/mock-sequence-2/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-sequence-2/events?task_id=train&retry_id=0",
+          },
+        ],
+      },
+    ],
+    spec: "/api/workflow/mock-sequence-2/spec",
+    template_spec: "/api/workflow/mock-sequence-2/template-spec",
+    logs: "/api/workflow/mock-sequence-2/logs",
+    events: "/api/workflow/mock-sequence-2/events",
+    overview: "/api/workflow/mock-sequence-2/overview",
+    _logConfig: {
+      volume: { min: 50, max: 100 },
+      levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
+      ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
+      features: { retries: false, multiLine: false, ansiCodes: false },
+    },
+  },
+
+  /**
+   * Sequential workflow series (3 of 3) - for testing sequence navigation buttons.
+   */
+  "mock-sequence-3": {
+    ...MOCK_WORKFLOW_BASE,
+    name: "mock-sequence-3",
+    uuid: "550e8400-e29b-41d4-a716-446655440103",
+    status: WorkflowStatus.COMPLETED,
+    priority: WorkflowPriority.NORMAL,
+    tags: ["sequence-test"],
+    submit_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_400_000).toISOString(),
+    start_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_430_000).toISOString(),
+    end_time: new Date(BASE_SUBMIT_TIME.getTime() + 2_000_000).toISOString(),
+    queued_time: 30,
+    duration: 570,
+    groups: [
+      {
+        name: "train",
+        status: TaskGroupStatus.COMPLETED,
+        remaining_upstream_groups: [],
+        downstream_groups: [],
+        tasks: [
+          {
+            name: "train",
+            retry_id: 0,
+            status: TaskGroupStatus.COMPLETED,
+            lead: true,
+            task_uuid: "task-seq-3-001",
+            pod_name: "train-0-seq3",
+            node_name: "node-1",
+            start_time: new Date(BASE_SUBMIT_TIME.getTime() + 1_460_000).toISOString(),
+            end_time: new Date(BASE_SUBMIT_TIME.getTime() + 2_000_000).toISOString(),
+            logs: "/api/workflow/mock-sequence-3/logs?task_id=train&retry_id=0",
+            events: "/api/workflow/mock-sequence-3/events?task_id=train&retry_id=0",
+          },
+        ],
+      },
+    ],
+    spec: "/api/workflow/mock-sequence-3/spec",
+    template_spec: "/api/workflow/mock-sequence-3/template-spec",
+    logs: "/api/workflow/mock-sequence-3/logs",
+    events: "/api/workflow/mock-sequence-3/events",
+    overview: "/api/workflow/mock-sequence-3/overview",
+    _logConfig: {
+      volume: { min: 50, max: 100 },
+      levelDistribution: DEFAULT_LEVEL_DISTRIBUTION,
+      ioTypeDistribution: DEFAULT_IO_DISTRIBUTION,
+      features: { retries: false, multiLine: false, ansiCodes: false },
     },
   },
 };

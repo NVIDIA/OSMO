@@ -68,10 +68,11 @@ class Client(pydantic.BaseModel):
     A storage client that can be used to perform data operations against a remote storage.
     """
 
-    class Config:
-        extra = pydantic.Extra.forbid
-        frozen = True
-        keep_untouched = (functools.cached_property,)
+    model_config = pydantic.ConfigDict(
+        extra='forbid',
+        frozen=True,
+        ignored_types=(functools.cached_property,),
+    )
 
     #########################
     #    Factory methods    #
@@ -192,7 +193,7 @@ class Client(pydantic.BaseModel):
 
     storage_uri: str = pydantic.Field(
         ...,
-        regex=constants.STORAGE_BACKEND_REGEX,
+        pattern=constants.STORAGE_BACKEND_REGEX,
         description='The URI of the remote storage this instance of storage Client will '
                     'operate against. Must point to a valid container.',
     )
@@ -231,29 +232,25 @@ class Client(pydantic.BaseModel):
         description='Headers to apply to all requests of this client.',
     )
 
-    @pydantic.root_validator(skip_on_failure=True)
-    @classmethod
-    def validate_data_credential_endpoint(cls, values):
+    @pydantic.model_validator(mode='after')
+    def validate_data_credential_endpoint(self):
         """
         Validates that the data credential endpoint matches the storage backend profile.
         """
-        data_credential_input = values.get('data_credential_input')
-        if data_credential_input is not None:
-            storage_uri = values.get('storage_uri')
-
+        if self.data_credential_input is not None:
             # Construct backends to validate profiles match
             data_cred_backend = backends.construct_storage_backend(
-                uri=data_credential_input.endpoint,
+                uri=self.data_credential_input.endpoint,
             )
             storage_backend = backends.construct_storage_backend(
-                uri=storage_uri,
+                uri=self.storage_uri,
             )
 
             if data_cred_backend.profile != storage_backend.profile:
                 raise osmo_errors.OSMOCredentialError(
                     'Credential endpoint must match the storage backend profile')
 
-        return values
+        return self
 
     @functools.cached_property
     def data_credential(self) -> credentials.DataCredential:
@@ -1195,9 +1192,7 @@ class SingleObjectClient(pydantic.BaseModel):
     interacting with a single object.
     """
 
-    class Config:
-        extra = pydantic.Extra.forbid
-        frozen = True
+    model_config = pydantic.ConfigDict(extra='forbid', frozen=True)
 
     @overload
     @classmethod

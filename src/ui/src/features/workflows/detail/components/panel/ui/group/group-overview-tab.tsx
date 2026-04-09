@@ -89,26 +89,23 @@ export const GroupOverviewTab = memo(function GroupOverviewTab({
 
   return (
     <div className="space-y-6 p-4">
-      {/* Failure message - prominent at top when present */}
-      {hasFailureMessage && (
-        <div>
-          <h3 className={SECTION_HEADER}>Error</h3>
-          <Card className="gap-0 border-red-600/20 bg-red-600/5 py-0 dark:border-red-400/20 dark:bg-red-400/5">
-            <CardContent className="flex items-start gap-1.5 p-3 text-xs text-red-600 dark:text-red-400">
-              <AlertCircle className="mt-0.5 size-3 shrink-0" />
-              <span>{group.failure_message}</span>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Timeline section */}
-      {hasTimeline && (
+      {/* Timeline section (also renders failure message inside the card) */}
+      {(hasTimeline || hasFailureMessage) && (
         <div>
           <h3 className={SECTION_HEADER}>Timeline</h3>
           <Card className="gap-0 overflow-hidden py-0">
             <CardContent className="min-w-0 overflow-hidden p-3">
-              <GroupTimeline group={group} />
+              {hasTimeline && <GroupTimeline group={group} />}
+
+              {/* Failure message - inside timeline card, matching task view layout */}
+              {hasFailureMessage && (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
+                    <p className="text-xs wrap-break-word text-red-700 dark:text-red-400">{group.failure_message}</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
