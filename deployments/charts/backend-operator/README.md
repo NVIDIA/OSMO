@@ -57,7 +57,7 @@ When enabled, a `NetworkPolicy` is applied to the workflow namespace (`global.ba
 | `global.networkPolicy.enabled` | Create the `NetworkPolicy`. When `false`, all egress is unrestricted. | `false` |
 | `global.networkPolicy.clusterCIDRs` | Internal cluster CIDRs (pod CIDR, service CIDR) to exclude from the external egress rule. Required for namespace isolation to be effective. | `[]` |
 | `global.networkPolicy.dnsNamespace` | Namespace containing the cluster DNS service (CoreDNS/kube-dns). Port 53 egress is allowed to pods in this namespace. | `kube-system` |
-| `global.networkPolicy.allowedNamespaces` | Additional namespaces that workflow pods may reach (e.g. `osmo-bridge-proxy`, `monitoring`). | `[]` |
+| `global.networkPolicy.allowedNamespaces` | Additional namespaces that workflow pods may reach. | `[]` |
 | `global.networkPolicy.additionalEgressRules` | Raw `NetworkPolicyEgressRule` objects appended to the policy. Use for IP-based allowances or DNS workarounds on iptables-based CNIs. | `[]` |
 
 
