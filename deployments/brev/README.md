@@ -30,6 +30,38 @@ The OSMO Brev deployment provides a pre-configured OSMO instance running in the 
 - NVIDIA Container Toolkit (>=1.18.1)
 - NVIDIA Driver Version (>=575)
 
+### Compatibility Matrix
+
+<!-- COMPAT_MATRIX_START -->
+
+Last updated: 2026-04-09
+
+| Provider | Instance Type | GPU | Hello World | Disk Fill | GPU Workload | Notes |
+|----------|---------------|-----|-------------|-----------|--------------|-------|
+| massedcompute | massedcompute_L40S | L40S 1× | ✅ | ✅ | ✅ | |
+| massedcompute | massedcompute_L40 | L40 1× | ✅ | ✅ | ✅ | |
+| hyperstack | hyperstack_L40 | L40 1× | ✅ | ✅ | ✅ | Driver <575 min |
+| verda | verda_L40S | L40S 1× | ✅ | ✅ | ✅ | |
+| scaleway | scaleway_L40S | L40S 1× | ✅ | ✅ | ✅ | Driver <575 min |
+| crusoe | l40s-48gb.1x | L40S 1× | ✅ | ✅ | ❌ | nvidia-cdi-refresh failed; GPU not exposed |
+| nebius | gpu-l40s-a.1gpu-8vcpu-32gb | L40S 1× | ❌ | ❌ | ❌ | Docker not pre-installed |
+| aws | g6e.xlarge | L40S 1× | ❌ | ❌ | ❌ | brev SSH failure |
+
+**Test definitions:**
+- **Hello World** — `ubuntu:22.04`, 1 CPU / 1Gi memory / 0 GPU
+- **Disk Fill** — `nvcr.io/nvidia/nemo:24.12` (~40 GB); validates Docker data-root relocation
+- **GPU Workload** — verifies GPU is exposed in the default pool, then runs MNIST CNN on `nvcr.io/nvidia/pytorch:24.03-py3`
+
+**Status codes:** ✅ · ❌ · `—` (not applicable)
+
+<!-- COMPAT_MATRIX_END -->
+
+<!-- To update manually:
+export NGC_SERVICE_KEY=nvapi-...
+claude "$(sed -e "s/{{GITHUB_RUN_ID}}/local-$(date +%Y%m%d%H%M%S)/g" -e "s/{{GITHUB_SHA}}/$(git rev-parse HEAD)/g" deployments/brev/prompt.md)
+
+Note: run all brev commands with dangerouslyDisableSandbox: true" -->
+
 ## Accessing the Brev Deployment
 
 ### Web UI Access

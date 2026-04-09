@@ -199,6 +199,11 @@ while IFS= read -r line; do
     case "$MNT" in
         /dev|/dev/*|/proc|/sys|/sys/*|/run|/run/*|/boot|/boot/*|/snap/*) continue ;;
     esac
+    # Skip read-only filesystems (e.g. /mnt/cloud-metadata on Nebius)
+    if ! sudo mkdir -p "$MNT/.docker_write_test" 2>/dev/null; then
+        continue
+    fi
+    sudo rmdir "$MNT/.docker_write_test" 2>/dev/null || true
     if [ "$AVAIL" -gt "$DOCKER_DATA_ROOT_AVAIL" ] 2>/dev/null; then
         DOCKER_DATA_ROOT_AVAIL=$AVAIL
         DOCKER_DATA_ROOT_MOUNT=$MNT
