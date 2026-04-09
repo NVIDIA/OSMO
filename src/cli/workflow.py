@@ -670,11 +670,11 @@ def print_submission_results(result, args: argparse.Namespace, parent_workflow_i
         else:
             message = 'Workflow submit successful.'
         print(f'{message}\n' \
-              f'Workflow ID        - {result["name"]}\n' \
-              f'Workflow Overview  - {result["overview"]}')
+              f'Workflow ID        - {result['name']}\n' \
+              f'Workflow Overview  - {result['overview']}')
         dashboard_url = result.get('dashboard_url')
         if dashboard_url is not None:
-            print(f'Workflow Dashboard - {result["dashboard_url"]}')
+            print(f'Workflow Dashboard - {result['dashboard_url']}')
         priority = wf_priority.WorkflowPriority(args.priority) \
             if hasattr(args, 'priority') and args.priority else wf_priority.WorkflowPriority.NORMAL
         if priority.preemptible:
@@ -751,7 +751,7 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
                                         payload=template_data.to_dict(), params=params)
 
         if args.dry:
-            print(f'{result["spec"]}')
+            print(f'{result['spec']}')
             return
 
         # Not a dry run, so reset the flag for the actual submission
@@ -881,7 +881,7 @@ def _validate_workflow(service_client: client.ServiceClient, args: argparse.Name
         f'api/pool/{args.pool}/workflow',
         payload=template_dict,
         params=params)
-    print(f'{result["logs"]}')
+    print(f'{result['logs']}')
 
 
 def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -972,7 +972,7 @@ def _cancel_workflow(service_client: client.ServiceClient, args: argparse.Namesp
             if args.format_type == 'json':
                 print(json.dumps(result, indent=common.JSON_INDENT_SIZE))
             else:
-                print(f'Cancel job for workflow {result["name"]} is submitted!')
+                print(f'Cancel job for workflow {result['name']} is submitted!')
         except (osmo_errors.OSMOServerError, osmo_errors.OSMOUserError) as error:
             print(f'Workflow cancelation failed for workflow {workflow_id}: {error}')
 
@@ -1366,7 +1366,7 @@ async def _run_exec_interactive(service_client: client.ServiceClient, args: argp
                                 result: Dict[str, str], keep_alive: bool = False):
     router_address = result['router_address']
     headers = {'Cookie': result['cookie']}
-    endpoint = f'api/router/exec/{args.workflow_id}/client/{result["key"]}'
+    endpoint = f'api/router/exec/{args.workflow_id}/client/{result['key']}'
 
     old_tty = None
     try:
@@ -1423,7 +1423,7 @@ async def _run_exec_command(service_client: client.ServiceClient, args: argparse
                             task_name: str, result: Dict[str, str]):
     router_address = result['router_address']
     headers = {'Cookie': result['cookie']}
-    endpoint = f'api/router/exec/{args.workflow_id}/client/{result["key"]}'
+    endpoint = f'api/router/exec/{args.workflow_id}/client/{result['key']}'
 
     try:
         ws = await service_client.create_websocket(
@@ -1507,7 +1507,8 @@ def _port_forward(service_client: client.ServiceClient, args: argparse.Namespace
             task_list.append(_single_port_forward(
                 service_client, args, local_port, remote_port,
                 result['router_address'], result['key'], result['cookie']))
-        await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
+        await asyncio.wait([asyncio.ensure_future(t) for t in task_list],
+                           return_when=asyncio.FIRST_COMPLETED)
     asyncio.get_event_loop().run_until_complete(_run())
 
 

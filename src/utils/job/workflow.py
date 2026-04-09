@@ -164,7 +164,7 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
             upper_name = resource_type.name.upper()
             if resource_type.unit:
                 value = exposed_fields.get(resource_type.name, '0')
-                value = f'{common.convert_resource_value_str(value, target="Ki")}Ki'
+                value = f'{common.convert_resource_value_str(value, target='Ki')}Ki'
                 mapping[f'K8_{upper_name}'] = value
             else:
                 mapping[f'K8_{upper_name}'] = \

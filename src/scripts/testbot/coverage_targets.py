@@ -207,10 +207,10 @@ def format_targets(targets: list[dict]) -> str:
             f"{s}-{e}" if s != e else str(s)
             for s, e in target["uncovered_ranges"]
         )
-        lines.append(f"## Target {i}: {target['file_path']}")
+        lines.append(f"## Target {i}: {target["file_path"]}")
         lines.append(
-            f"Coverage: {target['coverage_pct']:.1f}% "
-            f"({target['uncovered_lines']} uncovered lines)"
+            f"Coverage: {target["coverage_pct"]:.1f}% "
+            f"({target["uncovered_lines"]} uncovered lines)"
         )
         lines.append(f"Uncovered ranges: {ranges_str}")
         lines.append("")

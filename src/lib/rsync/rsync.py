@@ -139,7 +139,7 @@ async def _stream_progress(stdout: asyncio.StreamReader) -> None:
             else:
                 display = f'{current_file}  {line.strip()}'
             padding = max(0, terminal_width - len(display))
-            sys.stdout.write(f'\r{display}{" " * padding}')
+            sys.stdout.write(f'\r{display}{' ' * padding}')
             sys.stdout.flush()
         else:
             file_count += 1
@@ -147,8 +147,8 @@ async def _stream_progress(stdout: asyncio.StreamReader) -> None:
 
     # Final newline to move past the in-place line
     if file_count > 0:
-        sys.stdout.write(f'\rSynced {file_count} file{"s" if file_count != 1 else ""}'
-                         f'{" " * (terminal_width - 20)}\n')
+        sys.stdout.write(f'\rSynced {file_count} file{'s' if file_count != 1 else ''}'
+                         f'{' ' * (terminal_width - 20)}\n')
         sys.stdout.flush()
 
 
@@ -1755,7 +1755,7 @@ def validate_remote_path(
     if rsync_module is None:
         raise osmo_errors.OSMOUserError(
             f'Remote path is not allowed for rsync: {path}. The allowed base paths are: '
-            f'{", ".join([p.path for p in allowed_paths])}')
+            f'{', '.join([p.path for p in allowed_paths])}')
 
     return rsync_module.name, sanitized
 
