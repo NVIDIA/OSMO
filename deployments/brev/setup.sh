@@ -440,6 +440,62 @@ print_status "Logging in to OSMO..."
 osmo login http://localhost:8000 --method=dev --username=testuser
 
 # ============================================
+# Step 9: Configure Shared Memory Pod Template
+# ============================================
+print_status "Adding shared_memory pod template for /dev/shm..."
+
+OSMO_API="http://localhost:8000"
+
+# Create the shared_memory pod template
+curl -sf -X PUT "${OSMO_API}/api/configs/pod_template/shared_memory" \
+  -H "Content-Type: application/json" \
+  -H "x-osmo-user: testuser" \
+  -d '{
+    "configs": {
+      "spec": {
+        "volumes": [
+          {
+            "name": "shm",
+            "emptyDir": {
+              "medium": "Memory",
+              "sizeLimit": "64Gi"
+            }
+          }
+        ],
+        "containers": [
+          {
+            "name": "{{USER_CONTAINER_NAME}}",
+            "volumeMounts": [
+              {
+                "name": "shm",
+                "mountPath": "/dev/shm"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "description": "Add shared_memory pod template for /dev/shm mounting"
+  }'
+
+print_status "shared_memory pod template created"
+
+# Add shared_memory to the default pool's common_pod_template list
+print_status "Adding shared_memory to default pool..."
+
+curl -sf -X PATCH "${OSMO_API}/api/configs/pool/default" \
+  -H "Content-Type: application/json" \
+  -H "x-osmo-user: testuser" \
+  -d '{
+    "configs_dict": {
+      "common_pod_template": ["default_ctrl", "default_user", "shared_memory"]
+    },
+    "description": "Add shared_memory pod template to default pool"
+  }'
+
+print_status "Default pool updated with shared_memory pod template"
+
+# ============================================
 # Cleanup
 # ============================================
 print_status "Cleaning up temporary files..."
