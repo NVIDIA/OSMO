@@ -837,7 +837,7 @@ def update_labels(bucket: objects.DatasetPattern,
     # Delete Labels
     if delete_label:
         for label in delete_label:
-            update_input += [f'{{{label.replace(".", ",")}}}']
+            update_input += [f'{{{label.replace('.', ',')}}}']
             new_labels += '#-%s'
 
     # Set Labels
@@ -866,7 +866,7 @@ def update_meatdata(bucket: objects.DatasetPattern,
     # Delete Metadata
     if delete_key:
         for data_key in delete_key:
-            update_input += [f'{{{data_key.replace(".", ",")}}}']
+            update_input += [f'{{{data_key.replace('.', ',')}}}']
             new_metadata += '#-%s'
 
     # Set Metadata
@@ -1121,7 +1121,7 @@ def create_collection(bucket: objects.DatasetPattern,
     # Add Versions into Collection
     collection_versions = tuple((collection_id, key, value) for key, value in new_datasets.items())
     insert_cmd = 'INSERT INTO collection (id, dataset_id, version_id) VALUES ' +\
-                 f'{",".join(["%s"] * len(collection_versions))};'
+                 f'{','.join(['%s'] * len(collection_versions))};'
     postgres.execute_commit_command(insert_cmd, collection_versions)
 
 
@@ -1246,7 +1246,7 @@ def update_collection(bucket: objects.DatasetPattern,
             insert_cmd = 'BEGIN; ' +\
                              'DELETE FROM collection WHERE id = %s; ' +\
                              'INSERT INTO collection (id, dataset_id, version_id) VALUES ' +\
-                                 f'{",".join(["%s"] * len(collection_versions))} ON CONFLICT ' +\
+                                 f'{','.join(['%s'] * len(collection_versions))} ON CONFLICT ' +\
                                  '(id, dataset_id) DO UPDATE SET version_id = ' +\
                                  'EXCLUDED.version_id;' +\
                              'DELETE FROM dataset ' +\

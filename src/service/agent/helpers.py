@@ -697,7 +697,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                 try:
                     queue_name = connectors.backend_action_queue_name(name)
                     # Use async blocking brpop which yields control while waiting
-                    result = await redis_client.brpop(queue_name)
+                    result = await redis_client.brpop(queue_name)  # type: ignore[misc]
                     if result is not None:
                         _, attrributes = result
                         logging.info('Sending action to backend %s from queue: %s with key: %s',

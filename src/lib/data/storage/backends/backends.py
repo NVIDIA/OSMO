@@ -544,7 +544,7 @@ class S3Backend(Boto3Backend):
                 for result in results['EvaluationResults']:
                     if result['EvalDecision'] != 'allowed':
                         raise osmo_errors.OSMOCredentialError(
-                            f'Data key validation error: no {result["EvalActionName"]} '
+                            f'Data key validation error: no {result['EvalActionName']} '
                             f'access for s3://{path}')
 
         try:

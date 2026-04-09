@@ -42,7 +42,7 @@ class MetricsOptions(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='before')
     @classmethod
-    def validate(cls, values):  # pylint: disable=no-self-argument
+    def validate_single_field(cls, values):
         """ A valid metric can only be one of the two types """
         num_fields_set = sum(1 for value in values.values()
                              if value is not None)
@@ -223,7 +223,7 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                     while True:
                         queue_name = workflow.action_queue_name(
                             workflow_obj.workflow_id, task_name, retry_id)
-                        _, key = await redis_client.brpop(queue_name)
+                        _, key = await redis_client.brpop(queue_name)  # type: ignore[misc]
                         logging.info('Send action to task %s from queue: %s with key: %s',
                                     task_name, queue_name, key)
                         json_fields = await redis_client.get(key)

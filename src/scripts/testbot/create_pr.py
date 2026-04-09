@@ -116,7 +116,7 @@ def main() -> None:
     files_summary = ", ".join(source_names)
     files_list = "\n".join(f"- `{f}`" for f in changed_files)
 
-    branch = f"testbot/{datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y%m%d-%H%M')}"
+    branch = f"testbot/{datetime.datetime.now(tz=datetime.timezone.utc).strftime("%Y%m%d-%H%M")}"
 
     if args.dry_run:
         logger.info("Dry run — would create branch '%s' with files:\n%s", branch, files_list)

@@ -488,7 +488,7 @@ class Manager(pydantic.BaseModel):
                     f'{self.dataset.bucket} is a collection.',
                 )
             case _:
-                raise osmo_errors.OSMOUserError(f'Invalid dataset type: {info_result["type"]}')
+                raise osmo_errors.OSMOUserError(f'Invalid dataset type: {info_result['type']}')
 
     def update(
         self,

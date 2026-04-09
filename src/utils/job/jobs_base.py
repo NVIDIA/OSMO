@@ -105,7 +105,7 @@ class Job(pydantic.BaseModel):
                   values['job_type'] in cls._get_allowed_job_type()):
             raise osmo_errors.OSMOServerError(
                 f'Tried to initialize a {cls.__name__} instance with '
-                f'job_type as {values["job_type"]} or not in {cls._get_allowed_job_type()}')
+                f'job_type as {values['job_type']} or not in {cls._get_allowed_job_type()}')
 
         if 'job_id' not in values or values['job_id'] is None:
             values['job_id'] = cls._get_job_id(values)

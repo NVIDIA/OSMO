@@ -194,7 +194,7 @@ class OperationStream(Generic[T, R], Generator[T, None, R]):
             raise
 
     def close(self) -> None:
-        return self._gen.close()
+        self._gen.close()
 
 
 class OperationIO(Generic[I, R], io.IOBase):

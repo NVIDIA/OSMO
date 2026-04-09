@@ -196,7 +196,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
         self.redis_client.expire(key_name, UNIQUE_JOB_TTL, nx=True)
 
         # If this job was not the first to write into the database, it should not execute.
-        job_uuid = self.redis_client.get(key_name).decode()
+        job_uuid = self.redis_client.get(key_name).decode()  # type: ignore[union-attr]
         if job_uuid != job.job_uuid:
             logging.info('Skipping job %s because it is a duplicate', job, extra=job.log_labels())
             self._current_job = None
@@ -208,7 +208,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
             self.redis_client.expire(f'retry:{job.job_id}', UNIQUE_JOB_TTL, nx=True)
             workflow_config = self.context.postgres.get_workflow_configs()
             job_retry_limit = workflow_config.max_retry_per_job
-            if job_retry_count > job_retry_limit:
+            if job_retry_count > job_retry_limit:  # type: ignore[operator]
                 error_message = f'Job {job} failed after retrying {job_retry_limit} times'
                 logging.info(error_message, extra=job.log_labels())
                 self._current_job = CurrentJobContext(

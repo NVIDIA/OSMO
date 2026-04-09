@@ -1326,7 +1326,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         )
         self.assertEqual(
             response.second_data['buckets']['test-bucket-1']['default_credential']['access_key'],
-            f'********** <secret changed in r{updated_access_key_history_entry["revision"]}>'
+            f'********** <secret changed in r{updated_access_key_history_entry['revision']}>'
         )
 
         # Test 7: Non-existent revision

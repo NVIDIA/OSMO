@@ -45,7 +45,8 @@ _SPEC_WITH_SECRETS = textwrap.dedent(f'''\
         files:
         - path: /tmp/run.sh
           contents: |
-            AWS_ACCESS_KEY_ID={_AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY={_AWS_SECRET_KEY} aws s3 cp <file> s3://testbucket
+            AWS_ACCESS_KEY_ID={_AWS_ACCESS_KEY} AWS_SECRET_ACCESS_KEY={_AWS_SECRET_KEY} \
+            aws s3 cp <file> s3://testbucket
 ''')
 
 # Credential field references (e.g. access_key_id) should never be masked — they are

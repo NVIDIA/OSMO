@@ -115,7 +115,7 @@ def _list_pool(service_client: client.ServiceClient, args: argparse.Namespace):
 
     if len(pool_response['node_sets']) == 0:
         if args.pool:
-            print(f'Pools {", ".join(args.pool)} not found')
+            print(f'Pools {', '.join(args.pool)} not found')
         else:
             print('No pools available')
         return

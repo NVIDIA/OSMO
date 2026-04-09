@@ -1066,7 +1066,8 @@ async def first_completed(coroutines: List[Coroutine], **kwargs):
     """
     Run all awaitables in parallel and return the first one that completes.
     """
-    done, pending = await asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED, **kwargs)
+    tasks = [asyncio.ensure_future(c) for c in coroutines]
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, **kwargs)
     for task in pending:
         try:
             task.cancel()
@@ -1191,7 +1192,7 @@ def convert_utc_datetime_to_user_zone(utc_time: str) -> str:
         raise osmo_errors.OSMOError(f'Invalid time format: {utc_time}')
     user_timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
     user_datetime = utc_datetime.replace(tzinfo=pytz.UTC).astimezone(user_timezone)
-    return f'{user_datetime.strftime("%b %d, %Y %H:%M %Z")}'
+    return f'{user_datetime.strftime('%b %d, %Y %H:%M %Z')}'
 
 
 def convert_timezone(date_value: str) -> str:

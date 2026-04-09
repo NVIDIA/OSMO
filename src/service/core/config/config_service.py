@@ -273,7 +273,7 @@ def delete_backend(
         if alive_workflows:
             raise osmo_errors.OSMOBackendError(
                 f'Backend {name} is not finished running workflows. Alive workflows: ' +
-                f'{", ".join(wf.workflow_id for wf in alive_workflows)}')
+                f'{', '.join(wf.workflow_id for wf in alive_workflows)}')
     connectors.delete_redis_backend(name, workflow_objects.WorkflowServiceContext.get().config)
     helpers.delete_backend(name, request, username)
 
@@ -1162,7 +1162,7 @@ def rollback_config(
     if results[0]['deleted_at'] is not None:
         raise osmo_errors.OSMOUserError(
             f'Cannot roll back to revision {request.revision} for config type '
-            f'{request.config_type.value} as it was deleted by {results[0]["deleted_by"]}'
+            f'{request.config_type.value} as it was deleted by {results[0]['deleted_by']}'
         )
     history_entry = results[0]
 

@@ -253,7 +253,7 @@ class MessageOptions(pydantic.BaseModel):
 
     @pydantic.model_validator(mode='before')
     @classmethod
-    def validate(cls, values):  # pylint: disable=no-self-argument
+    def validate_single_field(cls, values):
         """ A valid message can only be one of the two types """
         if not isinstance(values, dict):
             return values

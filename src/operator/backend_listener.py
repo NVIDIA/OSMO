@@ -683,7 +683,8 @@ def refresh_resource_database(node_send_queue: helpers.EnqueueCallback,
                     _continue=continue_token,
                     limit=list_pods_page_size
                 )
-                pod_list_aggregated.items.extend(pod_list.items)
+                if pod_list_aggregated is not None:
+                    pod_list_aggregated.items.extend(pod_list.items)
             else:
                 pod_list = api.list_pod_for_all_namespaces(
                     limit=list_pods_page_size)
@@ -697,7 +698,8 @@ def refresh_resource_database(node_send_queue: helpers.EnqueueCallback,
             continue_token = pod_list.metadata._continue  # pylint: disable=protected-access
 
             if not continue_token:
-                pod_list_aggregated.metadata = pod_list.metadata
+                if pod_list_aggregated is not None:
+                    pod_list_aggregated.metadata = pod_list.metadata
                 break
 
             if progress_writer:
@@ -1778,7 +1780,7 @@ async def main():
     unack_heartbeat_messages = UnackMessages(WebSocketConnectionType.HEARTBEAT,
                                              config.max_unacked_messages)
 
-    backend_message_queues = {
+    backend_message_queues: Dict[str, asyncio.Queue | UnackMessages] = {
         'control_receive_queue': control_receive_queue,
         'pod_send_queue': pod_send_queue,
         'node_send_queue': node_send_queue,

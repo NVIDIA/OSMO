@@ -198,7 +198,7 @@ def patch_configs(
             except ValueError as _:
                 raise osmo_errors.OSMOUserError(
                     f'Bucket mode {bucket_config.mode} is not valid. Valid modes are '
-                    f'{", ".join([member.value for member in connectors.BucketMode])}')
+                    f'{', '.join([member.value for member in connectors.BucketMode])}')
 
         updated_configs = configs.serialize(postgres)
         for key, value in updated_configs.items():
@@ -267,7 +267,7 @@ def _update_backend_helper(
     params.append(configs['name'])
 
     update_cmd = (
-        f'UPDATE backends SET {", ".join(values)} WHERE name = %s RETURNING name;'
+        f'UPDATE backends SET {', '.join(values)} WHERE name = %s RETURNING name;'
     )
     result = postgres.execute_fetch_command(update_cmd, tuple(params))
     if not result:

@@ -46,7 +46,7 @@ class NetworkAwareLocalStackContainer(network.NetworkAwareContainer,
     A network aware testcontainer that runs the localstack image.
     """
 
-    def start(self):
+    def start(self, timeout: float = 60) -> 'NetworkAwareLocalStackContainer':  # pylint: disable=unused-argument
         return super(localstack.LocalStackContainer, self).start()
 
 

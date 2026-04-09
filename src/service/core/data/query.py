@@ -292,7 +292,7 @@ class QueryTransformer(lark.Transformer):
 
     def user_expression(self, children):
         command = 'dataset.id in (SELECT id in dataset_version ' +\
-                  f'WHERE {" ".join([child.cmd for child in children])})'
+                  f'WHERE {' '.join([child.cmd for child in children])})'
         params: List = sum((child.params for child in children), [])
         return QueryTerm(command, params)
 
@@ -314,9 +314,9 @@ class QueryTransformer(lark.Transformer):
 
     def info_number_expression(self, children):
         command = children[0].cmd
-        children[0].cmd = f'jsonb_typeof({command.replace("->>", "->")}) = \'number\' AND ' +\
+        children[0].cmd = f'jsonb_typeof({command.replace('->>', '->')}) = \'number\' AND ' +\
                           f'({command})::float'
-        command = f'({" ".join([child.cmd for child in children])})'
+        command = f'({' '.join([child.cmd for child in children])})'
         children[0].params += children[0].params
         params: List = sum((child.params for child in children), [])
         enabled = any(child.metadata_enabled for child in children)
@@ -326,7 +326,7 @@ class QueryTransformer(lark.Transformer):
         command = children[2].cmd.replace('->>', '->')
         children[2].cmd = f'jsonb_typeof({command}) = \'array\' AND ' +\
                           f'jsonb_array_length({command})'
-        command = f'({children[2].cmd} {" ".join([child.cmd for child in children[4:]])})'
+        command = f'({children[2].cmd} {' '.join([child.cmd for child in children[4:]])})'
         children[2].params += children[2].params
         params: List = sum((child.params for child in children), [])
         enabled = any(child.metadata_enabled for child in children)
@@ -342,7 +342,7 @@ class QueryTransformer(lark.Transformer):
         return QueryTerm(command, params, enabled)
 
     def not_expression(self, children):
-        command = f'{children[0].cmd} ({" ".join([child.cmd for child in children[1:]])})'
+        command = f'{children[0].cmd} ({' '.join([child.cmd for child in children[1:]])})'
         params: List = sum((child.params for child in children), [])
         enabled = any(child.metadata_enabled for child in children)
         return QueryTerm(command, params, enabled)

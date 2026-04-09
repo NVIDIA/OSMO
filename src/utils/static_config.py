@@ -59,7 +59,7 @@ class StaticConfig(pydantic.BaseModel):
                 help_message = field.description or ''
                 if field.default is not None:
                     help_message += f' (default: {field.default!s})'
-                parser.add_argument(f'--{extras["command_line"]}',
+                parser.add_argument(f'--{extras['command_line']}',
                                     action=extras.get('action', 'store'),
                                     help=help_message)
         args = parser.parse_args()
