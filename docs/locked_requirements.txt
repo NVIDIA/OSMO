@@ -826,7 +826,9 @@ pyyaml==6.0.3 \
 requests==2.32.4 \
     --hash=sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c \
     --hash=sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422
-    # via sphinx
+    # via
+    #   sphinx
+    #   sphinxcontrib-spelling
 snowballstemmer==2.2.0 \
     --hash=sha256:09b16deb8547d3412ad7b590689584cd0fe25ec8db3be37788be3810cbf19cb1 \
     --hash=sha256:c8e1716e83cc398ae16824e5572ae04e0d9fc2c6b985fb0f900f5f0c96ecba1a
@@ -929,9 +931,9 @@ sphinxcontrib-serializinghtml==2.0.0 \
     --hash=sha256:6e2cb0eef194e10c27ec0023bfeb25badbbb5868244cf5bc5bdc04e4464bf331 \
     --hash=sha256:e9d912827f872c029017a53f0ef2180b327c3f7fd23c87229f7a8e8b70031d4d
     # via sphinx
-sphinxcontrib-spelling==7.7.0 \
-    --hash=sha256:56561c3f6a155b0946914e4de988729859315729dc181b5e4dc8a68fe78de35a \
-    --hash=sha256:95a0defef8ffec6526f9e83b20cc24b08c9179298729d87976891840e3aa3064
+sphinxcontrib-spelling==8.0.2 \
+    --hash=sha256:afbc7b8e93721ab88f12bdd39d848b92017b3763b9ed6226b4b0e54b06664fea \
+    --hash=sha256:db8b3b2945683d49e87a8a5133d2b8ed4206cb593038b986ca8686a485f9980d
     # via -r docs_requirements.txt
 tabulate==0.9.0 \
     --hash=sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c \
