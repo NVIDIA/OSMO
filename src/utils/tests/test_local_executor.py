@@ -1227,6 +1227,146 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
         self.assertFalse(executor.execute(spec))
 
 
+class TestUnresolvedTokenDetection(unittest.TestCase):
+    """Verify that unresolved {{variable}} tokens are detected before running containers."""
+
+    def setUp(self):
+        """Create a temporary work directory for unresolved token tests."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-tokens-')
+
+    def tearDown(self):
+        """Remove the temporary work directory after each test."""
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    def test_jinja_variable_in_args_detected(self):
+        """A bare {{variable}} in args (without default-values section) is caught before execution."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: jinja-leak
+              tasks:
+              - name: task
+                image: "alpine:3.18"
+                command: ["echo"]
+                args: ["{{experiment_name}}"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor.execute(spec)
+        self.assertIn('unresolved', str(context.exception).lower())
+        self.assertIn('experiment_name', str(context.exception))
+
+    def test_jinja_variable_in_command_detected(self):
+        """A bare {{variable}} in command is caught before execution."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: jinja-leak
+              tasks:
+              - name: task
+                image: "alpine:3.18"
+                command: ["{{my_binary}}"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor.execute(spec)
+        self.assertIn('my_binary', str(context.exception))
+
+    def test_jinja_variable_in_env_detected(self):
+        """A bare {{variable}} in environment values is caught before execution."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: jinja-leak
+              tasks:
+              - name: task
+                image: "alpine:3.18"
+                command: ["echo"]
+                environment:
+                  MY_VAR: "{{some_value}}"
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor.execute(spec)
+        self.assertIn('some_value', str(context.exception))
+
+    def test_jinja_variable_in_file_contents_detected(self):
+        """A bare {{variable}} in file contents is caught before execution."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: jinja-leak
+              tasks:
+              - name: task
+                image: "alpine:3.18"
+                command: ["sh", "/tmp/run.sh"]
+                files:
+                - contents: |
+                    echo {{config_path}}/data
+                  path: /tmp/run.sh
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor.execute(spec)
+        self.assertIn('config_path', str(context.exception))
+
+    def test_typo_in_osmo_token_detected(self):
+        """A typo in an OSMO token (e.g., {{ouptut}}) is caught as unresolved."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: typo
+              tasks:
+              - name: task
+                image: "alpine:3.18"
+                command: ["sh", "-c"]
+                args: ["echo data > {{ouptut}}/file.txt"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor.execute(spec)
+        self.assertIn('ouptut', str(context.exception))
+
+    @mock.patch('subprocess.run')
+    def test_valid_osmo_tokens_not_flagged(self, mock_run):
+        """Valid OSMO tokens ({{output}}, {{input:0}}) are resolved and not flagged as unresolved."""
+        mock_run.return_value = mock.Mock(returncode=0)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: valid
+              tasks:
+              - name: producer
+                image: alpine:3.18
+                command: ["sh", "-c"]
+                args: ["echo ok > {{output}}/data.txt"]
+              - name: consumer
+                image: alpine:3.18
+                command: ["sh", "-c"]
+                args: ["cat {{input:0}}/data.txt > {{ output }}/result.txt"]
+                inputs:
+                - task: producer
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        executor.execute(spec)
+
+    def test_error_message_suggests_dry_run(self):
+        """The unresolved token error message suggests using --dry-run to expand templates."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: helpful
+              tasks:
+              - name: task
+                image: "alpine:3.18"
+                command: ["echo", "{{missing}}"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor.execute(spec)
+        self.assertIn('dry-run', str(context.exception))
+
+
 class TestShmSize(unittest.TestCase):
     """Verify that --shm-size is passed to Docker for GPU tasks."""
 

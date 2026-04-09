@@ -440,6 +440,11 @@ class LocalExecutor:
 
         resolved_command = [self._substitute_tokens(c, token_map) for c in task_spec.command]
         resolved_args = [self._substitute_tokens(a, token_map) for a in task_spec.args]
+        resolved_env_values = [self._substitute_tokens(v, token_map) for v in task_spec.environment.values()]
+
+        all_resolved = resolved_command + resolved_args + resolved_env_values
+        all_resolved += [self._substitute_tokens(f.contents, token_map) for f in task_spec.files]
+        self._check_unresolved_tokens(node.name, all_resolved)
 
         docker_args = [self._docker_cmd, 'run', '--rm']
 
@@ -463,9 +468,8 @@ class LocalExecutor:
         elif self._shm_size:
             docker_args += ['--shm-size', self._shm_size]
 
-        for key, value in task_spec.environment.items():
-            resolved_value = self._substitute_tokens(value, token_map)
-            docker_args += ['-e', f'{key}={resolved_value}']
+        for env_key, resolved_value in zip(task_spec.environment.keys(), resolved_env_values):
+            docker_args += ['-e', f'{env_key}={resolved_value}']
 
         docker_args += ['-v', f'{output_dir}:{CONTAINER_DATA_PATH}/output']
 
@@ -516,11 +520,27 @@ class LocalExecutor:
                 tokens[f'input:{index}'] = container_input_path
         return tokens
 
+    _UNRESOLVED_TOKEN_PATTERN = re.compile(r'\{\{[^}]+\}\}')
+
     def _substitute_tokens(self, text: str, tokens: Dict[str, str]) -> str:
         """Replace all {{key}} placeholders in text with their corresponding token values."""
         for key, value in tokens.items():
             text = re.sub(r'\{\{\s*' + re.escape(key) + r'\s*\}\}', value, text)
         return text
+
+    def _check_unresolved_tokens(self, task_name: str, resolved_fields: List[str]):
+        """Raise ValueError if any resolved field still contains {{ }} placeholders."""
+        unresolved: List[str] = []
+        for field in resolved_fields:
+            for match in self._UNRESOLVED_TOKEN_PATTERN.finditer(field):
+                token = match.group(0)
+                if token not in unresolved:
+                    unresolved.append(token)
+        if unresolved:
+            raise ValueError(
+                f'Task "{task_name}" has unresolved token(s): {", ".join(unresolved)}. '
+                f'If this spec uses Jinja templates, run "osmo workflow submit --dry-run -f <spec>" '
+                f'first to expand them.')
 
 
 def run_workflow_locally(spec_path: str, work_dir: str | None = None,
