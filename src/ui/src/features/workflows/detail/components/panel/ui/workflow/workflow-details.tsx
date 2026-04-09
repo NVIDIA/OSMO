@@ -58,6 +58,7 @@ import { WorkflowTimeline } from "@/features/workflows/detail/components/panel/u
 import { parseTime } from "@/features/workflows/detail/components/panel/core/lib/timeline-utils";
 import { useTick } from "@/hooks/use-tick";
 import type { WorkflowTab } from "@/features/workflows/detail/hooks/use-navigation-state";
+import { useWorkflowSequenceNav } from "@/features/workflows/detail/hooks/use-workflow-sequence-nav";
 import { WorkflowTasksTab } from "@/features/workflows/detail/components/panel/ui/workflow/workflow-tasks-tab";
 import { LogViewerContainer } from "@/components/log-viewer/components/log-viewer-container";
 
@@ -344,6 +345,8 @@ export const WorkflowDetails = memo(function WorkflowDetails({
   onSelectGroup,
   onSelectTask,
 }: WorkflowDetailsProps) {
+  const sequenceNav = useWorkflowSequenceNav(workflow.name);
+
   // Tab configuration
   const tabs = useMemo<PanelTab[]>(
     () => [
@@ -408,6 +411,7 @@ export const WorkflowDetails = memo(function WorkflowDetails({
         statusContent={statusContent}
         isExpanded={isDetailsExpanded}
         onToggleExpand={onToggleDetailsExpanded}
+        sequenceNav={sequenceNav ?? undefined}
       />
 
       {/* Tab Navigation - Chrome-style tabs with curved connectors */}
