@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import contextlib
 import asyncio
 import datetime
 import logging
@@ -423,15 +424,21 @@ def main():
 
     connectors.PostgresConnector(config)
 
-    uvicorn_config = uvicorn.Config(app, host=host, port=port)
-    uvicorn_server = uvicorn.Server(config=uvicorn_config)
-    loop = asyncio.get_event_loop()
-    check_timeout_task = loop.create_task(check_webserver_timeout())
+    async def run_server():
+        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_server = uvicorn.Server(config=uvicorn_config)
+        check_timeout_task = asyncio.create_task(check_webserver_timeout())
+        try:
+            await uvicorn_server.serve()
+        finally:
+            check_timeout_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await check_timeout_task
+
     try:
-        loop.run_until_complete(uvicorn_server.serve())
+        asyncio.run(run_server())
     except KeyboardInterrupt:
         pass
-    check_timeout_task.cancel()
 
 
 if __name__ == '__main__':
