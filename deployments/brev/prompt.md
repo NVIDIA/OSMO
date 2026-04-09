@@ -38,7 +38,7 @@ without waiting for confirmation.
 
 Create all instances in parallel. Name each:
 `osmo-compat-{{GITHUB_RUN_ID}}-<provider>-<gpu-slug>`
-(e.g. `osmo-compat-{{GITHUB_RUN_ID}}-hyperstack-a100-2g`)
+(e.g. `osmo-compat-{{GITHUB_RUN_ID}}-hyperstack-l40-1g`)
 
 Do **not** use `--startup-script` — setup.sh exceeds the 16 KB limit.
 Create bare instances, then run setup.sh via `brev exec @file` once READY.
