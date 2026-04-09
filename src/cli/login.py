@@ -18,11 +18,15 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
+import logging
 
 import pydantic
 import shtab
 
+from src.cli import agent_skill_installer
 from src.lib.utils import client, login, osmo_errors
+
+logger = logging.getLogger(__name__)
 
 
 # The url to get an id_token using device flow
@@ -101,6 +105,12 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
     # Login through device code flow
     if args.method == 'code':
         service_client.login_manager.device_code_login(url, args.device_endpoint)
+        try:
+            agent_skill_installer.prompt_skill_installation()
+        except KeyboardInterrupt:
+            logger.debug('Agent skill prompt cancelled by user')
+        except Exception:  # pylint: disable=broad-except
+            logger.debug('Agent skill prompt failed', exc_info=True)
 
     # Login through resource owner password flow
     elif args.method == 'password':
