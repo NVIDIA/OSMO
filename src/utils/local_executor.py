@@ -35,6 +35,7 @@ from src.utils.job import workflow as workflow_module
 logger = logging.getLogger(__name__)
 
 STATE_FILE_NAME = '.osmo-state.json'
+CONTAINER_DATA_PATH = '/osmo/data'
 
 
 @dataclasses.dataclass
@@ -355,7 +356,7 @@ class LocalExecutor:
         files_dir = os.path.join(task_dir, 'files')
         os.makedirs(files_dir, exist_ok=True)
 
-        token_map = self._build_token_map(node, output_dir)
+        token_map = self._build_token_map(node)
 
         for file_spec in task_spec.files:
             resolved_contents = self._substitute_tokens(file_spec.contents, token_map)
@@ -396,13 +397,12 @@ class LocalExecutor:
             resolved_value = self._substitute_tokens(value, token_map)
             docker_args += ['-e', f'{key}={resolved_value}']
 
-        docker_args += ['-v', f'{output_dir}:{output_dir}']
+        docker_args += ['-v', f'{output_dir}:{CONTAINER_DATA_PATH}/output']
 
         for index, input_source in enumerate(task_spec.inputs):
             if isinstance(input_source, task_module.TaskInputOutput):
                 upstream_result = self._results[input_source.task]
-                input_mount = token_map.get(f'input:{index}', upstream_result.output_dir)
-                docker_args += ['-v', f'{upstream_result.output_dir}:{input_mount}:ro']
+                docker_args += ['-v', f'{upstream_result.output_dir}:{CONTAINER_DATA_PATH}/input/{index}:ro']
 
         for file_spec in task_spec.files:
             host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
@@ -434,16 +434,16 @@ class LocalExecutor:
             logger.error('Docker not found. Is Docker installed and in your PATH?')
             return TaskResult(name=node.name, exit_code=127, output_dir=output_dir)
 
-    def _build_token_map(self, node: TaskNode, output_dir: str) -> Dict[str, str]:
-        """Build a mapping of {{token}} keys to host paths for output and each upstream input."""
+    def _build_token_map(self, node: TaskNode) -> Dict[str, str]:
+        """Build a mapping of {{token}} keys to container-side paths matching on-cluster layout."""
         tokens: Dict[str, str] = {
-            'output': output_dir,
+            'output': f'{CONTAINER_DATA_PATH}/output',
         }
         for index, input_source in enumerate(node.spec.inputs):
             if isinstance(input_source, task_module.TaskInputOutput):
-                upstream_result = self._results[input_source.task]
-                tokens[f'input:{input_source.task}'] = upstream_result.output_dir
-                tokens[f'input:{index}'] = upstream_result.output_dir
+                container_input_path = f'{CONTAINER_DATA_PATH}/input/{index}'
+                tokens[f'input:{input_source.task}'] = container_input_path
+                tokens[f'input:{index}'] = container_input_path
         return tokens
 
     def _substitute_tokens(self, text: str, tokens: Dict[str, str]) -> str:
@@ -475,7 +475,7 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
             'then save that output and run it locally.')
 
     created_work_dir = work_dir is None
-    if created_work_dir:
+    if work_dir is None:
         work_dir = tempfile.mkdtemp(prefix='osmo-local-')
         logger.info('Using temporary work directory: %s', work_dir)
 
