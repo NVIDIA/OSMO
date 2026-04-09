@@ -45,7 +45,7 @@ spec:
 
           apk add --no-cache jq
 
-          BASE_URL="http://{{ .Values.service.gateway.name | default "osmo-gateway" }}"
+          BASE_URL="http://{{ .Values.service.gateway.name | default "osmo-gateway" }}.{{ .Release.Namespace }}.svc.cluster.local"
           echo "Using URL: $BASE_URL"
 
           echo "Configuring OSMO settings..."
