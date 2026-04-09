@@ -70,11 +70,9 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         postgres = self._get_postgres()
         self._activate_configmap_mode({
             'workflow': {
-                'config': {
-                    'max_num_tasks': 999,
-                    'max_exec_timeout': '30d',
-                    'default_exec_timeout': '7d',
-                },
+                'max_num_tasks': 999,
+                'max_exec_timeout': '30d',
+                'default_exec_timeout': '7d',
             },
         })
 
@@ -90,13 +88,11 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         postgres = self._get_postgres()
         self._activate_configmap_mode({
             'pod_templates': {
-                'items': {
-                    'test_tmpl': {
-                        'spec': {
-                            'containers': [
-                                {'name': 'ctrl', 'image': 'test:latest'}
-                            ],
-                        },
+                'test_tmpl': {
+                    'spec': {
+                        'containers': [
+                            {'name': 'ctrl', 'image': 'test:latest'}
+                        ],
                     },
                 },
             },
@@ -109,7 +105,7 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         """PodTemplate.fetch_from_db raises for missing name."""
         postgres = self._get_postgres()
         self._activate_configmap_mode({
-            'pod_templates': {'items': {}},
+            'pod_templates': {},
         })
 
         with self.assertRaises(osmo_errors.OSMOUserError):
@@ -120,10 +116,8 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         postgres = self._get_postgres()
         self._activate_configmap_mode({
             'pod_templates': {
-                'items': {
-                    'tmpl_a': {'spec': {}},
-                    'tmpl_b': {'spec': {}},
-                },
+                'tmpl_a': {'spec': {}},
+                'tmpl_b': {'spec': {}},
             },
         })
 
@@ -135,12 +129,10 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         postgres = self._get_postgres()
         self._activate_configmap_mode({
             'resource_validations': {
-                'items': {
-                    'cpu_check': [
-                        {'resource': 'cpu', 'operator': 'LE',
-                         'threshold': 'node_cpu'},
-                    ],
-                },
+                'cpu_check': [
+                    {'resource': 'cpu', 'operator': 'LE',
+                     'threshold': 'node_cpu'},
+                ],
             },
         })
 
@@ -209,9 +201,7 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         config = {
             'managed_configs': {
                 'pod_templates': {
-                    'items': {
-                        'watcher_tmpl': {'spec': {'test': True}},
-                    },
+                    'watcher_tmpl': {'spec': {'test': True}},
                 },
             },
         }
@@ -227,7 +217,7 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
             self.assertIn('watcher_tmpl',
-                          snapshot['pod_templates']['items'])
+                          snapshot['pod_templates'])
         finally:
             os.unlink(temp_file.name)
 

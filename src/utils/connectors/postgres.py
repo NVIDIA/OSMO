@@ -607,8 +607,7 @@ class PostgresConnector:
             ConfigType.DATASET: ('dataset', DatasetConfig),
         }
         key, config_class = config_key_map[config_type]
-        section = snapshot.get(key, {})
-        config_data = section.get('config', {})
+        config_data = snapshot.get(key, {})
         return config_class(**config_data)
 
     def get_service_configs(self) -> 'ServiceConfig':
@@ -2516,7 +2515,7 @@ class Backend(pydantic.BaseModel):
     def _fetch_from_snapshot(cls, database: PostgresConnector,
                              name: str, snapshot: dict) -> 'Backend':
         """Build a Backend by merging ConfigMap config + DB runtime."""
-        items = snapshot.get('backends', {}).get('items', {})
+        items = snapshot.get('backends', {})
         if name not in items:
             raise osmo_errors.OSMOBackendError(
                 f'Backend {name} is not found.')
@@ -2572,7 +2571,7 @@ class Backend(pydantic.BaseModel):
         """List all backend names."""
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('backends', {}).get('items', {})
+            items = snapshot.get('backends', {})
             return sorted(items.keys())
 
         fetch_cmd = 'SELECT name FROM backends ORDER BY name;'
@@ -2588,7 +2587,7 @@ class Backend(pydantic.BaseModel):
         """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('backends', {}).get('items', {})
+            items = snapshot.get('backends', {})
             backends = []
             for name in sorted(items.keys()):
                 try:
@@ -3071,7 +3070,7 @@ class ResourceValidation(pydantic.BaseModel):
         """ Fetches the list of resource validations from the resource validation table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('resource_validations', {}).get('items', {})
+            items = snapshot.get('resource_validations', {})
             if names:
                 items = {k: v for k, v in items.items() if k in names}
             return items
@@ -3091,7 +3090,7 @@ class ResourceValidation(pydantic.BaseModel):
         """ Fetches the resource validations from the resource validation table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('resource_validations', {}).get('items', {})
+            items = snapshot.get('resource_validations', {})
             if name not in items:
                 raise osmo_errors.OSMOUserError(f'Resource Validation {name} does not exist.')
             return items[name]
@@ -3159,7 +3158,7 @@ class PodTemplate(pydantic.BaseModel):
         """ Fetches the list of pod templates from the pod template table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('pod_templates', {}).get('items', {})
+            items = snapshot.get('pod_templates', {})
             if names:
                 items = {k: v for k, v in items.items() if k in names}
             return items
@@ -3179,7 +3178,7 @@ class PodTemplate(pydantic.BaseModel):
         """ Fetches the pod template from the pod template table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('pod_templates', {}).get('items', {})
+            items = snapshot.get('pod_templates', {})
             if name not in items:
                 raise osmo_errors.OSMOUserError(
                     f'Pod Template {name} does not exist.')
@@ -3263,7 +3262,7 @@ class GroupTemplate(pydantic.BaseModel):
         """ Fetches the list of group templates from the group template table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('group_templates', {}).get('items', {})
+            items = snapshot.get('group_templates', {})
             if names:
                 items = {k: v for k, v in items.items() if k in names}
             return items
@@ -3283,7 +3282,7 @@ class GroupTemplate(pydantic.BaseModel):
         """ Fetches the group template from the group template table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('group_templates', {}).get('items', {})
+            items = snapshot.get('group_templates', {})
             if name not in items:
                 raise osmo_errors.OSMOUserError(
                     f'Group Template {name} does not exist.')
@@ -3638,7 +3637,7 @@ class Pool(PoolBase, extra=pydantic.Extra.ignore):
         all_pools: bool,
     ) -> List[dict]:
         """Build pool rows from snapshot + DB heartbeats."""
-        items = snapshot.get('pools', {}).get('items', {})
+        items = snapshot.get('pools', {})
         if not pools:
             pools = []
 
@@ -4427,7 +4426,7 @@ class BackendTests(BackendTestBase):
                      ) -> Dict[str, dict]:
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('backend_tests', {}).get('items', {})
+            items = snapshot.get('backend_tests', {})
             if name:
                 items = {k: v for k, v in items.items() if k == name}
             return items
@@ -4445,7 +4444,7 @@ class BackendTests(BackendTestBase):
     def fetch_from_db(cls, database: 'PostgresConnector', name: str) -> 'BackendTests':
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('backend_tests', {}).get('items', {})
+            items = snapshot.get('backend_tests', {})
             if name not in items:
                 raise osmo_errors.OSMOUserError(
                     f'Test config {name} does not exist.')
@@ -4504,7 +4503,7 @@ class Role(role.Role):
         """ Fetches the list of roles from the roles table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('roles', {}).get('items', {})
+            items = snapshot.get('roles', {})
             result = []
             for role_name, role_data in sorted(items.items()):
                 if names and role_name not in names:
@@ -4542,7 +4541,7 @@ class Role(role.Role):
         """ Fetches the role from the role table """
         snapshot = configmap_state.get_snapshot()
         if snapshot is not None:
-            items = snapshot.get('roles', {}).get('items', {})
+            items = snapshot.get('roles', {})
             if name not in items:
                 raise osmo_errors.OSMOUserError(
                     f'Role {name} does not exist.')

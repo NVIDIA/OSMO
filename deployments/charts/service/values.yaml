@@ -251,10 +251,9 @@ services:
     ## Secrets use secretName to reference K8s Secrets.
     ##
     workflow:
-      config:
-        max_num_tasks: 100
-        max_exec_timeout: "30d"
-        default_exec_timeout: "7d"
+      max_num_tasks: 100
+      max_exec_timeout: "30d"
+      default_exec_timeout: "7d"
 
     ## Dataset config (buckets, credentials).
     ## Use credentialSecretName to reference K8s Secrets for bucket creds.
@@ -264,8 +263,7 @@ services:
     ## Pod templates applied to workflow containers.
     ##
     podTemplates:
-      items:
-        default_ctrl:
+      default_ctrl:
           spec:
             containers:
             - name: osmo-ctrl
@@ -293,8 +291,7 @@ services:
     ## Resource validation rules.
     ##
     resourceValidations:
-      items:
-        default_cpu:
+      default_cpu:
         - left_operand: cpu
           operator: LE
           right_operand: node_cpu
@@ -317,8 +314,7 @@ services:
     ## Override external_roles per deployment to map IDP groups.
     ##
     roles:
-      items:
-        osmo-admin:
+      osmo-admin:
           description: "Admin role — full access to all resources"
           policies:
           - effect: Allow
@@ -382,8 +378,7 @@ services:
     ## serves it from memory.
     ##
     backends:
-      items:
-        default:
+      default:
           description: "Default backend"
           scheduler_settings:
             scheduler_type: kai
@@ -393,8 +388,7 @@ services:
     ## Pool definitions. The "default" pool references the "default" backend.
     ##
     pools:
-      items:
-        default:
+      default:
           description: "Default pool"
           backend: default
           default_platform: default

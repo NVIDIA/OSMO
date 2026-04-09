@@ -130,27 +130,23 @@ class ConfigMapWatcher:
                 self._config_file_path, error)
             return False
 
-        if not raw_config or 'managed_configs' not in raw_config:
+        if not raw_config or not isinstance(raw_config, dict):
             logging.warning(
-                'Dynamic config file %s has no managed_configs section',
+                'Dynamic config file %s is empty or invalid',
                 self._config_file_path)
             return False
 
-        managed_configs = copy.deepcopy(raw_config['managed_configs'])
+        managed_configs = copy.deepcopy(raw_config)
 
         # Resolve secret file references (reads mounted K8s Secret files)
         for section in managed_configs.values():
             if isinstance(section, dict):
-                config_data = section.get('config')
-                if isinstance(config_data, dict):
-                    _resolve_secret_file_references(config_data)
+                _resolve_secret_file_references(section)
 
         # Dataset-specific: default endpoint from dataset_path
         dataset_section = managed_configs.get('dataset')
-        if dataset_section:
-            dataset_config = dataset_section.get('config')
-            if dataset_config:
-                _default_dataset_credential_endpoints(dataset_config)
+        if isinstance(dataset_section, dict):
+            _default_dataset_credential_endpoints(dataset_section)
 
         # Validate ConfigMap-provided fields BEFORE injecting runtime
         # fields. Runtime fields (service_auth) are already validated
@@ -186,7 +182,7 @@ class ConfigMapWatcher:
         """
         previous = configmap_guard.get_snapshot()
         if previous is not None:
-            prev_service = previous.get('service', {}).get('config', {})
+            prev_service = previous.get('service', {})
         elif self._postgres is not None:
             db_config = self._postgres.get_service_configs()
             prev_service = db_config.plaintext_dict(
@@ -194,9 +190,7 @@ class ConfigMapWatcher:
         else:
             prev_service = {}
 
-        if 'service' not in managed_configs:
-            managed_configs['service'] = {'config': {}}
-        service_config = managed_configs['service'].setdefault('config', {})
+        service_config = managed_configs.setdefault('service', {})
 
         for field in ('service_auth', 'service_base_url'):
             if field not in service_config and field in prev_service:
@@ -223,7 +217,7 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
 
     unknown_keys = set(managed_configs.keys()) - _EXPECTED_CONFIG_KEYS
     for key in unknown_keys:
-        logging.warning('Unknown key in managed_configs: %s (expected one of: %s)',
+        logging.warning('Unknown config key: %s (expected one of: %s)',
                         key, ', '.join(sorted(_EXPECTED_CONFIG_KEYS)))
 
     # Validate singleton configs by constructing Pydantic models
@@ -235,23 +229,18 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
         section = managed_configs.get(config_key)
         if not section:
             continue
-        config_data = section.get('config')
-        if not config_data:
-            continue
         try:
-            config_class(**config_data)
+            config_class(**section)
         except Exception as error:  # pylint: disable=broad-exception-caught
             errors.append(f'{config_key}: {error}')
 
-    # Validate named config sections have the expected shape
+    # Validate named config sections are dicts
     for config_key in ['resource_validations', 'pod_templates', 'group_templates',
                        'backends', 'backend_tests', 'pools', 'roles']:
         section = managed_configs.get(config_key)
-        if not section:
-            continue
-        items = section.get('items')
-        if items is not None and not isinstance(items, dict):
-            errors.append(f'{config_key}: items must be a dict, got {type(items).__name__}')
+        if section is not None and not isinstance(section, dict):
+            errors.append(
+                f'{config_key}: must be a dict, got {type(section).__name__}')
 
     return errors
 

@@ -34,15 +34,12 @@ import (
 //
 // The file is the same dynamic-config YAML mounted for the Python service:
 //
-//	managed_configs:
-//	  roles:
-//	    items:
-//	      osmo-admin:
-//	        policies: [...]
-//	        external_roles: [admin-group, alice@nvidia.com]
-//	  pools:
-//	    items:
-//	      gpu-large: { ... }
+//	roles:
+//	  osmo-admin:
+//	    policies: [...]
+//	    external_roles: [admin-group]
+//	pools:
+//	  gpu-large: { ... }
 type FileRoleStore struct {
 	filePath string
 	logger   *slog.Logger
@@ -54,16 +51,10 @@ type FileRoleStore struct {
 	lastModTime     time.Time
 }
 
-// fileConfig mirrors the YAML structure of the dynamic config file.
+// fileConfig mirrors the flat YAML structure of the dynamic config file.
 type fileConfig struct {
-	ManagedConfigs struct {
-		Roles struct {
-			Items map[string]fileRole `yaml:"items"`
-		} `yaml:"roles"`
-		Pools struct {
-			Items map[string]yaml.Node `yaml:"items"`
-		} `yaml:"pools"`
-	} `yaml:"managed_configs"`
+	Roles map[string]fileRole   `yaml:"roles"`
+	Pools map[string]yaml.Node  `yaml:"pools"`
 }
 
 type fileRole struct {
@@ -103,10 +94,10 @@ func (s *FileRoleStore) Load() error {
 		return fmt.Errorf("parse roles file: %w", err)
 	}
 
-	roles := make(map[string]*Role, len(config.ManagedConfigs.Roles.Items))
+	roles := make(map[string]*Role, len(config.Roles))
 	externalMap := make(map[string][]string)
 
-	for name, fileRole := range config.ManagedConfigs.Roles.Items {
+	for name, fileRole := range config.Roles {
 		role, err := parseFileRole(name, fileRole)
 		if err != nil {
 			s.logger.Error("skipping invalid role",
@@ -128,8 +119,8 @@ func (s *FileRoleStore) Load() error {
 	}
 
 	// Extract pool names
-	poolNames := make([]string, 0, len(config.ManagedConfigs.Pools.Items))
-	for name := range config.ManagedConfigs.Pools.Items {
+	poolNames := make([]string, 0, len(config.Pools))
+	for name := range config.Pools {
 		poolNames = append(poolNames, name)
 	}
 

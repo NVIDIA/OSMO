@@ -22,68 +22,64 @@ metadata:
     app: {{ .Values.services.service.serviceName }}
 data:
   config.yaml: |
-    managed_configs:
-      {{- $dc := .Values.services.dynamicConfig }}
-      service:
-        {{- $service := deepCopy (default (dict) $dc.service) }}
-        {{- if not $service.config }}
-        {{- $_ := set $service "config" (dict) }}
-        {{- end }}
-        {{- if and (not (index $service.config "service_base_url")) .Values.services.service.hostname }}
-        {{- $_ := set $service.config "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
-        {{- end }}
-        {{- include "osmo.resolve-secret-names-in-config" $service.config }}
-        {{- toYaml $service | nindent 8 }}
-      {{- if $dc.workflow }}
-      workflow:
-        {{- $workflow := deepCopy $dc.workflow }}
-        {{- if $workflow.config }}
-        {{- include "osmo.resolve-secret-names-in-config" $workflow.config }}
-        {{- end }}
-        {{- toYaml $workflow | nindent 8 }}
+    {{- $dc := .Values.services.dynamicConfig }}
+    {{- if $dc.service }}
+    service:
+      {{- $service := deepCopy $dc.service }}
+      {{- if and (not (index $service "service_base_url")) .Values.services.service.hostname }}
+      {{- $_ := set $service "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
       {{- end }}
-      {{- if $dc.dataset }}
-      dataset:
-        {{- $dataset := deepCopy $dc.dataset }}
-        {{- if $dataset.config }}
-        {{- range $bucketName, $bucketConfig := $dataset.config.buckets }}
-        {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
-        {{- if $bucketConfig.default_credential.credentialSecretName }}
-        {{- $secretName := $bucketConfig.default_credential.credentialSecretName }}
-        {{- $_ := set $bucketConfig.default_credential "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $secretName) }}
-        {{- $_ := unset $bucketConfig.default_credential "credentialSecretName" }}
-        {{- end }}
-        {{- end }}
-        {{- end }}
-        {{- end }}
-        {{- toYaml $dataset | nindent 8 }}
+      {{- include "osmo.resolve-secret-names-in-config" $service }}
+      {{- toYaml $service | nindent 6 }}
+    {{- end }}
+    {{- if $dc.workflow }}
+    workflow:
+      {{- $workflow := deepCopy $dc.workflow }}
+      {{- include "osmo.resolve-secret-names-in-config" $workflow }}
+      {{- toYaml $workflow | nindent 6 }}
+    {{- end }}
+    {{- if $dc.dataset }}
+    dataset:
+      {{- $dataset := deepCopy $dc.dataset }}
+      {{- if $dataset.buckets }}
+      {{- range $bucketName, $bucketConfig := $dataset.buckets }}
+      {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
+      {{- if $bucketConfig.default_credential.credentialSecretName }}
+      {{- $secretName := $bucketConfig.default_credential.credentialSecretName }}
+      {{- $_ := set $bucketConfig.default_credential "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $secretName) }}
+      {{- $_ := unset $bucketConfig.default_credential "credentialSecretName" }}
       {{- end }}
-      {{- if $dc.pools }}
-      pools:
-        {{- toYaml $dc.pools | nindent 8 }}
       {{- end }}
-      {{- if $dc.podTemplates }}
-      pod_templates:
-        {{- toYaml $dc.podTemplates | nindent 8 }}
       {{- end }}
-      {{- if $dc.resourceValidations }}
-      resource_validations:
-        {{- toYaml $dc.resourceValidations | nindent 8 }}
       {{- end }}
-      {{- if $dc.backends }}
-      backends:
-        {{- toYaml $dc.backends | nindent 8 }}
-      {{- end }}
-      {{- if $dc.backendTests }}
-      backend_tests:
-        {{- toYaml $dc.backendTests | nindent 8 }}
-      {{- end }}
-      {{- if $dc.groupTemplates }}
-      group_templates:
-        {{- toYaml $dc.groupTemplates | nindent 8 }}
-      {{- end }}
-      {{- if $dc.roles }}
-      roles:
-        {{- toYaml $dc.roles | nindent 8 }}
-      {{- end }}
+      {{- toYaml $dataset | nindent 6 }}
+    {{- end }}
+    {{- if $dc.pools }}
+    pools:
+      {{- toYaml $dc.pools | nindent 6 }}
+    {{- end }}
+    {{- if $dc.podTemplates }}
+    pod_templates:
+      {{- toYaml $dc.podTemplates | nindent 6 }}
+    {{- end }}
+    {{- if $dc.resourceValidations }}
+    resource_validations:
+      {{- toYaml $dc.resourceValidations | nindent 6 }}
+    {{- end }}
+    {{- if $dc.backends }}
+    backends:
+      {{- toYaml $dc.backends | nindent 6 }}
+    {{- end }}
+    {{- if $dc.backendTests }}
+    backend_tests:
+      {{- toYaml $dc.backendTests | nindent 6 }}
+    {{- end }}
+    {{- if $dc.groupTemplates }}
+    group_templates:
+      {{- toYaml $dc.groupTemplates | nindent 6 }}
+    {{- end }}
+    {{- if $dc.roles }}
+    roles:
+      {{- toYaml $dc.roles | nindent 6 }}
+    {{- end }}
 {{- end }}

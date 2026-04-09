@@ -75,26 +75,25 @@ class TestConfigmapState(unittest.TestCase):
         self.assertIsNone(configmap_state.get_snapshot())
 
     def test_set_and_get_snapshot(self):
-        configs = {'service': {'config': {'key': 'value'}}}
+        configs = {'service': {'key': 'value'}}
         configmap_state.set_parsed_configs(configs)
         self.assertEqual(configmap_state.get_snapshot(), configs)
 
     def test_atomic_swap_preserves_old_reference(self):
-        old: Dict[str, Any] = {'service': {'config': {'version': 1}}}
+        old: Dict[str, Any] = {'service': {'version': 1}}
         configmap_state.set_parsed_configs(old)
         snapshot_ref = configmap_state.get_snapshot()
         assert snapshot_ref is not None
 
-        new: Dict[str, Any] = {'service': {'config': {'version': 2}}}
+        new: Dict[str, Any] = {'service': {'version': 2}}
         configmap_state.set_parsed_configs(new)
 
         # Old reference still valid
-        self.assertEqual(snapshot_ref['service']['config']['version'], 1)
+        self.assertEqual(snapshot_ref['service']['version'], 1)
         # New snapshot has new data
         new_snapshot = configmap_state.get_snapshot()
         assert new_snapshot is not None
-        self.assertEqual(
-            new_snapshot['service']['config']['version'], 2)
+        self.assertEqual(new_snapshot['service']['version'], 2)
 
 
 class TestResolveSecretFileReferences(unittest.TestCase):
@@ -176,14 +175,14 @@ class TestValidateConfigs(unittest.TestCase):
 
     def test_valid_named_config_section(self):
         configs: Dict[str, Any] = {
-            'pod_templates': {'items': {'tmpl1': {'spec': {}}}},
+            'pod_templates': {'tmpl1': {'spec': {}}},
         }
         errors = configmap_loader._validate_configs(configs)
         self.assertEqual(errors, [])
 
-    def test_invalid_items_type(self):
+    def test_invalid_section_type(self):
         configs: Dict[str, Any] = {
-            'pod_templates': {'items': 'not_a_dict'},
+            'pod_templates': 'not_a_dict',
         }
         errors = configmap_loader._validate_configs(configs)
         self.assertEqual(len(errors), 1)
@@ -196,7 +195,7 @@ class TestValidateConfigs(unittest.TestCase):
         with self.assertLogs(level=logging.WARNING) as log_context:
             configmap_loader._validate_configs(configs)
         self.assertTrue(
-            any('Unknown key' in msg for msg in log_context.output))
+            any('Unknown config key' in msg for msg in log_context.output))
 
     def test_empty_configs_valid(self):
         errors = configmap_loader._validate_configs({})
@@ -228,8 +227,11 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         self.assertFalse(result)
         self.assertIsNone(configmap_state.get_snapshot())
 
-    def test_load_no_managed_configs_key(self):
-        path = self._write_config_file({'other': 'data'})
+    def test_load_empty_file(self):
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            temp.write('')
+            path = temp.name
         try:
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
@@ -240,17 +242,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
 
     def test_load_valid_config_populates_snapshot(self):
         config: Dict[str, Any] = {
-            'managed_configs': {
-                'pod_templates': {
-                    'items': {
-                        'default_ctrl': {'spec': {'containers': []}},
-                    },
-                },
+            'pod_templates': {
+                'default_ctrl': {'spec': {'containers': []}},
             },
         }
         path = self._write_config_file(config)
         try:
-            # Mock get_service_configs for runtime field injection
             mock_service_config = mock.MagicMock()
             mock_service_config.plaintext_dict.return_value = {
                 'service_auth': {'keys': {}},
@@ -267,19 +264,14 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
             self.assertIn('pod_templates', snapshot)
-            items = snapshot['pod_templates']['items']
-            self.assertIn('default_ctrl', items)
+            self.assertIn('default_ctrl', snapshot['pod_templates'])
         finally:
             os.unlink(path)
 
     def test_load_injects_runtime_fields(self):
-        config = {
-            'managed_configs': {
-                'service': {
-                    'config': {
-                        'max_pod_restart_limit': '30m',
-                    },
-                },
+        config: Dict[str, Any] = {
+            'service': {
+                'max_pod_restart_limit': '30m',
             },
         }
         path = self._write_config_file(config)
@@ -299,11 +291,9 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
-            service_config = snapshot['service']['config']
-            # Admin field from ConfigMap
+            service_config = snapshot['service']
             self.assertEqual(
                 service_config['max_pod_restart_limit'], '30m')
-            # Runtime field injected from DB
             self.assertIn('service_auth', service_config)
             self.assertIn('service_base_url', service_config)
         finally:
@@ -312,9 +302,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     def test_validation_failure_keeps_previous_config(self):
         # First load succeeds
         good_config: Dict[str, Any] = {
-            'managed_configs': {
-                'pod_templates': {'items': {'tmpl': {'spec': {}}}},
-            },
+            'pod_templates': {'tmpl': {'spec': {}}},
         }
         good_path = self._write_config_file(good_config)
         mock_service_config = mock.MagicMock()
@@ -329,11 +317,9 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         old_snapshot = configmap_state.get_snapshot()
         self.assertIsNotNone(old_snapshot)
 
-        # Second load with invalid items type
-        bad_config = {
-            'managed_configs': {
-                'pod_templates': {'items': 'not_a_dict'},
-            },
+        # Second load with invalid section type
+        bad_config: Dict[str, Any] = {
+            'pod_templates': 'not_a_dict',
         }
         bad_path = self._write_config_file(bad_config)
         try:
