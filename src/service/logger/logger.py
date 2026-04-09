@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+import contextlib
 import asyncio
 from urllib.parse import urlparse
 
@@ -81,16 +82,18 @@ def main():
             progress_writer.report_progress()
             await asyncio.sleep(config.progress_period)
 
-    uvicorn_config = uvicorn.Config(app, host=host, port=port)
-    uvicorn_server = uvicorn.Server(config=uvicorn_config)
-    loop = asyncio.get_event_loop()
-    liveness_task = loop.create_task(liveness_update())
-    loop.run_until_complete(uvicorn_server.serve())
-    liveness_task.cancel()
-    try:
-        loop.run_until_complete(liveness_task)
-    except asyncio.exceptions.CancelledError:
-        pass
+    async def run_server():
+        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_server = uvicorn.Server(config=uvicorn_config)
+        liveness_task = asyncio.create_task(liveness_update())
+        try:
+            await uvicorn_server.serve()
+        finally:
+            liveness_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await liveness_task
+
+    asyncio.run(run_server())
 
 
 if __name__ == '__main__':
