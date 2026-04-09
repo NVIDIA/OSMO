@@ -25,7 +25,7 @@ import unittest
 from unittest import mock
 
 from src.utils.job import task as task_module
-from src.utils.local_executor import LocalExecutor, TaskNode, TaskResult, run_workflow_locally
+from src.utils.local_executor import CONTAINER_DATA_PATH, LocalExecutor, TaskNode, TaskResult, run_workflow_locally
 
 
 # ---------------------------------------------------------------------------
@@ -543,12 +543,12 @@ class TestBuildTokenMap(unittest.TestCase):
         executor._build_dag(spec)
 
         node = executor._task_nodes['task1']
-        tokens = executor._build_token_map(node, '/tmp/work/task1/output')
-        self.assertEqual(tokens['output'], '/tmp/work/task1/output')
+        tokens = executor._build_token_map(node)
+        self.assertEqual(tokens['output'], f'{CONTAINER_DATA_PATH}/output')
         self.assertEqual(len(tokens), 1)
 
     def test_with_upstream_inputs(self):
-        """A task with upstream inputs gets both index-based and name-based input tokens."""
+        """A task with upstream inputs gets both index-based and name-based input tokens pointing to container paths."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: serial
@@ -570,11 +570,11 @@ class TestBuildTokenMap(unittest.TestCase):
             name='producer', exit_code=0, output_dir='/tmp/work/producer/output')
 
         node = executor._task_nodes['consumer']
-        tokens = executor._build_token_map(node, '/tmp/work/consumer/output')
+        tokens = executor._build_token_map(node)
 
-        self.assertEqual(tokens['output'], '/tmp/work/consumer/output')
-        self.assertEqual(tokens['input:0'], '/tmp/work/producer/output')
-        self.assertEqual(tokens['input:producer'], '/tmp/work/producer/output')
+        self.assertEqual(tokens['output'], f'{CONTAINER_DATA_PATH}/output')
+        self.assertEqual(tokens['input:0'], f'{CONTAINER_DATA_PATH}/input/0')
+        self.assertEqual(tokens['input:producer'], f'{CONTAINER_DATA_PATH}/input/0')
 
 
 class TestValidateForLocal(unittest.TestCase):
