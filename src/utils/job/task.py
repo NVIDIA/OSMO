@@ -898,13 +898,14 @@ class TaskSpec(pydantic.BaseModel):
         for key, value in self.environment.items():
             container['env'].append({'name': key, 'value': value})
         cred_envs = {k: v for k, v in self.credentials.items() if isinstance(v, Dict)}
-        merged_cred_envs = {k: v for subdict in cred_envs.values() for k, v in subdict.items()}
-        for cred_env, cred_key in merged_cred_envs.items():
-            env_var = {
-                'name': cred_env,
-                'valueFrom': {'secretKeyRef': {'name': user_secrets_name, 'key': cred_key}}
-            }
-            container['env'].append(env_var)
+        for cred_name, cred_map in cred_envs.items():
+            for cred_env, cred_key in cred_map.items():
+                secret_key = f'{cred_name}.{cred_key}'
+                env_var = {
+                    'name': cred_env,
+                    'valueFrom': {'secretKeyRef': {'name': user_secrets_name, 'key': secret_key}}
+                }
+                container['env'].append(env_var)
         container['env'].append({
             'name': common.OSMO_CONFIG_OVERRIDE,
             'valueFrom': {
@@ -2455,7 +2456,8 @@ class TaskGroup(pydantic.BaseModel):
                         if cred_key not in payload.keys():
                             raise ValueError(f'{cred_key} is not a valid credential key ' \
                                              f'please choose from {payload.keys()}')
-                        all_secrets[cred_key] = payload[cred_key]
+                        secret_key = f'{cred_name}.{cred_key}'
+                        all_secrets[secret_key] = payload[cred_key]
                 else:
                     raise ValueError(f'{cred_map} is not a valid credential map.' \
                             'It should be either be a Dict[envirionment_variables:cred_key]' \
