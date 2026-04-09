@@ -371,6 +371,152 @@ class TestBuildDag(unittest.TestCase):
         self.assertEqual(executor._task_nodes['transform'].upstream, {'download'})
 
 
+class TestCycleDetection(unittest.TestCase):
+    """Verify that circular dependencies are detected and reported during DAG construction."""
+
+    def _make_executor(self) -> LocalExecutor:
+        """Create a LocalExecutor with a throwaway work directory for cycle-detection tests."""
+        return LocalExecutor(work_dir='/tmp/unused')
+
+    def test_direct_cycle_two_tasks(self):
+        """Two tasks that depend on each other form a direct cycle and are rejected."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: cycle
+              tasks:
+              - name: a
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: b
+              - name: b
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: a
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor._build_dag(spec)
+        error_message = str(context.exception)
+        self.assertIn('Circular dependency', error_message)
+        self.assertIn('a', error_message)
+        self.assertIn('b', error_message)
+
+    def test_indirect_cycle_three_tasks(self):
+        """Three tasks forming a cycle (a -> b -> c -> a) are rejected."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: cycle
+              tasks:
+              - name: a
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: c
+              - name: b
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: a
+              - name: c
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: b
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor._build_dag(spec)
+        self.assertIn('Circular dependency', str(context.exception))
+
+    def test_cycle_in_subgraph_with_valid_root(self):
+        """A cycle in a subgraph is detected even when other tasks have no cycle."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: partial-cycle
+              tasks:
+              - name: root
+                image: alpine:3.18
+                command: ["echo"]
+              - name: a
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: root
+                - task: b
+              - name: b
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: a
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        with self.assertRaises(ValueError) as context:
+            executor._build_dag(spec)
+        error_message = str(context.exception)
+        self.assertIn('Circular dependency', error_message)
+        self.assertIn('a', error_message)
+        self.assertIn('b', error_message)
+
+    def test_no_cycle_linear_chain(self):
+        """A linear chain (a -> b -> c) has no cycle and is accepted."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: linear
+              tasks:
+              - name: a
+                image: alpine:3.18
+                command: ["echo"]
+              - name: b
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: a
+              - name: c
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: b
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+
+    def test_no_cycle_diamond(self):
+        """A diamond DAG (root -> left/right -> join) has no cycle and is accepted."""
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: diamond
+              tasks:
+              - name: root
+                image: alpine:3.18
+                command: ["echo"]
+              - name: left
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: root
+              - name: right
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: root
+              - name: join
+                image: alpine:3.18
+                command: ["echo"]
+                inputs:
+                - task: left
+                - task: right
+        ''')
+        executor = self._make_executor()
+        spec = executor.load_spec(spec_text)
+        executor._build_dag(spec)
+
+
 class TestFindReadyTasks(unittest.TestCase):
     """Verify correct identification of tasks ready to execute."""
 

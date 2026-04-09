@@ -265,6 +265,37 @@ class LocalExecutor:
                         self._task_nodes[task_spec.name].upstream.add(upstream_task)
                         self._task_nodes[upstream_task].downstream.add(task_spec.name)
 
+        self._check_for_cycles()
+
+    def _check_for_cycles(self):
+        """Raise ValueError if the task DAG contains any cycles, reporting the cycle path."""
+        UNVISITED, IN_PROGRESS, DONE = 0, 1, 2
+        state: Dict[str, int] = {name: UNVISITED for name in self._task_nodes}
+        path: List[str] = []
+
+        def visit(name: str) -> List[str] | None:
+            if state[name] == DONE:
+                return None
+            if state[name] == IN_PROGRESS:
+                cycle_start = path.index(name)
+                return path[cycle_start:] + [name]
+
+            state[name] = IN_PROGRESS
+            path.append(name)
+            for downstream in self._task_nodes[name].downstream:
+                cycle = visit(downstream)
+                if cycle is not None:
+                    return cycle
+            path.pop()
+            state[name] = DONE
+            return None
+
+        for name in self._task_nodes:
+            cycle = visit(name)
+            if cycle is not None:
+                raise ValueError(
+                    f'Circular dependency detected: {" -> ".join(cycle)}')
+
     def _validate_for_local(self, spec: workflow_module.WorkflowSpec):
         """Raise ValueError if the spec uses features unsupported in local mode (datasets, URLs, credentials, etc.)."""
         unsupported_features = []
