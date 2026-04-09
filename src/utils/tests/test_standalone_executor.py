@@ -25,7 +25,7 @@ import unittest
 from unittest import mock
 
 from src.utils.job import task as task_module
-from src.utils.local_executor import CONTAINER_DATA_PATH, LocalExecutor, TaskNode, TaskResult, run_workflow_locally
+from src.utils.standalone_executor import CONTAINER_DATA_PATH, StandaloneExecutor, TaskNode, TaskResult, run_workflow_standalone
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ class TestLoadSpec(unittest.TestCase):
                 command: ["echo"]
                 args: ["Hello from OSMO!"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         self.assertEqual(spec.name, 'hello-osmo')
         self.assertEqual(len(spec.tasks), 1)
@@ -98,7 +98,7 @@ class TestLoadSpec(unittest.TestCase):
                 inputs:
                 - task: task1
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         self.assertEqual(spec.name, 'serial-tasks')
         self.assertEqual(len(spec.tasks), 2)
@@ -123,7 +123,7 @@ class TestLoadSpec(unittest.TestCase):
                   image: ubuntu:24.04
                   command: ["echo", "follower"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         self.assertEqual(len(spec.groups), 1)
         self.assertEqual(len(spec.groups[0].tasks), 2)
@@ -140,7 +140,7 @@ class TestLoadSpec(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         self.assertEqual(spec.name, 'versioned')
 
@@ -155,7 +155,7 @@ class TestLoadSpec(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         with self.assertRaises(ValueError):
             executor.load_spec(spec_text)
 
@@ -175,7 +175,7 @@ class TestLoadSpec(unittest.TestCase):
                   image: alpine:3.18
                   command: ["echo"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         with self.assertRaises(ValueError):
             executor.load_spec(spec_text)
 
@@ -185,7 +185,7 @@ class TestLoadSpec(unittest.TestCase):
             workflow:
               name: empty
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         with self.assertRaises(ValueError):
             executor.load_spec(spec_text)
 
@@ -204,7 +204,7 @@ class TestLoadSpec(unittest.TestCase):
                 image: ubuntu:24.04
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         self.assertEqual(spec.resources['default'].cpu, 2)
         self.assertEqual(spec.resources['default'].memory, '4Gi')
@@ -222,7 +222,7 @@ class TestLoadSpec(unittest.TestCase):
                   MY_VAR: hello
                   ANOTHER: world
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         self.assertEqual(spec.tasks[0].environment['MY_VAR'], 'hello')
         self.assertEqual(spec.tasks[0].environment['ANOTHER'], 'world')
@@ -231,9 +231,9 @@ class TestLoadSpec(unittest.TestCase):
 class TestBuildDag(unittest.TestCase):
     """Verify DAG construction from task dependencies."""
 
-    def _make_executor(self) -> LocalExecutor:
-        """Create a LocalExecutor with a throwaway work directory for DAG-only tests."""
-        return LocalExecutor(work_dir='/tmp/unused')
+    def _make_executor(self) -> StandaloneExecutor:
+        """Create a StandaloneExecutor with a throwaway work directory for DAG-only tests."""
+        return StandaloneExecutor(work_dir='/tmp/unused')
 
     def test_no_dependencies(self):
         """All tasks with no input dependencies have empty upstream and downstream sets."""
@@ -374,9 +374,9 @@ class TestBuildDag(unittest.TestCase):
 class TestCycleDetection(unittest.TestCase):
     """Verify that circular dependencies are detected and reported during DAG construction."""
 
-    def _make_executor(self) -> LocalExecutor:
-        """Create a LocalExecutor with a throwaway work directory for cycle-detection tests."""
-        return LocalExecutor(work_dir='/tmp/unused')
+    def _make_executor(self) -> StandaloneExecutor:
+        """Create a StandaloneExecutor with a throwaway work directory for cycle-detection tests."""
+        return StandaloneExecutor(work_dir='/tmp/unused')
 
     def test_direct_cycle_two_tasks(self):
         """Two tasks that depend on each other form a direct cycle and are rejected."""
@@ -533,7 +533,7 @@ class TestFindReadyTasks(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
@@ -555,7 +555,7 @@ class TestFindReadyTasks(unittest.TestCase):
                 inputs:
                 - task: first
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
@@ -581,7 +581,7 @@ class TestFindReadyTasks(unittest.TestCase):
                 inputs:
                 - task: first
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
@@ -613,7 +613,7 @@ class TestCancelDownstream(unittest.TestCase):
                 inputs:
                 - task: b
         ''')
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
@@ -631,42 +631,42 @@ class TestSubstituteTokens(unittest.TestCase):
 
     def test_output_token(self):
         """The {{output}} token is replaced with the task output directory path."""
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         tokens = {'output': '/work/task1/output'}
         result = executor._substitute_tokens('echo data > {{output}}/file.txt', tokens)
         self.assertEqual(result, 'echo data > /work/task1/output/file.txt')
 
     def test_input_by_index(self):
         """The {{input:N}} token is replaced with the Nth upstream output directory."""
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         tokens = {'input:0': '/work/upstream/output'}
         result = executor._substitute_tokens('cat {{input:0}}/data.csv', tokens)
         self.assertEqual(result, 'cat /work/upstream/output/data.csv')
 
     def test_input_by_name(self):
         """The {{input:taskname}} token is replaced with the named task's output directory."""
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         tokens = {'input:task1': '/work/task1/output'}
         result = executor._substitute_tokens('cat {{ input:task1 }}/data.csv', tokens)
         self.assertEqual(result, 'cat /work/task1/output/data.csv')
 
     def test_whitespace_around_tokens(self):
         """Whitespace inside {{ token }} braces is tolerated during substitution."""
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         tokens = {'output': '/out'}
         result = executor._substitute_tokens('{{ output }}/file.txt', tokens)
         self.assertEqual(result, '/out/file.txt')
 
     def test_multiple_tokens_in_one_string(self):
         """Multiple distinct tokens in the same string are all replaced."""
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         tokens = {'output': '/out', 'input:0': '/in0'}
         result = executor._substitute_tokens('cp {{input:0}}/src {{output}}/dst', tokens)
         self.assertEqual(result, 'cp /in0/src /out/dst')
 
     def test_no_tokens_unchanged(self):
         """Text without any token placeholders passes through unchanged."""
-        executor = LocalExecutor(work_dir='/tmp/unused')
+        executor = StandaloneExecutor(work_dir='/tmp/unused')
         result = executor._substitute_tokens('plain text no tokens', {})
         self.assertEqual(result, 'plain text no tokens')
 
@@ -684,7 +684,7 @@ class TestBuildTokenMap(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo"]
         ''')
-        executor = LocalExecutor(work_dir='/tmp/work')
+        executor = StandaloneExecutor(work_dir='/tmp/work')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
@@ -708,7 +708,7 @@ class TestBuildTokenMap(unittest.TestCase):
                 inputs:
                 - task: producer
         ''')
-        executor = LocalExecutor(work_dir='/tmp/work')
+        executor = StandaloneExecutor(work_dir='/tmp/work')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
 
@@ -723,15 +723,15 @@ class TestBuildTokenMap(unittest.TestCase):
         self.assertEqual(tokens['input:producer'], f'{CONTAINER_DATA_PATH}/input/0')
 
 
-class TestValidateForLocal(unittest.TestCase):
+class TestValidateForStandalone(unittest.TestCase):
     """Verify that unsupported features are detected and rejected."""
 
-    def _make_executor(self) -> LocalExecutor:
-        """Create a LocalExecutor with a throwaway work directory for validation-only tests."""
-        return LocalExecutor(work_dir='/tmp/unused')
+    def _make_executor(self) -> StandaloneExecutor:
+        """Create a StandaloneExecutor with a throwaway work directory for validation-only tests."""
+        return StandaloneExecutor(work_dir='/tmp/unused')
 
     def test_simple_spec_passes(self):
-        """A spec using only task-to-task inputs passes local validation."""
+        """A spec using only task-to-task inputs passes standalone validation."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: ok
@@ -743,10 +743,10 @@ class TestValidateForLocal(unittest.TestCase):
         executor = self._make_executor()
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
-        executor._validate_for_local(spec)
+        executor._validate_for_standalone(spec)
 
     def test_dataset_input_rejected(self):
-        """A spec with dataset inputs is rejected as unsupported in local mode."""
+        """A spec with dataset inputs is rejected as unsupported in standalone mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -762,11 +762,11 @@ class TestValidateForLocal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         with self.assertRaises(ValueError) as context:
-            executor._validate_for_local(spec)
+            executor._validate_for_standalone(spec)
         self.assertIn('dataset', str(context.exception))
 
     def test_url_input_rejected(self):
-        """A spec with URL inputs is rejected as unsupported in local mode."""
+        """A spec with URL inputs is rejected as unsupported in standalone mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -781,11 +781,11 @@ class TestValidateForLocal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         with self.assertRaises(ValueError) as context:
-            executor._validate_for_local(spec)
+            executor._validate_for_standalone(spec)
         self.assertIn('URL', str(context.exception))
 
     def test_dataset_output_rejected(self):
-        """A spec with dataset outputs is rejected as unsupported in local mode."""
+        """A spec with dataset outputs is rejected as unsupported in standalone mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -801,11 +801,11 @@ class TestValidateForLocal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         with self.assertRaises(ValueError) as context:
-            executor._validate_for_local(spec)
+            executor._validate_for_standalone(spec)
         self.assertIn('dataset', str(context.exception).lower())
 
     def test_url_output_rejected(self):
-        """A spec with URL outputs is rejected as unsupported in local mode."""
+        """A spec with URL outputs is rejected as unsupported in standalone mode."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: bad
@@ -820,7 +820,7 @@ class TestValidateForLocal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         with self.assertRaises(ValueError) as context:
-            executor._validate_for_local(spec)
+            executor._validate_for_standalone(spec)
         self.assertIn('object storage', str(context.exception).lower())
 
     def test_multiple_unsupported_features_all_reported(self):
@@ -845,13 +845,13 @@ class TestValidateForLocal(unittest.TestCase):
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         with self.assertRaises(ValueError) as context:
-            executor._validate_for_local(spec)
+            executor._validate_for_standalone(spec)
         error_message = str(context.exception)
         self.assertIn('task1', error_message)
         self.assertIn('task2', error_message)
 
     def test_task_deps_only_passes(self):
-        """A spec with only task-to-task dependencies passes local validation."""
+        """A spec with only task-to-task dependencies passes standalone validation."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: ok
@@ -868,10 +868,10 @@ class TestValidateForLocal(unittest.TestCase):
         executor = self._make_executor()
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
-        executor._validate_for_local(spec)
+        executor._validate_for_standalone(spec)
 
     def test_files_and_env_pass(self):
-        """A spec using files and environment variables passes local validation."""
+        """A spec using files and environment variables passes standalone validation."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: ok
@@ -888,11 +888,11 @@ class TestValidateForLocal(unittest.TestCase):
         executor = self._make_executor()
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
-        executor._validate_for_local(spec)
+        executor._validate_for_standalone(spec)
 
 
-class TestValidateForLocalRemainingBranches(unittest.TestCase):
-    """Verify that _validate_for_local rejects credentials, checkpoint, volumeMounts, privileged, and hostNetwork."""
+class TestValidateForStandaloneRemainingBranches(unittest.TestCase):
+    """Verify that _validate_for_standalone rejects credentials, checkpoint, volumeMounts, privileged, and hostNetwork."""
 
     _UNSUPPORTED_SPECS = {
         'credentials': {
@@ -1024,11 +1024,11 @@ class TestValidateForLocalRemainingBranches(unittest.TestCase):
         """Each unsupported task-level field is detected and rejected with a descriptive error."""
         for feature, case in self._UNSUPPORTED_SPECS.items():
             with self.subTest(feature=feature):
-                executor = LocalExecutor(work_dir='/tmp/unused')
+                executor = StandaloneExecutor(work_dir='/tmp/unused')
                 spec = executor.load_spec(case['yaml'])
                 executor._build_dag(spec)
                 with self.assertRaises(ValueError) as context:
-                    executor._validate_for_local(spec)
+                    executor._validate_for_standalone(spec)
                 self.assertIn(case['expected_substring'], str(context.exception))
 
 
@@ -1037,7 +1037,7 @@ class TestFilePathTraversal(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-traversal-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-traversal-')
 
     def tearDown(self):
         """Remove the temporary work directory."""
@@ -1058,7 +1058,7 @@ class TestFilePathTraversal(unittest.TestCase):
                 - contents: "malicious"
                   path: /../../etc/evil.conf
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
@@ -1082,7 +1082,7 @@ class TestFilePathTraversal(unittest.TestCase):
                 - contents: "safe"
                   path: /tmp/scripts/run.sh
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
@@ -1096,7 +1096,7 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory for lead-task policy tests."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-lead-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-lead-')
 
     def tearDown(self):
         """Remove the temporary work directory after each test."""
@@ -1123,7 +1123,7 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
                   image: alpine:3.18
                   command: ["sh", "-c", "exit 1"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         self.assertTrue(executor.execute(spec))
 
@@ -1145,7 +1145,7 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
                   image: alpine:3.18
                   command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         self.assertFalse(executor.execute(spec))
 
@@ -1171,7 +1171,7 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
                   image: alpine:3.18
                   command: ["sh", "-c", "exit 1"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         self.assertFalse(executor.execute(spec))
 
@@ -1205,7 +1205,7 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
                   inputs:
                   - task: leader
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         self.assertTrue(executor.execute(spec))
         self.assertEqual(mock_run.call_count, 3)
@@ -1222,7 +1222,7 @@ class TestLeadTaskFailurePolicy(unittest.TestCase):
                 image: alpine:3.18
                 command: ["sh", "-c", "exit 1"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         self.assertFalse(executor.execute(spec))
 
@@ -1232,7 +1232,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory for unresolved token tests."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-tokens-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-tokens-')
 
     def tearDown(self):
         """Remove the temporary work directory after each test."""
@@ -1249,7 +1249,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                 command: ["echo"]
                 args: ["{{experiment_name}}"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
@@ -1266,7 +1266,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                 image: "alpine:3.18"
                 command: ["{{my_binary}}"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
@@ -1284,7 +1284,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                 environment:
                   MY_VAR: "{{some_value}}"
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
@@ -1304,7 +1304,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                     echo {{config_path}}/data
                   path: /tmp/run.sh
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
@@ -1321,7 +1321,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                 command: ["sh", "-c"]
                 args: ["echo data > {{ouptut}}/file.txt"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
@@ -1346,7 +1346,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                 inputs:
                 - task: producer
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         executor.execute(spec)
 
@@ -1360,7 +1360,7 @@ class TestUnresolvedTokenDetection(unittest.TestCase):
                 image: "alpine:3.18"
                 command: ["echo", "{{missing}}"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         with self.assertRaises(ValueError) as context:
             executor.execute(spec)
@@ -1372,7 +1372,7 @@ class TestShmSize(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory for shm-size tests."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-shm-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-shm-')
 
     def tearDown(self):
         """Remove the temporary work directory after each test."""
@@ -1394,7 +1394,7 @@ class TestShmSize(unittest.TestCase):
                 resource: gpu-resource
                 command: ["python", "train.py"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
@@ -1422,7 +1422,7 @@ class TestShmSize(unittest.TestCase):
                 resource: gpu-resource
                 command: ["python", "train.py"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True, shm_size='32g')
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True, shm_size='32g')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
@@ -1446,7 +1446,7 @@ class TestShmSize(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
@@ -1468,7 +1468,7 @@ class TestShmSize(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True, shm_size='8g')
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True, shm_size='8g')
         spec = executor.load_spec(spec_text)
         executor._build_dag(spec)
         executor._setup_directories()
@@ -1504,7 +1504,7 @@ class TestJinjaTemplateDetection(unittest.TestCase):
         '''))
         try:
             with self.assertRaises(ValueError) as context:
-                run_workflow_locally(path)
+                run_workflow_standalone(path)
             self.assertIn('Jinja', str(context.exception))
         finally:
             os.unlink(path)
@@ -1522,7 +1522,7 @@ class TestJinjaTemplateDetection(unittest.TestCase):
         '''))
         try:
             with self.assertRaises(ValueError) as context:
-                run_workflow_locally(path)
+                run_workflow_standalone(path)
             self.assertIn('Jinja', str(context.exception))
         finally:
             os.unlink(path)
@@ -1541,7 +1541,7 @@ class TestJinjaTemplateDetection(unittest.TestCase):
         '''))
         try:
             with self.assertRaises(ValueError) as context:
-                run_workflow_locally(path)
+                run_workflow_standalone(path)
             self.assertIn('Jinja', str(context.exception))
         finally:
             os.unlink(path)
@@ -1555,7 +1555,7 @@ class TestDockerNotFoundHandling(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-test-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-test-')
 
     def tearDown(self):
         """Remove the temporary work directory."""
@@ -1571,7 +1571,7 @@ class TestDockerNotFoundHandling(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(
+        executor = StandaloneExecutor(
             work_dir=self.work_dir,
             keep_work_dir=True,
             docker_cmd='nonexistent-docker-binary-12345',
@@ -1591,18 +1591,18 @@ class TestCookbookSpecValidation(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory for cookbook validation tests."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-cookbook-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-cookbook-')
 
     def tearDown(self):
         """Remove the temporary work directory after each test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
     def _run_cookbook_spec(self, filename: str) -> bool:
-        """Execute a cookbook tutorial spec file through the local executor."""
+        """Execute a cookbook tutorial spec file through the standalone executor."""
         spec_path = os.path.join(self.COOKBOOK_DIR, filename)
         self.assertTrue(os.path.exists(spec_path),
                         f'Cookbook file not found: {spec_path}')
-        return run_workflow_locally(
+        return run_workflow_standalone(
             spec_path=spec_path,
             work_dir=self.work_dir,
             keep_work_dir=True,
@@ -1632,7 +1632,7 @@ class TestCookbookSpecValidation(unittest.TestCase):
         self.assertTrue(os.path.exists(spec_path),
                         f'Cookbook file not found: {spec_path}')
         with self.assertRaises(ValueError) as context:
-            run_workflow_locally(
+            run_workflow_standalone(
                 spec_path=spec_path,
                 work_dir=self.work_dir,
                 keep_work_dir=True,
@@ -1640,13 +1640,13 @@ class TestCookbookSpecValidation(unittest.TestCase):
         self.assertIn('Jinja', str(context.exception))
 
 
-class TestRunWorkflowLocallyErrors(unittest.TestCase):
-    """Test error handling in run_workflow_locally() that does not require Docker."""
+class TestRunWorkflowStandaloneErrors(unittest.TestCase):
+    """Test error handling in run_workflow_standalone() that does not require Docker."""
 
     def test_nonexistent_file_raises(self):
         """Passing a non-existent spec file path raises FileNotFoundError."""
         with self.assertRaises(FileNotFoundError):
-            run_workflow_locally(spec_path='/nonexistent/path/spec.yaml')
+            run_workflow_standalone(spec_path='/nonexistent/path/spec.yaml')
 
 
 # ============================================================================
@@ -1655,13 +1655,13 @@ class TestRunWorkflowLocallyErrors(unittest.TestCase):
 @unittest.skipUnless(DOCKER_AVAILABLE, SKIP_DOCKER_MSG)
 class TestDockerExecution(unittest.TestCase):
     """
-    Integration tests that run real OSMO workflow specs through the local executor
+    Integration tests that run real OSMO workflow specs through the standalone executor
     using Docker. Each test uses a spec that would normally run on a Kubernetes cluster.
     """
 
     def setUp(self):
         """Create a temporary work directory for each Docker execution test."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-test-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-test-')
 
     def tearDown(self):
         """Remove the temporary work directory after each test."""
@@ -1669,7 +1669,7 @@ class TestDockerExecution(unittest.TestCase):
 
     def _execute_spec(self, spec_text: str) -> bool:
         """Parse and execute a workflow spec string, returning the success status."""
-        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        executor = StandaloneExecutor(work_dir=self.work_dir, keep_work_dir=True)
         spec = executor.load_spec(spec_text)
         return executor.execute(spec)
 
@@ -1961,8 +1961,6 @@ class TestDockerExecution(unittest.TestCase):
                 - task: root
         ''')
         result = self._execute_spec(spec_text)
-        # The executor should stop on first failure, so the overall result is False.
-        # root succeeds, then one of the branches fails.
         self.assertFalse(result)
 
     # ---- Groups (ganged tasks) tests ----
@@ -2078,7 +2076,7 @@ class TestDockerExecution(unittest.TestCase):
     # ---- Resource spec ignored gracefully ----
 
     def test_resources_ignored_gracefully(self):
-        """Resource specs are K8s-specific; local executor should accept and ignore them."""
+        """Resource specs are K8s-specific; standalone executor should accept and ignore them."""
         spec_text = textwrap.dedent('''\
             workflow:
               name: with-resources
@@ -2106,7 +2104,7 @@ class TestDockerExecution(unittest.TestCase):
                 image: alpine:3.18
                 command: ["echo", "ok"]
         ''')
-        executor = LocalExecutor(
+        executor = StandaloneExecutor(
             work_dir=self.work_dir,
             keep_work_dir=True,
             docker_cmd='docker',
@@ -2122,7 +2120,7 @@ class TestDockerExecution(unittest.TestCase):
 class TestCookbookSpecs(unittest.TestCase):
     """
     Run real OSMO cookbook YAML specs that are designed for Kubernetes clusters,
-    and verify they execute successfully in the local Docker executor.
+    and verify they execute successfully in the standalone Docker executor.
     """
 
     COOKBOOK_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '..',
@@ -2130,18 +2128,18 @@ class TestCookbookSpecs(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary work directory for cookbook spec tests."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-cookbook-')
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-cookbook-')
 
     def tearDown(self):
         """Remove the temporary work directory after each cookbook test."""
         shutil.rmtree(self.work_dir, ignore_errors=True)
 
     def _run_cookbook_spec(self, filename: str) -> bool:
-        """Execute a cookbook tutorial spec file through the local executor."""
+        """Execute a cookbook tutorial spec file through the standalone executor."""
         spec_path = os.path.join(self.COOKBOOK_DIR, filename)
         self.assertTrue(os.path.exists(spec_path),
                         f'Cookbook file not found: {spec_path}')
-        return run_workflow_locally(
+        return run_workflow_standalone(
             spec_path=spec_path,
             work_dir=self.work_dir,
             keep_work_dir=True,
@@ -2173,15 +2171,15 @@ class TestCookbookSpecs(unittest.TestCase):
 
 
 # ============================================================================
-# run_workflow_locally() integration tests
+# run_workflow_standalone() integration tests
 # ============================================================================
 @unittest.skipUnless(DOCKER_AVAILABLE, SKIP_DOCKER_MSG)
-class TestRunWorkflowLocally(unittest.TestCase):
-    """Test the top-level run_workflow_locally() convenience function."""
+class TestRunWorkflowStandalone(unittest.TestCase):
+    """Test the top-level run_workflow_standalone() convenience function."""
 
     def setUp(self):
-        """Create a temporary work directory for run_workflow_locally tests."""
-        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-func-')
+        """Create a temporary work directory for run_workflow_standalone tests."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-standalone-func-')
 
     def tearDown(self):
         """Remove the temporary work directory after each test."""
@@ -2189,7 +2187,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
 
     def test_caller_supplied_work_dir_preserved_on_success(self):
         """A caller-supplied work_dir is never deleted, even with keep_work_dir=False."""
-        work_dir = tempfile.mkdtemp(prefix='osmo-local-cleanup-')
+        work_dir = tempfile.mkdtemp(prefix='osmo-standalone-cleanup-')
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(textwrap.dedent('''\
                 workflow:
@@ -2201,7 +2199,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
             '''))
             spec_path = f.name
         try:
-            result = run_workflow_locally(
+            result = run_workflow_standalone(
                 spec_path=spec_path,
                 work_dir=work_dir,
                 keep_work_dir=False,
@@ -2226,7 +2224,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
             '''))
             spec_path = f.name
         try:
-            result = run_workflow_locally(
+            result = run_workflow_standalone(
                 spec_path=spec_path,
                 work_dir=self.work_dir,
                 keep_work_dir=False,
@@ -2249,7 +2247,7 @@ class TestRunWorkflowLocally(unittest.TestCase):
             '''))
             spec_path = f.name
         try:
-            result = run_workflow_locally(
+            result = run_workflow_standalone(
                 spec_path=spec_path,
                 work_dir=self.work_dir,
                 keep_work_dir=True,

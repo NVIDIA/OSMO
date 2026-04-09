@@ -21,20 +21,20 @@ import sys
 
 import shtab
 
-from src.utils import local_executor
+from src.utils import standalone_executor
 
 
 def setup_parser(parser: argparse._SubParsersAction):
-    """Register the 'local' subcommand and its nested 'run' action with the CLI argument parser."""
-    local_parser = parser.add_parser(
-        'local',
-        help='Run workflows locally using Docker (no Kubernetes cluster required).')
-    subparsers = local_parser.add_subparsers(dest='command')
+    """Register the 'standalone' subcommand and its nested 'run' action with the CLI argument parser."""
+    standalone_parser = parser.add_parser(
+        'standalone',
+        help='Run workflows in standalone mode using Docker containers (no Kubernetes cluster required).')
+    subparsers = standalone_parser.add_subparsers(dest='command')
     subparsers.required = True
 
     run_parser = subparsers.add_parser(
         'run',
-        help='Execute a workflow spec locally using Docker containers.')
+        help='Execute a workflow spec in standalone mode using Docker containers.')
     run_parser.add_argument(
         '-f', '--file',
         required=True,
@@ -75,13 +75,13 @@ def setup_parser(parser: argparse._SubParsersAction):
         help='Shared memory size for GPU containers (e.g. 16g, 32g). '
              'Defaults to 16g for tasks that request GPUs. '
              'PyTorch DataLoader workers require large shared memory.')
-    run_parser.set_defaults(func=_run_local)
+    run_parser.set_defaults(func=_run_standalone)
 
 
-def _run_local(service_client, args: argparse.Namespace):
-    """Execute a workflow locally via Docker using the parsed CLI arguments."""
+def _run_standalone(service_client, args: argparse.Namespace):
+    """Execute a workflow in standalone mode via Docker using the parsed CLI arguments."""
     try:
-        success = local_executor.run_workflow_locally(
+        success = standalone_executor.run_workflow_standalone(
             spec_path=args.workflow_file,
             work_dir=args.work_dir,
             keep_work_dir=args.keep,

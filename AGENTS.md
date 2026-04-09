@@ -120,7 +120,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `utils/job/` | `Task`, `FrontendJob`, `K8sObjectFactory`, `PodGroupTopologyBuilder` | Workflow execution framework. Task → K8s spec generation. Gang scheduling via PodGroup. Topology constraints. Backend job definitions. |
 | `utils/connectors/` | `ClusterConnector`, `PostgresConnector`, `RedisConnector` | K8s API wrapper, PostgreSQL operations, Redis job queue management. |
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
-| `utils/local_executor.py` | `LocalExecutor`, `run_workflow_locally` | Local Docker-based workflow execution. Runs workflow specs without Kubernetes by mapping tasks to `docker run` commands with volume mounts for data flow. Supports DAG scheduling, resume (`--from-step`), and GPU passthrough. |
+| `utils/standalone_executor.py` | `StandaloneExecutor`, `run_workflow_standalone` | Standalone Docker-based workflow execution. Runs workflow specs without Kubernetes by mapping tasks to `docker run` commands with volume mounts for data flow. Supports DAG scheduling, resume (`--from-step`), and GPU passthrough. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
 
@@ -140,7 +140,7 @@ Entry point: `cli.py` → `main_parser.py` (argparse). Subcommand modules:
 | `login.py`                                                                                                     | Authentication                   |
 | `pool.py`, `resources.py`, `user.py`, `credential.py`, `access_token.py`, `bucket.py`, `task.py`, `version.py` | Supporting commands              |
 | `backend.py`                                                                                                   | Backend cluster management       |
-| `local.py`                                                                                                     | Local workflow execution via Docker (`osmo local run`) |
+| `standalone.py`                                                                                                | Standalone workflow execution via Docker (`osmo standalone run`) |
 
 Features: Tab completion (shtab), response formatting (`formatters.py`), spec editor (`editor.py`), PyInstaller packaging (`cli_builder.py`, `packaging/`).
 

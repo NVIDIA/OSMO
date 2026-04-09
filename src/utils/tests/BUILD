@@ -56,10 +56,10 @@ osmo_py_test(
 )
 
 py_test(
-    name = "test_local_executor",
-    srcs = ["test_local_executor.py"],
+    name = "test_standalone_executor",
+    srcs = ["test_standalone_executor.py"],
     deps = [
-        "//src/utils:local_executor",
+        "//src/utils:standalone_executor",
     ],
     data = [
         "//cookbook/tutorials:tutorial_specs",

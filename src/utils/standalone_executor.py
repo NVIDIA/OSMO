@@ -58,9 +58,9 @@ class TaskResult:
     output_dir: str
 
 
-class LocalExecutor:
+class StandaloneExecutor:
     """
-    Executes an OSMO workflow spec locally using Docker, without Kubernetes.
+    Executes an OSMO workflow spec in standalone mode using Docker, without Kubernetes.
 
     Supports:
       - Serial and parallel task DAGs
@@ -126,7 +126,7 @@ class LocalExecutor:
         """Run all tasks in topological order, returning True if the entire workflow succeeds."""
         self._results.clear()
         self._build_dag(spec)
-        self._validate_for_local(spec)
+        self._validate_for_standalone(spec)
         self._setup_directories()
 
         if resume or from_step:
@@ -310,8 +310,8 @@ class LocalExecutor:
 
     _HOST_TOKEN_PATTERN = re.compile(r'\{\{\s*host:[^}]+\}\}')
 
-    def _validate_for_local(self, spec: workflow_module.WorkflowSpec):
-        """Raise ValueError if the spec uses features unsupported in local mode (datasets, URLs, credentials, etc.)."""
+    def _validate_for_standalone(self, spec: workflow_module.WorkflowSpec):
+        """Raise ValueError if the spec uses features unsupported in standalone mode (datasets, URLs, credentials, etc.)."""
         unsupported_features = []
         for group in self._groups(spec):
             for task_spec in group.tasks:
@@ -342,11 +342,11 @@ class LocalExecutor:
 
                 if task_spec.privileged:
                     unsupported_features.append(
-                        f'Task "{task_spec.name}": privileged containers are not supported in local mode')
+                        f'Task "{task_spec.name}": privileged containers are not supported in standalone mode')
 
                 if task_spec.hostNetwork:
                     unsupported_features.append(
-                        f'Task "{task_spec.name}": hostNetwork is not supported in local mode')
+                        f'Task "{task_spec.name}": hostNetwork is not supported in standalone mode')
 
                 if self._task_uses_host_tokens(task_spec):
                     unsupported_features.append(
@@ -355,7 +355,7 @@ class LocalExecutor:
 
         if unsupported_features:
             raise ValueError(
-                'The following features are not supported in local execution mode:\n  - '
+                'The following features are not supported in standalone execution mode:\n  - '
                 + '\n  - '.join(unsupported_features))
 
     def _task_uses_host_tokens(self, task_spec: task_module.TaskSpec) -> bool:
@@ -543,13 +543,13 @@ class LocalExecutor:
                 f'first to expand them.')
 
 
-def run_workflow_locally(spec_path: str, work_dir: str | None = None,
-                         keep_work_dir: bool = False,
-                         resume: bool = False,
-                         from_step: str | None = None,
-                         docker_cmd: str = 'docker',
-                         shm_size: str | None = None) -> bool:
-    """Load a workflow spec from disk and execute it locally via Docker, managing the work directory lifecycle."""
+def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
+                            keep_work_dir: bool = False,
+                            resume: bool = False,
+                            from_step: str | None = None,
+                            docker_cmd: str = 'docker',
+                            shm_size: str | None = None) -> bool:
+    """Load a workflow spec from disk and execute it in standalone mode via Docker, managing the work directory lifecycle."""
     if (resume or from_step) and work_dir is None:
         raise ValueError(
             '--resume and --from-step require --work-dir pointing to a previous run directory.')
@@ -562,15 +562,15 @@ def run_workflow_locally(spec_path: str, work_dir: str | None = None,
         raise ValueError(
             'This spec uses Jinja templates which require server-side expansion.\n'
             'Run "osmo workflow submit --dry-run -f <spec>" first to get the expanded spec,\n'
-            'then save that output and run it locally.')
+            'then save that output and run it standalone.')
 
     created_work_dir = work_dir is None
     if work_dir is None:
-        work_dir = tempfile.mkdtemp(prefix='osmo-local-')
+        work_dir = tempfile.mkdtemp(prefix='osmo-standalone-')
         logger.info('Using temporary work directory: %s', work_dir)
 
-    executor = LocalExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                              docker_cmd=docker_cmd, shm_size=shm_size)
+    executor = StandaloneExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
+                                   docker_cmd=docker_cmd, shm_size=shm_size)
     spec = executor.load_spec(spec_text)
     success = executor.execute(spec, resume=resume or from_step is not None,
                                from_step=from_step)

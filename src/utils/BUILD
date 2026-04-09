@@ -128,8 +128,8 @@ osmo_py_library(
 )
 
 osmo_py_library(
-    name = "local_executor",
-    srcs = ["local_executor.py"],
+    name = "standalone_executor",
+    srcs = ["standalone_executor.py"],
     deps = [
         requirement("pyyaml"),
         "//src/utils/job",
