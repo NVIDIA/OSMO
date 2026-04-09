@@ -114,7 +114,7 @@ filegroup(
 )
 """,
     patch_args = ["-p1"],
-    patches = ["@rules_python//python/private:coverage.patch"],
+    patches = ["//bzl/patches:coverage_syspath.patch"],
     sha256 = "6c36ddb64ed9d7e496028d1d00dfec3e428e0aabf4006583bb1839958d280510",
     type = "zip",
     urls = ["https://files.pythonhosted.org/packages/22/e5/06b1f88f42a5a99df42ce61208bdec3bddb3d261412874280a19796fc09c/coverage-7.13.5-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"],

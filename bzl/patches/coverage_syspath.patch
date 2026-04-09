@@ -1,0 +1,22 @@
+Fix sys.path ordering for coverage under Bazel.
+
+The current directory is first in sys.path, which causes test imports to
+shadow modules of the same name.  Move it to the end before anything from
+coverage is imported.
+
+This is the same change as @rules_python//python/private:coverage.patch but
+updated for coverage >=7.13 whose __main__.py added blank lines between
+top-level statements.
+
+diff --git a/coverage/__main__.py b/coverage/__main__.py
+--- a/coverage/__main__.py
++++ b/coverage/__main__.py
+@@ -6,7 +6,8 @@
+ from __future__ import annotations
+ 
+ import sys
++sys.path.append(sys.path.pop(0))
+ 
+ from coverage.cmdline import main
+ 
+ sys.exit(main())
