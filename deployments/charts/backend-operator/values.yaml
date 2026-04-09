@@ -41,87 +41,6 @@ global:
     # node-type: cpu
     # zone: us-west-2a
 
-  ## Network configuration for backend operators
-  ##
-  network:
-    ## Whether to restrict egress traffic from workflow pods
-    ##
-    restrictEgress: false
-
-    ## Egress allowlist configuration for controlled external access
-    ##
-    allowlistEgress:
-      ## Enable egress allowlist with squid proxy
-      ##
-      enabled: false
-
-      ## Number of replicas for the squid proxy
-      ##
-      proxyReplicas: 1
-
-      ## Node selector for the squid proxy pod
-      #
-      nodeSelector: {}
-
-      ## Kubernetes namespace where the squid proxy will be deployed
-      ##
-      proxyNamespace: osmo-squid-proxy
-
-      ## Additional domains to allow through the proxy
-      ##
-      additionalAllowedDomains: []
-      # - "example.com"
-      # - "api.nvidia.com"
-
-      ## Additional source IP addresses to allow
-      ##
-      additionalAllowedSourceIps: []
-      # - "10.0.0.0/8"
-      # - "192.168.1.0/24"
-
-      ## Resource limits and requests for the squid proxy
-      ##
-      resources:
-        requests:
-          cpu: "2"
-          memory: "4Gi"
-        limits:
-          memory: "4Gi"
-
-      ## Sidecar containers for the proxy deployment
-      ##
-      sidecarContainers:
-        - name: bridge-proxy
-          image: envoyproxy/envoy:v1.34-latest
-          command:
-            - envoy
-            - -c
-            - /etc/envoy/envoy.yaml
-          ports:
-            - containerPort: 443
-              name: bridge-https
-            - containerPort: 11113
-              name: admin
-          volumeMounts:
-            - name: envoy-config
-              mountPath: /etc/envoy
-            - name: envoy-certs
-              mountPath: /certs
-
-      ## Additional volumes for the proxy deployment
-      ##
-      additionalVolumes:
-        - name: envoy-config
-          configMap:
-            name: bridge-envoy-config
-        - name: envoy-certs
-          secret:
-            secretName: bridge-envoy-certs
-
-      ## Host aliases for custom DNS resolution within proxy pods
-      ##
-      hostAliases: []
-
   ## OSMO service connection configuration
   ##
   ## URL of the OSMO service that backend operators will connect to
@@ -202,6 +121,68 @@ global:
   - key: "ops"
     operator: "Exists"
     effect: "NoSchedule"
+
+  ## NetworkPolicy configuration for the workflow (backend) namespace.
+  ## When enabled, restricts egress from workflow pods: external internet traffic is
+  ## allowed, but traffic to other cluster namespaces is blocked unless whitelisted.
+  ##
+  networkPolicy:
+    ## Enable the NetworkPolicy. When false, no NetworkPolicy is created and all
+    ## egress is unrestricted.
+    ##
+    enabled: false
+
+    ## Internal cluster CIDRs to exclude from the external egress allow rule.
+    ## This is what enforces namespace isolation — without it, the external allow
+    ## rule covers cluster-internal IPs too and the whitelist has no effect.
+    ##
+    ## Typically includes:
+    ##   - Pod CIDR      (e.g. 10.244.0.0/16 for flannel, 10.0.0.0/8 for EKS)
+    ##   - Service CIDR  (e.g. 10.96.0.0/12 for kubeadm default)
+    ##   - Node CIDR     (e.g. 192.168.0.0/16)
+    ##
+    clusterCIDRs: []
+    # - "10.0.0.0/8"
+    # - "10.96.0.0/12"
+
+    ## Namespace containing the cluster DNS service (CoreDNS/kube-dns).
+    ## Port 53 (TCP+UDP) egress is allowed to pods in this namespace.
+    ## Works correctly on Cilium and Calico eBPF. For iptables-based CNIs where
+    ## this may not match the kube-dns service IP, add an explicit ipBlock /32
+    ## for the DNS service IP via additionalEgressRules instead.
+    ##
+    dnsNamespace: kube-system
+
+    ## Namespaces that workflow pods are allowed to reach in addition to their
+    ## own namespace and the DNS namespace.
+    ##
+    allowedNamespaces: []
+    # - osmo        # agent namespace (backend operator)
+    # - monitoring  # Prometheus scraping
+    # - cert-manager
+
+    ## Raw NetworkPolicyEgressRule objects appended to the policy.
+    ## Use for IP-based allowances or anything not expressible via the above.
+    ## See https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#networkpolicyegressrule-v1-networking-k8s-io
+    ##
+    additionalEgressRules: []
+    # Example: allow HTTPS to a specific external CIDR
+    # - ports:
+    #   - port: 443
+    #     protocol: TCP
+    #   to:
+    #   - ipBlock:
+    #       cidr: 203.0.113.0/24
+    # Example: fix DNS on iptables-based CNIs (replace IP with your kube-dns ClusterIP)
+    #   kubectl get svc kube-dns -n kube-system -o jsonpath='{.spec.clusterIP}'
+    # - ports:
+    #   - port: 53
+    #     protocol: UDP
+    #   - port: 53
+    #     protocol: TCP
+    #   to:
+    #   - ipBlock:
+    #       cidr: 10.96.0.10/32
 
   ## Priority class configuration for backend workloads to be used for scheduling
   ## only used if kaischeduler plugin is enabled
