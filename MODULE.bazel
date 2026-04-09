@@ -70,14 +70,14 @@ osmo_constants(
 
 bazel_dep(name = "aspect_bazel_lib", version = "2.19.3")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_shell", version = "0.4.1")
+bazel_dep(name = "rules_shell", version = "0.7.1")
 
 ################
 #    Python    #
 ################
 
-bazel_dep(name = "aspect_rules_py", version = "1.8.4")
-bazel_dep(name = "rules_python", version = "1.8.4")
+bazel_dep(name = "aspect_rules_py", version = "1.11.2")
+bazel_dep(name = "rules_python", version = "1.9.0")
 
 # Patch: single_version_platform_override.coverage_tool is attr.label() but
 # python_repository.coverage_tool is attr.string(), causing a type mismatch.
@@ -93,7 +93,7 @@ python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
     ignore_root_user_error = True,
     is_default = True,
-    python_version = "3.10.19",
+    python_version = "3.14.2",
 )
 
 # Python coverage tool for `bazel coverage` on CI (Linux x86_64).
@@ -122,7 +122,7 @@ filegroup(
 python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
@@ -137,7 +137,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_mypy_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//bzl/mypy:locked_requirements.txt",
 )
 use_repo(pip, "osmo_mypy_deps")
@@ -152,7 +152,7 @@ pip.parse(
         "30",
     ],
     hub_name = "pylint_python_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//bzl/linting:locked_requirements.txt",
 )
 use_repo(pip, "pylint_python_deps")
@@ -167,7 +167,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_python_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//src:locked_requirements.txt",
 )
 use_repo(pip, "osmo_python_deps")
@@ -182,7 +182,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_tests_python_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//src/tests:locked_requirements.txt",
 )
 use_repo(pip, "osmo_tests_python_deps")
@@ -218,8 +218,8 @@ bazel_dep(name = "bazel_skylib", version = "1.8.2")
 #      Go      #
 ################
 
-bazel_dep(name = "rules_go", version = "0.57.0", repo_name = "io_bazel_rules_go")
-bazel_dep(name = "gazelle", version = "0.42.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "gazelle", version = "0.50.0", repo_name = "bazel_gazelle")
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(
