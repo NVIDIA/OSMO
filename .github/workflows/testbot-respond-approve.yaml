@@ -1,0 +1,157 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Auto-approves the testbot-respond environment deployment when the
+# triggering actor is an NVIDIA/osmo-dev team member or a trusted bot.
+# Runs from main via workflow_run, so PR authors cannot tamper
+# with this logic.
+#
+# SVC_OSMO_CI_TOKEN requires:
+#   - read:org (to check NVIDIA/osmo-dev team membership)
+#   - repo (to approve environment deployments)
+# The token owner (svc-osmo-ci) must be listed as a required
+# reviewer on the 'testbot-respond' environment.
+name: Testbot - Auto-approve Respond
+
+on:
+  workflow_run:
+    # IMPORTANT: must match the 'name:' field in testbot-respond.yaml exactly
+    workflows: ["Testbot - Respond to Reviews"]
+    types: [requested]
+
+permissions: {}  # All API calls use PAT; GITHUB_TOKEN needs no permissions
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check membership and approve
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          script: |
+            const run = context.payload.workflow_run;
+            const actor = run.triggering_actor.login;
+            const { owner, repo } = context.repo;
+            core.info(`Triggering actor: ${actor}`);
+
+            // Check if the run was already cancelled (e.g., by cancel-in-progress)
+            const { data: currentRun } = await github.rest.actions.getWorkflowRun({
+              owner,
+              repo,
+              run_id: run.id,
+            });
+            if (currentRun.status === 'completed') {
+              core.info(`Run ${run.id} already completed (${currentRun.conclusion}) — skipping`);
+              return;
+            }
+
+            // Trusted bots: approve without org check so their runs complete
+            // quickly (respond.py will find no /testbot threads and exit).
+            // This prevents bot-triggered runs from blocking the concurrency
+            // group — cancel-in-progress could cancel a real /testbot run if
+            // the bot run stays pending.
+            const TRUSTED_BOTS = new Set([
+              'svc-osmo-ci',
+              'github-actions[bot]',
+              'coderabbitai[bot]',
+            ]);
+            const isTrustedBot = TRUSTED_BOTS.has(actor);
+
+            if (!isTrustedBot) {
+              // Check NVIDIA/osmo-dev team membership (200 = active/pending, 404 = not)
+              try {
+                const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
+                  org: 'NVIDIA',
+                  team_slug: 'osmo-dev',
+                  username: actor,
+                });
+                if (membership.state !== 'active') {
+                  core.info(`${actor} has osmo-dev state '${membership.state}' (not active) — skipping`);
+                  return;
+                }
+                core.info(`${actor} is an active NVIDIA/osmo-dev member`);
+              } catch (err) {
+                if (err.status === 404) {
+                  core.info(`${actor} is NOT an NVIDIA/osmo-dev member — skipping`);
+                  return;
+                }
+                throw err;  // 403/429/5xx = PAT or API issue, fail loudly
+              }
+            } else {
+              core.info(`${actor} is a trusted bot — approving without team check`);
+            }
+
+            // Poll for pending deployments (may take a few seconds to appear).
+            // Start at 5s — deployments never appear in <3s. Add jitter to
+            // avoid thundering-herd if multiple runs trigger simultaneously.
+            let deployments = [];
+            for (let attempt = 1; attempt <= 12; attempt++) {
+              const { data } = await github.rest.actions.getPendingDeploymentsForRun({
+                owner,
+                repo,
+                run_id: run.id,
+              });
+              deployments = data;
+              if (deployments.length > 0) break;
+              const base = Math.min(3 + attempt * 2, 15);
+              const jitter = Math.random() * 2;
+              const delay = (base + jitter) * 1000;
+              core.info(`No pending deployments yet (attempt ${attempt}/12), waiting ${(delay / 1000).toFixed(1)}s...`);
+              await new Promise(r => setTimeout(r, delay));
+            }
+
+            if (deployments.length === 0) {
+              core.warning(
+                `No pending deployments for run ${run.id} — ` +
+                `run may have been cancelled, already approved, or still queuing`
+              );
+              return;
+            }
+
+            // Only approve testbot-respond, not any other environments
+            const envIds = deployments
+              .filter(d => d.environment.name === 'testbot-respond')
+              .map(d => d.environment.id);
+
+            if (envIds.length === 0) {
+              core.info('No pending testbot-respond deployments — skipping');
+              return;
+            }
+
+            try {
+              await github.rest.actions.reviewPendingDeploymentsForRun({
+                owner,
+                repo,
+                run_id: run.id,
+                environment_ids: envIds,
+                state: 'approved',
+                comment: isTrustedBot
+                  ? `Auto-approved: ${actor} is a trusted bot`
+                  : `Auto-approved: ${actor} is an NVIDIA/osmo-dev member`,
+              });
+              core.info(`Approved run ${run.id} for ${actor}`);
+            } catch (err) {
+              if (err.status === 422) {
+                core.info(`Run ${run.id} was already approved — nothing to do`);
+                return;
+              }
+              core.setFailed(
+                `Failed to approve run ${run.id}: ${err.message} (status: ${err.status}). ` +
+                `Verify that the PAT owner is listed as a required reviewer ` +
+                `on the 'testbot-respond' environment.`
+              );
+            }
