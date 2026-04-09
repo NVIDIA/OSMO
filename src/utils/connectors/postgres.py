@@ -1289,7 +1289,7 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Creates key-value table for ConfigMap loader state (hash, managed_by modes)
+        # Key-value table for future ConfigMap state (unused, kept for schema compat)
         create_cmd = '''
             CREATE TABLE IF NOT EXISTS configmap_state (
                 key TEXT PRIMARY KEY,
@@ -1297,15 +1297,6 @@ class PostgresConnector:
             );
         '''
         self.execute_commit_command(create_cmd, ())
-
-    def set_configmap_state(self, key: str, value: str) -> None:
-        """Set a value in the configmap_state key-value table (upsert)."""
-        cmd = '''
-            INSERT INTO configmap_state (key, value)
-            VALUES (%s, %s)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-        '''
-        self.execute_commit_command(cmd, (key, value))
 
     def _init_configs(self):
         """ Initializes configs table. """

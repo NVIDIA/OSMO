@@ -139,66 +139,6 @@ class TestDynamicConfigFreshDeployment:
             f'tag={CONFIGMAP_SYNC_TAG}')
 
 
-class TestDynamicConfigSeedMode:
-    """Scenario 2: CLI update AFTER ConfigMap (seed mode).
-
-    Service config is deployed with managed_by=seed. Resource validations
-    also use seed mode. After a CLI update, the seed-mode ConfigMap
-    should NOT overwrite the CLI changes on restart (because the config
-    already exists in DB).
-
-    The service_base_url from the ConfigMap should only be applied on
-    first deployment when no service config exists.
-    """
-
-    def test_service_config_applied_on_first_deploy(
-            self, e2e_client: OsmoE2EClient) -> None:
-        """Verify service config from ConfigMap was applied initially."""
-        response = e2e_client.get('/api/configs/service')
-        assert response.status_code == 200
-        data = response.json()
-        # The service_base_url should have been applied from ConfigMap
-        # on initial deployment (or from update_configs if that ran after)
-        assert 'service_base_url' in data
-
-    def test_resource_validation_seed_applied(
-            self, e2e_client: OsmoE2EClient) -> None:
-        """Verify seed-mode resource validation was created."""
-        response = e2e_client.get(
-            '/api/configs/resource_validation/e2e-cpu-limit')
-        assert response.status_code == 200
-
-    def test_cli_update_not_overwritten_by_seed(
-            self, e2e_client: OsmoE2EClient) -> None:
-        """Update service config via API, verify it persists.
-
-        In seed mode, once a config exists, it won't be overwritten
-        by the ConfigMap on restart. This test modifies the service
-        config and verifies the change sticks. Full restart
-        verification requires kubectl to delete the pod.
-        """
-        get_response = e2e_client.get('/api/configs/service')
-        assert get_response.status_code == 200
-        original_config = get_response.json()
-
-        # Patch with a known marker so we can detect if ConfigMap
-        # overwrites it on next restart
-        original_config['service_base_url'] = (
-            'http://e2e-modified-by-cli.test')
-        patch_response = e2e_client.patch(
-            '/api/configs/service',
-            json=original_config,
-            params={'description': 'E2E test: seed mode CLI update'},
-        )
-        assert patch_response.status_code == 200
-
-        verify_response = e2e_client.get('/api/configs/service')
-        assert verify_response.status_code == 200
-        data = verify_response.json()
-        assert data.get('service_base_url') == (
-            'http://e2e-modified-by-cli.test')
-
-
 class TestDynamicConfigConfigmapMode:
     """Scenario 3: CLI update AFTER ConfigMap (configmap mode).
 

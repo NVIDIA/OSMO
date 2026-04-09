@@ -29,8 +29,6 @@ from watchdog import events, observers
 from src.service.core.config import configmap_guard
 from src.utils import connectors
 
-CONFIGMAP_SYNC_USERNAME = configmap_guard.CONFIGMAP_SYNC_USERNAME
-CONFIGMAP_SYNC_TAGS = configmap_guard.CONFIGMAP_SYNC_TAGS
 
 # ---------------------------------------------------------------------------
 # Module-level config cache is in configmap_guard (avoids circular imports

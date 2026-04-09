@@ -41,65 +41,45 @@ services:
   dynamicConfig:
     enabled: true
 
-    # --- Singleton configs ---
-
-    # configmap mode: always overwrite on startup. CLI changes are ephemeral.
+    # Singleton configs
     workflow:
-      managed_by: configmap
-      config:
-        max_num_tasks: 50
-        max_exec_timeout: "60d"
+      max_num_tasks: 50
+      max_exec_timeout: "60d"
 
-    # seed mode: only apply if config doesn't exist. CLI changes preserved.
     service:
-      managed_by: seed
-      config:
-        service_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
+      service_base_url: "http://ingress-nginx-controller.ingress-nginx.svc.cluster.local"
 
-    # --- Named configs ---
-
-    # configmap mode for backends
+    # Named configs
     backends:
-      managed_by: configmap
-      items:
-        e2e-backend:
-          description: "E2E test backend"
+      e2e-backend:
+        description: "E2E test backend"
 
-    # configmap mode for pools
     pools:
-      managed_by: configmap
-      items:
-        e2e-test:
-          description: "E2E test pool from ConfigMap"
-          backend: "e2e-backend"
-          platforms:
-            default:
-              labels:
-                node_group: "compute"
+      e2e-test:
+        description: "E2E test pool from ConfigMap"
+        backend: "e2e-backend"
+        platforms:
+          default:
+            labels:
+              node_group: "compute"
 
-    # configmap mode for pod templates
     podTemplates:
-      managed_by: configmap
-      items:
-        e2e-compute:
-          spec:
-            containers:
-              - name: "{{USER_CONTAINER_NAME}}"
-                env:
-                  - name: OSMO_LOGIN_DEV
-                    value: "true"
-              - name: osmo-ctrl
-                env:
-                  - name: OSMO_LOGIN_DEV
-                    value: "true"
-            nodeSelector:
-              node_group: compute
+      e2e-compute:
+        spec:
+          containers:
+            - name: "{{USER_CONTAINER_NAME}}"
+              env:
+                - name: OSMO_LOGIN_DEV
+                  value: "true"
+            - name: osmo-ctrl
+              env:
+                - name: OSMO_LOGIN_DEV
+                  value: "true"
+          nodeSelector:
+            node_group: compute
 
-    # seed mode for resource validations
     resourceValidations:
-      managed_by: seed
-      items:
-        e2e-cpu-limit:
-          - resource: cpu
-            min: "1"
-            max: "64"
+      e2e-cpu-limit:
+        - resource: cpu
+          min: "1"
+          max: "64"
