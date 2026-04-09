@@ -960,6 +960,64 @@ class TestValidateForLocalRemainingBranches(unittest.TestCase):
             '''),
             'expected_substring': 'hostNetwork',
         },
+        'host_token_in_args': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  groups:
+                  - name: workers
+                    tasks:
+                    - name: leader
+                      lead: true
+                      image: ubuntu:24.04
+                      command: ["echo"]
+                      args: ["--peer={{host:follower}}"]
+                    - name: follower
+                      image: ubuntu:24.04
+                      command: ["echo"]
+            '''),
+            'expected_substring': 'host:taskname',
+        },
+        'host_token_in_env': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  groups:
+                  - name: workers
+                    tasks:
+                    - name: leader
+                      lead: true
+                      image: ubuntu:24.04
+                      command: ["echo"]
+                      environment:
+                        PEER_HOST: "{{ host:follower }}"
+                    - name: follower
+                      image: ubuntu:24.04
+                      command: ["echo"]
+            '''),
+            'expected_substring': 'host:taskname',
+        },
+        'host_token_in_files': {
+            'yaml': textwrap.dedent('''\
+                workflow:
+                  name: bad
+                  groups:
+                  - name: workers
+                    tasks:
+                    - name: leader
+                      lead: true
+                      image: ubuntu:24.04
+                      command: ["sh", "/tmp/run.sh"]
+                      files:
+                      - contents: |
+                          echo "connecting to {{host:follower}}"
+                        path: /tmp/run.sh
+                    - name: follower
+                      image: ubuntu:24.04
+                      command: ["echo"]
+            '''),
+            'expected_substring': 'host:taskname',
+        },
     }
 
     def test_unsupported_fields_rejected(self):
@@ -1031,6 +1089,142 @@ class TestFilePathTraversal(unittest.TestCase):
         node = executor._task_nodes['task']
         executor._run_task(node, spec)
         mock_run.assert_called_once()
+
+
+class TestLeadTaskFailurePolicy(unittest.TestCase):
+    """Verify ignoreNonleadStatus behavior: non-lead failures are tolerated when the flag is true."""
+
+    def setUp(self):
+        """Create a temporary work directory for lead-task policy tests."""
+        self.work_dir = tempfile.mkdtemp(prefix='osmo-local-lead-')
+
+    def tearDown(self):
+        """Remove the temporary work directory after each test."""
+        shutil.rmtree(self.work_dir, ignore_errors=True)
+
+    @mock.patch('subprocess.run')
+    def test_nonlead_failure_ignored_when_flag_true(self, mock_run):
+        """With ignoreNonleadStatus=true (default), a non-lead failure does not abort the workflow."""
+        mock_run.side_effect = [
+            mock.Mock(returncode=0),
+            mock.Mock(returncode=1),
+        ]
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: lead-policy
+              groups:
+              - name: workers
+                tasks:
+                - name: leader
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "ok"]
+                - name: follower
+                  image: alpine:3.18
+                  command: ["sh", "-c", "exit 1"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        self.assertTrue(executor.execute(spec))
+
+    @mock.patch('subprocess.run')
+    def test_lead_failure_aborts_workflow(self, mock_run):
+        """Even with ignoreNonleadStatus=true, a lead task failure aborts the workflow."""
+        mock_run.return_value = mock.Mock(returncode=1)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: lead-policy
+              groups:
+              - name: workers
+                tasks:
+                - name: leader
+                  lead: true
+                  image: alpine:3.18
+                  command: ["sh", "-c", "exit 1"]
+                - name: follower
+                  image: alpine:3.18
+                  command: ["echo", "ok"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        self.assertFalse(executor.execute(spec))
+
+    @mock.patch('subprocess.run')
+    def test_nonlead_failure_aborts_when_flag_false(self, mock_run):
+        """With ignoreNonleadStatus=false, a non-lead failure aborts the workflow."""
+        mock_run.side_effect = [
+            mock.Mock(returncode=0),
+            mock.Mock(returncode=1),
+        ]
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: lead-policy
+              groups:
+              - name: workers
+                ignoreNonleadStatus: false
+                tasks:
+                - name: leader
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "ok"]
+                - name: follower
+                  image: alpine:3.18
+                  command: ["sh", "-c", "exit 1"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        self.assertFalse(executor.execute(spec))
+
+    @mock.patch('subprocess.run')
+    def test_nonlead_failure_does_not_block_downstream_group(self, mock_run):
+        """A tolerated non-lead failure does not prevent a downstream group from running."""
+        mock_run.side_effect = [
+            mock.Mock(returncode=0),
+            mock.Mock(returncode=1),
+            mock.Mock(returncode=0),
+        ]
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: downstream-after-nonlead-fail
+              groups:
+              - name: first
+                tasks:
+                - name: leader
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "ok"]
+                - name: follower
+                  image: alpine:3.18
+                  command: ["sh", "-c", "exit 1"]
+              - name: second
+                tasks:
+                - name: consumer
+                  lead: true
+                  image: alpine:3.18
+                  command: ["echo", "ok"]
+                  inputs:
+                  - task: leader
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        self.assertTrue(executor.execute(spec))
+        self.assertEqual(mock_run.call_count, 3)
+
+    @mock.patch('subprocess.run')
+    def test_single_task_group_failure_aborts(self, mock_run):
+        """A single-task group (auto-promoted to lead) aborts on failure like normal."""
+        mock_run.return_value = mock.Mock(returncode=1)
+        spec_text = textwrap.dedent('''\
+            workflow:
+              name: single-fail
+              tasks:
+              - name: only-task
+                image: alpine:3.18
+                command: ["sh", "-c", "exit 1"]
+        ''')
+        executor = LocalExecutor(work_dir=self.work_dir, keep_work_dir=True)
+        spec = executor.load_spec(spec_text)
+        self.assertFalse(executor.execute(spec))
 
 
 class TestShmSize(unittest.TestCase):

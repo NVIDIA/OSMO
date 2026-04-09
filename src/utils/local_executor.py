@@ -63,7 +63,8 @@ class LocalExecutor:
     Executes an OSMO workflow spec locally using Docker, without Kubernetes.
 
     Supports:
-      - Serial and parallel task DAGs (groups flattened to individual tasks)
+      - Serial and parallel task DAGs
+      - Task groups with lead-task failure policy (ignoreNonleadStatus)
       - {{output}} and {{input:N}} / {{input:taskname}} token substitution
       - Inline `files:` written to the container
       - `environment:` passed as Docker env vars
@@ -74,6 +75,7 @@ class LocalExecutor:
       - Dataset / URL inputs/outputs (require object storage)
       - Credentials, checkpoints, volumeMounts (require cluster infra)
       - Templated specs with Jinja (require server-side expansion; use --dry-run first)
+      - {{host:taskname}} tokens (require parallel containers with shared networking)
     """
 
     DEFAULT_SHM_SIZE = '16g'
@@ -86,6 +88,7 @@ class LocalExecutor:
         self._docker_cmd = docker_cmd
         self._shm_size = shm_size
         self._task_nodes: Dict[str, TaskNode] = {}
+        self._group_specs: Dict[str, task_module.TaskGroupSpec] = {}
         self._results: Dict[str, TaskResult] = {}
         self._available_gpus: int | None = None
 
@@ -149,11 +152,17 @@ class LocalExecutor:
                 self._save_state()
 
                 if result.exit_code != 0:
-                    logger.error('Task "%s" failed with exit code %d', task_name, result.exit_code)
-                    self._cancel_downstream(task_name)
-                    return False
-
-                logger.info('Task "%s" completed successfully', task_name)
+                    if self._is_nonlead_failure_ignorable(task_name):
+                        logger.warning(
+                            'Non-lead task "%s" failed with exit code %d '
+                            '(ignored — group "%s" has ignoreNonleadStatus=true)',
+                            task_name, result.exit_code, node.group)
+                    else:
+                        logger.error('Task "%s" failed with exit code %d', task_name, result.exit_code)
+                        self._cancel_downstream(task_name)
+                        return False
+                else:
+                    logger.info('Task "%s" completed successfully', task_name)
 
             ready = self._find_ready_tasks()
 
@@ -163,9 +172,12 @@ class LocalExecutor:
                          spec.name, ', '.join(sorted(unexecuted)))
             return False
 
-        failed = [name for name, r in self._results.items() if r.exit_code != 0]
-        if failed:
-            logger.error('Workflow failed. Failed tasks: %s', ', '.join(failed))
+        fatal_failures = [
+            name for name, r in self._results.items()
+            if r.exit_code != 0 and not self._is_nonlead_failure_ignorable(name)
+        ]
+        if fatal_failures:
+            logger.error('Workflow failed. Failed tasks: %s', ', '.join(fatal_failures))
             return False
 
         logger.info('Workflow "%s" completed successfully', spec.name)
@@ -243,11 +255,11 @@ class LocalExecutor:
     def _build_dag(self, spec: workflow_module.WorkflowSpec):
         """Construct the internal DAG of TaskNodes from the workflow spec's tasks and input dependencies."""
         self._task_nodes.clear()
-        task_to_group: Dict[str, str] = {}
+        self._group_specs.clear()
 
         for group in self._groups(spec):
+            self._group_specs[group.name] = group
             for task_spec in group.tasks:
-                task_to_group[task_spec.name] = group.name
                 self._task_nodes[task_spec.name] = TaskNode(
                     name=task_spec.name,
                     spec=task_spec,
@@ -296,6 +308,8 @@ class LocalExecutor:
                 raise ValueError(
                     f'Circular dependency detected: {" -> ".join(cycle)}')
 
+    _HOST_TOKEN_PATTERN = re.compile(r'\{\{\s*host:[^}]+\}\}')
+
     def _validate_for_local(self, spec: workflow_module.WorkflowSpec):
         """Raise ValueError if the spec uses features unsupported in local mode (datasets, URLs, credentials, etc.)."""
         unsupported_features = []
@@ -334,10 +348,22 @@ class LocalExecutor:
                     unsupported_features.append(
                         f'Task "{task_spec.name}": hostNetwork is not supported in local mode')
 
+                if self._task_uses_host_tokens(task_spec):
+                    unsupported_features.append(
+                        f'Task "{task_spec.name}": {{{{host:taskname}}}} tokens require '
+                        f'parallel containers with shared networking')
+
         if unsupported_features:
             raise ValueError(
                 'The following features are not supported in local execution mode:\n  - '
                 + '\n  - '.join(unsupported_features))
+
+    def _task_uses_host_tokens(self, task_spec: task_module.TaskSpec) -> bool:
+        """Return True if any text field in the task spec contains {{host:...}} tokens."""
+        fields_to_check = list(task_spec.command) + list(task_spec.args)
+        fields_to_check += list(task_spec.environment.values())
+        fields_to_check += [file_spec.contents for file_spec in task_spec.files]
+        return any(self._HOST_TOKEN_PATTERN.search(field) for field in fields_to_check)
 
     def _setup_directories(self):
         """Create the work directory and per-task output directories on the host filesystem."""
@@ -345,15 +371,28 @@ class LocalExecutor:
         for task_name in self._task_nodes:
             os.makedirs(os.path.join(self._work_dir, task_name, 'output'), exist_ok=True)
 
+    def _is_nonlead_failure_ignorable(self, task_name: str) -> bool:
+        """Return True if the task is a non-lead task in a group with ignoreNonleadStatus=true."""
+        node = self._task_nodes[task_name]
+        group_spec = self._group_specs[node.group]
+        return group_spec.ignoreNonleadStatus and not node.spec.lead
+
+    def _is_task_satisfied(self, task_name: str) -> bool:
+        """Return True if a completed task's result counts as satisfied for downstream scheduling."""
+        result = self._results[task_name]
+        if result.exit_code == 0:
+            return True
+        return self._is_nonlead_failure_ignorable(task_name)
+
     def _find_ready_tasks(self) -> List[str]:
-        """Return tasks whose upstream dependencies have all completed successfully."""
+        """Return tasks whose upstream dependencies have all been satisfied, in spec declaration order."""
         completed = set(self._results.keys())
         ready = []
         for name, node in self._task_nodes.items():
             if name in completed:
                 continue
             if node.upstream.issubset(completed):
-                all_upstream_ok = all(self._results[u].exit_code == 0 for u in node.upstream)
+                all_upstream_ok = all(self._is_task_satisfied(u) for u in node.upstream)
                 if all_upstream_ok:
                     ready.append(name)
         return ready
