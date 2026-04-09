@@ -136,3 +136,14 @@ osmo_py_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+osmo_py_library(
+    name = "compose_executor",
+    srcs = ["compose_executor.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/utils:standalone_executor",
+        "//src/utils/job",
+    ],
+    visibility = ["//visibility:public"],
+)

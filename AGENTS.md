@@ -121,6 +121,7 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `utils/connectors/` | `ClusterConnector`, `PostgresConnector`, `RedisConnector` | K8s API wrapper, PostgreSQL operations, Redis job queue management. |
 | `utils/secret_manager/` | `SecretManager` | JWE-based secret encryption/decryption. MEK/UEK key management. |
 | `utils/standalone_executor.py` | `StandaloneExecutor`, `run_workflow_standalone` | Standalone Docker-based workflow execution. Runs workflow specs without Kubernetes by mapping tasks to `docker run` commands with volume mounts for data flow. Supports DAG scheduling, resume (`--from-step`), and GPU passthrough. |
+| `utils/compose_executor.py` | `ComposeExecutor`, `run_workflow_compose` | Docker Compose-based parallel workflow execution. Extends StandaloneExecutor with wave-parallel scheduling, `{{host:taskname}}` DNS resolution via shared Compose networks, and GPU support via deploy resource reservations. |
 | `utils/progress_check/` | — | Liveness/progress tracking for long-running services. |
 | `utils/metrics/` | — | Prometheus metrics collection and export. |
 
@@ -141,6 +142,7 @@ Entry point: `cli.py` → `main_parser.py` (argparse). Subcommand modules:
 | `pool.py`, `resources.py`, `user.py`, `credential.py`, `access_token.py`, `bucket.py`, `task.py`, `version.py` | Supporting commands              |
 | `backend.py`                                                                                                   | Backend cluster management       |
 | `standalone.py`                                                                                                | Standalone workflow execution via Docker (`osmo standalone run`) |
+| `docker_compose.py`                                                                                            | Parallel workflow execution via Docker Compose (`osmo docker-compose run`) |
 
 Features: Tab completion (shtab), response formatting (`formatters.py`), spec editor (`editor.py`), PyInstaller packaging (`cli_builder.py`, `packaging/`).
 

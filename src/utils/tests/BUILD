@@ -66,3 +66,13 @@ py_test(
     ],
     local = True,
 )
+
+py_test(
+    name = "test_compose_executor",
+    srcs = ["test_compose_executor.py"],
+    deps = [
+        "//src/utils:compose_executor",
+        "//src/utils:standalone_executor",
+    ],
+    local = True,
+)

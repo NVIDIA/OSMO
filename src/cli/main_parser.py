@@ -28,6 +28,7 @@ from src.cli import (
     credential,
     data,
     dataset,
+    docker_compose,
     standalone,
     login,
     pool,
@@ -58,6 +59,7 @@ PARSERS = (
     user.setup_parser,
     config.setup_parser,
     standalone.setup_parser,
+    docker_compose.setup_parser,
 )
 
 
