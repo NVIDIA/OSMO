@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
+import os
 import sys
 
 import shtab
@@ -59,6 +60,28 @@ def setup_parser(parser: argparse._SubParsersAction):
         help='Docker Compose command to use (e.g. "docker-compose" for V1). '
              'Default: "docker compose".')
     run_parser.add_argument(
+        '--credential',
+        nargs='+',
+        default=[],
+        help='Map credential names to local directories. '
+             'Format: "<name>=<path>". The directory is bind-mounted read-only '
+             'into the container at the path declared in the spec. '
+             'Example: --credential hf-token=$HOME/.hf')
+    run_parser.add_argument(
+        '--set',
+        nargs='+',
+        default=[],
+        help='Override default-values in the workflow spec. '
+             'Format: "<field>=<value>". Values are cast as int or float if '
+             'applicable, otherwise kept as strings.')
+    run_parser.add_argument(
+        '--set-string',
+        dest='set_string',
+        nargs='+',
+        default=[],
+        help='Override default-values in the workflow spec, forcing string type. '
+             'Format: "<field>=<value>".')
+    run_parser.add_argument(
         '--shm-size',
         dest='shm_size',
         default=None,
@@ -67,15 +90,34 @@ def setup_parser(parser: argparse._SubParsersAction):
     run_parser.set_defaults(func=_run_compose)
 
 
+def _parse_credentials(raw_credentials: list[str]) -> dict[str, str]:
+    """Parse --credential name=path arguments into a dict."""
+    result: dict[str, str] = {}
+    for entry in raw_credentials:
+        if '=' not in entry:
+            raise ValueError(
+                f'--credential value "{entry}" is incorrectly formatted (expected name=/path)')
+        name, path = entry.split('=', 1)
+        if not os.path.isdir(path):
+            raise ValueError(
+                f'Credential path for "{name}" does not exist or is not a directory: {path}')
+        result[name] = path
+    return result
+
+
 def _run_compose(service_client, args: argparse.Namespace):
     """Execute a workflow via Docker Compose using the parsed CLI arguments."""
     try:
+        credentials = _parse_credentials(args.credential)
         success = compose_executor.run_workflow_compose(
             spec_path=args.workflow_file,
             work_dir=args.work_dir,
             keep_work_dir=args.keep,
             compose_cmd=args.compose_cmd,
             shm_size=args.shm_size,
+            set_variables=args.set,
+            set_string_variables=args.set_string,
+            credentials=credentials,
         )
     except (ValueError, FileNotFoundError, PermissionError) as error:
         print(f'Error: {error}', file=sys.stderr)

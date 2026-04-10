@@ -34,6 +34,8 @@ from src.utils.standalone_executor import (
     StandaloneExecutor,
     TaskNode,
     TaskResult,
+    _expand_jinja_locally,
+    _spec_has_templates,
 )
 
 
@@ -61,9 +63,11 @@ class ComposeExecutor(StandaloneExecutor):
     """
 
     def __init__(self, work_dir: str, keep_work_dir: bool = False,
-                 compose_cmd: str = 'docker compose', shm_size: str | None = None):
+                 compose_cmd: str = 'docker compose', shm_size: str | None = None,
+                 credentials: Dict[str, str] | None = None):
         super().__init__(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                         docker_cmd='docker', shm_size=shm_size)
+                         docker_cmd='docker', shm_size=shm_size,
+                         credentials=credentials)
         self._compose_cmd = compose_cmd
 
     @property
@@ -177,14 +181,20 @@ class ComposeExecutor(StandaloneExecutor):
                             f'Task "{task_spec.name}": URL inputs require network/storage access')
 
                 for output in task_spec.outputs:
-                    if isinstance(output, (task_module.DatasetInputOutput,
-                                           task_module.URLInputOutput)):
+                    if isinstance(output, task_module.URLInputOutput):
                         unsupported_features.append(
-                            f'Task "{task_spec.name}": dataset/URL outputs require object storage')
+                            f'Task "{task_spec.name}": URL outputs require object storage')
+                    elif isinstance(output, task_module.DatasetInputOutput):
+                        logger.info(
+                            'Task "%s": dataset output "%s" ignored in docker-compose mode '
+                            '— data is available in the work directory',
+                            task_spec.name, output.dataset.name)
 
-                if task_spec.credentials:
-                    unsupported_features.append(
-                        f'Task "{task_spec.name}": credentials require the OSMO secret manager')
+                for cred_name in task_spec.credentials:
+                    if cred_name not in self._credentials:
+                        unsupported_features.append(
+                            f'Task "{task_spec.name}": credential "{cred_name}" not provided. '
+                            f'Use --credential {cred_name}=/path/to/dir')
 
                 if task_spec.checkpoint:
                     unsupported_features.append(
@@ -355,6 +365,11 @@ class ComposeExecutor(StandaloneExecutor):
                 os.path.join(files_dir, file_spec.path.lstrip('/')))
             volumes.append(f'{host_path}:{file_spec.path}:ro')
 
+        for cred_name, cred_mount in task_spec.credentials.items():
+            if isinstance(cred_mount, str) and cred_name in self._credentials:
+                local_dir = os.path.abspath(self._credentials[cred_name])
+                volumes.append(f'{local_dir}:{cred_mount}:ro')
+
         if volumes:
             service['volumes'] = volumes
 
@@ -500,17 +515,17 @@ class ComposeExecutor(StandaloneExecutor):
 def run_workflow_compose(spec_path: str, work_dir: str | None = None,
                          keep_work_dir: bool = False,
                          compose_cmd: str = 'docker compose',
-                         shm_size: str | None = None) -> bool:
+                         shm_size: str | None = None,
+                         set_variables: List[str] | None = None,
+                         set_string_variables: List[str] | None = None,
+                         credentials: Dict[str, str] | None = None) -> bool:
     """Load a workflow spec and execute it via Docker Compose."""
     with open(spec_path, encoding='utf-8') as f:
         spec_text = f.read()
 
-    template_markers = ('{%', '{#', 'default-values')
-    if any(marker in spec_text for marker in template_markers):
-        raise ValueError(
-            'This spec uses Jinja templates which require server-side expansion.\n'
-            'Run "osmo workflow submit --dry-run -f <spec>" first to get the '
-            'expanded spec,\nthen save that output and run it with docker-compose.')
+    if _spec_has_templates(spec_text):
+        logger.info('Spec contains Jinja templates — expanding locally')
+        spec_text = _expand_jinja_locally(spec_text, set_variables, set_string_variables)
 
     created_work_dir = work_dir is None
     if work_dir is None:
@@ -520,7 +535,8 @@ def run_workflow_compose(spec_path: str, work_dir: str | None = None,
     success = False
     try:
         executor = ComposeExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                                    compose_cmd=compose_cmd, shm_size=shm_size)
+                                    compose_cmd=compose_cmd, shm_size=shm_size,
+                                    credentials=credentials)
         spec = executor.load_spec(spec_text)
         success = executor.execute(spec)
     finally:

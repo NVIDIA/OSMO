@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import dataclasses
+import hashlib
 import json
 import logging
 import os
@@ -24,10 +25,13 @@ import re
 import shutil
 import subprocess
 import tempfile
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
+import jinja2
+import jinja2.sandbox
 import yaml
 
+from src.lib.utils import workflow as workflow_utils
 from src.utils.job import task as task_module
 from src.utils.job import workflow as workflow_module
 
@@ -81,12 +85,14 @@ class StandaloneExecutor:
     DEFAULT_SHM_SIZE = '16g'
 
     def __init__(self, work_dir: str, keep_work_dir: bool = False, docker_cmd: str = 'docker',
-                 shm_size: str | None = None):
+                 shm_size: str | None = None,
+                 credentials: Dict[str, str] | None = None):
         """Initialize the executor with a work directory, cleanup preference, and container runtime command."""
         self._work_dir = work_dir
         self._keep_work_dir = keep_work_dir
         self._docker_cmd = docker_cmd
         self._shm_size = shm_size
+        self._credentials = credentials or {}
         self._task_nodes: Dict[str, TaskNode] = {}
         self._group_specs: Dict[str, task_module.TaskGroupSpec] = {}
         self._results: Dict[str, TaskResult] = {}
@@ -326,7 +332,7 @@ class StandaloneExecutor:
     _HOST_TOKEN_PATTERN = re.compile(r'\{\{\s*host:[^}]+\}\}')
 
     def _validate_for_standalone(self, spec: workflow_module.WorkflowSpec):
-        """Raise ValueError if the spec uses features unsupported in standalone mode (datasets, URLs, credentials, etc.)."""
+        """Raise ValueError if the spec uses features unsupported in standalone mode."""
         unsupported_features = []
         for group in self._groups(spec):
             for task_spec in group.tasks:
@@ -339,13 +345,20 @@ class StandaloneExecutor:
                             f'Task "{task_spec.name}": URL inputs require network/storage access')
 
                 for output in task_spec.outputs:
-                    if isinstance(output, (task_module.DatasetInputOutput, task_module.URLInputOutput)):
+                    if isinstance(output, task_module.URLInputOutput):
                         unsupported_features.append(
-                            f'Task "{task_spec.name}": dataset/URL outputs require object storage')
+                            f'Task "{task_spec.name}": URL outputs require object storage')
+                    elif isinstance(output, task_module.DatasetInputOutput):
+                        logger.info(
+                            'Task "%s": dataset output "%s" ignored in standalone mode '
+                            '— data is available in the work directory',
+                            task_spec.name, output.dataset.name)
 
-                if task_spec.credentials:
-                    unsupported_features.append(
-                        f'Task "{task_spec.name}": credentials require the OSMO secret manager')
+                for cred_name in task_spec.credentials:
+                    if cred_name not in self._credentials:
+                        unsupported_features.append(
+                            f'Task "{task_spec.name}": credential "{cred_name}" not provided. '
+                            f'Use --credential {cred_name}=/path/to/dir')
 
                 if task_spec.checkpoint:
                     unsupported_features.append(
@@ -499,6 +512,11 @@ class StandaloneExecutor:
             host_path = os.path.realpath(os.path.join(files_dir, file_spec.path.lstrip('/')))
             docker_args += ['-v', f'{host_path}:{file_spec.path}:ro']
 
+        for cred_name, cred_mount in task_spec.credentials.items():
+            if isinstance(cred_mount, str) and cred_name in self._credentials:
+                local_dir = os.path.abspath(self._credentials[cred_name])
+                docker_args += ['-v', f'{local_dir}:{cred_mount}:ro']
+
         if resolved_command:
             docker_args += ['--entrypoint', resolved_command[0]]
         docker_args.append(task_spec.image)
@@ -556,8 +574,66 @@ class StandaloneExecutor:
         if unresolved:
             raise ValueError(
                 f'Task "{task_name}" has unresolved token(s): {", ".join(unresolved)}. '
-                f'If this spec uses Jinja templates, run "osmo workflow submit --dry-run -f <spec>" '
-                f'first to expand them.')
+                f'Use --set to provide values, or check for typos in template variable names.')
+
+
+_OSMO_TOKEN_PATTERN = re.compile(r'\{\{(uuid|workflow_id|output|input:[^}]+|host:[^}]+)\}\}')
+
+
+def _expand_jinja_locally(spec_text: str,
+                          set_variables: List[str] | None = None,
+                          set_string_variables: List[str] | None = None) -> str:
+    """Expand Jinja templates in a workflow spec using its default-values section and CLI overrides.
+
+    Mirrors the server-side logic in TemplateSpec.load_template_with_variables but runs
+    entirely locally: no PostgreSQL, no sandboxed worker pool.  OSMO-specific tokens
+    ({{output}}, {{input:...}}, {{host:...}}, {{uuid}}, {{workflow_id}}) are protected
+    from expansion and restored afterward.
+    """
+    file_text, default_values = workflow_utils.parse_workflow_spec(spec_text)
+    template_data: Dict[str, Any] = {}
+    if default_values:
+        template_data = default_values
+
+    for data in (set_variables or []):
+        if '=' not in data:
+            raise ValueError(f'--set value "{data}" is incorrectly formatted (expected key=value)')
+        key, raw_value = data.split('=', 1)
+        try:
+            template_data[key] = int(raw_value)
+        except ValueError:
+            try:
+                template_data[key] = float(raw_value)
+            except ValueError:
+                template_data[key] = raw_value
+
+    for data in (set_string_variables or []):
+        if '=' not in data:
+            raise ValueError(
+                f'--set-string value "{data}" is incorrectly formatted (expected key=value)')
+        key, raw_value = data.split('=', 1)
+        template_data[key] = raw_value
+
+    placeholder_map: Dict[str, str] = {}
+    for match in _OSMO_TOKEN_PATTERN.finditer(file_text):
+        field = match.group(1).strip()
+        hash_key = 'hash' + str(int(hashlib.md5(field.encode('utf-8')).hexdigest(), 16))
+        original_token = '{{' + match.group(1) + '}}'
+        template_data[hash_key] = original_token
+        placeholder_map[original_token] = hash_key
+
+    protected_text = file_text
+    for original_token, hash_key in placeholder_map.items():
+        protected_text = protected_text.replace(original_token, '{{' + hash_key + '}}')
+
+    jinja_env = jinja2.sandbox.SandboxedEnvironment(undefined=jinja2.StrictUndefined)
+    template = jinja_env.from_string(protected_text)
+    return template.render(template_data)
+
+
+def _spec_has_templates(spec_text: str) -> bool:
+    """Return True if the spec contains Jinja template markers that need expansion."""
+    return any(marker in spec_text for marker in ('{%', '{#', 'default-values'))
 
 
 def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
@@ -565,7 +641,10 @@ def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
                             resume: bool = False,
                             from_step: str | None = None,
                             docker_cmd: str = 'docker',
-                            shm_size: str | None = None) -> bool:
+                            shm_size: str | None = None,
+                            set_variables: List[str] | None = None,
+                            set_string_variables: List[str] | None = None,
+                            credentials: Dict[str, str] | None = None) -> bool:
     """Load a workflow spec from disk and execute it in standalone mode via Docker, managing the work directory lifecycle."""
     if (resume or from_step) and work_dir is None:
         raise ValueError(
@@ -574,12 +653,9 @@ def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
     with open(spec_path, encoding='utf-8') as f:
         spec_text = f.read()
 
-    template_markers = ('{%', '{#', 'default-values')
-    if any(marker in spec_text for marker in template_markers):
-        raise ValueError(
-            'This spec uses Jinja templates which require server-side expansion.\n'
-            'Run "osmo workflow submit --dry-run -f <spec>" first to get the expanded spec,\n'
-            'then save that output and run it standalone.')
+    if _spec_has_templates(spec_text):
+        logger.info('Spec contains Jinja templates — expanding locally')
+        spec_text = _expand_jinja_locally(spec_text, set_variables, set_string_variables)
 
     created_work_dir = work_dir is None
     if work_dir is None:
@@ -589,7 +665,8 @@ def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
     success = False
     try:
         executor = StandaloneExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                                       docker_cmd=docker_cmd, shm_size=shm_size)
+                                       docker_cmd=docker_cmd, shm_size=shm_size,
+                                       credentials=credentials)
         spec = executor.load_spec(spec_text)
         success = executor.execute(spec, resume=resume or from_step is not None,
                                    from_step=from_step)

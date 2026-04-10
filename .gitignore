@@ -31,3 +31,5 @@ docs/**/domain_config.js
 .lycheecache
 
 .venv/
+build/
+*.egg-info
