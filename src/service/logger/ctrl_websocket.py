@@ -229,10 +229,9 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                         json_fields = await redis_client.get(key)
                         await websocket.send_text(json_fields)
 
-                loop = asyncio.get_event_loop()
                 tasks = [
-                        loop.create_task(get_logs(websocket)),
-                        loop.create_task(get_action(websocket))
+                        asyncio.create_task(get_logs(websocket)),
+                        asyncio.create_task(get_action(websocket))
                     ]
                 await common.gather_cancel(*tasks)
 

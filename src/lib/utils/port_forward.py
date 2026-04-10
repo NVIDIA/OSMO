@@ -192,10 +192,9 @@ async def run_tcp_with_sock(
                     params=params,
                     timeout=timeout,
                 )
-                loop = asyncio.get_event_loop()
                 coroutines = [
-                    loop.create_task(write_data(writer, ws)),
-                    loop.create_task(read_data(reader, ws, ws_write_rate_limiter, buffer_size)),
+                    asyncio.create_task(write_data(writer, ws)),
+                    asyncio.create_task(read_data(reader, ws, ws_write_rate_limiter, buffer_size)),
                 ]
 
                 await asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED)
@@ -283,7 +282,7 @@ async def run_udp(service_client: client.ServiceClient, app_host: str, app_port:
                 pass
 
         logger.info(message)
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # On macOS, force IPv4 binding when localhost is used to avoid IPv6 (::1) binding
         bind_host = app_host

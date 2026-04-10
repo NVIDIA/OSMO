@@ -37,6 +37,13 @@ DEFAULT_MAX_TIME = 0.5
 DEFAULT_JINJA_MEMORY = 100*1024*1024
 
 
+def _get_multiprocessing_context() -> Any:
+    """
+    Use an explicit start method so worker startup is stable across Python versions.
+    """
+    return multiprocessing.get_context('spawn')
+
+
 @dataclasses.dataclass
 class WorkItem:
     args: Tuple
@@ -57,10 +64,14 @@ class SandboxedWorker:
         self._max_time = max_time
         self._jinja_memory = jinja_memory
         self._func = func
+        self._multiprocessing_context = _get_multiprocessing_context()
 
         # Initialize pipe and process
-        self._parent_conn, self._child_conn = multiprocessing.Pipe()
-        self._process = multiprocessing.Process(target=self._subprocess_main, daemon=True)
+        self._parent_conn, self._child_conn = self._multiprocessing_context.Pipe()
+        self._process = self._multiprocessing_context.Process(
+            target=self._subprocess_main,
+            daemon=True,
+        )
         self._process.start()
         self._child_conn.close()
 
@@ -121,9 +132,12 @@ class SandboxedWorker:
                 break
 
     def _restart(self):
-        self._parent_conn, self._child_conn = multiprocessing.Pipe()
+        self._parent_conn, self._child_conn = self._multiprocessing_context.Pipe()
         self._process.kill()
-        self._process = multiprocessing.Process(target=self._subprocess_main, daemon=True)
+        self._process = self._multiprocessing_context.Process(
+            target=self._subprocess_main,
+            daemon=True,
+        )
         self._process.start()
         self._child_conn.close()
 
