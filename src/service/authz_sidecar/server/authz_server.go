@@ -281,27 +281,25 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 	return s.allowResponse(responseHeaders), nil
 }
 
-// resolveRoles fetches role objects from cache, file store, or DB.
+// resolveRoles fetches role objects for the given role names.
+// File-backed mode: direct in-memory lookup (no cache needed).
+// DB mode: LRU cache with DB fallback.
 func (s *AuthzServer) resolveRoles(ctx context.Context, roleNames []string) ([]*roles.Role, error) {
-	cachedRoles, missingNames := s.roleCache.Get(roleNames)
-
-	if len(missingNames) > 0 {
-		var fetchedRoles []*roles.Role
-		if s.fileStore != nil {
-			fetchedRoles = s.fileStore.GetRoles(missingNames)
-		} else {
-			var err error
-			fetchedRoles, err = roles.GetRoles(ctx, s.pgClient, missingNames, s.logger)
-			if err != nil {
-				return nil, fmt.Errorf("failed to fetch roles: %w", err)
-			}
-		}
-		if len(fetchedRoles) > 0 {
-			s.roleCache.Set(fetchedRoles)
-			cachedRoles = append(cachedRoles, fetchedRoles...)
-		}
+	if s.fileStore != nil {
+		return s.fileStore.GetRoles(roleNames), nil
 	}
 
+	cachedRoles, missingNames := s.roleCache.Get(roleNames)
+	if len(missingNames) > 0 {
+		dbRoles, err := roles.GetRoles(ctx, s.pgClient, missingNames, s.logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch roles: %w", err)
+		}
+		if len(dbRoles) > 0 {
+			s.roleCache.Set(dbRoles)
+			cachedRoles = append(cachedRoles, dbRoles...)
+		}
+	}
 	return cachedRoles, nil
 }
 
@@ -318,11 +316,13 @@ func (s *AuthzServer) checkAccess(
 // hitting the database on every request.
 func (s *AuthzServer) computeAllowedPools(
 	ctx context.Context, user string, userRoles []*roles.Role) []string {
-	allPoolNames, ok := s.poolNameCache.Get()
-	if !ok {
-		if s.fileStore != nil {
-			allPoolNames = s.fileStore.GetPoolNames()
-		} else {
+	var allPoolNames []string
+	if s.fileStore != nil {
+		allPoolNames = s.fileStore.GetPoolNames()
+	} else {
+		var ok bool
+		allPoolNames, ok = s.poolNameCache.Get()
+		if !ok {
 			var err error
 			allPoolNames, err = roles.GetAllPoolNames(ctx, s.pgClient)
 			if err != nil {
@@ -331,8 +331,8 @@ func (s *AuthzServer) computeAllowedPools(
 					slog.String("error", err.Error()))
 				return []string{}
 			}
+			s.poolNameCache.Set(allPoolNames)
 		}
-		s.poolNameCache.Set(allPoolNames)
 	}
 	allowed := roles.GetAllowedPools(userRoles, allPoolNames)
 
