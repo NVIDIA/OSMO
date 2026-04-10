@@ -44,12 +44,10 @@ services:
       hostPath: /var/lib/localstack
 
   service:
-    hostname: ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    hostname: osmo-gateway.osmo.svc.cluster.local
     scaling:
       minReplicas: 1
       maxReplicas: 1
-    ingress:
-      sslEnabled: false
     extraEnv:
     - name: AWS_ENDPOINT_URL_S3
       value: http://localstack-s3:4566
@@ -94,18 +92,14 @@ services:
     - name: AWS_DEFAULT_REGION
       value: us-east-1
 
-sidecars:
+gateway:
   envoy:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    service:
+      httpsPort: null
+  oauth2Proxy:
     enabled: false
-
-  logAgent:
-    enabled: false
-
-    logrotate:
-      enabled: false
-
-  otel:
-    enabled: false
-
-  rateLimit:
+  authz:
     enabled: false

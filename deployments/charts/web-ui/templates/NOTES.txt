@@ -1,8 +1,6 @@
-1. Get the application URL by running these commands:
-{{- if .Values.services.ui.ingress.sslEnabled }}
-  https://{{ .Values.services.ui.hostname }}{{ .Values.services.ui.ingress.prefix }}
-{{- else }}
-  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app={{ .Values.services.ui.serviceName }}" -o jsonpath="{.items[0].metadata.name}")
-  echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:{{ .Values.services.ui.containerPort }}
-{{- end }}
+1. The UI service is available at:
+  kubectl get service {{ .Values.services.ui.serviceName }}
+
+2. To access the UI locally:
+  kubectl port-forward svc/{{ .Values.services.ui.serviceName }} 8080:80
+  Visit http://localhost:8080
