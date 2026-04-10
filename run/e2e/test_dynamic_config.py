@@ -17,7 +17,7 @@
 """E2E tests for ConfigMap-sourced dynamic configuration.
 
 These tests validate the configmap_loader feature by deploying OSMO with
-dynamicConfig enabled via Helm values and verifying that configs are
+configs enabled via Helm values and verifying that configs are
 correctly applied to the database on startup.
 
 Prerequisites:
@@ -65,7 +65,7 @@ def _get_config_history(
 class TestDynamicConfigFreshDeployment:
     """Scenario 1: Fresh deployment with ConfigMap configs.
 
-    Verify that all config types defined in dynamicConfig Helm values
+    Verify that all config types defined in configs Helm values
     appear in the database after startup.
     """
 

@@ -36,8 +36,8 @@ spec:
         {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.agent | nindent 8 }}
-        {{- if .Values.services.dynamicConfig.enabled }}
-        checksum/dynamic-config: {{ .Values.services.dynamicConfig | toYaml | sha256sum }}
+        {{- if .Values.services.configs.enabled }}
+        checksum/configs: {{ .Values.services.configs | toYaml | sha256sum }}
         {{- end }}
     spec:
       {{- with .Values.services.agent.hostAliases }}
@@ -217,10 +217,10 @@ spec:
         - name: logs
           emptyDir: {}
         {{- end}}
-        {{- if .Values.services.dynamicConfig.enabled }}
-        - name: dynamic-config
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
           configMap:
-            name: {{ .Values.services.service.serviceName }}-dynamic-config
+            name: {{ .Values.services.service.serviceName }}-configs
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - configMap:

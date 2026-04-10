@@ -234,8 +234,8 @@ services:
   ## ConfigMap file). CLI/API writes return 409. The authz_sidecar reads roles
   ## from the same file instead of PostgreSQL. Changes are detected via watchdog/inotify.
   ##
-  dynamicConfig:
-    ## Enable ConfigMap-based dynamic configuration.
+  configs:
+    ## Enable ConfigMap-based configuration.
     ## When true: all configs served from in-memory (parsed from ConfigMap),
     ## CLI/API writes return 409, authz_sidecar reads roles from file.
     ## When false: configs in database, CLI/API works normally.

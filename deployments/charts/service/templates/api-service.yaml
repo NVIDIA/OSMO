@@ -35,8 +35,8 @@ spec:
         {{- end }}
       annotations:
         checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
-        {{- if .Values.services.dynamicConfig.enabled }}
-        checksum/dynamic-config: {{ .Values.services.dynamicConfig | toYaml | sha256sum }}
+        {{- if .Values.services.configs.enabled }}
+        checksum/configs: {{ .Values.services.configs | toYaml | sha256sum }}
         {{- end }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
     spec:
@@ -152,9 +152,9 @@ spec:
         - --default_admin_username
         - {{ .Values.services.defaultAdmin.username | quote }}
         {{- end }}
-        {{- if .Values.services.dynamicConfig.enabled }}
-        - --dynamic_config_file
-        - /etc/osmo/dynamic-config/config.yaml
+        {{- if .Values.services.configs.enabled }}
+        - --config_file
+        - /etc/osmo/configs/config.yaml
         {{- end }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
@@ -199,7 +199,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.dynamicConfig.enabled .Values.services.service.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -207,18 +207,18 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- if .Values.services.dynamicConfig.enabled }}
-        - name: dynamic-config
-          mountPath: /etc/osmo/dynamic-config
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
+          mountPath: /etc/osmo/configs
           readOnly: true
-        {{- range $name, $data := .Values.services.dynamicConfig.secrets }}
+        {{- range $name, $data := .Values.services.configs.secrets }}
         - name: dynamic-secret-{{ $name }}
           mountPath: /etc/osmo/secrets/{{ $name }}.yaml
           subPath: {{ $name }}.yaml
           readOnly: true
         {{- end }}
-        {{- if .Values.services.dynamicConfig.dataset }}
-        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.buckets }}
+        {{- if .Values.services.configs.dataset }}
+        {{- range $bucketName, $bucketConfig := .Values.services.configs.dataset.buckets }}
         {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
         {{- if $bucketConfig.default_credential.credentialSecretName }}
         - name: {{ $bucketConfig.default_credential.credentialSecretName }}
@@ -229,16 +229,16 @@ spec:
         {{- end }}
         {{- end }}
         {{- $allSecretNames := dict }}
-        {{- if .Values.services.dynamicConfig.workflow }}
-        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow }}
+        {{- if .Values.services.configs.workflow }}
+        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.configs.workflow }}
         {{- range (splitList "," $wfSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
         {{- end }}
         {{- end }}
         {{- end }}
-        {{- if .Values.services.dynamicConfig.service }}
-        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service }}
+        {{- if .Values.services.configs.service }}
+        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.configs.service }}
         {{- range (splitList "," $svcSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
@@ -313,17 +313,17 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
-        {{- if .Values.services.dynamicConfig.enabled }}
-        - name: dynamic-config
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
           configMap:
-            name: {{ .Values.services.service.serviceName }}-dynamic-config
-        {{- range $name, $data := .Values.services.dynamicConfig.secrets }}
+            name: {{ .Values.services.service.serviceName }}-configs
+        {{- range $name, $data := .Values.services.configs.secrets }}
         - name: dynamic-secret-{{ $name }}
           secret:
             secretName: {{ $.Values.services.service.serviceName }}-dynamic-secret-{{ $name }}
         {{- end }}
-        {{- if .Values.services.dynamicConfig.dataset }}
-        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.buckets }}
+        {{- if .Values.services.configs.dataset }}
+        {{- range $bucketName, $bucketConfig := .Values.services.configs.dataset.buckets }}
         {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
         {{- if $bucketConfig.default_credential.credentialSecretName }}
         - name: {{ $bucketConfig.default_credential.credentialSecretName }}
@@ -335,16 +335,16 @@ spec:
         {{- end }}
         {{- end }}
         {{- $allSecretNames := dict }}
-        {{- if .Values.services.dynamicConfig.workflow }}
-        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow }}
+        {{- if .Values.services.configs.workflow }}
+        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.configs.workflow }}
         {{- range (splitList "," $wfSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
         {{- end }}
         {{- end }}
         {{- end }}
-        {{- if .Values.services.dynamicConfig.service }}
-        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service }}
+        {{- if .Values.services.configs.service }}
+        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.configs.service }}
         {{- range (splitList "," $svcSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}

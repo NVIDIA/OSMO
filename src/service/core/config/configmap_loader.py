@@ -124,7 +124,7 @@ class ConfigMapWatcher:
                 raw_config = yaml.safe_load(f)
         except (OSError, yaml.YAMLError) as error:
             logging.error(
-                'Failed to read/parse dynamic config file %s: %s',
+                'Failed to read/parse config file %s: %s',
                 self._config_file_path, error)
             return False
 

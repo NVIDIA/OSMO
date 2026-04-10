@@ -13,16 +13,16 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-{{- if .Values.services.dynamicConfig.enabled }}
+{{- if .Values.services.configs.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ .Values.services.service.serviceName }}-dynamic-config
+  name: {{ .Values.services.service.serviceName }}-configs
   labels:
     app: {{ .Values.services.service.serviceName }}
 data:
   config.yaml: |
-    {{- $dc := .Values.services.dynamicConfig }}
+    {{- $dc := .Values.services.configs }}
     {{- if $dc.service }}
     service:
       {{- $service := deepCopy $dc.service }}

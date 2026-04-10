@@ -16,7 +16,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 ## Overview
 
-Enable OSMO's dynamic configuration to be defined declaratively in Kubernetes ConfigMaps via Helm values, served from in-memory cache, and automatically reloaded on file changes. This follows the standard K8s pattern used by CoreDNS, Prometheus, NGINX Ingress, and Grafana: ConfigMap mounted as file, parsed into memory, served from memory, file watcher detects changes.
+Enable OSMO's configuration to be defined declaratively in Kubernetes ConfigMaps via Helm values, served from in-memory cache, and automatically reloaded on file changes. This follows the standard K8s pattern used by CoreDNS, Prometheus, NGINX Ingress, and Grafana: ConfigMap mounted as file, parsed into memory, served from memory, file watcher detects changes.
 
 ### Motivation
 
@@ -33,7 +33,7 @@ Today, after every OSMO deployment, an administrator must manually run `osmo con
 
 ### Two Global Modes
 
-A single toggle `dynamicConfig.enabled` controls the entire system:
+A single toggle `configs.enabled` controls the entire system:
 
 | | **ConfigMap Mode** (`enabled: true`) | **DB Mode** (`enabled: false` / absent) |
 |---|---|---|
@@ -65,7 +65,7 @@ Not everything in the system is configuration. Some data is generated at runtime
 ConfigMap Mode:
 
   Helm Values --> K8s ConfigMap --> Mounted File
-                                   (/etc/osmo/dynamic-config/config.yaml)
+                                   (/etc/osmo/configs/config.yaml)
                                         |
                      +------------------+------------------+
                      |                                     |
@@ -162,7 +162,7 @@ Agent code (`service/agent/helpers.py`) is unchanged — it continues writing he
 The Go authz_sidecar reads roles directly from the ConfigMap file via `FileRoleStore`, eliminating the PostgreSQL dependency in ConfigMap mode.
 
 **How it works:**
-1. `--roles-file` flag set in Helm template when `dynamicConfig.enabled=true`
+1. `--roles-file` flag set in Helm template when `configs.enabled=true`
 2. `FileRoleStore` loads roles + `external_roles` mappings from YAML on startup
 3. Builds reverse map: `externalRole -> []osmoRoleName` for fast IDP resolution
 4. On each auth check, `ResolveExternalRoles()` maps JWT claims to OSMO roles in-memory
@@ -176,8 +176,8 @@ The Go authz_sidecar reads roles directly from the ConfigMap file via `FileRoleS
 - No per-user role assignments in OSMO — all role assignments are declarative via IDP
 
 **Helm template behavior:**
-- `dynamicConfig.enabled=true`: authz_sidecar gets `--roles-file`, no postgres args, ConfigMap volume mounted
-- `dynamicConfig.enabled=false`: authz_sidecar gets postgres args (legacy DB mode)
+- `configs.enabled=true`: authz_sidecar gets `--roles-file`, no postgres args, ConfigMap volume mounted
+- `configs.enabled=false`: authz_sidecar gets postgres args (legacy DB mode)
 
 ### Runtime Field Injection
 
@@ -208,7 +208,7 @@ The chart `values.yaml` ships with product defaults. Per-deployment values only 
 
 | Config | Why site-specific |
 |---|---|
-| `dynamicConfig.enabled` | Toggle ConfigMap mode |
+| `configs.enabled` | Toggle ConfigMap mode |
 | Workflow limit overrides | Different limits per environment |
 | `backend_images.credential` | Registry secret name varies |
 | `cli_config` versions | Tied to deployed version |
@@ -220,7 +220,7 @@ The chart `values.yaml` ships with product defaults. Per-deployment values only 
 
 ```yaml
 services:
-  dynamicConfig:
+  configs:
     enabled: true
 
     workflow:
@@ -291,7 +291,7 @@ services:
 
 ## Backwards Compatibility
 
-- Fully backwards compatible: `dynamicConfig.enabled: false` (default) preserves current behavior
+- Fully backwards compatible: `configs.enabled: false` (default) preserves current behavior
 - No DB schema changes required
 - Agent code unchanged
 - CLI works normally in DB mode

@@ -305,8 +305,8 @@ Authorization sidecar container
   imagePullPolicy: {{ .Values.sidecars.authz.imagePullPolicy }}
   args:
     - "--grpc-port={{ .Values.sidecars.authz.grpcPort }}"
-    {{- if .Values.services.dynamicConfig.enabled }}
-    - "--roles-file=/etc/osmo/dynamic-config/config.yaml"
+    {{- if .Values.services.configs.enabled }}
+    - "--roles-file=/etc/osmo/configs/config.yaml"
     {{- else }}
     - "--postgres-host={{ .Values.services.postgres.serviceName }}"
     - "--postgres-port={{ .Values.services.postgres.port }}"
@@ -349,9 +349,9 @@ Authorization sidecar container
     - name: logs
       mountPath: /logs
   {{- end }}
-  {{- if .Values.services.dynamicConfig.enabled }}
-    - name: dynamic-config
-      mountPath: /etc/osmo/dynamic-config
+  {{- if .Values.services.configs.enabled }}
+    - name: configs
+      mountPath: /etc/osmo/configs
       readOnly: true
   {{- end }}
   {{- with .Values.sidecars.authz.livenessProbe }}

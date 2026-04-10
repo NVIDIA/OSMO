@@ -38,7 +38,7 @@ services:
     imagePullPolicy: IfNotPresent
   delayedJobMonitor:
     imagePullPolicy: IfNotPresent
-  dynamicConfig:
+  configs:
     enabled: true
 
     # Singleton configs

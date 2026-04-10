@@ -32,7 +32,7 @@ import (
 // a ConfigMap-mounted YAML file. It replaces the PostgreSQL-backed role
 // storage for the authz_sidecar in ConfigMap mode.
 //
-// The file is the same dynamic-config YAML mounted for the Python service:
+// The file is the same configs YAML mounted for the Python service:
 //
 //	roles:
 //	  osmo-admin:
@@ -51,7 +51,7 @@ type FileRoleStore struct {
 	lastModTime     time.Time
 }
 
-// fileConfig mirrors the flat YAML structure of the dynamic config file.
+// fileConfig mirrors the flat YAML structure of the configs file.
 type fileConfig struct {
 	Roles map[string]fileRole   `yaml:"roles"`
 	Pools map[string]yaml.Node  `yaml:"pools"`
