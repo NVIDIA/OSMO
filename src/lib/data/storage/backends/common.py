@@ -296,4 +296,6 @@ class StorageBackend(
             )
 
         raise osmo_errors.OSMOCredentialError(
-            f'Data credential not found for {self.profile}')
+            f'Data credential not found for {self.profile}. Check if the credential is set locally '
+            'with `osmo credential list`. If you are on a new machine, you may need to re-run '
+            '`osmo credential set` to store the credential in the config file.')
