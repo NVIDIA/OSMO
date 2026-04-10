@@ -637,6 +637,25 @@ class PostgresConnector:
     def get_method(self) -> Optional[Literal['dev']]:
         return self.config.method
 
+    @staticmethod
+    def _is_jwe_compact(value: str) -> bool:
+        """Check if a string looks like a JWE compact serialization.
+
+        JWE compact format has 5 base64url segments separated by dots:
+        header.encryptedKey.iv.ciphertext.tag
+        The header is base64url-encoded JSON starting with '{"alg":' which
+        encodes to 'eyJ'.
+
+        This distinguishes JWE from JWS/JWT (3 dots) and plain JSON (0 dots).
+
+        NOTE: This is a shape-based heuristic and could match JWE tokens from
+        external systems. A more robust approach would decode the JWE header
+        and check for an OSMO-specific marker (e.g. "osmo_encrypted": true),
+        but that requires migrating all existing encrypted data. See
+        https://github.com/NVIDIA/OSMO/issues/731 for follow-up.
+        """
+        return isinstance(value, str) and value.startswith("eyJ") and value.count('.') == 4
+
     def decrypt_credential(self, db_row) -> Dict:
         result = {}
         payload = PostgresConnector.decode_hstore(db_row.payload)
@@ -655,7 +674,15 @@ class PostgresConnector:
                     encrypted, db_row.user_name,
                     self.generate_update_secret_func(cmd, cmd_args))
                 result[key] = decrypted.value
-            except (JWException, osmo_errors.OSMONotFoundError):
+            except (JWException, osmo_errors.OSMONotFoundError) as error:
+                if self._is_jwe_compact(value):
+                    logging.error(
+                        "Cannot decrypt credential key '%s' for user '%s' "
+                        "with current MEK: key material mismatch. "
+                        "See https://github.com/NVIDIA/OSMO/issues/731",
+                        key, db_row.user_name)
+                    result[key] = ''  # Return empty, service stays alive
+                    continue
                 result[key] = value
                 encrypted = self.secret_manager.encrypt(value, db_row.user_name)
                 cmd = (
@@ -2682,6 +2709,7 @@ class DynamicConfig(ExtraArgBaseModel):
     def deserialize(cls, config_dict: Dict, postgres: PostgresConnector):
         """ Decrypts all secrets in `config_dict` """
         encrypt_keys = set()
+        delete_keys = set()  # Keys with stale JWE to delete (triggers regeneration)
 
         # Define function to pass into secret_manager.decrypt to update secrets
         def re_encrypt(key: str, new_encrypted: List):
@@ -2744,8 +2772,23 @@ class DynamicConfig(ExtraArgBaseModel):
                     if new_encrypted_list:
                         new_encrypted = new_encrypted_list[0]
                     return decrypted.value, new_encrypted
-                except (JWException, osmo_errors.OSMONotFoundError):
-                    # Encrypt the plain text secret
+                except (JWException, osmo_errors.OSMONotFoundError) as error:
+                    if PostgresConnector._is_jwe_compact(secret):
+                        # Value is already JWE-encrypted but cannot be decrypted
+                        # with the current MEK. This happens when the MEK ConfigMap
+                        # is regenerated with new key material. Delete the stale
+                        # config row so _init_configs() regenerates it with a fresh
+                        # default on the next startup.
+                        # See https://github.com/NVIDIA/OSMO/issues/731
+                        logging.error(
+                            "Cannot decrypt config key '%s' with current MEK: "
+                            "key material mismatch. Deleting stale config so "
+                            "the service regenerates it on next startup. "
+                            "See https://github.com/NVIDIA/OSMO/issues/731",
+                            top_level_key)
+                        delete_keys.add(top_level_key)
+                        return '', None
+                    # Genuinely unencrypted plaintext — encrypt it
                     encrypted = postgres.secret_manager.encrypt(secret, '')
                     encrypt_keys.add(top_level_key)
                     return secret, encrypted.value
@@ -2774,6 +2817,15 @@ class DynamicConfig(ExtraArgBaseModel):
                 new_value = json.dumps(encrypted_dict[key])
                 cmd = 'UPDATE configs SET value = %s WHERE key = %s AND value = %s;'
                 postgres.execute_commit_command(cmd, (new_value, key, old_value))
+
+        # Delete configs with stale encryption — forces regeneration via
+        # _init_configs() → _set_default_config() → INSERT ON CONFLICT DO NOTHING.
+        # Must include type in WHERE clause — configs PK is (key, type).
+        config_type = dynamic_config.get_type().value
+        for key in delete_keys:
+            cmd = 'DELETE FROM configs WHERE key = %s AND type = %s;'
+            postgres.execute_commit_command(cmd, (key, config_type))
+
         return dynamic_config
 
     def serialize_helper(self, config_dict: Dict, postgres: PostgresConnector,
