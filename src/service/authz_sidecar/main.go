@@ -69,17 +69,15 @@ func main() {
 	loggingConfig := loggingFlagPtrs.ToConfig()
 	logger := logging.InitLogger("authz-sidecar", loggingConfig)
 
-	cacheConfig := cacheFlagPtrs.ToCacheConfig()
-	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
-
 	var authzServer *server.AuthzServer
 
 	if *rolesFile != "" {
 		// ConfigMap mode: read roles from file, no DB needed
-		authzServer = initFileBackedServer(*rolesFile, roleCache, cacheConfig, logger)
+		authzServer = initFileBackedServer(*rolesFile, logger)
 	} else {
-		// DB mode: read roles from PostgreSQL
-		authzServer = initDBBackedServer(roleCache, cacheConfig, logger)
+		// DB mode: read roles from PostgreSQL (uses caches)
+		cacheConfig := cacheFlagPtrs.ToCacheConfig()
+		authzServer = initDBBackedServer(cacheConfig, logger)
 	}
 
 	// Migrate roles (no-op in file-backed mode)
@@ -119,8 +117,6 @@ func main() {
 
 func initFileBackedServer(
 	filePath string,
-	roleCache *roles.RoleCache,
-	cacheConfig roles.CacheConfig,
 	logger *slog.Logger,
 ) *server.AuthzServer {
 	fileStore := roles.NewFileRoleStore(filePath, logger)
@@ -131,14 +127,12 @@ func initFileBackedServer(
 		os.Exit(1)
 	}
 	fileStore.Start(filePollInterval)
-	poolNameCache := roles.NewPoolNameCache(cacheConfig.TTL, logger)
 	logger.Info("authz sidecar running in ConfigMap mode",
 		slog.String("roles_file", filePath))
-	return server.NewFileBackedAuthzServer(fileStore, roleCache, poolNameCache, logger)
+	return server.NewFileBackedAuthzServer(fileStore, logger)
 }
 
 func initDBBackedServer(
-	roleCache *roles.RoleCache,
 	cacheConfig roles.CacheConfig,
 	logger *slog.Logger,
 ) *server.AuthzServer {
@@ -149,8 +143,7 @@ func initDBBackedServer(
 			slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	// Note: pgClient.Close() is not deferred here because the server
-	// runs until process exit. The OS reclaims resources.
+	roleCache := roles.NewRoleCache(cacheConfig.MaxSize, cacheConfig.TTL, logger)
 	poolNameCache := roles.NewPoolNameCache(cacheConfig.TTL, logger)
 	logger.Info("authz sidecar running in DB mode",
 		slog.String("postgres_host", postgresConfig.Host))

@@ -75,17 +75,14 @@ func NewAuthzServer(
 
 // NewFileBackedAuthzServer creates a server that reads roles from a
 // ConfigMap-mounted file instead of PostgreSQL. No DB connection needed.
+// No caches needed — FileRoleStore is already in-memory.
 func NewFileBackedAuthzServer(
 	fileStore *roles.FileRoleStore,
-	roleCache *roles.RoleCache,
-	poolNameCache *roles.PoolNameCache,
 	logger *slog.Logger,
 ) *AuthzServer {
 	return &AuthzServer{
-		fileStore:     fileStore,
-		roleCache:     roleCache,
-		poolNameCache: poolNameCache,
-		logger:        logger,
+		fileStore: fileStore,
+		logger:    logger,
 	}
 }
 
