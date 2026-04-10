@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ Hello, my name is {{ name }}!
 """
 
 # This template will build a massive string which will consume lots of memory
-# Starts with 5MB string and doubles it, quickly exceeding 10MB limit on Linux
+# Starts with 5MB string and doubles it to 160MB, exceeding the test memory limit on Linux
 MEMORY_BOUND_TEMPLATE = """
 Hello, my name is {{ name }}!
 {% set x = 'A' * (5 * 1024 * 1024) %}
@@ -100,8 +100,9 @@ class TestJinjaSandbox(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Initialize the renderer with a slightly longer timeout to allow memory errors to happen.
-        # Use 10MB limit to trigger faster in containerized environments
-        jinja_sandbox.SandboxedJinjaRenderer(workers=2, max_time=3, jinja_memory=10*1024*1024)
+        # 50MB gives enough headroom for Python 3.14's higher virtual memory baseline while
+        # still catching MEMORY_BOUND_TEMPLATE (which tries to allocate 160MB).
+        jinja_sandbox.SandboxedJinjaRenderer(workers=2, max_time=3, jinja_memory=50*1024*1024)
 
     @classmethod
     def tearDownClass(cls):

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -125,9 +125,15 @@ class SandboxedWorker:
                 result = e
                 is_exception = True
 
-            # Send result through pipe, break on EOFError
             try:
                 self._child_conn.send(WorkResult(result, is_exception=is_exception))
+            except MemoryError:
+                try:
+                    self._child_conn.send(WorkResult(
+                        MemoryError("Result too large to serialize within memory limit"),
+                        is_exception=True))
+                except (MemoryError, EOFError):
+                    break
             except EOFError:
                 break
 
@@ -165,7 +171,12 @@ class SandboxedWorker:
             self._restart()
             raise TimeoutError(f'Process exceeded time limit of {self._max_time} seconds')
 
-        result = self._parent_conn.recv()
+        try:
+            result = self._parent_conn.recv()
+        except EOFError:
+            self._restart()
+            raise MemoryError(
+                f'Sandboxed process exceeded memory limit of {self._jinja_memory} bytes')
 
         # If the process has died, then restart it and throw an exception
         if not self._process.is_alive():
