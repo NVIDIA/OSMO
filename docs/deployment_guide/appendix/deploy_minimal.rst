@@ -218,7 +218,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,14,17,24,75-79
+    :emphasize-lines: 2-3, 14, 17, 24
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -300,16 +300,6 @@ Create the following values files for the minimal deployment:
         passwordSecretName: default-admin-secret
         passwordSecretKey: password
 
-    sidecars:
-      envoy:
-        enabled: false
-
-      otel:
-        enabled: false
-
-      rateLimit:
-        enabled: false
-
 **UI Service Values** (``ui_values.yaml``):
 
 .. dropdown:: ``ui_values.yaml``
@@ -354,10 +344,6 @@ Create the following values files for the minimal deployment:
         #     nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
         #     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
         #     nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-
-    sidecars:
-      envoy:
-        enabled: false
 
 **Router Service Values** (``router_values.yaml``):
 
@@ -412,13 +398,6 @@ Create the following values files for the minimal deployment:
           #     nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
           #     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
           #     nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-
-    sidecars:
-      envoy:
-        enabled: false
-
-      otel:
-        enabled: false
 
 .. important::
 

@@ -33,7 +33,7 @@
 "use client";
 
 import { memo, useState, useMemo, useCallback, useRef } from "react";
-import { ChevronDown, ChevronRight, MoreVertical, Columns, Search, Check } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, MoreVertical, Columns, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -47,6 +47,7 @@ import {
 } from "@/components/shadcn/dropdown-menu";
 import { PanelHeader, PanelBadge, PanelTitle, PanelSubtitle } from "@/components/panel/panel-header";
 import { getStatusIcon } from "@/features/workflows/detail/lib/status";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import type {
   DetailsPanelHeaderProps,
   SiblingTask,
@@ -236,6 +237,7 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
   expandableContent,
   isExpanded: controlledExpanded,
   onToggleExpand,
+  sequenceNav,
 }: ExtendedHeaderProps) {
   // Use controlled state if provided, otherwise fall back to local state
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -270,6 +272,24 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
           </span>
         ))}
 
+      {/* Sequence nav: previous arrow before title */}
+      {sequenceNav && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={sequenceNav.onPrevious}
+              disabled={!sequenceNav.hasPrevious}
+              className="shrink-0 rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:pointer-events-none disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+              aria-label="Previous workflow"
+            >
+              <ChevronLeft className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>{sequenceNav.hasPrevious ? "Previous workflow" : "No previous workflow"}</TooltipContent>
+        </Tooltip>
+      )}
+
       {/* Title - with optional task switcher */}
       {hasSiblings ? (
         <TaskSwitcher
@@ -279,6 +299,23 @@ export const DetailsPanelHeader = memo(function DetailsPanelHeader({
         />
       ) : (
         <PanelTitle>{title}</PanelTitle>
+      )}
+
+      {/* Sequence nav: next arrow after title */}
+      {sequenceNav && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={sequenceNav.onNext}
+              className="shrink-0 rounded-md p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+              aria-label="Next workflow"
+            >
+              <ChevronRight className="size-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Next workflow</TooltipContent>
+        </Tooltip>
       )}
 
       {/* Subtitle */}

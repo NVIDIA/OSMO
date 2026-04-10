@@ -99,11 +99,9 @@ Microsoft Entra ID (Azure AD)
 
 .. code-block:: yaml
 
-   sidecars:
+   gateway:
      envoy:
-       enabled: true
-       service:
-         hostname: <your-domain>
+       hostname: <your-domain>
        jwt:
          user_header: x-osmo-user
          providers:

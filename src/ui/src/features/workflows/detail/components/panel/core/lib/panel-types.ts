@@ -91,6 +91,12 @@ export interface BreadcrumbSegment {
   onClick: () => void;
 }
 
+export interface SequenceNavProps {
+  onPrevious: () => void;
+  onNext: () => void;
+  hasPrevious: boolean;
+}
+
 export interface DetailsPanelHeaderProps {
   title: string;
   subtitle?: string;
@@ -106,4 +112,6 @@ export interface DetailsPanelHeaderProps {
   expandableContent?: React.ReactNode;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  /** Prev/next arrows flanking the title for sequential workflows */
+  sequenceNav?: SequenceNavProps;
 }

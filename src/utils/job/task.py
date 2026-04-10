@@ -264,12 +264,12 @@ class TaskGroupStatus(enum.Enum):
              and not self.canceled())
 
 
-class TaskInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TaskInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents an input/output that is another task """
     task: task_common.TaskNamePattern
     regex: str = ''
 
-    @pydantic.validator('regex')
+    @pydantic.field_validator('regex')
     @classmethod
     def validate_regex(cls, regex: str) -> str | None:
         """
@@ -314,9 +314,9 @@ class TaskInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return hash((self.__class__.__name__, self.task))
 
 
-class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class DatasetInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents an input/output that is a dataset """
-    class _Dataset(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    class _Dataset(pydantic.BaseModel, extra='forbid'):
         """ Represents dataset info """
         name: str
         path: str = ''
@@ -325,7 +325,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         regex: str = ''
         localpath: str | None = None
 
-        @pydantic.validator('name')
+        @pydantic.field_validator('name')
         @classmethod
         def validate_name(cls, name: str) -> str:
             """
@@ -340,7 +340,7 @@ class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 raise ValueError(f'Invalid name: {err}') from err
             return name
 
-        @pydantic.validator('path')
+        @pydantic.field_validator('path')
         @classmethod
         def validate_path(cls, path: str) -> str:
             """
@@ -349,13 +349,13 @@ class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             Raises:
                 ValueError: path fails validation.
             """
-            try:
-                re.fullmatch(PATH_REGEX, path)
-            except re.error as err:
-                raise ValueError(f'Invalid path: {path}') from err
+            if not path:
+                return path
+            if re.fullmatch(PATH_REGEX, path) is None:
+                raise ValueError(f'Invalid path: {path}')
             return path
 
-        @pydantic.validator('metadata')
+        @pydantic.field_validator('metadata')
         @classmethod
         def validate_metadata(cls, metadata: List[str]) -> List[str]:
             """
@@ -365,13 +365,11 @@ class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 ValueError: metadata fails validation.
             """
             for path in metadata:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return metadata
 
-        @pydantic.validator('labels')
+        @pydantic.field_validator('labels')
         @classmethod
         def validate_labels(cls, labels: List[str]) -> List[str]:
             """
@@ -381,13 +379,11 @@ class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 ValueError: labels fails validation.
             """
             for path in labels:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return labels
 
-        @pydantic.validator('regex')
+        @pydantic.field_validator('regex')
         @classmethod
         def validate_regex(cls, regex: str) -> str | None:
             """
@@ -411,16 +407,16 @@ class DatasetInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return hash((self.__class__.__name__, self.dataset.name, self.dataset.path))
 
 
-class UpdateDatasetOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class UpdateDatasetOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents an input/output that is a dataset """
-    class _Dataset(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+    class _Dataset(pydantic.BaseModel, extra='forbid'):
         """ Represents dataset info """
         name: str
         paths: List[str] = []
         metadata: List[str] = []
         labels: List[str] = []
 
-        @pydantic.validator('name')
+        @pydantic.field_validator('name')
         @classmethod
         def validate_name(cls, name: str) -> str:
             """
@@ -435,7 +431,7 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 raise ValueError(f'Invalid name: {err}') from err
             return name
 
-        @pydantic.validator('paths')
+        @pydantic.field_validator('paths')
         @classmethod
         def validate_paths(cls, paths: List[str]) -> List[str]:
             """
@@ -445,13 +441,11 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 ValueError: paths fails validation.
             """
             for path in paths:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return paths
 
-        @pydantic.validator('metadata')
+        @pydantic.field_validator('metadata')
         @classmethod
         def validate_metadata(cls, metadata: List[str]) -> List[str]:
             """
@@ -461,13 +455,11 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 ValueError: metadata fails validation.
             """
             for path in metadata:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return metadata
 
-        @pydantic.validator('labels')
+        @pydantic.field_validator('labels')
         @classmethod
         def validate_labels(cls, labels: List[str]) -> List[str]:
             """
@@ -477,10 +469,8 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 ValueError: labels fails validation.
             """
             for path in labels:
-                try:
-                    re.fullmatch(PATH_REGEX, path)
-                except re.error as err:
-                    raise ValueError(f'Invalid path: {path}') from err
+                if re.fullmatch(PATH_REGEX, path) is None:
+                    raise ValueError(f'Invalid path: {path}')
             return labels
 
     update_dataset: _Dataset
@@ -489,12 +479,12 @@ class UpdateDatasetOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return hash((self.__class__.__name__, self.update_dataset.name))
 
 
-class URLInputOutput(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class URLInputOutput(pydantic.BaseModel, extra='forbid'):
     """ Represents a url used for input/output """
     url: str
     regex: str = ''
 
-    @pydantic.validator('regex')
+    @pydantic.field_validator('regex')
     @classmethod
     def validate_regex(cls, regex: str) -> str | None:
         """
@@ -522,23 +512,25 @@ InputType = TaskInputOutput | DatasetInputOutput | URLInputOutput
 OutputType = DatasetInputOutput | URLInputOutput | UpdateDatasetOutput
 
 
-class CheckpointSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class CheckpointSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents a checkpoint spec """
     path: str
     url: constants.StorageBackendPattern
     frequency: datetime.timedelta
     regex: str = ''
 
-    @pydantic.validator('frequency', pre=True)
+    @pydantic.field_validator('frequency', mode='before')
     @classmethod
-    def validate_frequency(cls, value) ->datetime.timedelta:
+    def validate_frequency(cls, value) -> datetime.timedelta:
+        if isinstance(value, bool):
+            raise ValueError('Checkpoint frequency must be a duration, not a boolean')
         if isinstance(value, (int, float)):
             return datetime.timedelta(seconds=value)
         if isinstance(value, datetime.timedelta):
             return value
         return common.to_timedelta(value)
 
-    @pydantic.validator('regex')
+    @pydantic.field_validator('regex')
     @classmethod
     def validate_regex(cls, regex: str) -> str | None:
         """
@@ -557,19 +549,23 @@ class CheckpointSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             raise ValueError(f'Invalid regex: {regex}') from err
 
 
-class TaskKPI(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TaskKPI(pydantic.BaseModel):
     """ Represents a KPI stored in a task """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     index: str
     path: str
 
 
-class File(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class File(pydantic.BaseModel):
     """ Encodes text contents to uniformly support text and binary files. """
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     base64: bool = False
     path: str
     contents: str
 
-    @pydantic.validator('path')
+    @pydantic.field_validator('path')
     @classmethod
     def validate_path(cls, path: str) -> str:
         """
@@ -594,8 +590,14 @@ class File(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return self.contents
 
 
-class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TaskSpec(pydantic.BaseModel):
     """ Represents the container spec in a task spec. """
+    # Pydantic v2 is strict about str types. YAML users naturally write unquoted
+    # integers (e.g. exitActions: {RESCHEDULE: 3}, args: [echo, 42]) or booleans
+    # (e.g. environment: {DEBUG: true}) which parse as int/bool, not str.
+    # coerce_numbers_to_str restores v1 behavior for int/float→str coercion.
+    model_config = pydantic.ConfigDict(extra='forbid', coerce_numbers_to_str=True)
+
     name: task_common.NamePattern
     image: str
     command: List[str]
@@ -619,10 +621,64 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     # A simplified resource representation in the workflow spec
     resource: str = 'default'
 
-    @pydantic.validator('downloadType', pre=True)
+    @pydantic.field_validator('environment', 'exitActions', mode='before')
+    @classmethod
+    def coerce_dict_str_values(cls, value: Any) -> Any:
+        """Coerce non-string scalar dict values (e.g. YAML booleans/ints) to strings.
+
+        coerce_numbers_to_str handles int/float but not bool. YAML users write
+        environment: {DEBUG: true} or exitActions: {RESCHEDULE: 3} which parse
+        as bool/int, so we coerce here. Non-scalar values (None, list, dict) are
+        left as-is so they fail downstream validation.
+        """
+        if isinstance(value, dict):
+            return {
+                str(k): str(v) if isinstance(v, (str, int, float, bool)) else v
+                for k, v in value.items()
+            }
+        return value
+
+    @pydantic.field_validator('credentials', mode='before')
+    @classmethod
+    def coerce_credential_values(cls, value: Any) -> Any:
+        """Coerce credential values to their expected types.
+
+        Credential values can be str (path) or Dict[str, str] (key mappings).
+        YAML may parse values as int/bool instead of str.
+
+        Raises:
+            ValueError: If value is not a str or dict, or contains invalid
+                inner types (None, list, object).
+        """
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            result: Dict[str, Union[str, Dict[str, str]]] = {}
+            for k, v in value.items():
+                if isinstance(v, dict):
+                    for dk, dv in v.items():
+                        if not isinstance(dv, (str, int, float, bool)):
+                            raise ValueError(
+                                f'credential key mapping value for {k}.{dk} must be a scalar, '
+                                f'got {type(dv).__name__}'
+                            )
+                    result[str(k)] = {str(dk): str(dv) for dk, dv in v.items()}
+                elif isinstance(v, (str, int, float, bool)):
+                    result[str(k)] = str(v)
+                else:
+                    raise ValueError(
+                        f'credential value for {k} must be a str or dict, '
+                        f'got {type(v).__name__}'
+                    )
+            return result
+        raise ValueError(
+            f'credentials must be a str or dict, got {type(value).__name__}'
+        )
+
+    @pydantic.field_validator('downloadType', mode='before')
     @classmethod
     def validate_download_type(cls, download_type: Optional[Union[str, connectors.DownloadType]],
-        values: Dict) -> Optional[connectors.DownloadType]:
+        info: pydantic.ValidationInfo) -> Optional[connectors.DownloadType]:
         """
         Validates downloadType. Converts string values to DownloadType enum.
 
@@ -631,7 +687,7 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         """
         if download_type is None:
             return None
-        name = values.get('name', '')
+        name = info.data.get('name', '')
         if isinstance(download_type, connectors.DownloadType):
             return download_type
         if isinstance(download_type, str):
@@ -641,9 +697,11 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             valid_types = [dt.value for dt in connectors.DownloadType]
             raise ValueError(f'Task "{name}" uses invalid downloadType "{download_type}". '
                            f'Valid types are: {valid_types}')
+        raise ValueError(
+            f'Task "{name}" has unsupported downloadType type: {type(download_type).__name__}'
+        )
 
-
-    @pydantic.validator('name')
+    @pydantic.field_validator('name')
     @classmethod
     def validate_name(cls, name: task_common.NamePattern) -> task_common.NamePattern:
         """
@@ -657,30 +715,30 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                              'This is a restricted name.')
         return name
 
-    @pydantic.validator('command')
+    @pydantic.field_validator('command')
     @classmethod
-    def validate_command(cls, command: List[str], values: Dict) -> List[str]:
+    def validate_command(cls, command: List[str], info: pydantic.ValidationInfo) -> List[str]:
         """
         Validates command. Returns the value of command if valid.
 
         Raises:
             ValueError: Containers fails validation.
         """
-        name = values.get('name', '')
+        name = info.data.get('name', '')
         if not command:
             raise ValueError(f'Container {name} should have at least one command.')
         return command
 
-    @pydantic.validator('files')
+    @pydantic.field_validator('files')
     @classmethod
-    def validate_files(cls, files: List[File], values: Dict) -> List[File]:
+    def validate_files(cls, files: List[File], info: pydantic.ValidationInfo) -> List[File]:
         """
         Validates that all file paths are unique. Returns the list if valid
 
         Raises:
             ValueError: There are duplicate file paths
         """
-        name = values.get('name', '')
+        name = info.data.get('name', '')
         all_paths: Set[str] = set()
         for file in files:
             if file.path in all_paths:
@@ -701,10 +759,12 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 f'Requesting undefined resource {self.resource}.')
         self.resources = resource_spec
 
-    @pydantic.validator('exitActions')
+    @pydantic.field_validator('exitActions')
     @classmethod
-    def validate_exit_actions(cls, exit_actions: Dict[str, str], values: Dict) -> Dict[str, str]:
-        name = values.get('name', '')
+    def validate_exit_actions(
+            cls, exit_actions: Dict[str, str],
+            info: pydantic.ValidationInfo) -> Dict[str, str]:
+        name = info.data.get('name', '')
         regex = re.compile(CODE_REGEX)
         for key, value in exit_actions.items():
             try:
@@ -769,7 +829,7 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
 
     def to_pod_resource_spec(self, resource: connectors.ResourceSpec) -> Dict:
         """ Convert the resource spec from WorkflowSpec to the K8 pod resource spec. """
-        resource_spec = resource.dict()
+        resource_spec = resource.model_dump()
         pod_resource_spec = {}
         for resource_type in common.ALLOCATABLE_RESOURCES_LABELS:
             resource = self.get_resource_from_spec(
@@ -838,13 +898,14 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         for key, value in self.environment.items():
             container['env'].append({'name': key, 'value': value})
         cred_envs = {k: v for k, v in self.credentials.items() if isinstance(v, Dict)}
-        merged_cred_envs = {k: v for subdict in cred_envs.values() for k, v in subdict.items()}
-        for cred_env, cred_key in merged_cred_envs.items():
-            env_var = {
-                'name': cred_env,
-                'valueFrom': {'secretKeyRef': {'name': user_secrets_name, 'key': cred_key}}
-            }
-            container['env'].append(env_var)
+        for cred_name, cred_map in cred_envs.items():
+            for cred_env, cred_key in cred_map.items():
+                secret_key = f'{cred_name}.{cred_key}'
+                env_var = {
+                    'name': cred_env,
+                    'valueFrom': {'secretKeyRef': {'name': user_secrets_name, 'key': secret_key}}
+                }
+                container['env'].append(env_var)
         container['env'].append({
             'name': common.OSMO_CONFIG_OVERRIDE,
             'valueFrom': {
@@ -894,14 +955,14 @@ class TaskSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             else:
                 raise osmo_errors.OSMOUsageError('Unknown Input Type')
 
-        parsed_json = self.json()
+        parsed_json = self.model_dump_json()
         for key, value in tokens.items():
             parsed_json = re.sub('{{[ ]*' + key + '[ ]*}}', value, parsed_json)
 
         return TaskSpec(**json.loads(parsed_json))
 
     def saved_spec(self) -> Dict:
-        base_spec = self.dict(exclude_defaults=True)
+        base_spec = self.model_dump(exclude_defaults=True)
         if 'resources' in base_spec:
             del base_spec['resources']
         if 'backend' in base_spec:
@@ -916,9 +977,7 @@ class TaskGroupSpec(pydantic.BaseModel):
     ignoreNonleadStatus: bool = True  # pylint: disable=invalid-name
     tasks: List[TaskSpec]
 
-    class Config:
-        use_enum_values = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(use_enum_values=True, extra='forbid')
 
     @property
     def inputs(self) -> List[InputType]:
@@ -927,16 +986,16 @@ class TaskGroupSpec(pydantic.BaseModel):
             inputs |= set(task.inputs)
         return list(inputs)
 
-    @pydantic.validator('tasks')
+    @pydantic.field_validator('tasks')
     @classmethod
-    def validate_tasks(cls, value: List[TaskSpec], values: Dict) -> List[TaskSpec]:
+    def validate_tasks(cls, value: List[TaskSpec], info: pydantic.ValidationInfo) -> List[TaskSpec]:
         """
         Validates tasks. Returns the value of tasks if valid.
 
         Raises:
             ValueError: Containers fails validation.
         """
-        group_name = values['name']
+        group_name = info.data.get('name', '<unknown>')
 
         # Need at least one task
         if not value:
@@ -1005,12 +1064,12 @@ class TaskGroupSpec(pydantic.BaseModel):
             tasks=tasks)
 
     def saved_spec(self) -> Dict:
-        base_spec = self.dict(exclude_defaults=True)
+        base_spec = self.model_dump(exclude_defaults=True)
         base_spec['tasks'] = [task.saved_spec() for task in self.tasks]
         return base_spec
 
 
-class TaskGroupMetrics(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TaskGroupMetrics(pydantic.BaseModel, extra='forbid'):
     """  Represents metrics submitted by each user task in a workflow
     """
     retry_id: int = 0
@@ -1034,51 +1093,11 @@ class Task(pydantic.BaseModel):
     failure_message: str | None = None
     database: connectors.PostgresConnector
     exit_actions: Dict[str, str]
-    node_name: str | None
-    pod_ip: str | None
+    node_name: str | None = None
+    pod_ip: str | None = None
     lead: bool
 
-    class Config:
-        arbitrary_types_allowed = True
-
-    @staticmethod
-    def batch_insert_to_db(
-        database: connectors.PostgresConnector,
-        task_entries: List[Tuple],
-        batch_size: int = 100,
-    ):
-        """Batch-insert multiple tasks in a single query.
-
-        Args:
-            database: The Postgres connector instance.
-            task_entries: List of tuples, each containing the full set of
-                column values for a single task row (same order as insert_to_db).
-            batch_size: Maximum number of rows per INSERT statement.
-        """
-        if not task_entries:
-            return
-
-        if batch_size <= 0:
-            batch_size = 100
-
-        for i in range(0, len(task_entries), batch_size):
-            chunk = task_entries[i:i + batch_size]
-            values_clause = ','.join(
-                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
-                * len(chunk)
-            )
-            flat_args: List[Any] = []
-            for entry in chunk:
-                flat_args.extend(entry)
-
-            insert_cmd = f'''
-                INSERT INTO tasks
-                (workflow_id, name, group_name, task_db_key, retry_id, task_uuid,
-                 status, pod_name, failure_message, gpu_count, cpu_count,
-                 disk_count, memory_count, exit_actions, lead)
-                VALUES {values_clause} ON CONFLICT DO NOTHING;
-            '''
-            database.execute_commit_command(insert_cmd, tuple(flat_args))
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
     def insert_to_db(self, gpu_count: float, cpu_count: float, disk_count: float,
                      memory_count: float, status: TaskGroupStatus = TaskGroupStatus.WAITING,
@@ -1384,6 +1403,52 @@ class Task(pydantic.BaseModel):
         task_rows = Task.list_task_rows_by_group_name(database, workflow_id, group_name, verbose)
         return [cls.from_db_row(task_row, database) for task_row in task_rows]
 
+    @classmethod
+    def list_all_task_rows_by_workflow(
+        cls,
+        database: connectors.PostgresConnector,
+        workflow_id: task_common.NamePattern,
+        verbose: bool = False,
+    ) -> Dict[str, List]:
+        """Fetch all task rows for a workflow in one query, grouped by group_name.
+
+        Args:
+            database: The Postgres connector instance.
+            workflow_id: The workflow id.
+            verbose: Whether to include all retries (not just latest).
+
+        Returns:
+            Dict mapping group_name to list of task rows.
+            Returns empty dict if no tasks found.
+        """
+        if verbose:
+            fetch_cmd = '''
+                SELECT tasks.*, workflows.workflow_uuid
+                FROM tasks
+                JOIN workflows ON tasks.workflow_id = workflows.workflow_id
+                WHERE tasks.workflow_id = %s;
+            '''
+            task_rows = database.execute_fetch_command(
+                fetch_cmd, (workflow_id,), True)
+        else:
+            fetch_cmd = '''
+                SELECT t.*, workflows.workflow_uuid FROM tasks t
+                JOIN workflows ON t.workflow_id = workflows.workflow_id
+                WHERE t.workflow_id = %s
+                    AND retry_id = (
+                        SELECT MAX(retry_id) FROM tasks
+                        WHERE name = t.name AND workflow_id = %s
+                            AND group_name = t.group_name
+                    );
+            '''
+            task_rows = database.execute_fetch_command(
+                fetch_cmd, (workflow_id, workflow_id), True)
+
+        result: Dict[str, List] = {}
+        for row in task_rows:
+            result.setdefault(row['group_name'], []).append(row)
+        return result
+
     def update_status_to_db(self, update_time: datetime.datetime, status: TaskGroupStatus,
                             message: str, exit_code: int | None = None):
         """
@@ -1598,14 +1663,12 @@ class TaskGroup(pydantic.BaseModel):
     # Used by cleanup to avoid dependency on the current pool config.
     group_template_resource_types: List[Dict[str, Any]] = []
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     def insert_to_db(self, status: TaskGroupStatus = TaskGroupStatus.SUBMITTING,
                      failure_message: str | None = None):
         """ Creates an entry in the database for the group. """
-        spec = self.spec.json()
+        spec = self.spec.model_dump_json()
         insert_cmd = '''
             INSERT INTO groups
             (workflow_id, name, group_uuid, spec, status, failure_message,
@@ -1619,8 +1682,72 @@ class TaskGroup(pydantic.BaseModel):
              failure_message,
              _encode_hstore(self.remaining_upstream_groups),
              _encode_hstore(self.downstream_groups),
-             self.scheduler_settings.json() if self.scheduler_settings else None,
+             self.scheduler_settings.model_dump_json() if self.scheduler_settings else None,
              json.dumps(self.group_template_resource_types)))
+
+    @staticmethod
+    def batch_insert_groups_and_tasks(
+        database: connectors.PostgresConnector,
+        group_entries: List[Tuple],
+        task_entries: List[Tuple],
+        batch_size: int = 100,
+    ):
+        """Batch-insert groups and tasks in a single transaction.
+
+        Both inserts are committed atomically: either all groups and tasks
+        are written, or none are.
+
+        Args:
+            database: The Postgres connector instance.
+            group_entries: List of group column-value tuples.
+            task_entries: List of task column-value tuples.
+            batch_size: Maximum number of rows per INSERT statement.
+        """
+        if not group_entries and not task_entries:
+            return
+
+        if batch_size <= 0:
+            batch_size = 100
+
+        commands: List[Tuple[str, Tuple]] = []
+
+        for i in range(0, len(group_entries), batch_size):
+            chunk = group_entries[i:i + batch_size]
+            values_clause = ','.join(
+                ['(%s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, %s)']
+                * len(chunk)
+            )
+            flat_args: List[Any] = []
+            for entry in chunk:
+                flat_args.extend(entry)
+            commands.append((
+                f'''INSERT INTO groups
+                    (workflow_id, name, group_uuid, spec, status, failure_message,
+                     remaining_upstream_groups, downstream_groups, cleaned_up,
+                     scheduler_settings, group_template_resource_types)
+                    VALUES {values_clause} ON CONFLICT DO NOTHING;''',
+                tuple(flat_args),
+            ))
+
+        for i in range(0, len(task_entries), batch_size):
+            chunk = task_entries[i:i + batch_size]
+            values_clause = ','.join(
+                ['(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)']
+                * len(chunk)
+            )
+            flat_args = []
+            for entry in chunk:
+                flat_args.extend(entry)
+            commands.append((
+                f'''INSERT INTO tasks
+                    (workflow_id, name, group_name, task_db_key, retry_id, task_uuid,
+                     status, pod_name, failure_message, gpu_count, cpu_count,
+                     disk_count, memory_count, exit_actions, lead)
+                    VALUES {values_clause} ON CONFLICT DO NOTHING;''',
+                tuple(flat_args),
+            ))
+
+        database.execute_commit_commands(commands)
 
     def update_group_template_resource_types(self) -> None:
         """ Persists group_template_resource_types to the database. """
@@ -1650,7 +1777,8 @@ class TaskGroup(pydantic.BaseModel):
 
     @classmethod
     def from_db_row(cls, group_row, database, verbose: bool = False,
-                    load_tasks: bool = True) -> 'TaskGroup':
+                    load_tasks: bool = True,
+                    preloaded_tasks: List[Task] | None = None) -> 'TaskGroup':
         """
         Gets TaskGroup from DB row
 
@@ -1658,7 +1786,10 @@ class TaskGroup(pydantic.BaseModel):
             verbose (bool, optional): Whether to include rescheduled/restarted tasks.
             load_tasks (bool, optional): Whether to load task rows. When False,
                 tasks will be an empty list. Use False when only group-level
-                metadata is needed.
+                metadata is needed. Ignored if preloaded_tasks is provided.
+            preloaded_tasks (list, optional): Pre-fetched Task objects to use
+                instead of querying the database. When provided, load_tasks
+                is ignored.
         """
         remaining_upstream_groups = set()
         if group_row.remaining_upstream_groups:
@@ -1668,7 +1799,9 @@ class TaskGroup(pydantic.BaseModel):
             downstream_groups = decode_hstore(group_row.downstream_groups)
 
         tasks: List[Task] = []
-        if load_tasks:
+        if preloaded_tasks is not None:
+            tasks = preloaded_tasks
+        elif load_tasks:
             tasks = Task.list_by_group_name(
                 database, group_row.workflow_id, group_row.name, verbose)
 
@@ -1933,7 +2066,7 @@ class TaskGroup(pydantic.BaseModel):
         update_cmd = connectors.PostgresUpdateCommand(table='groups')
         update_cmd.add_condition('workflow_id = %s AND name = %s', [self.workflow_id, self.name])
         if scheduler_settings is not None:
-            update_cmd.add_field('scheduler_settings', scheduler_settings.json())
+            update_cmd.add_field('scheduler_settings', scheduler_settings.model_dump_json())
         if group_status == TaskGroupStatus.WAITING:
             update_cmd.add_condition("status IN ('SUBMITTING')", [])
         if group_status == TaskGroupStatus.PROCESSING:
@@ -2008,6 +2141,73 @@ class TaskGroup(pydantic.BaseModel):
                 AND status IN ('WAITING');
         '''
         self.database.execute_commit_command(update_cmd, (self.workflow_id, self.name))
+
+    @staticmethod
+    def batch_set_groups_to_processing(
+        database: connectors.PostgresConnector,
+        workflow_id: str,
+        group_names: List[str],
+        update_time: datetime.datetime,
+        scheduler_settings_by_group: Dict[str, str],
+    ) -> List[str]:
+        """Batch-transition multiple groups to PROCESSING in two queries.
+
+        Updates groups first (with eligibility check), then only transitions
+        tasks for groups that actually moved to PROCESSING. This avoids a
+        race where a concurrent cancel could move a group out of the eligible
+        state between the two queries.
+
+        Args:
+            database: The Postgres connector instance.
+            workflow_id: The workflow ID.
+            group_names: List of group names to transition.
+            update_time: The processing start time.
+            scheduler_settings_by_group: Dict mapping group name to
+                scheduler_settings JSON string.
+
+        Returns:
+            List of group names that actually transitioned to PROCESSING.
+        """
+        if not group_names:
+            return []
+
+        # 1. Batch-update groups with eligibility check, returning which
+        #    ones actually transitioned.
+        values_clause = ','.join(['(%s, %s)'] * len(group_names))
+        flat_args: List[Any] = []
+        for group_name in group_names:
+            flat_args.extend([
+                group_name,
+                scheduler_settings_by_group.get(group_name),
+            ])
+
+        update_groups_cmd = f'''
+            UPDATE groups AS g
+            SET status = 'PROCESSING',
+                processing_start_time = %s,
+                scheduler_settings = v.settings
+            FROM (VALUES {values_clause}) AS v(name, settings)
+            WHERE g.workflow_id = %s AND g.name = v.name
+                AND g.processing_start_time IS NULL
+                AND g.status IN ('SUBMITTING', 'WAITING')
+            RETURNING g.name
+        '''
+        rows = database.execute_fetch_command(
+            update_groups_cmd,
+            (update_time, *flat_args, workflow_id), True)
+        transitioned_names = [row['name'] for row in rows]
+
+        # 2. Only update tasks for groups that actually transitioned
+        if transitioned_names:
+            update_tasks_cmd = '''
+                UPDATE tasks SET status = 'PROCESSING'
+                WHERE workflow_id = %s AND group_name = ANY(%s)
+                    AND status IN ('WAITING')
+            '''
+            database.execute_commit_command(
+                update_tasks_cmd, (workflow_id, transitioned_names))
+
+        return transitioned_names
 
     @staticmethod
     def patch_cleaned_up(database: connectors.PostgresConnector,
@@ -2256,7 +2456,8 @@ class TaskGroup(pydantic.BaseModel):
                         if cred_key not in payload.keys():
                             raise ValueError(f'{cred_key} is not a valid credential key ' \
                                              f'please choose from {payload.keys()}')
-                        all_secrets[cred_key] = payload[cred_key]
+                        secret_key = f'{cred_name}.{cred_key}'
+                        all_secrets[secret_key] = payload[cred_key]
                 else:
                     raise ValueError(f'{cred_map} is not a valid credential map.' \
                             'It should be either be a Dict[envirionment_variables:cred_key]' \

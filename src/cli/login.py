@@ -86,7 +86,7 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
         url: pydantic.AnyHttpUrl
     try:
         _ = UrlValidator(url=url)
-    except pydantic.error_wrappers.ValidationError as error:
+    except pydantic.ValidationError as error:
         raise osmo_errors.OSMOUserError(f'Bad url {url}: {error}')
 
     print(f'Logging in to {url}')

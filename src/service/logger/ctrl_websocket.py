@@ -36,18 +36,19 @@ from src.utils import connectors
 class MetricsOptions(pydantic.BaseModel):
     """ Credential options """
     group_metrics: Optional[task.TaskGroupMetrics] = pydantic.Field(
-        description='Metrics for group')
+        default=None, description='Metrics for group')
     task_io_metrics: Optional[task_io.TaskIOMetrics] = pydantic.Field(
-        description='Metrics for task io')
+        default=None, description='Metrics for task io')
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
+    @classmethod
     def validate(cls, values):  # pylint: disable=no-self-argument
         """ A valid metric can only be one of the two types """
         num_fields_set = sum(1 for value in values.values()
                              if value is not None)
         if num_fields_set != 1:
             raise osmo_errors.OSMOUserError(
-                f'Exactly one of the following must be set {cls.__fields__.keys()}')
+                f'Exactly one of the following must be set {cls.model_fields.keys()}')
         return values
 
 
@@ -58,7 +59,8 @@ def update_metrics(
     ):
     """ Updates the metrics with the given workflow and group_name in the database. """
     database = connectors.PostgresConnector.get_instance()
-    metrics = getattr(metrics_options, metrics_options.__fields_set__.pop())
+    field_name = next(iter(metrics_options.model_fields_set))
+    metrics = getattr(metrics_options, field_name)
     if isinstance(metrics, task.TaskGroupMetrics):
         task.TaskGroup.patch_metrics_in_db(
             database=database,
@@ -194,15 +196,16 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
                                 time=loaded_json['time'],
                                 text=loaded_json['text'],
                                 io_type=loaded_json['iotype'])
-                            # Use logs.json() instead of logs.dict() to convert enum and datetime to
-                            # strings
+                            # Use logs.model_dump_json() instead of
+                            # logs.model_dump() to convert enum and
+                            # datetime to strings
                             await redis_client.xadd(f'{workflow_obj.workflow_id}-logs',
-                                                    json.loads(logs.json()),
+                                                    json.loads(logs.model_dump_json()),
                                                     maxlen=workflow_config.max_log_lines)
                             await redis_client.xadd(
                                 common.get_redis_task_log_name(
                                     workflow_obj.workflow_id, task_name, retry_id),
-                                json.loads(logs.json()),
+                                json.loads(logs.model_dump_json()),
                                 maxlen=workflow_config.max_task_log_lines)
                         # Set expiration on first log message
                         if first_run:

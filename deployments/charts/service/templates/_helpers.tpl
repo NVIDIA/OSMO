@@ -78,17 +78,6 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-The target port for the service
-*/}}
-{{- define "service.targetPort" -}}
-{{- if .Values.sidecars.envoy.enabled -}}
-envoy-http
-{{- else -}}
-8000
-{{- end -}}
-{{- end }}
-
-{{/*
 Service account name helper
 */}}
 {{- define "osmo.service-account-name" -}}

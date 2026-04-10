@@ -214,7 +214,7 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
                 <ul className="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-typical-completed
+                      mock-typical-completed-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
                       Standard 3-stage training (2k lines)
@@ -222,7 +222,7 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
                   </li>
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-empty-completed
+                      mock-empty-completed-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Instant completion (no logs)</span>
                   </li>
@@ -234,7 +234,7 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
                 <ul className="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-typical-running
+                      mock-typical-running-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
                       Standard 2-stage job (2k lines)
@@ -242,19 +242,19 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
                   </li>
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-streaming-running
+                      mock-streaming-running-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Live tailing (infinite)</span>
                   </li>
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-large-running
+                      mock-large-running-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Performance test (50k lines)</span>
                   </li>
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-multi-task
+                      mock-multi-task-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Complex DAG (8 groups)</span>
                   </li>
@@ -266,13 +266,13 @@ export function WorkflowSelector({ error, initialWorkflowId = "" }: WorkflowSele
                 <ul className="mt-1.5 space-y-1 text-sm text-zinc-700 dark:text-zinc-300">
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-typical-failed
+                      mock-typical-failed-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">CUDA OOM with retries</span>
                   </li>
                   <li>
                     <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-200">
-                      mock-high-error-failed
+                      mock-high-error-failed-1
                     </code>
                     <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">Extreme error spam (30%)</span>
                   </li>

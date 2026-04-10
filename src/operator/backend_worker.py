@@ -86,7 +86,7 @@ class JobContext(backend_jobs.BackendJobExecutionContext):
     async def forward_messages(self, websocket):
         while True:
             message = await self.message_queue.get()
-            await websocket.send(message.json())
+            await websocket.send(message.model_dump_json())
             self.message_queue.task_done()
 
     async def clear_queue(self):

@@ -100,28 +100,28 @@ class WorkflowStatus(str, enum.Enum):
         return not self.alive() and self.name != 'COMPLETED'
 
 
-class ResourcesEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ResourcesEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for resources API results. """
     hostname: str
     exposed_fields: Dict
     taints: List[Dict]
     usage_fields: Dict
-    conditions: List[str] | None
+    conditions: List[str] | None = None
     non_workflow_usage_fields: Dict
     allocatable_fields: Dict
-    platform_allocatable_fields: Dict | None
-    platform_available_fields: Dict | None
-    platform_workflow_allocatable_fields: Dict | None
-    config_fields: Dict | None
+    platform_allocatable_fields: Dict | None = None
+    platform_available_fields: Dict | None = None
+    platform_workflow_allocatable_fields: Dict | None = None
+    config_fields: Dict | None = None
     backend: str
-    label_fields: Dict | None
+    label_fields: Dict | None = None
     pool_platform_labels: Dict[str, List[str]]
     resource_type: connectors.BackendResourceType
 
     @classmethod
     def from_backend_resource(cls, resource: connectors.BackendResource,
                               verbose: bool) -> 'ResourcesEntry':
-        return ResourcesEntry.construct(
+        return ResourcesEntry.model_construct(
             hostname=resource.name,
             backend=resource.backend,
             usage_fields=resource.converted_usage_fields,
@@ -185,12 +185,12 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
     return mapping
 
 
-class TimeoutSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TimeoutSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the timeout spec. """
     exec_timeout: datetime.timedelta | None = None
     queue_timeout: datetime.timedelta | None = None
 
-    @pydantic.validator('exec_timeout', 'queue_timeout', pre=True)
+    @pydantic.field_validator('exec_timeout', 'queue_timeout', mode='before')
     @classmethod
     def validate_timeout(cls, value) -> Optional[datetime.timedelta]:
         if isinstance(value, (int, float)):
@@ -242,7 +242,7 @@ def split_assertion_rules(assertions: List[connectors.ResourceAssertion]) -> \
     return static_assertions, k8_assertions
 
 
-class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the workflow spec from the workflow service. """
     name: task_common.NamePattern
     pool: str = ''
@@ -252,7 +252,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     timeout: TimeoutSpec = TimeoutSpec()
     backend: str = ''
 
-    @pydantic.root_validator()
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_tasks_groups(cls, values):
         """
@@ -280,12 +280,33 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             name_set.add(name)
 
         for task_spec in values.get('tasks', []):
-            _validate_name(task_spec.name)
+            if hasattr(task_spec, 'name'):
+                spec_name = task_spec.name
+            elif isinstance(task_spec, dict) and 'name' in task_spec:
+                spec_name = task_spec['name']
+            else:
+                continue
+            _validate_name(spec_name)
 
         for group_spec in values.get('groups', []):
-            _validate_name(group_spec.name)
-            for task_spec in group_spec.tasks:
-                _validate_name(task_spec.name)
+            if hasattr(group_spec, 'name'):
+                group_name = group_spec.name
+            elif isinstance(group_spec, dict) and 'name' in group_spec:
+                group_name = group_spec['name']
+            else:
+                continue
+            _validate_name(group_name)
+            group_tasks = (group_spec.tasks
+                           if hasattr(group_spec, 'tasks')
+                           else group_spec.get('tasks', []))
+            for task_spec in group_tasks:
+                if hasattr(task_spec, 'name'):
+                    spec_name = task_spec.name
+                elif isinstance(task_spec, dict) and 'name' in task_spec:
+                    spec_name = task_spec['name']
+                else:
+                    continue
+                _validate_name(spec_name)
 
         return values
 
@@ -367,7 +388,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)
                       for group in self.groups]
-            if 'timeout' in self.dict(exclude_defaults=True):
+            if 'timeout' in self.model_fields_set:
                 return WorkflowSpec(name=self.name, groups=groups, timeout=self.timeout,
                                     resources=self.resources, backend=self.backend, pool=self.pool)
             return WorkflowSpec(name=self.name, groups=groups,
@@ -744,29 +765,48 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         base_spec = {
             'name': self.name,
             'groups': [group.saved_spec() for group in self.groups],
-            'resources': {key: resource.dict(exclude_defaults=True)
+            'resources': {key: resource.model_dump(exclude_defaults=True)
                           for key, resource in self.resources.items()}
         }
-        if 'timeout' in self.dict(exclude_defaults=True):
-            base_spec['timeout'] = self.timeout.dict()
+        if 'timeout' in self.model_fields_set:
+            base_spec['timeout'] = self.timeout.model_dump()
         return base_spec
 
 
-class VersionedWorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class VersionedWorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """Control the WorkflowSpec version. """
     version: int = 2  # Default to OSMO workflow spec version 2
     workflow: WorkflowSpec
 
-    @pydantic.validator('version', pre=True, always=True)
+    @pydantic.field_validator('version', mode='before')
     @classmethod
-    def validate_version(cls, value: int) -> int:
-        """ Validates that the version is supported.  """
-        if value !=  2:
+    def validate_version(cls, value: Any) -> int:
+        """Validates that the version is supported.
+
+        mode='before' receives raw input (may be str from YAML/JSON),
+        so we must coerce before comparing.
+        """
+        if isinstance(value, bool):
             raise ValueError(f'Unsupported workflow version: {value}.')
-        return value
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError(f'Unsupported workflow version: {value}.')
+            coerced = int(value)
+        elif isinstance(value, str):
+            try:
+                coerced = int(value)
+            except ValueError as exc:
+                raise ValueError(f'Unsupported workflow version: {value}.') from exc
+        elif isinstance(value, int):
+            coerced = value
+        else:
+            raise ValueError(f'Unsupported workflow version: {value}.')
+        if coerced != 2:
+            raise ValueError(f'Unsupported workflow version: {value}.')
+        return coerced
 
 
-class TemplateSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TemplateSpec(pydantic.BaseModel, extra='forbid'):
     """ Template Spec. """
     file: str
     set_variables: List[str] = []
@@ -878,11 +918,11 @@ class Workflow(pydantic.BaseModel):
     status: WorkflowStatus = WorkflowStatus.PENDING
     timeout: TimeoutSpec = TimeoutSpec()
     priority: wf_priority.WorkflowPriority
-    cancelled_by: str | None
+    cancelled_by: str | None = None
     outputs: str = ''
     backend: str
     # TODO make pool not None
-    pool: str | None
+    pool: str | None = None
     version: int | None = 0
     failure_message: str | None = ''
     parent_name: task_common.NamePattern | None = None
@@ -891,9 +931,7 @@ class Workflow(pydantic.BaseModel):
     parent_job_id: int | None = None
     plugins: task_common.WorkflowPlugins = task_common.WorkflowPlugins()
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     def insert_to_db(self, version: int = 2):
         """ Creates an entry in the database for the overall workflow. """
@@ -957,10 +995,16 @@ class Workflow(pydantic.BaseModel):
                     insert_cmd,
                     (self.workflow_name, self.workflow_name,
                         self.workflow_name, self.workflow_uuid,
-                        self.user, self.submit_time, self.start_time, self.end_time,
-                        self.status.name, self.logs, exec_timeout, queue_timeout, self.backend,
-                        self.pool, version, self.failure_message, self.parent_name,
-                        self.parent_job_id, self.app_uuid, self.app_version, self.plugins.json(),
+                        self.user, self.submit_time,
+                        self.start_time, self.end_time,
+                        self.status.name, self.logs,
+                        exec_timeout, queue_timeout,
+                        self.backend,
+                        self.pool, version,
+                        self.failure_message, self.parent_name,
+                        self.parent_job_id, self.app_uuid,
+                        self.app_version,
+                        self.plugins.model_dump_json(),
                         self.priority.value))
                 break
             except osmo_errors.OSMODatabaseError as err:
@@ -1117,11 +1161,16 @@ class Workflow(pydantic.BaseModel):
         if fetch_groups:
             fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s order by start_time;'
             group_rows = database.execute_fetch_command(
-                fetch_cmd, (workflow_row['workflow_id'],), return_raw=True)
-            groups = [
-                task.TaskGroup.fetch_from_db(
-                    database, workflow_row['workflow_id'], row['name'], verbose)
-                for row in group_rows]
+                fetch_cmd, (workflow_row['workflow_id'],))
+            tasks_by_group = task.Task.list_all_task_rows_by_workflow(
+                database, workflow_row['workflow_id'], verbose)
+            for row in group_rows:
+                group_tasks = [
+                    task.Task.from_db_row(task_row, database)
+                    for task_row in tasks_by_group.get(row.name, [])
+                ]
+                groups.append(task.TaskGroup.from_db_row(
+                    row, database, verbose, preloaded_tasks=group_tasks))
 
         return Workflow(workflow_name=workflow_row['workflow_name'],
                         job_id=workflow_row['job_id'],
@@ -1260,14 +1309,10 @@ class Workflow(pydantic.BaseModel):
     def get_group_objs(self) -> List[task.TaskGroup]:
         """ Return task group objects by querying the task database. """
 
-        fetch_cmd = 'SELECT name FROM groups WHERE workflow_id = %s;'
-        groups_objs = []
+        fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s;'
         group_rows = self.database.execute_fetch_command(fetch_cmd, (self.workflow_id,))
-        for group_row in group_rows:
-            group_obj = task.TaskGroup.fetch_metadata_from_db(self.database, self.workflow_id,
-                                                              group_row.name)
-            groups_objs.append(group_obj)
-        return groups_objs
+        return [task.TaskGroup.from_db_row(row, self.database, load_tasks=False)
+                for row in group_rows]
 
     def _has_running_tasks(self) -> bool:
         """ Returns true if there are any running tasks in the workflow. """

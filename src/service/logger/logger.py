@@ -33,19 +33,17 @@ class LoggerServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                           src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the workflow service.')
+        description='The url to bind to when serving the workflow service.',
+        json_schema_extra={'command_line': 'host'})
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write node watch progress timestamps to (For liveness/startup)')
+        description='The file to write node watch progress timestamps to (For liveness/startup)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_period: int = pydantic.Field(
-        command_line='progress_period',
-        env='OSMO_PROGRESS_PERIOD',
         default=30,
-        description='The amount of time to wait between updating progress')
+        description='The amount of time to wait between updating progress',
+        json_schema_extra={'command_line': 'progress_period', 'env': 'OSMO_PROGRESS_PERIOD'})
 
 
 app = fastapi.FastAPI(docs_url=None, redoc_url=None, openapi_url=None)

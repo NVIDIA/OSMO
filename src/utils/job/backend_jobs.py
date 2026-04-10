@@ -456,7 +456,7 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
     def _get_job_id(cls, values):
         return f'{values["backend"]}-modify-queues-{common.generate_unique_id()}'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -590,7 +590,7 @@ class BackendSynchronizeBackendTest(backend_job_defs.BackendSynchronizeBackendTe
     def _get_job_id(cls, values):
         return f'{values["backend"]}-sync-tests-{common.generate_unique_id()}'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """

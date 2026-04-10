@@ -248,7 +248,7 @@ class LoginManager():
         login_dir = client_configs.get_client_config_dir()
         login_file = login_dir  + '/login.yaml'
         with open(os.path.expanduser(login_file), 'w', encoding='utf-8') as file:
-            login_dict = login_storage.dict()
+            login_dict = login_storage.model_dump()
             login_dict['name'] = login_storage.name
             yaml.dump(login_dict, file)
 

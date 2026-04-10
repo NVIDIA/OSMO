@@ -41,6 +41,7 @@ from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.lib.utils.redact import redact_pod_spec_env
 from src.utils import connectors
 from src.utils.job import app, backend_job_defs, common as task_common, kb_objects, task, workflow
+from src.utils.job.task import _encode_hstore
 from src.utils.job.jobs_base import Job, JobResult, JobStatus, update_progress_writer
 from src.utils.progress_check import progress
 
@@ -58,9 +59,7 @@ class JobExecutionContext(pydantic.BaseModel):
     postgres: connectors.PostgresConnector
     redis: connectors.RedisConfig
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workflow_uuid: str,
@@ -133,7 +132,7 @@ class FrontendJob(Job):
         job into the job queue.
         """
         redis_client = connectors.RedisConnector.get_instance().client
-        serialized_job = self.json()
+        serialized_job = self.model_dump_json()
         timeout_time = time.time() + delay_duration.total_seconds()
         redis_client.zadd(DELAYED_JOB_QUEUE, {serialized_job: timeout_time})
         self.log_delayed_submission(delay_duration)
@@ -177,7 +176,7 @@ class SubmitWorkflow(WorkflowJob):
     spec: workflow.WorkflowSpec
     original_spec: Dict
     group_and_task_uuids: Dict[str, common.UuidPattern]
-    parent_workflow_id: task_common.NamePattern | None
+    parent_workflow_id: task_common.NamePattern | None = None
     app_uuid: str | None = None
     app_version: int | None = None
     task_db_keys: Dict[str, str] | None = None
@@ -187,7 +186,7 @@ class SubmitWorkflow(WorkflowJob):
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-submit'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -223,12 +222,22 @@ class SubmitWorkflow(WorkflowJob):
         self.workflow_id = workflow_obj.workflow_id
 
         task_entries: list[tuple] = []
+        group_entries: list[tuple] = []
         for group_obj in workflow_obj.groups:
             group_obj.workflow_id_internal = workflow_obj.workflow_id
             group_obj.spec = \
                 group_obj.spec.parse(postgres, workflow_obj.workflow_id,
                                      self.group_and_task_uuids)
-            group_obj.insert_to_db()
+            group_entries.append((
+                group_obj.workflow_id_internal, group_obj.name,
+                group_obj.group_uuid, group_obj.spec.model_dump_json(),
+                task.TaskGroupStatus.SUBMITTING.name, None,
+                _encode_hstore(group_obj.remaining_upstream_groups),
+                _encode_hstore(group_obj.downstream_groups),
+                group_obj.scheduler_settings.model_dump_json()
+                if group_obj.scheduler_settings else None,
+                json.dumps(group_obj.group_template_resource_types),
+            ))
             for task_obj, task_obj_spec in zip(group_obj.tasks, group_obj.spec.tasks):
                 task_obj.workflow_id_internal = workflow_obj.workflow_id
                 workflow_uuid = task_obj.workflow_uuid if task_obj.workflow_uuid else ''
@@ -247,7 +256,8 @@ class SubmitWorkflow(WorkflowJob):
                     json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
                     task_obj.lead,
                 ))
-        task.Task.batch_insert_to_db(postgres, task_entries)
+        task.TaskGroup.batch_insert_groups_and_tasks(
+            postgres, group_entries, task_entries)
         progress_writer.report_progress()
 
         # Fetch workflow_obj to get latest info
@@ -273,24 +283,31 @@ class SubmitWorkflow(WorkflowJob):
             # Determine which groups don't have prerequisites and enqueue CreateGroup jobs
             # for them
             backend_config_cache = connectors.BackendConfigCache()
+            ready_group_names: List[str] = []
+            scheduler_settings_by_group: Dict[str, str] = {}
             for group_obj in workflow_obj.groups:
                 group_obj.workflow_id_internal = workflow_obj.workflow_id
                 if not group_obj.remaining_upstream_groups:
                     backend_name = group_obj.spec.tasks[0].backend
                     backend = backend_config_cache.get(backend_name)
+                    ready_group_names.append(group_obj.name)
+                    if backend.scheduler_settings is not None:
+                        scheduler_settings_by_group[group_obj.name] = (
+                            backend.scheduler_settings.model_dump_json())
 
-                    group_obj.set_tasks_to_processing()
-                    group_obj.update_status_to_db(
-                        common.current_time(),
-                        task.TaskGroupStatus.PROCESSING,
-                        scheduler_settings=backend.scheduler_settings)
-                    submit_task = CreateGroup(
-                        backend=workflow_obj.backend,
-                        group_name=group_obj.name,
-                        workflow_id=workflow_obj.workflow_id,
-                        workflow_uuid=self.workflow_uuid,
-                        user=self.user)
-                    submit_task.send_job_to_queue()
+            transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
+                context.postgres, workflow_obj.workflow_id,
+                ready_group_names, common.current_time(),
+                scheduler_settings_by_group)
+
+            for group_name in transitioned_names:
+                submit_task = CreateGroup(
+                    backend=workflow_obj.backend,
+                    group_name=group_name,
+                    workflow_id=workflow_obj.workflow_id,
+                    workflow_uuid=self.workflow_uuid,
+                    user=self.user)
+                submit_task.send_job_to_queue()
 
         return JobResult()
 
@@ -314,7 +331,7 @@ class SubmitWorkflow(WorkflowJob):
                     time=common.current_time(), io_type=connectors.redis.IOType.OSMO_CTRL,
                     source='OSMO', retry_id=0, text='Failed SubmitWorkflow for workflow ' +
                     f'{workflow_obj.workflow_id} with error: {error}')
-            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
             redis_client.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
 
         for group_obj in workflow_obj.get_group_objs():
@@ -357,7 +374,7 @@ class UploadWorkflowFiles(WorkflowJob):
         digest = hashlib.sha256(all_paths.encode('utf-8')).hexdigest()[:32]
         return f'{values["workflow_uuid"]}-{digest}-upload-files'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -449,7 +466,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-{values["group_name"]}-submit'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -537,7 +554,7 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-{values["group_name"]}-backend-cleanup'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -606,7 +623,7 @@ class UpdateGroup(WorkflowJob):
 
         return '-'.join(name_list)
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_job_id(cls, values):
         """
@@ -626,7 +643,7 @@ class UpdateGroup(WorkflowJob):
                 f'Job id for an UpdateGroup is in valid: {job_id} should ends with {suffix}.')
         return values
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_retry_id(cls, values):
         """
@@ -879,8 +896,10 @@ class UpdateGroup(WorkflowJob):
             # Need to check status here because the status could have changed due to fetch_status
             if group_obj.status == task.TaskGroupStatus.PROCESSING:
                 delayed_job = copy.deepcopy(self)
+                job_id_suffix = UpdateGroup._get_job_id(
+                    delayed_job.model_dump())
                 delayed_job.job_id = \
-                    f'{common.generate_unique_id(5)}-{UpdateGroup._get_job_id(delayed_job.dict())}'
+                    f'{common.generate_unique_id(5)}-{job_id_suffix}'
                 delayed_job.send_delayed_job_to_queue(
                     datetime.timedelta(minutes=1))
 
@@ -1009,21 +1028,29 @@ class UpdateGroup(WorkflowJob):
         # launch downstream groups that can be launched
         elif group_obj.status == task.TaskGroupStatus.COMPLETED:
             downstream_groups = group_obj.update_downstream_groups_in_db()
-            for downstream_group_obj in downstream_groups:
+            if downstream_groups:
                 if not workflow_obj.pool:
                     raise osmo_errors.OSMOUserError('No Pool Specified')
-                downstream_group_obj.set_tasks_to_processing()
-                downstream_group_obj.update_status_to_db(
-                    common.current_time(),
-                    task.TaskGroupStatus.PROCESSING,
-                    scheduler_settings=backend.scheduler_settings)
-                submit_task = CreateGroup(
-                    backend=workflow_obj.backend,
-                    group_name=downstream_group_obj.name,
-                    workflow_id=self.workflow_id,
-                    workflow_uuid=self.workflow_uuid,
-                    user=self.user)
-                submit_task.send_job_to_queue()
+                downstream_names = [g.name for g in downstream_groups]
+                scheduler_settings_by_group: Dict[str, str] = {}
+                if backend.scheduler_settings is not None:
+                    for group_name in downstream_names:
+                        scheduler_settings_by_group[group_name] = (
+                            backend.scheduler_settings.model_dump_json())
+
+                transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
+                    context.postgres, self.workflow_id,
+                    downstream_names, common.current_time(),
+                    scheduler_settings_by_group)
+
+                for group_name in transitioned_names:
+                    submit_task = CreateGroup(
+                        backend=workflow_obj.backend,
+                        group_name=group_name,
+                        workflow_id=self.workflow_id,
+                        workflow_uuid=self.workflow_uuid,
+                        user=self.user)
+                    submit_task.send_job_to_queue()
 
         return JobResult()
 
@@ -1255,7 +1282,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-{values["task_name"]}-{values["retry_id"]}-reschedule'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1267,7 +1294,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
         return value
 
     def _delay_cleanup_pod(self):
-        cleanup_job = CleanupGroup(**self.cleanup_job.dict())
+        cleanup_job = CleanupGroup(**self.cleanup_job.model_dump())
         # Update retry id label
         if cleanup_job.error_log_spec:
             cleanup_job.error_log_spec.labels['osmo.retry_id'] = str(self.retry_id)
@@ -1353,7 +1380,7 @@ class CleanupWorkflow(WorkflowJob):
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-cleanup'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1398,17 +1425,21 @@ class CleanupWorkflow(WorkflowJob):
                           f'abnormally, view task status at:\n{status_url}\n\n' +\
                           f'View task error logs at:\n{error_logs_url}\n{end_delimiter}'
             logs = connectors.redis.LogStreamBody(
-                time=common.current_time(), io_type=connectors.redis.IOType.DUMP,
-                source='OSMO', retry_id=0, text=log_message)
-            redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+                time=common.current_time(),
+                io_type=connectors.redis.IOType.DUMP,
+                source='OSMO', retry_id=0,
+                text=log_message)
+            log_key = f'{self.workflow_id}-logs'
+            redis_batch_pipeline.xadd(
+                log_key, json.loads(logs.model_dump_json()))
 
         logs = connectors.redis.LogStreamBody(
             time=common.current_time(), io_type=connectors.redis.IOType.END_FLAG,
             source='', retry_id=0, text='')
-        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
         redis_batch_pipeline.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
         redis_batch_pipeline.xadd(common.get_workflow_events_redis_name(self.workflow_uuid),
-                                  json.loads(logs.json()))
+                                  json.loads(logs.model_dump_json()))
         redis_batch_pipeline.expire(common.get_workflow_events_redis_name(self.workflow_uuid),
                                     connectors.MAX_LOG_TTL, nx=True)
         for group in workflow_obj.groups:
@@ -1417,14 +1448,14 @@ class CleanupWorkflow(WorkflowJob):
                     redis_batch_pipeline.xadd(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
-                        json.loads(logs.json()))
+                        json.loads(logs.model_dump_json()))
                     redis_batch_pipeline.expire(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
                         connectors.MAX_LOG_TTL, nx=True)
                 redis_batch_pipeline.xadd(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
-                    json.loads(logs.json()))
+                    json.loads(logs.model_dump_json()))
                 redis_batch_pipeline.expire(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
                     connectors.MAX_LOG_TTL, nx=True)
@@ -1576,7 +1607,7 @@ class CancelWorkflow(WorkflowJob):
     def _get_job_id(cls, values):
         return f'{values["workflow_uuid"]}-cancel'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1757,7 +1788,7 @@ class UploadApp(FrontendJob):
     def _get_job_id(cls, values):
         return f'{values["app_uuid"]}-{values["app_version"]}-upload-app'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1818,7 +1849,7 @@ class DeleteApp(FrontendJob):
     def _get_job_id(cls, values):
         return f'{values["app_uuid"]}-{values["app_versions"]}-delete-app'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """

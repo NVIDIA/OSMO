@@ -77,6 +77,11 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-    env: { PORT: String(PORT) },
+    env: {
+      PORT: String(PORT),
+      // Override .env.local admin roles so E2E tests run as a regular user.
+      // Tests that need admin can override via Playwright fixtures.
+      DEV_USER_ROLES: "osmo-user",
+    },
   },
 });

@@ -36,7 +36,7 @@ async def send_log_through_websocket(log_type: backend_messages.LoggingType, tex
     await websocket.send(backend_messages.MessageBody(
                          type=backend_messages.MessageType.LOGGING,
                          body=backend_messages.LoggingBody(type=log_type,
-                             text=text)).json())
+                             text=text)).model_dump_json())
 
 
 def send_log_through_queue(log_type: backend_messages.LoggingType, text: str,

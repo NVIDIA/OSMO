@@ -109,7 +109,7 @@ def create_backend(postgres: connectors.PostgresConnector,
         insert_cmd,
         (name, message.k8s_uid, message.k8s_namespace, '',
          '',
-         connectors.BackendSchedulerSettings().json(),
+         connectors.BackendSchedulerSettings().model_dump_json(),
          common.current_time(), common.current_time(), '', router_address,
          message.version))
     if k8s_info[0].k8s_uid != message.k8s_uid:
@@ -411,7 +411,7 @@ def keep_pod_conditions(message: backend_messages.ConditionMessage) -> bool:
     """
     if message.type == 'ContainersReady':
         return False
-    if message.type in ['Initialized', 'Ready'] and message.status is False:
+    if message.type in ['Initialized', 'Ready'] and message.status == 'False':
         return False
     return True
 
@@ -460,7 +460,7 @@ def send_pod_conditions(postgres: connectors.PostgresConnector,
                 text=condition_log)
 
             redis_client.xadd(common.get_workflow_events_redis_name(message.workflow_uuid),
-                              json.loads(log_body.json()),
+                              json.loads(log_body.model_dump_json()),
                               maxlen=max_event_log_lines)
 
             # Update the latest timestamp
@@ -507,7 +507,7 @@ def send_pod_event(postgres: connectors.PostgresConnector,
             retry_id=retry_id,
             text=event_log)
         redis_client.xadd(common.get_workflow_events_redis_name(workflow_uuid),
-                          json.loads(log_body.json()),
+                          json.loads(log_body.model_dump_json()),
                           maxlen=max_event_log_lines)
         redis_client.set(timestamp_key, message.timestamp.timestamp())
         redis_client.expire(timestamp_key, connectors.MAX_LOG_TTL, nx=True)
@@ -588,7 +588,7 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                 ack_body = backend_messages.AckBody(uuid=message.uuid)
                 ack_message = backend_messages.MessageBody(
                     type=backend_messages.MessageType.ACK,
-                    body=ack_body.dict()
+                    body=ack_body.model_dump()
                 )
                 message_options = {
                     message.type.value: message.body
@@ -656,7 +656,7 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     ) from db_err
             finally:
                 if ack_message:
-                    await websocket.send_text(ack_message.json())
+                    await websocket.send_text(ack_message.model_dump_json())
 
     except fastapi.WebSocketDisconnect as err:  # The websocket is closed by client
         logging.info(
@@ -680,7 +680,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
     try:
         # Get backend info from database and send node conditions
         backend_info = connectors.Backend.fetch_from_db(postgres, name)
-        node_conditions = backend_info.node_conditions.dict()
+        node_conditions = backend_info.node_conditions.model_dump()
 
         # Send node conditions to backend listener
         message = backend_messages.MessageBody(
@@ -689,7 +689,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                 rules=node_conditions.get('rules', {})
             )
         )
-        await websocket.send_text(message.json())
+        await websocket.send_text(message.model_dump_json())
         logging.info('Sent node conditions to backend %s', name)
 
         async with redis.asyncio.from_url(config.redis_url) as redis_client:
@@ -709,7 +709,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                             body=backend_messages.NodeConditionsBody(
                                 rules=json_fields.get('rules', {})
                             ))
-                        await websocket.send_text(message.json())
+                        await websocket.send_text(message.model_dump_json())
                 except (ConnectionError,
                         asyncio.exceptions.TimeoutError) as conn_error:
                     # Handle connection/timeout errors

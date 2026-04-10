@@ -65,6 +65,28 @@ osmo_constants(
 )
 
 ################
+#  Shellcheck  #
+################
+
+# Hermetic shellcheck binaries for sh_test rules in //deployments/brev/...
+http_archive(
+    name = "shellcheck_linux_x86_64",
+    build_file_content = 'exports_files(["shellcheck"])',
+    sha256 = "6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87",
+    strip_prefix = "shellcheck-v0.10.0",
+    url = "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz",
+)
+
+http_archive(
+    name = "shellcheck_darwin_arm64",
+    build_file_content = 'exports_files(["shellcheck"])',
+    sha256 = "bbd2f14826328eee7679da7221f2bc3afb011f6a928b848c80c321f6046ddf81",
+    strip_prefix = "shellcheck-v0.10.0",
+    url = "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.darwin.aarch64.tar.xz",
+)
+
+
+################
 #    Common    #
 ################
 
@@ -218,7 +240,7 @@ bazel_dep(name = "bazel_skylib", version = "1.8.2")
 #      Go      #
 ################
 
-bazel_dep(name = "rules_go", version = "0.54.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "rules_go", version = "0.57.0", repo_name = "io_bazel_rules_go")
 bazel_dep(name = "gazelle", version = "0.42.0", repo_name = "bazel_gazelle")
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")

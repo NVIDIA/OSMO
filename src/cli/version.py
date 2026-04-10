@@ -50,7 +50,7 @@ def _client_version(service_client: client.ServiceClient, args: argparse.Namespa
         pass
     client_version = version.VERSION
     if args.format_type == 'json':
-        output = {'client': client_version.dict()}
+        output = {'client': client_version.model_dump()}
         if result:
             output['service'] = result
         print(json.dumps(output, indent=common.JSON_INDENT_SIZE))

@@ -1,4 +1,5 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#!/bin/bash
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +15,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-{{- if .Values.sidecars.envoy.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Values.services.ui.serviceName }}-envoy-config
-  namespace: {{ .Release.Namespace }}
-data:
-  config.yaml: |
-    {{- include "envoy.admin" . | nindent 4 }}
-    static_resources:
-      {{- include "envoy.listener" . | nindent 6 }}
-      {{- include "envoy.clusters" . | nindent 6 }}
-{{- end }}
+set -euo pipefail
+
+"$SHELLCHECK" --severity=warning "$SETUP_SH"
