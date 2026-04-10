@@ -15,7 +15,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from "vitest";
-import { hasAdminRole, Roles } from "@/lib/auth/roles";
+import { extractRolesFromClaims, hasAdminRole, Roles } from "@/lib/auth/roles";
 
 // =============================================================================
 // hasAdminRole Tests
@@ -89,6 +89,65 @@ describe("hasAdminRole", () => {
 //
 // Documents the expected role values. If these change, consumers need updating.
 // =============================================================================
+
+// =============================================================================
+// extractRolesFromClaims Tests
+//
+// JWT payloads may supply roles via top-level roles, realm_access.roles, or
+// resource_access.osmo.roles — see roles.ts JSDoc.
+// =============================================================================
+
+describe("extractRolesFromClaims", () => {
+  it("returns empty array when no role sources are present", () => {
+    expect(extractRolesFromClaims({})).toEqual([]);
+  });
+
+  it("collects top-level claims.roles", () => {
+    expect(extractRolesFromClaims({ roles: [Roles.OSMO_USER, Roles.OSMO_ADMIN] })).toEqual([
+      Roles.OSMO_USER,
+      Roles.OSMO_ADMIN,
+    ]);
+  });
+
+  it("collects roles from claims.realm_access.roles", () => {
+    expect(
+      extractRolesFromClaims({
+        realm_access: { roles: [Roles.DASHBOARD_USER, Roles.DASHBOARD_ADMIN] },
+      }),
+    ).toEqual([Roles.DASHBOARD_USER, Roles.DASHBOARD_ADMIN]);
+  });
+
+  it("collects roles from claims.resource_access.osmo.roles", () => {
+    expect(
+      extractRolesFromClaims({
+        resource_access: { osmo: { roles: [Roles.OSMO_SRE] } },
+      }),
+    ).toEqual([Roles.OSMO_SRE]);
+  });
+
+  it("merges all sources and deduplicates", () => {
+    expect(
+      extractRolesFromClaims({
+        roles: [Roles.OSMO_USER],
+        realm_access: { roles: [Roles.OSMO_USER, Roles.OSMO_ADMIN] },
+        resource_access: { osmo: { roles: [Roles.OSMO_ADMIN] } },
+      }),
+    ).toEqual([Roles.OSMO_USER, Roles.OSMO_ADMIN]);
+  });
+
+  it("ignores non-array role fields and other resource_access clients", () => {
+    expect(
+      extractRolesFromClaims({
+        roles: "not-an-array" as unknown as string[],
+        realm_access: { roles: undefined },
+        resource_access: {
+          other_client: { roles: [Roles.GRAFANA_ADMIN] },
+          osmo: { roles: [Roles.OSMO_USER] },
+        },
+      }),
+    ).toEqual([Roles.OSMO_USER]);
+  });
+});
 
 describe("Roles constants", () => {
   it("has expected OSMO role values", () => {
