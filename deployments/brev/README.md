@@ -83,13 +83,13 @@ Follow instructions [here](https://docs.nvidia.com/brev/latest/brev-cli.html#ins
 
 ### Step 2: Set Up Port Forwarding
 
-Forward port 8000 from your Brev instance to local port 80. This port will need to be forwarded for you to use the OSMO CLI from your workstation.
+Forward ports from your Brev instance to your local machine. Port 8000 provides access to the OSMO API and Web UI. Port 4566 provides access to the LocalStack S3 storage backend, which is required for dataset download and upload via the CLI.
 
 You can find your instance's IP address at the top of the deployment page.
 
 ```bash
 # Find your instance name with brev ls
-sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 shadeform@[your instance IP]
+sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 -L 4566:localhost:4566 shadeform@[your instance IP]
 ```
 
 If you see `Permission denied (publickey)` it may be because:
@@ -108,13 +108,14 @@ Use the Brev instance username in the above ssh command instead of `shadeform`.
 
 ### Step 3: Set Up Networking
 
-Add a host entry to access OSMO from your browser:
+Add host entries so that the OSMO CLI and browser can reach the cluster services via localhost:
 
 ```bash
 echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
 ```
 
-This allows you to visit `http://quick-start.osmo` in your web browser.
+`quick-start.osmo` allows you to visit the Web UI at `http://quick-start.osmo` in your browser. `localstack-s3.osmo` allows the OSMO CLI to reach the S3 storage backend for dataset download and upload.
 
 ### Step 4: Install OSMO CLI
 
@@ -130,6 +131,14 @@ Authenticate with the OSMO instance through your port forward:
 
 ```bash
 osmo login http://quick-start.osmo --method=dev --username=testuser
+```
+
+### Step 6: Set Dataset Credential
+
+Register the storage credential so the CLI can download and upload datasets. The setup script saves this command on the Brev node during installation. In a separate terminal, retrieve and run it:
+
+```bash
+ssh -i ~/.brev/brev.pem shadeform@[your instance IP] 'cat ~/osmo-deployment/set-credential.sh' | bash
 ```
 
 ## Next Steps

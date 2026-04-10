@@ -482,12 +482,27 @@ osmo login http://localhost:8000 --method=dev --username=testuser
 # ============================================
 print_status "Setting data credential for LocalStack S3..."
 
-osmo credential set data_cred_name --type DATA --payload \
+# The config-setup Helm job registers the credential server-side, but the CLI also
+# needs it stored locally in ~/.osmo/config.yaml to authenticate directly with S3.
+osmo credential set osmo --type DATA --payload \
   access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
   access_key="${LOCALSTACK_S3_ACCESS_KEY}" \
   endpoint="${LOCALSTACK_S3_ENDPOINT}" \
   override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \
   region="${LOCALSTACK_S3_REGION}"
+
+# Save the credential command for remote workstation setup.
+# Users connecting from a remote machine need to run this after osmo login.
+cat > ~/osmo-deployment/set-credential.sh <<CRED_EOF
+#!/bin/bash
+osmo credential set osmo --type DATA --payload \\
+  access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \\
+  access_key="${LOCALSTACK_S3_ACCESS_KEY}" \\
+  endpoint="${LOCALSTACK_S3_ENDPOINT}" \\
+  override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \\
+  region="${LOCALSTACK_S3_REGION}"
+CRED_EOF
+chmod +x ~/osmo-deployment/set-credential.sh
 
 print_status "Data credential set successfully"
 
