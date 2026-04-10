@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -78,14 +78,18 @@ Hello, my name is {{ name }}!
 {%- endfor %}
 """
 
-# This template will build a massive string which will consume lots of memory
-# Starts with 5MB string and doubles it to 160MB, exceeding the test memory limit on Linux
+# This template will build a massive string which will consume lots of memory.
+# Uses explicit set statements (not a for loop) because Jinja2 scopes {% set %}
+# inside {% for %} per-iteration, preventing carry-over between iterations.
+# 5MB -> 10MB -> 20MB -> 40MB -> 80MB -> 160MB, exceeding the test memory limit on Linux.
 MEMORY_BOUND_TEMPLATE = """
 Hello, my name is {{ name }}!
 {% set x = 'A' * (5 * 1024 * 1024) %}
-{% for i in range(5) %}
 {% set x = x + x %}
-{% endfor %}
+{% set x = x + x %}
+{% set x = x + x %}
+{% set x = x + x %}
+{% set x = x + x %}
 {{ x|length }}
 """
 
