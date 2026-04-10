@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,9 +18,59 @@
 Unit tests for the storage common module.
 """
 
+import dataclasses
 import unittest
+from typing import cast
 
 from src.lib.data.storage import common
+from src.lib.data.storage.core import client, executor, progress, provider
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
+class _TestWorkerInput(executor.ThreadWorkerInput):
+    size: int
+    value: int
+
+    def error_key(self) -> str:
+        return str(self.value)
+
+
+@dataclasses.dataclass(slots=True)
+class _TestWorkerOutput(executor.ThreadWorkerOutput['_TestWorkerOutput']):
+    total: int = 0
+
+    def __add__(self, other: '_TestWorkerOutput' | None) -> '_TestWorkerOutput':
+        return _TestWorkerOutput(total=self.total + (0 if other is None else other.total))
+
+    def __iadd__(self, other: '_TestWorkerOutput' | None) -> '_TestWorkerOutput':
+        self.total += 0 if other is None else other.total
+        return self
+
+
+class _TestStorageClient:
+    def close(self) -> None:
+        pass
+
+
+@dataclasses.dataclass(frozen=True)
+class _TestStorageClientFactory(provider.StorageClientFactory):
+    def create(self) -> client.StorageClient:
+        return cast(client.StorageClient, _TestStorageClient())
+
+
+def _test_thread_worker(
+    worker_input: _TestWorkerInput,
+    storage_client_provider: provider.StorageClientProvider,
+    progress_updater: progress.ProgressUpdater,
+) -> _TestWorkerOutput:
+    del storage_client_provider
+    progress_updater.update(amount_change=1)
+    return _TestWorkerOutput(total=worker_input.value)
+
+
+def _test_worker_inputs():
+    for value in [1, 2, 3]:
+        yield _TestWorkerInput(size=1, value=value)
 
 
 class TestCommon(unittest.TestCase):
@@ -142,6 +192,23 @@ class TestCommon(unittest.TestCase):
             common.remap_destination_name('a/b/c/d/1.txt', False, 'new_name'),
             'a/b/c/d/new_name',
         )
+
+    def test_multi_process_executor_runs_job_with_explicit_context(self):
+        job_context = executor.run_job(
+            thread_worker=_test_thread_worker,
+            thread_worker_input_gen=_test_worker_inputs(),
+            client_factory=_TestStorageClientFactory(),
+            enable_progress_tracker=False,
+            executor_params=executor.ExecutorParameters(
+                num_processes=2,
+                num_threads=1,
+                num_threads_inflight_multiplier=1,
+                chunk_queue_size_multiplier=1,
+            ),
+        )
+
+        self.assertEqual(job_context.output.total if job_context.output else None, 6)
+        self.assertEqual(job_context.errors, [])
 
 
 if __name__ == '__main__':
