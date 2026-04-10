@@ -102,7 +102,7 @@ def create_login_dict(user: str,
 
 
 def create_config_dict(
-    data_info: dict[str, credentials.StaticDataCredential],
+    data_info: dict[str, credentials.DataCredential],
 ) -> dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
@@ -2699,7 +2699,7 @@ class TaskGroup(pydantic.BaseModel):
         service_config: connectors.ServiceConfig | None = None,
         dataset_config: connectors.DatasetConfig | None = None,
         pool_info: connectors.Pool | None = None,
-        data_endpoints: Dict[str, credentials.StaticDataCredential] | None = None,
+        data_endpoints: Dict[str, credentials.DataCredential] | None = None,
         skip_refresh_token: bool = False,
         auth_token: str | None = None,
     ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[str, str]]]:

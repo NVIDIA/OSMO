@@ -414,8 +414,17 @@ func MountURL(downloadType string, credentialInfo ConfigInfo, urlPath string,
 		osmoChan <- fmt.Sprintf("Missing data credential for %s.", storageBackend.GetProfile())
 		return isEmpty
 	}
-	os.Setenv("AWS_ACCESS_KEY_ID", dataCredential.AccessKeyId)
-	os.Setenv("AWS_SECRET_ACCESS_KEY", dataCredential.AccessKey)
+	// Only set static key env vars when keys are provided.
+	// When using DefaultDataCredential (ambient credentials via Pod Identity,
+	// IRSA, etc.), keys are empty — setting empty env vars would clobber the
+	// SDK's default credential chain.
+	if dataCredential.AccessKeyId != "" {
+		os.Setenv("AWS_ACCESS_KEY_ID", dataCredential.AccessKeyId)
+		os.Setenv("AWS_SECRET_ACCESS_KEY", dataCredential.AccessKey)
+	}
+	if dataCredential.Region != "" {
+		os.Setenv("AWS_REGION", dataCredential.Region)
+	}
 
 	var commandArgs []string
 
