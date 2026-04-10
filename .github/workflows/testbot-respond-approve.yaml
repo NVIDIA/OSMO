@@ -44,25 +44,66 @@ jobs:
       github.event.workflow_run.conclusion != 'skipped'
     runs-on: ubuntu-latest
     steps:
-      - name: Check membership and approve
+      - name: Check authorization
+        id: auth
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
-        env:
-          SVC_OSMO_CI_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
         with:
           github-token: ${{ secrets.NVIDIA_ORG_MEMBER_READ_TOKEN }}
           script: |
             const run = context.payload.workflow_run;
             const actor = run.triggering_actor.login;
-            const { owner, repo } = context.repo;
             core.info(`Triggering actor: ${actor}`);
 
-            // SVC_OSMO_CI_TOKEN (repo scope) for run status, deployments, approval.
-            // NVIDIA_ORG_MEMBER_READ_TOKEN (read:org) is the default `github` client.
-            const { getOctokit } = require('@actions/github');
-            const repoClient = getOctokit(process.env.SVC_OSMO_CI_TOKEN);
+            const TRUSTED_BOTS = new Set([
+              'svc-osmo-ci',
+              'github-actions[bot]',
+              'coderabbitai[bot]',
+            ]);
+
+            if (TRUSTED_BOTS.has(actor)) {
+              core.info(`${actor} is a trusted bot`);
+              core.setOutput('authorized', 'true');
+              core.setOutput('is_bot', 'true');
+              return;
+            }
+
+            // Check NVIDIA/osmo-dev team membership (read:org scope)
+            try {
+              const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
+                org: 'NVIDIA',
+                team_slug: 'osmo-dev',
+                username: actor,
+              });
+              if (membership.state !== 'active') {
+                core.info(`${actor} has osmo-dev state '${membership.state}' (not active)`);
+                core.setOutput('authorized', 'false');
+                return;
+              }
+              core.info(`${actor} is an active NVIDIA/osmo-dev member`);
+              core.setOutput('authorized', 'true');
+              core.setOutput('is_bot', 'false');
+            } catch (err) {
+              if (err.status === 404) {
+                core.info(`${actor} is NOT an NVIDIA/osmo-dev member`);
+                core.setOutput('authorized', 'false');
+                return;
+              }
+              throw err;  // 403/429/5xx = PAT or API issue, fail loudly
+            }
+
+      - name: Approve deployment
+        if: steps.auth.outputs.authorized == 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          script: |
+            const run = context.payload.workflow_run;
+            const { owner, repo } = context.repo;
+            const isTrustedBot = '${{ steps.auth.outputs.is_bot }}' === 'true';
+            const actor = run.triggering_actor.login;
 
             // Check if the run was already cancelled (e.g., by cancel-in-progress)
-            const { data: currentRun } = await repoClient.rest.actions.getWorkflowRun({
+            const { data: currentRun } = await github.rest.actions.getWorkflowRun({
               owner,
               repo,
               run_id: run.id,
@@ -72,48 +113,12 @@ jobs:
               return;
             }
 
-            // Trusted bots: approve without org check so their runs complete
-            // quickly (respond.py will find no /testbot threads and exit).
-            // This prevents bot-triggered runs from blocking the concurrency
-            // group — cancel-in-progress could cancel a real /testbot run if
-            // the bot run stays pending.
-            const TRUSTED_BOTS = new Set([
-              'svc-osmo-ci',
-              'github-actions[bot]',
-              'coderabbitai[bot]',
-            ]);
-            const isTrustedBot = TRUSTED_BOTS.has(actor);
-
-            if (!isTrustedBot) {
-              // Uses default `github` client (NVIDIA_ORG_MEMBER_READ_TOKEN, read:org)
-              try {
-                const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
-                  org: 'NVIDIA',
-                  team_slug: 'osmo-dev',
-                  username: actor,
-                });
-                if (membership.state !== 'active') {
-                  core.info(`${actor} has osmo-dev state '${membership.state}' (not active) — skipping`);
-                  return;
-                }
-                core.info(`${actor} is an active NVIDIA/osmo-dev member`);
-              } catch (err) {
-                if (err.status === 404) {
-                  core.info(`${actor} is NOT an NVIDIA/osmo-dev member — skipping`);
-                  return;
-                }
-                throw err;  // 403/429/5xx = PAT or API issue, fail loudly
-              }
-            } else {
-              core.info(`${actor} is a trusted bot — approving without team check`);
-            }
-
             // Poll for pending deployments (may take a few seconds to appear).
             // Start at 5s — deployments never appear in <3s. Add jitter to
             // avoid thundering-herd if multiple runs trigger simultaneously.
             let deployments = [];
             for (let attempt = 1; attempt <= 12; attempt++) {
-              const { data } = await repoClient.rest.actions.getPendingDeploymentsForRun({
+              const { data } = await github.rest.actions.getPendingDeploymentsForRun({
                 owner,
                 repo,
                 run_id: run.id,
@@ -146,7 +151,7 @@ jobs:
             }
 
             try {
-              await repoClient.rest.actions.reviewPendingDeploymentsForRun({
+              await github.rest.actions.reviewPendingDeploymentsForRun({
                 owner,
                 repo,
                 run_id: run.id,
