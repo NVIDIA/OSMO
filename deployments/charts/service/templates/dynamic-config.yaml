@@ -29,30 +29,15 @@ data:
       {{- if and (not (index $service "service_base_url")) .Values.services.service.hostname }}
       {{- $_ := set $service "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
       {{- end }}
-      {{- include "osmo.resolve-secret-names-in-config" $service }}
       {{- toYaml $service | nindent 6 }}
     {{- end }}
     {{- if $dc.workflow }}
     workflow:
-      {{- $workflow := deepCopy $dc.workflow }}
-      {{- include "osmo.resolve-secret-names-in-config" $workflow }}
-      {{- toYaml $workflow | nindent 6 }}
+      {{- toYaml $dc.workflow | nindent 6 }}
     {{- end }}
     {{- if $dc.dataset }}
     dataset:
-      {{- $dataset := deepCopy $dc.dataset }}
-      {{- if $dataset.buckets }}
-      {{- range $bucketName, $bucketConfig := $dataset.buckets }}
-      {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
-      {{- if $bucketConfig.default_credential.credentialSecretName }}
-      {{- $secretName := $bucketConfig.default_credential.credentialSecretName }}
-      {{- $_ := set $bucketConfig.default_credential "secret_file" (printf "/etc/osmo/secrets/%s/cred.yaml" $secretName) }}
-      {{- $_ := unset $bucketConfig.default_credential "credentialSecretName" }}
-      {{- end }}
-      {{- end }}
-      {{- end }}
-      {{- end }}
-      {{- toYaml $dataset | nindent 6 }}
+      {{- toYaml $dc.dataset | nindent 6 }}
     {{- end }}
     {{- if $dc.pools }}
     pools:

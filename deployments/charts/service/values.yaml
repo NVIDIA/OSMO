@@ -248,7 +248,8 @@ services:
     service: {}
 
     ## Workflow config (limits, timeouts, image credentials).
-    ## Secrets use secretName to reference K8s Secrets.
+    ## Use secretName in config fields to reference K8s Secrets.
+    ## Each secretName must also be listed in secretRefs above.
     ##
     workflow:
       max_num_tasks: 100
@@ -403,17 +404,16 @@ services:
     ##
     groupTemplates: {}
 
-    ## Secret credential files mounted from K8s Secrets.
-    ## Each entry creates a K8s Secret + volume mount at /etc/osmo/secrets/<name>.yaml
-    ## Used by dataset bucket default_credential.secret_file references.
+    ## K8s Secrets to mount into the service pods.
+    ## Each entry generates a volume + volumeMount at /etc/osmo/secrets/<secretName>/.
+    ## The Python config loader resolves secretName references in configs at runtime.
     ##
     ## Example:
-    ##   secrets:
-    ##     bucket-primary-cred:
-    ##       access_key_id: "AKIA..."
-    ##       access_key: "wJalrXUtn..."
+    ##   secretRefs:
+    ##   - secretName: my-bucket-cred        # mounts all keys
+    ##   - secretName: imagepullsecret       # mounts all keys
     ##
-    secrets: {}
+    secretRefs: []
 
   ## Redis cache service configuration
   ## Set enabled to false if using an external Redis deployment
