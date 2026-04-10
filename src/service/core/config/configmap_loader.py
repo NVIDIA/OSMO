@@ -154,6 +154,11 @@ class ConfigMapWatcher:
         # Atomic swap — in-flight requests holding a reference to the old
         # dict continue using it; new requests get the new dict.
         configmap_guard.set_parsed_configs(managed_configs)
+        if not configmap_guard.is_configmap_mode():
+            configmap_guard.set_configmap_mode(True)
+            logging.info(
+                'ConfigMap mode activated (deferred) — '
+                'all config writes via CLI/API are blocked')
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
 

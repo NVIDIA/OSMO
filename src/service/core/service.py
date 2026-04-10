@@ -468,9 +468,11 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
 
     if config.config_file:
         try:
-            watcher = configmap_loader.ConfigMapWatcher(
+            _config_watcher = configmap_loader.ConfigMapWatcher(
                 config.config_file, postgres)
-            watcher.start()
+            _config_watcher.start()
+            # Store on app state to prevent GC from killing the watcher
+            target_app.state.config_watcher = _config_watcher
         except Exception:
             logging.exception(
                 'Failed to start config watcher — '

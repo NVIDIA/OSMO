@@ -349,9 +349,7 @@ def put_pools(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Pool configurations """
-    for name in request.configs:
-        configmap_guard.reject_if_configmap_mode(username)
-
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Check all pool names in response before inserting any pool into the database
@@ -650,8 +648,8 @@ def read_pod_template(name: str) -> Dict:
 def put_pod_templates(request: objects.PutPodTemplatesRequest,
                       username: str = fastapi.Depends(connectors.parse_username)):
     """ Set Dict of Pod Templates configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs.keys():
-        configmap_guard.reject_if_configmap_mode(username)
         _check_config_name(name, ConfigNameType.POD_TEMPLATE)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -750,8 +748,8 @@ def read_group_template(name: str) -> Dict:
 def put_group_templates(request: objects.PutGroupTemplatesRequest,
                         username: str = fastapi.Depends(connectors.parse_username)):
     """ Set Dict of Group Templates configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs.keys():
-        configmap_guard.reject_if_configmap_mode(username)
         _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -825,8 +823,8 @@ def put_resource_validations(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Resource Validation configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs_dict.keys():
-        configmap_guard.reject_if_configmap_mode(username)
         _check_config_name(name, ConfigNameType.RESOURCE_VALIDATON)
 
     postgres = connectors.PostgresConnector.get_instance()
@@ -901,9 +899,7 @@ def read_role(name: str) -> connectors.Role:
 def put_roles(request: objects.PutRolesRequest,
               username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Roles """
-    for role in request.configs:
-        configmap_guard.reject_if_configmap_mode(username)
-
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     for role in request.configs:
         role.insert_into_db(postgres)
@@ -963,8 +959,8 @@ def put_backend_tests(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put backend test configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs.keys():
-        configmap_guard.reject_if_configmap_mode(username)
         _check_config_name(name, ConfigNameType.BACKEND_TEST)
 
     postgres = connectors.PostgresConnector.get_instance()

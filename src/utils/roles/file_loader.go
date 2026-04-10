@@ -124,17 +124,18 @@ func (s *FileRoleStore) Load() error {
 		poolNames = append(poolNames, name)
 	}
 
-	// Atomic swap
+	// Stat before lock to get modtime
+	info, _ := os.Stat(s.filePath)
+
+	// Atomic swap (includes lastModTime to avoid race with poll goroutine)
 	s.mu.Lock()
 	s.roles = roles
 	s.externalRoleMap = externalMap
 	s.poolNames = poolNames
-	s.mu.Unlock()
-
-	info, _ := os.Stat(s.filePath)
 	if info != nil {
 		s.lastModTime = info.ModTime()
 	}
+	s.mu.Unlock()
 
 	s.logger.Info("roles loaded from file",
 		slog.Int("role_count", len(roles)),
@@ -155,7 +156,10 @@ func (s *FileRoleStore) Start(pollInterval time.Duration) {
 			if err != nil {
 				continue
 			}
-			if info.ModTime().After(s.lastModTime) {
+			s.mu.RLock()
+			changed := info.ModTime().After(s.lastModTime)
+			s.mu.RUnlock()
+			if changed {
 				s.logger.Info("roles file changed, reloading",
 					slog.String("file", s.filePath))
 				if err := s.Load(); err != nil {

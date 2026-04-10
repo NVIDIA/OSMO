@@ -38,12 +38,11 @@ import psycopg2  # type: ignore
 import psycopg2.extras  # type: ignore
 import psycopg2.pool  # type: ignore
 import pydantic
-
-from src.utils import configmap_state
 import yaml
 from jwcrypto import jwe  # type: ignore
 from jwcrypto.common import JWException  # type: ignore
 
+from src.utils import configmap_state
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
