@@ -21,11 +21,11 @@ configs enabled via Helm values and verifying that configs are
 correctly applied to the database on startup.
 
 Prerequisites:
-- A KIND cluster with OSMO deployed using the dynamic config values file
-  (run/minimal/osmo_dynamic_config_values.yaml)
+- A KIND cluster with OSMO deployed using the configs values file
+  (run/minimal/osmo_configs_values.yaml)
 - The OSMO_E2E_URL environment variable set to the service base URL
 
-See run/minimal/osmo_dynamic_config_values.yaml for the test values.
+See run/minimal/osmo_configs_values.yaml for the test values.
 """
 
 from typing import Any, Dict, List

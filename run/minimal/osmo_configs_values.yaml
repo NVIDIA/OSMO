@@ -18,7 +18,7 @@
 # Use as an overlay on top of the base osmo_values.yaml:
 #   helm upgrade --install osmo deployments/charts/service/ \
 #     -f run/minimal/osmo_values.yaml \
-#     -f run/minimal/osmo_dynamic_config_values.yaml \
+#     -f run/minimal/osmo_configs_values.yaml \
 #     -n osmo
 
 sidecars:
