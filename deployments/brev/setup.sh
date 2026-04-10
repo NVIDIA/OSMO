@@ -57,6 +57,15 @@ NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
 GPU_OPERATOR_VERSION="v25.10.0"
 KAI_SCHEDULER_VERSION="v0.13.4"
 
+# LocalStack S3 object storage settings
+LOCALSTACK_S3_HOST="localstack-s3.osmo"
+LOCALSTACK_S3_PORT="4566"
+LOCALSTACK_S3_OVERRIDE_URL="http://${LOCALSTACK_S3_HOST}:${LOCALSTACK_S3_PORT}"
+LOCALSTACK_S3_ENDPOINT="s3://osmo"
+LOCALSTACK_S3_ACCESS_KEY_ID="test"
+LOCALSTACK_S3_ACCESS_KEY="test"
+LOCALSTACK_S3_REGION="us-east-1"
+
 # ============================================
 # Step 0: System Configuration
 # ============================================
@@ -323,6 +332,10 @@ nodes:
       nodeRegistration:
         kubeletExtraArgs:
           node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
+    extraPortMappings:
+      - containerPort: 30035
+        hostPort: 4566
+        protocol: TCP
     extraMounts:
       - hostPath: /tmp/localstack-s3
         containerPath: /var/lib/localstack
@@ -369,6 +382,16 @@ kubectl wait --for=condition=Ready nodes --all --timeout=300s
 print_status "Verifying GPU availability..."
 nvkind cluster print-gpus || print_warning "Could not verify GPUs, but continuing..."
 
+# Add LocalStack hostname to /etc/hosts so the same override URL works both
+# inside the cluster (resolved via K8s DNS) and outside (resolved via /etc/hosts
+# to localhost, forwarded to the NodePort via KIND port mapping).
+if ! grep -q "${LOCALSTACK_S3_HOST}" /etc/hosts; then
+    print_status "Adding ${LOCALSTACK_S3_HOST} to /etc/hosts..."
+    echo "127.0.0.1 ${LOCALSTACK_S3_HOST}" | sudo tee -a /etc/hosts
+else
+    print_status "${LOCALSTACK_S3_HOST} already in /etc/hosts"
+fi
+
 # ============================================
 # Step 4: Install GPU Operator
 # ============================================
@@ -414,6 +437,11 @@ helm repo update
 helm upgrade --install osmo osmo/quick-start \
   --namespace osmo \
   --create-namespace \
+  --set global.objectStorage.endpoint="${LOCALSTACK_S3_ENDPOINT}" \
+  --set global.objectStorage.overrideUrl="${LOCALSTACK_S3_OVERRIDE_URL}" \
+  --set global.objectStorage.accessKeyId="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
+  --set global.objectStorage.accessKey="${LOCALSTACK_S3_ACCESS_KEY}" \
+  --set global.objectStorage.region="${LOCALSTACK_S3_REGION}" \
   --set web-ui.services.ui.hostname="" \
   --set service.services.service.hostname="" \
   --set router.services.service.hostname="" \
@@ -450,6 +478,20 @@ print_status "Logging in to OSMO..."
 osmo login http://localhost:8000 --method=dev --username=testuser
 
 # ============================================
+# Step 9: Set Data Credential
+# ============================================
+print_status "Setting data credential for LocalStack S3..."
+
+osmo credential set data_cred_name --type DATA --payload \
+  access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
+  access_key="${LOCALSTACK_S3_ACCESS_KEY}" \
+  endpoint="${LOCALSTACK_S3_ENDPOINT}" \
+  override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \
+  region="${LOCALSTACK_S3_REGION}"
+
+print_status "Data credential set successfully"
+
+# ============================================
 # Cleanup
 # ============================================
 print_status "Cleaning up temporary files..."
@@ -472,6 +514,7 @@ print_status "  • Current User: $CURRENT_USER"
 print_status "  • NVIDIA Driver Version: $NVIDIA_DRIVER_FULL_VERSION (minimum: $NVIDIA_MIN_DRIVER_VERSION)"
 print_status "  • nvidia-ctk Version: $NVIDIA_CTK_VERSION (minimum: $NVIDIA_CTK_MIN_VERSION)"
 print_status "  • Docker Data Root: $(sudo docker info 2>/dev/null | awk '/Docker Root Dir/{print $NF}') (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+print_status "  • LocalStack S3: ${LOCALSTACK_S3_OVERRIDE_URL}"
 echo ""
 
 # Display warnings if versions are insufficient
