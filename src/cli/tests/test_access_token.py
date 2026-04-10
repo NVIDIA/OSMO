@@ -167,6 +167,135 @@ class TestSetToken(unittest.TestCase):
         with self.assertRaises(osmo_errors.OSMOUserError):
             access_token._set_token(mock_client, args)
 
+    def test_set_token_single_char_name_is_valid(self):
+        """Test that single character token name is valid."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = 'single-char-token'
+
+        args = argparse.Namespace(
+            name='a',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print'):
+            access_token._set_token(mock_client, args)
+
+        mock_client.request.assert_called_once_with(
+            client.RequestMethod.POST,
+            'api/auth/access_token/a',
+            payload=None,
+            params={'expires_at': '2026-12-31'}
+        )
+
+    def test_set_token_two_char_name_is_valid(self):
+        """Test that two character token name is valid."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = 'two-char-token'
+
+        args = argparse.Namespace(
+            name='ab',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print'):
+            access_token._set_token(mock_client, args)
+
+        mock_client.request.assert_called_once()
+
+    def test_set_token_name_ending_with_underscore_raises_error(self):
+        """Test that token name ending with underscore raises OSMOUserError."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+
+        args = argparse.Namespace(
+            name='token_',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            access_token._set_token(mock_client, args)
+
+    def test_set_token_name_ending_with_hyphen_raises_error(self):
+        """Test that token name ending with hyphen raises OSMOUserError."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+
+        args = argparse.Namespace(
+            name='token-',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            access_token._set_token(mock_client, args)
+
+    def test_set_token_empty_name_raises_error(self):
+        """Test that empty token name raises OSMOUserError."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+
+        args = argparse.Namespace(
+            name='',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            access_token._set_token(mock_client, args)
+
+    def test_set_token_name_with_underscore_middle_is_valid(self):
+        """Test that token name with underscore in middle is valid."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = 'underscore-token'
+
+        args = argparse.Namespace(
+            name='my_token1',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print'):
+            access_token._set_token(mock_client, args)
+
+        mock_client.request.assert_called_once()
+
+    def test_set_token_name_with_hyphen_middle_is_valid(self):
+        """Test that token name with hyphen in middle is valid."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = 'hyphen-token'
+
+        args = argparse.Namespace(
+            name='my-token1',
+            expires_at='2026-12-31',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print'):
+            access_token._set_token(mock_client, args)
+
+        mock_client.request.assert_called_once()
+
 
 class TestDeleteToken(unittest.TestCase):
     """Tests for _delete_token function."""
@@ -419,6 +548,82 @@ class TestListTokens(unittest.TestCase):
         output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
         self.assertIn('admin, developer, viewer', output)
 
+    def test_list_tokens_with_none_description(self):
+        """Test listing tokens when description is None."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = [
+            {
+                'token_name': 'no-desc-token',
+                'description': None,
+                'expires_at': '2099-12-31T00:00:00',
+                'roles': []
+            }
+        ]
+
+        args = argparse.Namespace(
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_tokens(mock_client, args)
+
+        output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('no-desc-token', output)
+
+    def test_list_tokens_with_missing_roles_key(self):
+        """Test listing tokens when roles key is missing from response."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = [
+            {
+                'token_name': 'missing-roles-token',
+                'description': 'No roles key',
+                'expires_at': '2099-12-31T00:00:00'
+            }
+        ]
+
+        args = argparse.Namespace(
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_tokens(mock_client, args)
+
+        output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('missing-roles-token', output)
+        self.assertIn('-', output)
+
+    def test_list_tokens_with_multiple_tokens(self):
+        """Test listing multiple tokens shows all tokens."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = [
+            {
+                'token_name': 'token-one',
+                'description': 'First',
+                'expires_at': '2099-12-31T00:00:00',
+                'roles': []
+            },
+            {
+                'token_name': 'token-two',
+                'description': 'Second',
+                'expires_at': '2099-12-31T00:00:00',
+                'roles': ['admin']
+            }
+        ]
+
+        args = argparse.Namespace(
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_tokens(mock_client, args)
+
+        output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('token-one', output)
+        self.assertIn('token-two', output)
+
 
 class TestListTokenRoles(unittest.TestCase):
     """Tests for _list_token_roles function."""
@@ -588,6 +793,58 @@ class TestListTokenRoles(unittest.TestCase):
 
         output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
         self.assertIn('Owner: -', output)
+
+    def test_list_token_roles_with_multiple_roles(self):
+        """Test listing token roles with multiple roles assigned."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = {
+            'token_name': 'multi-role-token',
+            'user_name': 'user@example.com',
+            'roles': [
+                {
+                    'role_name': 'admin',
+                    'assigned_by': 'super@example.com',
+                    'assigned_at': '2026-01-15T10:30:00'
+                },
+                {
+                    'role_name': 'developer',
+                    'assigned_by': 'manager@example.com',
+                    'assigned_at': '2026-02-20T14:00:00'
+                }
+            ]
+        }
+
+        args = argparse.Namespace(
+            name='multi-role-token',
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_token_roles(mock_client, args)
+
+        output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('admin', output)
+        self.assertIn('developer', output)
+        self.assertIn('super@example.com', output)
+        self.assertIn('manager@example.com', output)
+
+    def test_list_token_roles_empty_response(self):
+        """Test listing token roles when response has minimal data."""
+        mock_client = mock.MagicMock(spec=client.ServiceClient)
+        mock_client.request.return_value = {}
+
+        args = argparse.Namespace(
+            name='minimal-token',
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_token_roles(mock_client, args)
+
+        output = " ".join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('minimal-token', output)
+        self.assertIn('Owner: -', output)
+        self.assertIn('Roles: None', output)
 
 
 class TestSetupParser(unittest.TestCase):
