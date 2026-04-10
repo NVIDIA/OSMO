@@ -36,6 +36,9 @@ spec:
         {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.logger | nindent 8 }}
+        {{- if .Values.services.dynamicConfig.enabled }}
+        checksum/dynamic-config: {{ .Values.services.dynamicConfig | toYaml | sha256sum }}
+        {{- end }}
     spec:
       {{- with .Values.services.logger.hostAliases }}
       hostAliases:

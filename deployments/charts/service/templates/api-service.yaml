@@ -230,7 +230,6 @@ spec:
         {{- end }}
         {{- $allSecretNames := dict }}
         {{- if .Values.services.dynamicConfig.workflow }}
-        {{- if .Values.services.dynamicConfig.workflow }}
         {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow }}
         {{- range (splitList "," $wfSecrets) }}
         {{- if . }}
@@ -238,14 +237,11 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
-        {{- end }}
-        {{- if .Values.services.dynamicConfig.service }}
         {{- if .Values.services.dynamicConfig.service }}
         {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service }}
         {{- range (splitList "," $svcSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
-        {{- end }}
         {{- end }}
         {{- end }}
         {{- end }}
@@ -340,7 +336,6 @@ spec:
         {{- end }}
         {{- $allSecretNames := dict }}
         {{- if .Values.services.dynamicConfig.workflow }}
-        {{- if .Values.services.dynamicConfig.workflow }}
         {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow }}
         {{- range (splitList "," $wfSecrets) }}
         {{- if . }}
@@ -348,14 +343,11 @@ spec:
         {{- end }}
         {{- end }}
         {{- end }}
-        {{- end }}
-        {{- if .Values.services.dynamicConfig.service }}
         {{- if .Values.services.dynamicConfig.service }}
         {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service }}
         {{- range (splitList "," $svcSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
-        {{- end }}
         {{- end }}
         {{- end }}
         {{- end }}
