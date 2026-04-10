@@ -107,6 +107,9 @@ jobs:
           echo "Docker version: $(docker --version)"
           echo "Git LFS version: $(git-lfs --version)"
 
+      - name: Clean up stale LFS hooks
+        run: rm -f .git/hooks/pre-push .git/hooks/post-checkout .git/hooks/post-commit .git/hooks/post-merge || true
+
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
