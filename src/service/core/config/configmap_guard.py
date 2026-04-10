@@ -16,13 +16,10 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from typing import Any, Dict
-
 from src.lib.utils import osmo_errors
 from src.utils import configmap_state
 
 CONFIGMAP_SYNC_USERNAME = 'configmap-sync'
-CONFIGMAP_SYNC_TAGS = ['configmap']
 
 # Delegate state to configmap_state (dependency-free module importable
 # by both the service layer and the utils/connectors layer).

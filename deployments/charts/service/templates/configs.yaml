@@ -22,49 +22,49 @@ metadata:
     app: {{ .Values.services.service.serviceName }}
 data:
   config.yaml: |
-    {{- $dc := .Values.services.configs }}
-    {{- if $dc.service }}
+    {{- $cfg := .Values.services.configs }}
+    {{- if $cfg.service }}
     service:
-      {{- $service := deepCopy $dc.service }}
+      {{- $service := deepCopy $cfg.service }}
       {{- if and (not (index $service "service_base_url")) .Values.services.service.hostname }}
       {{- $_ := set $service "service_base_url" (printf "https://%s" .Values.services.service.hostname) }}
       {{- end }}
       {{- toYaml $service | nindent 6 }}
     {{- end }}
-    {{- if $dc.workflow }}
+    {{- if $cfg.workflow }}
     workflow:
-      {{- toYaml $dc.workflow | nindent 6 }}
+      {{- toYaml $cfg.workflow | nindent 6 }}
     {{- end }}
-    {{- if $dc.dataset }}
+    {{- if $cfg.dataset }}
     dataset:
-      {{- toYaml $dc.dataset | nindent 6 }}
+      {{- toYaml $cfg.dataset | nindent 6 }}
     {{- end }}
-    {{- if $dc.pools }}
+    {{- if $cfg.pools }}
     pools:
-      {{- toYaml $dc.pools | nindent 6 }}
+      {{- toYaml $cfg.pools | nindent 6 }}
     {{- end }}
-    {{- if $dc.podTemplates }}
+    {{- if $cfg.podTemplates }}
     pod_templates:
-      {{- toYaml $dc.podTemplates | nindent 6 }}
+      {{- toYaml $cfg.podTemplates | nindent 6 }}
     {{- end }}
-    {{- if $dc.resourceValidations }}
+    {{- if $cfg.resourceValidations }}
     resource_validations:
-      {{- toYaml $dc.resourceValidations | nindent 6 }}
+      {{- toYaml $cfg.resourceValidations | nindent 6 }}
     {{- end }}
-    {{- if $dc.backends }}
+    {{- if $cfg.backends }}
     backends:
-      {{- toYaml $dc.backends | nindent 6 }}
+      {{- toYaml $cfg.backends | nindent 6 }}
     {{- end }}
-    {{- if $dc.backendTests }}
+    {{- if $cfg.backendTests }}
     backend_tests:
-      {{- toYaml $dc.backendTests | nindent 6 }}
+      {{- toYaml $cfg.backendTests | nindent 6 }}
     {{- end }}
-    {{- if $dc.groupTemplates }}
+    {{- if $cfg.groupTemplates }}
     group_templates:
-      {{- toYaml $dc.groupTemplates | nindent 6 }}
+      {{- toYaml $cfg.groupTemplates | nindent 6 }}
     {{- end }}
-    {{- if $dc.roles }}
+    {{- if $cfg.roles }}
     roles:
-      {{- toYaml $dc.roles | nindent 6 }}
+      {{- toYaml $cfg.roles | nindent 6 }}
     {{- end }}
 {{- end }}

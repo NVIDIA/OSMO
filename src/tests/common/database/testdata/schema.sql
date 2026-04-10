@@ -62,7 +62,3 @@ CREATE TABLE IF NOT EXISTS workflows (
     pool TEXT NOT NULL DEFAULT ''
 );
 
-CREATE TABLE IF NOT EXISTS configmap_state (
-    key TEXT PRIMARY KEY,
-    value TEXT
-);

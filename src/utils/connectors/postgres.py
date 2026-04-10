@@ -1289,14 +1289,6 @@ class PostgresConnector:
         '''
         self.execute_commit_command(create_cmd, ())
 
-        # Key-value table for future ConfigMap state (unused, kept for schema compat)
-        create_cmd = '''
-            CREATE TABLE IF NOT EXISTS configmap_state (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            );
-        '''
-        self.execute_commit_command(create_cmd, ())
 
     def _init_configs(self):
         """ Initializes configs table. """

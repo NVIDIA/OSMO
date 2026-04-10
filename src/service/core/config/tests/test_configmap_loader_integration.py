@@ -199,10 +199,8 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         """ConfigMapWatcher._load_and_apply sets the snapshot."""
         postgres = self._get_postgres()
         config = {
-            'managed_configs': {
-                'pod_templates': {
-                    'watcher_tmpl': {'spec': {'test': True}},
-                },
+            'pod_templates': {
+                'watcher_tmpl': {'spec': {'test': True}},
             },
         }
         with tempfile.NamedTemporaryFile(

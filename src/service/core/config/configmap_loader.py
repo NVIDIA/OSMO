@@ -80,9 +80,8 @@ class ConfigMapWatcher:
 
     On startup: parse file → validate → populate module-level dict → start watchdog.
     On file change: re-parse → validate → atomic swap of dict reference.
-    Configs are served from the in-memory dict; DB is only used for:
-    - Roles (Go authz_sidecar reads roles directly from DB)
-    - Backend runtime data (agent writes heartbeats to backends table)
+    Configs are served from the in-memory dict. DB is only used for
+    backend runtime data (agent writes heartbeats to backends table).
     """
 
     def __init__(self, config_file_path: str,
@@ -115,7 +114,7 @@ class ConfigMapWatcher:
             self._observer.join(timeout=5)
 
     def _load_and_apply(self) -> bool:
-        """Parse, resolve secrets, validate, swap dict, write roles to DB.
+        """Parse, resolve secrets, validate, and swap the in-memory config dict.
 
         Returns True if configs were successfully loaded.
         """

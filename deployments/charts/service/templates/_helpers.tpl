@@ -145,12 +145,6 @@ Extra sidecars helper
 {{- end }}
 
 {{/*
-No secret resolution or collection templates needed.
-Secret volumes are generated from the explicit configs.secretRefs list.
-The Python config loader resolves secretName references at runtime.
-*/}}
-
-{{/*
 Extra configmaps helper
 */}}
 {{- define "osmo.extra-configmaps" -}}
