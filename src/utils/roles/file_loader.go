@@ -182,18 +182,6 @@ func (s *FileRoleStore) GetRoles(names []string) []*Role {
 	return result
 }
 
-// GetAllRoleNames returns all role names in the store.
-func (s *FileRoleStore) GetAllRoleNames() []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	names := make([]string, 0, len(s.roles))
-	for name := range s.roles {
-		names = append(names, name)
-	}
-	return names
-}
-
 // ResolveExternalRoles maps external IDP roles (from JWT claims) to
 // OSMO role names using the in-memory external_roles mappings.
 // This replaces the SyncUserRoles SQL query.

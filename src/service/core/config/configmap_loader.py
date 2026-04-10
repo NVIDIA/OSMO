@@ -16,7 +16,6 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-import copy
 import json
 import logging
 import os
@@ -28,13 +27,6 @@ from watchdog import events, observers
 
 from src.service.core.config import configmap_guard
 from src.utils import connectors
-
-
-# ---------------------------------------------------------------------------
-# Module-level config cache is in configmap_guard (avoids circular imports
-# since postgres.py needs to read configs but configmap_loader imports
-# from connectors/postgres). See configmap_guard.get_snapshot().
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -129,11 +121,11 @@ class ConfigMapWatcher:
 
         if not raw_config or not isinstance(raw_config, dict):
             logging.warning(
-                'Dynamic config file %s is empty or invalid',
+                'Config file %s is empty or invalid',
                 self._config_file_path)
             return False
 
-        managed_configs = copy.deepcopy(raw_config)
+        managed_configs = raw_config
 
         # Resolve secret file references (reads mounted K8s Secret files)
         for section in managed_configs.values():
@@ -194,7 +186,6 @@ class ConfigMapWatcher:
                 service_config[field] = prev_service[field]
 
 
-
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -243,7 +234,7 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# Secret resolution (kept from original)
+# Secret resolution
 # ---------------------------------------------------------------------------
 
 def _resolve_secret_file_references(config_data: Dict[str, Any],
