@@ -218,7 +218,7 @@ spec:
           readOnly: true
         {{- end }}
         {{- if .Values.services.dynamicConfig.dataset }}
-        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.config.buckets }}
+        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.buckets }}
         {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
         {{- if $bucketConfig.default_credential.credentialSecretName }}
         - name: {{ $bucketConfig.default_credential.credentialSecretName }}
@@ -230,8 +230,8 @@ spec:
         {{- end }}
         {{- $allSecretNames := dict }}
         {{- if .Values.services.dynamicConfig.workflow }}
-        {{- if .Values.services.dynamicConfig.workflow.config }}
-        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow.config }}
+        {{- if .Values.services.dynamicConfig.workflow }}
+        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow }}
         {{- range (splitList "," $wfSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
@@ -240,8 +240,8 @@ spec:
         {{- end }}
         {{- end }}
         {{- if .Values.services.dynamicConfig.service }}
-        {{- if .Values.services.dynamicConfig.service.config }}
-        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service.config }}
+        {{- if .Values.services.dynamicConfig.service }}
+        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service }}
         {{- range (splitList "," $svcSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
@@ -327,7 +327,7 @@ spec:
             secretName: {{ $.Values.services.service.serviceName }}-dynamic-secret-{{ $name }}
         {{- end }}
         {{- if .Values.services.dynamicConfig.dataset }}
-        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.config.buckets }}
+        {{- range $bucketName, $bucketConfig := .Values.services.dynamicConfig.dataset.buckets }}
         {{- if and (kindIs "map" $bucketConfig) $bucketConfig.default_credential }}
         {{- if $bucketConfig.default_credential.credentialSecretName }}
         - name: {{ $bucketConfig.default_credential.credentialSecretName }}
@@ -340,8 +340,8 @@ spec:
         {{- end }}
         {{- $allSecretNames := dict }}
         {{- if .Values.services.dynamicConfig.workflow }}
-        {{- if .Values.services.dynamicConfig.workflow.config }}
-        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow.config }}
+        {{- if .Values.services.dynamicConfig.workflow }}
+        {{- $wfSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.workflow }}
         {{- range (splitList "," $wfSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
@@ -350,8 +350,8 @@ spec:
         {{- end }}
         {{- end }}
         {{- if .Values.services.dynamicConfig.service }}
-        {{- if .Values.services.dynamicConfig.service.config }}
-        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service.config }}
+        {{- if .Values.services.dynamicConfig.service }}
+        {{- $svcSecrets := include "osmo.collect-secret-names" .Values.services.dynamicConfig.service }}
         {{- range (splitList "," $svcSecrets) }}
         {{- if . }}
         {{- $_ := set $allSecretNames . "1" }}
