@@ -118,6 +118,10 @@ class StandaloneExecutor:
     def load_spec(self, spec_text: str) -> workflow_module.WorkflowSpec:
         """Parse raw YAML text into a validated WorkflowSpec via the versioned spec model."""
         raw = yaml.safe_load(spec_text)
+        if not isinstance(raw, dict):
+            raise ValueError(
+                f'Expected a YAML mapping for the workflow spec, '
+                f'got {type(raw).__name__}')
         versioned = workflow_module.VersionedWorkflowSpec(**raw)
         return versioned.workflow
 
@@ -569,16 +573,17 @@ def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
         work_dir = tempfile.mkdtemp(prefix='osmo-standalone-')
         logger.info('Using temporary work directory: %s', work_dir)
 
-    executor = StandaloneExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                                   docker_cmd=docker_cmd, shm_size=shm_size)
-    spec = executor.load_spec(spec_text)
-    success = executor.execute(spec, resume=resume or from_step is not None,
-                               from_step=from_step)
-
-    if created_work_dir and not keep_work_dir and success:
-        logger.info('Cleaning up work directory: %s', work_dir)
-        shutil.rmtree(work_dir, ignore_errors=True)
-    elif not success:
-        logger.info('Work directory preserved for debugging: %s', work_dir)
+    success = False
+    try:
+        executor = StandaloneExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
+                                       docker_cmd=docker_cmd, shm_size=shm_size)
+        spec = executor.load_spec(spec_text)
+        success = executor.execute(spec, resume=resume or from_step is not None,
+                                   from_step=from_step)
+    finally:
+        if created_work_dir and not keep_work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        elif not success:
+            logger.info('Work directory preserved for debugging: %s', work_dir)
 
     return success

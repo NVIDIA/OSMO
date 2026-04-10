@@ -86,6 +86,10 @@ class ComposeExecutor(StandaloneExecutor):
     def execute(self, spec: workflow_module.WorkflowSpec,
                 resume: bool = False, from_step: str | None = None) -> bool:
         """Run all tasks in wave-parallel order via Docker Compose."""
+        if resume or from_step:
+            raise NotImplementedError(
+                'docker-compose mode does not support --resume or --from-step yet. '
+                'Use standalone mode for resume functionality.')
         self._results.clear()
         self._build_dag(spec)
         self._validate_for_compose(spec)
@@ -513,15 +517,16 @@ def run_workflow_compose(spec_path: str, work_dir: str | None = None,
         work_dir = tempfile.mkdtemp(prefix='osmo-compose-')
         logger.info('Using temporary work directory: %s', work_dir)
 
-    executor = ComposeExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
-                                compose_cmd=compose_cmd, shm_size=shm_size)
-    spec = executor.load_spec(spec_text)
-    success = executor.execute(spec)
-
-    if created_work_dir and not keep_work_dir and success:
-        logger.info('Cleaning up work directory: %s', work_dir)
-        shutil.rmtree(work_dir, ignore_errors=True)
-    elif not success:
-        logger.info('Work directory preserved for debugging: %s', work_dir)
+    success = False
+    try:
+        executor = ComposeExecutor(work_dir=work_dir, keep_work_dir=keep_work_dir,
+                                    compose_cmd=compose_cmd, shm_size=shm_size)
+        spec = executor.load_spec(spec_text)
+        success = executor.execute(spec)
+    finally:
+        if created_work_dir and not keep_work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        elif not success:
+            logger.info('Work directory preserved for debugging: %s', work_dir)
 
     return success

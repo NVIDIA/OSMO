@@ -37,6 +37,7 @@ osmo_py_library(
         "dataset.py",
         "editor.py",
         "formatters.py",
+        "docker_compose.py",
         "standalone.py",
         "login.py",
         "main_parser.py",
@@ -74,6 +75,7 @@ osmo_py_library(
         "//src/lib/utils:validation",
         "//src/lib/utils:version",
         "//src/lib/utils:workflow",
+        "//src/utils:compose_executor",
         "//src/utils:standalone_executor",
     ],
 )
