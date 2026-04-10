@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -130,7 +130,7 @@ class SandboxedWorker:
             except MemoryError:
                 try:
                     self._child_conn.send(WorkResult(
-                        MemoryError("Result too large to serialize within memory limit"),
+                        MemoryError('Result too large to serialize within memory limit'),
                         is_exception=True))
                 except (MemoryError, EOFError):
                     break
@@ -173,10 +173,10 @@ class SandboxedWorker:
 
         try:
             result = self._parent_conn.recv()
-        except EOFError:
+        except EOFError as exc:
             self._restart()
             raise MemoryError(
-                f'Sandboxed process exceeded memory limit of {self._jinja_memory} bytes')
+                f'Sandboxed process exceeded memory limit of {self._jinja_memory} bytes') from exc
 
         # If the process has died, then restart it and throw an exception
         if not self._process.is_alive():
