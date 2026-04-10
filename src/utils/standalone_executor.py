@@ -135,6 +135,7 @@ class StandaloneExecutor:
 
         if resume or from_step:
             self._restore_completed_tasks(from_step)
+            self._clean_rerun_output_dirs()
 
         total_tasks = sum(len(g.tasks) for g in self._groups(spec))
         skipped = len(self._results)
@@ -249,6 +250,16 @@ class StandaloneExecutor:
                     visited.add(downstream)
                     queue.append(downstream)
         return visited
+
+    def _clean_rerun_output_dirs(self):
+        """Remove output directories for tasks that will be re-executed so no stale artifacts remain."""
+        tasks_to_rerun = set(self._task_nodes.keys()) - set(self._results.keys())
+        for task_name in tasks_to_rerun:
+            output_dir = os.path.join(self._work_dir, task_name, 'output')
+            if os.path.isdir(output_dir):
+                shutil.rmtree(output_dir)
+                os.makedirs(output_dir, exist_ok=True)
+                logger.debug('Cleaned output directory for task "%s"', task_name)
 
     def _groups(self, spec: workflow_module.WorkflowSpec) -> List[task_module.TaskGroupSpec]:
         """Return the spec's groups, or synthesize one group per task when groups are absent."""
@@ -417,6 +428,8 @@ class StandaloneExecutor:
     def _task_gpu_count(self, task_spec: task_module.TaskSpec,
                         spec: workflow_module.WorkflowSpec) -> int:
         """Return the number of GPUs requested by a task's resource spec, defaulting to 0."""
+        if task_spec.resources.gpu:
+            return task_spec.resources.gpu
         resource_spec = spec.resources.get(task_spec.resource)
         if resource_spec and resource_spec.gpu:
             return resource_spec.gpu
@@ -463,9 +476,9 @@ class StandaloneExecutor:
                 logger.warning(
                     'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
                     node.name, gpu_count, available, available)
-                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(available))}']
+                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(available))}"']
             else:
-                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(gpu_count))}']
+                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
             logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
             docker_args += ['--shm-size', self._shm_size or self.DEFAULT_SHM_SIZE]
