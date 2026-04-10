@@ -9,10 +9,10 @@ from typing import Any
 from unittest.mock import patch
 
 from src.scripts.testbot.respond import (
+    _extract_replies,
     _has_trigger,
     build_prompt,
     filter_actionable,
-    parse_replies,
     run_claude,
     sanitize_commit_message,
 )
@@ -187,85 +187,104 @@ class TestFilterActionable(unittest.TestCase):
         result = filter_actionable(threads, "/testbot", max_responses=2)
         self.assertEqual(len(result), 2)
 
+    def test_trigger_with_coderabbit_followup(self):
+        """CodeRabbit posting after /testbot should not cause skip."""
+        comments = [
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "I suggest refactoring...", "author": "coderabbitai[bot]", "association": "NONE"},
+        ]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["reply_comment_id"], 100)
 
-class TestParseReplies(unittest.TestCase):
-    """Tests for parse_replies 3-tier fallback."""
+    def test_trigger_handled_then_coderabbit_followup(self):
+        """After bot replied, CodeRabbit followup should not re-trigger."""
+        comments = [
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "Fix applied.", "author": "svc-osmo-ci", "association": "NONE"},
+            {"id": 300, "body": "I suggest refactoring...", "author": "coderabbitai[bot]", "association": "NONE"},
+        ]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(result, [])
 
-    def _make_comments(self):
-        return [{"reply_comment_id": 123, "path": "foo.py", "line": 10}]
+    def test_new_trigger_after_bot_reply(self):
+        """New /testbot after bot reply should be actionable."""
+        comments = [
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "Fix applied.", "author": "svc-osmo-ci", "association": "NONE"},
+            {"id": 300, "body": "/testbot try again", "author": "jiaenren", "association": "MEMBER"},
+        ]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["reply_comment_id"], 300)
+
+
+class TestExtractReplies(unittest.TestCase):
+    """Tests for _extract_replies tiered fallback."""
 
     def test_tier1_structured_output(self):
         claude_output = {
             "structured_output": {
                 "replies": [
-                    {"comment_id": 123, "reply": "Fixed.", "resolve": True},
+                    {"thread_id": "123", "reply": "Added edge case tests."},
+                    {"thread_id": "456", "reply": "Fixed the assertion."},
                 ],
             },
         }
-        result = parse_replies(claude_output, self._make_comments())
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["comment_id"], 123)
-        self.assertEqual(result[0]["reply"], "Fixed.")
-        self.assertTrue(result[0]["resolve"])
+        result = _extract_replies(claude_output)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result["123"], "Added edge case tests.")
+        self.assertEqual(result["456"], "Fixed the assertion.")
 
     def test_tier1_empty_replies_falls_through(self):
         claude_output: dict[str, Any] = {"structured_output": {"replies": []}}
-        result = parse_replies(claude_output, self._make_comments())
-        self.assertEqual(result, [])
+        self.assertEqual(_extract_replies(claude_output), {})
 
-    def test_tier1_structured_output_not_dict_falls_through(self):
+    def test_tier1_not_dict_falls_through(self):
         claude_output = {"structured_output": "not a dict", "result": ""}
-        result = parse_replies(claude_output, self._make_comments())
-        self.assertEqual(result, [])
+        self.assertEqual(_extract_replies(claude_output), {})
 
     def test_tier2_json_in_result_text(self):
-        replies_json = json.dumps({
-            "replies": [{"comment_id": 456, "reply": "Done.", "resolve": True}],
+        data = json.dumps({
+            "replies": [{"thread_id": "789", "reply": "Done."}],
         })
-        claude_output = {"result": f"Here is the output: {replies_json}"}
-        result = parse_replies(claude_output, self._make_comments())
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["comment_id"], 456)
+        claude_output = {"result": f"Here is the output: {data}"}
+        result = _extract_replies(claude_output)
+        self.assertEqual(result["789"], "Done.")
 
-    def test_tier2_no_replies_key_falls_through(self):
+    def test_tier2_no_replies_key(self):
         claude_output = {"result": '{"other_key": "value"}'}
-        comments = self._make_comments()
-        result = parse_replies(claude_output, comments)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["comment_id"], 123)
-        self.assertFalse(result[0]["resolve"])
+        self.assertEqual(_extract_replies(claude_output), {})
 
-    def test_tier2_malformed_json_falls_through(self):
+    def test_tier2_malformed_json(self):
         claude_output = {"result": "this is {not valid json"}
-        comments = self._make_comments()
-        result = parse_replies(claude_output, comments)
-        self.assertEqual(len(result), 1)
-        self.assertFalse(result[0]["resolve"])
+        self.assertEqual(_extract_replies(claude_output), {})
 
-    def test_tier3_raw_text_fallback(self):
-        claude_output = {"result": "I made some changes to the test file."}
-        comments = self._make_comments()
-        result = parse_replies(claude_output, comments)
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["comment_id"], 123)
-        self.assertIn("I made some changes", result[0]["reply"])
-        self.assertFalse(result[0]["resolve"])
+    def test_skips_entries_without_thread_id(self):
+        claude_output = {
+            "structured_output": {
+                "replies": [{"reply": "no thread id"}],
+            },
+        }
+        self.assertEqual(_extract_replies(claude_output), {})
 
-    def test_tier3_truncates_long_text(self):
-        claude_output = {"result": "x" * 3000}
-        comments = self._make_comments()
-        result = parse_replies(claude_output, comments)
-        self.assertEqual(len(result[0]["reply"]), 2000)
+    def test_skips_entries_without_reply(self):
+        claude_output = {
+            "structured_output": {
+                "replies": [{"thread_id": "123", "reply": ""}],
+            },
+        }
+        self.assertEqual(_extract_replies(claude_output), {})
 
-    def test_all_tiers_fail_returns_empty(self):
+    def test_empty_output(self):
+        self.assertEqual(_extract_replies({}), {})
+
+    def test_no_result_no_structured(self):
         claude_output = {"result": ""}
-        result = parse_replies(claude_output, self._make_comments())
-        self.assertEqual(result, [])
-
-    def test_no_result_no_structured_returns_empty(self):
-        claude_output: dict[str, Any] = {}
-        result = parse_replies(claude_output, self._make_comments())
-        self.assertEqual(result, [])
+        self.assertEqual(_extract_replies(claude_output), {})
 
 
 class TestBuildPrompt(unittest.TestCase):
