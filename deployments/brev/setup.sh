@@ -71,11 +71,15 @@ LOCALSTACK_S3_REGION="us-east-1"
 # ============================================
 print_status "Configuring system settings..."
 
-# Increase inotify limits to prevent "too many open files" errors
-print_status "Setting inotify limits..."
-echo "fs.inotify.max_user_watches=1048576" | sudo tee -a /etc/sysctl.conf
-echo "fs.inotify.max_user_instances=512" | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p
+# Increase inotify limits to prevent "too many open files" errors — only if not already set
+if ! grep -q "fs.inotify.max_user_watches=1048576" /etc/sysctl.conf 2>/dev/null; then
+    print_status "Setting inotify limits..."
+    echo "fs.inotify.max_user_watches=1048576" | sudo tee -a /etc/sysctl.conf
+    echo "fs.inotify.max_user_instances=512" | sudo tee -a /etc/sysctl.conf
+    sudo sysctl -p
+else
+    print_status "inotify limits already configured"
+fi
 
 # Ensure user has Docker permissions
 print_status "Checking Docker permissions..."
@@ -122,32 +126,82 @@ TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 print_status "Working in temporary directory: $TEMP_DIR"
 
-# Install KIND
+# --- Launch parallel downloads for tools we need ---
+
+PIDS=()
+
+# Download KIND
 if ! command_exists kind; then
-    print_status "Installing KIND..."
-    curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
-    chmod +x ./kind
-    sudo mv ./kind /usr/local/bin/kind
-else
-    print_status "KIND already installed: $(kind --version)"
+    print_status "Downloading KIND..."
+    (curl -sLo "$TEMP_DIR/kind" https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64) &
+    PIDS+=($!)
 fi
 
-# Install kubectl
+# Download kubectl
 if ! command_exists kubectl; then
-    print_status "Installing kubectl..."
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    chmod +x ./kubectl
-    sudo mv ./kubectl /usr/local/bin/kubectl
-else
-    print_status "kubectl already installed: $(kubectl version --client --short 2>/dev/null || kubectl version --client)"
+    print_status "Downloading kubectl..."
+    (KUBECTL_VERSION=$(curl -sL https://dl.k8s.io/release/stable.txt) && \
+     curl -sLo "$TEMP_DIR/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl") &
+    PIDS+=($!)
 fi
 
-# Install helm
+# Download helm
 if ! command_exists helm; then
-    print_status "Installing Helm..."
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    print_status "Downloading Helm..."
+    (curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o "$TEMP_DIR/get-helm.sh") &
+    PIDS+=($!)
+fi
+
+# Download Go (needed for nvkind)
+if ! command_exists nvkind && ! command_exists go; then
+    print_status "Downloading Go..."
+    GO_VERSION="1.23.4"
+    (wget -q -O "$TEMP_DIR/go.tar.gz" https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz) &
+    PIDS+=($!)
+fi
+
+# Wait for all parallel downloads
+if [ ${#PIDS[@]} -gt 0 ]; then
+    print_status "Waiting for ${#PIDS[@]} parallel downloads..."
+    for pid in "${PIDS[@]}"; do
+        wait "$pid" || { print_error "A download failed (PID $pid)"; exit 1; }
+    done
+    print_status "All downloads complete"
+fi
+
+# --- Install downloaded tools ---
+
+if ! command_exists kind && [ -f "$TEMP_DIR/kind" ]; then
+    chmod +x "$TEMP_DIR/kind"
+    sudo mv "$TEMP_DIR/kind" /usr/local/bin/kind
+    print_status "KIND installed: $(kind --version)"
 else
-    print_status "Helm already installed: $(helm version --short)"
+    command_exists kind && print_status "KIND already installed: $(kind --version)"
+fi
+
+if ! command_exists kubectl && [ -f "$TEMP_DIR/kubectl" ]; then
+    chmod +x "$TEMP_DIR/kubectl"
+    sudo mv "$TEMP_DIR/kubectl" /usr/local/bin/kubectl
+    print_status "kubectl installed"
+else
+    command_exists kubectl && print_status "kubectl already installed"
+fi
+
+if ! command_exists helm && [ -f "$TEMP_DIR/get-helm.sh" ]; then
+    bash "$TEMP_DIR/get-helm.sh"
+    print_status "Helm installed: $(helm version --short)"
+else
+    command_exists helm && print_status "Helm already installed: $(helm version --short)"
+fi
+
+# Install Go if needed
+if ! command_exists nvkind && ! command_exists go && [ -f "$TEMP_DIR/go.tar.gz" ]; then
+    print_status "Installing Go..."
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf "$TEMP_DIR/go.tar.gz"
+    export PATH=$PATH:/usr/local/go/bin
+    # shellcheck disable=SC2016
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 fi
 
 # Install or upgrade nvidia-container-toolkit to version 1.18+
@@ -261,25 +315,16 @@ print_status "nvidia-ctk version: $NVIDIA_CTK_VERSION"
 if ! command_exists nvkind; then
     print_status "Installing nvkind..."
 
-    # Check if Go is installed
     if ! command_exists go; then
-        print_status "Installing Go (required for nvkind)..."
-        GO_VERSION="1.23.4"
-        wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
-        sudo rm -rf /usr/local/go
-        sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
-        export PATH=$PATH:/usr/local/go/bin
-        # shellcheck disable=SC2016
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+        print_error "Go is required for nvkind but was not installed"
+        exit 1
     fi
 
-    print_status "Installing nvkind via go install..."
     go install github.com/NVIDIA/nvkind/cmd/nvkind@latest
     GOPATH_BIN=$(go env GOPATH)/bin
     export PATH="$PATH:$GOPATH_BIN"
     # shellcheck disable=SC2016
     echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
-    cd ..
 else
     print_status "nvkind already installed"
 fi
@@ -347,13 +392,6 @@ nodes:
         kubeletExtraArgs:
           node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
   - role: worker
-    kubeadmConfigPatches:
-    - |
-      kind: JoinConfiguration
-      nodeRegistration:
-        kubeletExtraArgs:
-          node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
-  - role: worker
     extraMounts:
       - hostPath: /dev/null
         containerPath: /var/run/nvidia-container-devices/all
@@ -393,38 +431,51 @@ else
 fi
 
 # ============================================
-# Step 4: Install GPU Operator
+# Step 4+5: Install GPU Operator and KAI Scheduler
 # ============================================
-print_status "Installing GPU Operator..."
+print_status "Installing GPU Operator and KAI Scheduler concurrently..."
 
 cd ~/osmo-deployment
 helm fetch https://helm.ngc.nvidia.com/nvidia/charts/gpu-operator-${GPU_OPERATOR_VERSION}.tgz
 
+# GPU Operator (background, no --wait)
 helm upgrade --install gpu-operator gpu-operator-${GPU_OPERATOR_VERSION}.tgz \
   --namespace gpu-operator \
   --create-namespace \
   --set driver.enabled=false \
   --set toolkit.enabled=false \
-  --set nfd.enabled=true \
-  --wait
+  --set nfd.enabled=true &
+GPU_OP_PID=$!
 
-print_status "GPU Operator installed successfully"
-
-# ============================================
-# Step 5: Install KAI Scheduler
-# ============================================
-print_status "Installing KAI Scheduler..."
-
+# KAI Scheduler (background, no --wait)
 helm upgrade --install kai-scheduler \
   oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
   --version ${KAI_SCHEDULER_VERSION} \
   --create-namespace -n kai-scheduler \
   --set global.nodeSelector.node_group=kai-scheduler \
   --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-  --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
-  --wait
+  --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" &
+KAI_PID=$!
 
-print_status "KAI Scheduler installed successfully"
+# Wait for both helm install commands to finish (not pods, just the helm CLI)
+wait $GPU_OP_PID || { print_error "GPU Operator helm install failed"; exit 1; }
+print_status "GPU Operator helm install submitted"
+
+wait $KAI_PID || { print_error "KAI Scheduler helm install failed"; exit 1; }
+print_status "KAI Scheduler helm install submitted"
+
+# Now wait for pods to be ready (in parallel with the wait)
+print_status "Waiting for GPU Operator and KAI Scheduler pods..."
+kubectl -n gpu-operator wait --for=condition=Available deployment --all --timeout=300s &
+GPU_WAIT_PID=$!
+kubectl -n kai-scheduler wait --for=condition=Available deployment --all --timeout=300s &
+KAI_WAIT_PID=$!
+
+wait $GPU_WAIT_PID || { print_error "GPU Operator pods failed to become ready"; exit 1; }
+print_status "GPU Operator ready"
+
+wait $KAI_WAIT_PID || { print_error "KAI Scheduler pods failed to become ready"; exit 1; }
+print_status "KAI Scheduler ready"
 
 # ============================================
 # Step 6: Install OSMO
