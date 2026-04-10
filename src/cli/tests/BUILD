@@ -37,3 +37,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_access_token",
+    srcs = [
+        "test_access_token.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
