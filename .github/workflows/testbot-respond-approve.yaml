@@ -19,9 +19,11 @@
 # Runs from main via workflow_run, so PR authors cannot tamper
 # with this logic.
 #
-# NVIDIA_ORG_MEMBER_READ_TOKEN requires read:org + repo scopes.
-# The token owner (svc-osmo-ci) must be listed as a required
-# reviewer on the 'testbot-respond' environment.
+# Uses two tokens with narrow scopes:
+#   - NVIDIA_ORG_MEMBER_READ_TOKEN (read:org) for team membership checks
+#   - SVC_OSMO_CI_TOKEN (repo) for run status, deployments, and approval
+# The SVC_OSMO_CI_TOKEN owner (svc-osmo-ci) must be listed as a
+# required reviewer on the 'testbot-respond' environment.
 name: Testbot - Auto-approve Respond
 
 on:
@@ -34,10 +36,18 @@ permissions: {}  # All API calls use PAT; GITHUB_TOKEN needs no permissions
 
 jobs:
   auto-approve:
+    # Skip runs that need workflow-level "Approve and run" (external bots)
+    # or were already skipped (if: condition failed in respond workflow).
+    # These conclusions are set at run creation, so the payload has them.
+    if: >-
+      github.event.workflow_run.conclusion != 'action_required' &&
+      github.event.workflow_run.conclusion != 'skipped'
     runs-on: ubuntu-latest
     steps:
       - name: Check membership and approve
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          SVC_OSMO_CI_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
         with:
           github-token: ${{ secrets.NVIDIA_ORG_MEMBER_READ_TOKEN }}
           script: |
@@ -46,8 +56,13 @@ jobs:
             const { owner, repo } = context.repo;
             core.info(`Triggering actor: ${actor}`);
 
+            // SVC_OSMO_CI_TOKEN (repo scope) for run status, deployments, approval.
+            // NVIDIA_ORG_MEMBER_READ_TOKEN (read:org) is the default `github` client.
+            const { getOctokit } = require('@actions/github');
+            const repoClient = getOctokit(process.env.SVC_OSMO_CI_TOKEN);
+
             // Check if the run was already cancelled (e.g., by cancel-in-progress)
-            const { data: currentRun } = await github.rest.actions.getWorkflowRun({
+            const { data: currentRun } = await repoClient.rest.actions.getWorkflowRun({
               owner,
               repo,
               run_id: run.id,
@@ -70,7 +85,7 @@ jobs:
             const isTrustedBot = TRUSTED_BOTS.has(actor);
 
             if (!isTrustedBot) {
-              // Check NVIDIA/osmo-dev team membership (200 = active/pending, 404 = not)
+              // Uses default `github` client (NVIDIA_ORG_MEMBER_READ_TOKEN, read:org)
               try {
                 const { data: membership } = await github.rest.teams.getMembershipForUserInOrg({
                   org: 'NVIDIA',
@@ -98,7 +113,7 @@ jobs:
             // avoid thundering-herd if multiple runs trigger simultaneously.
             let deployments = [];
             for (let attempt = 1; attempt <= 12; attempt++) {
-              const { data } = await github.rest.actions.getPendingDeploymentsForRun({
+              const { data } = await repoClient.rest.actions.getPendingDeploymentsForRun({
                 owner,
                 repo,
                 run_id: run.id,
@@ -131,7 +146,7 @@ jobs:
             }
 
             try {
-              await github.rest.actions.reviewPendingDeploymentsForRun({
+              await repoClient.rest.actions.reviewPendingDeploymentsForRun({
                 owner,
                 repo,
                 run_id: run.id,
