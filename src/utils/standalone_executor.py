@@ -139,6 +139,14 @@ class StandaloneExecutor:
             named_resource_dict = named_resource.model_dump(exclude_none=True) if named_resource else {}
             inline_resource_dict = task_spec.resources.model_dump(exclude_defaults=True)
             effective_resource = {**named_resource_dict, **inline_resource_dict}
+            credentials_data = {
+                cred_name: {
+                    'mount_path': cred_mount,
+                    'source': os.path.abspath(self._credentials[cred_name])
+                    if cred_name in self._credentials else None,
+                }
+                for cred_name, cred_mount in sorted(task_spec.credentials.items())
+            } if task_spec.credentials else {}
             fingerprint_data.append({
                 'name': name,
                 'image': task_spec.image,
@@ -149,6 +157,7 @@ class StandaloneExecutor:
                 'resource': task_spec.resource,
                 'resource_config': effective_resource,
                 'files': files_data,
+                'credentials': credentials_data,
             })
         blob = json.dumps(fingerprint_data, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
@@ -170,11 +179,11 @@ class StandaloneExecutor:
         self._build_dag(spec)
         self._workflow_fingerprint = self._compute_workflow_fingerprint(spec)
         self._validate_for_standalone(spec)
-        self._setup_directories()
 
         if resume or from_step:
             self._restore_completed_tasks(from_step)
 
+        self._setup_directories()
         self._clean_rerun_output_dirs()
 
         total_tasks = sum(len(g.tasks) for g in self._groups(spec))
@@ -402,6 +411,12 @@ class StandaloneExecutor:
     def _validate_for_standalone(self, spec: workflow_module.WorkflowSpec):
         """Raise ValueError if the spec uses features unsupported in standalone mode."""
         unsupported_features = []
+
+        if spec.timeout.exec_timeout is not None or spec.timeout.queue_timeout is not None:
+            unsupported_features.append(
+                'WorkflowSpec.timeout is not supported in standalone mode; '
+                'use the service executor or remove the timeout')
+
         for group in self._groups(spec):
             for task_spec in group.tasks:
                 for input_source in task_spec.inputs:
