@@ -75,7 +75,9 @@ class ComposeExecutor(StandaloneExecutor):
         return os.path.join(self._work_dir, COMPOSE_FILE_NAME)
 
     def _compose_project_name(self, spec: workflow_module.WorkflowSpec) -> str:
-        return f'osmo-{re.sub(r"[^a-z0-9-]", "-", spec.name.lower())}'
+        sanitized = re.sub(r'[^a-z0-9-]', '-', spec.name.lower())
+        sanitized = re.sub(r'-{2,}', '-', sanitized).strip('-')
+        return f'osmo-{sanitized}' if sanitized else 'osmo-default'
 
     def _compose_base_cmd(self, spec: workflow_module.WorkflowSpec) -> List[str]:
         return (
