@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from collections import deque
 from typing import Any, Dict, List, Set
 
@@ -124,23 +125,28 @@ class StandaloneExecutor:
             self._available_gpus = 0
         return self._available_gpus
 
-    def _compute_workflow_fingerprint(self) -> str:
+    def _compute_workflow_fingerprint(self, spec: workflow_module.WorkflowSpec) -> str:
         """Compute a deterministic SHA-256 hash from task specs to detect workflow changes across runs."""
         fingerprint_data: List[Dict[str, Any]] = []
         for name in sorted(self._task_nodes):
-            spec = self._task_nodes[name].spec
+            task_spec = self._task_nodes[name].spec
             files_data = [
                 {'path': f.path, 'contents': f.contents, 'base64': f.base64}
-                for f in sorted(spec.files, key=lambda f: f.path)
-            ] if spec.files else []
+                for f in sorted(task_spec.files, key=lambda f: f.path)
+            ] if task_spec.files else []
+            named_resource = spec.resources.get(task_spec.resource)
+            named_resource_dict = named_resource.model_dump(exclude_none=True) if named_resource else {}
+            inline_resource_dict = task_spec.resources.model_dump(exclude_defaults=True)
+            effective_resource = {**named_resource_dict, **inline_resource_dict}
             fingerprint_data.append({
                 'name': name,
-                'image': spec.image,
-                'command': spec.command,
-                'args': spec.args,
-                'environment': dict(sorted(spec.environment.items())),
-                'inputs': [str(i) for i in spec.inputs],
-                'resource': spec.resource,
+                'image': task_spec.image,
+                'command': task_spec.command,
+                'args': task_spec.args,
+                'environment': dict(sorted(task_spec.environment.items())),
+                'inputs': [str(i) for i in task_spec.inputs],
+                'resource': task_spec.resource,
+                'resource_config': effective_resource,
                 'files': files_data,
             })
         blob = json.dumps(fingerprint_data, sort_keys=True, separators=(',', ':'))
@@ -161,7 +167,7 @@ class StandaloneExecutor:
         """Run all tasks in topological order, returning True if the entire workflow succeeds."""
         self._results.clear()
         self._build_dag(spec)
-        self._workflow_fingerprint = self._compute_workflow_fingerprint()
+        self._workflow_fingerprint = self._compute_workflow_fingerprint(spec)
         self._validate_for_standalone(spec)
         self._setup_directories()
 
@@ -235,15 +241,37 @@ class StandaloneExecutor:
                 if result.exit_code != -1
             },
         }
-        with open(self._state_file_path, 'w', encoding='utf-8') as f:
+        tmp_path = self._state_file_path + '.tmp'
+        with open(tmp_path, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, self._state_file_path)
+        state_dir = os.path.dirname(self._state_file_path) or '.'
+        dir_fd = os.open(state_dir, os.O_RDONLY)
+        try:
+            os.fsync(dir_fd)
+        finally:
+            os.close(dir_fd)
 
     def _load_state(self) -> Dict | None:
-        """Load previously saved task state from disk, returning None if no state file exists."""
+        """Load previously saved task state from disk, returning None if no state file exists or if the file is corrupt."""
         if not os.path.exists(self._state_file_path):
             return None
-        with open(self._state_file_path, encoding='utf-8') as f:
-            return json.load(f)
+        try:
+            with open(self._state_file_path, encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as exc:
+            corrupt_path = f'{self._state_file_path}.corrupt.{int(time.time())}'
+            try:
+                os.rename(self._state_file_path, corrupt_path)
+                logger.warning(
+                    'State file is corrupt (%s); renamed to %s and starting fresh',
+                    exc, corrupt_path)
+            except OSError:
+                logger.warning(
+                    'State file is corrupt (%s); starting fresh', exc)
+            return None
 
     def _restore_completed_tasks(self, from_step: str | None = None):
         """Reload completed tasks from a previous run, optionally invalidating from a given step onward."""

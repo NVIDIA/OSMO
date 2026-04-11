@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -81,7 +82,7 @@ class ComposeExecutor(StandaloneExecutor):
 
     def _compose_base_cmd(self, spec: workflow_module.WorkflowSpec) -> List[str]:
         return (
-            self._compose_cmd.split()
+            shlex.split(self._compose_cmd)
             + ['-p', self._compose_project_name(spec), '-f', self._compose_file_path]
         )
 
