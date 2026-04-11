@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64 as base64_module
 import dataclasses
 import hashlib
 import json
@@ -173,7 +174,8 @@ class StandaloneExecutor:
 
         if resume or from_step:
             self._restore_completed_tasks(from_step)
-            self._clean_rerun_output_dirs()
+
+        self._clean_rerun_output_dirs()
 
         total_tasks = sum(len(g.tasks) for g in self._groups(spec))
         skipped = len(self._results)
@@ -537,8 +539,12 @@ class StandaloneExecutor:
                 raise ValueError(
                     f'Task "{node.name}": file path "{file_spec.path}" escapes the task directory')
             os.makedirs(os.path.dirname(host_path), exist_ok=True)
-            with open(host_path, 'w', encoding='utf-8') as f:
-                f.write(resolved_contents)
+            if file_spec.base64:
+                with open(host_path, 'wb') as f:
+                    f.write(base64_module.b64decode(resolved_contents))
+            else:
+                with open(host_path, 'w', encoding='utf-8') as f:
+                    f.write(resolved_contents)
 
         resolved_command = [self._substitute_tokens(c, token_map) for c in task_spec.command]
         resolved_args = [self._substitute_tokens(a, token_map) for a in task_spec.args]
