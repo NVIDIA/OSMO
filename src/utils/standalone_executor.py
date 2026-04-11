@@ -25,6 +25,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections import deque
 from typing import Any, Dict, List, Set
 
 import jinja2
@@ -128,6 +129,10 @@ class StandaloneExecutor:
         fingerprint_data: List[Dict[str, Any]] = []
         for name in sorted(self._task_nodes):
             spec = self._task_nodes[name].spec
+            files_data = [
+                {'path': f.path, 'contents': f.contents, 'base64': f.base64}
+                for f in sorted(spec.files, key=lambda f: f.path)
+            ] if spec.files else []
             fingerprint_data.append({
                 'name': name,
                 'image': spec.image,
@@ -136,6 +141,7 @@ class StandaloneExecutor:
                 'environment': dict(sorted(spec.environment.items())),
                 'inputs': [str(i) for i in spec.inputs],
                 'resource': spec.resource,
+                'files': files_data,
             })
         blob = json.dumps(fingerprint_data, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
@@ -280,9 +286,9 @@ class StandaloneExecutor:
     def _get_downstream_tasks(self, task_name: str) -> Set[str]:
         """Return all transitive downstream dependents of the given task via BFS."""
         visited: Set[str] = set()
-        queue = [task_name]
+        queue: deque[str] = deque([task_name])
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             for downstream in self._task_nodes[current].downstream:
                 if downstream not in visited:
                     visited.add(downstream)
@@ -466,9 +472,9 @@ class StandaloneExecutor:
     def _cancel_downstream(self, failed_task: str):
         """Mark all transitive downstream tasks of a failed task as cancelled (exit_code -1)."""
         visited: Set[str] = set()
-        queue = [failed_task]
+        queue: deque[str] = deque([failed_task])
         while queue:
-            current = queue.pop(0)
+            current = queue.popleft()
             for downstream in self._task_nodes[current].downstream:
                 if downstream not in visited and downstream not in self._results:
                     visited.add(downstream)

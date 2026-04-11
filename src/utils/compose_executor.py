@@ -497,6 +497,7 @@ class ComposeExecutor(StandaloneExecutor):
                 try:
                     container_info = json.loads(line)
                 except json.JSONDecodeError:
+                    logger.error('Failed to parse container info line as JSON: %s', line, exc_info=True)
                     continue
                 if isinstance(container_info, list):
                     for entry in container_info:
@@ -505,7 +506,9 @@ class ComposeExecutor(StandaloneExecutor):
                 elif container_info.get('Service') == service_name:
                     return container_info.get('ExitCode', 1)
 
-            logger.warning('No container info found for service "%s"', service_name)
+            logger.warning(
+                'No container info found for service "%s" in docker compose output:\n%s',
+                service_name, result.stdout.strip())
             return 1
         except (subprocess.TimeoutExpired, FileNotFoundError):
             logger.warning('Could not determine exit code for "%s"', service_name)
