@@ -279,8 +279,8 @@ def _info_resource(service_client: client.ServiceClient, args: argparse.Namespac
         allowed_mount_str = '\n'.join([f'- {mount}' for mount in platform_config['allowed_mounts']])
         print('\nTask Configurations\n'
             '-------------------\n'
-            f'Host Network Allowed: {platform_config["host_network"]}\n'
-            f'Privileged Mode Allowed: {platform_config["privileged"]}\n'
+            f'Host Network Allowed: {platform_config['host_network']}\n'
+            f'Privileged Mode Allowed: {platform_config['privileged']}\n'
             f'Default Mounts:\n{default_mount_str}\n'
             f'Allowed Mounts:\n{allowed_mount_str}\n')
     except KeyError:

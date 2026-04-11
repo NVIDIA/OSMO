@@ -64,6 +64,13 @@ _T = TypeVar('_T', bound='ThreadWorkerInput')  # Input object type
 _R = TypeVar('_R', bound='ThreadWorkerOutput')  # Result type
 
 
+def _get_multiprocessing_context() -> multiprocessing.context.BaseContext:
+    """
+    Use an explicit start method so executor behavior does not depend on Python defaults.
+    """
+    return multiprocessing.get_context('spawn')
+
+
 ###################################
 #   Executor Schemas (External)   #
 ###################################
@@ -539,6 +546,8 @@ def _run_multi_process_job(
     Execute a job in multiple processes, iterating inputs in chunks,
     with shared progress and a client pool.
     """
+    multiprocessing_context = _get_multiprocessing_context()
+
     def _execute(
         chunk_queue: queue.Queue[Iterable[_T] | None],
         log_queue: queue.Queue[logging.LogRecord | None],
@@ -550,7 +559,10 @@ def _run_multi_process_job(
         with JobContext[_T, _R]() as job_context:
 
             try:
-                with futures.ProcessPoolExecutor(process_worker_count) as process_executor:
+                with futures.ProcessPoolExecutor(
+                    process_worker_count,
+                    mp_context=multiprocessing_context,
+                ) as process_executor:
                     workers: Set[futures.Future[ProcessWorkerContext[_T, _R]]] = set()
 
                     def _start_worker() -> None:
@@ -661,7 +673,7 @@ def _run_multi_process_job(
 
             return job_context
 
-    with multiprocessing.Manager() as manager:
+    with multiprocessing_context.Manager() as manager:
         chunk_queue: queue.Queue[Iterable[_T] | None] = manager.Queue(chunk_queue_size)
         log_queue: queue.Queue[logging.LogRecord | None] = manager.Queue(log_queue_size)
 

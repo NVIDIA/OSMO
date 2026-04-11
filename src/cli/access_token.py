@@ -142,7 +142,7 @@ def _set_token(service_client: client.ServiceClient, args: argparse.Namespace):
         if args.user:
             print(f'Created for user: {args.user}')
         if args.roles:
-            print(f'Roles: {", ".join(args.roles)}')
+            print(f'Roles: {', '.join(args.roles)}')
 
 
 def _delete_token(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -209,8 +209,8 @@ def _list_token_roles(service_client: client.ServiceClient, args: argparse.Names
     if args.format_type == 'json':
         print(json.dumps(result, indent=2, default=str))
     else:
-        print(f'Token: {result.get("token_name", args.name)}')
-        print(f'Owner: {result.get("user_name", "-")}')
+        print(f'Token: {result.get('token_name', args.name)}')
+        print(f'Owner: {result.get('user_name', '-')}')
         roles = result.get('roles', [])
         if roles:
             print('\nRoles:')
@@ -218,7 +218,7 @@ def _list_token_roles(service_client: client.ServiceClient, args: argparse.Names
                 assigned_at = role.get('assigned_at', '-')
                 if assigned_at and assigned_at != '-':
                     assigned_at = assigned_at.split('T')[0]
-                print(f'  - {role.get("role_name")} (assigned by {role.get("assigned_by")} '
+                print(f'  - {role.get('role_name')} (assigned by {role.get('assigned_by')} '
                       f'on {assigned_at})')
         else:
             print('\nRoles: None')

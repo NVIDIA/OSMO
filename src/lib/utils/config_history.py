@@ -37,7 +37,7 @@ class ConfigHistoryType(enum.Enum):
 
 
 CONFIG_TYPES = sorted([t.value for t in ConfigHistoryType])
-CONFIG_TYPES_REGEX = rf'^({"|".join(CONFIG_TYPES)}):([1-9][0-9]*)$'
+CONFIG_TYPES_REGEX = rf'^({'|'.join(CONFIG_TYPES)}):([1-9][0-9]*)$'
 
 
 class ConfigHistoryRevision:
@@ -52,7 +52,7 @@ class ConfigHistoryRevision:
         if not parsed_revision:
             raise osmo_errors.OSMOUserError(
                 f'Invalid revision "{revision}": expected <CONFIG_TYPE>:<revision> where ' +
-                f'<CONFIG_TYPE> is one of {", ".join(CONFIG_TYPES)}')
+                f'<CONFIG_TYPE> is one of {', '.join(CONFIG_TYPES)}')
 
         self.config_type = ConfigHistoryType(parsed_revision.group(1).upper())
         self.revision = int(parsed_revision.group(2))

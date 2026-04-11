@@ -287,8 +287,8 @@ def _update_app(service_client: client.ServiceClient, args: argparse.Namespace):
             client.RequestMethod.PATCH,
             f'api/app/user/{app_info.name}',
             payload=app_content)
-        print(f'App {app_result["name"]} updated successfully')
-        print(f'Version: {app_result["version"]}')
+        print(f'App {app_result['name']} updated successfully')
+        print(f'Version: {app_result['version']}')
     except Exception as e:  # pylint: disable=broad-except
         file_name = editor.save_to_temp_file(app_content, suffix='.yaml')
         raise osmo_errors.OSMOUserError(
@@ -312,11 +312,11 @@ def _info_app(service_client: client.ServiceClient, args: argparse.Namespace):
     else:
         print('-----------------------------------------------------\n')
         print(f'Name: {app_info.name}\n'
-              f'UUID: {app_result["uuid"]}\n'
-              f'Owner: {app_result["owner"]}\n'
+              f'UUID: {app_result['uuid']}\n'
+              f'Owner: {app_result['owner']}\n'
               f'Create Date: '
-              f'{common.convert_utc_datetime_to_user_zone(app_result["created_date"])}\n'
-              f'Description: {app_result["description"]}\n')
+              f'{common.convert_utc_datetime_to_user_zone(app_result['created_date'])}\n'
+              f'Description: {app_result['description']}\n')
 
         key_mapping = {'Version': 'version',
                        'Created By': 'created_by',
@@ -353,7 +353,7 @@ def _show_app(service_client: client.ServiceClient, args: argparse.Namespace):
 
     default_values = workflow_utils.fetch_default_values(app_spec_result)
 
-    print(f'DESCRIPTION\n{common.TAB}{app_info_result["description"]}\n')
+    print(f'DESCRIPTION\n{common.TAB}{app_info_result['description']}\n')
     if default_values:
         print('PARAMETERS')
         # Add common.TAB after every newline that is not already followed by a space or tab

@@ -221,9 +221,9 @@ class ListEntry(pydantic.BaseModel):
         """ Create ListEntry from the DB query result. """
         context = WorkflowServiceContext.get()
         config = context.config
-        overview = f'{base_url}/workflows/{row["workflow_id"]}'
+        overview = f'{base_url}/workflows/{row['workflow_id']}'
         if config.method == 'dev':
-            overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
+            overview = f'{base_url}/api/workflow/{row['workflow_id']}'
         return ListEntry.model_construct(
             user=row['submitted_by'], name=row['workflow_id'],
             workflow_uuid=row['workflow_uuid'],
@@ -233,8 +233,8 @@ class ListEntry(pydantic.BaseModel):
             queued_time=get_workflow_queued_time(row, use_raw_row=True),
             duration=get_workflow_duration(row, use_raw_row=True),
             overview=overview,
-            logs=f'{base_url}/api/workflow/{row["workflow_id"]}/logs',
-            error_logs=f'{base_url}/api/workflow/{row["workflow_id"]}/error_logs' if \
+            logs=f'{base_url}/api/workflow/{row['workflow_id']}/logs',
+            error_logs=f'{base_url}/api/workflow/{row['workflow_id']}/error_logs' if \
                 str(row['status']).startswith('FAILED') else None,
             grafana_url=generate_grafana_url(
                 row['workflow_uuid'], row['backend'], row['start_time'],
@@ -373,9 +373,9 @@ class ListTaskEntry(pydantic.BaseModel):
         """ Create ListEntry from the DB query result. """
         context = WorkflowServiceContext.get()
         config = context.config
-        overview = f'{base_url}/workflows/{row["workflow_id"]}'
+        overview = f'{base_url}/workflows/{row['workflow_id']}'
         if config.method == 'dev':
-            overview = f'{base_url}/api/workflow/{row["workflow_id"]}'
+            overview = f'{base_url}/api/workflow/{row['workflow_id']}'
         return ListTaskEntry.model_construct(
             user=row['submitted_by'],
             workflow_id=row['workflow_id'],
@@ -389,9 +389,9 @@ class ListTaskEntry(pydantic.BaseModel):
             status=task.TaskGroupStatus(row['status']),
             duration=get_workflow_duration(row, use_raw_row=True),
             overview=overview,
-            logs=f'{base_url}/api/workflow/{row["workflow_id"]}/logs?task_name={row["name"]}',
+            logs=f'{base_url}/api/workflow/{row['workflow_id']}/logs?task_name={row['name']}',
             error_logs=
-                f'{base_url}/api/workflow/{row["workflow_id"]}/error_logs?task_name={row["name"]}'\
+                f'{base_url}/api/workflow/{row['workflow_id']}/error_logs?task_name={row['name']}'\
                 if str(row['status']).startswith('FAILED') else None,
             grafana_url=generate_grafana_url(
                 row['workflow_uuid'], row['backend'], row['start_time'],
@@ -1154,14 +1154,14 @@ def get_groups(database: connectors.PostgresConnector,
             name=task_row['name'], retry_id=task_row['retry_id'], status=task_row['status'],
             failure_message=task_row['failure_message'],
             exit_code=task_row['exit_code'],
-            logs=fr'{logs}&task_name={task_row["name"]}&retry_id={task_row["retry_id"]}',
-            error_logs=f'{base_url}/api/workflow/{task_row["workflow_id"]}/' +
-                    f'error_logs?task_name={task_row["name"]}&retry_id={task_row["retry_id"]}' if \
+            logs=fr'{logs}&task_name={task_row['name']}&retry_id={task_row['retry_id']}',
+            error_logs=f'{base_url}/api/workflow/{task_row['workflow_id']}/' +
+                    f'error_logs?task_name={task_row['name']}&retry_id={task_row['retry_id']}' if \
                     task.TaskGroupStatus[task_row['status']].has_error_logs() else None,
             processing_start_time=group_row['processing_start_time'],
             scheduling_start_time=task_row['scheduling_start_time'],
             initializing_start_time=task_row['initializing_start_time'],
-            events=fr'{events}?task_name={task_row["name"]}&retry_id={task_row["retry_id"]}',
+            events=fr'{events}?task_name={task_row['name']}&retry_id={task_row['retry_id']}',
             start_time=task_row['start_time'],
             end_time=task_row['end_time'],
             input_download_start_time=task_row['input_download_start_time'],

@@ -268,6 +268,7 @@ class PostgresConnector:
                 database=self.config.postgres_database_name,
                 user=self.config.postgres_user,
                 password=self.config.postgres_password,
+                gssencmode='disable',
                 options=f'-csearch_path={search_path}' if search_path else None
             )
             self._pool_semaphore = threading.Semaphore(self.config.postgres_pool_maxconn)
@@ -586,7 +587,7 @@ class PostgresConnector:
                 if len(entry) != entry_length:
                     raise osmo_errors.OSMOSchemaError(
                         'Mogrify: entries do not have the same number of elements!')
-            input_str = f'({", ".join(["%s"] * entry_length)})'
+            input_str = f'({', '.join(['%s'] * entry_length)})'
             final_str = ', '.join(
                 cur.mogrify(input_str, entry).decode('utf-8') for entry in entries)
             cur.close()
@@ -1627,7 +1628,7 @@ class PostgresConnector:
                 SELECT DISTINCT
                     username,
                     SPLIT_PART(username, '@', 1) as base_username
-                FROM unnest(ARRAY[{", ".join(["%s"] * len(user_names))}]) as username(username)
+                FROM unnest(ARRAY[{', '.join(['%s'] * len(user_names))}]) as username(username)
             ),
             all_users AS (
                 SELECT DISTINCT id FROM users
@@ -1658,12 +1659,12 @@ class PostgresConnector:
             error_str = []
             for user_row in user_rows:
                 if user_row['match_count'] == 0:
-                    error_str.append(f'{user_row["input_username"]} not found')
+                    error_str.append(f'{user_row['input_username']} not found')
                 elif user_row['match_count'] > 1:
-                    error_str.append(f'{user_row["input_username"]} has multiple matches. ' + \
+                    error_str.append(f'{user_row['input_username']} has multiple matches. ' + \
                                      'Specify the full email address')
             if error_str:
-                raise osmo_errors.OSMOUserError(f'Invalid user(s): {", ".join(error_str)}')
+                raise osmo_errors.OSMOUserError(f'Invalid user(s): {', '.join(error_str)}')
         return [user_row['user_name'] for user_row in user_rows]
 
 
@@ -1721,17 +1722,17 @@ class UserProfile(pydantic.BaseModel):
             dataset_config = postgres.get_dataset_configs()
             if setting['bucket'] not in dataset_config.buckets:
                 raise osmo_errors.OSMOUserError(
-                    f'Bucket {setting["bucket"]} does not exist. Use the "osmo bucket list" CLI '
+                    f'Bucket {setting['bucket']} does not exist. Use the "osmo bucket list" CLI '
                     ' to see all available buckets.')
         if 'pool' in setting:
             postgres = PostgresConnector.get_instance()
             Pool.fetch_from_db(postgres, setting['pool'])
 
         insert_cmd = f'''
-            INSERT INTO profile ({",".join(fields)})
-            VALUES ({",".join(["%s"] * len(values))})
+            INSERT INTO profile ({','.join(fields)})
+            VALUES ({','.join(['%s'] * len(values))})
             ON CONFLICT (user_name)
-            DO UPDATE SET {",".join(f"{field} = EXCLUDED.{field}" for field in fields)}
+            DO UPDATE SET {','.join(f'{field} = EXCLUDED.{field}' for field in fields)}
         '''
         database.execute_commit_command(insert_cmd, tuple(values))
 
@@ -1861,7 +1862,7 @@ class ResourceSpec(pydantic.BaseModel):
                 )
         else:
             # Convert to Ki
-            value = f'{common.convert_resource_value_str(value, target="Ki")}Ki'
+            value = f'{common.convert_resource_value_str(value, target='Ki')}Ki'
         return value
 
     @pydantic.field_validator('memory')
@@ -1913,7 +1914,7 @@ class ResourceSpec(pydantic.BaseModel):
         num, unit = split_num_units(self.memory)
         store_num_units(num, unit, mapping, 'USER_MEMORY')
 
-        mapping['USER_EXCLUDED_NODES'] = f'ARRAY:[{",".join(self.nodesExcluded)}]'
+        mapping['USER_EXCLUDED_NODES'] = f'ARRAY:[{','.join(self.nodesExcluded)}]'
 
         final_tokens = mapping
         if default_variables:
@@ -3073,7 +3074,7 @@ class ResourceValidation(pydantic.BaseModel):
         pools = cls.get_pools(database, name)
         if pools:
             raise osmo_errors.OSMOUserError(f'Resource Validation {name} is used in pools ' +\
-                                            f'{", ".join([pool["name"] for pool in pools])}')
+                                            f'{', '.join([pool['name'] for pool in pools])}')
 
         delete_cmd = '''
             DELETE FROM resource_validations WHERE name = %s;
@@ -3159,11 +3160,11 @@ class PodTemplate(pydantic.BaseModel):
         pools = cls.get_pools(database, name)
         if pools:
             raise osmo_errors.OSMOUserError(f'Pod template {name} is used in pools ' +\
-                                            f'{", ".join([pool["name"] for pool in pools])}')
+                                            f'{', '.join([pool['name'] for pool in pools])}')
         tests = cls.get_tests(database, name)
         if tests:
             raise osmo_errors.OSMOUserError(f'Pod template {name} is used in tests ' +\
-                                            f'{", ".join([test["name"] for test in tests])}')
+                                            f'{', '.join([test['name'] for test in tests])}')
 
         delete_cmd = '''
             DELETE FROM pod_templates WHERE name = %s;
@@ -3521,7 +3522,7 @@ class Pool(PoolBase, extra='ignore'):
             params.append(tuple(pools))
 
         conditions_clause = '' if not params \
-            else f'WHERE {" AND ".join(conditions)}'
+            else f'WHERE {' AND '.join(conditions)}'
         fetch_cmd = 'SELECT pools.*, backends.last_heartbeat ' \
                     'FROM pools LEFT JOIN backends ' \
                     'ON pools.backend = backends.name ' \
@@ -3944,7 +3945,7 @@ class PostgresSelectCommand(pydantic.BaseModel, extra='forbid'):
             condition_args (List[Any]): Any condition arguments.
         """
         condition_str = '('
-        condition_str = f'({" OR ".join(conditions)})'
+        condition_str = f'({' OR '.join(conditions)})'
         self.add_condition(condition_str, condition_args)
 
     def get_args(self) -> Tuple[str, Tuple[Any, ...]]:
@@ -4310,7 +4311,7 @@ class BackendTests(BackendTestBase):
         if backends:
             raise osmo_errors.OSMOUserError(
                 f'Test {name} is used in Backends ' +\
-                f'{", ".join([backend["name"] for backend in backends])}'
+                f'{', '.join([backend['name'] for backend in backends])}'
             )
         delete_cmd = 'DELETE FROM backend_tests WHERE name = %s;'
         database.execute_commit_command(delete_cmd, (name,))

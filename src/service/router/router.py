@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import contextlib
 import asyncio
 import datetime
 import logging
@@ -192,11 +193,10 @@ async def run_connect_client(
         backend_ws = connections[key].websocket
         close = connections[key].wait_close
 
-        loop = asyncio.get_event_loop()
         if backend_ws is not None:
             coroutines = [
-                    loop.create_task(copy_data(client_ws, backend_ws)),
-                    loop.create_task(copy_data(backend_ws, client_ws))
+                    asyncio.create_task(copy_data(client_ws, backend_ws)),
+                    asyncio.create_task(copy_data(backend_ws, client_ws))
                 ]
             await common.gather_cancel(*coroutines)
     except fastapi.WebSocketDisconnect as err:
@@ -345,12 +345,11 @@ async def webserver_ws_request(ws: fastapi.WebSocket, ctrl_key: str):
         backend_ws = connections[conn_key].websocket
         close = connections[conn_key].wait_close
 
-        loop = asyncio.get_event_loop()
         if backend_ws is not None:
             coroutines = [
-                loop.create_task(copy_websocket(backend_ws, ws)),
-                loop.create_task(copy_websocket(ws, backend_ws)),
-                loop.create_task(update_last_active_time(ctrl_key))
+                asyncio.create_task(copy_websocket(backend_ws, ws)),
+                asyncio.create_task(copy_websocket(ws, backend_ws)),
+                asyncio.create_task(update_last_active_time(ctrl_key))
             ]
             await common.gather_cancel(*coroutines)
 
@@ -423,15 +422,21 @@ def main():
 
     connectors.PostgresConnector(config)
 
-    uvicorn_config = uvicorn.Config(app, host=host, port=port)
-    uvicorn_server = uvicorn.Server(config=uvicorn_config)
-    loop = asyncio.get_event_loop()
-    check_timeout_task = loop.create_task(check_webserver_timeout())
+    async def run_server():
+        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_server = uvicorn.Server(config=uvicorn_config)
+        check_timeout_task = asyncio.create_task(check_webserver_timeout())
+        try:
+            await uvicorn_server.serve()
+        finally:
+            check_timeout_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await check_timeout_task
+
     try:
-        loop.run_until_complete(uvicorn_server.serve())
+        asyncio.run(run_server())
     except KeyboardInterrupt:
         pass
-    check_timeout_task.cancel()
 
 
 if __name__ == '__main__':

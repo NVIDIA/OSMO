@@ -2786,7 +2786,7 @@ class TaskGroup(pydantic.BaseModel):
         for kpi in task_spec.kpis:
             task_io_url = f'{url_prefix}/{self.workflow_id}/{task_spec.name}'
             if '/' in kpi.path:
-                task_io_url += f'/{kpi.path.rsplit("/", 1)[0]}'
+                task_io_url += f'/{kpi.path.rsplit('/', 1)[0]}'
             ctrl_extra_args += ['-outputs', f'kpi:{task_io_url},{kpi.path}']
 
         for spec_output in task_spec.outputs:
@@ -2799,8 +2799,8 @@ class TaskGroup(pydantic.BaseModel):
                 ctrl_extra_args += ['-outputs',
                                     f'dataset:{task_io_url},' +
                                     f'{spec_output.dataset.path},' +
-                                    f'{",".join(spec_output.dataset.metadata)};' +
-                                    f'{",".join(spec_output.dataset.labels)};' +
+                                    f'{','.join(spec_output.dataset.metadata)};' +
+                                    f'{','.join(spec_output.dataset.labels)};' +
                                     spec_output.dataset.regex]
             if isinstance(spec_output, UpdateDatasetOutput):
                 dataset_info = common.DatasetStructure(spec_output.update_dataset.name, True)
@@ -2810,8 +2810,8 @@ class TaskGroup(pydantic.BaseModel):
                             disabled_data)
                 ctrl_extra_args += ['-outputs',
                                     f'update_dataset:{task_io_url};' +
-                                    f'{",".join(spec_output.update_dataset.paths)};' +
-                                    f'{",".join(spec_output.update_dataset.metadata)};' +
+                                    f'{','.join(spec_output.update_dataset.paths)};' +
+                                    f'{','.join(spec_output.update_dataset.metadata)};' +
                                     ','.join(spec_output.update_dataset.labels)]
             if isinstance(spec_output, URLInputOutput):
                 task_io_url = spec_output.url
