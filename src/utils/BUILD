@@ -98,3 +98,26 @@ osmo_py_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+osmo_py_library(
+    name = "standalone_executor",
+    srcs = ["standalone_executor.py"],
+    deps = [
+        requirement("jinja2"),
+        requirement("pyyaml"),
+        "//src/lib/utils:workflow",
+        "//src/utils/job",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
+    name = "compose_executor",
+    srcs = ["compose_executor.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/utils:standalone_executor",
+        "//src/utils/job",
+    ],
+    visibility = ["//visibility:public"],
+)
