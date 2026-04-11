@@ -377,7 +377,7 @@ class StandaloneExecutor:
                 return None
             if state[name] == IN_PROGRESS:
                 cycle_start = path.index(name)
-                return path[cycle_start:] + [name]
+                return [*path[cycle_start:], name]
 
             state[name] = IN_PROGRESS
             path.append(name)
@@ -694,7 +694,7 @@ def _expand_jinja_locally(spec_text: str,
     placeholder_map: Dict[str, str] = {}
     for match in _OSMO_TOKEN_PATTERN.finditer(file_text):
         field = match.group(1).strip()
-        hash_key = 'hash' + str(int(hashlib.md5(field.encode('utf-8')).hexdigest(), 16))
+        hash_key = 'hash' + str(int(hashlib.sha256(field.encode('utf-8')).hexdigest(), 16))
         original_token = match.group(0)
         template_data[hash_key] = original_token
         placeholder_map[original_token] = hash_key
