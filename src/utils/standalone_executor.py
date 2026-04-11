@@ -74,11 +74,12 @@ class StandaloneExecutor:
       - `environment:` passed as Docker env vars
       - Task-to-task data flow via shared local directories
       - GPU passthrough via --gpus for tasks that declare gpu > 0 in resources
+      - Credentials via --credential NAME=/path (mounted read-only in _run_task)
+      - Jinja-templated specs (expanded locally via _expand_jinja_locally)
 
     Does NOT support (raises clear errors):
       - Dataset / URL inputs/outputs (require object storage)
-      - Credentials, checkpoints, volumeMounts (require cluster infra)
-      - Templated specs with Jinja (require server-side expansion; use --dry-run first)
+      - Checkpoints, volumeMounts (require cluster infra)
       - {{host:taskname}} tokens (require parallel containers with shared networking)
     """
 
@@ -354,8 +355,14 @@ class StandaloneExecutor:
                             '— data is available in the work directory',
                             task_spec.name, output.dataset.name)
 
-                for cred_name in task_spec.credentials:
-                    if cred_name not in self._credentials:
+                for cred_name, cred_mount in task_spec.credentials.items():
+                    if isinstance(cred_mount, dict):
+                        unsupported_features.append(
+                            f'Task "{task_spec.name}": credential "{cred_name}" uses '
+                            f'dict-style mapping which the standalone executor does not '
+                            f'support; provide credentials as NAME=/path or flatten the '
+                            f'mapping')
+                    elif cred_name not in self._credentials:
                         unsupported_features.append(
                             f'Task "{task_spec.name}": credential "{cred_name}" not provided. '
                             f'Use --credential {cred_name}=/path/to/dir')
@@ -513,6 +520,11 @@ class StandaloneExecutor:
             docker_args += ['-v', f'{host_path}:{file_spec.path}:ro']
 
         for cred_name, cred_mount in task_spec.credentials.items():
+            if isinstance(cred_mount, dict):
+                raise ValueError(
+                    f'Task "{node.name}": credential "{cred_name}" uses dict-style '
+                    f'mapping which the standalone executor does not support; '
+                    f'provide credentials as NAME=/path or flatten the mapping')
             if isinstance(cred_mount, str) and cred_name in self._credentials:
                 local_dir = os.path.abspath(self._credentials[cred_name])
                 docker_args += ['-v', f'{local_dir}:{cred_mount}:ro']
@@ -577,7 +589,7 @@ class StandaloneExecutor:
                 f'Use --set to provide values, or check for typos in template variable names.')
 
 
-_OSMO_TOKEN_PATTERN = re.compile(r'\{\{(uuid|workflow_id|output|input:[^}]+|host:[^}]+)\}\}')
+_OSMO_TOKEN_PATTERN = re.compile(r'\{\{\s*(uuid|workflow_id|output|input:[^}]+|host:[^}]+)\s*\}\}')
 
 
 def _expand_jinja_locally(spec_text: str,
@@ -618,7 +630,7 @@ def _expand_jinja_locally(spec_text: str,
     for match in _OSMO_TOKEN_PATTERN.finditer(file_text):
         field = match.group(1).strip()
         hash_key = 'hash' + str(int(hashlib.md5(field.encode('utf-8')).hexdigest(), 16))
-        original_token = '{{' + match.group(1) + '}}'
+        original_token = match.group(0)
         template_data[hash_key] = original_token
         placeholder_map[original_token] = hash_key
 
@@ -633,7 +645,7 @@ def _expand_jinja_locally(spec_text: str,
 
 def _spec_has_templates(spec_text: str) -> bool:
     """Return True if the spec contains Jinja template markers that need expansion."""
-    return any(marker in spec_text for marker in ('{%', '{#', 'default-values'))
+    return any(marker in spec_text for marker in ('{{', '{%', '{#', 'default-values'))
 
 
 def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
@@ -671,7 +683,7 @@ def run_workflow_standalone(spec_path: str, work_dir: str | None = None,
         success = executor.execute(spec, resume=resume or from_step is not None,
                                    from_step=from_step)
     finally:
-        if created_work_dir and not keep_work_dir:
+        if created_work_dir and not keep_work_dir and success:
             shutil.rmtree(work_dir, ignore_errors=True)
         elif not success:
             logger.info('Work directory preserved for debugging: %s', work_dir)
