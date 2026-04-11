@@ -98,6 +98,7 @@ class StandaloneExecutor:
         self._group_specs: Dict[str, task_module.TaskGroupSpec] = {}
         self._results: Dict[str, TaskResult] = {}
         self._available_gpus: int | None = None
+        self._workflow_fingerprint: str = ''
 
     def _detect_available_gpus(self) -> int:
         """Query nvidia-smi to count available GPUs, caching the result for subsequent calls."""
@@ -122,6 +123,23 @@ class StandaloneExecutor:
             self._available_gpus = 0
         return self._available_gpus
 
+    def _compute_workflow_fingerprint(self) -> str:
+        """Compute a deterministic SHA-256 hash from task specs to detect workflow changes across runs."""
+        fingerprint_data: List[Dict[str, Any]] = []
+        for name in sorted(self._task_nodes):
+            spec = self._task_nodes[name].spec
+            fingerprint_data.append({
+                'name': name,
+                'image': spec.image,
+                'command': spec.command,
+                'args': spec.args,
+                'environment': dict(sorted(spec.environment.items())),
+                'inputs': [str(i) for i in spec.inputs],
+                'resource': spec.resource,
+            })
+        blob = json.dumps(fingerprint_data, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(blob.encode('utf-8')).hexdigest()
+
     def load_spec(self, spec_text: str) -> workflow_module.WorkflowSpec:
         """Parse raw YAML text into a validated WorkflowSpec via the versioned spec model."""
         raw = yaml.safe_load(spec_text)
@@ -137,6 +155,7 @@ class StandaloneExecutor:
         """Run all tasks in topological order, returning True if the entire workflow succeeds."""
         self._results.clear()
         self._build_dag(spec)
+        self._workflow_fingerprint = self._compute_workflow_fingerprint()
         self._validate_for_standalone(spec)
         self._setup_directories()
 
@@ -202,12 +221,13 @@ class StandaloneExecutor:
 
     def _save_state(self):
         """Persist current task results to the state file so runs can be resumed later."""
-        state = {
+        state: Dict[str, Any] = {
+            'workflow_fingerprint': self._workflow_fingerprint,
             'tasks': {
                 name: {'exit_code': result.exit_code, 'output_dir': result.output_dir}
                 for name, result in self._results.items()
                 if result.exit_code != -1
-            }
+            },
         }
         with open(self._state_file_path, 'w', encoding='utf-8') as f:
             json.dump(state, f, indent=2)
@@ -225,6 +245,17 @@ class StandaloneExecutor:
         if state is None:
             logger.info('No previous state found — starting from scratch')
             return
+
+        saved_fingerprint = state.get('workflow_fingerprint')
+        if not saved_fingerprint:
+            logger.warning(
+                'State file has no workflow fingerprint — cannot verify '
+                'that the spec matches the previous run; reused outputs may be stale')
+        elif saved_fingerprint != self._workflow_fingerprint:
+            logger.warning(
+                'Workflow spec has changed since the previous run '
+                '(fingerprint %s → %s); reused outputs may be stale',
+                saved_fingerprint[:12], self._workflow_fingerprint[:12])
 
         completed: Dict[str, Dict] = {}
         for name, info in state.get('tasks', {}).items():
@@ -496,16 +527,16 @@ class StandaloneExecutor:
                 logger.warning(
                     'Task "%s" requests %d GPU(s) but only %d available — running with %d GPU(s)',
                     node.name, gpu_count, available, available)
-                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(available))}"']
+                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(available))}']
             else:
-                docker_args += ['--gpus', f'"device={",".join(str(i) for i in range(gpu_count))}"']
+                docker_args += ['--gpus', f'device={",".join(str(i) for i in range(gpu_count))}']
             logger.info('Task "%s" requesting %d GPU(s), using %d', node.name, gpu_count, min(gpu_count, available))
 
             docker_args += ['--shm-size', self._shm_size or self.DEFAULT_SHM_SIZE]
         elif self._shm_size:
             docker_args += ['--shm-size', self._shm_size]
 
-        for env_key, resolved_value in zip(task_spec.environment.keys(), resolved_env_values):
+        for env_key, resolved_value in zip(task_spec.environment.keys(), resolved_env_values, strict=True):
             docker_args += ['-e', f'{env_key}={resolved_value}']
 
         docker_args += ['-v', f'{output_dir}:{CONTAINER_DATA_PATH}/output']
