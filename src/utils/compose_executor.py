@@ -190,8 +190,13 @@ class ComposeExecutor(StandaloneExecutor):
                             '— data is available in the work directory',
                             task_spec.name, output.dataset.name)
 
-                for cred_name in task_spec.credentials:
-                    if cred_name not in self._credentials:
+                for cred_name, cred_mount in task_spec.credentials.items():
+                    if isinstance(cred_mount, dict):
+                        unsupported_features.append(
+                            f'Task "{task_spec.name}": credential "{cred_name}" uses '
+                            f'dict-style mapping which is not supported in docker-compose '
+                            f'mode; provide credentials as NAME=/path')
+                    elif cred_name not in self._credentials:
                         unsupported_features.append(
                             f'Task "{task_spec.name}": credential "{cred_name}" not provided. '
                             f'Use --credential {cred_name}=/path/to/dir')
@@ -366,6 +371,11 @@ class ComposeExecutor(StandaloneExecutor):
             volumes.append(f'{host_path}:{file_spec.path}:ro')
 
         for cred_name, cred_mount in task_spec.credentials.items():
+            if isinstance(cred_mount, dict):
+                raise ValueError(
+                    f'Task "{node.name}": credential "{cred_name}" uses dict-style '
+                    f'mapping which is not supported in docker-compose mode; '
+                    f'provide credentials as NAME=/path')
             if isinstance(cred_mount, str) and cred_name in self._credentials:
                 local_dir = os.path.abspath(self._credentials[cred_name])
                 volumes.append(f'{local_dir}:{cred_mount}:ro')
@@ -540,7 +550,7 @@ def run_workflow_compose(spec_path: str, work_dir: str | None = None,
         spec = executor.load_spec(spec_text)
         success = executor.execute(spec)
     finally:
-        if created_work_dir and not keep_work_dir:
+        if created_work_dir and not keep_work_dir and success:
             shutil.rmtree(work_dir, ignore_errors=True)
         elif not success:
             logger.info('Work directory preserved for debugging: %s', work_dir)
