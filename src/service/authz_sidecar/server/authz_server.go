@@ -170,6 +170,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 		}
 	}
 
+	roleNames = append(roleNames, defaultRole)
+
 	parseDone := time.Now()
 
 	// Map external IDP roles to OSMO roles.
@@ -190,10 +192,8 @@ func (s *AuthzServer) Check(ctx context.Context, req *envoy_service_auth_v3.Chec
 			}
 			roleNames = append(roleNames, dbRoleNames...)
 		}
-	}
 
-	// Add default role and deduplicate
-	roleNames = deduplicateRoles(append(roleNames, defaultRole))
+	}
 
 	syncDone := time.Now()
 

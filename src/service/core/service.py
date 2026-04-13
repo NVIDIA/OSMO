@@ -28,7 +28,7 @@ import fastapi
 import fastapi.middleware.cors
 import fastapi.responses
 import uvicorn  # type: ignore
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor # type: ignore
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
 
 from src.lib.utils import common, login, osmo_errors, version
 import src.lib.utils.logging
@@ -50,7 +50,7 @@ from src.utils.job import task as task_lib
 
 
 app = fastapi.FastAPI(docs_url='/api/docs', redoc_url=None, openapi_url='/api/openapi.json')
-misc_router = fastapi.APIRouter(tags = ['Misc API'])
+misc_router = fastapi.APIRouter(tags=['Misc API'])
 curr_cli_config = connectors.CliConfig()
 
 
@@ -71,7 +71,7 @@ async def check_client_version(request: fastapi.Request, call_next):
         if cli_info.latest_version else version.VERSION
     if cli_info.client_install_url:
         install_command = f'Please run the following command:\n' \
-                          f'curl -fsSL {cli_info.client_install_url} | bash'
+            f'curl -fsSL {cli_info.client_install_url} | bash'
     else:
         install_command = \
             'Please update by running the install command in the documentation.'
@@ -81,10 +81,10 @@ async def check_client_version(request: fastapi.Request, call_next):
                 client_version < version.Version.from_string(cli_info.min_supported_version):
             return fastapi.responses.JSONResponse(
                 status_code=400,
-                content={'message': 'Your client is out of date. Client version is ' + \
-                        f'{client_version_str} but the newest client version is '
-                        f'{newest_client_version}.\n{install_command}',
-                        'error_code': osmo_errors.OSMOError.error_code},
+                content={'message': 'Your client is out of date. Client version is ' +
+                         f'{client_version_str} but the newest client version is '
+                         f'{newest_client_version}.\n{install_command}',
+                         'error_code': osmo_errors.OSMOError.error_code},
             )
         suggest_version_update = True
 
@@ -165,41 +165,48 @@ async def get_osmo_client_version(request: fastapi.Request):
     return client_version
 
 
-@misc_router.get('/health')
+@misc_router.get('/health', response_model=Dict[str, str])
 async def health():
     """ To be used for the readiness probe, but not liveness probe. That way, if this method is
     slow, no new traffic gets routed, instead of killing the service. """
     return {'status': 'OK'}
 
 
-@misc_router.get('/api/version')
+@misc_router.get('/api/version', response_model=version.Version)
 def get_version():
     return version.VERSION
 
 
-@misc_router.get('/api/users', response_class=common.PrettyJSONResponse)
+@misc_router.get(
+    '/api/users',
+    response_model=List[str],
+)
 def get_users() -> List[str]:
     """ Returns the values of all users who have submitted a workflow. """
     user_list = helpers.get_all_users()
     return [item.submitted_by for item in user_list]
 
 
-@misc_router.get('/api/tag')
+@misc_router.get('/api/tag', response_model=Dict[str, List[str]])
 def get_available_workflow_tags():
     """ Returns all workflow tags. """
     context = objects.WorkflowServiceContext.get()
     return {'tags': context.database.get_workflow_configs().workflow_info.tags}
 
 
-@misc_router.get('/api/plugins/configs', response_class=common.PrettyJSONResponse)
-def get_workflow_plugins_configs() -> Dict:
+@misc_router.get(
+    '/api/plugins/configs',
+    response_model=connectors.PluginsConfig,
+)
+def get_workflow_plugins_configs() -> connectors.PluginsConfig:
     """Get all the workflow plugins configurations"""
     context = objects.WorkflowServiceContext.get()
     workflow_configs = context.database.get_workflow_configs()
-    return workflow_configs.plugins_config.dict(by_alias=True)
+    return workflow_configs.plugins_config
 
 
 app.include_router(misc_router)
+
 
 @app.exception_handler(osmo_errors.OSMOUsageError)
 @app.exception_handler(osmo_errors.OSMOResourceError)
@@ -222,6 +229,7 @@ async def user_error_handler(request: fastapi.Request, error: osmo_errors.OSMOEr
     )
 
 
+@app.exception_handler(osmo_errors.OSMODataStorageError)
 @app.exception_handler(osmo_errors.OSMOBackendError)
 @app.exception_handler(osmo_errors.OSMOServerError)
 @app.exception_handler(Exception)
@@ -284,22 +292,22 @@ def set_default_backend_images(postgres: connectors.PostgresConnector):
 
     # If backend_images are already set, do not override them
     if curr_workflow_configs.backend_images.init and \
-        curr_workflow_configs.backend_images.client:
+            curr_workflow_configs.backend_images.client:
         return
 
     if postgres.config.osmo_image_location and \
-        postgres.config.osmo_image_tag:
+            postgres.config.osmo_image_tag:
         # Override default backend_images with deployment values
         backend_images = connectors.OsmoImageConfig(
             init=f'{postgres.config.osmo_image_location}/'
-                    f'init-container:{postgres.config.osmo_image_tag}',
+            f'init-container:{postgres.config.osmo_image_tag}',
             client=f'{postgres.config.osmo_image_location}/'
-                    f'client:{postgres.config.osmo_image_tag}',
+            f'client:{postgres.config.osmo_image_tag}',
         )
         config_service.patch_workflow_configs(
             request=config_objects.PatchConfigRequest(
                 configs_dict={
-                    'backend_images': backend_images.dict()
+                    'backend_images': backend_images.model_dump()
                 }
             ),
             username='System',
@@ -337,7 +345,7 @@ def set_client_install_url(postgres: connectors.PostgresConnector,
                            config: objects.WorkflowServiceConfig):
     curr_service_configs = postgres.get_service_configs()
     if curr_service_configs.cli_config.client_install_url != config.client_install_url:
-        updated_cli_config = curr_service_configs.cli_config.dict()
+        updated_cli_config = curr_service_configs.cli_config.model_dump()
         updated_cli_config['client_install_url'] = config.client_install_url
         config_service.patch_service_configs(
             request=config_objects.PatchConfigRequest(
@@ -447,7 +455,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     )
     if login_info != service_configs_dict.service_auth.login_info:
         configs_dict['service_auth'] = {
-            'login_info': login_info.dict()
+            'login_info': login_info.model_dump()
         }
 
     if configs_dict:

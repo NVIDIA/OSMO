@@ -33,7 +33,10 @@ from src.utils import connectors
 router = fastapi.APIRouter(tags = ['Workflow App API'])
 
 
-@router.get('/api/app', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/app',
+    response_model=objects.ListResponse,
+)
 def list_apps(name: str | None = None,
               users: List[str] | None = fastapi.Query(default = None),
               all_users: bool = False,
@@ -51,14 +54,18 @@ def list_apps(name: str | None = None,
         entered_username = True
     apps = helpers.list_apps(
         postgres, name, username if entered_username else None, users, offset, limit+1, order)
+    more_entries = len(apps) > limit
     if order == connectors.ListOrder.DESC:
         apps = apps[:limit]
-    elif len(apps) > limit:
+    elif more_entries:
         apps = apps[1:]
-    return objects.ListResponse(apps=apps, more_entries=len(apps) > limit)
+    return objects.ListResponse(apps=apps, more_entries=more_entries)
 
 
-@router.get('/api/app/user/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/app/user/{name}',
+    response_model=objects.GetAppResponse,
+)
 def get_app(name: objects.AppNamePattern,
             version: int | None = None,
             limit: int = 20,
@@ -78,7 +85,7 @@ def get_app(name: objects.AppNamePattern,
     )
 
 
-@router.get('/api/app/user/{name}/spec', response_class=common.PrettyJSONResponse)
+@router.get('/api/app/user/{name}/spec', response_class=fastapi.responses.StreamingResponse)
 def get_app_content(name: objects.AppNamePattern,
                     version: int | None = None):
     postgres = connectors.PostgresConnector.get_instance()
@@ -121,7 +128,10 @@ def create_app(name: objects.AppNamePattern,
     upload_app.send_job_to_queue()
 
 
-@router.patch('/api/app/user/{name}')
+@router.patch(
+    '/api/app/user/{name}',
+    response_model=objects.EditResponse,
+)
 def update_app(name: objects.AppNamePattern,
                app_content: str = fastapi.Body(...),
                username: str = fastapi.Depends(connectors.parse_username)) \

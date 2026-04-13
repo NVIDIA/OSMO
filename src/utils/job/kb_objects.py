@@ -620,11 +620,9 @@ class FileMount(pydantic.BaseModel):
     digest: str = ''
     k8s_factory: K8sObjectFactory
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
     @classmethod
     def digest_validator(cls, values):
         """By default, build the digest from the content and path"""
@@ -665,7 +663,7 @@ class FileMount(pydantic.BaseModel):
             self.name, labels, {os.path.basename(self.path): self.content}, {})
 
 
-class HostMount(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class HostMount(pydantic.BaseModel, extra='forbid'):
     """ Encodes text contents to uniformly support text and binary files. """
     name: str
     path: str

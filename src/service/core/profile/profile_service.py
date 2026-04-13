@@ -30,7 +30,7 @@ router = fastapi.APIRouter(
 )
 
 
-@router.get('/api/profile/settings')
+@router.get('/api/profile/settings', response_model=objects.ProfileResponse)
 def get_notification_settings(
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None),
@@ -68,10 +68,7 @@ def set_notification_settings(
     preferences: connectors.UserProfile,
     set_default_backend: bool = False,
     user_header: Optional[str] = fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)):
-    fields = {}
-    for key, value in preferences.dict().items():
-        if value is not None:
-            fields[key] = value
+    fields = preferences.model_dump(exclude_none=True)
     if set_default_backend:
         fields['backend'] = None
     user_name = connectors.parse_username(user_header)

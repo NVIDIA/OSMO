@@ -22,6 +22,7 @@ import { useRafCallback } from "@react-hookz/web";
 import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 import { parseEventChunk } from "@/lib/api/adapter/events/events-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
+import { parseStreamErrorResponse } from "@/lib/api/stream-error";
 import { isTransientError, getRetryDelay, abortableDelay, MAX_AUTO_RETRIES } from "@/lib/api/stream-retry";
 import { toProxiedPath } from "@/lib/config";
 
@@ -187,7 +188,7 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
           handleRedirectResponse(response, "event streaming");
 
           if (!response.ok) {
-            throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
+            throw new Error(await parseStreamErrorResponse(response));
           }
           if (!response.body) {
             throw new Error("Response body is not readable");

@@ -99,13 +99,15 @@ class StoragePath:
 class StorageBackend(
     abc.ABC,
     pydantic.BaseModel,
-    extra=pydantic.Extra.forbid,
-    arbitrary_types_allowed=True,
-    keep_untouched=(functools.cached_property,),  # Don't serialize cached properties
 ):
     """
     Represents information about a storage backend.
     """
+    model_config = pydantic.ConfigDict(
+        extra='forbid',
+        arbitrary_types_allowed=True,
+        ignored_types=(functools.cached_property,),  # Don't serialize cached properties
+    )
 
     scheme: str
     uri: str
@@ -294,4 +296,6 @@ class StorageBackend(
             )
 
         raise osmo_errors.OSMOCredentialError(
-            f'Data credential not found for {self.profile}')
+            f'Data credential not found for {self.profile}. Check if the credential is set locally '
+            'with `osmo credential list`. If you are on a new machine, you will need to re-run '
+            '`osmo credential set` to store the credential locally.')

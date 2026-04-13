@@ -163,8 +163,8 @@ export interface LogViewerProps {
   data: LogViewerDataProps;
   /** Filter-related props (chips, scope) */
   filter: LogViewerFilterProps;
-  /** Timeline-related props (time range, presets, entity boundaries) */
-  timeline: LogViewerTimelineProps;
+  /** Timeline-related props (time range, presets, entity boundaries). Omit when entity hasn't started. */
+  timeline?: LogViewerTimelineProps;
   /** Additional CSS classes */
   className?: string;
   /** Whether to show the timeline histogram and time range controls (default: true) */
@@ -230,22 +230,9 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Destructure filter props
   const { filterChips, onFilterChipsChange, scope } = filter;
 
-  // Destructure timeline props
-  const {
-    filterStartTime,
-    filterEndTime,
-    displayStart,
-    displayEnd,
-    activePreset,
-    onFilterStartTimeChange,
-    onFilterEndTimeChange,
-    onPresetSelect,
-    onDisplayRangeChange,
-    onClearPendingDisplay,
-    entityStartTime,
-    entityEndTime,
-    now,
-  } = timeline;
+  // Timeline may be undefined if entity hasn't started yet.
+  // Derive a safe rendering flag so callers can't pass showTimeline={true} with timeline={undefined}.
+  const shouldShowTimeline = showTimeline && timeline != null;
   const { announcer } = useServices();
 
   // Scope-aware filter fields: hide "task" field when already scoped to a single task
@@ -318,40 +305,43 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
     (bucket: HistogramBucket) => {
-      // Set time range around the clicked bucket using constant for window size
+      if (!timeline) return;
       const bucketTime = bucket.timestamp.getTime();
-      onFilterStartTimeChange(new Date(bucketTime - HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
-      onFilterEndTimeChange(new Date(bucketTime + HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
+      timeline.onFilterStartTimeChange(new Date(bucketTime - HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
+      timeline.onFilterEndTimeChange(new Date(bucketTime + HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
       announcer.announce("Time range updated", "polite");
     },
-    [onFilterStartTimeChange, onFilterEndTimeChange, announcer],
+    [timeline, announcer],
   );
 
   // Handle preset selection
   const handlePresetSelect = useCallback(
     (preset: TimeRangePreset) => {
-      onPresetSelect(preset);
+      if (!timeline) return;
+      timeline.onPresetSelect(preset);
       const message = preset === "all" ? "all logs" : preset === "custom" ? "custom time range" : `last ${preset}`;
       announcer.announce(`Showing ${message}`, "polite");
     },
-    [onPresetSelect, announcer],
+    [timeline, announcer],
   );
 
   // Wrap time change handlers to clear pending display
   const handleStartTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onFilterStartTimeChange(time);
-      onClearPendingDisplay();
+      if (!timeline) return;
+      timeline.onFilterStartTimeChange(time);
+      timeline.onClearPendingDisplay();
     },
-    [onFilterStartTimeChange, onClearPendingDisplay],
+    [timeline],
   );
 
   const handleEndTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onFilterEndTimeChange(time);
-      onClearPendingDisplay();
+      if (!timeline) return;
+      timeline.onFilterEndTimeChange(time);
+      timeline.onClearPendingDisplay();
     },
-    [onFilterEndTimeChange, onClearPendingDisplay],
+    [timeline],
   );
 
   // Handle zoom in - uses timeline's validated zoom logic (matches cmd+wheel up behavior)
@@ -590,7 +580,7 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
       </div>
 
       {/* Section 2: Timeline Histogram — excluded from focus redirect so draggers work */}
-      {showTimeline && (
+      {shouldShowTimeline && timeline && (
         <div
           className="shrink-0 border-b px-3 py-2"
           data-no-focus-redirect
@@ -603,26 +593,26 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
             height={DEFAULT_HEIGHT}
             // Time range header with controls
             showTimeRangeHeader
-            filterStartTime={filterStartTime}
-            filterEndTime={filterEndTime}
-            displayStart={displayStart}
-            displayEnd={displayEnd}
+            filterStartTime={timeline.filterStartTime}
+            filterEndTime={timeline.filterEndTime}
+            displayStart={timeline.displayStart}
+            displayEnd={timeline.displayEnd}
             onFilterStartTimeChange={handleStartTimeChangeWithClear}
             onFilterEndTimeChange={handleEndTimeChangeWithClear}
-            onDisplayRangeChange={onDisplayRangeChange}
+            onDisplayRangeChange={timeline.onDisplayRangeChange}
             // Presets
             showPresets
-            activePreset={activePreset}
+            activePreset={timeline.activePreset}
             onPresetSelect={handlePresetSelect}
             // Collapsed state
             defaultCollapsed={timelineCollapsed}
             // Enable interactive draggers
             enableInteractiveDraggers
             // Entity boundaries for pan limits
-            entityStartTime={entityStartTime}
-            entityEndTime={entityEndTime}
+            entityStartTime={timeline.entityStartTime}
+            entityEndTime={timeline.entityEndTime}
             // Synchronized "NOW" timestamp
-            now={now}
+            now={timeline.now}
             // Zoom controls overlay
             customControls={
               <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">

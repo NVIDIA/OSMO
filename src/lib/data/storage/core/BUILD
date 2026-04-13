@@ -28,6 +28,7 @@ osmo_py_library(
         "//src/lib/utils:logging",
         "//src/lib/utils:osmo_errors",
         requirement("pydantic"),
+        requirement("pydantic-settings"),
         requirement("tqdm"),
     ],
 )

@@ -14,308 +14,227 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import {
-  test,
-  expect,
-  createPoolResponse,
-  createResourcesResponse,
-  expandFiltersIfCollapsed,
-  // Generated enums - use instead of string literals
-  PoolStatus,
-  BackendResourceType,
-} from "../fixtures";
+import { test, expect } from "@playwright/test";
+import { createPoolResponse, PoolStatus } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Pool Journey Tests
  *
- * Each test defines its own scenario data inline, making test intent clear.
- * Data is co-located with assertions for self-documenting tests.
+ * Architecture notes:
+ * - Pools live at /pools (flat table with side panel, no /pools/[name] routes)
+ * - Pool selection: click row → ?view=pool-name opens the details panel
+ * - Panel is an <aside> (role="complementary", aria-label="Pool details: {name}")
+ * - Panel shows: GPU quota/capacity, quick links, pool details, platform config
+ * - ?all=true opts out of the default "My Pools" scope filter
  */
 
 test.describe("Pools List", () => {
-  test("shows multiple pools with different statuses", async ({ page, withData }) => {
-    // ARRANGE: Define exactly what this test needs
-    await withData({
-      pools: createPoolResponse([
-        { name: "production", status: PoolStatus.ONLINE, description: "Prod cluster" },
-        { name: "staging", status: PoolStatus.ONLINE, description: "Staging env" },
-        { name: "maintenance", status: PoolStatus.OFFLINE, description: "Under repair" },
-      ]),
-    });
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupProfile(page);
+  });
 
-    // ACT
-    await page.goto("/pools");
+  test("renders all pools", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "production", status: PoolStatus.ONLINE },
+      { name: "staging", status: PoolStatus.ONLINE },
+      { name: "maintenance", status: PoolStatus.OFFLINE },
+    ]));
+
+    await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
 
-    // ASSERT: Verify pools are visible (use first() to avoid strict mode)
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/pools/i);
     await expect(page.getByText("production").first()).toBeVisible();
     await expect(page.getByText("staging").first()).toBeVisible();
     await expect(page.getByText("maintenance").first()).toBeVisible();
   });
 
-  test("navigates to pool detail when pool is clicked", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "my-pool", status: PoolStatus.ONLINE },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "node-001.cluster",
-          exposed_fields: { node: "node-001", "pool/platform": ["my-pool/base"] },
-          pool_platform_labels: { "my-pool": ["base"] },
-        },
-      ]),
-    });
+  test("clicking a pool row opens the details panel", async ({ page }) => {
+    await setupPools(page, createPoolResponse([{ name: "my-pool", status: PoolStatus.ONLINE }]));
 
-    await page.goto("/pools");
+    await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
 
-    // Click the pool
-    await page.getByRole("link", { name: /my-pool/i }).click();
+    await page.getByText("my-pool").first().click();
 
-    // Should be on pool detail page
-    await expect(page).toHaveURL(/.*pools\/my-pool/);
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // URL state reflects the selection
+    await expect(page).toHaveURL(/view=my-pool/);
+
+    // Panel opens with pool name
+    const panel = page.getByRole("complementary", { name: "Pool details: my-pool" });
+    await expect(panel).toBeVisible();
   });
 
-  test("searches pools by name", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        { name: "production-gpu", status: PoolStatus.ONLINE },
-        { name: "production-cpu", status: PoolStatus.ONLINE },
-        { name: "development", status: PoolStatus.ONLINE },
-      ]),
-    });
+  test("navigating directly to a pool opens its panel", async ({ page }) => {
+    await setupPools(page, createPoolResponse([{ name: "direct-pool", status: PoolStatus.ONLINE }]));
 
-    await page.goto("/pools");
+    await page.goto("/pools?all=true&view=direct-pool");
     await page.waitForLoadState("networkidle");
 
-    // Search for "production"
-    const searchInput = page.getByRole("searchbox");
-    if (await searchInput.isVisible()) {
-      await searchInput.fill("production");
+    // Panel is open without any clicking
+    const panel = page.getByRole("complementary", { name: "Pool details: direct-pool" });
+    await expect(panel).toBeVisible();
+  });
 
-      // Should filter to production pools
-      await expect(page.getByText("production-gpu").first()).toBeVisible();
-      await expect(page.getByText("production-cpu").first()).toBeVisible();
-    }
+  test("search creates a filter chip for the typed pool name", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "production", status: PoolStatus.ONLINE },
+      { name: "development", status: PoolStatus.ONLINE },
+    ]));
+
+    await page.goto("/pools?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // The search input is a combobox (chip-based filter, not free-text search)
+    const searchInput = page.getByRole("combobox");
+    await searchInput.fill("production");
+    await searchInput.press("Enter");
+
+    // Pressing Enter commits a chip — the URL reflects the active filter with the value
+    await expect(page).toHaveURL(/f=pool(%3A|:)production/);
+    // The matched pool remains visible
+    await expect(page.getByText("production").first()).toBeVisible();
+    // Non-matching pool is filtered out
+    await expect(page.getByText("development")).not.toBeVisible();
   });
 });
 
-test.describe("Pool Detail", () => {
-  test("shows pool resources with capacity info", async ({ page, withData }) => {
-    const GiB = 1024 * 1024;
-    const TiB = 1024 * 1024 * 1024 * 1024;
-
-    await withData({
-      pools: createPoolResponse([
-        {
-          name: "gpu-cluster",
-          status: PoolStatus.ONLINE,
-          description: "GPU training cluster",
-          resource_usage: {
-            quota_used: "50",
-            quota_free: "50",
-            quota_limit: "100",
-            total_usage: "64",
-            total_capacity: "128",
-            total_free: "64",
-          },
-          platforms: {
-            dgx: { description: "DGX nodes" },
-          },
-        },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "dgx-001.cluster",
-          resource_type: BackendResourceType.SHARED,
-          exposed_fields: { node: "dgx-001", "pool/platform": ["gpu-cluster/dgx"] },
-          allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * GiB, storage: 2 * TiB },
-          usage_fields: { gpu: 4, cpu: 64, memory: 256 * GiB, storage: 1 * TiB },
-          pool_platform_labels: { "gpu-cluster": ["dgx"] },
-        },
-        {
-          hostname: "dgx-002.cluster",
-          resource_type: BackendResourceType.RESERVED,
-          exposed_fields: { node: "dgx-002", "pool/platform": ["gpu-cluster/dgx"] },
-          allocatable_fields: { gpu: 8, cpu: 128, memory: 512 * GiB, storage: 2 * TiB },
-          usage_fields: { gpu: 8, cpu: 128, memory: 480 * GiB, storage: 1.8 * TiB },
-          pool_platform_labels: { "gpu-cluster": ["dgx"] },
-        },
-      ]),
-    });
-
-    await page.goto("/pools/gpu-cluster");
-    await page.waitForLoadState("networkidle");
-
-    // Should show pool heading
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-
-    // Should show resources in table
-    await expect(page.getByRole("table")).toBeVisible();
-    await expect(page.getByText("dgx-001").first()).toBeVisible();
-    await expect(page.getByText("dgx-002").first()).toBeVisible();
+test.describe("Pool Panel", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupProfile(page);
   });
 
-  test("shows empty state when pool has no resources", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        {
-          name: "empty-pool",
-          status: PoolStatus.ONLINE,
-          description: "Pool with no resources yet",
-          resource_usage: {
-            quota_used: "0",
-            quota_free: "100",
-            quota_limit: "100",
-            total_usage: "0",
-            total_capacity: "0",
-            total_free: "0",
-          },
-        },
-      ]),
-      resources: { resources: [] },
-    });
+  test("shows pool name in panel header", async ({ page }) => {
+    await setupPools(page, createPoolResponse([{ name: "gpu-cluster", status: PoolStatus.ONLINE }]));
 
-    await page.goto("/pools/empty-pool");
+    await page.goto("/pools?all=true&view=gpu-cluster");
     await page.waitForLoadState("networkidle");
 
-    // Should show empty state or no resources message
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    const panel = page.getByRole("complementary", { name: "Pool details: gpu-cluster" });
+    await expect(panel.getByRole("heading").first()).toContainText("gpu-cluster");
   });
 
-  test("filters resources by platform", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        {
-          name: "multi-platform",
-          status: PoolStatus.ONLINE,
-          platforms: {
-            dgx: { description: "DGX nodes" },
-            cpu: { description: "CPU-only nodes" },
-          },
+  test("shows GPU quota and capacity sections", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      {
+        name: "gpu-cluster",
+        status: PoolStatus.ONLINE,
+        resource_usage: {
+          quota_used: "50",
+          quota_free: "50",
+          quota_limit: "100",
+          total_usage: "64",
+          total_capacity: "128",
+          total_free: "64",
         },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "dgx-node.cluster",
-          exposed_fields: { node: "dgx-node", "pool/platform": ["multi-platform/dgx"] },
-          pool_platform_labels: { "multi-platform": ["dgx"] },
-        },
-        {
-          hostname: "cpu-node.cluster",
-          exposed_fields: { node: "cpu-node", "pool/platform": ["multi-platform/cpu"] },
-          allocatable_fields: { gpu: 0, cpu: 96 },
-          pool_platform_labels: { "multi-platform": ["cpu"] },
-        },
-      ]),
-    });
+      },
+    ]));
 
-    await page.goto("/pools/multi-platform");
+    await page.goto("/pools?all=true&view=gpu-cluster");
     await page.waitForLoadState("networkidle");
 
-    // Both should be visible initially
-    await expect(page.getByText("dgx-node").first()).toBeVisible();
-    await expect(page.getByText("cpu-node").first()).toBeVisible();
-
-    // Expand filters if collapsed (responsive layout)
-    await expandFiltersIfCollapsed(page);
-
-    // Filter by platform if filter exists
-    const platformFilter = page.getByLabel(/filter by platform/i);
-    if (await platformFilter.isVisible()) {
-      await platformFilter.click();
-    }
+    const panel = page.getByRole("complementary", { name: "Pool details: gpu-cluster" });
+    await expect(panel.getByText("GPU Quota")).toBeVisible();
+    await expect(panel.getByText("GPU Capacity")).toBeVisible();
   });
 
-  test("opens resource detail panel on row click", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([{ name: "test-pool", status: "ONLINE" }]),
-      resources: createResourcesResponse([
-        {
-          hostname: "clickable-node.cluster",
-          resource_type: BackendResourceType.SHARED,
-          conditions: ["Ready", "SchedulingEnabled"],
-          exposed_fields: { node: "clickable-node", "pool/platform": ["test-pool/base"] },
-          pool_platform_labels: { "test-pool": ["base"] },
-        },
-      ]),
-    });
+  test("panel has quick links to Resources, Workflows, and Occupancy", async ({ page }) => {
+    await setupPools(page, createPoolResponse([{ name: "linked-pool", status: PoolStatus.ONLINE }]));
 
-    await page.goto("/pools/test-pool");
+    await page.goto("/pools?all=true&view=linked-pool");
     await page.waitForLoadState("networkidle");
 
-    // Click the resource row
-    await page.getByText("clickable-node").first().click();
+    const panel = page.getByRole("complementary", { name: "Pool details: linked-pool" });
+    await expect(panel.getByRole("link", { name: /resources/i })).toBeVisible();
+    await expect(panel.getByRole("link", { name: /workflows/i })).toBeVisible();
+    await expect(panel.getByRole("link", { name: /occupancy/i })).toBeVisible();
+  });
 
-    // Panel should open
-    const panel = page.getByRole("dialog");
+  test("resources quick link points to the correct pool filter", async ({ page }) => {
+    await setupPools(page, createPoolResponse([{ name: "my-pool", status: PoolStatus.ONLINE }]));
+
+    await page.goto("/pools?all=true&view=my-pool");
+    await page.waitForLoadState("networkidle");
+
+    const panel = page.getByRole("complementary", { name: "Pool details: my-pool" });
+    const resourcesLink = panel.getByRole("link", { name: /resources/i });
+    await expect(resourcesLink).toHaveAttribute("href", /pool.*my-pool|my-pool.*pool/);
+  });
+
+  test("shows pool description when provided", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "described-pool", status: PoolStatus.ONLINE, description: "High-performance GPU cluster for AI training" },
+    ]));
+
+    await page.goto("/pools?all=true&view=described-pool");
+    await page.waitForLoadState("networkidle");
+
+    const panel = page.getByRole("complementary", { name: "Pool details: described-pool" });
+    await expect(panel.getByText("High-performance GPU cluster for AI training")).toBeVisible();
+  });
+
+  test("shows platform configuration section for pools with platforms", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      {
+        name: "platform-pool",
+        status: PoolStatus.ONLINE,
+        platforms: {
+          dgx: { description: "DGX H100 nodes" },
+          cpu: { description: "CPU-only nodes" },
+        },
+      },
+    ]));
+
+    await page.goto("/pools?all=true&view=platform-pool");
+    await page.waitForLoadState("networkidle");
+
+    const panel = page.getByRole("complementary", { name: "Pool details: platform-pool" });
+    await expect(panel.getByText(/platform configuration/i)).toBeVisible();
+  });
+
+  test("closes with the close button and clears URL state", async ({ page }) => {
+    await setupPools(page, createPoolResponse([{ name: "closeable-pool", status: PoolStatus.ONLINE }]));
+
+    await page.goto("/pools?all=true&view=closeable-pool");
+    await page.waitForLoadState("networkidle");
+
+    const panel = page.getByRole("complementary", { name: "Pool details: closeable-pool" });
     await expect(panel).toBeVisible();
 
-    // Panel should show resource details (use first heading)
-    await expect(panel.getByRole("heading").first()).toBeVisible();
+    await page.getByRole("button", { name: "Close panel" }).click();
 
-    // Close panel
-    await page.getByRole("button", { name: /close/i }).click();
+    await expect(page).not.toHaveURL(/view=/);
     await expect(panel).not.toBeVisible();
   });
 });
 
 test.describe("Pool Edge Cases", () => {
-  test("handles high utilization gracefully", async ({ page, withData }) => {
-    const GiB = 1024 * 1024;
-
-    await withData({
-      pools: createPoolResponse([
-        {
-          name: "overloaded",
-          status: PoolStatus.ONLINE,
-          resource_usage: {
-            quota_used: "99",
-            quota_free: "1",
-            quota_limit: "100",
-            total_usage: "128",
-            total_capacity: "128",
-            total_free: "0",
-          },
-        },
-      ]),
-      resources: createResourcesResponse([
-        {
-          hostname: "stressed-node.cluster",
-          conditions: ["Ready", "MemoryPressure", "DiskPressure"],
-          exposed_fields: { node: "stressed-node", "pool/platform": ["overloaded/base"] },
-          allocatable_fields: { gpu: 8, memory: 512 * GiB },
-          usage_fields: { gpu: 8, memory: 510 * GiB },
-          pool_platform_labels: { overloaded: ["base"] },
-        },
-      ]),
-    });
-
-    await page.goto("/pools/overloaded");
-    await page.waitForLoadState("networkidle");
-
-    // Should show the stressed node with warning conditions
-    await expect(page.getByText("stressed-node").first()).toBeVisible();
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupProfile(page);
   });
 
-  test("handles offline pool", async ({ page, withData }) => {
-    await withData({
-      pools: createPoolResponse([
-        {
-          name: "offline-pool",
-          status: PoolStatus.OFFLINE,
-          description: "Pool is down for maintenance",
-        },
-      ]),
-    });
+  test("offline pool is visible in the list", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "offline-pool", status: PoolStatus.OFFLINE, description: "Down for maintenance" },
+    ]));
 
-    await page.goto("/pools");
+    await page.goto("/pools?all=true");
     await page.waitForLoadState("networkidle");
 
-    // Offline pool should be visible with status indicator
     await expect(page.getByText("offline-pool").first()).toBeVisible();
+  });
+
+  test("shows error state when pool API fails", async ({ page }) => {
+    await setupPools(page, { status: 400, detail: "Bad request" });
+
+    await page.goto("/pools?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // Page must not crash — should show an error state
+    await expect(page.locator("body")).not.toBeEmpty();
+    await expect(page.getByText(/unable to load/i)).toBeVisible();
   });
 });

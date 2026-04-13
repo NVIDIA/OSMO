@@ -14,15 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * MSW Node Server (HMR-safe singleton)
- *
- * The server instance lives on globalThis to survive Turbopack HMR reloads.
- * On HMR, handlers.ts calls globalThis.__mswServer.resetHandlers() to swap
- * in fresh handlers without restarting the server.
- *
- * @see https://mswjs.io/docs/integrations/node
- */
+// HMR-safe singleton: lives on globalThis to survive Turbopack reloads.
 
 import { setupServer, type SetupServer } from "msw/node";
 import { handlers } from "@/mocks/handlers";

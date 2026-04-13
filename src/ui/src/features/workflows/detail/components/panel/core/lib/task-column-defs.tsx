@@ -203,7 +203,7 @@ export function createTaskColumns(options: CreateTaskColumnsOptions = {}): Colum
               retryId > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400 dark:text-zinc-500",
             )}
           >
-            {retryId > 0 ? retryId : "—"}
+            {retryId}
           </span>
         );
       },

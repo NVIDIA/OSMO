@@ -46,18 +46,19 @@ class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                    src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
                    metrics.MetricsCreatorConfig):
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write progress timestamps to (For liveness/startup probes)')
+        description='The file to write progress timestamps to (For liveness/startup probes)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_iter_frequency: str = pydantic.Field(
-        command_line='progress_iter_frequency',
-        env='OSMO_PROGRESS_ITER_FREQUENCY',
         default='15s',
         description='How often to write to progress file when processing tasks in a loop ('
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
-                    'm (minutes).')
+                    'm (minutes).',
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
+        })
 
 
 class Worker(kombu.mixins.ConsumerMixin):
@@ -188,7 +189,14 @@ def get_service_job_queue_length(url: str, *args) \
     # pylint: disable=unused-argument
     redis_client = connectors.RedisConnector.get_instance().client
     for job_queue in connectors.JOBS:
-        length = redis_client.llen(f'{connectors.JOB_QUEUE_PREFIX}:{job_queue.name}')
+        # With priority queues, Kombu creates sub-queues per priority level.
+        # Priority 0 uses the base key; others use key + separator + priority.
+        base_key = f'{connectors.JOB_QUEUE_PREFIX}:{job_queue.name}'
+        length = redis_client.llen(base_key)
+        for step in connectors.PRIORITY_STEPS:
+            if step != 0:
+                length += redis_client.llen(
+                    f'{base_key}{connectors.PRIORITY_SEPARATOR}{step}')
         yield otelmetrics.Observation(length, {'job_type': job_queue.name})
 
 def get_backend_job_queue_length(url: str, *args) \

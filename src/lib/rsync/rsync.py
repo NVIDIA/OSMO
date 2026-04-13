@@ -61,6 +61,97 @@ DEFAULT_DAEMON_MAX_LOG_SIZE = 2 * 1024 * 1024  # 2MB
 logger = logging.getLogger(__name__)
 
 
+def _format_bytes(num_bytes: float) -> str:
+    """Format byte count to human-readable string."""
+    for unit in ('B', 'KB', 'MB', 'GB'):
+        if abs(num_bytes) < 1024:
+            return f'{num_bytes:.1f}{unit}' if unit != 'B' else f'{int(num_bytes)}{unit}'
+        num_bytes /= 1024
+    return f'{num_bytes:.1f}TB'
+
+
+def _parse_progress_line(line: str) -> Tuple[int, int, str, str] | None:
+    """
+    Parse an rsync progress line into (bytes, pct, rate, eta).
+
+    Example input: '  75261 100%  199.31MB/s    0:00:00'
+    Returns: (75261, 100, '199.31MB/s', '0:00:00') or None if parse fails.
+    """
+    parts = line.split()
+    if len(parts) < 4:
+        return None
+    try:
+        num_bytes = int(parts[0])
+        pct = int(parts[1].rstrip('%'))
+        rate = parts[2]
+        eta = parts[3]
+        return (num_bytes, pct, rate, eta)
+    except (ValueError, IndexError):
+        return None
+
+
+def _render_progress_bar(pct: int, width: int) -> str:
+    """Render a progress bar of given width."""
+    filled = int(width * pct / 100)
+    return '\u2588' * filled + '\u2591' * (width - filled)
+
+
+async def _stream_progress(stdout: asyncio.StreamReader) -> None:
+    """
+    Reads rsync stdout and displays a progress bar in-place.
+
+    Rsync outputs filename on one line, then progress on the next:
+        cli/workflow.py
+                   75261 100%  199.31MB/s    0:00:00
+
+    This function renders:
+        cli/workflow.py  ████████████████████ 100%  71.8KB  199.31MB/s  0:00:00
+    """
+    current_file = ''
+    file_count = 0
+    try:
+        terminal_width = os.get_terminal_size().columns
+    except OSError:
+        terminal_width = 80
+    bar_width = 20
+
+    while True:
+        line_bytes = await stdout.readline()
+        if not line_bytes:
+            break
+        line = line_bytes.decode('utf-8', errors='replace').rstrip()
+        if not line:
+            continue
+
+        if line.startswith(' '):
+            parsed = _parse_progress_line(line)
+            if parsed:
+                num_bytes, pct, rate, eta = parsed
+                bar = _render_progress_bar(pct, bar_width)
+                size = _format_bytes(num_bytes)
+                # Truncate filename to fit
+                info = f' {bar} {pct:3d}%  {size}  {rate}  {eta}'
+                max_name_len = terminal_width - len(info) - 1
+                name = current_file
+                if len(name) > max_name_len:
+                    name = '...' + name[-(max_name_len - 3):]
+                display = f'{name}{info}'
+            else:
+                display = f'{current_file}  {line.strip()}'
+            padding = max(0, terminal_width - len(display))
+            sys.stdout.write(f'\r{display}{" " * padding}')
+            sys.stdout.flush()
+        else:
+            file_count += 1
+            current_file = line
+
+    # Final newline to move past the in-place line
+    if file_count > 0:
+        sys.stdout.write(f'\rSynced {file_count} file{"s" if file_count != 1 else ""}'
+                         f'{" " * (terminal_width - 20)}\n')
+        sys.stdout.flush()
+
+
 @dataclasses.dataclass(frozen=True)
 class RsyncPortForwardParams:
     """
@@ -71,6 +162,14 @@ class RsyncPortForwardParams:
     cookie: str
 
 
+class RsyncDirection(str, enum.Enum):
+    """
+    Represents the direction of an rsync operation.
+    """
+    UPLOAD = 'upload'
+    DOWNLOAD = 'download'
+
+
 @dataclasses.dataclass(frozen=True)
 class RsyncRequest:
     """
@@ -78,10 +177,11 @@ class RsyncRequest:
     """
     workflow_id: str
     task_name: str
-    src: str
-    dst_module: str
-    dst_path: str
-    original_dst_path: str
+    direction: RsyncDirection
+    local_path: str
+    remote_module: str
+    remote_path: str
+    original_remote_path: str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -115,6 +215,17 @@ class RsyncDaemonMetadata:
     def from_dict(cls, data: Dict) -> 'RsyncDaemonMetadata':
         """Create RsyncDaemonMetadata from dictionary with nested objects."""
         rsync_request_data = data['rsync_request']
+        # Backward compat: map old field names from existing PID files
+        if 'src' in rsync_request_data:
+            rsync_request_data = {
+                'workflow_id': rsync_request_data['workflow_id'],
+                'task_name': rsync_request_data['task_name'],
+                'direction': RsyncDirection.UPLOAD,
+                'local_path': rsync_request_data['src'],
+                'remote_module': rsync_request_data['dst_module'],
+                'remote_path': rsync_request_data['dst_path'],
+                'original_remote_path': rsync_request_data['original_dst_path'],
+            }
         rsync_request = RsyncRequest(**rsync_request_data)
 
         return cls(
@@ -351,6 +462,7 @@ class RsyncClient:
         upload_rate_limit: int | None = None,
         reconcile_interval: float = 60.0,
         upload_callback: Callable | None = None,
+        show_progress: bool = False,
     ):
         self._service_client: client.ServiceClient = service_client
         self._rsync_bin_path: str = self._resolve_rsync_bin_path()
@@ -377,16 +489,17 @@ class RsyncClient:
                 refill_rate=upload_rate_limit,
             )
         self._upload_callback = upload_callback
+        self._show_progress = show_progress
 
     @property
-    def src(self) -> str:
-        return self._rsync_request.src
+    def local_path(self) -> str:
+        return self._rsync_request.local_path
 
     @property
     def stopped(self) -> bool:
         return self._stop_event.is_set()
 
-    async def start(self) -> None:
+    async def start(self, validate_module: bool = True) -> None:
         """
         Starts a TCP port-forwarding server on a free ephemeral port.
         """
@@ -413,20 +526,22 @@ class RsyncClient:
         if self._stop_event.is_set():
             raise osmo_errors.OSMOError('Rsync client cannot be started')
 
-        # Validate that the requested module is eligible for rsync
-        modules = await self.list_modules()
+        if validate_module:
+            # Validate that the requested module is eligible for rsync
+            modules = await self.list_modules()
 
-        if not modules:
-            raise osmo_errors.OSMOError(
-                'No rsync modules found on the remote task, is Rsync running on the remote task?',
-                workflow_id=self._rsync_request.workflow_id,
-            )
+            if not modules:
+                raise osmo_errors.OSMOError(
+                    'No rsync modules found on the remote task, '
+                    'is Rsync running on the remote task?',
+                    workflow_id=self._rsync_request.workflow_id,
+                )
 
-        if self._rsync_request.dst_module not in modules:
-            raise osmo_errors.OSMOError(
-                f'Rsync module {self._rsync_request.dst_module} is not eligible for rsync',
-                workflow_id=self._rsync_request.workflow_id,
-            )
+            if self._rsync_request.remote_module not in modules:
+                raise osmo_errors.OSMOError(
+                    f'Rsync module {self._rsync_request.remote_module} is not eligible for rsync',
+                    workflow_id=self._rsync_request.workflow_id,
+                )
 
     async def stop(self) -> None:
         """
@@ -457,7 +572,7 @@ class RsyncClient:
         """
         Uploads from the local path to the remote workflow task.
         """
-        logger.info('Uploading %s', self._rsync_request.src)
+        logger.info('Uploading %s', self._rsync_request.local_path)
 
         await self._upload_counter.increment_pending()
 
@@ -482,25 +597,30 @@ class RsyncClient:
             local_port = self._sock.getsockname()[1]
             resolved_dst = os.path.join(
                 f'rsync://{LOCAL_HOST_IP}:{local_port}',
-                self._rsync_request.dst_module,
-                self._rsync_request.dst_path,
+                self._rsync_request.remote_module,
+                self._rsync_request.remote_path,
             )
 
             logger.debug('Uploading from %s to %s, with flags %s',
-                         self._rsync_request.src, resolved_dst, RSYNC_FLAGS)
+                         self._rsync_request.local_path, resolved_dst, RSYNC_FLAGS)
 
             # Get the current pending counter
             cur_pending_counter = await self._upload_counter.get_pending()
 
             try:
+                rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+                if self._show_progress:
+                    rsync_args.append('--progress')
+                rsync_args.extend([self._rsync_request.local_path, resolved_dst])
+
                 process = await asyncio.create_subprocess_exec(
-                    self._rsync_bin_path,
-                    RSYNC_FLAGS,
-                    self._rsync_request.src,
-                    resolved_dst,
+                    *rsync_args,
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
                 )
+
+                if self._show_progress and process.stdout is not None:
+                    await _stream_progress(process.stdout)
 
                 _, stderr = await process.communicate()
                 if process.returncode != 0:
@@ -528,6 +648,79 @@ class RsyncClient:
             except Exception as err:  # pylint: disable=broad-except
                 logger.error('Error running rsync upload: %s', err)
                 raise
+
+    async def download(self) -> None:
+        """
+        Downloads from the remote workflow task to the local path.
+        """
+        logger.info('Downloading to %s', self._rsync_request.local_path)
+
+        if self._stop_event.is_set() or self._sock is None:
+            raise osmo_errors.OSMOError('Rsync client is not running')
+
+        try:
+            await asyncio.wait_for(self._tcp_ready.wait(), timeout=self._timeout)
+        except asyncio.TimeoutError as err:
+            raise osmo_errors.OSMOError(
+                'Timeout waiting for TCP port forwarding to be ready',
+                workflow_id=self._rsync_request.workflow_id,
+            ) from err
+
+        local_port = self._sock.getsockname()[1]
+        resolved_src = os.path.join(
+            f'rsync://{LOCAL_HOST_IP}:{local_port}',
+            self._rsync_request.remote_module,
+            self._rsync_request.remote_path,
+        )
+
+        resolved_dst = paths.resolve_local_path(self._rsync_request.local_path)
+
+        process = None
+        try:
+            # rsync treats the destination as a directory to copy into.
+            if os.path.exists(resolved_dst) and not os.path.isdir(resolved_dst):
+                raise osmo_errors.OSMOUserError(
+                    f'Download destination must be a directory: '
+                    f'{self._rsync_request.local_path}')
+            os.makedirs(resolved_dst, exist_ok=True)
+
+            rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+            if self._show_progress:
+                rsync_args.append('--progress')
+            rsync_args.extend([resolved_src, resolved_dst])
+
+            logger.debug('Downloading from %s to %s, with flags %s',
+                         resolved_src, resolved_dst, RSYNC_FLAGS)
+
+            process = await asyncio.create_subprocess_exec(
+                *rsync_args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            if self._show_progress and process.stdout is not None:
+                await _stream_progress(process.stdout)
+
+            _, stderr = await process.communicate()
+            if process.returncode != 0:
+                raise osmo_errors.OSMOError(f'Rsync failed: {stderr.decode()}')
+            else:
+                logger.info(
+                    'Rsync download completed successfully for %s/%s',
+                    self._rsync_request.workflow_id,
+                    self._rsync_request.task_name,
+                )
+        except (asyncio.CancelledError, InterruptedError, KeyboardInterrupt):
+            if process is not None and process.returncode is None:
+                process.terminate()
+                await process.wait()
+            logger.info('Rsync download cancelled for %s/%s',
+                        self._rsync_request.workflow_id,
+                        self._rsync_request.task_name)
+            raise
+        except Exception as err:  # pylint: disable=broad-except
+            logger.error('Error running rsync download: %s', err)
+            raise
 
     async def list_modules(self) -> List[str]:
         """
@@ -677,7 +870,7 @@ class RsyncClient:
                 break
 
             if not self._upload_lock.locked() and await self._upload_counter.needs_upload():
-                logger.info('Reconciling upload for %s', self._rsync_request.src)
+                logger.info('Reconciling upload for %s', self._rsync_request.local_path)
                 try:
                     await self.upload()
                 except Exception as err:  # pylint: disable=broad-except
@@ -760,7 +953,7 @@ class PathEventHandler(events.FileSystemEventHandler):
         Called when any file system event occurs. Dispatches the debounce timer to upload to a
         registered rsync client.
         """
-        logger.info('Path event handler (%s) detected changes...', self._rsync_client.src)
+        logger.info('Path event handler (%s) detected changes...', self._rsync_client.local_path)
         logger.debug('Event: %s', event)
         self._debounce_timer.debounce(self._rsync_client.upload)
 
@@ -805,7 +998,7 @@ class WorkspaceObserver:
         self._observer = observers.Observer()
         self._observer.schedule(
             self._path_event_handler,
-            rsync_request.src,
+            rsync_request.local_path,
             recursive=True,
             event_filter=WorkspaceObserver._get_eligible_file_system_events(),
         )
@@ -1361,6 +1554,7 @@ async def rsync_upload_task(
     *,
     timeout: int = 10,
     rate_limit: int | None = None,
+    show_progress: bool = False,
 ):
     """
     Convenience method for uploading a file/directory to a single remote workflow task.
@@ -1369,16 +1563,61 @@ async def rsync_upload_task(
     :param rsync_request: The rsync request.
     :param timeout: Optional. The connection timeout.
     :param rate_limit: Optional. The rate limit for the upload.
+    :param show_progress: Optional. Whether to show transfer progress.
     """
     rsync_client = RsyncClient(
         service_client,
         rsync_request,
         timeout=timeout,
         upload_rate_limit=rate_limit,
+        show_progress=show_progress,
     )
     try:
         await rsync_client.start()
         await rsync_client.upload()
+    finally:
+        if not rsync_client.stopped:
+            await rsync_client.stop()
+
+
+async def rsync_download_task(
+    service_client: client.ServiceClient,
+    rsync_request: RsyncRequest,
+    *,
+    timeout: int = 10,
+    show_progress: bool = False,
+):
+    """
+    Convenience method for downloading a file/directory from a single remote workflow task.
+
+    :param service_client: The service client to use.
+    :param rsync_request: The rsync request.
+    :param timeout: Optional. The connection timeout.
+    :param show_progress: Optional. Whether to show transfer progress.
+    """
+    rsync_client = RsyncClient(
+        service_client,
+        rsync_request,
+        timeout=timeout,
+        show_progress=show_progress,
+    )
+    try:
+        await rsync_client.start(validate_module=False)
+
+        # Validate that the requested module exists on the remote
+        modules = await rsync_client.list_modules()
+        if not modules:
+            raise osmo_errors.OSMOError(
+                'No rsync modules found on the remote task, is Rsync running on the remote task?',
+                workflow_id=rsync_request.workflow_id,
+            )
+        if rsync_request.remote_module not in modules:
+            raise osmo_errors.OSMOError(
+                f'Rsync module {rsync_request.remote_module} is not available for download',
+                workflow_id=rsync_request.workflow_id,
+            )
+
+        await rsync_client.download()
     finally:
         if not rsync_client.stopped:
             await rsync_client.stop()
@@ -1450,47 +1689,55 @@ def get_lead_task_name(service_client: client.ServiceClient, workflow_id: str) -
     raise osmo_errors.OSMOUserError(f'Cannot find lead task in group {lead_group_name}')
 
 
-def validate_src_path(src: str) -> str:
+def validate_local_path(path: str, must_exist: bool = True) -> str:
     """
-    Validates and parses a src path.
+    Validates and resolves a local filesystem path.
 
-    :param src: The src path.
+    :param path: The local path.
+    :param must_exist: Whether the path must already exist (True for upload source,
+        False for download destination).
 
-    :return: The sanitized src path.
-    :raises osmo_errors.OSMOUserError: If the src path is invalid.
+    :return: The sanitized local path.
+    :raises osmo_errors.OSMOUserError: If the path is invalid.
     """
-    if not src:
-        raise osmo_errors.OSMOUserError('Invalid rsync path format: missing source')
+    if not path:
+        raise osmo_errors.OSMOUserError('Invalid rsync path format: missing local path')
 
-    resolved_src = paths.resolve_local_path(src)
+    resolved_path = paths.resolve_local_path(path)
 
-    sanitized_src = validation.sanitized_path(resolved_src)
-    if sanitized_src is None:
-        raise osmo_errors.OSMOUserError(f'Invalid format for source path: {src}')
+    sanitized_path = validation.sanitized_path(resolved_path)
+    if sanitized_path is None:
+        raise osmo_errors.OSMOUserError(f'Invalid format for local path: {path}')
 
-    if not os.path.exists(sanitized_src):
-        raise osmo_errors.OSMOUserError(f'Source path does not exist: {src}')
+    if must_exist and not os.path.exists(sanitized_path):
+        raise osmo_errors.OSMOUserError(f'Local path does not exist: {path}')
 
-    return sanitized_src
+    return sanitized_path
 
 
-def validate_dst_path(rsync_config: Dict, dst: str) -> Tuple[str, str]:
+def validate_remote_path(
+    rsync_config: Dict,
+    path: str,
+    require_writable: bool = True,
+) -> Tuple[str, str]:
     """
-    Validates and parses a dst path.
+    Validates a remote path against allowed rsync modules.
 
     :param rsync_config: The rsync config.
-    :param dst: The dst path.
+    :param path: The remote path.
+    :param require_writable: Whether the module must be writable (True for upload,
+        False for download).
 
-    :return: A tuple of (module, sanitized dst path).
-    :raises osmo_errors.OSMOUserError: If the dst path is invalid.
+    :return: A tuple of (module name, sanitized relative path within the module).
+    :raises osmo_errors.OSMOUserError: If the path is invalid.
     """
-    if not dst.startswith('/'):
+    if not path.startswith('/'):
         raise osmo_errors.OSMOUserError(
-            f'Destination path must be an absolute path on remote host: {dst}')
+            f'Remote path must be an absolute path on remote host: {path}')
 
-    sanitized_dst = validation.sanitized_path(dst)
-    if sanitized_dst is None:
-        raise osmo_errors.OSMOUserError(f'Invalid format for destination path: {dst}')
+    sanitized = validation.sanitized_path(path)
+    if sanitized is None:
+        raise osmo_errors.OSMOUserError(f'Invalid format for remote path: {path}')
 
     rsync_module = None
     allowed_paths = get_allowed_paths(rsync_config)
@@ -1499,18 +1746,18 @@ def validate_dst_path(rsync_config: Dict, dst: str) -> Tuple[str, str]:
     # Strip the common path from the desired file_path to get the relative path
     allowed_paths = sorted(allowed_paths, key=lambda x: len(x.path), reverse=True)
     for allowed_path in allowed_paths:
-        if os.path.commonpath([allowed_path.path, sanitized_dst]) == allowed_path.path:
-            if allowed_path.writable:
+        if os.path.commonpath([allowed_path.path, sanitized]) == allowed_path.path:
+            if not require_writable or allowed_path.writable:
                 rsync_module = allowed_path
-                sanitized_dst = sanitized_dst[len(allowed_path.path):].lstrip(os.sep)
+                sanitized = sanitized[len(allowed_path.path):].lstrip(os.sep)
                 break
 
     if rsync_module is None:
         raise osmo_errors.OSMOUserError(
-            f'Destination path is not allowed for rsync: {dst}. The allowed base paths are: '
-            f'{", ".join([path.path for path in allowed_paths])}')
+            f'Remote path is not allowed for rsync: {path}. The allowed base paths are: '
+            f'{", ".join([p.path for p in allowed_paths])}')
 
-    return rsync_module.name, sanitized_dst
+    return rsync_module.name, sanitized
 
 
 def parse_rsync_request(
@@ -1518,14 +1765,19 @@ def parse_rsync_request(
     workflow_id: str,
     task_name: str,
     rsync_path: str,
+    direction: RsyncDirection,
 ) -> RsyncRequest:
     """
     Parses a rsync path into a rsync request.
+
+    For upload, the path format is <local_path>:<remote_path>.
+    For download, the path format is <remote_path>:<local_path>.
 
     :param rsync_config: The rsync config.
     :param workflow_id: The workflow id.
     :param task_name: The task name.
     :param rsync_path: The rsync path.
+    :param direction: The rsync direction.
 
     :return: The rsync request.
     """
@@ -1539,23 +1791,32 @@ def parse_rsync_request(
             break
     if colon_index == -1:
         raise osmo_errors.OSMOUserError(
-            'Invalid rsync path format: missing colon, path should be in the format of <src>:<dst>')
+            'Invalid rsync path format: missing colon, '
+            'path should be in the format of <local_path>:<remote_path> for upload '
+            'or <remote_path>:<local_path> for download')
 
-    # Validate the source
-    src = rsync_path[:colon_index]
-    sanitized_src = validate_src_path(src)
+    left = rsync_path[:colon_index]
+    right = rsync_path[colon_index + 1:]
 
-    # Validate the destination
-    dst = rsync_path[colon_index + 1:]
-    dst_module, sanitized_dst = validate_dst_path(rsync_config, dst)
+    if direction == RsyncDirection.UPLOAD:
+        local_path = validate_local_path(left, must_exist=True)
+        remote_module, remote_path = validate_remote_path(
+            rsync_config, right, require_writable=True)
+        original_remote_path = right
+    else:
+        remote_module, remote_path = validate_remote_path(
+            rsync_config, left, require_writable=False)
+        local_path = validate_local_path(right, must_exist=False)
+        original_remote_path = left
 
     return RsyncRequest(
         workflow_id=workflow_id,
         task_name=task_name,
-        src=sanitized_src,
-        dst_module=dst_module,
-        dst_path=sanitized_dst,
-        original_dst_path=dst,
+        direction=direction,
+        local_path=local_path,
+        remote_module=remote_module,
+        remote_path=remote_path,
+        original_remote_path=original_remote_path,
     )
 
 
@@ -1591,6 +1852,7 @@ def rsync_upload(
     daemon_max_log_size: int = DEFAULT_DAEMON_MAX_LOG_SIZE,
     daemon_verbose_logging: bool = False,
     quiet: bool = False,
+    show_progress: bool = False,
 ):
     """
     Rsync uploads to a remote workflow task.
@@ -1610,10 +1872,12 @@ def rsync_upload(
     :param daemon_max_log_size: The maximum log size for the daemon.
     :param daemon_verbose_logging: Whether to enable verbose logging for the daemon.
     :param quiet: Whether to suppress the output.
+    :param show_progress: Whether to show transfer progress for foreground uploads.
     """
     rsync_config = get_rsync_config(service_client)
     task_name = task_name or get_lead_task_name(service_client, workflow_id)
-    rsync_request = parse_rsync_request(rsync_config, workflow_id, task_name, path)
+    rsync_request = parse_rsync_request(
+        rsync_config, workflow_id, task_name, path, RsyncDirection.UPLOAD)
 
     # Determine the rate limit to use.
     # If the server rate limit is not configured or is zero, default to user provided rate limit.
@@ -1629,6 +1893,7 @@ def rsync_upload(
                 rsync_request,
                 timeout=timeout,
                 rate_limit=rate_limit,
+                show_progress=show_progress,
             )
         )
     else:
@@ -1663,3 +1928,39 @@ def rsync_upload(
             verbose_logging=daemon_verbose_logging,
             quiet=quiet,
         )
+
+
+def rsync_download(
+    service_client: client.ServiceClient,
+    workflow_id: str,
+    task_name: str | None,
+    path: str,
+    *,
+    timeout: int = 10,
+    show_progress: bool = False,
+):
+    """
+    Rsync downloads from a remote workflow task.
+
+    If no task name is specified, rsync will be performed from the lead task of the first group.
+
+    :param service_client: The service client to use.
+    :param workflow_id: The workflow id.
+    :param task_name: The task name.
+    :param path: The rsync path in <remote_path>:<local_path> format.
+    :param timeout: The connection timeout.
+    :param show_progress: Whether to show transfer progress.
+    """
+    rsync_config = get_rsync_config(service_client)
+    task_name = task_name or get_lead_task_name(service_client, workflow_id)
+    rsync_request = parse_rsync_request(
+        rsync_config, workflow_id, task_name, path, RsyncDirection.DOWNLOAD)
+
+    asyncio.get_event_loop().run_until_complete(
+        rsync_download_task(
+            service_client,
+            rsync_request,
+            timeout=timeout,
+            show_progress=show_progress,
+        )
+    )

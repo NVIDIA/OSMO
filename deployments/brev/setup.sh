@@ -57,6 +57,15 @@ NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
 GPU_OPERATOR_VERSION="v25.10.0"
 KAI_SCHEDULER_VERSION="v0.13.4"
 
+# LocalStack S3 object storage settings
+LOCALSTACK_S3_HOST="localstack-s3.osmo"
+LOCALSTACK_S3_PORT="4566"
+LOCALSTACK_S3_OVERRIDE_URL="http://${LOCALSTACK_S3_HOST}:${LOCALSTACK_S3_PORT}"
+LOCALSTACK_S3_ENDPOINT="s3://osmo"
+LOCALSTACK_S3_ACCESS_KEY_ID="test"
+LOCALSTACK_S3_ACCESS_KEY="test"
+LOCALSTACK_S3_REGION="us-east-1"
+
 # ============================================
 # Step 0: System Configuration
 # ============================================
@@ -72,7 +81,7 @@ sudo sysctl -p
 print_status "Checking Docker permissions..."
 if ! docker ps >/dev/null 2>&1; then
     print_warning "Docker permission denied. Adding user to docker group..."
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
     print_warning "Please log out and log back in, then run this script again."
     exit 1
 fi
@@ -159,9 +168,10 @@ if [ "$current_version" = "0.0.0" ] || [ "$(printf '%s\n' "$NVIDIA_CTK_MIN_VERSI
         print_warning "nvidia-ctk version ${current_version} is below minimum ${NVIDIA_CTK_MIN_VERSION}, upgrading..."
     fi
 
-    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    # shellcheck source=/dev/null
+    distribution=$(. /etc/os-release;echo "$ID$VERSION_ID")
     curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo apt-key add -
-    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+    curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" | \
         sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
     sudo apt-get update
 
@@ -181,8 +191,63 @@ print_status "Configuring nvidia-ctk runtime..."
 sudo nvidia-ctk runtime configure --runtime=docker --set-as-default --cdi.enabled
 sudo nvidia-ctk config --set accept-nvidia-visible-devices-as-volume-mounts=true --in-place
 sudo nvidia-ctk config --set accept-nvidia-visible-devices-envvar-when-unprivileged=false --in-place
+
+# Relocate Docker data-root to the largest available filesystem to prevent /var/lib/docker
+# from filling the root partition when large workflow container images are pulled.
+# Different providers mount storage at different paths (e.g. /ephemeral on Crusoe, /data after
+# an upcoming Brev rename), so we detect the largest disk at runtime rather than hardcoding.
+print_status "Detecting largest mounted filesystem for Docker data-root..."
+
+DOCKER_DATA_ROOT_MOUNT=""
+DOCKER_DATA_ROOT_AVAIL=0
+
+while IFS= read -r line; do
+    MNT=$(echo "$line" | awk '{print $6}')
+    AVAIL=$(echo "$line" | awk '{print $4}')
+    # Skip virtual/system filesystems
+    case "$MNT" in
+        /dev|/dev/*|/proc|/sys|/sys/*|/run|/run/*|/boot|/boot/*|/snap/*) continue ;;
+    esac
+    # Skip read-only filesystems (e.g. /mnt/cloud-metadata on Nebius)
+    if ! sudo mkdir -p "$MNT/.docker_write_test" 2>/dev/null; then
+        continue
+    fi
+    sudo rmdir "$MNT/.docker_write_test" 2>/dev/null || true
+    if [ "$AVAIL" -gt "$DOCKER_DATA_ROOT_AVAIL" ] 2>/dev/null; then
+        DOCKER_DATA_ROOT_AVAIL=$AVAIL
+        DOCKER_DATA_ROOT_MOUNT=$MNT
+    fi
+done < <(df -B1 --output=source,fstype,size,avail,used,target 2>/dev/null | tail -n +2)
+
+DOCKER_DATA_ROOT_AVAIL_GB=$((DOCKER_DATA_ROOT_AVAIL / 1073741824))
+print_status "Largest filesystem: $DOCKER_DATA_ROOT_MOUNT (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+
+DAEMON_JSON="/etc/docker/daemon.json"
+if [ -n "$DOCKER_DATA_ROOT_MOUNT" ] && [ "$DOCKER_DATA_ROOT_MOUNT" != "/" ]; then
+    DOCKER_DATA_ROOT="$DOCKER_DATA_ROOT_MOUNT/docker"
+    print_status "Relocating Docker data-root to $DOCKER_DATA_ROOT..."
+    sudo mkdir -p "$DOCKER_DATA_ROOT"
+    if [ -f "$DAEMON_JSON" ]; then
+        # Merge data-root into the existing daemon.json written by nvidia-ctk above
+        sudo python3 -c "
+import json
+with open('$DAEMON_JSON') as f:
+    cfg = json.load(f)
+cfg['data-root'] = '$DOCKER_DATA_ROOT'
+with open('$DAEMON_JSON', 'w') as f:
+    json.dump(cfg, f, indent=2)
+"
+    else
+        printf '{\n  "data-root": "%s"\n}\n' "$DOCKER_DATA_ROOT" | sudo tee "$DAEMON_JSON" > /dev/null
+    fi
+    print_status "Docker data-root set to $DOCKER_DATA_ROOT (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+else
+    print_warning "No larger filesystem found — Docker will use default /var/lib/docker on root (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+fi
+
 print_status "Restarting Docker..."
 sudo systemctl restart docker
+print_status "Docker root dir: $(sudo docker info 2>/dev/null | awk '/Docker Root Dir/{print $NF}')"
 
 # Capture final nvidia-ctk version
 NVIDIA_CTK_VERSION=$(nvidia-ctk --version 2>&1 | grep -oP 'version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "Not detected")
@@ -204,12 +269,15 @@ if ! command_exists nvkind; then
         sudo rm -rf /usr/local/go
         sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
         export PATH=$PATH:/usr/local/go/bin
+        # shellcheck disable=SC2016
         echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
     fi
 
     print_status "Installing nvkind via go install..."
     go install github.com/NVIDIA/nvkind/cmd/nvkind@latest
-    export PATH=$PATH:$(go env GOPATH)/bin
+    GOPATH_BIN=$(go env GOPATH)/bin
+    export PATH="$PATH:$GOPATH_BIN"
+    # shellcheck disable=SC2016
     echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
     cd ..
 else
@@ -264,6 +332,10 @@ nodes:
       nodeRegistration:
         kubeletExtraArgs:
           node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
+    extraPortMappings:
+      - containerPort: 30035
+        hostPort: 4566
+        protocol: TCP
     extraMounts:
       - hostPath: /tmp/localstack-s3
         containerPath: /var/lib/localstack
@@ -310,6 +382,16 @@ kubectl wait --for=condition=Ready nodes --all --timeout=300s
 print_status "Verifying GPU availability..."
 nvkind cluster print-gpus || print_warning "Could not verify GPUs, but continuing..."
 
+# Add LocalStack hostname to /etc/hosts so the same override URL works both
+# inside the cluster (resolved via K8s DNS) and outside (resolved via /etc/hosts
+# to localhost, forwarded to the NodePort via KIND port mapping).
+if ! grep -q "${LOCALSTACK_S3_HOST}" /etc/hosts; then
+    print_status "Adding ${LOCALSTACK_S3_HOST} to /etc/hosts..."
+    echo "127.0.0.1 ${LOCALSTACK_S3_HOST}" | sudo tee -a /etc/hosts
+else
+    print_status "${LOCALSTACK_S3_HOST} already in /etc/hosts"
+fi
+
 # ============================================
 # Step 4: Install GPU Operator
 # ============================================
@@ -355,6 +437,11 @@ helm repo update
 helm upgrade --install osmo osmo/quick-start \
   --namespace osmo \
   --create-namespace \
+  --set global.objectStorage.endpoint="${LOCALSTACK_S3_ENDPOINT}" \
+  --set global.objectStorage.overrideUrl="${LOCALSTACK_S3_OVERRIDE_URL}" \
+  --set global.objectStorage.accessKeyId="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
+  --set global.objectStorage.accessKey="${LOCALSTACK_S3_ACCESS_KEY}" \
+  --set global.objectStorage.region="${LOCALSTACK_S3_REGION}" \
   --set web-ui.services.ui.hostname="" \
   --set service.services.service.hostname="" \
   --set router.services.service.hostname="" \
@@ -379,6 +466,7 @@ sudo bash install.sh
 # Add OSMO to PATH if not already there
 if [[ ":$PATH:" != *":$HOME/.osmo/bin:"* ]]; then
     export PATH="$HOME/.osmo/bin:$PATH"
+    # shellcheck disable=SC2016
     echo 'export PATH="$HOME/.osmo/bin:$PATH"' >> ~/.bashrc
 fi
 
@@ -388,6 +476,35 @@ fi
 print_status "Logging in to OSMO..."
 
 osmo login http://localhost:8000 --method=dev --username=testuser
+
+# ============================================
+# Step 9: Set Data Credential
+# ============================================
+print_status "Setting data credential for LocalStack S3..."
+
+# The config-setup Helm job registers the credential server-side, but the CLI also
+# needs it stored locally in ~/.osmo/config.yaml to authenticate directly with S3.
+osmo credential set osmo --type DATA --payload \
+  access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
+  access_key="${LOCALSTACK_S3_ACCESS_KEY}" \
+  endpoint="${LOCALSTACK_S3_ENDPOINT}" \
+  override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \
+  region="${LOCALSTACK_S3_REGION}"
+
+# Save the credential command for remote workstation setup.
+# Users connecting from a remote machine need to run this after osmo login.
+cat > ~/osmo-deployment/set-credential.sh <<CRED_EOF
+#!/bin/bash
+osmo credential set osmo --type DATA --payload \\
+  access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \\
+  access_key="${LOCALSTACK_S3_ACCESS_KEY}" \\
+  endpoint="${LOCALSTACK_S3_ENDPOINT}" \\
+  override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \\
+  region="${LOCALSTACK_S3_REGION}"
+CRED_EOF
+chmod +x ~/osmo-deployment/set-credential.sh
+
+print_status "Data credential set successfully"
 
 # ============================================
 # Cleanup
@@ -411,6 +528,8 @@ print_status "System Information:"
 print_status "  • Current User: $CURRENT_USER"
 print_status "  • NVIDIA Driver Version: $NVIDIA_DRIVER_FULL_VERSION (minimum: $NVIDIA_MIN_DRIVER_VERSION)"
 print_status "  • nvidia-ctk Version: $NVIDIA_CTK_VERSION (minimum: $NVIDIA_CTK_MIN_VERSION)"
+print_status "  • Docker Data Root: $(sudo docker info 2>/dev/null | awk '/Docker Root Dir/{print $NF}') (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+print_status "  • LocalStack S3: ${LOCALSTACK_S3_OVERRIDE_URL}"
 echo ""
 
 # Display warnings if versions are insufficient

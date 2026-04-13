@@ -14,45 +14,59 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-{{- if .Values.global.network.restrictEgress }}
+{{- if .Values.global.networkPolicy.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: osmo-backend-network-policy
+  name: osmo-workflow-network-policy
   namespace: {{ .Values.global.backendNamespace }}
 spec:
-  podSelector: {} # Selects every pod in the namespace
+  podSelector: {}
   policyTypes:
   - Egress
   egress:
-    # Allow egress to public internet only if allowlistEgress is disabled
-    # TODO: resume if block once all running pods have environment variable for proxy set
-    - to:
-      - ipBlock:
-          cidr: 0.0.0.0/0
 
-    # Allow egress to backend namespace
-    - to:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: {{ .Values.global.backendNamespace }}
-    # Allow egress to resolve DNS in kube-system namespace
-    - ports:
-      - port: 53
-        protocol: UDP
-      - port: 53
-        protocol: TCP
-      to:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: kube-system
-    {{- if .Values.global.network.allowlistEgress.enabled }}
-    - to:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: {{ .Values.global.network.allowlistEgress.proxyNamespace }}
-      ports:
-      - port: 3128
-        protocol: TCP
-    {{- end }}
+  # Allow external internet egress, excluding cluster-internal CIDRs.
+  # Without clusterCIDRs set, all egress is allowed (namespace isolation not enforced).
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        {{- if .Values.global.networkPolicy.clusterCIDRs }}
+        except:
+        {{- range .Values.global.networkPolicy.clusterCIDRs }}
+        - {{ . }}
+        {{- end }}
+        {{- end }}
+
+  # Allow intra-namespace egress (pods within the same workflow namespace).
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.global.backendNamespace }}
+
+  # Allow DNS. Works correctly on Cilium and Calico eBPF. For iptables-based CNIs,
+  # add an explicit ipBlock /32 for the kube-dns service IP via additionalEgressRules.
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.global.networkPolicy.dnsNamespace }}
+
+  # Whitelisted namespaces. Note: namespaceSelector matches pod IPs only, not service
+  # ClusterIPs. On iptables-based CNIs, traffic to Services (not pods) in these
+  # namespaces may be blocked. Use additionalEgressRules with an ipBlock for those cases.
+  {{- range .Values.global.networkPolicy.allowedNamespaces }}
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ . }}
+  {{- end }}
+
+  {{- with .Values.global.networkPolicy.additionalEgressRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}

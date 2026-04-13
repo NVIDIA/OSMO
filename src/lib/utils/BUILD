@@ -70,7 +70,6 @@ osmo_py_library(
     name = "common",
     srcs = ["common.py"],
     deps = [
-        requirement("fastapi"),
         requirement("pydantic"),
         requirement("pytz"),
         requirement("requests"),

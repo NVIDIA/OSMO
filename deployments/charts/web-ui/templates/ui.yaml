@@ -33,7 +33,6 @@ spec:
           {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/envoy-config: {{ include (print $.Template.BasePath "/envoy-config.yaml") . | sha256sum }}
       {{- with .Values.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -241,14 +240,10 @@ spec:
           {{- end }}
         {{- end }}
 
-      {{- include "ui.envoy-sidecar-container" . | nindent 6}}
-      {{- include "ui.oauth2-proxy-sidecar-container" . | nindent 6}}
       {{- with .Values.extraContainers }}
         {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- include "ui.envoy-volumes" . | nindent 8 }}
-        {{- include "ui.oauth2-proxy-volumes" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
@@ -278,11 +273,7 @@ spec:
   {{- end }}
   ports:
     - port: {{ .Values.services.ui.service.port }}
-      {{- if .Values.sidecars.envoy.enabled }}
-      targetPort: envoy-http
-      {{- else }}
       targetPort: {{ .Values.services.ui.containerPort }}
-      {{- end }}
       protocol: {{ .Values.services.ui.service.protocol }}
       name: {{ .Values.services.ui.service.portName }}
     {{- range .Values.services.ui.service.extraPorts }}

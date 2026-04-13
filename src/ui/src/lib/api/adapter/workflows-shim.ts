@@ -126,23 +126,6 @@ function buildApiParams(
 // =============================================================================
 
 /**
- * Parse the raw API response.
- *
- * The workflow API returns a JSON string that needs parsing.
- * This handles both string and already-parsed responses.
- */
-export function parseWorkflowsResponse(rawData: unknown): RawWorkflowsResponse | null {
-  if (!rawData) return null;
-  try {
-    const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-    return parsed as RawWorkflowsResponse;
-  } catch {
-    console.error("Failed to parse workflow response");
-    return null;
-  }
-}
-
-/**
  * Fetch paginated workflows with server-side filtering.
  *
  * Passes all filter parameters directly to the backend API.
@@ -166,10 +149,8 @@ export async function fetchPaginatedWorkflows(
 
   // Fetch from API
   const response = await listWorkflowApiWorkflowGet(apiParams);
-  const parsed = parseWorkflowsResponse(response.data);
-  const workflows = parsed?.workflows ?? [];
-
-  const hasMore = parsed?.more_entries ?? false;
+  const workflows = response.workflows;
+  const hasMore = response.more_entries;
 
   return {
     items: workflows,

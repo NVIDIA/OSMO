@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Auto-generated API client
     "src/lib/api/generated.ts",
+    // Auto-generated MSW mock handlers (Orval)
+    "src/mocks/generated-mocks.ts",
     // E2E tests (Playwright, not React)
     "e2e/**",
     // Vendored/third-party code

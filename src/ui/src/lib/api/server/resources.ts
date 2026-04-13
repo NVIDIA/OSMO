@@ -24,6 +24,7 @@
 import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import type { AllResourcesResponse, PoolResourcesResponse } from "@/lib/api/adapter/types";
+import type { ResourcesResponse } from "@/lib/api/generated";
 import {
   buildResourcesQueryKey,
   getResourcesCacheSnapshot,
@@ -49,7 +50,7 @@ export const fetchResources = cache(async (): Promise<AllResourcesResponse> => {
   const { transformAllResourcesResponse } = await import("../adapter/transforms");
 
   const response = await getResourcesApiResourcesGet({ all_pools: true });
-  return transformAllResourcesResponse(response.data);
+  return transformAllResourcesResponse(response as ResourcesResponse);
 });
 
 /**
@@ -69,7 +70,7 @@ export const fetchResourcesByPool = cache(async (poolName: string): Promise<Pool
     pools: [poolName],
     all_pools: false,
   });
-  return transformResourcesResponse(response.data, poolName);
+  return transformResourcesResponse(response as ResourcesResponse, poolName);
 });
 
 // =============================================================================

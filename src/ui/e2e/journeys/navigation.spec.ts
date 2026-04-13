@@ -14,135 +14,166 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from "../fixtures";
+import { test, expect } from "@playwright/test";
+import { createPoolResponse, createResourcesResponse } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile, setupResources } from "@/e2e/utils/mock-setup";
 
 /**
  * Navigation Journey Tests
  *
- * Tests core navigation functionality.
- * Uses default mock data (auth disabled, standard pools/resources).
+ * Validates sidebar links and route accessibility for every user-facing route.
+ * Content validation lives in the dedicated page specs (pools, resources, etc.).
+ *
+ * User-facing sidebar routes (admin routes excluded):
+ *   Dashboard /  ·  Workflows /workflows  ·  Pools /pools
+ *   Resources /resources  ·  Occupancy /occupancy  ·  Datasets /datasets
+ *
+ * Implementation notes:
+ * - Scope sidebar queries to [data-sidebar="sidebar"] to avoid matching page
+ *   content (e.g. dashboard stat cards "Pools Online", "Active Workflows")
+ * - Use exact: true to prevent substring matches on dashboard card link names
+ * - Clicking tests start from a fully-mocked page (/pools), not the dashboard,
+ *   to avoid API-retry noise interfering with navigation
  */
 
-test.describe("Main Navigation", () => {
-  test("navigates to main sections via sidebar", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
+// Scoped helper — avoids matching dashboard cards with similar link names
+function sidebarLink(page: Parameters<typeof setupDefaultMocks>[0], name: string) {
+  return page.locator('[data-sidebar="sidebar"]').first().getByRole("link", { name, exact: true });
+}
 
-    // Should see navigation
-    const nav = page.getByRole("navigation");
-    await expect(nav).toBeVisible();
-
-    // Navigate to Pools
-    await page.getByRole("link", { name: /pools/i }).click();
-    await expect(page).toHaveURL(/.*pools/);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/pools/i);
-
-    // Navigate to Resources
-    await page.getByRole("link", { name: /resources/i }).click();
-    await expect(page).toHaveURL(/.*resources/);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/resources/i);
-
-    // Return to Dashboard
-    await page.getByRole("link", { name: /dashboard/i }).click();
-    await expect(page).toHaveURL(/\/$/);
-  });
-
-  test("highlights current page in navigation", async ({ page }) => {
+test.describe("Sidebar Links", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupPools(page, createPoolResponse());
+    await setupProfile(page);
     await page.goto("/pools");
     await page.waitForLoadState("networkidle");
-
-    // Pools link should be active/highlighted
-    const poolsLink = page.getByRole("link", { name: /pools/i });
-    await expect(poolsLink).toBeVisible();
-    // Active state styling is implementation-dependent
   });
-});
 
-test.describe("Accessibility", () => {
-  test("skip link allows keyboard users to skip navigation", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-
-    // Tab to reach skip link
-    await page.keyboard.press("Tab");
-
-    // Skip link should be visible when focused
-    const skipLink = page.locator("a.skip-link");
-    // Check it exists (may or may not be visible depending on implementation)
-    const skipLinkCount = await skipLink.count();
-
-    if (skipLinkCount > 0) {
-      // Some implementations show skip link on focus
-      await expect(skipLink.first()).toHaveAttribute("href", "#main-content");
+  test("shows all user-facing navigation links", async ({ page }) => {
+    for (const name of ["Dashboard", "Workflows", "Pools", "Resources", "Occupancy", "Datasets"]) {
+      await expect(sidebarLink(page, name)).toBeVisible();
     }
   });
 
-  test("all pages have proper heading structure", async ({ page }) => {
-    // Check dashboard
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  test("does not show admin-only Log Viewer link for regular users", async ({ page }) => {
+    await expect(sidebarLink(page, "Log Viewer")).not.toBeVisible();
+  });
+});
 
-    // Check pools
+test.describe("Sidebar Navigation", () => {
+  // Start from /pools — fully mocked, stable, and not the dashboard which makes
+  // many unmocked API calls that cause retry noise during sidebar clicks.
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupPools(page, createPoolResponse());
+    await setupProfile(page);
     await page.goto("/pools");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
 
-    // Check resources
+  // Each test waits for networkidle after navigation so the destination page
+  // has settled before teardown begins. Without this, RSC fetch requests and
+  // TanStack Query activity on the new page outlive the test and cause
+  // "Tearing down context exceeded timeout". networkidle resolves quickly
+  // because the catch-all in setupDefaultMocks answers all /api/** with 404
+  // (no retries) and route warmup in globalSetup pre-compiles all routes.
+
+  test("Pools link navigates to /pools", async ({ page }) => {
+    await sidebarLink(page, "Pools").click();
+    await expect(page).toHaveURL(/\/pools/);
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("Resources link navigates to /resources", async ({ page }) => {
+    await sidebarLink(page, "Resources").click();
+    await expect(page).toHaveURL(/\/resources/);
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("Workflows link navigates to /workflows", async ({ page }) => {
+    await sidebarLink(page, "Workflows").click();
+    await expect(page).toHaveURL(/\/workflows/);
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("Occupancy link navigates to /occupancy", async ({ page }) => {
+    await sidebarLink(page, "Occupancy").click();
+    await expect(page).toHaveURL(/\/occupancy/);
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("Datasets link navigates to /datasets", async ({ page }) => {
+    await sidebarLink(page, "Datasets").click();
+    await expect(page).toHaveURL(/\/datasets/);
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("Dashboard link navigates to /", async ({ page }) => {
+    await sidebarLink(page, "Dashboard").click();
+    await expect(page).toHaveURL(/\/$/);
+    await page.waitForLoadState("networkidle");
+  });
+});
+
+test.describe("Route Loading", () => {
+  // Validate each route is reachable and the app shell renders.
+  // waitUntil: "domcontentloaded" skips API-dependent networkidle for routes
+  // whose data APIs are not mocked here (content is tested in dedicated specs).
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
+  test("/pools loads", async ({ page }) => {
+    await setupPools(page, createPoolResponse());
+    await setupProfile(page);
+    await page.goto("/pools");
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL(/\/pools/);
+    await expect(sidebarLink(page, "Pools")).toBeVisible();
+  });
+
+  test("/resources loads", async ({ page }) => {
+    await setupResources(page, createResourcesResponse());
+    await setupProfile(page);
     await page.goto("/resources");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(/\/resources/);
+    await expect(sidebarLink(page, "Resources")).toBeVisible();
   });
 
-  test("navigation is keyboard accessible", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-
-    // Tab through navigation
-    await page.keyboard.press("Tab"); // Skip link
-    await page.keyboard.press("Tab"); // First nav item
-
-    // Should be able to activate with Enter
-    await page.keyboard.press("Enter");
-
-    // Should have navigated
-    await expect(page.url()).not.toBe("about:blank");
+  test("/workflows loads", async ({ page }) => {
+    await page.goto("/workflows", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/workflows/);
+    await expect(sidebarLink(page, "Workflows")).toBeVisible();
   });
-});
 
-test.describe("Responsive Behavior", () => {
-  test("navigation works on mobile viewport", async ({ page }) => {
-    // Set mobile viewport
-    await page.setViewportSize({ width: 375, height: 667 });
+  test("/occupancy loads", async ({ page }) => {
+    await page.goto("/occupancy", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/occupancy/);
+    await expect(sidebarLink(page, "Occupancy")).toBeVisible();
+  });
 
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
+  test("/datasets loads", async ({ page }) => {
+    await page.goto("/datasets", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/datasets/);
+    await expect(sidebarLink(page, "Datasets")).toBeVisible();
+  });
 
-    // Mobile might have hamburger menu - check for any navigation mechanism
-    const menuButton = page.getByRole("button", { name: /menu|toggle|navigation/i });
-    if (await menuButton.isVisible()) {
-      await menuButton.click();
-    }
-
-    // Just verify page loaded correctly (layout may differ on mobile)
-    await expect(page.locator("body")).not.toBeEmpty();
+  test("/profile loads", async ({ page }) => {
+    await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/profile/);
+    await expect(sidebarLink(page, "Dashboard")).toBeVisible();
   });
 });
 
-test.describe("Error Handling", () => {
-  test("shows not found page for invalid routes", async ({ page }) => {
-    await page.goto("/this-page-does-not-exist");
-
-    // Should show 404 or not found message OR redirect to valid page
-    // Next.js might redirect or show a generic page
-    await expect(page.locator("body")).not.toBeEmpty();
+test.describe("Invalid Routes", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
   });
 
-  test("shows not found for invalid pool", async ({ page }) => {
-    await page.goto("/pools/nonexistent-pool-12345");
-    await page.waitForLoadState("networkidle");
-
-    // Should handle gracefully (show not found or empty state)
-    await expect(page.locator("body")).not.toBeEmpty();
+  test("unknown route shows a not-found page without crashing", async ({ page }) => {
+    await page.goto("/this-route-does-not-exist");
+    await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
   });
 });

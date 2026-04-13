@@ -33,7 +33,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        checksum/envoy-config: {{ .Values.sidecars.envoy | toYaml | sha256sum }}
         {{- with .Values.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -188,15 +187,10 @@ spec:
           {{- toYaml . | nindent 10 }}
         {{- end }}
 
-      {{- include "router.envoy-sidecar-container" . | nindent 6}}
-      {{- include "router.oauth2-proxy-sidecar-container" . | nindent 6}}
-      {{- include "router.authz-sidecar-container" . | nindent 6}}
       {{- with .Values.extraContainers }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
-        {{- include "router.envoy-volumes" . | nindent 8 }}
-        {{- include "router.oauth2-proxy-volumes" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
@@ -228,17 +222,6 @@ data:
 {{- end }}
 {{- end }}
 
-{{- if .Values.sidecars.envoy.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Values.services.service.serviceName }}-envoy-config
-data:
-  config.yaml: |
-    {{ include "router.envoy.config" . | nindent 4 }}
----
-{{- end }}
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -248,11 +231,25 @@ metadata:
 spec:
   ports:
     - port: 80
-      {{- if .Values.sidecars.envoy.enabled }}
-      targetPort: envoy-http
-      {{- else }}
       targetPort: 8000
-      {{- end }}
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.services.service.serviceName }}
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.services.service.serviceName }}-headless
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+spec:
+  clusterIP: None
+  ports:
+    - port: 80
+      targetPort: 8000
       protocol: TCP
       name: http
   selector:

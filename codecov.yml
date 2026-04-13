@@ -30,8 +30,17 @@ comment:
   behavior: default
   require_changes: true
 
+flags:
+  backend:
+    paths:
+      - src/
+    carryforward: true
+  ui:
+    paths:
+      - src/ui/
+    carryforward: true
+
 ignore:
   - "src/tests/**"       # Shared test fixtures and infrastructure
-  - "src/ui/**"          # Frontend — covered by separate Vitest/Playwright pipeline
   - "src/scripts/**"     # Build and utility scripts
   - "bzl/**"             # Bazel build patches

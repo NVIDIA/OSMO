@@ -62,13 +62,23 @@
  */
 
 import { faker } from "@faker-js/faker";
+import { delay, HttpResponse } from "msw";
 
-// Import status and priority enums from generated API spec - prevents drift!
-import { WorkflowStatus, TaskGroupStatus, WorkflowPriority } from "@/lib/api/generated";
+import {
+  WorkflowStatus,
+  TaskGroupStatus,
+  WorkflowPriority,
+  type SrcServiceCoreWorkflowObjectsListEntry,
+  type SrcServiceCoreWorkflowObjectsListResponse,
+  type WorkflowQueryResponse,
+  type TaskQueryResponse,
+  type SubmitResponse,
+} from "@/lib/api/generated";
 
 import { MOCK_CONFIG, type WorkflowPatterns } from "@/mocks/seed/types";
-import { hashString } from "@/mocks/utils";
+import { hashString, getMockDelay, parsePagination, parseWorkflowFilters, hasActiveFilters } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
+import { MOCK_WORKFLOWS, getMockWorkflow } from "@/mocks/mock-workflows";
 
 export { WorkflowStatus, TaskGroupStatus, WorkflowPriority };
 
@@ -80,15 +90,11 @@ export interface MockTask {
   status: TaskGroupStatus;
   lead?: boolean;
 
-  // Identifiers
   task_uuid: string;
   pod_name: string;
   pod_ip?: string;
   node_name?: string;
 
-  // Timeline timestamps (canonical order - linear timeline, no phases can be skipped)
-  // Phase: 1. Processing → 2. Scheduling → 3. Initializing → 4. Running (start_time)
-  //        Then during RUNNING: Input Download → [Execute] → Output Upload → end_time
   processing_start_time?: string;
   scheduling_start_time?: string;
   initializing_start_time?: string;
@@ -98,18 +104,15 @@ export interface MockTask {
   output_upload_start_time?: string;
   end_time?: string;
 
-  // Status
   failure_message?: string;
   exit_code?: number;
 
-  // URLs
   logs: string;
   error_logs?: string;
   events: string;
   dashboard_url?: string;
   grafana_url?: string;
 
-  // Resource info
   gpu: number;
   cpu: number;
   memory: number;
@@ -143,7 +146,6 @@ export interface MockWorkflow {
   duration?: number;
   groups: MockGroup[];
   image?: string;
-  // URLs for detail fetching
   spec_url: string;
   template_spec_url: string;
   logs_url: string;
@@ -151,48 +153,36 @@ export interface MockWorkflow {
 }
 
 interface GeneratorConfig {
-  total: number;
   baseSeed: number;
   patterns: WorkflowPatterns;
 }
 
 const DEFAULT_CONFIG: GeneratorConfig = {
-  total: MOCK_CONFIG.volume.workflows, // 10,000 by default
   baseSeed: 12345,
   patterns: MOCK_CONFIG.workflows,
 };
 
-let instanceCounter = 0;
-
 export class WorkflowGenerator {
   private config: GeneratorConfig;
-  // Cache for name → index mapping (populated on demand)
   private nameToIndexCache: Map<string, number> = new Map();
-  // Track which indices have been cached
   private cachedUpToIndex: number = -1;
-  // Unique instance ID for debugging module duplication
-  private instanceId: number;
+  /** Incrementally-built sequenced names (e.g. "train-llama-1", "train-llama-2") */
+  private sequenceNameCache: Map<number, string> = new Map();
+  private sequenceBuiltUpTo: number = -1;
+  private baseNameCounter: Map<string, number> = new Map();
 
   constructor(config: Partial<GeneratorConfig> = {}) {
-    this.instanceId = ++instanceCounter;
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
-  /**
-   * Clear caches (useful for testing or config changes)
-   */
   clearCache(): void {
     this.nameToIndexCache.clear();
     this.cachedUpToIndex = -1;
+    this.sequenceNameCache.clear();
+    this.sequenceBuiltUpTo = -1;
+    this.baseNameCounter.clear();
   }
 
-  /**
-   * Total number of workflows available.
-   * Can be set to any number - generation is on-demand.
-   *
-   * IMPORTANT: Reads from global config to ensure consistency across
-   * Next.js contexts (MSW handlers vs Server Actions).
-   */
   get total(): number {
     const globalConfig = getGlobalMockConfig();
     return globalConfig.workflows;
@@ -203,64 +193,11 @@ export class WorkflowGenerator {
     globalConfig.workflows = value;
   }
 
-  /**
-   * Generate a workflow at a specific index.
-   *
-   * DETERMINISTIC: Same index always produces the same workflow.
-   * MEMORY EFFICIENT: Only name→index mapping is cached.
-   * VALIDATED: Guarantees state machine invariants are satisfied.
-   */
   generate(index: number): MockWorkflow {
-    // Seed faker deterministically based on index
     faker.seed(this.config.baseSeed + index);
-
-    const status = this.pickWeighted(this.config.patterns.statusDistribution) as WorkflowStatus;
-    const priority = this.pickWeighted(this.config.patterns.priorityDistribution) as Priority;
-    const pool = faker.helpers.arrayElement(this.config.patterns.pools);
-    const user = faker.helpers.arrayElement(this.config.patterns.users);
     const name = this.generateName(index);
-
-    // Cache the name → index mapping for efficient lookup
     this.nameToIndexCache.set(name, index);
-
-    // Timing
-    const submitTime = this.generateSubmitTime(index);
-    const { startTime, endTime, queuedTime, duration } = this.generateTiming(status, submitTime);
-
-    // Groups and tasks
-    const groups = this.generateGroups(status, name);
-
-    // Container image
-    const image = `${faker.helpers.arrayElement(MOCK_CONFIG.images.repositories)}:${faker.helpers.arrayElement(MOCK_CONFIG.images.tags)}`;
-
-    const workflow: MockWorkflow = {
-      name,
-      uuid: faker.string.uuid(),
-      submitted_by: user,
-      cancelled_by:
-        status === WorkflowStatus.FAILED_CANCELED ? faker.helpers.arrayElement(this.config.patterns.users) : undefined,
-      status,
-      priority,
-      pool,
-      backend: "kubernetes",
-      tags: this.generateTags(),
-      submit_time: submitTime,
-      start_time: startTime,
-      end_time: endTime,
-      queued_time: queuedTime,
-      duration,
-      groups,
-      image,
-      spec_url: `/api/workflow/${name}/spec`,
-      template_spec_url: `/api/workflow/${name}/template-spec`,
-      logs_url: `/api/workflow/${name}/logs`,
-      events_url: `/api/workflow/${name}/events`,
-    };
-
-    // VALIDATE: Ensure state machine invariants are satisfied
-    this.enforceInvariants(workflow);
-
-    return workflow;
+    return this.buildWorkflowBody(name, index);
   }
 
   /**
@@ -280,11 +217,9 @@ export class WorkflowGenerator {
     if (workflow.groups.length === 0) return;
 
     if (workflow.status === WorkflowStatus.RUNNING) {
-      // INVARIANT: RUNNING workflow MUST have at least one RUNNING group
       const hasRunningGroup = workflow.groups.some((g) => g.status === TaskGroupStatus.RUNNING);
 
       if (!hasRunningGroup) {
-        // FIX: Force the first group that can run to be RUNNING
         for (const group of workflow.groups) {
           const allUpstreamComplete =
             group.upstream_groups.length === 0 ||
@@ -294,31 +229,25 @@ export class WorkflowGenerator {
             });
 
           if (allUpstreamComplete && group.status !== TaskGroupStatus.COMPLETED) {
-            // Use updateGroupStatus - single entry point for group status changes
             this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
             break;
           }
         }
       }
 
-      // INVARIANT: RUNNING groups MUST have at least one RUNNING task
-      // (handled by updateGroupStatus via deriveTaskStatusFromGroup)
       for (const group of workflow.groups) {
         if (group.status === TaskGroupStatus.RUNNING) {
           const hasRunningTask = group.tasks.some((t) => t.status === TaskGroupStatus.RUNNING);
           if (!hasRunningTask && group.tasks.length > 0) {
-            // Re-apply group status to fix task states
             this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
           }
         }
       }
 
-      // INVARIANT: Not all tasks can be COMPLETED in a RUNNING workflow
       const allTasksCompleted = workflow.groups.every((g) =>
         g.tasks.every((t) => t.status === TaskGroupStatus.COMPLETED),
       );
       if (allTasksCompleted) {
-        // Find the first RUNNING group and re-apply its status
         const runningGroup = workflow.groups.find((g) => g.status === TaskGroupStatus.RUNNING);
         if (runningGroup) {
           this.updateGroupStatus(runningGroup, TaskGroupStatus.RUNNING);
@@ -327,21 +256,18 @@ export class WorkflowGenerator {
     }
 
     if (workflow.status === WorkflowStatus.COMPLETED) {
-      // INVARIANT: All groups and tasks must be COMPLETED
       for (const group of workflow.groups) {
         this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
       }
     }
 
     if (workflow.status === WorkflowStatus.PENDING) {
-      // INVARIANT: All groups must be WAITING
       for (const group of workflow.groups) {
         this.updateGroupStatus(group, TaskGroupStatus.WAITING);
       }
     }
 
     if (workflow.status.toString().startsWith("FAILED")) {
-      // INVARIANT: At least one group must be in a FAILED state
       const hasFailedGroup = workflow.groups.some((g) => g.status.toString().startsWith("FAILED"));
       if (!hasFailedGroup && workflow.groups.length > 0) {
         const failureStatus = this.mapWorkflowFailureToTaskFailure(workflow.status);
@@ -370,10 +296,7 @@ export class WorkflowGenerator {
   private updateTaskStatus(task: MockTask, newStatus: TaskGroupStatus): void {
     task.status = newStatus;
 
-    // Regenerate timestamps based on the new status
     const timestamps = this.generateTaskTimestamps(newStatus, task.pod_name, task.task_uuid);
-
-    // Apply all timestamp fields
     task.processing_start_time = timestamps.processing_start_time;
     task.scheduling_start_time = timestamps.scheduling_start_time;
     task.initializing_start_time = timestamps.initializing_start_time;
@@ -383,7 +306,6 @@ export class WorkflowGenerator {
     task.output_upload_start_time = timestamps.output_upload_start_time;
     task.end_time = timestamps.end_time;
 
-    // Also update related fields
     task.pod_ip = timestamps.pod_ip;
     task.node_name = timestamps.node_name;
     task.dashboard_url = timestamps.dashboard_url;
@@ -416,31 +338,21 @@ export class WorkflowGenerator {
   private updateGroupStatus(group: MockGroup, newStatus: TaskGroupStatus): void {
     group.status = newStatus;
 
-    // Set failure message if failed
     if (newStatus.toString().startsWith("FAILED") && !group.failure_message) {
       group.failure_message = this.generateFailureMessage(newStatus);
     } else if (!newStatus.toString().startsWith("FAILED")) {
       group.failure_message = undefined;
     }
 
-    // Update all tasks to be consistent with the new group status
-    // (skips if no tasks exist yet - Phase 2)
     for (let i = 0; i < group.tasks.length; i++) {
       const taskStatus = this.deriveTaskStatusFromGroup(newStatus, i, group.tasks.length);
       this.updateTaskStatus(group.tasks[i], taskStatus);
     }
   }
 
-  /**
-   * Generate a page of workflows.
-   *
-   * Efficient: Only generates items for the requested page.
-   */
   generatePage(offset: number, limit: number): { entries: MockWorkflow[]; total: number } {
     const entries: MockWorkflow[] = [];
-    const total = this.total; // Use getter to read from global config
-
-    // Only generate items in the requested range
+    const total = this.total;
     const start = Math.max(0, offset);
     const end = Math.min(offset + limit, total);
 
@@ -451,33 +363,23 @@ export class WorkflowGenerator {
     return { entries, total };
   }
 
-  /**
-   * Find a workflow by name.
-   *
-   * SINGLE SOURCE OF TRUTH: Returns the same workflow that generate() produces.
-   * Uses name→index cache for O(1) lookup after first generation.
-   */
-  getByName(name: string): MockWorkflow | null {
-    // 1. Check cache first (O(1) lookup)
+  getByName(name: string): MockWorkflow {
     const cachedIndex = this.nameToIndexCache.get(name);
     if (cachedIndex !== undefined) {
       return this.generate(cachedIndex);
     }
 
-    // 2. Try hash-based guess (O(1) but may miss)
     const hash = hashString(name);
-    const guessIndex = Math.abs(hash) % this.total; // Use getter
+    const guessIndex = Math.abs(hash) % this.total;
     const candidate = this.generate(guessIndex);
     if (candidate.name === name) {
       return candidate;
     }
 
-    // 3. Scan first N workflows to populate cache (one-time cost)
-    const SCAN_LIMIT = Math.min(1000, this.total); // Use getter
+    const SCAN_LIMIT = Math.min(1000, this.total);
     if (this.cachedUpToIndex < SCAN_LIMIT - 1) {
       for (let i = this.cachedUpToIndex + 1; i < SCAN_LIMIT; i++) {
         const workflow = this.generate(i);
-        // generate() already caches the name
         if (workflow.name === name) {
           return workflow;
         }
@@ -485,31 +387,19 @@ export class WorkflowGenerator {
       this.cachedUpToIndex = SCAN_LIMIT - 1;
     }
 
-    // 4. Check cache again after scan
     const foundIndex = this.nameToIndexCache.get(name);
     if (foundIndex !== undefined) {
       return this.generate(foundIndex);
     }
 
-    // 5. Name not found in generated workflows - create deterministically
-    // This handles arbitrary names that weren't generated by any index
     return this.generateForArbitraryName(name);
   }
 
-  /**
-   * Generate a workflow for an arbitrary name that wasn't in the generated set.
-   * Deterministic: same name always produces same workflow.
-   */
-  private generateForArbitraryName(name: string): MockWorkflow {
-    const nameHash = Math.abs(hashString(name));
-    faker.seed(this.config.baseSeed + nameHash);
-
+  private buildWorkflowBody(name: string, pseudoIndex: number): MockWorkflow {
     const status = this.pickWeighted(this.config.patterns.statusDistribution) as WorkflowStatus;
     const priority = this.pickWeighted(this.config.patterns.priorityDistribution) as Priority;
     const pool = faker.helpers.arrayElement(this.config.patterns.pools);
     const user = faker.helpers.arrayElement(this.config.patterns.users);
-    const pseudoIndex = nameHash % this.total; // Use getter
-
     const submitTime = this.generateSubmitTime(pseudoIndex);
     const { startTime, endTime, queuedTime, duration } = this.generateTiming(status, submitTime);
     const groups = this.generateGroups(status, name);
@@ -543,9 +433,11 @@ export class WorkflowGenerator {
     return workflow;
   }
 
-  // --------------------------------------------------------------------------
-  // Private: Weighted random selection
-  // --------------------------------------------------------------------------
+  private generateForArbitraryName(name: string): MockWorkflow {
+    const nameHash = Math.abs(hashString(name));
+    faker.seed(this.config.baseSeed + nameHash);
+    return this.buildWorkflowBody(name, nameHash % this.total);
+  }
 
   private pickWeighted(distribution: Record<string, number>): string {
     const rand = faker.number.float({ min: 0, max: 1 });
@@ -561,27 +453,43 @@ export class WorkflowGenerator {
     return Object.keys(distribution)[0];
   }
 
-  // --------------------------------------------------------------------------
-  // Private: Name generation
-  // --------------------------------------------------------------------------
-
-  private generateName(_index: number): string {
-    const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
-    const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
-    const id = faker.string.alphanumeric(8).toLowerCase();
-    return `${prefix}-${suffix}-${id}`;
+  /**
+   * Incrementally build sequenced names up to the requested index.
+   * Each base name (prefix-suffix) gets a sequence number starting at 1,
+   * e.g. "train-llama-1", "train-llama-2", "eval-bert-1".
+   */
+  private ensureSequenceBuiltUpTo(index: number): void {
+    for (let i = this.sequenceBuiltUpTo + 1; i <= index; i++) {
+      faker.seed(this.config.baseSeed + i);
+      const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+      const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+      const baseName = `${prefix}-${suffix}`;
+      const seq = (this.baseNameCounter.get(baseName) ?? 0) + 1;
+      this.baseNameCounter.set(baseName, seq);
+      this.sequenceNameCache.set(i, `${baseName}-${seq}`);
+    }
+    if (index > this.sequenceBuiltUpTo) {
+      this.sequenceBuiltUpTo = index;
+    }
   }
 
-  // --------------------------------------------------------------------------
-  // Private: Timing generation
-  // --------------------------------------------------------------------------
+  private generateName(index: number): string {
+    this.ensureSequenceBuiltUpTo(index);
+
+    // Re-seed and consume the same faker calls as the original implementation
+    // to keep downstream generation (buildWorkflowBody) deterministic.
+    faker.seed(this.config.baseSeed + index);
+    faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+    faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+    faker.string.alphanumeric(8);
+
+    return this.sequenceNameCache.get(index) ?? `workflow-${index + 1}`;
+  }
 
   private generateSubmitTime(index: number): string {
-    // Spread submissions over the last 30 days, ordered by index
     const now = Date.now();
     const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
-    // Newer workflows have higher indices (reverse order for typical list view)
-    const progress = 1 - index / this.total; // Use getter
+    const progress = 1 - index / this.total;
     const timestamp = thirtyDaysAgo + progress * (now - thirtyDaysAgo);
     return new Date(timestamp).toISOString();
   }
@@ -598,27 +506,22 @@ export class WorkflowGenerator {
     const submitDate = new Date(submitTime);
     const timing = this.config.patterns.timing;
 
-    // Queue time (biased toward p50)
     const queuedTime = faker.number.int({
       min: timing.queueTime.min,
       max: timing.queueTime.p90,
     });
 
-    // Not started yet
     if (status === WorkflowStatus.PENDING || status === WorkflowStatus.WAITING) {
       return { queuedTime };
     }
 
-    // Started
     const startDate = new Date(submitDate.getTime() + queuedTime * 1000);
     const startTime = startDate.toISOString();
 
-    // Still running
     if (status === WorkflowStatus.RUNNING) {
       return { startTime, queuedTime };
     }
 
-    // Completed or failed
     const duration = faker.number.int({
       min: timing.duration.min,
       max: timing.duration.p90,
@@ -646,12 +549,10 @@ export class WorkflowGenerator {
     const groupPatterns = this.config.patterns.groupPatterns;
     const numGroups = faker.number.int(groupPatterns.groupsPerWorkflow);
 
-    // Pick a topology based on number of groups
     if (numGroups <= 2) {
       return this.generateLinearGroups(status, numGroups, groupPatterns, workflowName);
     }
 
-    // Randomly pick topology for variety
     const topology = faker.helpers.arrayElement(["linear", "multi-root", "fan-out", "fan-in", "diamond", "complex"]);
 
     switch (topology) {
@@ -670,7 +571,6 @@ export class WorkflowGenerator {
     }
   }
 
-  /** Linear: a → b → c → d */
   private generateLinearGroups(
     status: WorkflowStatus,
     numGroups: number,
@@ -682,7 +582,6 @@ export class WorkflowGenerator {
       Math.max(numGroups, groupPatterns.names.length),
     );
 
-    // Phase 1: Build DAG structure (no tasks yet)
     const groups: MockGroup[] = [];
     for (let i = 0; i < numGroups; i++) {
       groups.push(
@@ -694,10 +593,8 @@ export class WorkflowGenerator {
       );
     }
 
-    // Phase 2: Assign group statuses (top-down from workflow status)
     this.assignGroupStatuses(groups, status, workflowName);
 
-    // Phase 3: Generate tasks based on group statuses
     for (const group of groups) {
       this.populateGroupTasks(group, workflowName, groupPatterns);
     }
@@ -705,7 +602,6 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  /** Multi-root: (a, b) → c → d (2 roots converging) */
   private generateMultiRootGroups(
     status: WorkflowStatus,
     numGroups: number,
@@ -718,7 +614,6 @@ export class WorkflowGenerator {
     );
     const numRoots = Math.min(2, numGroups - 1);
 
-    // Phase 1: Build DAG structure
     const groups: MockGroup[] = [];
     for (let i = 0; i < numRoots; i++) {
       const downstream = numGroups > numRoots ? [groupNames[numRoots]] : [];
@@ -730,7 +625,6 @@ export class WorkflowGenerator {
       groups.push(this.createGroupStructure(groupNames[i], upstream, downstream));
     }
 
-    // Phase 2 & 3: Assign statuses and populate tasks
     this.assignGroupStatuses(groups, status, workflowName);
     for (const group of groups) {
       this.populateGroupTasks(group, workflowName, groupPatterns);
@@ -739,7 +633,6 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  /** Fan-out: a → (b, c, d) (one parent, multiple children) */
   private generateFanOutGroups(
     status: WorkflowStatus,
     numGroups: number,
@@ -751,14 +644,12 @@ export class WorkflowGenerator {
       Math.max(numGroups, groupPatterns.names.length),
     );
 
-    // Phase 1: Build DAG structure
     const groups: MockGroup[] = [];
     groups.push(this.createGroupStructure(groupNames[0], [], groupNames.slice(1, numGroups)));
     for (let i = 1; i < numGroups; i++) {
       groups.push(this.createGroupStructure(groupNames[i], [groupNames[0]], []));
     }
 
-    // Phase 2 & 3: Assign statuses and populate tasks
     this.assignGroupStatuses(groups, status, workflowName);
     for (const group of groups) {
       this.populateGroupTasks(group, workflowName, groupPatterns);
@@ -767,7 +658,6 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  /** Fan-in: (a, b, c) → d (multiple parents converge to one) */
   private generateFanInGroups(
     status: WorkflowStatus,
     numGroups: number,
@@ -781,14 +671,12 @@ export class WorkflowGenerator {
     const numParents = numGroups - 1;
     const mergeNodeIdx = numGroups - 1;
 
-    // Phase 1: Build DAG structure
     const groups: MockGroup[] = [];
     for (let i = 0; i < numParents; i++) {
       groups.push(this.createGroupStructure(groupNames[i], [], [groupNames[mergeNodeIdx]]));
     }
     groups.push(this.createGroupStructure(groupNames[mergeNodeIdx], groupNames.slice(0, numParents), []));
 
-    // Phase 2 & 3: Assign statuses and populate tasks
     this.assignGroupStatuses(groups, status, workflowName);
     for (const group of groups) {
       this.populateGroupTasks(group, workflowName, groupPatterns);
@@ -797,7 +685,6 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  /** Diamond: a → (b, c) → d */
   private generateDiamondGroups(
     status: WorkflowStatus,
     numGroups: number,
@@ -818,7 +705,6 @@ export class WorkflowGenerator {
     const lastIdx = numGroups - 1;
     const middleNames = groupNames.slice(middleStart, Math.min(middleEnd, numGroups - 1));
 
-    // Phase 1: Build DAG structure
     const groups: MockGroup[] = [];
     groups.push(this.createGroupStructure(groupNames[0], [], middleNames));
     for (const middleName of middleNames) {
@@ -826,7 +712,6 @@ export class WorkflowGenerator {
     }
     groups.push(this.createGroupStructure(groupNames[lastIdx], middleNames, []));
 
-    // Phase 2 & 3: Assign statuses and populate tasks
     this.assignGroupStatuses(groups, status, workflowName);
     for (const group of groups) {
       this.populateGroupTasks(group, workflowName, groupPatterns);
@@ -835,7 +720,6 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  /** Complex: multi-level with mixed patterns */
   private generateComplexGroups(
     status: WorkflowStatus,
     numGroups: number,
@@ -851,33 +735,27 @@ export class WorkflowGenerator {
       Math.max(numGroups, groupPatterns.names.length),
     );
 
-    // Phase 1: Build DAG structure
     const groups: MockGroup[] = [];
 
-    // Level 0: 2 roots
     groups.push(this.createGroupStructure(groupNames[0], [], [groupNames[2], groupNames[3]]));
     groups.push(this.createGroupStructure(groupNames[1], [], [groupNames[3], groupNames[4]]));
 
-    // Level 1: 3 middle nodes with mixed dependencies
     groups.push(this.createGroupStructure(groupNames[2], [groupNames[0]], [groupNames[5]]));
     groups.push(this.createGroupStructure(groupNames[3], [groupNames[0], groupNames[1]], [groupNames[5]]));
     if (numGroups > 5) {
       groups.push(this.createGroupStructure(groupNames[4], [groupNames[1]], [groupNames[5]]));
     }
 
-    // Level 2: merge node
     const mergeUpstream =
       numGroups > 5 ? [groupNames[2], groupNames[3], groupNames[4]] : [groupNames[2], groupNames[3]];
     groups.push(this.createGroupStructure(groupNames[5], mergeUpstream, []));
 
-    // Additional linear chain if more groups
     for (let i = 6; i < numGroups; i++) {
       groups.push(
         this.createGroupStructure(groupNames[i], [groupNames[i - 1]], i < numGroups - 1 ? [groupNames[i + 1]] : []),
       );
     }
 
-    // Phase 2 & 3: Assign statuses and populate tasks
     this.assignGroupStatuses(groups, status, workflowName);
     for (const group of groups) {
       this.populateGroupTasks(group, workflowName, groupPatterns);
@@ -886,29 +764,17 @@ export class WorkflowGenerator {
     return groups;
   }
 
-  /**
-   * Phase 1: Create group structure (DAG topology only, no tasks yet)
-   *
-   * Tasks are NOT created here - they're created in Phase 3 after status is assigned.
-   * This ensures the top-down flow: Workflow → Group Status → Task Status → Task Fields
-   */
   private createGroupStructure(name: string, upstream: string[], downstream: string[]): MockGroup {
     return {
       name,
-      status: TaskGroupStatus.WAITING, // Placeholder - set in Phase 2
-      tasks: [], // Empty - populated in Phase 3
+      status: TaskGroupStatus.WAITING,
+      tasks: [],
       upstream_groups: upstream,
       downstream_groups: downstream,
       failure_message: undefined,
     };
   }
 
-  /**
-   * Phase 3: Generate tasks for a group based on its FINAL status
-   *
-   * This is the key to top-down generation: we know the group status
-   * before creating tasks, so tasks are created with valid statuses from the start.
-   */
   private populateGroupTasks(
     group: MockGroup,
     workflowName: string,
@@ -916,7 +782,6 @@ export class WorkflowGenerator {
   ): void {
     const numTasks = faker.number.int(groupPatterns.tasksPerGroup);
 
-    // Generate tasks with statuses valid for this group status
     for (let t = 0; t < numTasks; t++) {
       const taskStatus = this.deriveTaskStatusFromGroup(group.status, t, numTasks);
       const task = this.generateTaskWithStatus(workflowName, group.name, t, taskStatus);
@@ -946,47 +811,34 @@ export class WorkflowGenerator {
     const isLead = taskIndex === 0;
 
     switch (groupStatus) {
-      // Pre-execution states: all tasks have same status as group
       case TaskGroupStatus.WAITING:
       case TaskGroupStatus.SUBMITTING:
       case TaskGroupStatus.SCHEDULING:
         return groupStatus;
 
-      // Initializing: lead is initializing, others may still be scheduling
       case TaskGroupStatus.INITIALIZING:
         if (isLead) return TaskGroupStatus.INITIALIZING;
-        // Non-lead tasks: 50% initializing, 50% scheduling
         return faker.datatype.boolean() ? TaskGroupStatus.INITIALIZING : TaskGroupStatus.SCHEDULING;
 
-      // Running: at least lead is running, others may be initializing
       case TaskGroupStatus.RUNNING:
         if (isLead) return TaskGroupStatus.RUNNING;
-        // Non-lead tasks: 70% running, 30% initializing
         return faker.number.float({ min: 0, max: 1 }) < 0.7 ? TaskGroupStatus.RUNNING : TaskGroupStatus.INITIALIZING;
 
-      // Completed: all tasks completed
       case TaskGroupStatus.COMPLETED:
         return TaskGroupStatus.COMPLETED;
 
-      // Upstream failure: all tasks get same status
       case TaskGroupStatus.FAILED_UPSTREAM:
         return TaskGroupStatus.FAILED_UPSTREAM;
 
-      // Other failures: lead has the specific failure, others generic FAILED
       default:
         if (groupStatus.toString().startsWith("FAILED")) {
-          // Lead task gets the specific failure status
           if (isLead) return groupStatus;
-          // Other tasks: could have completed before lead failed, or also failed
           return faker.datatype.boolean() ? TaskGroupStatus.FAILED : TaskGroupStatus.COMPLETED;
         }
         return groupStatus;
     }
   }
 
-  /**
-   * Generate a task with a known status (top-down approach)
-   */
   private generateTaskWithStatus(
     workflowName: string,
     groupName: string,
@@ -1005,7 +857,6 @@ export class WorkflowGenerator {
     const podSuffix = faker.string.alphanumeric({ length: 5, casing: "lower" });
     const podName = `${workflowName.slice(0, 20)}-${name}-${podSuffix}`;
 
-    // Generate timestamps based on the KNOWN status (top-down)
     const timestamps = this.generateTaskTimestamps(status, podName, taskUuid);
 
     return {
@@ -1050,7 +901,6 @@ export class WorkflowGenerator {
   private generateTaskTimestamps(status: TaskGroupStatus, podName: string, taskUuid: string): Partial<MockTask> {
     const baseTime = faker.date.recent({ days: 7 });
 
-    // WAITING/SUBMITTING: no timestamps
     if (status === TaskGroupStatus.WAITING || status === TaskGroupStatus.SUBMITTING) {
       return {
         processing_start_time: undefined,
@@ -1070,7 +920,6 @@ export class WorkflowGenerator {
       };
     }
 
-    // PROCESSING: only processing time (queue processing - first step)
     if (status === TaskGroupStatus.PROCESSING) {
       return {
         processing_start_time: new Date(baseTime.getTime() - 30000).toISOString(),
@@ -1090,7 +939,6 @@ export class WorkflowGenerator {
       };
     }
 
-    // SCHEDULING: processing + scheduling time
     if (status === TaskGroupStatus.SCHEDULING) {
       return {
         processing_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
@@ -1110,18 +958,16 @@ export class WorkflowGenerator {
       };
     }
 
-    // Generate node info for tasks that have been placed (INITIALIZING+)
     const podIp = `10.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 0, max: 255 })}.${faker.number.int({ min: 1, max: 254 })}`;
     const nodeName = this.generateNodeName();
     const dashboardUrl = `https://kubernetes.example.com/pod/${podName}`;
     const grafanaUrl = `https://grafana.example.com/d/task/${taskUuid}`;
 
-    // INITIALIZING: processing + scheduling + init times, has node
     if (status === TaskGroupStatus.INITIALIZING) {
       return {
-        processing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
-        scheduling_start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min
-        initializing_start_time: new Date(baseTime.getTime() - 60000).toISOString(), // -1 min
+        processing_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
+        scheduling_start_time: new Date(baseTime.getTime() - 120000).toISOString(),
+        initializing_start_time: new Date(baseTime.getTime() - 60000).toISOString(),
         start_time: undefined,
         input_download_start_time: undefined,
         input_download_end_time: undefined,
@@ -1136,17 +982,16 @@ export class WorkflowGenerator {
       };
     }
 
-    // RUNNING: all pre-execution timestamps + start_time + input download
     if (status === TaskGroupStatus.RUNNING) {
       return {
-        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(), // -5 min
-        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(), // -4 min
-        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
-        start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min (RUNNING begins)
-        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(), // -1:50 (10s after start)
-        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(), // -1:30 (30s after start)
-        output_upload_start_time: undefined, // Not started yet
-        end_time: undefined, // Still running
+        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(),
+        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(),
+        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
+        start_time: new Date(baseTime.getTime() - 120000).toISOString(),
+        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(),
+        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(),
+        output_upload_start_time: undefined,
+        end_time: undefined,
         pod_ip: podIp,
         node_name: nodeName,
         dashboard_url: dashboardUrl,
@@ -1156,17 +1001,16 @@ export class WorkflowGenerator {
       };
     }
 
-    // COMPLETED: all timestamps, exit_code 0
     if (status === TaskGroupStatus.COMPLETED) {
       return {
-        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(), // -5 min
-        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(), // -4 min
-        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
-        start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min
-        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(), // -1:50
-        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(), // -1:30
-        output_upload_start_time: new Date(baseTime.getTime() - 30000).toISOString(), // -30s (before end)
-        end_time: baseTime.toISOString(), // Now
+        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(),
+        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(),
+        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
+        start_time: new Date(baseTime.getTime() - 120000).toISOString(),
+        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(),
+        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(),
+        output_upload_start_time: new Date(baseTime.getTime() - 30000).toISOString(),
+        end_time: baseTime.toISOString(),
         pod_ip: podIp,
         node_name: nodeName,
         dashboard_url: dashboardUrl,
@@ -1176,17 +1020,16 @@ export class WorkflowGenerator {
       };
     }
 
-    // FAILED_*: all timestamps except output upload, non-zero exit_code, failure message
     if (status.toString().startsWith("FAILED")) {
       return {
-        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(), // -5 min
-        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(), // -4 min
-        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(), // -3 min
-        start_time: new Date(baseTime.getTime() - 120000).toISOString(), // -2 min
-        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(), // -1:50
-        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(), // -1:30
-        output_upload_start_time: undefined, // Failed before output upload
-        end_time: baseTime.toISOString(), // Now
+        processing_start_time: new Date(baseTime.getTime() - 300000).toISOString(),
+        scheduling_start_time: new Date(baseTime.getTime() - 240000).toISOString(),
+        initializing_start_time: new Date(baseTime.getTime() - 180000).toISOString(),
+        start_time: new Date(baseTime.getTime() - 120000).toISOString(),
+        input_download_start_time: new Date(baseTime.getTime() - 110000).toISOString(),
+        input_download_end_time: new Date(baseTime.getTime() - 90000).toISOString(),
+        output_upload_start_time: undefined,
+        end_time: baseTime.toISOString(),
         pod_ip: podIp,
         node_name: nodeName,
         dashboard_url: dashboardUrl,
@@ -1196,7 +1039,6 @@ export class WorkflowGenerator {
       };
     }
 
-    // Default: return empty
     return {};
   }
 
@@ -1217,16 +1059,13 @@ export class WorkflowGenerator {
   private assignGroupStatuses(groups: MockGroup[], workflowStatus: WorkflowStatus, workflowName: string): void {
     if (groups.length === 0) return;
 
-    // Build name → group mapping for efficient lookup
     const groupMap = new Map<string, MockGroup>();
     for (const group of groups) {
       groupMap.set(group.name, group);
     }
 
-    // Topological sort to process groups in dependency order
     const sortedGroups = this.topologicalSort(groups, groupMap);
 
-    // All completed: every group is COMPLETED
     if (workflowStatus === WorkflowStatus.COMPLETED) {
       for (const group of sortedGroups) {
         this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
@@ -1234,7 +1073,6 @@ export class WorkflowGenerator {
       return;
     }
 
-    // Pending/Waiting: every group is WAITING
     if (workflowStatus === WorkflowStatus.PENDING || workflowStatus === WorkflowStatus.WAITING) {
       for (const group of sortedGroups) {
         this.updateGroupStatus(group, TaskGroupStatus.WAITING);
@@ -1242,36 +1080,28 @@ export class WorkflowGenerator {
       return;
     }
 
-    // Failed workflow: upstream complete, pick a failure point, downstream cascade
     if (workflowStatus.toString().startsWith("FAILED")) {
       const failureStatus = this.mapWorkflowFailureToTaskFailure(workflowStatus);
 
-      // Pick the failure point - use deterministic selection based on workflow name
       const failureIndex = Math.abs(hashString(workflowName + "failure")) % sortedGroups.length;
       const failedGroupNames = new Set<string>();
 
       for (let i = 0; i < sortedGroups.length; i++) {
         const group = sortedGroups[i];
 
-        // Check if any upstream has failed
         const hasFailedUpstream = group.upstream_groups.some((upName) => failedGroupNames.has(upName));
 
         if (hasFailedUpstream) {
-          // Downstream of failure: cascade failure using FAILED_UPSTREAM (matches backend behavior)
           this.updateGroupStatus(group, TaskGroupStatus.FAILED_UPSTREAM);
           group.failure_message = "Upstream task failed.";
           failedGroupNames.add(group.name);
         } else if (i === failureIndex) {
-          // This is the primary failure point
           this.updateGroupStatus(group, failureStatus);
           group.failure_message = this.generateFailureMessage(failureStatus);
           failedGroupNames.add(group.name);
         } else if (i < failureIndex) {
-          // Before failure point: completed
           this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
         } else {
-          // After failure point but not downstream: could be pending (not reachable)
-          // In a proper DAG, everything after failure should cascade, but parallel branches might not
           const anyUpstreamCompleted =
             group.upstream_groups.length === 0 ||
             group.upstream_groups.every((upName) => {
@@ -1280,10 +1110,8 @@ export class WorkflowGenerator {
             });
 
           if (anyUpstreamCompleted && !hasFailedUpstream) {
-            // Parallel branch that didn't get affected
             this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
           } else {
-            // Waiting - upstream not done
             this.updateGroupStatus(group, TaskGroupStatus.WAITING);
           }
         }
@@ -1291,27 +1119,16 @@ export class WorkflowGenerator {
       return;
     }
 
-    // Running workflow: simulate DAG execution state
-    // INVARIANT: A RUNNING workflow MUST have at least one RUNNING group
-    // Backend logic: a group can only run when ALL its upstream groups are COMPLETED
     if (workflowStatus === WorkflowStatus.RUNNING) {
-      // Strategy: Pick a "wave front" - groups before it are COMPLETED,
-      // the group at the front is RUNNING, groups after are WAITING/SCHEDULING/etc.
-
-      // Step 1: Pick how many groups have completed (0 to n-1, never all)
-      // This ensures at least 1 group is NOT completed (the running one)
-      const maxCompleted = sortedGroups.length - 1; // Leave room for at least 1 running
+      const maxCompleted = sortedGroups.length - 1;
       const numCompleted = Math.abs(hashString(workflowName + "progress")) % (maxCompleted + 1);
 
-      // Step 2: Mark the first numCompleted groups as COMPLETED
       const completedGroups = new Set<string>();
       for (let i = 0; i < numCompleted; i++) {
         this.updateGroupStatus(sortedGroups[i], TaskGroupStatus.COMPLETED);
         completedGroups.add(sortedGroups[i].name);
       }
 
-      // Step 3: Find groups that CAN run (all upstream are completed)
-      // At least one must exist (the first non-completed group with no incomplete upstream)
       const eligibleToRun: MockGroup[] = [];
       for (let i = numCompleted; i < sortedGroups.length; i++) {
         const group = sortedGroups[i];
@@ -1323,25 +1140,18 @@ export class WorkflowGenerator {
         }
       }
 
-      // Step 4: GUARANTEE at least one group is RUNNING
-      // If no groups are eligible (shouldn't happen with topo sort), use first non-completed
       if (eligibleToRun.length === 0) {
-        // Fallback: first non-completed group becomes running
         const firstNonCompleted = sortedGroups[numCompleted];
         this.updateGroupStatus(firstNonCompleted, TaskGroupStatus.RUNNING);
         eligibleToRun.push(firstNonCompleted);
       } else {
-        // Pick which eligible group is the "primary" running one
         const runningIdx = Math.abs(hashString(workflowName + "running")) % eligibleToRun.length;
 
         for (let i = 0; i < eligibleToRun.length; i++) {
           const group = eligibleToRun[i];
           if (i === runningIdx) {
-            // This is THE running group (guaranteed)
             this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
           } else {
-            // Other eligible groups: could be RUNNING, INITIALIZING, or SCHEDULING
-            // (all are valid "active" states for a RUNNING workflow)
             const stateHash = Math.abs(hashString(workflowName + group.name)) % 4;
             if (stateHash === 0) {
               this.updateGroupStatus(group, TaskGroupStatus.RUNNING);
@@ -1350,7 +1160,6 @@ export class WorkflowGenerator {
             } else if (stateHash === 2) {
               this.updateGroupStatus(group, TaskGroupStatus.SCHEDULING);
             } else {
-              // 25% chance of already COMPLETED (just finished)
               this.updateGroupStatus(group, TaskGroupStatus.COMPLETED);
               completedGroups.add(group.name);
             }
@@ -1358,11 +1167,9 @@ export class WorkflowGenerator {
         }
       }
 
-      // Step 5: Remaining groups (not completed, not eligible) are WAITING
       for (let i = numCompleted; i < sortedGroups.length; i++) {
         const group = sortedGroups[i];
         if (group.status === TaskGroupStatus.WAITING) {
-          // Still has placeholder status - it's waiting for upstream
           this.updateGroupStatus(group, TaskGroupStatus.WAITING);
         }
       }
@@ -1370,16 +1177,11 @@ export class WorkflowGenerator {
       return;
     }
 
-    // Fallback: all waiting
     for (const group of sortedGroups) {
       this.updateGroupStatus(group, TaskGroupStatus.WAITING);
     }
   }
 
-  /**
-   * Topological sort of groups based on upstream dependencies.
-   * Returns groups in order where dependencies come before dependents.
-   */
   private topologicalSort(groups: MockGroup[], groupMap: Map<string, MockGroup>): MockGroup[] {
     const sorted: MockGroup[] = [];
     const visited = new Set<string>();
@@ -1387,11 +1189,10 @@ export class WorkflowGenerator {
 
     const visit = (group: MockGroup) => {
       if (visited.has(group.name)) return;
-      if (visiting.has(group.name)) return; // Cycle detected, skip
+      if (visiting.has(group.name)) return;
 
       visiting.add(group.name);
 
-      // Visit all upstream groups first
       for (const upstreamName of group.upstream_groups) {
         const upstream = groupMap.get(upstreamName);
         if (upstream) {
@@ -1411,9 +1212,6 @@ export class WorkflowGenerator {
     return sorted;
   }
 
-  /**
-   * Map workflow failure status to corresponding task group failure status.
-   */
   private mapWorkflowFailureToTaskFailure(workflowStatus: WorkflowStatus): TaskGroupStatus {
     const statusMap: Record<string, TaskGroupStatus> = {
       [WorkflowStatus.FAILED]: TaskGroupStatus.FAILED,
@@ -1454,14 +1252,248 @@ export class WorkflowGenerator {
 
     return faker.helpers.arrayElement(messages["FAILED"] || ["Unknown error"]);
   }
+
+  toListEntry(w: MockWorkflow): SrcServiceCoreWorkflowObjectsListEntry {
+    return {
+      user: w.submitted_by,
+      name: w.name,
+      workflow_uuid: w.uuid,
+      submit_time: w.submit_time,
+      start_time: w.start_time,
+      end_time: w.end_time,
+      queued_time: w.queued_time,
+      duration: w.duration,
+      status: w.status,
+      overview: `${w.groups.length} groups, ${w.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
+      logs: w.logs_url,
+      error_logs: w.status.toString().startsWith("FAILED") ? `/api/workflow/${w.name}/logs?type=error` : undefined,
+      grafana_url: `https://grafana.example.com/d/workflow/${w.name}`,
+      dashboard_url: `https://dashboard.example.com/workflow/${w.name}`,
+      pool: w.pool,
+      app_owner: undefined,
+      app_name: undefined,
+      app_version: undefined,
+      priority: w.priority,
+    };
+  }
+
+  toWorkflowQueryResponse(w: MockWorkflow): WorkflowQueryResponse {
+    const groups = w.groups.map((g) => ({
+      name: g.name,
+      status: g.status,
+      start_time: g.tasks[0]?.start_time,
+      end_time: g.tasks[g.tasks.length - 1]?.end_time,
+      remaining_upstream_groups: g.upstream_groups.length > 0 ? g.upstream_groups : undefined,
+      downstream_groups: g.downstream_groups.length > 0 ? g.downstream_groups : undefined,
+      failure_message: g.failure_message,
+      tasks: g.tasks.map((t) => ({
+        name: t.name,
+        retry_id: t.retry_id,
+        status: t.status,
+        lead: t.lead,
+        task_uuid: t.task_uuid,
+        pod_name: t.pod_name,
+        pod_ip: t.pod_ip,
+        node_name: t.node_name,
+        scheduling_start_time: t.scheduling_start_time,
+        initializing_start_time: t.initializing_start_time,
+        input_download_start_time: t.input_download_start_time,
+        input_download_end_time: t.input_download_end_time,
+        processing_start_time: t.processing_start_time,
+        start_time: t.start_time,
+        output_upload_start_time: t.output_upload_start_time,
+        end_time: t.end_time,
+        exit_code: t.exit_code,
+        failure_message: t.failure_message,
+        logs: t.logs,
+        error_logs: t.error_logs,
+        events: t.events,
+        dashboard_url: t.dashboard_url,
+        grafana_url: t.grafana_url,
+      })),
+    }));
+
+    return {
+      name: w.name,
+      uuid: w.uuid,
+      submitted_by: w.submitted_by,
+      cancelled_by: w.cancelled_by,
+      spec: w.spec_url,
+      template_spec: w.template_spec_url,
+      logs: w.logs_url,
+      events: w.events_url,
+      overview: `${w.groups.length} groups, ${w.groups.reduce((sum, g) => sum + g.tasks.length, 0)} tasks`,
+      dashboard_url: `https://dashboard.example.com/workflow/${w.name}`,
+      grafana_url: `https://grafana.example.com/d/workflow/${w.name}`,
+      tags: w.tags,
+      submit_time: w.submit_time,
+      start_time: w.start_time,
+      end_time: w.end_time,
+      duration: w.duration,
+      queued_time: w.queued_time,
+      status: w.status,
+      groups,
+      pool: w.pool,
+      backend: w.backend,
+      plugins: {},
+      priority: w.priority,
+    };
+  }
+
+  handleGetUsers = async (): Promise<Response> => {
+    await delay(getMockDelay());
+    return HttpResponse.json(this.config.patterns.users);
+  };
+
+  handleListWorkflows = async ({
+    request,
+  }: {
+    request: Request;
+  }): Promise<SrcServiceCoreWorkflowObjectsListResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const { offset, limit } = parsePagination(url, { limit: 20 });
+    const filters = parseWorkflowFilters(url);
+
+    // Convert hardcoded mock workflows to list entries so they participate in filtering/pagination
+    const mockListEntries: SrcServiceCoreWorkflowObjectsListEntry[] = Object.values(MOCK_WORKFLOWS).map((mw) => ({
+      user: mw.submitted_by,
+      name: mw.name,
+      workflow_uuid: mw.uuid,
+      submit_time: mw.submit_time,
+      start_time: mw.start_time,
+      end_time: mw.end_time,
+      queued_time: mw.queued_time,
+      duration: mw.duration,
+      status: mw.status,
+      overview: `${mw.groups.length} groups, ${mw.groups.reduce((sum, g) => sum + (g.tasks?.length ?? 0), 0)} tasks`,
+      logs: mw.logs,
+      error_logs: mw.status.toString().startsWith("FAILED") ? `/api/workflow/${mw.name}/logs?type=error` : undefined,
+      grafana_url: `https://grafana.example.com/d/workflow/${mw.name}`,
+      dashboard_url: `https://dashboard.example.com/workflow/${mw.name}`,
+      pool: mw.pool,
+      app_owner: undefined,
+      app_name: undefined,
+      app_version: undefined,
+      priority: mw.priority as Priority,
+    }));
+
+    if (hasActiveFilters(filters)) {
+      // When filtering, generate the full scannable set, filter, then paginate
+      const { entries } = this.generatePage(0, this.total);
+      const allEntries = [...mockListEntries, ...entries.map((w) => this.toListEntry(w))];
+      let filtered = allEntries;
+      if (filters.statuses.length > 0) filtered = filtered.filter((w) => filters.statuses.includes(w.status));
+      if (filters.pools.length > 0) filtered = filtered.filter((w) => w.pool && filters.pools.includes(w.pool));
+      if (filters.users.length > 0) filtered = filtered.filter((w) => w.user && filters.users.includes(w.user));
+
+      const page = filtered.slice(offset, offset + limit);
+      return {
+        workflows: page,
+        more_entries: offset + limit < filtered.length,
+      };
+    }
+
+    // Mock entries are prepended to the virtual list, shifting generated entries down.
+    // Compute which portion of the combined list falls within [offset, offset+limit).
+    const mockCount = mockListEntries.length;
+    const totalCombined = mockCount + this.total;
+
+    // Slice mock entries for this page
+    const mockStart = Math.min(offset, mockCount);
+    const mockEnd = Math.min(offset + limit, mockCount);
+    const mockSlice = mockListEntries.slice(mockStart, mockEnd);
+
+    // Fill remaining page slots from generated entries
+    const remainingSlots = limit - mockSlice.length;
+    const generatedOffset = Math.max(0, offset - mockCount);
+    const { entries } = this.generatePage(generatedOffset, remainingSlots);
+    const generatedSlice = entries.map((w) => this.toListEntry(w));
+
+    return {
+      workflows: [...mockSlice, ...generatedSlice],
+      more_entries: offset + limit < totalCombined,
+    };
+  };
+
+  handleGetTask = async ({
+    params,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+  }): Promise<Response> => {
+    await delay(getMockDelay());
+    const workflowName = params.name as string;
+    const taskName = params.taskName as string;
+
+    // Check hardcoded mock workflows first so retry/logs state is preserved
+    const mockWorkflow = getMockWorkflow(workflowName);
+    if (mockWorkflow) {
+      for (const group of mockWorkflow.groups ?? []) {
+        const task = group.tasks?.find((t) => t.name === taskName);
+        if (task) {
+          return HttpResponse.json(task);
+        }
+      }
+      return new HttpResponse(null, { status: 404 });
+    }
+
+    const workflow = this.getByName(workflowName);
+    for (const group of workflow.groups) {
+      const task = group.tasks.find((t) => t.name === taskName);
+      if (task) {
+        const response: TaskQueryResponse = {
+          name: task.name,
+          retry_id: task.retry_id,
+          status: task.status,
+          lead: task.lead,
+          task_uuid: task.task_uuid,
+          pod_name: task.pod_name,
+          pod_ip: task.pod_ip,
+          node_name: task.node_name,
+          scheduling_start_time: task.scheduling_start_time,
+          initializing_start_time: task.initializing_start_time,
+          input_download_start_time: task.input_download_start_time,
+          input_download_end_time: task.input_download_end_time,
+          processing_start_time: task.processing_start_time,
+          start_time: task.start_time,
+          output_upload_start_time: task.output_upload_start_time,
+          end_time: task.end_time,
+          exit_code: task.exit_code,
+          failure_message: task.failure_message,
+          logs: task.logs,
+          error_logs: task.error_logs,
+          events: task.events,
+          dashboard_url: task.dashboard_url,
+        };
+        return HttpResponse.json(response);
+      }
+    }
+    return new HttpResponse(null, { status: 404 });
+  };
+
+  handleSubmitWorkflow = async ({
+    request,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+    request: Request;
+  }): Promise<SubmitResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const workflowId = url.searchParams.get("workflow_id");
+    const seed = workflowId ? hashString(workflowId + Date.now()) : Math.floor(Math.random() * 1000000);
+    faker.seed(seed);
+    const prefix = faker.helpers.arrayElement(this.config.patterns.namePatterns.prefixes);
+    const suffix = faker.helpers.arrayElement(this.config.patterns.namePatterns.suffixes);
+    const id = faker.string.alphanumeric(8).toLowerCase();
+    const newWorkflowName = `${prefix}-${suffix}-${id}`;
+    return {
+      name: newWorkflowName,
+      overview: `/api/workflow/${newWorkflowName}`,
+      logs: `/api/workflow/${newWorkflowName}/logs`,
+      spec: `/api/workflow/${newWorkflowName}/spec`,
+      dashboard_url: `/workflows/${newWorkflowName}`,
+    };
+  };
 }
 
 export const workflowGenerator = new WorkflowGenerator();
-
-export function setWorkflowTotal(total: number): void {
-  workflowGenerator.total = total;
-}
-
-export function getWorkflowTotal(): number {
-  return workflowGenerator.total;
-}

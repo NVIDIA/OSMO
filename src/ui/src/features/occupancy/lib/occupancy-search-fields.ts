@@ -19,7 +19,7 @@ import { WorkflowPriority, TaskGroupStatus } from "@/lib/api/generated";
 import type { OccupancyGroup, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 
 function getGroupKeys(groups: OccupancyGroup[]): string[] {
-  return groups.map((g) => g.key).slice(0, 20);
+  return groups.map((g) => g.key);
 }
 
 function getChildKeys(groups: OccupancyGroup[]): string[] {
@@ -27,7 +27,7 @@ function getChildKeys(groups: OccupancyGroup[]): string[] {
   for (const group of groups) {
     for (const child of group.children) keys.add(child.key);
   }
-  return [...keys].sort().slice(0, 20);
+  return [...keys].sort();
 }
 
 export function getOccupancySearchFields(groupBy: OccupancyGroupBy): SearchField<OccupancyGroup>[] {

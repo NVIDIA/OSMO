@@ -79,10 +79,12 @@ class RolePolicy(pydantic.BaseModel):
     # If empty or not specified, the policy applies to all resources ("*")
     resources: List[str] = pydantic.Field(default_factory=list)
 
-    @pydantic.validator('actions', pre=True)
+    @pydantic.field_validator('actions', mode='before')
     @classmethod
     def validate_actions(cls, value) -> List[str]:
         """Parse and validate actions from various input formats."""
+        if isinstance(value, str):
+            value = [value]
         return [validate_semantic_action(action) for action in value]
 
     def to_dict(self) -> Dict[str, Any]:

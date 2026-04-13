@@ -512,34 +512,6 @@ service:
   podMonitor:
     enabled: false
 
-  ## Configuration for service sidecar containers
-  ##
-  sidecars:
-    ## Envoy proxy sidecar configuration
-    ##
-    envoy:
-      ## Enable Envoy proxy sidecar container
-      ##
-      enabled: false
-    ## OAuth2 Proxy sidecar configuration
-    ##
-    oauth2Proxy:
-      ## Enable OAuth2 Proxy sidecar container
-      ##
-      enabled: false
-    ## Authorization sidecar configuration
-    ##
-    authz:
-      ## Enable authorization sidecar
-      ##
-      enabled: false
-    ## Rate limiting sidecar configuration
-    ##
-    rateLimit:
-      ## Enable rate limiting service
-      ##
-      enabled: false
-
 ## Web UI service configuration
 ##
 web-ui:
@@ -577,22 +549,6 @@ web-ui:
         ## Enable SSL/TLS encryption for the ingress
         ##
         sslEnabled: false
-
-  ## Configuration for web UI sidecar containers
-  ##
-  sidecars:
-    ## Envoy proxy sidecar configuration
-    ##
-    envoy:
-      ## Enable Envoy proxy sidecar container
-      ##
-      enabled: false
-    ## OAuth2 Proxy sidecar configuration
-    ##
-    oauth2Proxy:
-      ## Enable OAuth2 Proxy sidecar container
-      ##
-      enabled: false
 
 ## Router service configuration
 ##
@@ -668,28 +624,6 @@ router:
       ## PostgreSQL password
       ##
       password: "osmo"
-
-  ## Configuration for router service sidecar containers
-  ##
-  sidecars:
-    ## Envoy proxy sidecar configuration
-    ##
-    envoy:
-      ## Enable Envoy proxy sidecar container
-      ##
-      enabled: false
-    ## OAuth2 Proxy sidecar configuration
-    ##
-    oauth2Proxy:
-      ## Enable OAuth2 Proxy sidecar container
-      ##
-      enabled: false
-    ## Authorization sidecar configuration
-    ##
-    authz:
-      ## Enable authorization sidecar
-      ##
-      enabled: false
 
 ## Backend operator configuration for managing compute workloads
 ##

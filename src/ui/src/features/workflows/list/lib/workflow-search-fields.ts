@@ -29,7 +29,7 @@ export const WORKFLOW_FIELD: Readonly<Record<string, SearchField<WorkflowListEnt
     prefix: "name:",
     freeFormHint: "Type any name, press Enter",
     singular: true,
-    getValues: (workflows) => workflows.map((w) => w.name).slice(0, 20),
+    getValues: (workflows) => workflows.map((w) => w.name),
   },
   status: {
     id: "status",

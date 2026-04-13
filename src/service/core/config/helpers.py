@@ -20,7 +20,7 @@ from collections import abc
 from datetime import datetime
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type
 
 import pydantic
 import yaml
@@ -177,16 +177,20 @@ def patch_configs(
             updated_configs_fields[key] = value
 
     try:
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.FORBID)
-
-        configs: connectors.DynamicConfig
+        config_class: Type[connectors.DynamicConfig]
         if config_type == connectors.ConfigType.SERVICE:
-            configs = connectors.ServiceConfig(**updated_configs_fields)
+            config_class = connectors.ServiceConfig
         elif config_type == connectors.ConfigType.WORKFLOW:
-            configs = connectors.WorkflowConfig(**updated_configs_fields)
+            config_class = connectors.WorkflowConfig
         elif config_type == connectors.ConfigType.DATASET:
-            configs = connectors.DatasetConfig(**updated_configs_fields)
+            config_class = connectors.DatasetConfig
+        else:
+            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
+
+        configs = config_class(**updated_configs_fields)
+
+        if config_type == connectors.ConfigType.DATASET and isinstance(
+                configs, connectors.DatasetConfig):
             try:
                 for _, bucket_config in configs.buckets.items():
                     connectors.BucketMode(bucket_config.mode.lower())
@@ -196,11 +200,6 @@ def patch_configs(
                     f'Bucket mode {bucket_config.mode} is not valid. Valid modes are '
                     f'{", ".join([member.value for member in connectors.BucketMode])}')
 
-        else:
-            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
-
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
         updated_configs = configs.serialize(postgres)
         for key, value in updated_configs.items():
             postgres.set_config(key, value, config_type)
@@ -219,7 +218,8 @@ def patch_configs(
         tags=request.tags,
     )
 
-    new_configs_dict = postgres.get_configs(config_type).dict(by_alias=True, exclude_unset=True)
+    new_configs_dict = postgres.get_configs(config_type).model_dump(
+        by_alias=True, exclude_unset=True)
     return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
 
 
@@ -293,7 +293,7 @@ def create_backend_config_history_entry(
     backends = connectors.Backend.list_from_db(postgres)
 
     backends_list = [
-        backend.dict(by_alias=True, exclude_unset=True)
+        backend.model_dump(by_alias=True, exclude_unset=True)
         for backend in backends
     ]
 
@@ -325,11 +325,11 @@ def update_backend(
     postgres = connectors.PostgresConnector.get_instance()
     try:
         old_backend = connectors.Backend.fetch_from_db(postgres, name)
-    except pydantic.error_wrappers.ValidationError as e:
+    except pydantic.ValidationError as e:
         logging.warning('Failed to get previous backend %s: %s', name, e)
         old_backend = None
     _update_backend_helper(postgres, configs_objects.BackendConfigWithName(
-        **request.configs.dict(), name=name))
+        **request.configs.model_dump(), name=name))
 
     create_backend_config_history_entry(
         postgres, name, username, request.description or f"Updated backend \'{name}\'", request.tags
@@ -416,7 +416,7 @@ def delete_backend(
     postgres.execute_commit_command(delete_resource_cmd, (name,))
 
     backends = [
-        backend.dict(by_alias=True, exclude_unset=True)
+        backend.model_dump(by_alias=True, exclude_unset=True)
         for backend in connectors.Backend.list_from_db(postgres)
     ]
 
@@ -440,7 +440,7 @@ def create_pool_config_history_entry(
     Add a history entry for a pool config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    pools = connectors.fetch_editable_pool_config(postgres).dict(
+    pools = connectors.fetch_editable_pool_config(postgres).model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -463,7 +463,7 @@ def create_dataset_config_history_entry(
     Add a history entry for a dataset config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    dataset_configs = postgres.get_dataset_configs().dict(
+    dataset_configs = postgres.get_dataset_configs().model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -738,7 +738,7 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
         for test_name in current_tests:
             try:
                 test_config = connectors.BackendTests.fetch_from_db(postgres, test_name)
-                test_configs[test_name] = test_config.dict(by_alias=True, exclude_unset=True)
+                test_configs[test_name] = test_config.model_dump(by_alias=True, exclude_unset=True)
             except osmo_errors.OSMOError as error:
                 logging.error('Failed to fetch test config for test %s: %s', test_name, error)
                 continue

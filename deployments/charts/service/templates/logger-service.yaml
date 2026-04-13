@@ -15,7 +15,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{/* Create a copy of the shared sidecar config values */}}
-{{ $loggerSidecarValues := deepCopy .Values.sidecars }}
 
 apiVersion: apps/v1
 kind: Deployment
@@ -36,9 +35,6 @@ spec:
         {{- end }}
       annotations:
         {{- include "osmo.extra-annotations" .Values.services.logger | nindent 8 }}
-        {{- if .Values.services.configs.enabled }}
-        checksum/configs: {{ .Values.services.configs | toYaml | sha256sum }}
-        {{- end }}
     spec:
       {{- with .Values.services.logger.hostAliases }}
       hostAliases:
@@ -197,23 +193,13 @@ spec:
           timeoutSeconds: 20
 
 
-      {{- include "osmo.envoy-sidecar-container" . | nindent 6}}
-      {{- include "osmo.oauth2-proxy-sidecar-container" . | nindent 6}}
-      {{- include "osmo.authz-sidecar-container" . | nindent 6}}
       {{- include "osmo.extra-sidecars" .Values.services.logger | nindent 6 }}
       volumes:
-        {{- include "osmo.envoy-volumes" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values) | nindent 8 }}
-        {{- include "osmo.oauth2-proxy-volumes" . | nindent 8 }}
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
         {{- end}}
-        {{- if .Values.services.configs.enabled }}
-        - name: configs
-          configMap:
-            name: {{ .Values.services.service.serviceName }}-configs
-        {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - configMap:
             defaultMode: 420
@@ -225,11 +211,6 @@ spec:
         {{- end}}
 
 ---
-{{- if .Values.sidecars.envoy.enabled }}
-
-{{- include "osmo.envoy-config" (dict "serviceName" .Values.services.logger.serviceName "serviceEnvoy" .Values.services.logger.envoy "Values" .Values "Release" .Release) }}
----
-{{- end }}
 
 apiVersion: v1
 kind: Service
@@ -240,7 +221,7 @@ metadata:
 spec:
   ports:
     - port: 80
-      targetPort: {{ include "service.targetPort" . }}
+      targetPort: 8000
       protocol: TCP
       name: http
   selector:

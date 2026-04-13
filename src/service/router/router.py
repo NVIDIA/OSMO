@@ -38,49 +38,49 @@ class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.Sta
                           connectors.PostgresConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the router service.')
+        description='The url to bind to when serving the router service.',
+        json_schema_extra={'command_line': 'host'})
     hostname: str = pydantic.Field(
-        command_line='hostname',
         default='localhost',
-        description='The DNS hostname of the router service.')
+        description='The DNS hostname of the router service.',
+        json_schema_extra={'command_line': 'hostname'})
     timeout: int = pydantic.Field(
-        command_line='timeout',
         default=60,
-        description='Timeout for router connections.')
+        description='Timeout for router connections.',
+        json_schema_extra={'command_line': 'timeout'})
     webserver_initial_timeout: int = pydantic.Field(
-        command_line='webserver_initial_timeout',
-        default=60 * 60,  # 1 hour in seconds
-        description='Initial timeout for webserver connections.')
+        default=60 * 60,
+        # 1 hour in seconds
+        description='Initial timeout for webserver connections.',
+        json_schema_extra={'command_line': 'webserver_initial_timeout'})
     webserver_nonactive_timeout: int = pydantic.Field(
-        command_line='webserver_nonactive_timeout',
-        default=30 * 60,  # 30 minutes in seconds
-        description='Timeout for non-activewebserver connections.')
+        default=30 * 60,
+        # 30 minutes in seconds
+        description='Timeout for non-activewebserver connections.',
+        json_schema_extra={'command_line': 'webserver_nonactive_timeout'})
     sticky_cookies: List[str] = pydantic.Field(
-        command_line='sticky_cookies',
         default=['AWSALB', 'AWSALBCORS'],
-        description='List of sticky cookies to send to the webserver.')
+        description='List of sticky cookies to send to the webserver.',
+        json_schema_extra={'command_line': 'sticky_cookies'})
 
 
 class RouterConnection(pydantic.BaseModel):
     """Model representing a router connection with websocket and synchronization events."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
     wait_connect: Optional[asyncio.Event] = None
     wait_close: Optional[asyncio.Event] = None
     websocket: Optional[fastapi.WebSocket] = None
 
-    class Config:
-        arbitrary_types_allowed = True
-
 
 class WebserverConnection(pydantic.BaseModel):
     """Model representing a webserver connection with websocket and synchronization events."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
     wait_close: asyncio.Event
     last_active_time: datetime.datetime
     websocket: fastapi.WebSocket
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ConnectionPayload(pydantic.BaseModel):
@@ -242,7 +242,7 @@ async def webserver_http_request(request: fastapi.Request, ctrl_key: str):
     sticky_cookies = RouterServiceConfig.load().sticky_cookies
     cookie_str = ', '.join(f'{k}={v}' for k, v in request.cookies.items() if k in sticky_cookies)
     await ctrl_ws.send_json(
-        ConnectionPayload(key=conn_key, cookie=cookie_str).dict(exclude_none=True))
+        ConnectionPayload(key=conn_key, cookie=cookie_str).model_dump(exclude_none=True))
     try:
         await asyncio.wait_for(connect.wait(), RouterServiceConfig.load().timeout)
         ws = connections[conn_key].websocket
@@ -337,7 +337,7 @@ async def webserver_ws_request(ws: fastapi.WebSocket, ctrl_key: str):
                 cookies.append(cookie.strip())
     cookie_str = ', '.join(cookies)
     await ctrl_ws.send_json(
-        ConnectionPayload(key=conn_key, cookie=cookie_str, type='ws', payload=payload).dict())
+        ConnectionPayload(key=conn_key, cookie=cookie_str, type='ws', payload=payload).model_dump())
 
     close = None
     try:

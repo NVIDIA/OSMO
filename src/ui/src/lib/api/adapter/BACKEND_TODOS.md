@@ -45,64 +45,12 @@ MIGRATION PATH:
 ### 1. Incorrect Response Types for Pool/Resource APIs
 
 **Priority:** High
-**Status:** Active workaround in `transforms.ts` and `hooks.ts`
+**Status:** ✅ FIXED — `response_model=` added to all visible endpoints (2026-03-14)
 
-Several API endpoints have incorrect response types in the OpenAPI schema. They're typed as returning `string` but actually return structured JSON objects.
-
-**Root cause:** The backend's OpenAPI spec generation is missing proper response type annotations. In `openapi.json`, these endpoints have:
-```json
-"responses": {
-  "200": {
-    "content": {
-      "application/json": {
-        "schema": { "type": "string" }  // ← Wrong: should be "$ref": "#/components/schemas/..."
-      }
-    }
-  }
-}
-```
-
-**Affected endpoints:**
-| Endpoint | OpenAPI Says | Actually Returns |
-|----------|--------------|------------------|
-| `GET /api/pool_quota` | `string` | `PoolResponse` |
-| `GET /api/resources` | `string` | `ResourcesResponse` |
-| `GET /api/resources/{name}` | `string` | `ResourcesResponse` |
-| `GET /api/configs/service` | `string` | Config object |
-| `GET /api/configs/workflow` | `string` | Config object |
-| `GET /api/configs/dataset` | `string` | Config object |
-
-**Generated code consequence:**
-```typescript
-// generated.ts (orval correctly follows the spec, but spec is wrong)
-return customFetch<string>({ url: `/api/resources`, ... });
-//                 ^^^^^^ Should be ResourcesResponse
-```
-
-**Workarounds:**
-```typescript
-// transforms.ts - Cast unknown to actual type
-export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
-  const response = rawResponse as PoolResponse | undefined;
-  // ...
-}
-
-// hooks.ts:257 - Cast to unknown to satisfy function signature
-getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown)
-```
-
-**Fix (backend):** Add explicit response models to FastAPI endpoints:
-```python
-# Python/FastAPI - Add response_model annotation
-@router.get("/api/resources", response_model=ResourcesResponse)
-def get_resources(...) -> ResourcesResponse:
-    ...
-```
-
-This will cause the OpenAPI spec to correctly reference the schema:
-```json
-"schema": { "$ref": "#/components/schemas/ResourcesResponse" }
-```
+Generated types now correctly reference `PoolResponse`, `ResourcesResponse`, `WorkflowQueryResponse`,
+`SrcServiceCoreWorkflowObjectsListResponse`, `CredentialGetResponse`, `BucketInfoResponse`,
+`ProfileResponse`, `DataListResponse`, `DataInfoResponse`. All `JSON.parse` string-guards and
+`unknown` parameter types removed from the adapter layer.
 
 ---
 
@@ -139,22 +87,13 @@ function parseNumber(value: string | number | undefined | null): number {
 ### 4. Version Endpoint Returns Unknown Type
 
 **Priority:** Low
-**Status:** Active workaround in `transforms.ts`
+**Status:** ✅ FIXED — `response_model=version.Version` added (2026-03-14)
 
-The `GET /api/version` endpoint has no response type defined in the OpenAPI schema.
+`GET /api/version` now emits `$ref: Version` in the OpenAPI spec. `transformVersionResponse`
+no longer needs runtime type checks or `String()` coercions.
 
-**Workaround:**
-```typescript
-// types.ts - manually defined
-export interface Version {
-  major: string;
-  minor: string;
-  revision: string;
-  hash?: string;
-}
-```
-
-**Fix:** Add proper Pydantic response model to version endpoint.
+Note: The adapter `Version` type in `types.ts` is kept because the generated `Version` has
+`minor?` and `revision?` as optional, while the UI guarantees them as required strings.
 
 ---
 

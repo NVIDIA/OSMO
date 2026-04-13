@@ -56,7 +56,7 @@ class BackendDeleteType(enum.Enum):
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 
 
-class ListBackendsResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListBackendsResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing info for all backends. """
     backends: List[connectors.Backend]
 
@@ -255,7 +255,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     job=job,
                     start_time=time.time())
 
-            compressed = zlib.compress(job.json().encode('utf-8'))
+            compressed = zlib.compress(job.model_dump_json().encode('utf-8'))
             await self.websocket.send_bytes(compressed)
 
 
@@ -311,7 +311,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 self._current_job.log_redis.xadd(
                     f'{self._current_job.workflow.workflow_id}-' +\
                     f'{message_option.pod_log.task}-{message_option.pod_log.retry_id}-error-logs',
-                    json.loads(logs.json()),
+                    json.loads(logs.model_dump_json()),
                     maxlen=workflow_config.max_log_lines)
                 self._current_job.log_redis.expire(
                     f'{self._current_job.workflow.workflow_id}-' +\

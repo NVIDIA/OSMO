@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 
 import enum
 import re
-from typing import Annotated, Any, Dict, List
+from typing import Annotated, Any, Dict, List, Mapping
 
 import fastapi
 import pydantic
@@ -38,6 +38,7 @@ router = fastapi.APIRouter(
     tags=['Config API']
 )
 
+
 class ConfigNameType(enum.Enum):
     """ Represents the config type for checking name. """
     POD_TEMPLATE = 'Pod template'
@@ -53,22 +54,21 @@ def _check_config_name(name: str, name_type: ConfigNameType):
     if not re.fullmatch(common.CONFIG_NAME_REGEX, name):
         raise osmo_errors.OSMOUserError(
             f'{name_type.value} name "{name}" is not valid! Name can only '
-             'be alphanumeric and contain dash or underscore.'
+            'be alphanumeric and contain dash or underscore.'
         )
 
 
-def _add_configmap_mode_flag(response_dict: Dict) -> Dict:
-    """Add _configmap_mode flag to GET responses when ConfigMap mode is active."""
-    if configmap_guard.is_configmap_mode():
-        response_dict['_configmap_mode'] = True
-    return response_dict
-
-
-@router.get('/api/configs/service', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/service',
+    response_class=common.PrettyJSONResponse,
+)
 def read_service_configs() -> Dict:
     """Read all the service configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return _add_configmap_mode_flag(postgres.get_service_configs().dict(by_alias=True))
+    result = postgres.get_service_configs().dict(by_alias=True)
+    if configmap_guard.is_configmap_mode():
+        result['_configmap_mode'] = True
+    return result
 
 
 @router.put('/api/configs/service')
@@ -91,11 +91,17 @@ def patch_service_configs(
     return helpers.patch_configs(request, connectors.ConfigType.SERVICE, username)
 
 
-@router.get('/api/configs/workflow', response_class=common.PrettyJSONResponse)
-def read_workflow_configs() -> Dict:
+@router.get(
+    '/api/configs/workflow',
+    response_model=connectors.WorkflowConfig,
+)
+def read_workflow_configs() -> connectors.WorkflowConfig:
     """Read all the workflow configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return _add_configmap_mode_flag(postgres.get_workflow_configs().dict(by_alias=True))
+    result = postgres.get_workflow_configs().dict(by_alias=True)
+    if configmap_guard.is_configmap_mode():
+        result['_configmap_mode'] = True
+    return result
 
 
 @router.put('/api/configs/workflow')
@@ -118,11 +124,17 @@ def patch_workflow_configs(
     return helpers.patch_configs(request, connectors.ConfigType.WORKFLOW, username)
 
 
-@router.get('/api/configs/dataset', response_class=common.PrettyJSONResponse)
-def read_dataset_configs() -> Dict:
+@router.get(
+    '/api/configs/dataset',
+    response_model=connectors.DatasetConfig,
+)
+def read_dataset_configs() -> connectors.DatasetConfig:
     """Read all the dataset configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    return _add_configmap_mode_flag(postgres.get_dataset_configs().dict(by_alias=True))
+    result = postgres.get_dataset_configs().dict(by_alias=True)
+    if configmap_guard.is_configmap_mode():
+        result['_configmap_mode'] = True
+    return result
 
 
 @router.put('/api/configs/dataset')
@@ -208,23 +220,24 @@ def create_clean_config_api(app: fastapi.FastAPI):
             by_alias=True, exclude_unset=True)
 
         try:
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
-            configs = connectors.ServiceConfig(**service_configs_dict)
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.ALLOW)
+            configs = connectors.ServiceConfig.from_db(service_configs_dict)
             updated_configs = configs.serialize(postgres)
             for key, value in updated_configs.items():
                 postgres.set_config(key, value)
         except pydantic.ValidationError as err:
-            raise osmo_errors.OSMOUsageError(f'{err}')
-        return postgres.get_service_configs().dict(by_alias=True,
-                                                                        exclude_unset=True)
+            raise osmo_errors.OSMOUsageError(f'{err}') from err
+        return postgres.get_service_configs().model_dump(by_alias=True,
+                                                        exclude_unset=True)
 
-    app.add_api_route('/api/configs/service/clean', clean_configs, # type: ignore
+    app.add_api_route('/api/configs/service/clean', clean_configs,  # type: ignore
                       description='Clean service configurations',
                       response_model=Dict, methods=['POST'], tags=['Config API'])
 
 
-@router.get('/api/configs/backend', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend',
+    response_model=objects.ListBackendsResponse,
+)
 def list_backends() -> objects.ListBackendsResponse:
     """ List all backends. """
     postgres = connectors.PostgresConnector.get_instance()
@@ -242,7 +255,10 @@ def update_backend(
     helpers.update_backend(name, request, username)
 
 
-@router.get('/api/configs/backend/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend/{name}',
+    response_model=connectors.Backend,
+)
 def get_backend(name: str) -> connectors.Backend:
     """ Get info for a specific backend. """
     postgres = connectors.PostgresConnector.get_instance()
@@ -265,15 +281,18 @@ def delete_backend(
             [name], 1)
         if alive_workflows:
             raise osmo_errors.OSMOBackendError(
-                f'Backend {name} is not finished running workflows. Alive workflows: ' +\
+                f'Backend {name} is not finished running workflows. Alive workflows: ' +
                 f'{", ".join(wf.workflow_id for wf in alive_workflows)}')
     connectors.delete_redis_backend(name, workflow_objects.WorkflowServiceContext.get().config)
     helpers.delete_backend(name, request, username)
 
 
-@router.get('/api/configs/pool', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/pool',
+    response_model=connectors.VerbosePoolConfig | connectors.EditablePoolConfig,
+)
 def list_pools(verbose: bool = False, backend: str | None = None) -> \
-    connectors.VerbosePoolConfig | connectors.EditablePoolConfig:
+        connectors.VerbosePoolConfig | connectors.EditablePoolConfig:
     """ List all Pools """
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
@@ -304,8 +323,8 @@ def _check_platform_changes(old_pool: connectors.Pool, new_pool: connectors.Pool
     # Check platforms that exist in both old and new configs
     for platform_name in old_platforms & new_platforms:
         if not helpers.pod_labels_and_tolerations_equal(
-            old_pool.platforms[platform_name].parsed_pod_template,
-            new_pool.platforms[platform_name].parsed_pod_template):
+                old_pool.platforms[platform_name].parsed_pod_template,
+                new_pool.platforms[platform_name].parsed_pod_template):
             return True
 
     return False
@@ -332,8 +351,8 @@ def _check_pool_changes(old_pool: connectors.Pool | None, new_pool: connectors.P
 
     # Check if pod template changed
     if not helpers.pod_labels_and_tolerations_equal(
-        old_pool.parsed_pod_template,
-        new_pool.parsed_pod_template):
+            old_pool.parsed_pod_template,
+            new_pool.parsed_pod_template):
         return True
 
     # Check if platforms changed
@@ -385,10 +404,14 @@ def put_pools(
         helpers.update_backend_queues(backend)
 
 
-
-@router.get('/api/configs/pool/{name}', response_class=common.PrettyJSONResponse)
-def read_pool(name: str,
-              verbose: bool = False) -> Any:
+@router.get(
+    '/api/configs/pool/{name}',
+    response_model=connectors.Pool | connectors.PoolEditable,
+)
+def read_pool(
+    name: str,
+    verbose: bool = False,
+) -> connectors.Pool | connectors.PoolEditable:
     """
     Read Pool configuration
 
@@ -397,7 +420,7 @@ def read_pool(name: str,
     """
     postgres = connectors.PostgresConnector.get_instance()
     pool_info = connectors.Pool.fetch_from_db(postgres, name)
-    return pool_info if verbose else connectors.PoolEditable(**pool_info.dict())
+    return pool_info if verbose else connectors.PoolEditable(**pool_info.model_dump())
 
 
 @router.put('/api/configs/pool/{name}')
@@ -461,7 +484,7 @@ def patch_pool(
         raise osmo_errors.OSMOUserError(f'Pool {name} not found') from e
 
     # Apply the strategic merge patch to create the updated pool configuration
-    current_pool_dict = current_pool.dict()
+    current_pool_dict = current_pool.model_dump()
     updated_pool_dict = common.strategic_merge_patch(
         current_pool_dict, request.configs_dict
     )
@@ -544,31 +567,33 @@ def delete_pool(
         helpers.update_backend_queues(backend)
 
 
-@router.get('/api/configs/pool/{name}/platform', response_class=common.PrettyJSONResponse)
-def list_platforms_in_pool(name: str,
-                           verbose: bool = False) -> Dict[str, Any]:
-    """
-    List all Platforms
-
-    Return type Any to prevent unwanted artifacts between verbose and editable outputs
-    Should return Dict[str, Platform] or Dict[str, PlatformEditable] objects
-    """
+@router.get(
+    '/api/configs/pool/{name}/platform',
+    response_model=dict[
+        str,
+        connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform,
+    ],
+)
+def list_platforms_in_pool(
+    name: str,
+    verbose: bool = False,
+) -> Mapping[str, connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform]:
+    """List all Platforms"""
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
     return connectors.fetch_platform_config(name, pool_type, postgres)
 
 
-@router.get('/api/configs/pool/{name}/platform/{platform_name}',
-            response_class=common.PrettyJSONResponse)
-def read_platform_in_pool(name: str,
-                          platform_name: str,
-                          verbose: bool = False) -> Any:
-    """
-    Read Platform
-
-    Return type Any to prevent unwanted artifacts between verbose and editable outputs
-    Should return Platform or PlatformEditable objects
-    """
+@router.get(
+    '/api/configs/pool/{name}/platform/{platform_name}',
+    response_model=connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform,
+)
+def read_platform_in_pool(
+    name: str,
+    platform_name: str,
+    verbose: bool = False,
+) -> connectors.PlatformMinimal | connectors.PlatformEditable | connectors.Platform:
+    """Read Platform"""
     postgres = connectors.PostgresConnector.get_instance()
     pool_type = connectors.PoolType.VERBOSE if verbose else connectors.PoolType.EDITABLE
     platforms = connectors.fetch_platform_config(name, pool_type, postgres)
@@ -630,15 +655,21 @@ def rename_platform_in_pool(name: str, platform_name: str,
     )
 
 
-@router.get('/api/configs/pod_template', response_class=common.PrettyJSONResponse)
-def list_pod_templates() -> Dict[str, Dict]:
+@router.get(
+    '/api/configs/pod_template',
+    response_model=Dict[str, Any],
+)
+def list_pod_templates() -> Dict[str, Any]:
     """ List all Pod Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.PodTemplate.list_from_db(postgres)
 
 
-@router.get('/api/configs/pod_template/{name}', response_class=common.PrettyJSONResponse)
-def read_pod_template(name: str) -> Dict:
+@router.get(
+    '/api/configs/pod_template/{name}',
+    response_model=Dict[str, Any],
+)
+def read_pod_template(name: str) -> Dict[str, Any]:
     """ Read Pod Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.PodTemplate.fetch_from_db(postgres, name)
@@ -662,7 +693,7 @@ def put_pod_templates(request: objects.PutPodTemplatesRequest,
         pod_template = connectors.PodTemplate(pod_template=pod_template_dict)
         pod_template.insert_into_db(postgres, name)
         if old_pod_template and \
-            not helpers.pod_labels_and_tolerations_equal(old_pod_template, pod_template_dict):
+                not helpers.pod_labels_and_tolerations_equal(old_pod_template, pod_template_dict):
             pool_list = connectors.PodTemplate.get_pools(postgres, name)
             for pool in pool_list:
                 helpers.update_backend_node_pool_platform(pool=pool['name'], platform=None)
@@ -694,7 +725,7 @@ def put_pod_template(name: str,
     pod_template = connectors.PodTemplate(pod_template=request.configs)
     pod_template.insert_into_db(postgres, name)
     if old_pod_template and \
-        not helpers.pod_labels_and_tolerations_equal(old_pod_template, request.configs):
+            not helpers.pod_labels_and_tolerations_equal(old_pod_template, request.configs):
         pool_list = connectors.PodTemplate.get_pools(postgres, name)
         for pool in pool_list:
             helpers.update_backend_node_pool_platform(pool=pool['name'], platform=None)
@@ -730,15 +761,21 @@ def delete_pod_template(
     )
 
 
-@router.get('/api/configs/group_template', response_class=common.PrettyJSONResponse)
-def list_group_templates() -> Dict[str, Dict]:
+@router.get(
+    '/api/configs/group_template',
+    response_model=Dict[str, Dict[str, Any]],
+)
+def list_group_templates() -> Dict[str, Dict[str, Any]]:
     """ List all Group Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.GroupTemplate.list_from_db(postgres)
 
 
-@router.get('/api/configs/group_template/{name}', response_class=common.PrettyJSONResponse)
-def read_group_template(name: str) -> Dict:
+@router.get(
+    '/api/configs/group_template/{name}',
+    response_model=Dict[str, Any],
+)
+def read_group_template(name: str) -> Dict[str, Any]:
     """ Read Group Template configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.GroupTemplate.fetch_from_db(postgres, name)
@@ -803,14 +840,20 @@ def delete_group_template(
     )
 
 
-@router.get('/api/configs/resource_validation', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/resource_validation',
+    response_model=Dict[str, List[connectors.ResourceAssertion]],
+)
 def list_resource_validations() -> Dict[str, List[connectors.ResourceAssertion]]:
     """ List all Resource Validation configurations """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.ResourceValidation.list_from_db(postgres)
 
 
-@router.get('/api/configs/resource_validation/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/resource_validation/{name}',
+    response_model=List[connectors.ResourceAssertion],
+)
 def read_resource_validation(name: str) -> List[connectors.ResourceAssertion]:
     """ Read Resource Validation configurations """
     postgres = connectors.PostgresConnector.get_instance()
@@ -881,14 +924,20 @@ def delete_resource_validation(
     )
 
 
-@router.get('/api/configs/role', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/role',
+    response_model=List[connectors.Role],
+)
 def list_roles() -> List[connectors.Role]:
     """ List all Roles """
     postgres = connectors.PostgresConnector.get_instance()
     return connectors.Role.list_from_db(postgres)
 
 
-@router.get('/api/configs/role/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/role/{name}',
+    response_model=connectors.Role,
+)
 def read_role(name: str) -> connectors.Role:
     """ Read Role """
     postgres = connectors.PostgresConnector.get_instance()
@@ -946,7 +995,10 @@ def delete_role(name: str,
     )
 
 
-@router.get('/api/configs/backend_test', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend_test',
+    response_model=Dict[str, connectors.BackendTests],
+)
 def list_backend_tests() -> Dict[str, Dict]:
     """ List all backend test configurations """
     postgres = connectors.PostgresConnector.get_instance()
@@ -977,7 +1029,10 @@ def put_backend_tests(
     )
 
 
-@router.get('/api/configs/backend_test/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/backend_test/{name}',
+    response_model=connectors.BackendTests,
+)
 def read_backend_test(name: str) -> connectors.BackendTests:
     """ Read backend test configuration """
     postgres = connectors.PostgresConnector.get_instance()
@@ -1021,7 +1076,7 @@ def patch_backend_test(
         raise osmo_errors.OSMOUserError(f'Backend test {name} not found') from e
 
     # Apply the strategic merge patch
-    current_test_dict = current_test.dict()
+    current_test_dict = current_test.model_dump()
     updated_test_dict = common.strategic_merge_patch(
         current_test_dict, request.configs_dict
     )
@@ -1129,7 +1184,7 @@ def rollback_config(
     if request.config_type == connectors.ConfigHistoryType.SERVICE:
         helpers.put_configs(
             objects.PutConfigsRequest(
-                configs=connectors.ServiceConfig(**history_entry['data']),
+                configs=connectors.ServiceConfig.from_db(history_entry['data']),
                 description=description,
                 tags=request.tags
             ),
@@ -1141,7 +1196,7 @@ def rollback_config(
     elif request.config_type == connectors.ConfigHistoryType.WORKFLOW:
         helpers.put_configs(
             objects.PutConfigsRequest(
-                configs=connectors.WorkflowConfig(**history_entry['data']),
+                configs=connectors.WorkflowConfig.from_db(history_entry['data']),
                 description=description,
                 tags=request.tags
             ),
@@ -1153,7 +1208,7 @@ def rollback_config(
     elif request.config_type == connectors.ConfigHistoryType.DATASET:
         helpers.put_configs(
             objects.PutConfigsRequest(
-                configs=connectors.DatasetConfig(**history_entry['data']),
+                configs=connectors.DatasetConfig.from_db(history_entry['data']),
                 description=description,
                 tags=request.tags
             ),
@@ -1279,7 +1334,7 @@ def rollback_config(
     elif request.config_type == connectors.ConfigHistoryType.ROLE:
         # Delete all existing roles
         existing_roles = connectors.Role.list_from_db(postgres)
-        next_roles= [role['name'] for role in history_entry['data']]
+        next_roles = [role['name'] for role in history_entry['data']]
         roles_to_remove = [
             role.name for role in existing_roles if role.name not in next_roles
         ]
@@ -1297,6 +1352,7 @@ def rollback_config(
         )
     else:
         raise osmo_errors.OSMOUserError(f'Unsupported config type: {request.config_type.value}')
+
 
 @router.delete('/api/configs/history/{config_type}/revision/{revision}')
 def delete_config_history_revision(
@@ -1459,8 +1515,8 @@ def diff_secret_strs(first_data: Any, second_data: Any, second_revision: int) ->
         else:
             return second_data
     elif isinstance(first_data, pydantic.BaseModel) and \
-        isinstance(second_data, pydantic.BaseModel) and \
-        isinstance(first_data, type(second_data)):
+            isinstance(second_data, pydantic.BaseModel) and \
+            isinstance(first_data, type(second_data)):
         result = {}
         for key in second_data.__dict__:
             if key in first_data.__dict__:
@@ -1473,7 +1529,10 @@ def diff_secret_strs(first_data: Any, second_data: Any, second_revision: int) ->
         return second_data
 
 
-@router.get('/api/configs/diff', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/configs/diff',
+    response_model=objects.ConfigDiffResponse,
+)
 def get_config_diff(
     request: Annotated[objects.ConfigDiffRequest, fastapi.Query()],
 ) -> objects.ConfigDiffResponse:

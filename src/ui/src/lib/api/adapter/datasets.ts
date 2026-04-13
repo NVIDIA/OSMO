@@ -223,7 +223,7 @@ export function transformDatasetListEntry(raw: DataListEntry): Dataset {
     created_at: raw.create_time,
     created_by: undefined, // Not available in list view
     updated_at: raw.last_created || raw.create_time,
-    size_bytes: ensureNumber(raw.hash_location_size),
+    size_bytes: ensureNumber(raw.hash_location_size ?? undefined),
     labels: {}, // Not available in list view
   };
 }
@@ -278,9 +278,9 @@ export function transformDatasetDetail(raw: DataInfoResponse): DetailResponse {
         type: DatasetType.COLLECTION,
         path: raw.hash_location || "",
         created_at: raw.created_date || "",
-        created_by: raw.created_by,
+        created_by: raw.created_by ?? undefined,
         updated_at: raw.created_date || "",
-        size_bytes: ensureNumber(raw.hash_location_size),
+        size_bytes: ensureNumber(raw.hash_location_size ?? undefined),
         labels,
       },
       members: collectionEntries.map((e) => ({
@@ -314,9 +314,9 @@ export function transformDatasetDetail(raw: DataInfoResponse): DetailResponse {
       path: raw.hash_location || "",
       version: currentVersionNumber,
       created_at: raw.created_date || "",
-      created_by: raw.created_by,
+      created_by: raw.created_by ?? undefined,
       updated_at: latestVersion?.created_date || raw.created_date || "",
-      size_bytes: ensureNumber(raw.hash_location_size),
+      size_bytes: ensureNumber(raw.hash_location_size ?? undefined),
       labels,
     },
     versions: datasetVersions as DatasetVersion[],
@@ -387,9 +387,7 @@ export async function fetchAllDatasets(showAllUsers: boolean, searchChips: Searc
   const apiParams = buildApiParams(searchChips, showAllUsers, 10_000);
   const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
 
-  const rawData = response.data;
-  const parsed: DataListResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-  return transformDatasetList(parsed);
+  return transformDatasetList(response);
 }
 
 /**
@@ -417,11 +415,7 @@ export async function fetchPaginatedDatasets(
   // Fetch from API - backend does the filtering
   const response = await listDatasetFromBucketApiBucketListDatasetGet(apiParams);
 
-  // Parse response (backend may return string or object)
-  const rawData = response.data;
-  const parsed: DataListResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-
-  const datasets = transformDatasetList(parsed);
+  const datasets = transformDatasetList(response);
 
   // Calculate hasMore - since API doesn't support offset, assume no more if less than limit
   const hasMore = datasets.length === limit;
@@ -449,11 +443,7 @@ export async function fetchDatasetDetail(bucket: string, name: string): Promise<
   // Fetch from API
   const response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name);
 
-  // Parse response
-  const rawData = response.data;
-  const parsed: DataInfoResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-
-  return transformDatasetDetail(parsed);
+  return transformDatasetDetail(response);
 }
 
 /**
@@ -470,10 +460,7 @@ export async function fetchDatasetDetailLatest(bucket: string, name: string): Pr
 
   const response = await getInfoApiBucketBucketDatasetNameInfoGet(bucket, name, { tag: "latest" });
 
-  const rawData = response.data;
-  const parsed: DataInfoResponse = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-
-  return transformDatasetDetail(parsed);
+  return transformDatasetDetail(response);
 }
 
 /**
