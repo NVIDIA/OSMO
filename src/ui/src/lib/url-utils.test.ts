@@ -97,4 +97,82 @@ describe("parseUrlChips", () => {
 
     expect(result).toEqual([{ field: "name", value: "John%20Doe", label: "name: John%20Doe" }]);
   });
+
+  it("returns empty array when given empty array", () => {
+    const result = parseUrlChips([]);
+
+    expect(result).toEqual([]);
+  });
+
+  it("parses single element array", () => {
+    const result = parseUrlChips(["status:RUNNING"]);
+
+    expect(result).toEqual([{ field: "status", value: "RUNNING", label: "status: RUNNING" }]);
+  });
+
+  it("returns empty array when array contains only invalid entries", () => {
+    const result = parseUrlChips(["invalid", "nocolon", "alsoinvalid"]);
+
+    expect(result).toEqual([]);
+  });
+
+  it("filters out entry with only colon separator", () => {
+    const result = parseUrlChips(":");
+
+    expect(result).toEqual([]);
+  });
+
+  it("filters out empty segments from consecutive commas", () => {
+    const result = parseUrlChips("status:RUNNING,,user:alice");
+
+    expect(result).toEqual([
+      { field: "status", value: "RUNNING", label: "status: RUNNING" },
+      { field: "user", value: "alice", label: "user: alice" },
+    ]);
+  });
+
+  it("preserves whitespace in field name", () => {
+    const result = parseUrlChips(" status:RUNNING");
+
+    expect(result).toEqual([{ field: " status", value: "RUNNING", label: " status: RUNNING" }]);
+  });
+
+  it("preserves whitespace in value", () => {
+    const result = parseUrlChips("name: John Doe ");
+
+    expect(result).toEqual([{ field: "name", value: " John Doe ", label: "name:  John Doe " }]);
+  });
+
+  it("handles field names with hyphens", () => {
+    const result = parseUrlChips("my-field:value");
+
+    expect(result).toEqual([{ field: "my-field", value: "value", label: "my-field: value" }]);
+  });
+
+  it("handles field names with underscores", () => {
+    const result = parseUrlChips("my_field:value");
+
+    expect(result).toEqual([{ field: "my_field", value: "value", label: "my_field: value" }]);
+  });
+
+  it("handles array with mixed valid and empty strings", () => {
+    const result = parseUrlChips(["status:RUNNING", "", "user:alice"]);
+
+    expect(result).toEqual([
+      { field: "status", value: "RUNNING", label: "status: RUNNING" },
+      { field: "user", value: "alice", label: "user: alice" },
+    ]);
+  });
+
+  it("handles leading comma in string input", () => {
+    const result = parseUrlChips(",status:RUNNING");
+
+    expect(result).toEqual([{ field: "status", value: "RUNNING", label: "status: RUNNING" }]);
+  });
+
+  it("handles trailing comma in string input", () => {
+    const result = parseUrlChips("status:RUNNING,");
+
+    expect(result).toEqual([{ field: "status", value: "RUNNING", label: "status: RUNNING" }]);
+  });
 });
