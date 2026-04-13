@@ -120,4 +120,60 @@ fi
 # Clean up temp directory
 rm -rf "$OSMO_CLI_TMP_DIR"
 
+# Prompt to install the OSMO agent skill for AI coding agents.
+# Runs interactively via npx — the user selects agents, scope, and method.
+# Skipped if: non-interactive, npx missing, or skill already installed.
+OSMO_SKILL_INSTALLED=false
+for agent_dir in "$HOME/.claude" "$HOME/.codex" "$HOME/.agents"; do
+    if [ -f "$agent_dir/skills/osmo-agent/SKILL.md" ]; then
+        OSMO_SKILL_INSTALLED=true
+        break
+    fi
+done
+
+if [ -t 0 ] && [ "$OSMO_SKILL_INSTALLED" = false ]; then
+    echo ""
+    echo "######################################################################"
+    echo "OSMO Agent Skill"
+    echo ""
+    echo "Install the OSMO agent skill for AI coding agents"
+    echo "(Claude Code, Codex, etc.) to enable natural language"
+    echo "commands for managing compute resources and workflows."
+    echo "######################################################################"
+    echo ""
+
+    if command -v npx &> /dev/null; then
+        read -p "Install the OSMO agent skill? [Y/n]: " INSTALL_SKILL || INSTALL_SKILL="n"
+        INSTALL_SKILL="${INSTALL_SKILL:-y}"
+        if [ "$INSTALL_SKILL" = "y" ] || [ "$INSTALL_SKILL" = "Y" ]; then
+            if npx skills add nvidia/osmo; then
+                echo ""
+                echo "To remove:"
+                echo "  npx skills remove osmo-agent"
+                echo ""
+            else
+                echo ""
+                echo "Installation failed. To retry:"
+                echo "  npx skills add nvidia/osmo"
+                echo ""
+            fi
+        else
+            echo "To install later:"
+            echo "  npx skills add nvidia/osmo"
+            echo ""
+        fi
+    else
+        echo "npx not found. Install Node.js to continue:"
+        echo ""
+        if command -v brew &> /dev/null; then
+            echo "  brew install node"
+        fi
+        echo "  https://nodejs.org/en/download"
+        echo ""
+        echo "Then run:"
+        echo "  npx skills add nvidia/osmo"
+        echo ""
+    fi
+fi
+
 exit 0
