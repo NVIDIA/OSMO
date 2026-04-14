@@ -416,6 +416,14 @@ nvkind cluster create --config-template=kind-osmo-cluster-config.yaml || print_w
 print_status "Waiting for cluster to be ready..."
 kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
+# Grant cluster-admin to kubernetes-admin so Helm can manage all resources.
+# nvkind may not bind this automatically on all providers (e.g. Shadecloud).
+print_status "Granting cluster-admin to kubernetes-admin..."
+kubectl create clusterrolebinding kubernetes-admin-cluster-admin \
+  --clusterrole=cluster-admin \
+  --user=kubernetes-admin \
+  2>/dev/null || print_warning "ClusterRoleBinding already exists, continuing..."
+
 # Verify GPUs are available
 print_status "Verifying GPU availability..."
 nvkind cluster print-gpus || print_warning "Could not verify GPUs, but continuing..."
@@ -577,11 +585,7 @@ CURRENT_COMMON_POD_TEMPLATE=$(
   | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
-templates = (
-    data.get("configs_dict", {}).get("common_pod_template")
-    or data.get("configs", {}).get("common_pod_template")
-    or []
-)
+templates = data.get("common_pod_template") or []
 if "shared_memory" not in templates:
     templates.append("shared_memory")
 print(json.dumps(templates))
