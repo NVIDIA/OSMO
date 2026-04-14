@@ -60,6 +60,7 @@ This Helm chart deploys the OSMO UI (Next.js web frontend). Authentication and t
 | `services.ui.scaling.minReplicas` | Minimum number of replicas | `1` |
 | `services.ui.scaling.maxReplicas` | Maximum number of replicas | `3` |
 | `services.ui.scaling.hpaTarget` | Target Memory Utilization Percentage | `85` |
+| `services.ui.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 
 ### Ingress Settings
 

@@ -62,6 +62,7 @@ helm install my-router ./router -f my-values.yaml
 | `services.service.scaling.maxReplicas` | Maximum number of replicas | `5` |
 | `services.service.scaling.memoryTarget` | Target memory utilization percentage for HPA | `80` |
 | `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
+| `services.service.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 
 #### Ingress Configuration
 
