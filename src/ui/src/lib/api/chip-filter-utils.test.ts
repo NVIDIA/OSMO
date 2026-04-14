@@ -95,6 +95,25 @@ describe("chipsToParams", () => {
     const result = chipsToParams<TestFilterParams>(chips, TEST_MAPPING);
     expect(result.platforms).toEqual(["dgx"]);
   });
+
+  it("does not deduplicate array type chips with same value", () => {
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("status", PoolStatus.ONLINE)];
+    const result = chipsToParams<TestFilterParams>(chips, TEST_MAPPING);
+    expect(result.statuses).toEqual([PoolStatus.ONLINE, PoolStatus.ONLINE]);
+  });
+
+  it("handles chips with empty string values", () => {
+    const chips: SearchChip[] = [createChip("search", "")];
+    const result = chipsToParams<TestFilterParams>(chips, TEST_MAPPING);
+    expect(result.search).toBe("");
+  });
+
+  it("returns empty object for empty mapping config", () => {
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE)];
+    const emptyMapping: ChipMappingConfig<TestFilterParams> = {};
+    const result = chipsToParams<TestFilterParams>(chips, emptyMapping);
+    expect(result).toEqual({});
+  });
 });
 
 // =============================================================================
@@ -132,6 +151,29 @@ describe("filterChipsByFields", () => {
     const result = filterChipsByFields(chips, new Set(), true);
     expect(result).toHaveLength(2);
   });
+
+  it("includes all chips matching field when multiple chips have same field", () => {
+    const chips: SearchChip[] = [
+      createChip("status", PoolStatus.ONLINE),
+      createChip("status", PoolStatus.OFFLINE),
+      createChip("platform", "dgx"),
+    ];
+    const result = filterChipsByFields(chips, new Set(["status"]));
+    expect(result).toHaveLength(2);
+    expect(result[0].value).toBe(PoolStatus.ONLINE);
+    expect(result[1].value).toBe(PoolStatus.OFFLINE);
+  });
+
+  it("excludes all chips matching field when multiple chips have same field", () => {
+    const chips: SearchChip[] = [
+      createChip("status", PoolStatus.ONLINE),
+      createChip("status", PoolStatus.OFFLINE),
+      createChip("platform", "dgx"),
+    ];
+    const result = filterChipsByFields(chips, new Set(["status"]), true);
+    expect(result).toHaveLength(1);
+    expect(result[0].field).toBe("platform");
+  });
 });
 
 // =============================================================================
@@ -166,5 +208,29 @@ describe("chipsToCacheKey", () => {
     const chips: SearchChip[] = [createChip("a", "1"), createChip("b", "2"), createChip("c", "3")];
     const result = chipsToCacheKey(chips);
     expect(result).toBe("a:1,b:2,c:3");
+  });
+
+  it("handles chips with colon in value", () => {
+    const chips: SearchChip[] = [createChip("search", "host:port")];
+    const result = chipsToCacheKey(chips);
+    expect(result).toBe("search:host:port");
+  });
+
+  it("handles chips with comma in value", () => {
+    const chips: SearchChip[] = [createChip("search", "a,b,c")];
+    const result = chipsToCacheKey(chips);
+    expect(result).toBe("search:a,b,c");
+  });
+
+  it("includes duplicate chips in cache key", () => {
+    const chips: SearchChip[] = [createChip("status", "ONLINE"), createChip("status", "ONLINE")];
+    const result = chipsToCacheKey(chips);
+    expect(result).toBe("status:ONLINE,status:ONLINE");
+  });
+
+  it("handles chips with empty value", () => {
+    const chips: SearchChip[] = [createChip("search", "")];
+    const result = chipsToCacheKey(chips);
+    expect(result).toBe("search:");
   });
 });
