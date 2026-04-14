@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 MAX_PUSH_RETRIES = 3
 SELF_AUTHORS = frozenset({"github-actions[bot]", "svc-osmo-ci"})
 ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+# Shared with testbot.yaml — update both when changing the tool allowlist.
+ALLOWED_TOOLS = (
+    "Read,Edit,Write,"
+    "Bash(bazel test *),Bash(pnpm --dir src/ui test *),"
+    "Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),"
+    "Glob,Grep"
+)
 
 THREADS_QUERY = """
 query($owner: String!, $repo: String!, $pr: Int!) {
@@ -312,8 +319,7 @@ def run_claude(
         "--model", model,
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
-        "--allowedTools",
-        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep",
+        "--allowedTools", ALLOWED_TOOLS,
         "--max-turns", str(max_turns),
         prompt,
     ]
@@ -333,9 +339,7 @@ def run_claude(
             result.returncode, result.stderr[:500],
         )
 
-    # Always attempt to parse stdout — Claude Code returns valid JSON
-    # even on non-zero exit (e.g., max turns reached, auth errors).
-    # The caller uses the parsed output for graceful degradation.
+    # Claude Code returns valid JSON even on non-zero exit (max turns, auth errors).
     try:
         parsed = json.loads(result.stdout)
         if result.returncode != 0 and parsed.get("is_error"):
@@ -503,7 +507,6 @@ def main() -> None:
         prompt, model=args.model, max_turns=args.max_turns, timeout=args.timeout,
     )
 
-    is_timeout = claude_output.get("subtype") == "timeout"
     if not claude_output:
         logger.error("Claude Code failed — discarding any partial changes")
         discard_changes()
@@ -513,11 +516,11 @@ def main() -> None:
         )
         return
 
-    # On timeout or max-turns, discard any partial file changes — they may
-    # be incomplete or broken (half-written tests, missing imports, etc.).
-    # Post an informative reply so the user knows what happened.
-    if is_timeout or claude_output.get("subtype") == "error_max_turns":
-        reason = "timed out" if is_timeout else "hit the max-turns limit"
+    # On timeout or max-turns, discard partial file changes (may be incomplete)
+    # and post an informative reply.
+    subtype = claude_output.get("subtype")
+    if subtype in ("timeout", "error_max_turns"):
+        reason = "timed out" if subtype == "timeout" else "hit the max-turns limit"
         turns_used = claude_output.get("num_turns", "?")
         logger.warning("Claude %s after %s turns — discarding partial changes", reason, turns_used)
         discard_changes()
@@ -565,7 +568,7 @@ def main() -> None:
     # Fallback message for threads without a per-thread reply
     if push_succeeded:
         fallback_message = "Fix applied — see the latest commit for details."
-    elif modified_files and not push_succeeded:
+    elif modified_files:
         fallback_message = (
             "I applied a fix locally but could not push. "
             "Needs human review."

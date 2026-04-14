@@ -95,13 +95,14 @@ The bot responds only to repo members (OWNER, MEMBER, COLLABORATOR). It will not
 | `model` | `aws/anthropic/claude-opus-4-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
 
-### Review response (env vars)
+### Review response (CLI args in `testbot-respond.yaml`)
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `TESTBOT_MAX_TURNS` | `50` | Claude Code agent turns |
-| `TESTBOT_MAX_RESPONSES` | `10` | Max threads to address per trigger |
-| `ANTHROPIC_MODEL` | `aws/anthropic/claude-opus-4-5` | LLM model |
+| Arg | Default | Description |
+|-----|---------|-------------|
+| `--max-turns` | `50` | Claude Code agent turns |
+| `--max-responses` | `10` | Max threads to address per trigger |
+| `--timeout` | `720` | Claude Code CLI timeout in seconds |
+| `--model` | `aws/anthropic/claude-opus-4-5` | LLM model |
 
 ### Coverage target selection (constants in `coverage_targets.py`)
 
@@ -118,6 +119,7 @@ src/scripts/testbot/
 ├── create_pr.py                # Branch, commit, push, open PR
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
 ├── respond.py                  # Review response: Claude Code CLI + GitHub API
+├── TESTBOT_RULES.md            # Shared test quality rules and conventions
 ├── TESTBOT_PROMPT.md           # Prompt for generate workflow (coverage targets)
 ├── TESTBOT_RESPOND_PROMPT.md   # Prompt for respond workflow (review feedback)
 ├── README.md                   # This file
@@ -125,8 +127,7 @@ src/scripts/testbot/
     ├── test_coverage_targets.py
     ├── test_create_pr.py
     ├── test_guardrails.py
-    ├── test_respond.py
-    └── e2e_respond.py          # Local e2e test (requires Claude Code CLI)
+    └── test_respond.py
 
 .github/workflows/
 ├── testbot.yaml                    # Scheduled test generation
