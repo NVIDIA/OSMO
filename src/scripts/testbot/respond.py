@@ -573,19 +573,21 @@ def main() -> None:
     else:
         logger.info("No file modifications detected")
 
-    # Fallback message for threads without a per-thread reply
-    if push_succeeded:
-        fallback_message = "Fix applied — see the latest commit for details."
-    elif modified_files:
+    # When push fails, Claude's per-thread replies describe work that wasn't
+    # applied — discard them so we don't mislead the reviewer.
+    if modified_files and not push_succeeded:
+        per_thread_replies = {}
         fallback_message = (
-            "I applied a fix locally but could not push. "
-            "Needs human review."
+            "I prepared a fix but could not push it. "
+            "Please retry or push manually."
         )
-    else:
+    elif not modified_files:
         fallback_message = (
             "I reviewed this but didn't find changes to make. "
             "Please retry or review manually."
         )
+    else:
+        fallback_message = "Fix applied — see the latest commit for details."
 
     # Post reply to each actionable thread
     replied = 0
