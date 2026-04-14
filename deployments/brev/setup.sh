@@ -437,14 +437,13 @@ fi
 # ============================================
 print_status "Logging in to OSMO..."
 
-osmo login http://localhost:8000 --method=dev --username=testuser
+OSMO_API="http://localhost:8000"
+osmo login "${OSMO_API}" --method=dev --username=testuser
 
 # ============================================
 # Step 9: Configure Shared Memory Pod Template
 # ============================================
 print_status "Adding shared_memory pod template for /dev/shm..."
-
-OSMO_API="http://localhost:8000"
 
 # Create the shared_memory pod template
 curl -sf -X PUT "${OSMO_API}/api/configs/pod_template/shared_memory" \
@@ -483,15 +482,32 @@ print_status "shared_memory pod template created"
 # Add shared_memory to the default pool's common_pod_template list
 print_status "Adding shared_memory to default pool..."
 
+CURRENT_COMMON_POD_TEMPLATE=$(
+  curl -sf "${OSMO_API}/api/configs/pool/default" \
+    -H "x-osmo-user: testuser" \
+  | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+templates = (
+    data.get("configs_dict", {}).get("common_pod_template")
+    or data.get("configs", {}).get("common_pod_template")
+    or []
+)
+if "shared_memory" not in templates:
+    templates.append("shared_memory")
+print(json.dumps(templates))
+'
+)
+
 curl -sf -X PATCH "${OSMO_API}/api/configs/pool/default" \
   -H "Content-Type: application/json" \
   -H "x-osmo-user: testuser" \
-  -d '{
-    "configs_dict": {
-      "common_pod_template": ["default_ctrl", "default_user", "shared_memory"]
+  -d "{
+    \"configs_dict\": {
+      \"common_pod_template\": ${CURRENT_COMMON_POD_TEMPLATE}
     },
-    "description": "Add shared_memory pod template to default pool"
-  }'
+    \"description\": \"Add shared_memory pod template to default pool\"
+  }"
 
 print_status "Default pool updated with shared_memory pod template"
 
