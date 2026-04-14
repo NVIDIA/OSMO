@@ -151,6 +151,10 @@ services:
       ##
       hpaTarget: 85
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Kubernetes service configuration
     ##
     service:

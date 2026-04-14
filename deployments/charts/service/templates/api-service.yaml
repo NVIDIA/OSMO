@@ -295,3 +295,6 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.service.scaling.hpaCpuTarget }}
+  {{- with .Values.services.service.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}

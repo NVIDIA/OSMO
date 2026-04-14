@@ -315,4 +315,7 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.ui.scaling.hpaTarget }}
+  {{- with .Values.services.ui.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}

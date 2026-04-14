@@ -110,6 +110,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the router service (without registry or tag)
     ##
     imageName: router

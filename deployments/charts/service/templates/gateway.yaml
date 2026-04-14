@@ -232,6 +232,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.envoy.scaling.hpaMemoryTarget }}
+  {{- with $gw.envoy.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 
 {{- end }}{{/* end envoy.enabled */}}
 
@@ -402,6 +405,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.oauth2Proxy.scaling.hpaMemoryTarget }}
+  {{- with $gw.oauth2Proxy.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 ---
@@ -549,6 +555,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.authz.scaling.hpaMemoryTarget }}
+  {{- with $gw.authz.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 ---
