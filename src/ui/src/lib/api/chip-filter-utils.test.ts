@@ -59,10 +59,7 @@ describe("chipsToParams", () => {
   });
 
   it("collects array type chips into arrays", () => {
-    const chips: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("status", PoolStatus.OFFLINE),
-    ];
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("status", PoolStatus.OFFLINE)];
     const result = chipsToParams<TestFilterParams>(chips, TEST_MAPPING);
     expect(result.statuses).toEqual([PoolStatus.ONLINE, PoolStatus.OFFLINE]);
   });
@@ -87,10 +84,7 @@ describe("chipsToParams", () => {
   });
 
   it("ignores chips with fields not in mapping", () => {
-    const chips: SearchChip[] = [
-      createChip("unknown", "value"),
-      createChip("status", PoolStatus.ONLINE),
-    ];
+    const chips: SearchChip[] = [createChip("unknown", "value"), createChip("status", PoolStatus.ONLINE)];
     const result = chipsToParams<TestFilterParams>(chips, TEST_MAPPING);
     expect(result.statuses).toEqual([PoolStatus.ONLINE]);
     expect(result).not.toHaveProperty("unknown");
@@ -114,39 +108,27 @@ describe("filterChipsByFields", () => {
   });
 
   it("includes chips matching handledFields by default", () => {
-    const chips: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("platform", "dgx"),
-    ];
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("platform", "dgx")];
     const result = filterChipsByFields(chips, new Set(["status"]));
     expect(result).toHaveLength(1);
     expect(result[0].field).toBe("status");
   });
 
   it("excludes chips matching handledFields when exclude is true", () => {
-    const chips: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("platform", "dgx"),
-    ];
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("platform", "dgx")];
     const result = filterChipsByFields(chips, new Set(["status"]), true);
     expect(result).toHaveLength(1);
     expect(result[0].field).toBe("platform");
   });
 
-  it("returns all chips when handledFields is empty and exclude is false", () => {
-    const chips: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("platform", "dgx"),
-    ];
+  it("returns no chips when handledFields is empty and exclude is false", () => {
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("platform", "dgx")];
     const result = filterChipsByFields(chips, new Set());
     expect(result).toEqual([]);
   });
 
   it("returns all chips when handledFields is empty and exclude is true", () => {
-    const chips: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("platform", "dgx"),
-    ];
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("platform", "dgx")];
     const result = filterChipsByFields(chips, new Set(), true);
     expect(result).toHaveLength(2);
   });
@@ -169,23 +151,14 @@ describe("chipsToCacheKey", () => {
   });
 
   it("creates sorted cache key from multiple chips", () => {
-    const chips: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("platform", "dgx"),
-    ];
+    const chips: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("platform", "dgx")];
     const result = chipsToCacheKey(chips);
     expect(result).toBe(`platform:dgx,status:${PoolStatus.ONLINE}`);
   });
 
   it("produces deterministic output regardless of input order", () => {
-    const chipsA: SearchChip[] = [
-      createChip("status", PoolStatus.ONLINE),
-      createChip("platform", "dgx"),
-    ];
-    const chipsB: SearchChip[] = [
-      createChip("platform", "dgx"),
-      createChip("status", PoolStatus.ONLINE),
-    ];
+    const chipsA: SearchChip[] = [createChip("status", PoolStatus.ONLINE), createChip("platform", "dgx")];
+    const chipsB: SearchChip[] = [createChip("platform", "dgx"), createChip("status", PoolStatus.ONLINE)];
     expect(chipsToCacheKey(chipsA)).toBe(chipsToCacheKey(chipsB));
   });
 
