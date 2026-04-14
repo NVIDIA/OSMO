@@ -14,9 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Responds to /testbot commands in review comments and PR comments on
-# AI-generated PRs. Delegates fixes to Claude Code CLI, posts inline
-# replies, and resolves addressed threads.
+# Responds to /testbot commands in review comments on AI-generated PRs.
+# Delegates fixes to Claude Code CLI and posts inline replies.
 name: Testbot - Respond to Reviews
 
 on:
@@ -89,6 +88,7 @@ jobs:
             --trigger-phrase /testbot \
             --max-responses 10 \
             --max-turns 50 \
+            --timeout 720 \
             --model aws/anthropic/claude-opus-4-5
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}

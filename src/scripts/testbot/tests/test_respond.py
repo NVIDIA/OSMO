@@ -299,10 +299,10 @@ class TestBuildPrompt(unittest.TestCase):
         }]
         prompt = build_prompt(threads)
         self.assertIn("`src/ui/src/lib/foo.test.ts` line 42", prompt)
-        self.assertIn("### Thread 123", prompt)
+        self.assertIn("### Thread ID: 123", prompt)
         self.assertIn("[reviewer]: /testbot add edge cases", prompt)
 
-    def test_includes_test_run_instructions(self):
+    def test_references_respond_prompt(self):
         threads = [{
             "reply_comment_id": 1,
             "path": "foo.test.ts",
@@ -310,10 +310,9 @@ class TestBuildPrompt(unittest.TestCase):
             "thread_history": "  [user]: /testbot fix",
         }]
         prompt = build_prompt(threads)
-        self.assertIn("TESTBOT_PROMPT.md", prompt)
-        self.assertIn("SUSPECTED BUG", prompt)
+        self.assertIn("TESTBOT_RESPOND_PROMPT.md", prompt)
 
-    def test_includes_no_git_instruction(self):
+    def test_includes_latest_comment_guidance(self):
         threads = [{
             "reply_comment_id": 1,
             "path": "foo.py",
@@ -321,7 +320,7 @@ class TestBuildPrompt(unittest.TestCase):
             "thread_history": "  [user]: /testbot fix",
         }]
         prompt = build_prompt(threads)
-        self.assertIn("Do NOT create git commits", prompt)
+        self.assertIn("LATEST request", prompt)
 
 
 class TestRunClaude(unittest.TestCase):
@@ -345,10 +344,11 @@ class TestRunClaude(unittest.TestCase):
         self.assertEqual(result, {})
 
     @patch("src.scripts.testbot.respond.subprocess.run")
-    def test_timeout_returns_empty(self, mock_run):
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=600)
+    def test_timeout_returns_timeout_marker(self, mock_run):
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="claude", timeout=720)
         result = run_claude("test prompt")
-        self.assertEqual(result, {})
+        self.assertTrue(result.get("is_error"))
+        self.assertEqual(result.get("subtype"), "timeout")
 
     @patch("src.scripts.testbot.respond.subprocess.run")
     def test_invalid_json_returns_empty(self, mock_run):
@@ -357,6 +357,15 @@ class TestRunClaude(unittest.TestCase):
         )
         result = run_claude("test prompt")
         self.assertEqual(result, {})
+
+    @patch("src.scripts.testbot.respond.subprocess.run")
+    def test_nonzero_exit_with_valid_json_returns_parsed(self, mock_run):
+        expected = {"is_error": True, "subtype": "error_max_turns", "result": "partial"}
+        mock_run.return_value = subprocess.CompletedProcess(
+            [], 1, stdout=json.dumps(expected), stderr="",
+        )
+        result = run_claude("test prompt")
+        self.assertEqual(result, expected)
 
     @patch("src.scripts.testbot.respond.subprocess.run")
     def test_uses_model_and_turns_args(self, mock_run):

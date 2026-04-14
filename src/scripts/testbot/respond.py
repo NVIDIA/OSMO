@@ -278,7 +278,8 @@ def build_prompt(threads: list[dict]) -> str:
     understands the context (original comment + follow-up replies).
     """
     lines = [
-        "Read and follow the test quality rules in src/scripts/testbot/TESTBOT_PROMPT.md.",
+        "Read and follow src/scripts/testbot/TESTBOT_RESPOND_PROMPT.md for your role,",
+        "process, and output format.",
         "",
         "Address these review threads on an AI-generated test PR.",
         "Each thread includes the full conversation history — pay attention to",
@@ -287,25 +288,10 @@ def build_prompt(threads: list[dict]) -> str:
     ]
     for thread in threads:
         location = f"`{thread['path']}` line {thread['line']}"
-        lines.append(f"### Thread {thread['reply_comment_id']} ({location})")
+        lines.append(f"### Thread ID: {thread['reply_comment_id']} ({location})")
         lines.append(thread["thread_history"])
         lines.append("")
 
-    lines.extend([
-        "Steps:",
-        "1. Read the relevant source and test files.",
-        "2. Apply the requested changes from the LATEST /testbot comment in each thread.",
-        "3. Follow the test run, bug detection, and verification steps in TESTBOT_PROMPT.md.",
-        "   Pay special attention to assertion failures: if the output looks like a source",
-        "   bug (contradicts the function's docstring/name/comments), skip the test with",
-        "   a SUSPECTED BUG marker — do NOT change the assertion to match buggy output.",
-        "4. Do NOT create git commits or branches.",
-        "",
-        "After completing all work, produce structured JSON output with:",
-        "- commit_message: a concise summary prefixed with 'testbot: '",
-        "- replies: one {thread_id, reply} for EVERY thread above, explaining",
-        "  what was done. Include any SUSPECTED BUG markers found.",
-    ])
     return "\n".join(lines)
 
 
@@ -313,47 +299,54 @@ def run_claude(
     prompt: str,
     model: str = "aws/anthropic/claude-opus-4-5",
     max_turns: int = 50,
+    timeout: int = 720,
 ) -> dict:
     """Run Claude Code CLI and return parsed JSON output.
 
     Returns a dict with 'structured_output' and/or 'result' fields.
     Returns empty dict on failure.
     """
+    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.91")
     cmd = [
-        "npx", "@anthropic-ai/claude-code@2.1.91", "--print",
+        *claude_bin.split(), "--print",
         "--model", model,
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
         "--allowedTools",
         "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep",
-        "--append-system-prompt",
-        "IMPORTANT: Your final response MUST be the structured JSON matching "
-        "the provided schema. You MUST include a reply for EVERY thread listed "
-        "in the prompt — each with the thread_id and a description of what you "
-        "did. If you delegated work to sub-agents, review their results and "
-        "write the replies yourself based on what was accomplished.",
         "--max-turns", str(max_turns),
         prompt,
     ]
     logger.info("Claude Code command: %s", " ".join(shlex.quote(c) for c in cmd))
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, check=False)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
+        )
     except subprocess.TimeoutExpired:
-        logger.error("Claude Code CLI timed out after 600s")
-        return {}
+        logger.error("Claude Code CLI timed out after %ds", timeout)
+        return {"is_error": True, "subtype": "timeout"}
 
     if result.returncode != 0:
-        logger.error(
-            "Claude Code CLI exited %d: stdout=%s stderr=%s",
-            result.returncode, result.stdout[:500], result.stderr[:500],
+        logger.warning(
+            "Claude Code CLI exited %d: stderr=%s",
+            result.returncode, result.stderr[:500],
         )
-        return {}
 
+    # Always attempt to parse stdout — Claude Code returns valid JSON
+    # even on non-zero exit (e.g., max turns reached, auth errors).
+    # The caller uses the parsed output for graceful degradation.
     try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
+        parsed = json.loads(result.stdout)
+        if result.returncode != 0 and parsed.get("is_error"):
+            logger.warning(
+                "Claude Code reported error: subtype=%s result=%s",
+                parsed.get("subtype", ""), str(parsed.get("result", ""))[:300],
+            )
+        return parsed
+    except (json.JSONDecodeError, ValueError):
+        if result.returncode == 0:
+            logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
         return {}
 
 
@@ -463,7 +456,6 @@ def reply_to_comment(
     return True
 
 
-
 def main() -> None:
     """Fetch actionable review threads, delegate to Claude Code, post replies."""
     parser = argparse.ArgumentParser(
@@ -475,6 +467,8 @@ def main() -> None:
                         help="Max threads to address per trigger (default: 10)")
     parser.add_argument("--max-turns", type=int, default=50,
                         help="Max Claude Code agent turns (default: 50)")
+    parser.add_argument("--timeout", type=int, default=720,
+                        help="Claude Code CLI timeout in seconds (default: 720)")
     parser.add_argument("--model", default="aws/anthropic/claude-opus-4-5",
                         help="LLM model name (default: aws/anthropic/claude-opus-4-5)")
     args = parser.parse_args()
@@ -498,7 +492,6 @@ def main() -> None:
             thread["trigger_body"][:120].replace("\n", " "),
         )
 
-    comment_lookup = {t["reply_comment_id"]: t for t in actionable}
     head_sha = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         capture_output=True, text=True, check=True,
@@ -506,8 +499,11 @@ def main() -> None:
 
     prompt = build_prompt(actionable)
     logger.info("Running Claude Code for %d comment(s)...", len(actionable))
-    claude_output = run_claude(prompt, model=args.model, max_turns=args.max_turns)
+    claude_output = run_claude(
+        prompt, model=args.model, max_turns=args.max_turns, timeout=args.timeout,
+    )
 
+    is_timeout = claude_output.get("subtype") == "timeout"
     if not claude_output:
         logger.error("Claude Code failed — discarding any partial changes")
         discard_changes()
@@ -515,6 +511,22 @@ def main() -> None:
             owner, repo, args.pr_number, actionable[0],
             "I encountered an error processing this request. Needs human review.",
         )
+        return
+
+    # On timeout or max-turns, discard any partial file changes — they may
+    # be incomplete or broken (half-written tests, missing imports, etc.).
+    # Post an informative reply so the user knows what happened.
+    if is_timeout or claude_output.get("subtype") == "error_max_turns":
+        reason = "timed out" if is_timeout else "hit the max-turns limit"
+        turns_used = claude_output.get("num_turns", "?")
+        logger.warning("Claude %s after %s turns — discarding partial changes", reason, turns_used)
+        discard_changes()
+        status_msg = (
+            f"I {reason} after {turns_used} turns. "
+            f"Try breaking this into smaller requests, or handle manually."
+        )
+        for comment in actionable:
+            reply_to_comment(owner, repo, args.pr_number, comment, status_msg)
         return
 
     logger.info("Claude output keys: %s", list(claude_output.keys()))
