@@ -60,15 +60,12 @@ def _check_config_name(name: str, name_type: ConfigNameType):
 
 @router.get(
     '/api/configs/service',
-    response_class=common.PrettyJSONResponse,
+    response_model=connectors.ServiceConfig,
 )
-def read_service_configs() -> Dict:
+def read_service_configs() -> connectors.ServiceConfig:
     """Read all the service configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    result = postgres.get_service_configs().dict(by_alias=True)
-    if configmap_guard.is_configmap_mode():
-        result['_configmap_mode'] = True
-    return result
+    return postgres.get_service_configs()
 
 
 @router.put('/api/configs/service')
@@ -98,10 +95,7 @@ def patch_service_configs(
 def read_workflow_configs() -> connectors.WorkflowConfig:
     """Read all the workflow configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    result = postgres.get_workflow_configs().dict(by_alias=True)
-    if configmap_guard.is_configmap_mode():
-        result['_configmap_mode'] = True
-    return result
+    return postgres.get_workflow_configs()
 
 
 @router.put('/api/configs/workflow')
@@ -131,10 +125,7 @@ def patch_workflow_configs(
 def read_dataset_configs() -> connectors.DatasetConfig:
     """Read all the dataset configurations"""
     postgres = connectors.PostgresConnector.get_instance()
-    result = postgres.get_dataset_configs().dict(by_alias=True)
-    if configmap_guard.is_configmap_mode():
-        result['_configmap_mode'] = True
-    return result
+    return postgres.get_dataset_configs()
 
 
 @router.put('/api/configs/dataset')

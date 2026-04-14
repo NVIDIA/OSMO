@@ -2627,7 +2627,7 @@ class Backend(pydantic.BaseModel):
                 try:
                     backends.append(
                         cls._fetch_from_snapshot(database, name, snapshot))
-                except Exception as error:
+                except (osmo_errors.OSMOError, pydantic.ValidationError) as error:
                     logging.warning(
                         'Skipping backend %s: %s', name, error)
             return backends

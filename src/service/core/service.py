@@ -476,12 +476,12 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
 
     if config.config_file:
         try:
-            _config_watcher = configmap_loader.ConfigMapWatcher(
+            watcher = configmap_loader.ConfigMapWatcher(
                 config.config_file, postgres)
-            _config_watcher.start()
+            watcher.start()
             # Store on app state to prevent GC from killing the watcher
-            target_app.state.config_watcher = _config_watcher
-        except Exception:
+            target_app.state.config_watcher = watcher
+        except Exception:  # pylint: disable=broad-exception-caught
             logging.exception(
                 'Failed to start config watcher — '
                 'service will continue without ConfigMap management')

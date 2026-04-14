@@ -136,11 +136,101 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
             },
         })
 
-        result = connectors.ResourceValidation.fetch_from_db(
+        result: Any = connectors.ResourceValidation.fetch_from_db(
             postgres, 'cpu_check')
         self.assertEqual(len(result), 1)
-        # In ConfigMap mode, returns raw dicts from snapshot
+        # In ConfigMap mode, snapshot returns raw dicts
         self.assertEqual(result[0]['resource'], 'cpu')
+
+    def test_group_template_from_snapshot(self):
+        """GroupTemplate.fetch_from_db reads from snapshot."""
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'group_templates': {
+                'test_group': {'topology': 'rack'},
+            },
+        })
+
+        result = connectors.GroupTemplate.fetch_from_db(postgres, 'test_group')
+        self.assertEqual(result['topology'], 'rack')
+
+    def test_group_template_list_from_snapshot(self):
+        """GroupTemplate.list_from_db returns all items from snapshot."""
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'group_templates': {
+                'grp_a': {'topology': 'rack'},
+                'grp_b': {'topology': 'zone'},
+            },
+        })
+
+        result = connectors.GroupTemplate.list_from_db(postgres)
+        self.assertEqual(set(result.keys()), {'grp_a', 'grp_b'})
+
+    def test_role_from_snapshot(self):
+        """Role.fetch_from_db reads from snapshot."""
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'roles': {
+                'test-role': {
+                    'description': 'Test',
+                    'policies': [],
+                },
+            },
+        })
+
+        result = connectors.Role.fetch_from_db(postgres, 'test-role')
+        self.assertEqual(result.name, 'test-role')
+        self.assertEqual(result.description, 'Test')
+
+    def test_role_list_from_snapshot(self):
+        """Role.list_from_db returns all roles from snapshot."""
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'roles': {
+                'role-a': {'description': 'A', 'policies': []},
+                'role-b': {'description': 'B', 'policies': []},
+            },
+        })
+
+        result = connectors.Role.list_from_db(postgres)
+        names = {r.name for r in result}
+        self.assertEqual(names, {'role-a', 'role-b'})
+
+    def test_backend_list_from_snapshot(self):
+        """Backend.list_from_db returns backends from snapshot."""
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'backends': {
+                'test-be': {
+                    'description': 'Test backend',
+                    'scheduler_settings': {
+                        'scheduler_type': 'kai',
+                        'scheduler_name': 'kai-scheduler',
+                        'scheduler_timeout': 30,
+                    },
+                },
+            },
+        })
+
+        result = connectors.Backend.list_from_db(postgres)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, 'test-be')
+        self.assertEqual(
+            result[0].scheduler_settings.scheduler_type.value, 'kai')
+
+    def test_backend_names_from_snapshot(self):
+        """Backend.list_names_from_db returns names from snapshot."""
+        postgres = self._get_postgres()
+        self._activate_configmap_mode({
+            'backends': {
+                'be-a': {'description': 'A'},
+                'be-b': {'description': 'B'},
+            },
+        })
+
+        result = connectors.Backend.list_names_from_db(postgres)
+        self.assertEqual(sorted(result), ['be-a', 'be-b'])
 
     # -------------------------------------------------------------------
     # 409 rejection for all write endpoints
