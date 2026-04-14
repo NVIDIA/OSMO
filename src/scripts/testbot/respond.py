@@ -4,7 +4,7 @@
 
 Fetches unresolved review threads containing a trigger phrase, runs a
 single Claude Code CLI session to apply all fixes, then posts per-comment
-inline replies and resolves addressed threads.
+inline replies.
 
 Usage:
     python respond.py --pr-number 789 --trigger-phrase /testbot
@@ -29,6 +29,13 @@ logger = logging.getLogger(__name__)
 MAX_PUSH_RETRIES = 3
 SELF_AUTHORS = frozenset({"github-actions[bot]", "svc-osmo-ci"})
 ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+# Shared with testbot.yaml — update both when changing the tool allowlist.
+ALLOWED_TOOLS = (
+    "Read,Edit,Write,"
+    "Bash(bazel test *),Bash(pnpm --dir src/ui test *),"
+    "Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),"
+    "Glob,Grep"
+)
 
 THREADS_QUERY = """
 query($owner: String!, $repo: String!, $pr: Int!) {
@@ -55,13 +62,6 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 }
 """
 
-RESOLVE_MUTATION = """
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread { isResolved }
-  }
-}
-"""
 
 REPLY_SCHEMA = json.dumps({
     "type": "object",
@@ -77,23 +77,23 @@ REPLY_SCHEMA = json.dumps({
         },
         "replies": {
             "type": "array",
+            "description": (
+                "One reply per review comment. Each entry maps a comment ID "
+                "from the prompt to a short explanation of what was done."
+            ),
             "items": {
                 "type": "object",
                 "properties": {
                     "comment_id": {
-                        "type": "integer",
-                        "description": "The comment ID being replied to",
+                        "type": "string",
+                        "description": "The comment ID from the prompt header (e.g. '3066587176')",
                     },
                     "reply": {
                         "type": "string",
-                        "description": "Explanation of what was done and why",
-                    },
-                    "resolve": {
-                        "type": "boolean",
-                        "description": "True if the issue is fully addressed",
+                        "description": "What was done for this thread",
                     },
                 },
-                "required": ["comment_id", "reply", "resolve"],
+                "required": ["comment_id", "reply"],
             },
         },
     },
@@ -219,42 +219,25 @@ def filter_actionable(
             logger.info("  SKIP (testbot source) path=%s", path)
             continue
 
-        # Skip if the bot already replied (last comment is from us — awaiting human)
-        last_author = comments[-1]["author"]
-        if last_author in SELF_AUTHORS:
-            logger.info(
-                "  SKIP (bot already replied, awaiting human) path=%s last_author=%s",
-                path, last_author,
-            )
-            continue
-
-        # Only trigger if the LAST non-bot comment contains the trigger phrase.
-        # This prevents an old /testbot from re-firing when a human follows up
-        # with a non-trigger comment like "still failing".
-        last_human_comment = None
-        for comment in reversed(comments):
-            if comment["author"] not in SELF_AUTHORS:
-                last_human_comment = comment
-                break
-
+        # Find the latest authorized /testbot comment that hasn't been
+        # replied to by the bot. Walk backwards: stop at bot replies (prior
+        # triggers already handled), skip unauthorized triggers so an earlier
+        # authorized one can still be found.
         trigger_comment = None
-        if last_human_comment and _has_trigger(last_human_comment["body"], trigger_phrase):
-            trigger_comment = last_human_comment
+        for comment in reversed(comments):
+            if comment["author"] in SELF_AUTHORS:
+                break  # Bot already replied — all prior triggers handled
+            if not _has_trigger(comment["body"], trigger_phrase):
+                continue
+            if comment.get("association", "NONE") not in ALLOWED_ASSOCIATIONS:
+                continue  # Unauthorized trigger — keep searching earlier comments
+            trigger_comment = comment
+            break
 
         if not trigger_comment:
             logger.info(
-                "  SKIP (no trigger in %d comments) path=%s body=%s",
+                "  SKIP (no unprocessed trigger in %d comments) path=%s body=%s",
                 len(comments), path, first_body,
-            )
-            continue
-
-        # Only allow repo members to trigger the bot
-        association = trigger_comment.get("association", "NONE")
-        if association not in ALLOWED_ASSOCIATIONS:
-            logger.info(
-                "  SKIP (author %s has association %s, need %s) path=%s",
-                trigger_comment["author"], association,
-                ALLOWED_ASSOCIATIONS, path,
             )
             continue
 
@@ -295,7 +278,8 @@ def build_prompt(threads: list[dict]) -> str:
     understands the context (original comment + follow-up replies).
     """
     lines = [
-        "Read and follow the test quality rules in src/scripts/testbot/TESTBOT_PROMPT.md.",
+        "Read and follow src/scripts/testbot/TESTBOT_RESPOND_PROMPT.md for your role,",
+        "process, and output format.",
         "",
         "Address these review threads on an AI-generated test PR.",
         "Each thread includes the full conversation history — pay attention to",
@@ -304,25 +288,10 @@ def build_prompt(threads: list[dict]) -> str:
     ]
     for thread in threads:
         location = f"`{thread['path']}` line {thread['line']}"
-        lines.append(f"### Thread {thread['reply_comment_id']} ({location})")
+        lines.append(f"### Comment {thread['reply_comment_id']} ({location})")
         lines.append(thread["thread_history"])
         lines.append("")
 
-    lines.extend([
-        "Steps:",
-        "1. Read the relevant source and test files.",
-        "2. Apply the requested changes from the LATEST /testbot comment in each thread.",
-        "3. Follow the test run, bug detection, and verification steps in TESTBOT_PROMPT.md.",
-        "   Pay special attention to assertion failures: if the output looks like a source",
-        "   bug (contradicts the function's docstring/name/comments), skip the test with",
-        "   a SUSPECTED BUG marker — do NOT change the assertion to match buggy output.",
-        "4. Do NOT create git commits or branches.",
-        "",
-        "After completing all work, produce a structured JSON reply for each thread.",
-        "Each reply should explain what you did and whether the issue is resolved.",
-        "If you flagged any SUSPECTED BUG markers, mention them in the reply.",
-        "Use the reply_comment_id as comment_id so replies are posted to the right thread.",
-    ])
     return "\n".join(lines)
 
 
@@ -330,78 +299,95 @@ def run_claude(
     prompt: str,
     model: str = "aws/anthropic/claude-opus-4-5",
     max_turns: int = 50,
+    timeout: int = 720,
 ) -> dict:
     """Run Claude Code CLI and return parsed JSON output.
 
     Returns a dict with 'structured_output' and/or 'result' fields.
     Returns empty dict on failure.
     """
+    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.91")
     cmd = [
-        "npx", "@anthropic-ai/claude-code@2.1.91", "--print",
+        *shlex.split(claude_bin), "--print",
         "--model", model,
         "--output-format", "json",
         "--json-schema", REPLY_SCHEMA,
-        "--allowedTools",
-        "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep",
+        "--allowedTools", ALLOWED_TOOLS,
         "--max-turns", str(max_turns),
         prompt,
     ]
     logger.info("Claude Code command: %s", " ".join(shlex.quote(c) for c in cmd))
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, check=False)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, check=False,
+        )
     except subprocess.TimeoutExpired:
-        logger.error("Claude Code CLI timed out after 600s")
-        return {}
+        logger.error("Claude Code CLI timed out after %ds", timeout)
+        return {"is_error": True, "subtype": "timeout"}
 
     if result.returncode != 0:
-        logger.error(
-            "Claude Code CLI exited %d: stdout=%s stderr=%s",
-            result.returncode, result.stdout[:500], result.stderr[:500],
+        logger.warning(
+            "Claude Code CLI exited %d: stderr=%s",
+            result.returncode, result.stderr[:500],
         )
-        return {}
 
+    # Claude Code returns valid JSON even on non-zero exit (max turns, auth errors).
     try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
+        parsed = json.loads(result.stdout)
+        if result.returncode != 0 and parsed.get("is_error"):
+            logger.warning(
+                "Claude Code reported error: subtype=%s result=%s",
+                parsed.get("subtype", ""), str(parsed.get("result", ""))[:300],
+            )
+        return parsed
+    except (json.JSONDecodeError, ValueError):
+        if result.returncode == 0:
+            logger.error("Failed to parse Claude Code JSON output: %s", result.stdout[:500])
         return {}
 
 
-def parse_replies(claude_output: dict, comments: list[dict]) -> list[dict]:
-    """Extract replies from Claude Code output with three-tier fallback."""
-    # Tier 1: structured_output
+def _extract_replies(claude_output: dict) -> dict[str, str]:
+    """Extract per-comment replies from Claude output with tiered fallback.
+
+    Returns a dict mapping comment_id (str) to reply text.
+    """
+    def _parse_replies_list(replies: list) -> dict[str, str]:
+        result: dict[str, str] = {}
+        for entry in replies:
+            if not isinstance(entry, dict):
+                continue
+            comment_id = str(entry.get("comment_id", ""))
+            reply = entry.get("reply", "")
+            if comment_id and reply:
+                result[comment_id] = reply
+        return result
+
+    # Tier 1: structured_output.replies
     structured = claude_output.get("structured_output")
-    if isinstance(structured, dict) and "replies" in structured:
-        replies = structured["replies"]
-        if isinstance(replies, list) and replies:
+    if isinstance(structured, dict) and isinstance(structured.get("replies"), list):
+        replies = _parse_replies_list(structured["replies"])
+        if replies:
             logger.info("Parsed %d replies from structured_output (tier 1)", len(replies))
             return replies
 
     # Tier 2: extract JSON from result text
     result_text = claude_output.get("result", "")
-    if result_text:
+    if isinstance(result_text, str) and result_text:
         try:
             start = result_text.index("{")
             end = result_text.rindex("}") + 1
             data = json.loads(result_text[start:end])
-            replies = data.get("replies") if isinstance(data, dict) else None
-            if isinstance(replies, list) and replies and isinstance(replies[0], dict):
-                logger.info("Parsed replies from result text (tier 2)")
-                return replies
+            if isinstance(data, dict) and isinstance(data.get("replies"), list):
+                replies = _parse_replies_list(data["replies"])
+                if replies:
+                    logger.info("Parsed %d replies from result text (tier 2)", len(replies))
+                    return replies
         except (ValueError, json.JSONDecodeError):
             pass
 
-    # Tier 3: fallback — single reply with raw text on the first comment
-    if result_text and comments:
-        logger.warning("Using raw text fallback (tier 3)")
-        return [{
-            "comment_id": comments[0]["reply_comment_id"],
-            "reply": result_text[:2000],
-            "resolve": False,
-        }]
-
-    return []
+    logger.warning("No per-thread replies found in Claude output")
+    return {}
 
 
 def discard_changes() -> None:
@@ -429,10 +415,18 @@ def commit_and_push(files: list[str], message: str) -> bool:
         )
         if result.returncode == 0:
             return True
+        stderr = result.stderr.strip()
         logger.warning(
             "git push failed (attempt %d/%d): %s",
-            attempt, MAX_PUSH_RETRIES, result.stderr[:200],
+            attempt, MAX_PUSH_RETRIES, stderr[:500],
         )
+        # Repository rule violations (GH013) won't resolve with retries.
+        if "GH013" in stderr:
+            logger.error(
+                "Push blocked by repository ruleset. "
+                "The service account may need bypass permissions."
+            )
+            return False
         if attempt < MAX_PUSH_RETRIES:
             subprocess.run(["git", "pull", "--rebase"], check=False)
 
@@ -467,17 +461,6 @@ def reply_to_comment(
     return True
 
 
-def resolve_thread(thread_id: str) -> None:
-    """Mark a review thread as resolved via GraphQL."""
-    logger.info("Resolving thread %s", thread_id)
-    result = run_gh(
-        f"api graphql -f query={shlex.quote(RESOLVE_MUTATION)} "
-        f"-F threadId={shlex.quote(thread_id)}"
-    )
-    if result.returncode != 0:
-        logger.warning("Failed to resolve thread %s: %s", thread_id, result.stderr[:300])
-
-
 def main() -> None:
     """Fetch actionable review threads, delegate to Claude Code, post replies."""
     parser = argparse.ArgumentParser(
@@ -489,6 +472,8 @@ def main() -> None:
                         help="Max threads to address per trigger (default: 10)")
     parser.add_argument("--max-turns", type=int, default=50,
                         help="Max Claude Code agent turns (default: 50)")
+    parser.add_argument("--timeout", type=int, default=720,
+                        help="Claude Code CLI timeout in seconds (default: 720)")
     parser.add_argument("--model", default="aws/anthropic/claude-opus-4-5",
                         help="LLM model name (default: aws/anthropic/claude-opus-4-5)")
     args = parser.parse_args()
@@ -512,7 +497,6 @@ def main() -> None:
             thread["trigger_body"][:120].replace("\n", " "),
         )
 
-    comment_lookup = {t["reply_comment_id"]: t for t in actionable}
     head_sha = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         capture_output=True, text=True, check=True,
@@ -520,24 +504,50 @@ def main() -> None:
 
     prompt = build_prompt(actionable)
     logger.info("Running Claude Code for %d comment(s)...", len(actionable))
-    claude_output = run_claude(prompt, model=args.model, max_turns=args.max_turns)
+    claude_output = run_claude(
+        prompt, model=args.model, max_turns=args.max_turns, timeout=args.timeout,
+    )
 
     if not claude_output:
         logger.error("Claude Code failed — discarding any partial changes")
         discard_changes()
-        reply_to_comment(
-            owner, repo, args.pr_number, actionable[0],
-            "I encountered an error processing this request. Needs human review.",
+        for comment in actionable:
+            reply_to_comment(
+                owner, repo, args.pr_number, comment,
+                "I encountered an error processing this request. Please retry or handle manually.",
+            )
+        return
+
+    # On timeout or max-turns, discard partial file changes (may be incomplete)
+    # and post an informative reply.
+    subtype = claude_output.get("subtype")
+    if subtype in ("timeout", "error_max_turns"):
+        reason = "timed out" if subtype == "timeout" else "hit the max-turns limit"
+        turns_used = claude_output.get("num_turns", "?")
+        logger.warning("Claude %s after %s turns — discarding partial changes", reason, turns_used)
+        discard_changes()
+        status_msg = (
+            f"I {reason} after {turns_used} turns. "
+            f"Try breaking this into smaller requests, or handle manually."
         )
+        for comment in actionable:
+            reply_to_comment(owner, repo, args.pr_number, comment, status_msg)
         return
 
     logger.info("Claude output keys: %s", list(claude_output.keys()))
+    logger.info(
+        "Claude diagnostics: num_turns=%s stop_reason=%s terminal_reason=%s cost=$%s",
+        claude_output.get("num_turns"),
+        claude_output.get("stop_reason"),
+        claude_output.get("terminal_reason"),
+        claude_output.get("total_cost_usd"),
+    )
     if "structured_output" in claude_output:
         logger.info("structured_output: %s", json.dumps(claude_output["structured_output"]))
     if "result" in claude_output:
         logger.info("result text: %s", claude_output["result"])
 
-    replies = parse_replies(claude_output, actionable)
+    per_thread_replies = _extract_replies(claude_output)
     structured = claude_output.get("structured_output", {})
     raw_commit_message = (
         structured.get("commit_message", "testbot: address review feedback")
@@ -557,44 +567,32 @@ def main() -> None:
     else:
         logger.info("No file modifications detected")
 
-    logger.info(
-        "Processing %d replies (comment_lookup IDs: %s)",
-        len(replies), list(comment_lookup.keys()),
-    )
-    replied = 0
-    for reply_data in replies:
-        comment_id = reply_data.get("comment_id")
-        if isinstance(comment_id, str) and comment_id.isdigit():
-            comment_id = int(comment_id)
-        logger.info(
-            "Reply entry: comment_id=%s (type=%s) resolve=%s reply=%s",
-            comment_id, type(comment_id).__name__,
-            reply_data.get("resolve"), reply_data.get("reply", ""),
+    # When push fails, Claude's per-thread replies describe work that wasn't
+    # applied — discard them so we don't mislead the reviewer.
+    if modified_files and not push_succeeded:
+        per_thread_replies = {}
+        fallback_message = (
+            "I prepared a fix but could not push it. "
+            "Please retry or push manually."
         )
-        comment = comment_lookup.get(comment_id)
-        if not comment:
-            logger.warning(
-                "Reply for unknown comment_id %s, skipping. Known IDs: %s",
-                comment_id, list(comment_lookup.keys()),
-            )
-            continue
+    elif not modified_files:
+        fallback_message = (
+            "I reviewed this but didn't find changes to make. "
+            "Please retry or review manually."
+        )
+    else:
+        fallback_message = "Fix applied — see the latest commit for details."
 
-        message = reply_data.get("reply", "Acknowledged.")
-        should_resolve = reply_data.get("resolve", False)
-
-        if modified_files and not push_succeeded:
-            message = (
-                f"I applied a fix locally but could not push. "
-                f"Needs human review.\n\n**Intended fix:** {message}"
-            )
-            should_resolve = False
-
-        reply_posted = reply_to_comment(owner, repo, args.pr_number, comment, message)
+    # Post reply to each actionable thread
+    replied = 0
+    for comment in actionable:
+        comment_id = str(comment["reply_comment_id"])
+        message = per_thread_replies.get(comment_id, fallback_message)
+        reply_posted = reply_to_comment(
+            owner, repo, args.pr_number, comment, message,
+        )
         if reply_posted:
             replied += 1
-
-        if reply_posted and should_resolve and comment.get("thread_id"):
-            resolve_thread(comment["thread_id"])
 
     logger.info(
         "Done: responded to %d comment(s) on PR #%d", replied, args.pr_number,

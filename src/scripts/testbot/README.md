@@ -28,20 +28,17 @@ Claude Code is sandboxed: it can only read files, edit test files, and run test 
   ├─ fetch all thread comments (GraphQL)
   ├─ filter: trigger phrase, author, dedup
   ├─ Claude Code CLI: read files, apply fix, run tests
-  ├─ guardrails: filter non-test changes
   ├─ respond.py: git commit + push
   ├─ structured reply via --json-schema
-  ├─ post inline reply to each thread
-  └─ resolve addressed threads (GraphQL)
+  └─ post inline reply to each thread
 ```
 
 | Feature | Description |
 |---------|-------------|
 | **Trigger** | Comment starting with `/testbot` on inline review threads of `ai-generated` PRs |
 | **Thread context** | Full conversation history (all nested comments) passed to Claude |
-| **Structured output** | `--json-schema` returns per-comment replies with resolve verdict and commit message |
-| **Thread resolution** | Resolved via GraphQL mutation after fix is applied |
-| **Safety** | Repo-member-only access, test-file-only guardrail, crash recovery, push retry |
+| **Structured output** | `--json-schema` returns per-thread replies and commit message |
+| **Safety** | Repo-member-only access, crash recovery, push retry |
 | **Dedup** | Skips threads where the bot already replied and is awaiting human follow-up |
 
 ### Security Boundary
@@ -98,13 +95,14 @@ The bot responds only to repo members (OWNER, MEMBER, COLLABORATOR). It will not
 | `model` | `aws/anthropic/claude-opus-4-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
 
-### Review response (env vars)
+### Review response (CLI args in `testbot-respond.yaml`)
 
-| Env Var | Default | Description |
-|---------|---------|-------------|
-| `TESTBOT_MAX_TURNS` | `50` | Claude Code agent turns |
-| `TESTBOT_MAX_RESPONSES` | `10` | Max threads to address per trigger |
-| `ANTHROPIC_MODEL` | `aws/anthropic/claude-opus-4-5` | LLM model |
+| Arg | Default | Description |
+|-----|---------|-------------|
+| `--max-turns` | `50` | Claude Code agent turns |
+| `--max-responses` | `10` | Max threads to address per trigger |
+| `--timeout` | `720` | Claude Code CLI timeout in seconds |
+| `--model` | `aws/anthropic/claude-opus-4-5` | LLM model |
 
 ### Coverage target selection (constants in `coverage_targets.py`)
 
@@ -117,12 +115,14 @@ The bot responds only to repo members (OWNER, MEMBER, COLLABORATOR). It will not
 
 ```text
 src/scripts/testbot/
-├── coverage_targets.py    # Codecov API → select low-coverage targets
-├── create_pr.py           # Branch, commit, push, open PR
-├── guardrails.py          # Test-file-only filter, shared by all scripts
-├── respond.py             # Review response: Claude Code CLI + GraphQL
-├── TESTBOT_PROMPT.md      # Quality rules and conventions for Claude Code
-├── README.md              # This file
+├── coverage_targets.py         # Codecov API → select low-coverage targets
+├── create_pr.py                # Branch, commit, push, open PR
+├── guardrails.py               # Test-file-only filter, shared by all scripts
+├── respond.py                  # Review response: Claude Code CLI + GitHub API
+├── TESTBOT_RULES.md            # Shared test quality rules and conventions
+├── TESTBOT_PROMPT.md           # Prompt for generate workflow (coverage targets)
+├── TESTBOT_RESPOND_PROMPT.md   # Prompt for respond workflow (review feedback)
+├── README.md                   # This file
 └── tests/
     ├── test_coverage_targets.py
     ├── test_create_pr.py
@@ -130,6 +130,7 @@ src/scripts/testbot/
     └── test_respond.py
 
 .github/workflows/
-├── testbot.yaml           # Scheduled test generation
-└── testbot-respond.yaml   # /testbot review response
+├── testbot.yaml                    # Scheduled test generation
+├── testbot-respond.yaml            # /testbot review response
+└── testbot-respond-approve.yaml    # Auto-approve for org members
 ```
