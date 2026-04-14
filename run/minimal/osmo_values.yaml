@@ -103,3 +103,6 @@ gateway:
     enabled: false
   authz:
     enabled: false
+
+podMonitor:
+  enabled: false

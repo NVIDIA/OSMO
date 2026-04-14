@@ -453,6 +453,9 @@ spec:
         imagePullPolicy: {{ $gw.authz.imagePullPolicy }}
         args:
           - "--grpc-port={{ $gw.authz.grpcPort }}"
+          {{- if .Values.services.configs.enabled }}
+          - "--roles-file=/etc/osmo/configs/config.yaml"
+          {{- else }}
           - "--postgres-host={{ .Values.services.postgres.serviceName }}"
           - "--postgres-port={{ .Values.services.postgres.port }}"
           - "--postgres-database={{ .Values.services.postgres.db }}"
@@ -461,6 +464,7 @@ spec:
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
+          {{- end }}
           - "--cache-ttl={{ $gw.authz.cache.ttl }}"
           - "--cache-max-size={{ $gw.authz.cache.maxSize }}"
           {{- if .Values.global.logs.enabled }}
@@ -483,16 +487,19 @@ spec:
                 name: db-secret
                 key: db-password
           {{- end }}
-        {{- if or .Values.global.logs.enabled $gw.authz.extraVolumeMounts }}
         volumeMounts:
           {{- if .Values.global.logs.enabled }}
           - name: logs
             mountPath: /logs
           {{- end }}
+          {{- if .Values.services.configs.enabled }}
+          - name: configs
+            mountPath: /etc/osmo/configs
+            readOnly: true
+          {{- end }}
           {{- with $gw.authz.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
-        {{- end }}
         {{- with $gw.authz.livenessProbe }}
         livenessProbe:
           {{- toYaml . | nindent 10 }}
@@ -507,6 +514,11 @@ spec:
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
+          configMap:
+            name: {{ .Values.services.service.serviceName }}-configs
         {{- end }}
         {{- with $gw.authz.extraVolumes }}
           {{- toYaml . | nindent 8 }}

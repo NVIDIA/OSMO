@@ -20,6 +20,7 @@ go_library(
     name = "roles",
     srcs = [
         "action_registry.go",
+        "file_loader.go",
         "pool_access.go",
         "role_cache.go",
         "roles.go",
@@ -31,6 +32,7 @@ go_library(
         "//src/utils",
         "//src/utils/postgres",
         "@com_github_hashicorp_golang_lru_v2//expirable:go_default_library",
+        "@in_gopkg_yaml_v3//:go_default_library",
     ],
 )
 

@@ -26,6 +26,7 @@ import pydantic
 import yaml
 
 from src.lib.utils import common, osmo_errors
+from src.service.core.config import configmap_guard
 from src.utils.job import backend_jobs, kb_objects, workflow
 from src.service.core.config import objects as configs_objects
 from src.service.core.workflow import objects
@@ -104,9 +105,14 @@ def put_configs(
         should_serialize: Whether to serialize the config before storing.
                             Skip serialization when rolling back a config.
 
+    Raises:
+        OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
+
     Returns:
         Dict containing the updated configuration
     """
+    configmap_guard.reject_if_configmap_mode(username)
+
     postgres = connectors.PostgresConnector.get_instance()
     if should_serialize:
         updated_configs = request.configs.serialize(postgres)
@@ -151,7 +157,12 @@ def patch_configs(
 
     Returns:
         Dict containing the updated configuration fields.
+
+    Raises:
+        OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
     """
+    configmap_guard.reject_if_configmap_mode(username)
+
     postgres = connectors.PostgresConnector.get_instance()
     current_configs_dict = postgres.get_configs(config_type).plaintext_dict(
         by_alias=True, exclude_unset=True)
@@ -210,6 +221,7 @@ def patch_configs(
     new_configs_dict = postgres.get_configs(config_type).model_dump(
         by_alias=True, exclude_unset=True)
     return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
+
 
 def backend_action_request_helper(payload: Dict[str, Any], name: str):
 
@@ -733,7 +745,6 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
 
         logging.info('Fetched %d test configs for backend %s', len(test_configs), backend_name,
                      extra={'workflow_uuid': getattr(context, 'workflow_uuid', None)})
-        print(test_configs)
         # Create SynchronizeBackendTest job with test configurations
         sync_job = backend_jobs.BackendSynchronizeBackendTest(
             backend=backend_name,

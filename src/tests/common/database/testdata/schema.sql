@@ -61,3 +61,4 @@ CREATE TABLE IF NOT EXISTS workflows (
     workflow_id TEXT PRIMARY KEY,
     pool TEXT NOT NULL DEFAULT ''
 );
+
