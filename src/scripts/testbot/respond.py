@@ -422,10 +422,18 @@ def commit_and_push(files: list[str], message: str) -> bool:
         )
         if result.returncode == 0:
             return True
+        stderr = result.stderr.strip()
         logger.warning(
             "git push failed (attempt %d/%d): %s",
-            attempt, MAX_PUSH_RETRIES, result.stderr[:200],
+            attempt, MAX_PUSH_RETRIES, stderr[:500],
         )
+        # Repository rule violations (GH013) won't resolve with retries.
+        if "GH013" in stderr:
+            logger.error(
+                "Push blocked by repository ruleset. "
+                "The service account may need bypass permissions."
+            )
+            return False
         if attempt < MAX_PUSH_RETRIES:
             subprocess.run(["git", "pull", "--rebase"], check=False)
 
