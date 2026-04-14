@@ -107,7 +107,13 @@ def main() -> None:
     logger.info("Changed test files: %s", changed_files)
 
     basenames = sorted({f.rsplit("/", maxsplit=1)[-1] for f in changed_files})
-    files_summary = ", ".join(basenames)
+    # Strip test prefixes/suffixes to show source file names in the PR title.
+    # test_foo.py → foo.py, foo_test.go → foo.go, foo.test.ts → foo.ts
+    source_names = sorted({
+        re.sub(r"^test_", "", re.sub(r"[._]test(\.\w+)$", r"\1", name))
+        for name in basenames
+    })
+    files_summary = ", ".join(source_names)
     files_list = "\n".join(f"- `{f}`" for f in changed_files)
 
     branch = f"testbot/{datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y%m%d-%H%M')}"
