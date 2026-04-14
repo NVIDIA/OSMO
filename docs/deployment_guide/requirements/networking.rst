@@ -38,13 +38,12 @@ Requirements
   .. grid:: 2
       :gutter: 3
 
-      .. grid-item-card:: :octicon:`server` Kubernetes Ingress Controller
-          :link: https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
+      .. grid-item-card:: :octicon:`server` OSMO Gateway
           :class-card: tool-card
 
-          Install a Kubernetes load balancer in your cluster.
+          The OSMO Gateway (Envoy) is deployed automatically as part of the service chart. It handles traffic routing, authentication, and load balancing.
 
-          **Required for**: Load balancing and traffic routing
+          **Required for**: External access to OSMO services
 
       .. grid-item-card:: :octicon:`shield-check` Domain and Certificate
 
@@ -57,7 +56,7 @@ Requirements
 
       .. grid-item-card:: :octicon:`globe` DNS Configuration
 
-          Configure DNS CNAME record pointing your FQDN to the load balancer endpoint.
+          Configure DNS CNAME record pointing your FQDN to the OSMO Gateway's LoadBalancer external IP.
 
           **Required for**: Domain name resolution
 

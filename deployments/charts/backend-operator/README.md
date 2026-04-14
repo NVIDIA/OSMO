@@ -48,21 +48,17 @@ This Helm chart deploys the OSMO Backend-Operator for managing compute backend r
 | `global.enableClusterRoles` | Enable cluster roles | `true` |
 | `global.enableNonClusterRoles` | Enable non-cluster roles | `true` |
 
-### Global Network Settings
+### Global NetworkPolicy Settings
+
+When enabled, a `NetworkPolicy` is applied to the workflow namespace (`global.backendNamespace`) that allows unrestricted external internet egress while blocking cross-namespace cluster traffic except to explicitly allowlisted namespaces.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `global.network.restrictEgress` | Restrict egress traffic for workflow pods | `false` |
-| `global.network.allowlistEgress.enabled` | Enable egress allowlist | `false` |
-| `global.network.allowlistEgress.proxyNamespace` | Proxy namespace | `osmo-squid-proxy` |
-| `global.network.allowlistEgress.proxyReplicas` | Number of proxy replicas | `1` |
-| `global.network.allowlistEgress.additionalAllowedDomains` | Additional allowed domains | `[]` |
-| `global.network.allowlistEgress.sidecarContainers` | Additional sidecar containers | `[]` |
-| `global.network.allowlistEgress.additionalVolumes` | Additional volumes for sidecar containers | `[]` |
-| `global.network.allowlistEgress.hostAliases` | Host aliases for pods | `[]` |
-| `global.network.allowlistEgress.resources.requests.cpu` | CPU requests for allowlist squid proxy server | `2` |
-| `global.network.allowlistEgress.resources.requests.memory` | Memory requests for allowlist squid proxy server | `4Gi` |
-| `global.network.allowlistEgress.resources.limits.memory` | Memory limits for allowlist squid proxy server | `4Gi` |
+| `global.networkPolicy.enabled` | Create the `NetworkPolicy`. When `false`, all egress is unrestricted. | `false` |
+| `global.networkPolicy.clusterCIDRs` | Internal cluster CIDRs (pod CIDR, service CIDR) to exclude from the external egress rule. Required for namespace isolation to be effective. | `[]` |
+| `global.networkPolicy.dnsNamespace` | Namespace containing the cluster DNS service (CoreDNS/kube-dns). Port 53 egress is allowed to pods in this namespace. | `kube-system` |
+| `global.networkPolicy.allowedNamespaces` | Additional namespaces that workflow pods may reach. | `[]` |
+| `global.networkPolicy.additionalEgressRules` | Raw `NetworkPolicyEgressRule` objects appended to the policy. Use for IP-based allowances or DNS workarounds on iptables-based CNIs. | `[]` |
 
 
 ### Global Logging Settings
@@ -198,5 +194,5 @@ This chart requires:
 - Each component can be configured independently with custom resources and settings
 - Includes comprehensive mount monitoring with failure threshold configuration
 - Integrates with OpenTelemetry for observability
-- Configurable network egress controls for security
+- Optional Kubernetes `NetworkPolicy` to restrict cross-namespace egress while permitting external internet traffic
 - Priority classes for workload scheduling optimization

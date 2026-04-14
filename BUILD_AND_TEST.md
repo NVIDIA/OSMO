@@ -232,7 +232,7 @@ This command:
 
 - Creates a KIND cluster if it does not exist
 - Sets up the OSMO namespace and image pull secrets
-- Installs ingress-nginx controller
+- Installs gateway (Envoy) for routing traffic
 - Generates the Master Encryption Key (MEK)
 - Installs core OSMO services (osmo, ui, router)
 
@@ -240,14 +240,14 @@ Add the following line to your `/etc/hosts` file. If you are SSH-ing into a remo
 must add this line to `/etc/hosts` on both your local and remote hosts.
 
 ```text
-127.0.0.1 ingress-nginx-controller.ingress-nginx.svc.cluster.local
+127.0.0.1 quick-start.osmo
 ```
 
 If you are SSH-ing into a remote workstation, you must also forward port `:80` from your remote
 workstation to your local host.
 
 The OSMO UI and APIs for the core service can now be accessed on your local machine at:
-http://ingress-nginx-controller.ingress-nginx.svc.cluster.local
+http://quick-start.osmo
 
 ### Start OSMO Backend
 
@@ -300,12 +300,12 @@ This command:
 ### Access OSMO
 
 The OSMO UI and APIs can be accessed at:
-http://ingress-nginx-controller.ingress-nginx.svc.cluster.local
+http://quick-start.osmo
 
 Log into OSMO using the CLI:
 
 ```sh
-bazel run @osmo_workspace//src/cli -- login http://ingress-nginx-controller.ingress-nginx.svc.cluster.local --method=dev --username=testuser
+bazel run @osmo_workspace//src/cli -- login http://quick-start.osmo --method=dev --username=testuser
 ```
 
 ## Next steps
@@ -332,7 +332,7 @@ Note: If you used a different `--cluster-name` than the default `osmo`, delete t
 
 ## FAQ
 
-### How do I resolve the issue where `start_service` fails to install helm charts such as `ingress-nginx`?
+### How do I resolve the issue where `start_service` fails to install helm charts?
 
 This is likely caused by running out of [inotify](https://linux.die.net/man/7/inotify) resources.
 Follow

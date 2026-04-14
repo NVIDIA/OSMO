@@ -1,3 +1,4 @@
+#!/bin/bash
 # SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,18 +15,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-🚀 OSMO has been installed successfully!
+set -euo pipefail
 
- Next Steps:
-
-1. Add an entry to /etc/hosts:
-   echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
-
-2. Download and install the OSMO CLI:
-   curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
-
-3. Log in to OSMO:
-   osmo login http://quick-start.osmo --method=dev --username=testuser
-
-4. Explore next steps:
-   https://nvidia.github.io/OSMO/main/user_guide/getting_started/next_steps.html
+"$SHELLCHECK" --severity=warning "$SETUP_SH"

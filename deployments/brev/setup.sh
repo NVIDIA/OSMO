@@ -57,22 +57,35 @@ NVIDIA_CTK_INSTALL_VERSION="1.18.1-1"
 GPU_OPERATOR_VERSION="v25.10.0"
 KAI_SCHEDULER_VERSION="v0.13.4"
 
+# LocalStack S3 object storage settings
+LOCALSTACK_S3_HOST="localstack-s3.osmo"
+LOCALSTACK_S3_PORT="4566"
+LOCALSTACK_S3_OVERRIDE_URL="http://${LOCALSTACK_S3_HOST}:${LOCALSTACK_S3_PORT}"
+LOCALSTACK_S3_ENDPOINT="s3://osmo"
+LOCALSTACK_S3_ACCESS_KEY_ID="test"
+LOCALSTACK_S3_ACCESS_KEY="test"
+LOCALSTACK_S3_REGION="us-east-1"
+
 # ============================================
 # Step 0: System Configuration
 # ============================================
 print_status "Configuring system settings..."
 
-# Increase inotify limits to prevent "too many open files" errors
-print_status "Setting inotify limits..."
-echo "fs.inotify.max_user_watches=1048576" | sudo tee -a /etc/sysctl.conf
-echo "fs.inotify.max_user_instances=512" | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p
+# Increase inotify limits to prevent "too many open files" errors — only if not already set
+if ! grep -q "fs.inotify.max_user_watches=1048576" /etc/sysctl.conf 2>/dev/null; then
+    print_status "Setting inotify limits..."
+    echo "fs.inotify.max_user_watches=1048576" | sudo tee -a /etc/sysctl.conf
+    echo "fs.inotify.max_user_instances=512" | sudo tee -a /etc/sysctl.conf
+    sudo sysctl -p
+else
+    print_status "inotify limits already configured"
+fi
 
 # Ensure user has Docker permissions
 print_status "Checking Docker permissions..."
 if ! docker ps >/dev/null 2>&1; then
     print_warning "Docker permission denied. Adding user to docker group..."
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
     print_warning "Please log out and log back in, then run this script again."
     exit 1
 fi
@@ -113,32 +126,82 @@ TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 print_status "Working in temporary directory: $TEMP_DIR"
 
-# Install KIND
+# --- Launch parallel downloads for tools we need ---
+
+PIDS=()
+
+# Download KIND
 if ! command_exists kind; then
-    print_status "Installing KIND..."
-    curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
-    chmod +x ./kind
-    sudo mv ./kind /usr/local/bin/kind
-else
-    print_status "KIND already installed: $(kind --version)"
+    print_status "Downloading KIND..."
+    (curl -sLo "$TEMP_DIR/kind" https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64) &
+    PIDS+=($!)
 fi
 
-# Install kubectl
+# Download kubectl
 if ! command_exists kubectl; then
-    print_status "Installing kubectl..."
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-    chmod +x ./kubectl
-    sudo mv ./kubectl /usr/local/bin/kubectl
-else
-    print_status "kubectl already installed: $(kubectl version --client --short 2>/dev/null || kubectl version --client)"
+    print_status "Downloading kubectl..."
+    (KUBECTL_VERSION=$(curl -sL https://dl.k8s.io/release/stable.txt) && \
+     curl -sLo "$TEMP_DIR/kubectl" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl") &
+    PIDS+=($!)
 fi
 
-# Install helm
+# Download helm
 if ! command_exists helm; then
-    print_status "Installing Helm..."
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    print_status "Downloading Helm..."
+    (curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 -o "$TEMP_DIR/get-helm.sh") &
+    PIDS+=($!)
+fi
+
+# Download Go (needed for nvkind)
+if ! command_exists nvkind && ! command_exists go; then
+    print_status "Downloading Go..."
+    GO_VERSION="1.23.4"
+    (wget -q -O "$TEMP_DIR/go.tar.gz" https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz) &
+    PIDS+=($!)
+fi
+
+# Wait for all parallel downloads
+if [ ${#PIDS[@]} -gt 0 ]; then
+    print_status "Waiting for ${#PIDS[@]} parallel downloads..."
+    for pid in "${PIDS[@]}"; do
+        wait "$pid" || { print_error "A download failed (PID $pid)"; exit 1; }
+    done
+    print_status "All downloads complete"
+fi
+
+# --- Install downloaded tools ---
+
+if ! command_exists kind && [ -f "$TEMP_DIR/kind" ]; then
+    chmod +x "$TEMP_DIR/kind"
+    sudo mv "$TEMP_DIR/kind" /usr/local/bin/kind
+    print_status "KIND installed: $(kind --version)"
 else
-    print_status "Helm already installed: $(helm version --short)"
+    command_exists kind && print_status "KIND already installed: $(kind --version)"
+fi
+
+if ! command_exists kubectl && [ -f "$TEMP_DIR/kubectl" ]; then
+    chmod +x "$TEMP_DIR/kubectl"
+    sudo mv "$TEMP_DIR/kubectl" /usr/local/bin/kubectl
+    print_status "kubectl installed"
+else
+    command_exists kubectl && print_status "kubectl already installed"
+fi
+
+if ! command_exists helm && [ -f "$TEMP_DIR/get-helm.sh" ]; then
+    bash "$TEMP_DIR/get-helm.sh"
+    print_status "Helm installed: $(helm version --short)"
+else
+    command_exists helm && print_status "Helm already installed: $(helm version --short)"
+fi
+
+# Install Go if needed
+if ! command_exists nvkind && ! command_exists go && [ -f "$TEMP_DIR/go.tar.gz" ]; then
+    print_status "Installing Go..."
+    sudo rm -rf /usr/local/go
+    sudo tar -C /usr/local -xzf "$TEMP_DIR/go.tar.gz"
+    export PATH=$PATH:/usr/local/go/bin
+    # shellcheck disable=SC2016
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
 fi
 
 # Install or upgrade nvidia-container-toolkit to version 1.18+
@@ -159,9 +222,10 @@ if [ "$current_version" = "0.0.0" ] || [ "$(printf '%s\n' "$NVIDIA_CTK_MIN_VERSI
         print_warning "nvidia-ctk version ${current_version} is below minimum ${NVIDIA_CTK_MIN_VERSION}, upgrading..."
     fi
 
-    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    # shellcheck source=/dev/null
+    distribution=$(. /etc/os-release;echo "$ID$VERSION_ID")
     curl -s -L https://nvidia.github.io/libnvidia-container/gpgkey | sudo apt-key add -
-    curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+    curl -s -L "https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list" | \
         sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
     sudo apt-get update
 
@@ -198,6 +262,11 @@ while IFS= read -r line; do
     case "$MNT" in
         /dev|/dev/*|/proc|/sys|/sys/*|/run|/run/*|/boot|/boot/*|/snap/*) continue ;;
     esac
+    # Skip read-only filesystems (e.g. /mnt/cloud-metadata on Nebius)
+    if ! sudo mkdir -p "$MNT/.docker_write_test" 2>/dev/null; then
+        continue
+    fi
+    sudo rmdir "$MNT/.docker_write_test" 2>/dev/null || true
     if [ "$AVAIL" -gt "$DOCKER_DATA_ROOT_AVAIL" ] 2>/dev/null; then
         DOCKER_DATA_ROOT_AVAIL=$AVAIL
         DOCKER_DATA_ROOT_MOUNT=$MNT
@@ -246,22 +315,16 @@ print_status "nvidia-ctk version: $NVIDIA_CTK_VERSION"
 if ! command_exists nvkind; then
     print_status "Installing nvkind..."
 
-    # Check if Go is installed
     if ! command_exists go; then
-        print_status "Installing Go (required for nvkind)..."
-        GO_VERSION="1.23.4"
-        wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz
-        sudo rm -rf /usr/local/go
-        sudo tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz
-        export PATH=$PATH:/usr/local/go/bin
-        echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+        print_error "Go is required for nvkind but was not installed"
+        exit 1
     fi
 
-    print_status "Installing nvkind via go install..."
     go install github.com/NVIDIA/nvkind/cmd/nvkind@latest
-    export PATH=$PATH:$(go env GOPATH)/bin
+    GOPATH_BIN=$(go env GOPATH)/bin
+    export PATH="$PATH:$GOPATH_BIN"
+    # shellcheck disable=SC2016
     echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.bashrc
-    cd ..
 else
     print_status "nvkind already installed"
 fi
@@ -314,16 +377,13 @@ nodes:
       nodeRegistration:
         kubeletExtraArgs:
           node-labels: "node_group=data,nvidia.com/gpu.deploy.operands=false"
+    extraPortMappings:
+      - containerPort: 30035
+        hostPort: 4566
+        protocol: TCP
     extraMounts:
       - hostPath: /tmp/localstack-s3
         containerPath: /var/lib/localstack
-  - role: worker
-    kubeadmConfigPatches:
-    - |
-      kind: JoinConfiguration
-      nodeRegistration:
-        kubeletExtraArgs:
-          node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
   - role: worker
     kubeadmConfigPatches:
     - |
@@ -360,39 +420,62 @@ kubectl wait --for=condition=Ready nodes --all --timeout=300s
 print_status "Verifying GPU availability..."
 nvkind cluster print-gpus || print_warning "Could not verify GPUs, but continuing..."
 
+# Add LocalStack hostname to /etc/hosts so the same override URL works both
+# inside the cluster (resolved via K8s DNS) and outside (resolved via /etc/hosts
+# to localhost, forwarded to the NodePort via KIND port mapping).
+if ! grep -q "${LOCALSTACK_S3_HOST}" /etc/hosts; then
+    print_status "Adding ${LOCALSTACK_S3_HOST} to /etc/hosts..."
+    echo "127.0.0.1 ${LOCALSTACK_S3_HOST}" | sudo tee -a /etc/hosts
+else
+    print_status "${LOCALSTACK_S3_HOST} already in /etc/hosts"
+fi
+
 # ============================================
-# Step 4: Install GPU Operator
+# Step 4+5: Install GPU Operator and KAI Scheduler
 # ============================================
-print_status "Installing GPU Operator..."
+print_status "Installing GPU Operator and KAI Scheduler concurrently..."
 
 cd ~/osmo-deployment
 helm fetch https://helm.ngc.nvidia.com/nvidia/charts/gpu-operator-${GPU_OPERATOR_VERSION}.tgz
 
+# GPU Operator (background, no --wait)
 helm upgrade --install gpu-operator gpu-operator-${GPU_OPERATOR_VERSION}.tgz \
   --namespace gpu-operator \
   --create-namespace \
   --set driver.enabled=false \
   --set toolkit.enabled=false \
-  --set nfd.enabled=true \
-  --wait
+  --set nfd.enabled=true &
+GPU_OP_PID=$!
 
-print_status "GPU Operator installed successfully"
-
-# ============================================
-# Step 5: Install KAI Scheduler
-# ============================================
-print_status "Installing KAI Scheduler..."
-
+# KAI Scheduler (background, no --wait)
 helm upgrade --install kai-scheduler \
   oci://ghcr.io/kai-scheduler/kai-scheduler/kai-scheduler \
   --version ${KAI_SCHEDULER_VERSION} \
   --create-namespace -n kai-scheduler \
   --set global.nodeSelector.node_group=kai-scheduler \
   --set "scheduler.additionalArgs[0]=--default-staleness-grace-period=-1s" \
-  --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" \
-  --wait
+  --set "scheduler.additionalArgs[1]=--update-pod-eviction-condition=true" &
+KAI_PID=$!
 
-print_status "KAI Scheduler installed successfully"
+# Wait for both helm install commands to finish (not pods, just the helm CLI)
+wait $GPU_OP_PID || { print_error "GPU Operator helm install failed"; exit 1; }
+print_status "GPU Operator helm install submitted"
+
+wait $KAI_PID || { print_error "KAI Scheduler helm install failed"; exit 1; }
+print_status "KAI Scheduler helm install submitted"
+
+# Now wait for pods to be ready (in parallel with the wait)
+print_status "Waiting for GPU Operator and KAI Scheduler pods..."
+kubectl -n gpu-operator wait --for=condition=Available deployment --all --timeout=300s &
+GPU_WAIT_PID=$!
+kubectl -n kai-scheduler wait --for=condition=Available deployment --all --timeout=300s &
+KAI_WAIT_PID=$!
+
+wait $GPU_WAIT_PID || { print_error "GPU Operator pods failed to become ready"; exit 1; }
+print_status "GPU Operator ready"
+
+wait $KAI_WAIT_PID || { print_error "KAI Scheduler pods failed to become ready"; exit 1; }
+print_status "KAI Scheduler ready"
 
 # ============================================
 # Step 6: Install OSMO
@@ -405,6 +488,11 @@ helm repo update
 helm upgrade --install osmo osmo/quick-start \
   --namespace osmo \
   --create-namespace \
+  --set global.objectStorage.endpoint="${LOCALSTACK_S3_ENDPOINT}" \
+  --set global.objectStorage.overrideUrl="${LOCALSTACK_S3_OVERRIDE_URL}" \
+  --set global.objectStorage.accessKeyId="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
+  --set global.objectStorage.accessKey="${LOCALSTACK_S3_ACCESS_KEY}" \
+  --set global.objectStorage.region="${LOCALSTACK_S3_REGION}" \
   --set web-ui.services.ui.hostname="" \
   --set service.services.service.hostname="" \
   --set router.services.service.hostname="" \
@@ -429,6 +517,7 @@ sudo bash install.sh
 # Add OSMO to PATH if not already there
 if [[ ":$PATH:" != *":$HOME/.osmo/bin:"* ]]; then
     export PATH="$HOME/.osmo/bin:$PATH"
+    # shellcheck disable=SC2016
     echo 'export PATH="$HOME/.osmo/bin:$PATH"' >> ~/.bashrc
 fi
 
@@ -512,6 +601,35 @@ curl -sf -X PATCH "${OSMO_API}/api/configs/pool/default" \
 print_status "Default pool updated with shared_memory pod template"
 
 # ============================================
+# Step 9: Set Data Credential
+# ============================================
+print_status "Setting data credential for LocalStack S3..."
+
+# The config-setup Helm job registers the credential server-side, but the CLI also
+# needs it stored locally in ~/.osmo/config.yaml to authenticate directly with S3.
+osmo credential set osmo --type DATA --payload \
+  access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
+  access_key="${LOCALSTACK_S3_ACCESS_KEY}" \
+  endpoint="${LOCALSTACK_S3_ENDPOINT}" \
+  override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \
+  region="${LOCALSTACK_S3_REGION}"
+
+# Save the credential command for remote workstation setup.
+# Users connecting from a remote machine need to run this after osmo login.
+cat > ~/osmo-deployment/set-credential.sh <<CRED_EOF
+#!/bin/bash
+osmo credential set osmo --type DATA --payload \\
+  access_key_id="${LOCALSTACK_S3_ACCESS_KEY_ID}" \\
+  access_key="${LOCALSTACK_S3_ACCESS_KEY}" \\
+  endpoint="${LOCALSTACK_S3_ENDPOINT}" \\
+  override_url="${LOCALSTACK_S3_OVERRIDE_URL}" \\
+  region="${LOCALSTACK_S3_REGION}"
+CRED_EOF
+chmod +x ~/osmo-deployment/set-credential.sh
+
+print_status "Data credential set successfully"
+
+# ============================================
 # Cleanup
 # ============================================
 print_status "Cleaning up temporary files..."
@@ -534,6 +652,7 @@ print_status "  • Current User: $CURRENT_USER"
 print_status "  • NVIDIA Driver Version: $NVIDIA_DRIVER_FULL_VERSION (minimum: $NVIDIA_MIN_DRIVER_VERSION)"
 print_status "  • nvidia-ctk Version: $NVIDIA_CTK_VERSION (minimum: $NVIDIA_CTK_MIN_VERSION)"
 print_status "  • Docker Data Root: $(sudo docker info 2>/dev/null | awk '/Docker Root Dir/{print $NF}') (${DOCKER_DATA_ROOT_AVAIL_GB} GiB available)"
+print_status "  • LocalStack S3: ${LOCALSTACK_S3_OVERRIDE_URL}"
 echo ""
 
 # Display warnings if versions are insufficient

@@ -1,0 +1,151 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: Brev Launchable
+
+on:
+  # schedule:
+  #   - cron: '0 9 * * 1'  # Every Monday at 9:00 AM UTC — disabled until Brev supports API tokens
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Claude model for compatibility test'
+        default: 'aws/anthropic/claude-opus-4-5'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: brev-compat
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          fetch-depth: 0
+
+      # ── Secret masking ──────────────────────────────────────────────────────
+      - name: Mask secrets
+        run: |
+          echo "::add-mask::${{ secrets.NGC_SERVICE_KEY }}"
+          echo "::add-mask::${{ secrets.BREV_API_TOKEN }}"
+
+      # ── Tool setup ──────────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: 20
+
+      - name: Install Brev CLI
+        run: |
+          curl -sfL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-brev.sh | bash
+          echo "$HOME/.brev/bin" >> "$GITHUB_PATH"
+
+      - name: Login to Brev
+        env:
+          BREV_API_TOKEN: ${{ secrets.BREV_API_TOKEN }}
+        run: brev login --token "$BREV_API_TOKEN"
+
+      - name: Install Claude Code skills
+        run: |
+          brev agent-skill install          # installs /brev-cli — always latest
+          mkdir -p ~/.claude/skills
+          cp -r skills/osmo-agent ~/.claude/skills/   # /osmo-agent — from repo
+
+      - name: Configure git
+        run: |
+          git config user.name "brev-compat[bot]"
+          git config user.email "brev-compat[bot]@users.noreply.github.com"
+
+      # ── Build and run prompt ─────────────────────────────────────────────────
+      - name: Render prompt
+        run: |
+          sed \
+            -e "s/{{GITHUB_RUN_ID}}/${{ github.run_id }}/g" \
+            -e "s/{{GITHUB_SHA}}/${{ github.sha }}/g" \
+            deployments/brev/prompt.md > "$RUNNER_TEMP/prompt.md"
+
+      - name: Run compatibility matrix
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/claude-opus-4-5' }}
+          DISABLE_PROMPT_CACHING: "1"
+          BREV_API_TOKEN: ${{ secrets.BREV_API_TOKEN }}
+          NGC_SERVICE_KEY: ${{ secrets.NGC_SERVICE_KEY }}
+        run: |
+          npx @anthropic-ai/claude-code@2.1.91 --print \
+            --model "$ANTHROPIC_MODEL" \
+            --allowedTools "Skill,Bash(brev *),Read,Write,Edit,Glob,Grep" \
+            --max-turns 200 \
+            "$(cat "$RUNNER_TEMP/prompt.md")"
+
+      # ── Guardrail ────────────────────────────────────────────────────────────
+      - name: Guardrail — README only
+        run: |
+          CHANGED=$(git diff --name-only HEAD)
+          ALLOWED="deployments/brev/README.md"
+          UNEXPECTED=$(echo "$CHANGED" | grep -v "^$ALLOWED$" || true)
+          if [ -n "$UNEXPECTED" ]; then
+            echo "::error::Claude modified files outside README.md:"
+            echo "$UNEXPECTED"
+            git checkout -- .
+            exit 1
+          fi
+
+      # ── Commit results ───────────────────────────────────────────────────────
+      - name: Commit README
+        run: |
+          if git diff --quiet HEAD -- deployments/brev/README.md; then
+            echo "No README changes to commit"
+          else
+            git add deployments/brev/README.md
+            git commit -m "chore: update brev compatibility matrix [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      # ── Fail if any instance regressed ──────────────────────────────────────
+      - name: Check compatibility result
+        run: |
+          if [ ! -f compat-result.txt ]; then
+            echo "::error::compat-result.txt not written — Claude may have failed"
+            exit 1
+          fi
+          RESULT=$(cat compat-result.txt)
+          echo "Compatibility result: $RESULT"
+          if [ "$RESULT" = "FAIL" ]; then
+            echo "::error::One or more providers failed OSMO compatibility — see README matrix"
+            exit 1
+          fi
+
+      # ── Cleanup (always) ─────────────────────────────────────────────────────
+      - name: Delete brev instances
+        if: always()
+        env:
+          BREV_API_TOKEN: ${{ secrets.BREV_API_TOKEN }}
+        run: |
+          brev login --token "$BREV_API_TOKEN" 2>/dev/null || true
+          brev ls 2>/dev/null \
+            | grep "osmo-compat-${{ github.run_id }}" \
+            | awk '{print $1}' \
+            | xargs -r -I{} sh -c 'brev delete {} || true'

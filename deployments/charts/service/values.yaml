@@ -669,46 +669,6 @@ services:
       ##
       logout_endpoint: ""
 
-    ## Ingress configuration for external access to the API service
-    ##
-    ingress:
-      ## Enable ingress for external access
-      ##
-      enabled: true
-
-      ## URL path prefix for all ingress rules
-      ##
-      prefix: /
-
-      ## Ingress controller class to use for routing traffic
-      ##
-      ingressClass: nginx
-
-      ## AWS Application Load Balancer (ALB) specific annotations
-      ##
-      albAnnotations:
-        ## Enable ALB-specific annotations in the ingress
-        ##
-        enabled: false
-
-        ## ARN of the SSL certificate for HTTPS traffic
-        ##
-        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
-      ## Enable SSL/TLS encryption for the ingress
-      ##
-      sslEnabled: true
-
-      ## Name of the Kubernetes secret containing SSL/TLS certificates
-      ##
-      sslSecret: osmo-tls
-
-      ## Additional custom annotations for the ingress resource
-      ##
-      annotations: {}
-      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      # alb.ingress.kubernetes.io/target-type: ip
-
     ## Liveness probe configuration for the API service
     ##
     livenessProbe:
@@ -1052,10 +1012,6 @@ extraConfigMaps: []
 ## is updated — no pod restart required.
 ## ============================================================================
 gateway:
-  ## Enable the standalone gateway deployment
-  ##
-  enabled: false
-
   ## Name prefix for all gateway K8s resources (e.g. osmo-gateway-envoy)
   ##
   name: osmo-gateway
@@ -1119,16 +1075,67 @@ gateway:
     ##
     serviceAccountName: ""
 
-    ## Ingress configuration for the gateway
+    ## Kubernetes Service configuration for the gateway.
+    ##
+    ## Two modes for external access:
+    ##   NLB (default): type=LoadBalancer — each deployment gets its own NLB
+    ##   ALB (shared):  type=ClusterIP + ingress.enabled=true — multiple
+    ##                  namespaces share a single ALB via group.name
+    ##
+    service:
+      ## Service type:
+      ##   LoadBalancer — direct NLB access (default, one LB per deployment)
+      ##   ClusterIP    — use with gateway.envoy.ingress for shared ALB
+      ##   NodePort     — use with KIND port mapping for local development
+      ##
+      type: LoadBalancer
+
+      ## HTTPS port for NLB TLS termination.
+      ## The NLB terminates TLS on this port and forwards plaintext to Envoy.
+      ## Set to null to expose only port 80 (e.g. for local development).
+      ##
+      httpsPort: 443
+
+      ## Fixed NodePort for the HTTP port (only used when type=NodePort).
+      ## KIND maps this to a host port for local access.
+      ##
+      nodePort: null
+
+      ## Annotations for the Service (e.g. AWS NLB annotations)
+      ##
+      annotations: {}
+
+    ## Ingress configuration for shared ALB mode.
+    ## Enable this and set service.type=ClusterIP when multiple namespaces
+    ## need to share a single load balancer (e.g. ALB with group.name).
     ##
     ingress:
+      ## Enable ALB Ingress (set service.type to ClusterIP when using this)
+      ##
       enabled: false
+
+      ## Ingress controller class
+      ##
       ingressClass: alb
+
+      ## AWS ALB-specific annotations
+      ##
       albAnnotations:
         enabled: false
+        groupName: osmo
+        groupOrder: "10"
         sslCertArn: ""
+
+      ## Enable TLS on the Ingress
+      ##
       sslEnabled: false
+
+      ## Secret name for TLS certificates
+      ##
       sslSecret: osmo-tls
+
+      ## Additional annotations
+      ##
       annotations: {}
 
     ## SSL/TLS configuration for the Envoy listener (downstream).

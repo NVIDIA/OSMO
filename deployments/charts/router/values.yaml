@@ -154,46 +154,6 @@ services:
     #   - "example.local"
 
 
-    ## Ingress configuration for external access to the router service
-    ##
-    ingress:
-      ## Enable ingress for external access
-      ##
-      enabled: true
-
-      ## URL path prefix for all ingress rules
-      ##
-      prefix: /
-
-      ## Ingress controller class to use for routing traffic
-      ##
-      ingressClass: nginx
-
-      ## AWS Application Load Balancer (ALB) specific annotations
-      ##
-      albAnnotations:
-        ## Enable ALB-specific annotations in the ingress
-        ##
-        enabled: false
-
-        ## ARN of the SSL certificate for HTTPS traffic
-        ##
-        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
-      ## Enable SSL/TLS encryption for the ingress
-      ##
-      sslEnabled: true
-
-      ## Name of the Kubernetes secret containing SSL/TLS certificates
-      ##
-      sslSecret: osmo-tls
-
-      ## Additional custom annotations for the ingress resource
-      ##
-      annotations: {}
-      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      # alb.ingress.kubernetes.io/target-type: ip
-
     ## Node selector constraints for router pod scheduling
     ## Leave empty to allow scheduling on any node
     ##

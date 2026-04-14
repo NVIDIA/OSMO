@@ -75,14 +75,13 @@ services:
     ##
     hostname: ""
 
-    ## Hostname on which the osmo API server is hosted
-    ## Default is the local cluster hostname
-    ## Can be overridden to serve the API from public domain
-    ## When using the gateway, point this at the gateway service so that
-    ## server-side API calls go through Envoy's auth filters.
-    ## e.g. "osmo-gateway.your-domain.com"
+    ## Internal hostname for server-side rendering (SSR) API calls.
+    ## Used only by the Next.js server process (not the browser).
+    ## Must point at the gateway so SSR requests go through Envoy's auth filters.
+    ## Browser API calls use window.location.host automatically.
+    ## Override with FQDN for cross-namespace deployments.
     ##
-    apiHostname: "osmo-service.your-domain.com"
+    apiHostname: "osmo-gateway:80"
 
     ## Enable port-forwarding through Web UI
     ##
@@ -196,46 +195,6 @@ services:
       ##
       selector: {}
       # version: v1.0.0
-
-    ## Ingress configuration for external access to the UI service
-    ##
-    ingress:
-      ## Enable ingress for the UI service
-      ##
-      enabled: true
-
-      ## URL path prefix for all ingress rules
-      ##
-      prefix: /
-
-      ## Ingress controller class to use for routing traffic
-      ##
-      ingressClass: nginx
-
-      ## AWS Application Load Balancer (ALB) specific annotations
-      ##
-      albAnnotations:
-        ## Enable ALB-specific annotations in the ingress
-        ##
-        enabled: false
-
-        ## ARN of the SSL certificate for HTTPS traffic
-        ##
-        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
-      ## Enable SSL/TLS encryption for the ingress
-      ##
-      sslEnabled: true
-
-      ## Name of the Kubernetes secret containing SSL/TLS certificates
-      ##
-      sslSecret: osmo-tls
-
-      ## Additional custom annotations for the ingress resource
-      ##
-      annotations: {}
-      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      # nginx.ingress.kubernetes.io/rate-limit-requests-per-second: "10"
 
     ## Node selector constraints for UI pod scheduling
     ## Leave empty to allow scheduling on any node

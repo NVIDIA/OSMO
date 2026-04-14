@@ -29,16 +29,7 @@ services:
     password: "osmo"
 
   service:
-    hostname: ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    hostname: osmo-gateway.osmo.svc.cluster.local
     scaling:
       minReplicas: 1
       maxReplicas: 1
-    ingress:
-      sslEnabled: false
-
-sidecars:
-  envoy:
-    enabled: false
-
-  logAgent:
-    enabled: false

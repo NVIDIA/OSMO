@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,6 +30,38 @@ The OSMO Brev deployment provides a pre-configured OSMO instance running in the 
 - NVIDIA Container Toolkit (>=1.18.1)
 - NVIDIA Driver Version (>=575)
 
+### Compatibility Matrix
+
+<!-- COMPAT_MATRIX_START -->
+
+Last updated: 2026-04-09
+
+| Provider | Instance Type | GPU | Hello World | Disk Fill | GPU Workload | Notes |
+|----------|---------------|-----|-------------|-----------|--------------|-------|
+| massedcompute | massedcompute_L40S | L40S 1× | ✅ | ✅ | ✅ | |
+| massedcompute | massedcompute_L40 | L40 1× | ✅ | ✅ | ✅ | |
+| hyperstack | hyperstack_L40 | L40 1× | ✅ | ✅ | ✅ | Driver <575 min |
+| verda | verda_L40S | L40S 1× | ✅ | ✅ | ✅ | |
+| scaleway | scaleway_L40S | L40S 1× | ✅ | ✅ | ✅ | Driver <575 min |
+| crusoe | l40s-48gb.1x | L40S 1× | ✅ | ✅ | ❌ | nvidia-cdi-refresh failed; GPU not exposed |
+| nebius | gpu-l40s-a.1gpu-8vcpu-32gb | L40S 1× | ❌ | ❌ | ❌ | Docker not pre-installed |
+| aws | g6e.xlarge | L40S 1× | ❌ | ❌ | ❌ | brev SSH failure |
+
+**Test definitions:**
+- **Hello World** — `ubuntu:22.04`, 1 CPU / 1Gi memory / 0 GPU
+- **Disk Fill** — `nvcr.io/nvidia/nemo:24.12` (~40 GB); validates Docker data-root relocation
+- **GPU Workload** — verifies GPU is exposed in the default pool, then runs MNIST CNN on `nvcr.io/nvidia/pytorch:24.03-py3`
+
+**Status codes:** ✅ · ❌ · `—` (not applicable)
+
+<!-- COMPAT_MATRIX_END -->
+
+<!-- To update manually:
+export NGC_SERVICE_KEY=nvapi-...
+claude "$(sed -e "s/{{GITHUB_RUN_ID}}/local-$(date +%Y%m%d%H%M%S)/g" -e "s/{{GITHUB_SHA}}/$(git rev-parse HEAD)/g" deployments/brev/prompt.md)
+
+Note: run all brev commands with dangerouslyDisableSandbox: true" -->
+
 ## Accessing the Brev Deployment
 
 ### Web UI Access
@@ -39,7 +71,8 @@ The OSMO Web UI is available through a secure Brev link exposed from your instan
 1. Log in to your Brev console at https://console.brev.dev
 2. Navigate to your OSMO instance
 3. Select "Access"
-4. Click on the "Secure Link" for port `8000`
+4. Under `Using Secure Links`, click `Share a Service` and enter port `8000`
+5. Click on the "Shareable URL" for port `8000`
 
 ## [Optional] Local CLI Setup
 
@@ -51,19 +84,9 @@ Follow instructions [here](https://docs.nvidia.com/brev/latest/brev-cli.html#ins
 
 ### Step 2: Set Up Port Forwarding
 
-Forward port 8000 from your Brev instance to local port 80. This port will need to be forwarded for you to use the OSMO CLI from your workstation.
+Forward ports from your Brev instance to your local machine. Port 8000 provides access to the OSMO API and Web UI. Port 4566 provides access to the LocalStack S3 storage backend, which is required for dataset download and upload via the CLI.
 
 You can find your instance's IP address at the top of the deployment page.
-
-```bash
-# Find your instance name with brev ls
-sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 shadeform@[your instance IP]
-```
-
-If you see `Permission denied (publickey)` it may be because:
-
-- You did not log in using `brev auth`
-- The username is different than `shadeform`
 
 You can see your username in the Brev Console:
 
@@ -72,17 +95,25 @@ You can see your username in the Brev Console:
 3. Select "Logs"
 4. Look at the output of "Script Logs". You should see `Current user: [brev instance username]`
 
-Use the Brev instance username in the above ssh command instead of `shadeform`.
+```bash
+# Find your instance name with brev ls
+sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 <username>@[your instance IP]
+```
+
+If you see `Permission denied (publickey)` it may be because:
+
+- You did not log in using `brev login`
 
 ### Step 3: Set Up Networking
 
-Add a host entry to access OSMO from your browser:
+Add host entries so that the OSMO CLI and browser can reach the cluster services via localhost:
 
 ```bash
 echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
 ```
 
-This allows you to visit `http://quick-start.osmo` in your web browser.
+`quick-start.osmo` allows you to visit the Web UI at `http://quick-start.osmo` in your browser. `localstack-s3.osmo` allows the OSMO CLI to reach the S3 storage backend for dataset download and upload.
 
 ### Step 4: Install OSMO CLI
 
@@ -98,6 +129,14 @@ Authenticate with the OSMO instance through your port forward:
 
 ```bash
 osmo login http://quick-start.osmo --method=dev --username=testuser
+```
+
+### Step 6: Set Dataset Credential
+
+Register the storage credential so the CLI can download and upload datasets. The setup script saves this command on the Brev node during installation. In a separate terminal, retrieve and run it:
+
+```bash
+ssh -i ~/.brev/brev.pem shadeform@[your instance IP] 'cat ~/osmo-deployment/set-credential.sh' | bash
 ```
 
 ## Next Steps
@@ -116,7 +155,7 @@ Visit the [User Guide](https://nvidia.github.io/OSMO/main/user_guide/getting_sta
 Close the port-forward session with:
 
 ```bash
-kill -9 $(lsof -ti:8000)
+sudo kill -9 $(sudo lsof -ti:80)
 ```
 
 Delete your Brev instance through the Brev console or CLI:
@@ -124,3 +163,34 @@ Delete your Brev instance through the Brev console or CLI:
 ```bash
 brev delete [your instance name]
 ```
+
+# Deploying Custom OSMO Chart
+
+1. Build and push your quick-start chart to the registry.
+
+2. Go to [brev.nvidia.com](https://brev.nvidia.com) and create a new environment.
+   - **L40S 1xGPU** on MassedCompute works well, but any L40 or L40S instance should work.
+
+3. Wait for the node to finish starting up.
+
+4. Shell into the instance:
+
+   ```bash
+   brev shell <your node name>
+   ```
+
+5. Download the setup script:
+
+   ```bash
+   curl -o setup.sh https://raw.githubusercontent.com/NVIDIA/OSMO/main/deployments/brev/setup.sh && chmod +x setup.sh
+   ```
+
+6. Edit `setup.sh` to install your version and use your registry key
+
+7. Run the setup script:
+
+   ```bash
+   ./setup.sh
+   ```
+
+Once you are complete, you can follow the instructions above on to access your Brev instance.
