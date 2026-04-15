@@ -1,0 +1,155 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+import { test, expect } from "@playwright/test";
+import {
+  createWorkflowsResponse,
+  WorkflowStatus,
+} from "@/mocks/factories";
+import {
+  setupDefaultMocks,
+  setupProfile,
+  setupWorkflows,
+} from "@/e2e/utils/mock-setup";
+
+/**
+ * Workflows Page Journey Tests
+ *
+ * Architecture notes:
+ * - Workflows list lives at /workflows
+ * - Uses Streaming SSR: WorkflowsPageSkeleton → WorkflowsWithData → WorkflowsPageContent
+ * - Table shows: name, status, user, submit_time, start_time, end_time, duration, queued_time, pool, priority, app_name
+ * - Clicking a row navigates to /workflows/{name} (detail page)
+ * - Default filter: user scoped (shows only current user's workflows)
+ * - ?all=true: opts out of user scoping, shows all users' workflows
+ * - Toolbar has search, auto-refresh, and filter functionality
+ * - Uses server-side pagination via /api/workflow endpoint
+ * - Error state: shows "Unable to load workflows" message
+ * - Empty state: shows "No workflows found" message
+ */
+
+test.describe("Workflows List", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupProfile(page);
+  });
+
+  test("renders workflows in a table", async ({ page }) => {
+    // ARRANGE
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "train-resnet-50", status: WorkflowStatus.RUNNING, user: "alice", pool: "production" },
+        { name: "eval-bert-base", status: WorkflowStatus.COMPLETED, user: "bob", pool: "staging" },
+        { name: "data-preprocessing", status: WorkflowStatus.FAILED, user: "charlie", pool: "dev" },
+      ]),
+    );
+
+    // ACT
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — all workflow names are visible in the table
+    await expect(page.getByText("train-resnet-50").first()).toBeVisible();
+    await expect(page.getByText("eval-bert-base").first()).toBeVisible();
+    await expect(page.getByText("data-preprocessing").first()).toBeVisible();
+  });
+
+  test("shows empty state when no workflows exist", async ({ page }) => {
+    // ARRANGE
+    await setupWorkflows(page, createWorkflowsResponse([]));
+
+    // ACT
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT
+    await expect(page.getByText(/no workflows found/i).first()).toBeVisible();
+  });
+
+  test("shows error state when workflow API fails", async ({ page }) => {
+    // ARRANGE — use 400 to avoid TanStack Query retries on 5xx
+    await setupWorkflows(page, { status: 400, detail: "Bad request" });
+
+    // ACT
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — page must not crash, should show an error
+    await expect(page.locator("body")).not.toBeEmpty();
+    await expect(page.getByText(/unable to load/i).first()).toBeVisible();
+  });
+
+  test("shows workflows with different statuses", async ({ page }) => {
+    // ARRANGE
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "pending-job", status: WorkflowStatus.PENDING, user: "user-1" },
+        { name: "running-job", status: WorkflowStatus.RUNNING, user: "user-2" },
+        { name: "completed-job", status: WorkflowStatus.COMPLETED, user: "user-3" },
+        { name: "failed-job", status: WorkflowStatus.FAILED, user: "user-4" },
+      ]),
+    );
+
+    // ACT
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — all workflow rows are visible
+    await expect(page.getByText("pending-job").first()).toBeVisible();
+    await expect(page.getByText("running-job").first()).toBeVisible();
+    await expect(page.getByText("completed-job").first()).toBeVisible();
+    await expect(page.getByText("failed-job").first()).toBeVisible();
+  });
+
+  test("page title is set to Workflows", async ({ page }) => {
+    // ARRANGE
+    await setupWorkflows(page, createWorkflowsResponse([]));
+
+    // ACT
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT
+    await expect(page).toHaveTitle(/Workflows/);
+  });
+});
+
+test.describe("Workflow Row Interaction", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupProfile(page);
+  });
+
+  test("clicking a workflow row navigates to its detail page", async ({ page }) => {
+    // ARRANGE
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "clickable-workflow", status: WorkflowStatus.RUNNING, user: "test-user" },
+      ]),
+    );
+
+    // ACT
+    await page.goto("/workflows?all=true");
+    await page.waitForLoadState("networkidle");
+    await page.getByText("clickable-workflow").first().click();
+
+    // ASSERT — navigates to the workflow detail page
+    await expect(page).toHaveURL(/\/workflows\/clickable-workflow/);
+  });
+});
