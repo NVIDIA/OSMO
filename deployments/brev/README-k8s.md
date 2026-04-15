@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 # OSMO Brev Deployment (Kubernetes Mode)
 
 [![NVIDIA-OSMO](https://img.shields.io/badge/NVIDIA-OSMO-76b900?logo=nvidia)](https://github.com/NVIDIA/OSMO)
+[![Deploy on Brev](https://brev-assets.s3.us-west-1.amazonaws.com/nv-lb-dark.svg)](https://brev.nvidia.com/launchable/deploy?launchableID=env-3CPEGDFbjVhuXAffQYBEDd9qOi9)
 
 The OSMO Brev Kubernetes deployment provides a pre-configured OSMO instance running in the cloud, allowing you to quickly try OSMO without setting up local infrastructure. This deployment uses a [Brev.dev](https://brev.dev) cloud instance in **Single-node Kubernetes** mode with the [OSMO local deployment](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) pre-installed.
 
