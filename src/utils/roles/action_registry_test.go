@@ -1219,3 +1219,203 @@ func TestCheckPolicyAccessTrailingWildcardConfig(t *testing.T) {
 		t.Errorf("want denied for config/global-settings, got allowed")
 	}
 }
+
+// TestEmptyResourcesDeniesResourceScopedAccess verifies that a policy with
+// an empty resources list cannot access resource-scoped endpoints. This
+// prevents privilege escalation where e.g. auth:Token with no resources
+// could manage other users' tokens.
+func TestEmptyResourcesDeniesResourceScopedAccess(t *testing.T) {
+	ctx := context.Background()
+
+	// A policy with auth:Token and no resources should only allow
+	// the user's own token endpoints, not admin endpoints for other users.
+	tokenRole := &Role{
+		Name: "token-user",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: ActionAuthToken}},
+				Resources: []string{},
+			},
+		},
+	}
+
+	// Own tokens (unscoped) — should be allowed
+	result := CheckPolicyAccess(ctx, tokenRole, "/api/auth/access_token", "GET", nil)
+	if !result.Allowed {
+		t.Error("empty resources should allow unscoped /api/auth/access_token")
+	}
+
+	result = CheckPolicyAccess(ctx, tokenRole, "/api/auth/access_token/my-token", "DELETE", nil)
+	if !result.Allowed {
+		t.Error("empty resources should allow unscoped /api/auth/access_token/my-token")
+	}
+
+	// Other user's tokens (resource-scoped) — must be denied
+	result = CheckPolicyAccess(ctx, tokenRole, "/api/auth/user/alice/access_token", "GET", nil)
+	if result.Allowed {
+		t.Error("empty resources must deny resource-scoped /api/auth/user/alice/access_token")
+	}
+
+	result = CheckPolicyAccess(ctx, tokenRole, "/api/auth/user/alice/access_token/tok1", "DELETE", nil)
+	if result.Allowed {
+		t.Error("empty resources must deny resource-scoped /api/auth/user/alice/access_token/tok1")
+	}
+}
+
+// TestExplicitResourceAllowsResourceScopedAccess verifies that a policy with
+// an explicit resource grant can access resource-scoped endpoints.
+func TestExplicitResourceAllowsResourceScopedAccess(t *testing.T) {
+	ctx := context.Background()
+
+	// Admin token policy with explicit user/* resource
+	adminTokenRole := &Role{
+		Name: "token-admin",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: ActionAuthToken}},
+				Resources: []string{"user/*"},
+			},
+		},
+	}
+
+	// Other user's tokens — should be allowed with explicit resource grant
+	result := CheckPolicyAccess(ctx, adminTokenRole, "/api/auth/user/alice/access_token", "GET", nil)
+	if !result.Allowed {
+		t.Error("explicit user/* resource should allow /api/auth/user/alice/access_token")
+	}
+
+	result = CheckPolicyAccess(ctx, adminTokenRole, "/api/auth/user/bob/access_token/tok1", "DELETE", nil)
+	if !result.Allowed {
+		t.Error("explicit user/* resource should allow /api/auth/user/bob/access_token/tok1")
+	}
+}
+
+// TestWildcardEmptyResourcesDeniesResourceScoped verifies that even a *:*
+// policy with empty resources cannot access resource-scoped endpoints.
+func TestWildcardEmptyResourcesDeniesResourceScoped(t *testing.T) {
+	ctx := context.Background()
+
+	role := &Role{
+		Name: "wildcard-no-resources",
+		Policies: []RolePolicy{
+			{
+				Effect:  EffectAllow,
+				Actions: RoleActions{{Action: "*:*"}},
+			},
+		},
+	}
+
+	// Unscoped path — should be allowed
+	result := CheckPolicyAccess(ctx, role, "/api/profile/settings", "GET", nil)
+	if !result.Allowed {
+		t.Error("*:* with empty resources should allow unscoped paths")
+	}
+
+	// Resource-scoped path — must be denied
+	result = CheckPolicyAccess(ctx, role, "/api/auth/user/alice/access_token", "GET", nil)
+	if result.Allowed {
+		t.Error("*:* with empty resources must deny resource-scoped paths")
+	}
+}
+
+// TestEmptyResourcesAcrossActionTypes verifies the empty-resources-denies-scoped
+// behavior applies consistently across different action types, including partial
+// wildcards like config:* and the universal wildcard *:*.
+func TestEmptyResourcesAcrossActionTypes(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		action      string
+		path        string
+		method      string
+		wantAllowed bool
+	}{
+		// Unscoped paths — should be allowed with empty resources
+		{
+			name:        "workflow:List unscoped allowed",
+			action:      "workflow:List",
+			path:        "/api/workflow",
+			method:      "GET",
+			wantAllowed: true,
+		},
+		{
+			name:        "auth:Token own tokens (unscoped) allowed",
+			action:      ActionAuthToken,
+			path:        "/api/auth/access_token",
+			method:      "GET",
+			wantAllowed: true,
+		},
+		{
+			name:        "*:* on unscoped path allowed",
+			action:      "*:*",
+			path:        "/api/profile/settings",
+			method:      "GET",
+			wantAllowed: true,
+		},
+		// Resource-scoped paths — must be denied with empty resources
+		{
+			name:        "auth:Token other user's tokens (scoped) denied",
+			action:      ActionAuthToken,
+			path:        "/api/auth/user/alice/access_token",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "bucket:* on specific bucket (scoped) denied",
+			action:      "bucket:*",
+			path:        "/api/bucket/my-bucket",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "config:* on specific config (scoped) denied",
+			action:      "config:*",
+			path:        "/api/configs/my-config",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "*:* on other user's tokens (scoped) denied",
+			action:      "*:*",
+			path:        "/api/auth/user/alice/access_token",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "*:* on specific config (scoped) denied",
+			action:      "*:*",
+			path:        "/api/configs/my-config",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "*:* on specific bucket (scoped) denied",
+			action:      "*:*",
+			path:        "/api/bucket/my-bucket",
+			method:      "GET",
+			wantAllowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			role := &Role{
+				Name: "empty-resources",
+				Policies: []RolePolicy{
+					{
+						Effect:    EffectAllow,
+						Actions:   RoleActions{{Action: tt.action}},
+						Resources: []string{},
+					},
+				},
+			}
+			result := CheckPolicyAccess(ctx, role, tt.path, tt.method, nil)
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v", result.Allowed, tt.wantAllowed)
+			}
+		})
+	}
+}
