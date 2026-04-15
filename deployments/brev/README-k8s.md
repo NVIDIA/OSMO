@@ -20,39 +20,17 @@ SPDX-License-Identifier: Apache-2.0
 
 [![NVIDIA-OSMO](https://img.shields.io/badge/NVIDIA-OSMO-76b900?logo=nvidia)](https://github.com/NVIDIA/OSMO)
 
-An alternative to the [VM mode deployment](README.md) that uses Brev's **Single-node Kubernetes** mode. Instead of installing Docker, KIND, and nvkind inside a VM, this mode launches a MicroK8s cluster with GPU support pre-configured, and the setup script installs only OSMO and the KAI scheduler on top.
+The OSMO Brev Kubernetes deployment provides a pre-configured OSMO instance running in the cloud, allowing you to quickly try OSMO without setting up local infrastructure. This deployment uses a [Brev.dev](https://brev.dev) cloud instance in **Single-node Kubernetes** mode with the [OSMO local deployment](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_local.html) pre-installed.
+
+This is an alternative to the [VM mode deployment](README.md) — instead of installing Docker, KIND, and nvkind inside a VM, this mode uses Brev's pre-configured MicroK8s cluster with GPU support.
 
 > The Brev deployment is for evaluation purposes only and is not recommended for production use as it lacks authentication and has limited resources.
-
-## How it works
-
-Brev's Single-node Kubernetes mode provides a ready-to-use cluster with:
-
-- **MicroK8s** — lightweight Kubernetes distribution
-- **GPU Operator** — NVIDIA GPU support via `microk8s enable gpu`
-- **DNS** — cluster DNS addon
-- **Hostpath Storage** — local storage provisioner (`microk8s-hostpath`)
-- **kubectl + Helm 3** — pre-installed and configured
-
-The setup script (`setup-k8s.sh`) labels the single node as `node_group=compute`, installs the KAI scheduler and OSMO Helm chart with all nodeSelectors unified to that label, then configures the OSMO CLI.
 
 ## Compute requirements
 
 - NVIDIA L40S or L40 GPU (1x)
-- Brev instance type: `massedcompute_L40S` or equivalent
 
-## Creating the instance
-
-Create a Brev instance in Kubernetes mode, then run the setup script:
-
-```bash
-brev create osmo-quick-start -m k8s --type massedcompute_L40S
-brev exec osmo-quick-start @deployments/brev/setup-k8s.sh
-```
-
-Setup takes approximately 5-10 minutes.
-
-## Accessing the deployment
+## Accessing the Brev Deployment
 
 ### Web UI Access
 
@@ -66,7 +44,7 @@ The OSMO Web UI is available through a secure Brev link exposed from your instan
 
 ## [Optional] Local CLI Setup
 
-To use the OSMO CLI and UI from your local machine, set up port forwarding and install the necessary tools.
+To use the OSMO CLI and UI from your local machine, you'll need to set up port forwarding and install the necessary tools.
 
 ### Step 1: Install Brev CLI
 
@@ -74,13 +52,25 @@ Follow instructions [here](https://docs.nvidia.com/brev/latest/brev-cli.html#ins
 
 ### Step 2: Set Up Port Forwarding
 
-Forward ports from your Brev instance to your local machine. Port 30080 provides access to the OSMO API and Web UI.
+Forward ports from your Brev instance to your local machine. Port 30080 provides access to the OSMO API and Web UI. Port 30035 provides access to the LocalStack S3 storage backend, which is required for dataset download and upload via the CLI.
 
 You can find your instance's IP address at the top of the deployment page.
 
+You can see your username in the Brev Console:
+
+1. Log in to your Brev console at https://console.brev.dev
+2. Navigate to your OSMO instance
+3. Select "Logs"
+4. Look at the output of "Script Logs". You should see `Current user: [brev instance username]`
+
 ```bash
+# Find your instance name with brev ls
 sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:30080 <username>@[your instance IP]
 ```
+
+If you see `Permission denied (publickey)` it may be because:
+
+- You did not log in using `brev login`
 
 ### Step 3: Set Up Networking
 
@@ -91,7 +81,11 @@ echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
 ```
 
+`quick-start.osmo` allows you to visit the Web UI at `http://quick-start.osmo` in your browser. `localstack-s3.osmo` allows the OSMO CLI to reach the S3 storage backend for dataset download and upload.
+
 ### Step 4: Install OSMO CLI
+
+Download and install the OSMO command-line interface:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
@@ -99,13 +93,15 @@ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install
 
 ### Step 5: Log In to OSMO
 
+Authenticate with the OSMO instance through your port forward:
+
 ```bash
 osmo login http://quick-start.osmo --method=dev --username=testuser
 ```
 
 ### Step 6: Set Dataset Credential
 
-In a separate terminal, retrieve and run the credential script:
+Register the storage credential so the CLI can download and upload datasets. The setup script saves this command on the Brev node during installation. In a separate terminal, retrieve and run it:
 
 ```bash
 ssh -i ~/.brev/brev.pem <username>@[your instance IP] 'cat ~/osmo-deployment/set-credential.sh' | bash
@@ -136,32 +132,34 @@ Delete your Brev instance through the Brev console or CLI:
 brev delete [your instance name]
 ```
 
-## Deploying Custom OSMO Chart
+# Deploying Custom OSMO Chart
 
 1. Build and push your quick-start chart to the registry.
 
-2. Create a Brev instance in Kubernetes mode:
+2. Go to [brev.nvidia.com](https://brev.nvidia.com) and create a new environment.
+   - Select **Single-node Kubernetes** mode.
+   - **L40S 1xGPU** on MassedCompute works well, but any L40 or L40S instance should work.
+
+3. Wait for the node to finish starting up.
+
+4. Shell into the instance:
 
    ```bash
-   brev create my-osmo -m k8s --type massedcompute_L40S
+   brev shell <your node name>
    ```
 
-3. Wait for the instance to finish building, then shell in:
-
-   ```bash
-   brev shell my-osmo
-   ```
-
-4. Download the setup script:
+5. Download the setup script:
 
    ```bash
    curl -o setup-k8s.sh https://raw.githubusercontent.com/NVIDIA/OSMO/main/deployments/brev/setup-k8s.sh && chmod +x setup-k8s.sh
    ```
 
-5. Edit `setup-k8s.sh` to install your version and use your registry key.
+6. Edit `setup-k8s.sh` to install your version and use your registry key
 
-6. Run the setup script:
+7. Run the setup script:
 
    ```bash
    ./setup-k8s.sh
    ```
+
+Once you are complete, you can follow the instructions above on to access your Brev instance.
