@@ -164,4 +164,4 @@ brev delete [your instance name]
    ./setup-k8s.sh
    ```
 
-Once you are complete, you can follow the instructions above on to access your Brev instance.
+Once you are complete, you can follow the instructions above to access your Brev instance.
