@@ -1148,6 +1148,9 @@ func CheckSemanticAction(
 
 // checkResolvedAction checks if a policy action string matches a pre-resolved
 // action and resource pair. Returns (true, result) on match, (false, _) otherwise.
+//
+// A policy with empty resources does not match non-empty resource targets
+// (unscoped policies don't grant scoped resource access).
 func checkResolvedAction(
 	policyActionStr string,
 	policyResources []string,
@@ -1156,9 +1159,9 @@ func checkResolvedAction(
 	// Universal wildcard — admin roles that should have access to all endpoints,
 	// even ones not registered in the action registry.
 	if policyActionStr == "*:*" || policyActionStr == "*" {
-		resourceAllowed := len(policyResources) == 0
+		resourceAllowed := len(policyResources) == 0 && resolvedResource == ""
 		for _, pr := range policyResources {
-			if pr == "*" {
+			if matchResource(pr, resolvedResource) {
 				resourceAllowed = true
 				break
 			}
@@ -1186,8 +1189,15 @@ func checkResolvedAction(
 		return false, AccessResult{}
 	}
 
-	// Check if the resource matches (if resources are specified)
-	if len(policyResources) > 0 {
+	// Check if the resource matches. An empty resources list only matches
+	// when the resolved resource is also empty (unscoped). This prevents
+	// policies like {"actions": ["auth:Token"], "resources": []} from
+	// granting access to resource-scoped paths (e.g., other users' tokens).
+	if len(policyResources) == 0 {
+		if resolvedResource != "" {
+			return false, AccessResult{}
+		}
+	} else {
 		resourceMatched := false
 		for _, policyResource := range policyResources {
 			if matchResource(policyResource, resolvedResource) {
