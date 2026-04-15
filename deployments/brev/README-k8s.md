@@ -29,7 +29,8 @@ This is an alternative to the [VM mode deployment](README.md) — instead of ins
 
 ## Compute requirements
 
-- NVIDIA L40S or L40 GPU (1x)
+- NVIDIA Container Toolkit (>=1.18.1)
+- NVIDIA Driver Version (>=575)
 
 ## Accessing the Brev Deployment
 
