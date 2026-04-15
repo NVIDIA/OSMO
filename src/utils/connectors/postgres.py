@@ -1504,7 +1504,7 @@ class PostgresConnector:
             self.execute_commit_command(cmd, (cmd_args[0], new_encrypted) + cmd_args[1:])
         return func
 
-    def get_data_cred(self, user: str, profile: str) -> credentials.StaticDataCredential | None:
+    def get_data_cred(self, user: str, profile: str) -> credentials.DataCredential | None:
         """ Fetch data credentials by profile. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -1522,18 +1522,12 @@ class PostgresConnector:
                 bucket_info = storage.construct_storage_backend(bucket.dataset_path)
                 if bucket_info.profile == profile:
                     if bucket.default_credential:
-                        return credentials.StaticDataCredential(
-                            region=bucket.region,
-                            access_key_id=bucket.default_credential.access_key_id,
-                            access_key=bucket.default_credential.access_key,
-                            endpoint=bucket_info.profile,
-                            override_url=bucket.default_credential.override_url,
-                        )
+                        return _resolve_bucket_credential(bucket, bucket_info.profile)
                     break
 
             return None
 
-    def get_all_data_creds(self, user: str) -> Dict[str, credentials.StaticDataCredential]:
+    def get_all_data_creds(self, user: str) -> Dict[str, credentials.DataCredential]:
         """ Fetch all data credentials for user. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -1541,7 +1535,7 @@ class PostgresConnector:
             condition_args=[user, CredentialType.DATA.value])
         rows = self.execute_fetch_command(*select_data_cmd.get_args())
 
-        user_creds = {
+        user_creds: Dict[str, credentials.DataCredential] = {
             cred.profile: credentials.StaticDataCredential(
                 endpoint=cred.profile,
                 **self.decrypt_credential(cred),
@@ -1553,13 +1547,8 @@ class PostgresConnector:
         for bucket in self.get_dataset_configs().buckets.values():
             bucket_info = storage.construct_storage_backend(bucket.dataset_path)
             if bucket_info.profile not in user_creds and bucket.default_credential:
-                user_creds[bucket_info.profile] = credentials.StaticDataCredential(
-                    region=bucket.region,
-                    access_key_id=bucket.default_credential.access_key_id,
-                    access_key=bucket.default_credential.access_key,
-                    endpoint=bucket_info.profile,
-                    override_url=bucket.default_credential.override_url,
-                )
+                user_creds[bucket_info.profile] = _resolve_bucket_credential(
+                    bucket, bucket_info.profile)
         return user_creds
 
     def get_generic_cred(self, user: str, cred_name: str) -> Any:
@@ -2727,6 +2716,27 @@ class BucketMode(enum.Enum):
     READ_WRITE = 'read-write'
 
 
+def _resolve_bucket_credential(
+    bucket: 'BucketConfig',
+    profile: str,
+) -> credentials.DataCredential:
+    """Resolve a bucket's default_credential into the appropriate DataCredential type."""
+    credential = bucket.default_credential
+    if isinstance(credential, credentials.StaticDataCredential):
+        return credentials.StaticDataCredential(
+            region=bucket.region,
+            access_key_id=credential.access_key_id,
+            access_key=credential.access_key,
+            endpoint=profile,
+            override_url=credential.override_url,
+        )
+    return credentials.DefaultDataCredential(
+        endpoint=profile,
+        region=bucket.region,
+        override_url=credential.override_url,
+    )
+
+
 class BucketConfig(ExtraArgBaseModel):
     """
     Class to store the name of the bucket and the dataset path
@@ -2739,7 +2749,7 @@ class BucketConfig(ExtraArgBaseModel):
     # Default cred to use doesn't have one
     # Only applies to workflow operations, NOT user cli since we cannot forward the credential
     # to the user
-    default_credential: credentials.StaticDataCredential | None = None
+    default_credential: credentials.DataCredential | None = None
 
     def valid_access(self, bucket_name: str, access_type: BucketModeAccess):
         if not ((access_type == BucketModeAccess.READ and\

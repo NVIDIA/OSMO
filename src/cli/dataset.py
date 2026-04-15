@@ -483,8 +483,10 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
     Args:
         args: Parsed command line arguments.
     """
-    params = {'name': args.name, 'user': args.user, 'all_users': args.all, 'buckets': args.bucket,
+    params = {'user': args.user, 'all_users': args.all, 'buckets': args.bucket,
               'count': args.count, 'order': args.order.upper()}
+    if args.name:
+        params['name'] = args.name
     result = service_client.request(
         client.RequestMethod.GET,
         'api/bucket/list_dataset',
