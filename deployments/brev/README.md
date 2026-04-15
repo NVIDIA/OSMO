@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,7 +71,8 @@ The OSMO Web UI is available through a secure Brev link exposed from your instan
 1. Log in to your Brev console at https://console.brev.dev
 2. Navigate to your OSMO instance
 3. Select "Access"
-4. Click on the "Secure Link" for port `8000`
+4. Under `Using Secure Links`, click `Share a Service` and enter port `8000`
+5. Click on the "Shareable URL" for port `8000`
 
 ## [Optional] Local CLI Setup
 
@@ -87,16 +88,6 @@ Forward ports from your Brev instance to your local machine. Port 8000 provides 
 
 You can find your instance's IP address at the top of the deployment page.
 
-```bash
-# Find your instance name with brev ls
-sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 -L 4566:localhost:4566 shadeform@[your instance IP]
-```
-
-If you see `Permission denied (publickey)` it may be because:
-
-- You did not log in using `brev auth`
-- The username is different than `shadeform`
-
 You can see your username in the Brev Console:
 
 1. Log in to your Brev console at https://console.brev.dev
@@ -104,7 +95,14 @@ You can see your username in the Brev Console:
 3. Select "Logs"
 4. Look at the output of "Script Logs". You should see `Current user: [brev instance username]`
 
-Use the Brev instance username in the above ssh command instead of `shadeform`.
+```bash
+# Find your instance name with brev ls
+sudo ssh -i ~/.brev/brev.pem -p 22 -L 80:localhost:8000 <username>@[your instance IP]
+```
+
+If you see `Permission denied (publickey)` it may be because:
+
+- You did not log in using `brev login`
 
 ### Step 3: Set Up Networking
 
@@ -157,7 +155,7 @@ Visit the [User Guide](https://nvidia.github.io/OSMO/main/user_guide/getting_sta
 Close the port-forward session with:
 
 ```bash
-kill -9 $(lsof -ti:8000)
+sudo kill -9 $(sudo lsof -ti:80)
 ```
 
 Delete your Brev instance through the Brev console or CLI:
@@ -165,3 +163,34 @@ Delete your Brev instance through the Brev console or CLI:
 ```bash
 brev delete [your instance name]
 ```
+
+# Deploying Custom OSMO Chart
+
+1. Build and push your quick-start chart to the registry.
+
+2. Go to [brev.nvidia.com](https://brev.nvidia.com) and create a new environment.
+   - **L40S 1xGPU** on MassedCompute works well, but any L40 or L40S instance should work.
+
+3. Wait for the node to finish starting up.
+
+4. Shell into the instance:
+
+   ```bash
+   brev shell <your node name>
+   ```
+
+5. Download the setup script:
+
+   ```bash
+   curl -o setup.sh https://raw.githubusercontent.com/NVIDIA/OSMO/main/deployments/brev/setup.sh && chmod +x setup.sh
+   ```
+
+6. Edit `setup.sh` to install your version and use your registry key
+
+7. Run the setup script:
+
+   ```bash
+   ./setup.sh
+   ```
+
+Once you are complete, you can follow the instructions above on to access your Brev instance.

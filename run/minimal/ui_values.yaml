@@ -23,14 +23,8 @@ global:
 services:
   ui:
     skipAuth: true
-    hostname: ingress-nginx-controller.ingress-nginx.svc.cluster.local
-    ingress:
-      sslEnabled: false
+    hostname: osmo-gateway.osmo.svc.cluster.local
+    apiHostname: osmo-gateway.osmo.svc.cluster.local:80
     extraEnvs:
       - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
         value: false
-
-# Updated structure: moved from service-sidecar to sidecars
-sidecars:
-  envoy:
-    enabled: false

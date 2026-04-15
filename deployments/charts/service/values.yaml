@@ -229,6 +229,192 @@ services:
     ##
     passwordSecretKey: password
 
+  ## Dynamic configuration loaded from ConfigMap.
+  ## When enabled, all configs are served from in-memory (parsed from the mounted
+  ## ConfigMap file). CLI/API writes return 409. The authz_sidecar reads roles
+  ## from the same file instead of PostgreSQL. Changes are detected via watchdog/inotify.
+  ##
+  configs:
+    ## Enable ConfigMap-based configuration.
+    ## When true: all configs served from in-memory (parsed from ConfigMap),
+    ## CLI/API writes return 409, authz_sidecar reads roles from file.
+    ## When false: configs in database, CLI/API works normally.
+    ##
+    enabled: false
+
+    ## Service config. service_base_url is auto-derived from
+    ## services.service.hostname if not set here.
+    ##
+    service: {}
+
+    ## Workflow config (limits, timeouts, image credentials).
+    ## Use secretName in config fields to reference K8s Secrets.
+    ## Each secretName must also be listed in secretRefs above.
+    ##
+    workflow:
+      max_num_tasks: 100
+      max_exec_timeout: "30d"
+      default_exec_timeout: "7d"
+
+    ## Dataset config (buckets, credentials).
+    ## Use credentialSecretName to reference K8s Secrets for bucket creds.
+    ##
+    dataset: {}
+
+    ## Pod templates applied to workflow containers.
+    ##
+    podTemplates:
+      default_ctrl:
+        spec:
+          containers:
+          - name: osmo-ctrl
+            resources:
+              requests:
+                cpu: "1"
+                memory: "1Gi"
+              limits:
+                memory: "1Gi"
+      default_user:
+        spec:
+          containers:
+          - name: "{{USER_CONTAINER_NAME}}"
+            resources:
+              requests:
+                cpu: "{{USER_CPU}}"
+                memory: "{{USER_MEMORY}}"
+                nvidia.com/gpu: "{{USER_GPU}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
+              limits:
+                memory: "{{USER_MEMORY}}"
+                nvidia.com/gpu: "{{USER_GPU}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
+
+    ## Resource validation rules.
+    ##
+    resourceValidations:
+      default_cpu:
+      - left_operand: cpu
+        operator: LE
+        right_operand: node_cpu
+        assert_message: "cpu must be <= node_cpu"
+      - left_operand: cpu
+        operator: GT
+        right_operand: "0"
+        assert_message: "cpu must be > 0"
+      default_memory:
+      - left_operand: memory
+        operator: LE
+        right_operand: node_memory
+        assert_message: "memory must be <= node_memory"
+      - left_operand: memory
+        operator: GT
+        right_operand: "0"
+        assert_message: "memory must be > 0"
+
+    ## RBAC role definitions. Policies are product defaults.
+    ## Override external_roles per deployment to map IDP groups.
+    ##
+    roles:
+      osmo-admin:
+        description: "Admin role — full access to all resources"
+        policies:
+        - effect: Allow
+          actions: ["*:*"]
+          resources: ["*"]
+        external_roles: [osmo-admin]
+      osmo-user:
+        description: "User role — standard workflow and data operations"
+        policies:
+        - effect: Allow
+          actions:
+          - "app:*"
+          - "auth:Token"
+          - "credentials:*"
+          - "dataset:*"
+          - "pool:List"
+          - "profile:Read"
+          - "profile:Update"
+          - "resources:Read"
+          - "user:List"
+          - "workflow:Cancel"
+          - "workflow:Create"
+          - "workflow:Delete"
+          - "workflow:Exec"
+          - "workflow:List"
+          - "workflow:PortForward"
+          - "workflow:Read"
+          - "workflow:Rsync"
+          - "workflow:Update"
+          resources: ["*"]
+        external_roles: [osmo-user]
+      osmo-default:
+        description: "Default role — login, profile, health check"
+        policies:
+        - effect: Allow
+          actions:
+          - "auth:Login"
+          - "auth:Refresh"
+          - "auth:Token"
+          - "profile:*"
+          - "system:Health"
+          resources: ["*"]
+        external_roles: []
+      osmo-ctrl:
+        description: "Controller role — internal container communication"
+        policies:
+        - effect: Allow
+          actions: ["internal:Logger", "internal:Router"]
+          resources: ["*"]
+        external_roles: [osmo-ctrl]
+      osmo-backend:
+        description: "Backend role — internal operator communication"
+        policies:
+        - effect: Allow
+          actions: ["internal:Operator", "config:Read", "pool:List"]
+          resources: ["*"]
+        external_roles: [osmo-backend]
+
+    ## Backend cluster definitions. The "default" backend is created by
+    ## configure_app() on first deploy — include it here so ConfigMap mode
+    ## serves it from memory.
+    ##
+    backends:
+      default:
+        description: "Default backend"
+        scheduler_settings:
+          scheduler_type: kai
+          scheduler_name: kai-scheduler
+          scheduler_timeout: 30
+
+    ## Pool definitions. The "default" pool references the "default" backend.
+    ##
+    pools:
+      default:
+        description: "Default pool"
+        backend: default
+        default_platform: default
+        platforms:
+          default: {}
+
+    ## Backend test definitions.
+    ##
+    backendTests: {}
+
+    ## Group templates.
+    ##
+    groupTemplates: {}
+
+    ## K8s Secrets to mount into the service pods.
+    ## Each entry generates a volume + volumeMount at /etc/osmo/secrets/<secretName>/.
+    ## The Python config loader resolves secretName references in configs at runtime.
+    ##
+    ## Example:
+    ##   secretRefs:
+    ##   - secretName: my-bucket-cred        # mounts all keys
+    ##   - secretName: imagepullsecret       # mounts all keys
+    ##
+    secretRefs: []
+
   ## Redis cache service configuration
   ## Set enabled to false if using an external Redis deployment
   ##
@@ -472,6 +658,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the worker service
     ##
     imageName: worker
@@ -583,6 +773,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the API service
     ##
     imageName: service
@@ -668,46 +862,6 @@ services:
       ## URL for the logout endpoint
       ##
       logout_endpoint: ""
-
-    ## Ingress configuration for external access to the API service
-    ##
-    ingress:
-      ## Enable ingress for external access
-      ##
-      enabled: true
-
-      ## URL path prefix for all ingress rules
-      ##
-      prefix: /
-
-      ## Ingress controller class to use for routing traffic
-      ##
-      ingressClass: nginx
-
-      ## AWS Application Load Balancer (ALB) specific annotations
-      ##
-      albAnnotations:
-        ## Enable ALB-specific annotations in the ingress
-        ##
-        enabled: false
-
-        ## ARN of the SSL certificate for HTTPS traffic
-        ##
-        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
-      ## Enable SSL/TLS encryption for the ingress
-      ##
-      sslEnabled: true
-
-      ## Name of the Kubernetes secret containing SSL/TLS certificates
-      ##
-      sslSecret: osmo-tls
-
-      ## Additional custom annotations for the ingress resource
-      ##
-      annotations: {}
-      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      # alb.ingress.kubernetes.io/target-type: ip
 
     ## Liveness probe configuration for the API service
     ##
@@ -816,6 +970,10 @@ services:
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
 
     ## Docker image name for the logger service
     ##
@@ -930,6 +1088,10 @@ services:
       ## Target CPU utilization percentage for HPA scaling
       ##
       hpaCpuTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
 
     ## Docker image name for the agent service
     ##
@@ -1052,10 +1214,6 @@ extraConfigMaps: []
 ## is updated — no pod restart required.
 ## ============================================================================
 gateway:
-  ## Enable the standalone gateway deployment
-  ##
-  enabled: false
-
   ## Name prefix for all gateway K8s resources (e.g. osmo-gateway-envoy)
   ##
   name: osmo-gateway
@@ -1086,6 +1244,10 @@ gateway:
       ## Target memory utilization percentage for HPA scaling
       ##
       hpaMemoryTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
 
     ## Envoy container image
     ##
@@ -1119,16 +1281,67 @@ gateway:
     ##
     serviceAccountName: ""
 
-    ## Ingress configuration for the gateway
+    ## Kubernetes Service configuration for the gateway.
+    ##
+    ## Two modes for external access:
+    ##   NLB (default): type=LoadBalancer — each deployment gets its own NLB
+    ##   ALB (shared):  type=ClusterIP + ingress.enabled=true — multiple
+    ##                  namespaces share a single ALB via group.name
+    ##
+    service:
+      ## Service type:
+      ##   LoadBalancer — direct NLB access (default, one LB per deployment)
+      ##   ClusterIP    — use with gateway.envoy.ingress for shared ALB
+      ##   NodePort     — use with KIND port mapping for local development
+      ##
+      type: LoadBalancer
+
+      ## HTTPS port for NLB TLS termination.
+      ## The NLB terminates TLS on this port and forwards plaintext to Envoy.
+      ## Set to null to expose only port 80 (e.g. for local development).
+      ##
+      httpsPort: 443
+
+      ## Fixed NodePort for the HTTP port (only used when type=NodePort).
+      ## KIND maps this to a host port for local access.
+      ##
+      nodePort: null
+
+      ## Annotations for the Service (e.g. AWS NLB annotations)
+      ##
+      annotations: {}
+
+    ## Ingress configuration for shared ALB mode.
+    ## Enable this and set service.type=ClusterIP when multiple namespaces
+    ## need to share a single load balancer (e.g. ALB with group.name).
     ##
     ingress:
+      ## Enable ALB Ingress (set service.type to ClusterIP when using this)
+      ##
       enabled: false
+
+      ## Ingress controller class
+      ##
       ingressClass: alb
+
+      ## AWS ALB-specific annotations
+      ##
       albAnnotations:
         enabled: false
+        groupName: osmo
+        groupOrder: "10"
         sslCertArn: ""
+
+      ## Enable TLS on the Ingress
+      ##
       sslEnabled: false
+
+      ## Secret name for TLS certificates
+      ##
       sslSecret: osmo-tls
+
+      ## Additional annotations
+      ##
       annotations: {}
 
     ## SSL/TLS configuration for the Envoy listener (downstream).
@@ -1297,6 +1510,10 @@ gateway:
       ##
       hpaMemoryTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
     imagePullPolicy: IfNotPresent
     httpPort: 4180
@@ -1369,6 +1586,10 @@ gateway:
       ## Target memory utilization percentage for HPA scaling
       ##
       hpaMemoryTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
 
     imageName: "authz-sidecar"
     ## Override the image tag for authz. Defaults to global.osmoImageTag.

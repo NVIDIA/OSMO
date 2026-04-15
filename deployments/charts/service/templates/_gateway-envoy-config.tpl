@@ -29,7 +29,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- $gw := .Values.gateway }}
 {{- $envoy := $gw.envoy }}
 {{- $gwName := include "osmo.gateway-name" . }}
-{{- if and $gw.enabled $envoy.enabled }}
+{{- if $envoy.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

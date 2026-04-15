@@ -216,7 +216,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21, 23, 29, 38, 41-46, 50, 133, 137, 156-158, 173-175
+    :emphasize-lines: 4, 21, 23, 29, 38, 41-46, 112, 116, 130-132, 147-149
 
     # Global configuration shared across all OSMO services
     global:
@@ -265,24 +265,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           token_endpoint: <idp-token-url>
           logout_endpoint: <idp-logout-url>
 
-        # Ingress configuration
-        ingress:
-          ingressClass: <your-ingress-class>  # e.g. alb, nginx
-          albAnnotations:
-            enabled: false  # Set to true if using AWS ALB
-            # sslCertArn: <your-ssl-cert-arn> # Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-          sslEnabled: false  # Set to true if managing SSL at the ingress level
-          annotations:
-            ## when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-            # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-            # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-            # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-            # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-            ## when using AWS ALB in addtional to the default alb annotations,
-            ## add the following annotations to specify the scheme of the ingress rules
-            # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
-            # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-            # alb.ingress.kubernetes.io/ssl-redirect: '443'
         # Resource allocation
         resources:
           requests:
@@ -346,16 +328,8 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
 
     # Gateway — deploys Envoy, OAuth2 Proxy, and Authz as separate services
     gateway:
-      enabled: true
-
       envoy:
-        enabled: true
         hostname: <your-domain>
-
-        ingress:
-          enabled: true
-          ingressClass: <your-ingress-class>  # e.g. alb, nginx
-          sslEnabled: false
 
         # IDP hostname for JWT JWKS fetching
         idp:
@@ -426,7 +400,7 @@ Create ``router_values.yaml`` for router with the following sample configuration
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 22, 29, 57
+    :emphasize-lines: 4, 22, 36
 
     # Global configuration shared across router services
     global:
@@ -453,27 +427,6 @@ Create ``router_values.yaml`` for router with the following sample configuration
         # webserverEnabled: true  # (Optional): Enable for UI port forwarding
         serviceAccountName: router
 
-        # Ingress configuration
-        ingress:
-          prefix: /
-          ingressClass: <your-ingress-class>  # e.g. alb, nginx
-          albAnnotations:
-            enabled: false  # Set to true if using AWS ALB
-            # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-          sslEnabled: false  # Set to true if managing SSL at the ingress level
-          sslSecret: osmo-tls
-          annotations:
-            # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-            # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-            # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-            # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-            # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-            ## when using AWS ALB in addtional to the default alb annotations,
-            ## add the following annotations to specify the scheme of the ingress rules
-            # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
-            # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-            # alb.ingress.kubernetes.io/ssl-redirect: '443'
-
         # Resource allocation
         resources:
           requests:
@@ -498,7 +451,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 10, 15
+    :emphasize-lines: 4, 10-11
 
     # Global configuration shared across UI services
     global:
@@ -510,27 +463,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
       # UI service configuration
       ui:
         hostname: <your-domain>
-
-        # Ingress configuration
-        ingress:
-          prefix: /
-          ingressClass: <your-ingress-class>  # e.g. alb, nginx
-          albAnnotations:
-            enabled: false  # Set to true if using AWS ALB
-            # sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY # (Optional): Set to the ARN of the SSL certificate for the ingress if using AWS ALB
-          sslEnabled: false  # Set to true if managing SSL at the ingress level
-          sslSecret: osmo-tls
-          annotations:
-            # when using nginx ingress, add the following annotations to handle large OAuth2 response headers from identity providers
-            # nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-            # nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-            # nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-            # nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-            ## when using AWS ALB in addtional to the default alb annotations,
-            ## add the following annotations to specify the scheme of the ingress rules
-            # alb.ingress.kubernetes.io/scheme: internet-facing # set to internal for private subnet ALB
-            # alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
-            # alb.ingress.kubernetes.io/ssl-redirect: '443'
+        apiHostname: osmo-gateway:80
 
         # Resource allocation
         resources:
@@ -544,9 +477,7 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
    Replace all ``<your-*>`` placeholders with your actual values before applying. You can find them in the highlighted sections in all the files above.
 
 .. note::
-   Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options.
-
-Similar values files should be created for other components (Router, UI) with their specific configurations.
+   Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options, including gateway configuration.
 
 Step 4: Deploy Components
 =========================
@@ -598,30 +529,25 @@ Step 5: Verify Deployment
    .. code-block:: bash
 
     $ kubectl get services -n osmo
-      NAME           TYPE        CLUSTER-IP        EXTERNAL-IP   PORT(S)   AGE
-      osmo-agent     ClusterIP   xxx               <none>        80/TCP    <age>
-      osmo-logger    ClusterIP   xxx               <none>        80/TCP    <age>
-      osmo-router    ClusterIP   xxx               <none>        80/TCP    <age>
-      osmo-service   ClusterIP   xxx               <none>        80/TCP    <age>
-      osmo-ui        ClusterIP   xxx               <none>        80/TCP    <age>
+      NAME                TYPE           CLUSTER-IP        EXTERNAL-IP   PORT(S)           AGE
+      osmo-agent          ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
+      osmo-logger         ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-router         ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-service        ClusterIP      xxx               <none>        80/TCP            <age>
+      osmo-ui             ClusterIP      xxx               <none>        80/TCP            <age>
 
-3. Verify ingress configuration:
+3. Verify gateway service:
 
    .. code-block:: bash
 
-    $ kubectl get ingress -n osmo
-    NAME           CLASS   HOSTS                          ADDRESS         PORTS     AGE
-    osmo-agent     nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-    osmo-logger    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-    osmo-router    nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-    osmo-service   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-    osmo-ui        nginx   <your-domain>                  <lb-ip>        80, 443    <age>
-    osmo-ui-trpc   nginx   <your-domain>                  <lb-ip>        80, 443    <age>
+    $ kubectl get services -n osmo | grep gateway
+      osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
 
 Step 6: Post-deployment Configuration
 =====================================
 
-1. Configure DNS records to point to your load balancer. For example, create a record for ``osmo.example.com`` to point to the load balancer IP.
+1. Configure DNS records to point to the ``osmo-gateway`` service's external IP or hostname. For example, create a CNAME record for ``osmo.example.com`` pointing to the LoadBalancer hostname shown in ``kubectl get svc osmo-gateway -n osmo``.
 
 2. Test authentication flow
 
@@ -648,6 +574,6 @@ Troubleshooting
 
    * **Database connection failures**: Verify the database is running and accessible
    * **Authentication configuration issues**: Verify the authentication configuration is correct
-   * **Ingress routing problems**: Verify the ingress is configured correctly
+   * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct

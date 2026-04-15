@@ -102,6 +102,13 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'default_admin_password',
             'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
         })
+    config_file: str | None = pydantic.Field(
+        default=None,
+        description='Path to ConfigMap YAML file to load configs from.',
+        json_schema_extra={
+            'command_line': 'config_file',
+            'env': 'OSMO_CONFIG_FILE'
+        })
 
     @pydantic.model_validator(mode='before')
     @classmethod

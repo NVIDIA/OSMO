@@ -25,7 +25,9 @@ import pydantic
 
 from src.lib.utils import common, osmo_errors
 from src.utils.job import workflow
-from src.service.core.config import config_history_helpers, helpers, objects
+from src.service.core.config import (
+    config_history_helpers, configmap_guard, helpers, objects
+)
 from src.service.core.workflow import (
     helpers as workflow_helpers, objects as workflow_objects
 )
@@ -82,6 +84,7 @@ def patch_service_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Patch service configurations"""
+
     return helpers.patch_configs(request, connectors.ConfigType.SERVICE, username)
 
 
@@ -101,6 +104,7 @@ def put_workflow_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Put workflow configurations"""
+
     return helpers.put_configs(request, connectors.ConfigType.WORKFLOW, username)
 
 
@@ -110,6 +114,7 @@ def patch_workflow_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Patch workflow configurations"""
+
     return helpers.patch_configs(request, connectors.ConfigType.WORKFLOW, username)
 
 
@@ -129,6 +134,7 @@ def put_dataset_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Put dataset configurations"""
+
     return helpers.put_configs(request, connectors.ConfigType.DATASET, username)
 
 
@@ -138,6 +144,7 @@ def patch_dataset_configs(
     username: str = fastapi.Depends(connectors.parse_username),
 ) -> Dict:
     """Patch dataset configurations"""
+
     return helpers.patch_configs(request, connectors.ConfigType.DATASET, username)
 
 
@@ -165,6 +172,7 @@ def delete_dataset(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Delete dataset configuration for a specific bucket"""
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
 
     try:
@@ -234,6 +242,7 @@ def update_backend(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Override the config for a specific backend. """
+    configmap_guard.reject_if_configmap_mode(username)
     helpers.update_backend(name, request, username)
 
 
@@ -254,6 +263,7 @@ def delete_backend(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Remove a backend."""
+    configmap_guard.reject_if_configmap_mode(username)
     # TODO: Resolve race condition where a workflow is submitted between checking for
     # running workflow and deleting backend
     if not request.force:
@@ -349,6 +359,7 @@ def put_pools(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Pool configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
 
     # Check all pool names in response before inserting any pool into the database
@@ -410,6 +421,7 @@ def put_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Pool configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(name, ConfigNameType.POOL)
     for platform_name in request.configs.platforms.keys():
         _check_config_name(platform_name, ConfigNameType.PLATFORM)
@@ -449,6 +461,7 @@ def patch_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Patch Pool configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     # Check platform names if they exist in the patch
     if 'platforms' in request.configs_dict:
@@ -499,6 +512,7 @@ def rename_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Rename Pool """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(request.new_name, ConfigNameType.POOL)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.Pool.rename(postgres, name, request.new_name)
@@ -524,6 +538,7 @@ def delete_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete Pool configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     try:
         pool = connectors.Pool.fetch_from_db(postgres, name)
@@ -587,6 +602,7 @@ def put_platform_in_pool(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Platform configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(platform_name, ConfigNameType.PLATFORM)
     postgres = connectors.PostgresConnector.get_instance()
     old_platform: connectors.Platform | None = None
@@ -616,6 +632,7 @@ def rename_platform_in_pool(name: str, platform_name: str,
                             request: objects.RenamePoolPlatformRequest,
                             username: str = fastapi.Depends(connectors.parse_username)):
     """ Rename Platform """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(request.new_name, ConfigNameType.PLATFORM)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.Pool.rename_platform(postgres, name, platform_name, request.new_name)
@@ -653,6 +670,7 @@ def read_pod_template(name: str) -> Dict[str, Any]:
 def put_pod_templates(request: objects.PutPodTemplatesRequest,
                       username: str = fastapi.Depends(connectors.parse_username)):
     """ Set Dict of Pod Templates configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs.keys():
         _check_config_name(name, ConfigNameType.POD_TEMPLATE)
 
@@ -687,6 +705,7 @@ def put_pod_template(name: str,
                      request: objects.PutPodTemplateRequest,
                      username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Pod Template configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(name, ConfigNameType.POD_TEMPLATE)
     postgres = connectors.PostgresConnector.get_instance()
     old_pod_template = None
@@ -721,6 +740,7 @@ def delete_pod_template(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete Pod Template configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.PodTemplate.delete_from_db(postgres, name)
 
@@ -756,6 +776,7 @@ def read_group_template(name: str) -> Dict[str, Any]:
 def put_group_templates(request: objects.PutGroupTemplatesRequest,
                         username: str = fastapi.Depends(connectors.parse_username)):
     """ Set Dict of Group Templates configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs.keys():
         _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
 
@@ -777,6 +798,7 @@ def put_group_template(name: str,
                        request: objects.PutGroupTemplateRequest,
                        username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Group Template configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(name, ConfigNameType.GROUP_TEMPLATE)
     postgres = connectors.PostgresConnector.get_instance()
     group_template = connectors.GroupTemplate(group_template=request.configs)
@@ -797,6 +819,7 @@ def delete_group_template(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete Group Template configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.GroupTemplate.delete_from_db(postgres, name)
 
@@ -834,6 +857,7 @@ def put_resource_validations(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Resource Validation configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs_dict.keys():
         _check_config_name(name, ConfigNameType.RESOURCE_VALIDATON)
 
@@ -858,6 +882,7 @@ def put_resource_validation(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put Resource Validation configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(name, ConfigNameType.RESOURCE_VALIDATON)
     postgres = connectors.PostgresConnector.get_instance()
     resource_validation = connectors.ResourceValidation(
@@ -879,6 +904,7 @@ def delete_resource_validation(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Delete Resource Validation configurations"""
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.ResourceValidation.delete_from_db(postgres, name)
     helpers.create_resource_validation_config_history_entry(
@@ -913,6 +939,7 @@ def read_role(name: str) -> connectors.Role:
 def put_roles(request: objects.PutRolesRequest,
               username: str = fastapi.Depends(connectors.parse_username)):
     """ Put Roles """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     for role in request.configs:
         role.insert_into_db(postgres)
@@ -930,6 +957,7 @@ def put_role(name: str,
              request: objects.PutRoleRequest,
              username: str = fastapi.Depends(connectors.parse_username)):
     """ Patch Role configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     request.configs.insert_into_db(postgres)
 
@@ -946,6 +974,7 @@ def delete_role(name: str,
                 request: objects.ConfigsRequest,
                 username: str = fastapi.Depends(connectors.parse_username)):
     """ Delete Role """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.Role.delete_from_db(postgres, name)
 
@@ -973,6 +1002,7 @@ def put_backend_tests(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put backend test configurations """
+    configmap_guard.reject_if_configmap_mode(username)
     for name in request.configs.keys():
         _check_config_name(name, ConfigNameType.BACKEND_TEST)
 
@@ -1007,6 +1037,7 @@ def put_backend_test(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Put backend test configuration """
+    configmap_guard.reject_if_configmap_mode(username)
     _check_config_name(name, ConfigNameType.BACKEND_TEST)
     postgres = connectors.PostgresConnector.get_instance()
     request.configs.insert_into_db(postgres, name)
@@ -1028,6 +1059,7 @@ def patch_backend_test(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Patch backend test configuration """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     try:
         current_test = connectors.BackendTests.fetch_from_db(postgres, name)
@@ -1063,6 +1095,7 @@ def delete_backend_test(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """ Delete test configuration """
+    configmap_guard.reject_if_configmap_mode(username)
     postgres = connectors.PostgresConnector.get_instance()
     connectors.BackendTests.delete_from_db(postgres, name)
 
@@ -1108,6 +1141,8 @@ def rollback_config(
     username: str = fastapi.Depends(connectors.parse_username),
 ):
     """Roll back a config to a particular revision."""
+    configmap_guard.reject_if_configmap_mode(username)
+
     postgres = connectors.PostgresConnector.get_instance()
 
     # Get the config history entry for the specified revision

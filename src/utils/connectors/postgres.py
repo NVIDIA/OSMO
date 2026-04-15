@@ -42,6 +42,7 @@ import yaml
 from jwcrypto import jwe  # type: ignore
 from jwcrypto.common import JWException  # type: ignore
 
+from src.utils import configmap_state
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
@@ -594,6 +595,11 @@ class PostgresConnector:
 
     def get_configs(self, config_type: ConfigType):
         """ Get all the config values. """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            return self._get_configs_from_snapshot(
+                config_type, snapshot)
+
         cmd = 'SELECT * FROM configs WHERE type = %s;'
         result = self.execute_fetch_command(cmd, (config_type.value,))
         if not result:
@@ -624,6 +630,18 @@ class PostgresConnector:
             else:
                 result_dicts[model.key] = json.loads(model.value)
         return config_class.deserialize(result_dicts, self)
+
+    def _get_configs_from_snapshot(self, config_type: ConfigType,
+                                   snapshot: dict):
+        """Construct a config object from the in-memory ConfigMap snapshot."""
+        config_key_map = {
+            ConfigType.SERVICE: ('service', ServiceConfig),
+            ConfigType.WORKFLOW: ('workflow', WorkflowConfig),
+            ConfigType.DATASET: ('dataset', DatasetConfig),
+        }
+        key, config_class = config_key_map[config_type]
+        config_data = snapshot.get(key, {})
+        return config_class(**config_data)
 
     def get_service_configs(self) -> 'ServiceConfig':
         return self.get_configs(ConfigType.SERVICE)
@@ -1303,6 +1321,7 @@ class PostgresConnector:
             );
         '''
         self.execute_commit_command(create_cmd, ())
+
 
     def _init_configs(self):
         """ Initializes configs table. """
@@ -2493,18 +2512,15 @@ class Backend(pydantic.BaseModel):
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector,
                       name: str) -> 'Backend':
+        """Fetch a backend by name.
+
+        In ConfigMap mode: config fields from in-memory snapshot,
+        runtime fields (heartbeat, k8s_uid) from DB.
         """
-        Creates a Workflow instance from a database workflow entry.
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            return cls._fetch_from_snapshot(database, name, snapshot)
 
-        Args:
-            workflow_id (task_common.NamePattern): The workflow id.
-
-        Raises:
-            OSMODatabaseError: The workflow is not found in the database.
-
-        Returns:
-            Workflow: The workflow.
-        """
         fetch_cmd = 'SELECT * FROM backends WHERE name = %s;'
         backend_rows = database.execute_fetch_command(fetch_cmd, (name,))
         try:
@@ -2530,31 +2546,92 @@ class Backend(pydantic.BaseModel):
                        online=common.heartbeat_online(backend_row.last_heartbeat))
 
     @classmethod
-    def list_names_from_db(cls, database: PostgresConnector) -> List[str]:
-        """
-        List all backends in the database
+    def _fetch_from_snapshot(cls, database: PostgresConnector,
+                             name: str, snapshot: dict) -> 'Backend':
+        """Build a Backend by merging ConfigMap config + DB runtime."""
+        items = snapshot.get('backends', {})
+        if name not in items:
+            raise osmo_errors.OSMOBackendError(
+                f'Backend {name} is not found.')
+        config = items[name]
 
-        Returns:
-            backends: List all backend names in the backend
-        """
+        # Runtime fields from DB (agent writes these)
+        runtime_cmd = (
+            'SELECT k8s_uid, k8s_namespace, version, '
+            'last_heartbeat, created_date '
+            'FROM backends WHERE name = %s;')
+        runtime_rows = database.execute_fetch_command(
+            runtime_cmd, (name,), True)
+
+        if runtime_rows:
+            row = runtime_rows[0]
+            runtime = {
+                'k8s_uid': row['k8s_uid'],
+                'k8s_namespace': row['k8s_namespace'],
+                'version': row['version'],
+                'last_heartbeat': row['last_heartbeat'],
+                'created_date': row['created_date'],
+            }
+        else:
+            # Agent hasn't connected yet — defaults
+            now = common.current_time()
+            runtime = {
+                'k8s_uid': '', 'k8s_namespace': '',
+                'version': '', 'last_heartbeat': now,
+                'created_date': now,
+            }
+
+        scheduler = config.get('scheduler_settings', {})
+        node_cond = config.get('node_conditions', {})
+        return Backend(
+            name=name,
+            description=config.get('description', ''),
+            version=runtime['version'],
+            k8s_uid=runtime['k8s_uid'],
+            k8s_namespace=runtime['k8s_namespace'],
+            dashboard_url=config.get('dashboard_url', ''),
+            grafana_url=config.get('grafana_url', ''),
+            tests=config.get('tests', []),
+            scheduler_settings=BackendSchedulerSettings(**scheduler),
+            node_conditions=BackendNodeConditions(**node_cond),
+            last_heartbeat=runtime['last_heartbeat'],
+            created_date=runtime['created_date'],
+            router_address=config.get('router_address', ''),
+            online=common.heartbeat_online(runtime['last_heartbeat']),
+        )
+
+    @classmethod
+    def list_names_from_db(cls, database: PostgresConnector) -> List[str]:
+        """List all backend names."""
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('backends', {})
+            return sorted(items.keys())
+
         fetch_cmd = 'SELECT name FROM backends ORDER BY name;'
         backend_rows = database.execute_fetch_command(fetch_cmd, ())
         return [backend_row.name for backend_row in backend_rows]
 
     @classmethod
     def list_from_db(cls, database: PostgresConnector) -> List['Backend']:
+        """List all backends.
+
+        In ConfigMap mode: iterates snapshot backends, merging
+        runtime data from DB for each.
         """
-        Creates a backend instance from a database backend entry.
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('backends', {})
+            backends = []
+            for name in sorted(items.keys()):
+                try:
+                    backends.append(
+                        cls._fetch_from_snapshot(database, name, snapshot))
+                except (osmo_errors.OSMOError, pydantic.ValidationError) as error:
+                    logging.warning(
+                        'Skipping backend %s: %s', name, error)
+            return backends
 
-        Args:
-            database (PostgresConnector): The database to fetch the backend from.
-
-        Raises:
-            OSMODatabaseError: The backend is not found in the database.
-
-        Returns:
-            backends: List of all backends in the database.
-        """
         fetch_cmd = 'SELECT * FROM backends ORDER BY name;'
         backend_rows = database.execute_fetch_command(fetch_cmd, ())
 
@@ -3023,6 +3100,13 @@ class ResourceValidation(pydantic.BaseModel):
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> Dict[str, List[ResourceAssertion]]:
         """ Fetches the list of resource validations from the resource validation table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('resource_validations', {})
+            if names:
+                items = {k: v for k, v in items.items() if k in names}
+            return items
+
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -3042,6 +3126,13 @@ class ResourceValidation(pydantic.BaseModel):
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> List[ResourceAssertion]:
         """ Fetches the resource validations from the resource validation table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('resource_validations', {})
+            if name not in items:
+                raise osmo_errors.OSMOUserError(f'Resource Validation {name} does not exist.')
+            return items[name]
+
         fetch_cmd = 'SELECT * FROM resource_validations WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -3108,6 +3199,13 @@ class PodTemplate(pydantic.BaseModel):
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> Dict[str, Dict]:
         """ Fetches the list of pod templates from the pod template table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('pod_templates', {})
+            if names:
+                items = {k: v for k, v in items.items() if k in names}
+            return items
+
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -3121,6 +3219,14 @@ class PodTemplate(pydantic.BaseModel):
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict:
         """ Fetches the pod template from the pod template table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('pod_templates', {})
+            if name not in items:
+                raise osmo_errors.OSMOUserError(
+                    f'Pod Template {name} does not exist.')
+            return items[name]
+
         fetch_cmd = 'SELECT * FROM pod_templates WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -3197,6 +3303,13 @@ class GroupTemplate(pydantic.BaseModel):
     def list_from_db(cls, database: PostgresConnector, names: List[str] | None = None) \
         -> Dict[str, Dict[str, Any]]:
         """ Fetches the list of group templates from the group template table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('group_templates', {})
+            if names:
+                items = {k: v for k, v in items.items() if k in names}
+            return items
+
         name_filter_clause = ''
         fetch_input: Tuple = ()
         if names:
@@ -3210,6 +3323,14 @@ class GroupTemplate(pydantic.BaseModel):
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> Dict[str, Any]:
         """ Fetches the group template from the group template table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('group_templates', {})
+            if name not in items:
+                raise osmo_errors.OSMOUserError(
+                    f'Group Template {name} does not exist.')
+            return items[name]
+
         fetch_cmd = 'SELECT * FROM group_templates WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -3470,6 +3591,16 @@ class Pool(PoolBase, extra='ignore'):
         return pool_info
 
     @classmethod
+    def _compute_pool_status(cls, pool_data: dict,
+                             heartbeat: datetime.datetime | None) -> PoolStatus:
+        """Compute pool status from maintenance flag and heartbeat."""
+        if pool_data.get('enable_maintenance', False):
+            return PoolStatus.MAINTENANCE
+        if heartbeat and common.heartbeat_online(heartbeat):
+            return PoolStatus.ONLINE
+        return PoolStatus.OFFLINE
+
+    @classmethod
     def rename(cls, database: PostgresConnector, old_name: str, new_name: str):
         """ Renames a pool from the pools table """
         update_cmd = 'UPDATE pools SET name = %s WHERE name = %s;'
@@ -3506,6 +3637,11 @@ class Pool(PoolBase, extra='ignore'):
                            pools: List[str] | None = None,
                            all_pools: bool = True) -> Any:
         """ Fetches the list of pools from the pools table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            return cls._fetch_pool_rows_from_snapshot(
+                database, snapshot, backend, pools, all_pools)
+
         params : List[str | Tuple] = []
         conditions = []
 
@@ -3538,6 +3674,53 @@ class Pool(PoolBase, extra='ignore'):
                 else:
                     pool_row['status'] = PoolStatus.OFFLINE
         return pool_rows
+
+    @classmethod
+    def _fetch_pool_rows_from_snapshot(
+        cls, database: PostgresConnector, snapshot: dict,
+        backend: str | None, pools: List[str] | None,
+        all_pools: bool,
+    ) -> List[dict]:
+        """Build pool rows from snapshot + DB heartbeats."""
+        items = snapshot.get('pools', {})
+        if not pools:
+            pools = []
+
+        # Batch-fetch heartbeats for all referenced backends
+        backend_names = {
+            v.get('backend', '') for v in items.values()
+            if isinstance(v, dict)
+        }
+        heartbeat_map: Dict[str, datetime.datetime | None] = {}
+        if backend_names:
+            hb_cmd = (
+                'SELECT name, last_heartbeat FROM backends '
+                'WHERE name IN %s;')
+            hb_rows = database.execute_fetch_command(
+                hb_cmd, (tuple(backend_names),), True)
+            heartbeat_map = {
+                r['name']: r['last_heartbeat'] for r in hb_rows
+            }
+
+        result = []
+        for name in sorted(items.keys()):
+            pool_data = items[name]
+            if not isinstance(pool_data, dict):
+                continue
+            pool_backend = pool_data.get('backend', '')
+
+            if backend and pool_backend != backend:
+                continue
+            if (pools or not all_pools) and name not in pools:
+                continue
+
+            heartbeat = heartbeat_map.get(pool_backend)
+            row = {**pool_data, 'name': name,
+                   'last_heartbeat': heartbeat,
+                   'status': cls._compute_pool_status(
+                       pool_data, heartbeat)}
+            result.append(row)
+        return result
 
     @classmethod
     def get_all_pool_names(cls) -> List[str]:
@@ -4287,6 +4470,13 @@ class BackendTests(BackendTestBase):
     @classmethod
     def list_from_db(cls, database: 'PostgresConnector', name: str | None = None
                      ) -> Dict[str, dict]:
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('backend_tests', {})
+            if name:
+                items = {k: v for k, v in items.items() if k == name}
+            return items
+
         list_of_names = ''
         fetch_input: Tuple = ()
         if name:
@@ -4298,6 +4488,14 @@ class BackendTests(BackendTestBase):
 
     @classmethod
     def fetch_from_db(cls, database: 'PostgresConnector', name: str) -> 'BackendTests':
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('backend_tests', {})
+            if name not in items:
+                raise osmo_errors.OSMOUserError(
+                    f'Test config {name} does not exist.')
+            return cls(**items[name])
+
         fetch_cmd = 'SELECT * FROM backend_tests WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:
@@ -4349,6 +4547,19 @@ class Role(role.Role):
     def list_from_db(cls, database: PostgresConnector, names: Optional[List[str]] = None) \
         -> List['Role']:
         """ Fetches the list of roles from the roles table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('roles', {})
+            result = []
+            for role_name, role_data in sorted(items.items()):
+                if names and role_name not in names:
+                    continue
+                if not isinstance(role_data, dict):
+                    continue
+                result.append(cls(
+                    name=role_name, **role_data))
+            return result
+
         list_of_names = ''
         fetch_input: Tuple = ()
         if names:
@@ -4374,6 +4585,14 @@ class Role(role.Role):
     @classmethod
     def fetch_from_db(cls, database: PostgresConnector, name: str) -> 'Role':
         """ Fetches the role from the role table """
+        snapshot = configmap_state.get_snapshot()
+        if snapshot is not None:
+            items = snapshot.get('roles', {})
+            if name not in items:
+                raise osmo_errors.OSMOUserError(
+                    f'Role {name} does not exist.')
+            return cls(name=name, **items[name])
+
         fetch_cmd = 'SELECT * FROM roles WHERE name = %s;'
         spec_rows = database.execute_fetch_command(fetch_cmd, (name,), True)
         if not spec_rows:

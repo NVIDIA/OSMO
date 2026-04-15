@@ -37,7 +37,7 @@ from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
 from src.service.core.auth import auth_service, objects as auth_objects
 from src.service.core.config import (
-    config_service, helpers as config_helpers, objects as config_objects
+    config_service, configmap_loader, helpers as config_helpers, objects as config_objects
 )
 from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
@@ -473,6 +473,18 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     set_default_service_url(postgres)
     set_client_install_url(postgres, config)
     setup_default_admin(postgres, config)
+
+    if config.config_file:
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                config.config_file, postgres)
+            watcher.start()
+            # Store on app state to prevent GC from killing the watcher
+            target_app.state.config_watcher = watcher
+        except Exception:  # pylint: disable=broad-exception-caught
+            logging.exception(
+                'Failed to start config watcher — '
+                'service will continue without ConfigMap management')
 
     # Instantiate QueryParser
     query.QueryParser()

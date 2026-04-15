@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("//bzl:py.bzl", "osmo_py_test")
+load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
     name = "test_config_history_helpers",
@@ -31,6 +32,29 @@ osmo_py_test(
     name = "test_config_history",
     srcs = ["test_config_history.py"],
     deps = [
+        "//src/service/core/tests:fixture",
+        "//src/tests/common",
+    ],
+    size = "large",
+    tags = ["requires-network"],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
+    name = "test_configmap_loader_unit",
+    srcs = ["test_configmap_loader_unit.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/service/core/config:config",
+    ],
+)
+
+osmo_py_test(
+    name = "test_configmap_loader_integration",
+    srcs = ["test_configmap_loader_integration.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/service/core/config:config",
         "//src/service/core/tests:fixture",
         "//src/tests/common",
     ],

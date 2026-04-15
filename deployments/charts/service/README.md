@@ -127,6 +127,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.worker.scaling.maxReplicas` | Maximum replicas | `10` |
 | `services.worker.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
 | `services.worker.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.worker.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.worker.imageName` | Worker image name | `worker` |
 | `services.worker.serviceName` | Service name | `osmo-worker` |
 | `services.worker.initContainers` | Init containers for worker | `[]` |
@@ -144,6 +145,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.service.scaling.maxReplicas` | Maximum replicas | `9` |
 | `services.service.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
 | `services.service.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.service.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
@@ -165,6 +167,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.logger.scaling.maxReplicas` | Maximum replicas | `9` |
 | `services.logger.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
 | `services.logger.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.logger.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.logger.imageName` | Logger image name | `logger` |
 | `services.logger.serviceName` | Service name | `osmo-logger` |
 | `services.logger.initContainers` | Init containers for logger service | `[]` |
@@ -181,6 +184,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.scaling.maxReplicas` | Maximum replicas | `9` |
 | `services.agent.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
 | `services.agent.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.agent.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `services.agent.imageName` | Agent image name | `agent` |
 | `services.agent.serviceName` | Service name | `osmo-agent` |
 | `services.agent.initContainers` | Init containers for agent service | `[]` |
@@ -234,6 +238,7 @@ Benefits of the separate gateway model:
 | `gateway.envoy.scaling.maxReplicas` | Maximum number of Envoy replicas | `6` |
 | `gateway.envoy.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
 | `gateway.envoy.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
+| `gateway.envoy.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `gateway.envoy.image` | Envoy image | `envoyproxy/envoy:v1.29.0` |
 | `gateway.envoy.logLevel` | Envoy log level | `info` |
 | `gateway.envoy.listenerPort` | Listener port | `8080` |
@@ -278,6 +283,7 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.oauth2Proxy.scaling.maxReplicas` | Maximum number of OAuth2 Proxy replicas | `3` |
 | `gateway.oauth2Proxy.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
 | `gateway.oauth2Proxy.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
+| `gateway.oauth2Proxy.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `gateway.oauth2Proxy.image` | OAuth2 Proxy image | `quay.io/oauth2-proxy/oauth2-proxy:v7.14.2` |
 | `gateway.oauth2Proxy.provider` | OIDC provider type | `oidc` |
 | `gateway.oauth2Proxy.oidcIssuerUrl` | OIDC issuer URL | `""` |
@@ -294,6 +300,7 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.authz.scaling.maxReplicas` | Maximum number of Authz replicas | `3` |
 | `gateway.authz.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA | `80` |
 | `gateway.authz.scaling.hpaMemoryTarget` | Target memory utilization percentage for HPA | `80` |
+| `gateway.authz.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
 | `gateway.authz.imageName` | Authz image name | `authz-sidecar` |
 | `gateway.authz.imageTag` | Override image tag (defaults to `global.osmoImageTag`) | `""` |
 | `gateway.authz.grpcPort` | gRPC port | `50052` |

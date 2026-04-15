@@ -14,14 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-{{- if .Values.gateway.enabled }}
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
-
-{{/* Validate required fields */}}
-{{- if and $gw.oauth2Proxy.enabled (not $gw.envoy.hostname) }}
-  {{- fail "gateway.envoy.hostname is required when gateway.oauth2Proxy.enabled is true (used for the OAuth2 redirect URL)" }}
-{{- end }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
@@ -135,26 +129,46 @@ spec:
 
 {{/* ================================================================ */}}
 {{/* Envoy Service                                                    */}}
+{{/*                                                                  */}}
+{{/* Service type controls external access:                           */}}
+{{/*   LoadBalancer (default) — NLB for direct external access        */}}
+{{/*   ClusterIP — use with gateway.envoy.ingress for shared ALB      */}}
 {{/* ================================================================ */}}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ $gwName }}
+  {{- with $gw.envoy.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
+  type: {{ $gw.envoy.service.type | default "LoadBalancer" }}
   ports:
     - port: 80
       targetPort: envoy-http
       protocol: TCP
       name: http
+      {{- if $gw.envoy.service.nodePort }}
+      nodePort: {{ $gw.envoy.service.nodePort }}
+      {{- end }}
+    {{- if $gw.envoy.service.httpsPort }}
+    - port: {{ $gw.envoy.service.httpsPort }}
+      targetPort: envoy-http
+      protocol: TCP
+      name: https
+    {{- end }}
   selector:
     {{- include "osmo.gateway-component-labels" (dict "component" "envoy" "context" .) | nindent 4 }}
 
+{{- if $gw.envoy.ingress.enabled }}
 ---
 
 {{/* ================================================================ */}}
-{{/* Envoy Ingress                                                    */}}
+{{/* Envoy Ingress — use when multiple namespaces share a single      */}}
+{{/* load balancer (e.g. ALB with group.name). Set service type to    */}}
+{{/* ClusterIP and enable this to route external traffic via ALB.      */}}
 {{/* ================================================================ */}}
-{{- if $gw.envoy.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -162,15 +176,9 @@ metadata:
   annotations:
     {{- if $gw.envoy.ingress.albAnnotations.enabled }}
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: osmo
-    alb.ingress.kubernetes.io/group.order: "10"
+    alb.ingress.kubernetes.io/group.name: {{ $gw.envoy.ingress.albAnnotations.groupName | default "osmo" }}
+    alb.ingress.kubernetes.io/group.order: {{ $gw.envoy.ingress.albAnnotations.groupOrder | default "10" | quote }}
     alb.ingress.kubernetes.io/certificate-arn: {{ $gw.envoy.ingress.albAnnotations.sslCertArn }}
-    {{- if $gw.envoy.ssl.enabled }}
-    alb.ingress.kubernetes.io/backend-protocol: HTTPS
-    {{- end }}
-    {{- end }}
-    {{- if $gw.envoy.ssl.enabled }}
-    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
     {{- end }}
     {{- range $k, $v := $gw.envoy.ingress.annotations }}
     {{ $k }}: {{ $v | quote }}
@@ -224,6 +232,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.envoy.scaling.hpaMemoryTarget }}
+  {{- with $gw.envoy.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 
 {{- end }}{{/* end envoy.enabled */}}
 
@@ -394,6 +405,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.oauth2Proxy.scaling.hpaMemoryTarget }}
+  {{- with $gw.oauth2Proxy.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 ---
@@ -439,6 +453,9 @@ spec:
         imagePullPolicy: {{ $gw.authz.imagePullPolicy }}
         args:
           - "--grpc-port={{ $gw.authz.grpcPort }}"
+          {{- if .Values.services.configs.enabled }}
+          - "--roles-file=/etc/osmo/configs/config.yaml"
+          {{- else }}
           - "--postgres-host={{ .Values.services.postgres.serviceName }}"
           - "--postgres-port={{ .Values.services.postgres.port }}"
           - "--postgres-database={{ .Values.services.postgres.db }}"
@@ -447,6 +464,7 @@ spec:
           - "--postgres-max-conns={{ $gw.authz.postgres.maxConns }}"
           - "--postgres-min-conns={{ $gw.authz.postgres.minConns }}"
           - "--postgres-max-conn-lifetime={{ $gw.authz.postgres.maxConnLifetimeMin }}"
+          {{- end }}
           - "--cache-ttl={{ $gw.authz.cache.ttl }}"
           - "--cache-max-size={{ $gw.authz.cache.maxSize }}"
           {{- if .Values.global.logs.enabled }}
@@ -469,16 +487,19 @@ spec:
                 name: db-secret
                 key: db-password
           {{- end }}
-        {{- if or .Values.global.logs.enabled $gw.authz.extraVolumeMounts }}
         volumeMounts:
           {{- if .Values.global.logs.enabled }}
           - name: logs
             mountPath: /logs
           {{- end }}
+          {{- if .Values.services.configs.enabled }}
+          - name: configs
+            mountPath: /etc/osmo/configs
+            readOnly: true
+          {{- end }}
           {{- with $gw.authz.extraVolumeMounts }}
             {{- toYaml . | nindent 10 }}
           {{- end }}
-        {{- end }}
         {{- with $gw.authz.livenessProbe }}
         livenessProbe:
           {{- toYaml . | nindent 10 }}
@@ -493,6 +514,11 @@ spec:
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
+        {{- end }}
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
+          configMap:
+            name: {{ .Values.services.service.serviceName }}-configs
         {{- end }}
         {{- with $gw.authz.extraVolumes }}
           {{- toYaml . | nindent 8 }}
@@ -541,6 +567,9 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ $gw.authz.scaling.hpaMemoryTarget }}
+  {{- with $gw.authz.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 ---
@@ -693,4 +722,3 @@ spec:
 {{- end }}
 {{- end }}
 
-{{- end }}{{/* end gateway.enabled */}}

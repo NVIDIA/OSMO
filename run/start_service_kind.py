@@ -43,78 +43,6 @@ logger = logging.getLogger()
 RUNFILES = runfiles.Create()
 
 
-def _add_ingress_nginx_repo() -> None:
-    """Add the ingress-nginx repository to Helm."""
-    process = run_command_with_logging([
-        'helm', 'repo', 'add', 'ingress-nginx', 'https://kubernetes.github.io/ingress-nginx'
-    ], 'Adding ingress-nginx repository')
-
-    if not process.has_failed():
-        logger.info('✅ Ingress-nginx repository added successfully in %.2fs',
-                    process.get_elapsed_time())
-
-        process = run_command_with_logging([
-            'helm', 'repo', 'update'
-        ], 'Updating Helm repositories')
-
-        if not process.has_failed():
-            logger.info('✅ Helm repositories updated successfully in %.2fs',
-                        process.get_elapsed_time())
-        else:
-            logger.warning('⚠️  Warning: Failed to update Helm repositories')
-            logger.debug('   Check stderr: %s', process.stderr_file)
-    else:
-        logger.error('❌ Error adding ingress-nginx repository')
-        logger.error('   Check output files for details:')
-        logger.error('   - stdout: %s', process.stdout_file)
-        logger.error('   - stderr: %s', process.stderr_file)
-        raise RuntimeError('Error adding ingress-nginx repository')
-
-
-def _wait_for_ingress_controller() -> None:
-    """Wait for the ingress-nginx controller to be ready using kubectl wait.
-
-    Cannot use helm --wait because an IP address is never assigned.
-    """
-    process = run_command_with_logging([
-        'kubectl', 'wait', '--for=condition=available', '--timeout=300s',
-        'deployment/ingress-nginx-controller', '-n', 'ingress-nginx'
-    ], 'Waiting for ingress-nginx controller')
-
-    if not process.has_failed():
-        logger.info('✅ Ingress-nginx controller is ready in %.2fs', process.get_elapsed_time())
-    else:
-        logger.error(
-            '❌ Error: Ingress-nginx controller failed to become ready within timeout')
-        logger.error('   Check stderr: %s', process.stderr_file)
-        raise RuntimeError('Ingress-nginx controller failed to become ready within timeout')
-
-
-def _install_ingress_nginx() -> None:
-    """Install the ingress-nginx controller."""
-    logger.info('📦 Installing ingress-nginx...')
-
-    _add_ingress_nginx_repo()
-
-    process = run_command_with_logging([
-        'helm', 'upgrade', '--install', 'ingress-nginx', 'ingress-nginx/ingress-nginx',
-        '--create-namespace', '--namespace', 'ingress-nginx',
-        '--set', 'controller.nodeSelector.node_group=service',
-        '--set', 'controller.service.type=NodePort',
-        '--set', 'controller.service.nodePorts.http=30080'
-    ], 'Installing ingress-nginx')
-
-    if not process.has_failed():
-        logger.info('✅ Ingress-nginx installed successfully in %.2fs', process.get_elapsed_time())
-        _wait_for_ingress_controller()
-    else:
-        logger.error('❌ Error installing ingress-nginx')
-        logger.error('   Check output files for details:')
-        logger.error('   - stdout: %s', process.stdout_file)
-        logger.error('   - stderr: %s', process.stderr_file)
-        raise RuntimeError('Error installing ingress-nginx')
-
-
 def _generate_mek() -> None:
     """Generate the Master Encryption Key (MEK) directly in Python if it doesn't exist."""
     logger.info('🔑 Checking for existing Master Encryption Key (MEK)...')
@@ -292,7 +220,6 @@ def start_service_kind(args: argparse.Namespace) -> None:
             args.container_registry,
             args.container_registry_username,
             args.container_registry_password)
-        _install_ingress_nginx()
         _generate_mek()
         _install_osmo_services(args.image_location, args.image_tag, detected_platform)
 

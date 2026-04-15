@@ -50,10 +50,6 @@ Prerequisites
 
 Refer to :ref:`prerequisites` for the setup of the Kubernetes cluster, PostgreSQL database, and Redis instance.
 
-.. note::
-
-  Ingress must be installed as part of networking setup to use exec or port forwarding features in OSMO workflows.
-
 Step 1: Create Namespace
 ========================
 
@@ -218,7 +214,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2-3, 14, 17, 24
+    :emphasize-lines: 2-3, 14, 17
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -252,33 +248,6 @@ Create the following values files for the minimal deployment:
           minReplicas: 1
           maxReplicas: 1
 
-        # Set your domain for ingress if you want to enable ingress for external access
-        # hostname: <your-domain>
-        ingress:
-          enabled: false  # Set to true if you want to enable ingress for external access
-
-          # Example: Using alb as ingress
-          # ingress:
-          #   enabled: true
-          #   ingressClass: alb
-          #   sslEnabled: true
-          #   albAnnotations:
-          #     enabled: true
-          #     sslCertArn: <your-ssl-cert-arn>
-          #   annotations:
-          #     ## the alb scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB
-          #     # alb.ingress.kubernetes.io/scheme: internet-facing
-
-          # Example: Using nginx as ingress
-          # ingress:
-          #   enabled: true
-          #   ingressClass: nginx
-          #   annotations:
-          #     nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-          #     nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-          #     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-          #     nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
-
       agent:
         scaling:
           minReplicas: 1
@@ -300,6 +269,12 @@ Create the following values files for the minimal deployment:
         passwordSecretName: default-admin-secret
         passwordSecretKey: password
 
+    gateway:
+      oauth2Proxy:
+        enabled: false
+      authz:
+        enabled: false
+
 **UI Service Values** (``ui_values.yaml``):
 
 .. dropdown:: ``ui_values.yaml``
@@ -307,7 +282,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,8
+    :emphasize-lines: 2,3,7
 
     global:
       osmoImageLocation: <insert-osmo-image-registry>
@@ -315,35 +290,7 @@ Create the following values files for the minimal deployment:
 
     services:
       ui:
-        # Set your domain for UI ingress if you want to enable ingress for external access
-        # hostname: <your-domain>
-
-        apiHostname: osmo-service.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
-
-        ingress:
-          enabled: false  # Set to true if you want to enable ingress for external access
-
-        # Example: Using alb as ingress
-        # ingress:
-        #   enabled: true
-        #   ingressClass: alb
-        #   sslEnabled: true
-        #   albAnnotations:
-        #     enabled: true
-        #     sslCertArn: <your-ssl-cert-arn>
-        #   annotations:
-        #     ## the alb scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB
-        #     # alb.ingress.kubernetes.io/scheme: internet-facing
-
-        # Example: Using nginx as ingress
-        # ingress:
-        #   enabled: true
-        #   ingressClass: nginx
-        #   annotations:
-        #     nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-        #     nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-        #     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-        #     nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
+        apiHostname: osmo-gateway.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
 
 **Router Service Values** (``router_values.yaml``):
 
@@ -372,40 +319,11 @@ Create the following values files for the minimal deployment:
         scaling:
           minReplicas: 1
           maxReplicas: 1
-        # Set your domain for router ingress if you want to enable ingress for external access
-        # hostname: <your-domain>
-        ingress:
-          enabled: false  # Set to true if you want to enable ingress for external access
-
-          # Example: Using alb as ingress
-          # ingress:
-          #   enabled: true
-          #   ingressClass: alb
-          #   sslEnabled: true
-          #   albAnnotations:
-          #     enabled: true
-          #     sslCertArn: <your-ssl-cert-arn>
-          #   annotations:
-          #     ## the alb scheme is used to specify the scheme of the ingress rule, internet-facing for public ALB and internal for private ALB
-          #     # alb.ingress.kubernetes.io/scheme: internet-facing
-
-          # Example: Using nginx as ingress
-          # ingress:
-          #   enabled: true
-          #   ingressClass: nginx
-          #   annotations:
-          #     nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
-          #     nginx.ingress.kubernetes.io/proxy-buffers: "8 16k"
-          #     nginx.ingress.kubernetes.io/proxy-busy-buffers-size: "32k"
-          #     nginx.ingress.kubernetes.io/large-client-header-buffers: "4 16k"
 
 .. important::
 
    1. Replace ``<insert-osmo-image-tag>`` with the desired OSMO version you want to deploy
-   2. Replace ``<your-domain>`` with your domain name (e.g., ``osmo.example.com``) if you want to enable ingress for external access
-   3. Update the ``serviceName`` for postgres and redis to match your external services
-   4. Update ``ingressClass`` and ``ingress`` to match your cluster's ingress controller and ingress configuration
-   5. Ensure your DNS points to the ingress controller's load balancer if you want to enable ingress for external access
+   2. Update the ``serviceName`` for postgres and redis to match your external services
 
 Step 6: Helm Deploy
 ===============================
@@ -464,34 +382,13 @@ Step 7: Verify Deployment
 
       $ kubectl get services -n osmo-minimal
 
-3. Verify that ingress configuration is set up correctly:
-
-   .. note::
-
-      If you have enabled ingress for external access, you should see ingress resources similar to the following:
+3. Port forward the gateway to access the OSMO UI:
 
    .. code-block:: bash
 
-      $ kubectl get ingress -n osmo-minimal
+      $ kubectl port-forward service/osmo-gateway 9000:80 -n osmo-minimal
 
-   You should see ingress resources similar to:
-
-   .. code-block:: text
-
-      NAME                     CLASS   HOSTS              ADDRESS         PORTS   AGE
-      osmo-agent-ingress       nginx   <your-domain>      <lb-ip>         80      2m
-      osmo-service-ingress     nginx   <your-domain>      <lb-ip>         80      2m
-      osmo-logger-ingress      nginx   <your-domain>      <lb-ip>         80      2m
-      osmo-ui-ingress          nginx   <your-domain>      <lb-ip>         80      2m
-      osmo-router-ingress      nginx   <your-domain>      <lb-ip>         80      2m
-
-4. Port forward to access the OSMO UI:
-
-   .. code-block:: bash
-
-      $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
-
-   Visit http://localhost:3000 in your web browser to access the OSMO UI dashboard as a guest user.
+   Visit http://localhost:9000 in your web browser to access the OSMO UI dashboard as a guest user.
 
 Step 8: Install Backend Operator
 ===================================
@@ -508,8 +405,7 @@ Step 8: Install Backend Operator
        global:
          osmoImageLocation: <insert-osmo-image-registry>
          osmoImageTag: <insert-osmo-image-tag>
-         # update to the actual service URL if you have enabled ingress for external access
-         serviceUrl: http://osmo-agent.osmo-minimal.svc.cluster.local
+         serviceUrl: http://osmo-gateway.osmo-minimal.svc.cluster.local
          agentNamespace: osmo-operator
          backendNamespace: osmo-workflows
          backendName: default
@@ -541,21 +437,13 @@ Step 8: Install Backend Operator
 
 2. Login to OSMO:
 
-
-   If ingress is disabled, you can port forward the OSMO API server and login to OSMO
+   Port forward the gateway and login to OSMO:
 
    .. code-block:: bash
 
-      $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
+      $ kubectl port-forward service/osmo-gateway 9000:80 -n osmo-minimal
 
       $ osmo login http://localhost:9000 --method=dev --username=testuser
-
-
-   If ingress is enabled, you can login to OSMO through your domain:
-
-   .. code-block:: bash
-
-      $ osmo login https://<your-domain> --method=dev --username=testuser
 
 
 3. Create the service account and token:
@@ -591,34 +479,15 @@ Step 8: Install Backend Operator
 Step 9: Access OSMO
 ====================
 
-With Ingress
--------------
+Port forward the gateway to access all OSMO services if you have not already:
+
+.. code-block:: bash
+
+   $ kubectl port-forward service/osmo-gateway 9000:80 -n osmo-minimal
 
 1. **Access OSMO Service API**:
 
-   Visit ``https://<your-domain>/api/docs`` in your web browser to access the OSMO API.
-
-2. **Access OSMO UI**:
-
-   Visit ``https://<your-domain>`` in your web browser to access the OSMO UI.
-
-.. note::
-   1. Replace ``<your-domain>`` with your domain name or use the alternative approach below
-   2. Ensure your DNS is configured to point to your ingress controller's load balancer
-   3. If you need to test without DNS setup, you can use port forwarding as an alternative as well
-
-Without Ingress
--------------------
-
-If you haven't set up DNS yet, you can access OSMO using port forwarding as an alternative:
-
-1. **Access OSMO Service API**:
-
-   .. code-block:: bash
-
-      $ kubectl port-forward service/osmo-service 9000:80 -n osmo-minimal
-
-   Then access the OSMO API at http://localhost:9000/api/docs in your web browser. You can interact with the API using the OSMO CLI.
+   Access the OSMO API at http://localhost:9000/api/docs in your web browser. You can interact with the API using the OSMO CLI.
 
    .. code-block:: bash
 
@@ -630,18 +499,9 @@ If you haven't set up DNS yet, you can access OSMO using port forwarding as an a
       <node-name>       default   default        0/2028         0/2       1/32         0/8
       ========================================================================================
 
-2. **Access OSMO UI** (in a separate terminal):
+2. **Access OSMO UI**:
 
-   .. code-block:: bash
-
-      $ kubectl port-forward service/osmo-ui 3000:80 -n osmo-minimal
-
-   Then access the OSMO UI at http://localhost:3000 in your web browser. You should be able to see the OSMO UI dashboard as a guest user.
-
-.. important::
-
-   - If you are accessing OSMO with port forwarding, the router service will not be accessible
-   - Consequently, ``osmo workflow port-forward`` or ``osmo workflow exec`` commands are not expected to work
+   Access the OSMO UI at http://localhost:9000 in your web browser. You should be able to see the OSMO UI dashboard as a guest user.
 
 Step 10: Basic Configuration
 ============================
@@ -652,26 +512,22 @@ After deployment, you need to configure a central storage for workflow spec, wor
 
 2. Follow the :ref:`installing_required_dependencies` guide to install the KAI scheduler for running workflows.
 
-3. **(Optional)** If you your ingress is not configured, you will need to set the following config with OSMO CLI for workflows to run:
+3. Set the service base URL so that workflow pods can reach the gateway:
 
    .. code-block:: bash
 
-      $ cat << EOF > /tmp/osmo_logger_config.json
+      $ cat << EOF > /tmp/osmo_service_config.json
       {
-      "service_base_url": "http://osmo-logger.osmo-minimal.svc.cluster.local:80"
+        "service_base_url": "http://osmo-gateway.osmo-minimal.svc.cluster.local"
       }
       EOF
 
-      $ osmo config update SERVICE --file /tmp/osmo_logger_config.json
+      $ osmo config update SERVICE --file /tmp/osmo_service_config.json
 
 Testing Your Deployment
 ========================
 
 Follow the :ref:`validate_osmo` guide to test basic OSMO functionality.
-
-.. warning::
-
-   When accessing OSMO through port forwarding, you will not be able to run interactive workflows involving ``port-forwarding`` or ``exec`` functionality.
 
 What's Next
 ============

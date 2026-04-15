@@ -31,6 +31,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
+        {{- if .Values.services.configs.enabled }}
+        checksum/configs: {{ .Values.services.configs | toYaml | sha256sum }}
+        {{- end }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
     spec:
       {{- with .Values.services.service.hostAliases }}
@@ -145,6 +148,10 @@ spec:
         - --default_admin_username
         - {{ .Values.services.defaultAdmin.username | quote }}
         {{- end }}
+        {{- if .Values.services.configs.enabled }}
+        - --config_file
+        - /etc/osmo/configs/config.yaml
+        {{- end }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
@@ -188,13 +195,23 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.service.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}
           name: mek-volume
           subPath: mek.yaml
+        {{- end }}
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
+          mountPath: /etc/osmo/configs
+          readOnly: true
+        {{- range .Values.services.configs.secretRefs }}
+        - name: secret-{{ .secretName }}
+          mountPath: /etc/osmo/secrets/{{ .secretName }}
+          readOnly: true
+        {{- end }}
         {{- end }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
@@ -247,6 +264,16 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
+        {{- if .Values.services.configs.enabled }}
+        - name: configs
+          configMap:
+            name: {{ .Values.services.service.serviceName }}-configs
+        {{- range .Values.services.configs.secretRefs }}
+        - name: secret-{{ .secretName }}
+          secret:
+            secretName: {{ .secretName }}
+        {{- end }}
+        {{- end }}
 ---
 
 apiVersion: v1
@@ -263,52 +290,6 @@ spec:
       name: http
   selector:
     app: {{ .Values.services.service.serviceName }}
-
-{{- if .Values.services.service.ingress.enabled }}
----
-
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: {{ .Values.services.service.serviceName }}
-  annotations:
-
-    {{- if .Values.services.service.ingress.albAnnotations.enabled}}
-    alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/group.name: osmo
-    alb.ingress.kubernetes.io/group.order: "100"
-    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.services.service.ingress.albAnnotations.sslCertArn }}
-    {{- end }}
-    {{- range $k, $v := .Values.services.service.ingress.annotations }}
-    {{$k}}: {{ $v | quote }}
-    {{- end }}
-spec:
-  ingressClassName: {{ .Values.services.service.ingress.ingressClass }}
-  rules:
-  - host: {{ .Values.services.service.hostname }}
-    http:
-      paths:
-      - path: {{ .Values.services.service.ingress.prefix }}api
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Values.services.service.serviceName }}
-            port:
-              number: 80
-      - path: {{ .Values.services.service.ingress.prefix }}client
-        pathType: Prefix
-        backend:
-          service:
-            name: {{ .Values.services.service.serviceName }}
-            port:
-              number: 80
-  {{- if .Values.services.service.ingress.sslEnabled }}
-  tls:
-  - hosts:
-    - {{ .Values.services.service.hostname }}
-    secretName: {{.Values.services.service.ingress.sslSecret }}
-  {{- end }}
-{{- end }}
 
 ---
 
@@ -341,3 +322,6 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.service.scaling.hpaCpuTarget }}
+  {{- with .Values.services.service.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
