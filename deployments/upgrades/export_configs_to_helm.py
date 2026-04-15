@@ -80,6 +80,9 @@ PLATFORM_COMPUTED_FIELDS = {
     'parsed_resource_validations',
     'parsed_pod_template',
     'parsed_group_templates',
+    'tolerations',
+    'labels',
+    'default_mounts',
 }
 
 # Fields on roles that are internal metadata, not config.
@@ -100,8 +103,9 @@ def fetch(base_url, path, headers):
         try:
             body = error.read().decode()
             print(f'  {body[:200]}', file=sys.stderr)
-        except Exception:
-            pass
+        except Exception as read_error:
+            print(f'  (Could not read error body: {read_error})',
+                  file=sys.stderr)
         return None
     except urllib.error.URLError as error:
         print(f'Error connecting to {url}: {error.reason}', file=sys.stderr)

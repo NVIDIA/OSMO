@@ -90,7 +90,7 @@ services:
     service:
       cli_config:
         latest_version: 6.3.0
-        min_supported_version: 1.0.0
+        min_supported_version: 6.0.0
       max_pod_restart_limit: 15m
     workflow:
       workflow_data:

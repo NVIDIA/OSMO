@@ -488,6 +488,7 @@ class TestResolvePoolComputedFields(unittest.TestCase):
                             'parsed_pod_template': {
                                 'spec': {'stale': True},
                             },
+                            'labels': {'stale': 'yes'},
                         },
                     },
                 },
@@ -504,6 +505,8 @@ class TestResolvePoolComputedFields(unittest.TestCase):
         # Resource validations also resolved
         self.assertEqual(
             len(platform['parsed_resource_validations']), 1)
+        # Stale labels overwritten (unconditional, not setdefault)
+        self.assertNotIn('stale', platform['labels'])
 
     def test_no_pools_is_noop(self):
         configs: Dict[str, Any] = {

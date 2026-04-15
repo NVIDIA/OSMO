@@ -293,6 +293,9 @@ def _resolve_single_pool(
                 base_pod_template,
                 copy.deepcopy(pod_templates[template_name]),
                 merge_lists_on_name)
+        else:
+            logging.warning(
+                'Pod template %r referenced by pool not found', template_name)
     pool_data['parsed_pod_template'] = base_pod_template
 
     # Resolve common resource validations (pool-level base)
@@ -303,6 +306,10 @@ def _resolve_single_pool(
         if validation_name in resource_validations:
             base_resource_validations.extend(
                 copy.deepcopy(resource_validations[validation_name]))
+        else:
+            logging.warning(
+                'Resource validation %r referenced by pool not found',
+                validation_name)
     pool_data['parsed_resource_validations'] = base_resource_validations
 
     # Resolve common group templates (pool-level).
@@ -313,6 +320,9 @@ def _resolve_single_pool(
     merged_by_key: Dict[tuple, Dict[str, Any]] = {}
     for template_name in common_group_template_names:
         if template_name not in group_templates:
+            logging.warning(
+                'Group template %r referenced by pool not found',
+                template_name)
             continue
         template = group_templates[template_name]
         api_version = template.get('apiVersion', '')
@@ -376,14 +386,14 @@ def _resolve_platform_fields(
                 merge_lists_on_name)
     platform_data['parsed_pod_template'] = platform_pod_template
 
-    # Derive tolerations, labels, default_mounts from resolved template
+    # Derive tolerations, labels, default_mounts from resolved template.
+    # Unconditional assignment — always recompute from the resolved template
+    # rather than preserving potentially stale values from the YAML.
     spec = platform_pod_template.get('spec', {})
-    platform_data.setdefault('tolerations',
-                             spec.get('tolerations', []))
-    platform_data.setdefault('labels',
-                             spec.get('nodeSelector', {}))
-    platform_data.setdefault('default_mounts',
-                             _get_default_mounts(platform_pod_template))
+    platform_data['tolerations'] = spec.get('tolerations', [])
+    platform_data['labels'] = spec.get('nodeSelector', {})
+    platform_data['default_mounts'] = _get_default_mounts(
+        platform_pod_template)
 
     # Resource validations: start from pool common, extend with platform
     platform_resource_validations = copy.deepcopy(base_resource_validations)
