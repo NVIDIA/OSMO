@@ -1364,8 +1364,8 @@ func TestEmptyResourcesAcrossActionTypes(t *testing.T) {
 			wantAllowed: false,
 		},
 		{
-			name:        "bucket:* on specific bucket (scoped) denied",
-			action:      "bucket:*",
+			name:        "dataset:* on specific bucket (scoped) denied",
+			action:      "dataset:*",
 			path:        "/api/bucket/my-bucket",
 			method:      "GET",
 			wantAllowed: false,
