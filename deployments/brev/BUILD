@@ -37,7 +37,7 @@ config_setting(
 sh_test(
     name = "shellcheck",
     srcs = ["shellcheck_test.sh"],
-    data = ["setup.sh"] + select({
+    data = ["setup.sh", "setup-k8s.sh"] + select({
         ":linux_x86_64": ["@shellcheck_linux_x86_64//:shellcheck"],
         ":macos_arm64": ["@shellcheck_darwin_arm64//:shellcheck"],
     }),
@@ -45,10 +45,12 @@ sh_test(
         ":linux_x86_64": {
             "SHELLCHECK": "$(location @shellcheck_linux_x86_64//:shellcheck)",
             "SETUP_SH": "$(location setup.sh)",
+            "SETUP_K8S_SH": "$(location setup-k8s.sh)",
         },
         ":macos_arm64": {
             "SHELLCHECK": "$(location @shellcheck_darwin_arm64//:shellcheck)",
             "SETUP_SH": "$(location setup.sh)",
+            "SETUP_K8S_SH": "$(location setup-k8s.sh)",
         },
     }),
 )
