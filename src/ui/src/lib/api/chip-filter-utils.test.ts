@@ -113,6 +113,25 @@ describe("chipsToParams", () => {
       search: "my-pool",
     });
   });
+
+  it("includes empty string values in array-type params", () => {
+    const chips: SearchChip[] = [
+      { field: "status", value: "", label: "Empty" },
+      { field: "status", value: "ONLINE", label: "Online" },
+    ];
+
+    const result = chipsToParams<TestFilterParams>(chips, testMapping);
+
+    expect(result).toEqual({ statuses: ["", "ONLINE"] });
+  });
+
+  it("allows empty string value for single-type params", () => {
+    const chips: SearchChip[] = [{ field: "search", value: "", label: "Empty" }];
+
+    const result = chipsToParams<TestFilterParams>(chips, testMapping);
+
+    expect(result).toEqual({ search: "" });
+  });
 });
 
 // =============================================================================
@@ -168,6 +187,18 @@ describe("filterChipsByFields", () => {
 
     expect(result).toEqual([]);
   });
+
+  it("returns empty array when handledFields set is empty with exclude false", () => {
+    const result = filterChipsByFields(chips, new Set(), false);
+
+    expect(result).toEqual([]);
+  });
+
+  it("returns all chips when handledFields set is empty with exclude true", () => {
+    const result = filterChipsByFields(chips, new Set(), true);
+
+    expect(result).toEqual(chips);
+  });
 });
 
 // =============================================================================
@@ -218,5 +249,24 @@ describe("chipsToCacheKey", () => {
 
     expect(resultA).toBe(resultB);
     expect(resultA).toBe("platform:dgx,search:query,status:ONLINE");
+  });
+
+  it("includes duplicate chips in cache key", () => {
+    const chips: SearchChip[] = [
+      { field: "status", value: "ONLINE", label: "Online" },
+      { field: "status", value: "ONLINE", label: "Online" },
+    ];
+
+    const result = chipsToCacheKey(chips);
+
+    expect(result).toBe("status:ONLINE,status:ONLINE");
+  });
+
+  it("handles chips with empty string values", () => {
+    const chips: SearchChip[] = [{ field: "search", value: "", label: "Empty" }];
+
+    const result = chipsToCacheKey(chips);
+
+    expect(result).toBe("search:");
   });
 });
