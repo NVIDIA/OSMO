@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Union, cast
 from unittest import mock
 import unittest
 
-from src.lib.utils import common
+from src.lib.utils import common, credentials
 from src.utils.job import task, kb_objects
 from src.utils import connectors
 
@@ -867,6 +867,68 @@ class CredentialSecretBuildTest(unittest.TestCase):
             if 'user-secrets' in c[0][0]
         ]
         self.assertEqual(len(user_secret_call), 0)
+
+
+class CreateConfigDictTest(unittest.TestCase):
+    """Tests for create_config_dict with different credential types."""
+
+    def test_static_credential(self):
+        """Test create_config_dict with StaticDataCredential."""
+        static_cred = credentials.StaticDataCredential(
+            endpoint='s3://my-bucket',
+            access_key_id='AKIAIOSFODNN7EXAMPLE',
+            access_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+            region='us-east-1',
+        )
+
+        result = task.create_config_dict({'s3://my-bucket': static_cred})
+
+        data_entry = result['auth']['data']['s3://my-bucket']
+        self.assertEqual(data_entry['access_key_id'], 'AKIAIOSFODNN7EXAMPLE')
+        self.assertEqual(data_entry['access_key'], 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
+        self.assertEqual(data_entry['endpoint'], 's3://my-bucket')
+        self.assertEqual(data_entry['region'], 'us-east-1')
+
+    def test_default_credential(self):
+        """Test create_config_dict with DefaultDataCredential produces no access keys."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://ambient-bucket',
+            region='us-west-2',
+        )
+
+        result = task.create_config_dict({'s3://ambient-bucket': default_cred})
+
+        data_entry = result['auth']['data']['s3://ambient-bucket']
+        self.assertEqual(data_entry['endpoint'], 's3://ambient-bucket')
+        self.assertEqual(data_entry['region'], 'us-west-2')
+        self.assertNotIn('access_key_id', data_entry)
+        self.assertNotIn('access_key', data_entry)
+
+    def test_mixed_credentials(self):
+        """Test create_config_dict with both credential types."""
+        static_cred = credentials.StaticDataCredential(
+            endpoint='s3://static-bucket',
+            access_key_id='AKIAIOSFODNN7EXAMPLE',
+            access_key='secret',
+        )
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://ambient-bucket',
+            region='eu-west-1',
+        )
+
+        result = task.create_config_dict({
+            's3://static-bucket': static_cred,
+            's3://ambient-bucket': default_cred,
+        })
+
+        static_entry = result['auth']['data']['s3://static-bucket']
+        self.assertIn('access_key_id', static_entry)
+        self.assertIn('access_key', static_entry)
+
+        ambient_entry = result['auth']['data']['s3://ambient-bucket']
+        self.assertNotIn('access_key_id', ambient_entry)
+        self.assertNotIn('access_key', ambient_entry)
+        self.assertEqual(ambient_entry['region'], 'eu-west-1')
 
 
 if __name__ == '__main__':

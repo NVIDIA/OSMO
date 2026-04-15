@@ -2686,7 +2686,7 @@ def construct_path(endpoint: str, bucket: str, path: str):
 
 class LogConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.StaticDataCredential | None = None
+    credential: credentials.DataCredential | None = None
 
 
 class WorkflowInfo(ExtraArgBaseModel):
@@ -2703,7 +2703,7 @@ class WorkflowInfo(ExtraArgBaseModel):
 
 class DataConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.StaticDataCredential | None = None
+    credential: credentials.DataCredential | None = None
 
     base_url: str = ''
     # Timeout in mins for osmo-ctrl to retry connecting to the OSMO service until exiting the task

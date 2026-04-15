@@ -26,6 +26,7 @@ import math
 import re
 import secrets
 import time
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlencode
 
@@ -102,7 +103,7 @@ def create_login_dict(user: str,
 
 
 def create_config_dict(
-    data_info: dict[str, credentials.StaticDataCredential],
+    data_info: Mapping[str, credentials.DataCredential],
 ) -> dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
@@ -2699,7 +2700,7 @@ class TaskGroup(pydantic.BaseModel):
         service_config: connectors.ServiceConfig | None = None,
         dataset_config: connectors.DatasetConfig | None = None,
         pool_info: connectors.Pool | None = None,
-        data_endpoints: Dict[str, credentials.StaticDataCredential] | None = None,
+        data_endpoints: Mapping[str, credentials.DataCredential] | None = None,
         skip_refresh_token: bool = False,
         auth_token: str | None = None,
     ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[str, str]]]:
@@ -3193,10 +3194,10 @@ def decode_hstore(tasks: str) -> Set[str]:
 
 def fetch_creds(
     user: str,
-    data_creds: dict[str, credentials.StaticDataCredential],
+    data_creds: Mapping[str, credentials.DataCredential],
     path: str,
     disabled_data: list[str] | None = None,
-) -> credentials.StaticDataCredential | None:
+) -> credentials.DataCredential | None:
     backend_info = storage.construct_storage_backend(path)
 
     if backend_info.profile not in data_creds:

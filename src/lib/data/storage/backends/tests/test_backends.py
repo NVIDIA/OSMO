@@ -534,6 +534,53 @@ class WorkflowConfigCredentialTest(unittest.TestCase):
         # Assert
         self.assertIsNone(config.workflow_data.credential)
 
+    def test_workflow_config_data_with_default_credential(self):
+        """Test WorkflowConfig DataConfig accepts DefaultDataCredential."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://bucket.io/workflows',
+            region='us-west-2',
+        )
+
+        config = postgres.WorkflowConfig(
+            workflow_data=postgres.DataConfig(credential=default_cred),
+        )
+
+        credential = config.workflow_data.credential
+        self.assertIsInstance(credential, credentials.DefaultDataCredential)
+        assert isinstance(credential, credentials.DefaultDataCredential)
+        self.assertEqual(credential.endpoint, 's3://bucket.io/workflows')
+        self.assertEqual(credential.region, 'us-west-2')
+
+    def test_workflow_config_log_with_default_credential(self):
+        """Test WorkflowConfig LogConfig accepts DefaultDataCredential."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://log-bucket.io/logs',
+            region='us-east-1',
+        )
+
+        config = postgres.WorkflowConfig(
+            workflow_log=postgres.LogConfig(credential=default_cred),
+        )
+
+        self.assertIsInstance(
+            config.workflow_log.credential,
+            credentials.DefaultDataCredential,
+        )
+
+    def test_default_credential_to_decrypted_dict_no_keys(self):
+        """Test DefaultDataCredential.to_decrypted_dict has no access keys."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://bucket.io/data',
+            region='us-west-2',
+        )
+
+        result = default_cred.to_decrypted_dict()
+
+        self.assertEqual(result['endpoint'], 's3://bucket.io/data')
+        self.assertEqual(result['region'], 'us-west-2')
+        self.assertNotIn('access_key_id', result)
+        self.assertNotIn('access_key', result)
+
 
 if __name__ == '__main__':
     unittest.main()
