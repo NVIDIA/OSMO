@@ -512,6 +512,16 @@ class S3Backend(Boto3Backend):
 
         def _validate_auth():
             arn = sts_client.get_caller_identity()['Arn']
+            # SimulatePrincipalPolicy requires an IAM role ARN, not an STS
+            # assumed-role session ARN. Convert when running under IRSA or
+            # instance roles where STS returns an assumed-role ARN.
+            # arn:aws:sts::<acct>:assumed-role/<role>/<session>
+            #   -> arn:aws:iam::<acct>:role/<role>
+            if ':assumed-role/' in arn:
+                parts = arn.split(':')
+                account_id = parts[4]
+                role_name = parts[5].split('/')[1]
+                arn = f'arn:aws:iam::{account_id}:role/{role_name}'
             path = f'{self.container}/{self.path if self.path else "*"}'
 
             if path.endswith('/'):
