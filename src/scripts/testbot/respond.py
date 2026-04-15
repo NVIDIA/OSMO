@@ -31,10 +31,10 @@ SELF_AUTHORS = frozenset({"github-actions[bot]", "svc-osmo-ci"})
 ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # Shared with testbot.yaml — update both when changing the tool allowlist.
 ALLOWED_TOOLS = (
-    "Read,Edit,Write,"
+    "Read,Edit,Write,Glob,Grep,"
     "Bash(bazel test *),Bash(pnpm --dir src/ui test *),"
     "Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),"
-    "Glob,Grep"
+    "Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
 )
 
 THREADS_QUERY = """
@@ -271,7 +271,7 @@ def filter_actionable(
     return actionable
 
 
-def build_prompt(threads: list[dict]) -> str:
+def build_prompt(threads: list[dict], pr_number: int) -> str:
     """Build a single prompt with all actionable threads for Claude Code.
 
     Each thread includes the full conversation history so Claude
@@ -281,7 +281,7 @@ def build_prompt(threads: list[dict]) -> str:
         "Read and follow src/scripts/testbot/TESTBOT_RESPOND_PROMPT.md for your role,",
         "process, and output format.",
         "",
-        "Address these review threads on an AI-generated test PR.",
+        f"Address these review comments on PR #{pr_number}.",
         "Each thread includes the full conversation history — pay attention to",
         "the LATEST request (the one containing /testbot), not just the first comment.",
         "",
@@ -502,7 +502,7 @@ def main() -> None:
         capture_output=True, text=True, check=True,
     ).stdout.strip()
 
-    prompt = build_prompt(actionable)
+    prompt = build_prompt(actionable, args.pr_number)
     logger.info("Running Claude Code for %d comment(s)...", len(actionable))
     claude_output = run_claude(
         prompt, model=args.model, max_turns=args.max_turns, timeout=args.timeout,

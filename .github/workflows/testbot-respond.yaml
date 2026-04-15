@@ -39,7 +39,7 @@ jobs:
     if: >-
       contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
       github.event.pull_request.head.repo.full_name == github.repository
-    timeout-minutes: 15
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
@@ -87,8 +87,8 @@ jobs:
             --pr-number ${{ github.event.pull_request.number }} \
             --trigger-phrase /testbot \
             --max-responses 10 \
-            --max-turns 50 \
-            --timeout 720 \
+            --max-turns 75 \
+            --timeout 900 \
             --model aws/anthropic/claude-opus-4-5
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}

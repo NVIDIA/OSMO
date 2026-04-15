@@ -297,7 +297,7 @@ class TestBuildPrompt(unittest.TestCase):
             "line": 42,
             "thread_history": "  [reviewer]: /testbot add edge cases",
         }]
-        prompt = build_prompt(threads)
+        prompt = build_prompt(threads, pr_number=99)
         self.assertIn("`src/ui/src/lib/foo.test.ts` line 42", prompt)
         self.assertIn("### Comment 123", prompt)
         self.assertIn("[reviewer]: /testbot add edge cases", prompt)
@@ -309,18 +309,18 @@ class TestBuildPrompt(unittest.TestCase):
             "line": 1,
             "thread_history": "  [user]: /testbot fix",
         }]
-        prompt = build_prompt(threads)
+        prompt = build_prompt(threads, pr_number=99)
         self.assertIn("TESTBOT_RESPOND_PROMPT.md", prompt)
 
-    def test_includes_latest_comment_guidance(self):
+    def test_includes_pr_number(self):
         threads = [{
             "reply_comment_id": 1,
             "path": "foo.py",
             "line": 1,
             "thread_history": "  [user]: /testbot fix",
         }]
-        prompt = build_prompt(threads)
-        self.assertIn("LATEST request", prompt)
+        prompt = build_prompt(threads, pr_number=857)
+        self.assertIn("PR #857", prompt)
 
 
 class TestRunClaude(unittest.TestCase):

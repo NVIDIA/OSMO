@@ -35,7 +35,7 @@ Claude Code is sandboxed: it can only read files, edit test files, and run test 
 
 | Feature | Description |
 |---------|-------------|
-| **Trigger** | Comment starting with `/testbot` on inline review threads of `ai-generated` PRs |
+| **Trigger** | Comment starting with `/testbot` on any PR with the `ai-generated` label |
 | **Thread context** | Full conversation history (all nested comments) passed to Claude |
 | **Structured output** | `--json-schema` returns per-thread replies and commit message |
 | **Safety** | Repo-member-only access, crash recovery, push retry |
@@ -72,15 +72,26 @@ Runs automatically on weekdays at 6 AM UTC.
 
 ### Review response
 
-Start an inline review comment with `/testbot <instruction>` on any `ai-generated` PR. The command must be the first text in the comment. Examples:
+Add the `ai-generated` label to your PR, then start an inline review comment with `/testbot <instruction>`. The command must be the first text in the comment. Examples:
 
 ```text
+/testbot add unit tests for this file
+/testbot fix this based on the CodeRabbit suggestion above
 /testbot rename test methods to follow test_<behavior>_<condition> convention
-/testbot add edge case tests for empty input
-/testbot remove the redundant tests for preset labels
+/testbot refactor this function to reduce duplication
 ```
 
 The bot responds only to repo members (OWNER, MEMBER, COLLABORATOR). It will not respond to its own replies or comments from bots.
+
+### Reverting a testbot commit
+
+If the bot's commit isn't what you wanted, revert it and retry:
+
+```bash
+git pull && git revert HEAD --no-edit && git push
+```
+
+Then post a new `/testbot` comment with clearer instructions.
 
 ## Configuration
 
