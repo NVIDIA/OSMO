@@ -85,7 +85,6 @@ http_archive(
     url = "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.darwin.aarch64.tar.xz",
 )
 
-
 ################
 #    Common    #
 ################
@@ -107,8 +106,8 @@ bazel_dep(name = "rules_python", version = "1.8.4")
 # TODO: Remove once rules_python fixes this upstream.
 single_version_override(
     module_name = "rules_python",
-    patches = ["//bzl/patches:rules_python_coverage_tool_label.patch"],
     patch_strip = 1,
+    patches = ["//bzl/patches:rules_python_coverage_tool_label.patch"],
 )
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
@@ -141,6 +140,7 @@ filegroup(
     type = "zip",
     urls = ["https://files.pythonhosted.org/packages/53/23/9e2c114d0178abc42b6d8d5281f651a8e6519abfa0ef460a00a91f80879d/coverage-7.6.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl"],
 )
+
 python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
@@ -279,9 +279,9 @@ use_repo(
     "com_github_gokrazy_rsync",
     "com_github_google_shlex",
     "com_github_gorilla_websocket",
+    "com_github_hashicorp_golang_lru_v2",
     "com_github_jackc_pgx_v5",
     "com_github_redis_go_redis_v9",
-    "com_github_hashicorp_golang_lru_v2",
     "in_gopkg_yaml_v3",
 
     # Dependencies for building rsync for CLI distribution
@@ -372,7 +372,6 @@ oci.pull(
         "linux/arm64",
     ],
 )
-
 use_repo(
     oci,
     "distroless_python3_10",
