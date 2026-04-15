@@ -18,59 +18,15 @@
 Unit tests for the storage common module.
 """
 
-import dataclasses
 import unittest
-from typing import cast
 
 from src.lib.data.storage import common
-from src.lib.data.storage.core import client, executor, progress, provider
-
-
-@dataclasses.dataclass(frozen=True, kw_only=True, slots=True)
-class _TestWorkerInput(executor.ThreadWorkerInput):
-    size: int
-    value: int
-
-    def error_key(self) -> str:
-        return str(self.value)
-
-
-@dataclasses.dataclass(slots=True)
-class _TestWorkerOutput(executor.ThreadWorkerOutput['_TestWorkerOutput']):
-    total: int = 0
-
-    def __add__(self, other: '_TestWorkerOutput' | None) -> '_TestWorkerOutput':
-        return _TestWorkerOutput(total=self.total + (0 if other is None else other.total))
-
-    def __iadd__(self, other: '_TestWorkerOutput' | None) -> '_TestWorkerOutput':
-        self.total += 0 if other is None else other.total
-        return self
-
-
-class _TestStorageClient:
-    def close(self) -> None:
-        pass
-
-
-@dataclasses.dataclass(frozen=True)
-class _TestStorageClientFactory(provider.StorageClientFactory):
-    def create(self) -> client.StorageClient:
-        return cast(client.StorageClient, _TestStorageClient())
-
-
-def _test_thread_worker(
-    worker_input: _TestWorkerInput,
-    storage_client_provider: provider.StorageClientProvider,
-    progress_updater: progress.ProgressUpdater,
-) -> _TestWorkerOutput:
-    del storage_client_provider
-    progress_updater.update(amount_change=1)
-    return _TestWorkerOutput(total=worker_input.value)
-
-
-def _test_worker_inputs():
-    for value in [1, 2, 3]:
-        yield _TestWorkerInput(size=1, value=value)
+from src.lib.data.storage.core import executor
+from src.lib.data.storage.tests.executor_test_helpers import (
+    TestStorageClientFactory,
+    test_thread_worker,
+    test_worker_inputs,
+)
 
 
 class TestCommon(unittest.TestCase):
@@ -195,9 +151,9 @@ class TestCommon(unittest.TestCase):
 
     def test_multi_process_executor_runs_job_with_explicit_context(self):
         job_context = executor.run_job(
-            thread_worker=_test_thread_worker,
-            thread_worker_input_gen=_test_worker_inputs(),
-            client_factory=_TestStorageClientFactory(),
+            thread_worker=test_thread_worker,
+            thread_worker_input_gen=test_worker_inputs(),
+            client_factory=TestStorageClientFactory(),
             enable_progress_tracker=False,
             executor_params=executor.ExecutorParameters(
                 num_processes=2,
