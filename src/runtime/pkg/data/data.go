@@ -62,6 +62,14 @@ const (
 	DatasetOperation string = "Dataset"
 )
 
+func setOrUnsetEnv(key, value string) {
+	if value != "" {
+		os.Setenv(key, value)
+	} else {
+		os.Unsetenv(key)
+	}
+}
+
 type VersionInfo struct {
 	Size         int
 	Checksum     string
@@ -410,21 +418,18 @@ func MountURL(downloadType string, credentialInfo ConfigInfo, urlPath string,
 	storageBackend := ParseStorageBackend(urlPath)
 
 	dataCredential, ok := credentialInfo.Auth.Data[storageBackend.GetProfile()]
-	if !ok {
-		osmoChan <- fmt.Sprintf("Missing data credential for %s.", storageBackend.GetProfile())
-		return isEmpty
+	if ok {
+		setOrUnsetEnv("AWS_ACCESS_KEY_ID", dataCredential.AccessKeyId)
+		setOrUnsetEnv("AWS_SECRET_ACCESS_KEY", dataCredential.AccessKey)
+		setOrUnsetEnv("AWS_REGION", dataCredential.Region)
+	} else {
+		// No explicit credential — clear any stale values and let the
+		// SDK resolve ambient credentials (IRSA, pod identity, etc.).
+		os.Unsetenv("AWS_ACCESS_KEY_ID")
+		os.Unsetenv("AWS_SECRET_ACCESS_KEY")
+		os.Unsetenv("AWS_REGION")
 	}
-	// Only set static key env vars when keys are provided.
-	// When using DefaultDataCredential (ambient credentials via Pod Identity,
-	// IRSA, etc.), keys are empty — setting empty env vars would clobber the
-	// SDK's default credential chain.
-	if dataCredential.AccessKeyId != "" {
-		os.Setenv("AWS_ACCESS_KEY_ID", dataCredential.AccessKeyId)
-		os.Setenv("AWS_SECRET_ACCESS_KEY", dataCredential.AccessKey)
-	}
-	if dataCredential.Region != "" {
-		os.Setenv("AWS_REGION", dataCredential.Region)
-	}
+	os.Unsetenv("AWS_SESSION_TOKEN")
 
 	var commandArgs []string
 

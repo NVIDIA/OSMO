@@ -517,13 +517,14 @@ class S3Backend(Boto3Backend):
             # SimulatePrincipalPolicy requires an IAM role ARN, not an STS
             # assumed-role session ARN. Convert when running under IRSA or
             # instance roles where STS returns an assumed-role ARN.
-            # arn:aws:sts::<acct>:assumed-role/<role>/<session>
-            #   -> arn:aws:iam::<acct>:role/<role>
+            # arn:<partition>:sts::<acct>:assumed-role/<path>/<role>/<session>
+            #   -> arn:<partition>:iam::<acct>:role/<path>/<role>
             if ':assumed-role/' in arn:
                 parts = arn.split(':')
+                partition = parts[1]
                 account_id = parts[4]
-                role_name = parts[5].split('/')[1]
-                arn = f'arn:aws:iam::{account_id}:role/{role_name}'
+                role_path = parts[5].split('assumed-role/', 1)[1].rsplit('/', 1)[0]
+                arn = f'arn:{partition}:iam::{account_id}:role/{role_path}'
             path = f'{self.container}/{self.path if self.path else "*"}'
 
             if path.endswith('/'):
