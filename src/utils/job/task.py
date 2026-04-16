@@ -3201,6 +3201,8 @@ def fetch_creds(
     backend_info = storage.construct_storage_backend(path)
 
     if backend_info.profile not in data_creds:
+        if backend_info.supports_environment_auth:
+            return None
         if not disabled_data or backend_info.scheme not in disabled_data:
             raise osmo_errors.OSMOCredentialError(
                 f'Could not find {backend_info.profile} credential for user {user}.')
