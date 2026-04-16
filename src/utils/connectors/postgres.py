@@ -1527,7 +1527,7 @@ class PostgresConnector:
 
             return None
 
-    def get_all_data_creds(self, user: str) -> Dict[str, credentials.DataCredential]:
+    def get_all_data_creds(self, user: str) -> Dict[str, credentials.StaticDataCredential]:
         """ Fetch all data credentials for user. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -1535,7 +1535,7 @@ class PostgresConnector:
             condition_args=[user, CredentialType.DATA.value])
         rows = self.execute_fetch_command(*select_data_cmd.get_args())
 
-        user_creds: Dict[str, credentials.DataCredential] = {
+        user_creds: Dict[str, credentials.StaticDataCredential] = {
             cred.profile: credentials.StaticDataCredential(
                 endpoint=cred.profile,
                 **self.decrypt_credential(cred),
@@ -2719,22 +2719,16 @@ class BucketMode(enum.Enum):
 def _resolve_bucket_credential(
     bucket: 'BucketConfig',
     profile: str,
-) -> credentials.DataCredential:
-    """Resolve a bucket's default_credential into the appropriate DataCredential type."""
+) -> credentials.StaticDataCredential:
+    """Resolve a bucket's default_credential, rebinding it to the bucket's profile and region."""
     credential = bucket.default_credential
     if credential is None:
         raise ValueError(f'No default credential configured for bucket with profile {profile}')
-    if isinstance(credential, credentials.StaticDataCredential):
-        return credentials.StaticDataCredential(
-            region=bucket.region,
-            access_key_id=credential.access_key_id,
-            access_key=credential.access_key,
-            endpoint=profile,
-            override_url=credential.override_url,
-        )
-    return credentials.DefaultDataCredential(
+    return credentials.StaticDataCredential(
         endpoint=profile,
         region=bucket.region,
+        access_key_id=credential.access_key_id,
+        access_key=credential.access_key,
         override_url=credential.override_url,
     )
 
@@ -2748,10 +2742,10 @@ class BucketConfig(ExtraArgBaseModel):
     description: str = ''
     # Mode for read-only or read-write or write-only
     mode: str = BucketMode.READ_WRITE.value
-    # Default cred to use doesn't have one
+    # Default cred to use is a static credential
     # Only applies to workflow operations, NOT user cli since we cannot forward the credential
     # to the user
-    default_credential: credentials.DataCredential | None = None
+    default_credential: credentials.StaticDataCredential | None = None
 
     def valid_access(self, bucket_name: str, access_type: BucketModeAccess):
         if not ((access_type == BucketModeAccess.READ and\

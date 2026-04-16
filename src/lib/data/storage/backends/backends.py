@@ -485,6 +485,16 @@ class S3Backend(Boto3Backend):
             self._validate_bucket_access(data_cred=data_cred)
             return
 
+        # Ambient credentials (IRSA, EC2 instance profile, EKS pod identity, etc.) rely on
+        # resource-based policies (bucket policies) in addition to identity-based IAM policies.
+        # SimulatePrincipalPolicy only evaluates identity policies, so it produces false
+        # negatives when access is granted exclusively via a bucket policy. For ambient
+        # credentials we fall back to a real head_bucket check, which is the true arbiter
+        # of whether the caller can reach the bucket.
+        if isinstance(data_cred, credentials.DefaultDataCredential):
+            self._validate_bucket_access(data_cred=data_cred)
+            return
+
         action = []
         if access_type == common.AccessType.READ:
             action.append('s3:GetObject')
@@ -493,19 +503,11 @@ class S3Backend(Boto3Backend):
         elif access_type == common.AccessType.DELETE:
             action.append('s3:DeleteObject')
 
-        match data_cred:
-            case credentials.StaticDataCredential():
-                session = boto3.Session(
-                    aws_access_key_id=data_cred.access_key_id,
-                    aws_secret_access_key=data_cred.access_key.get_secret_value(),
-                    region_name=self.region(data_cred),
-                )
-            case credentials.DefaultDataCredential():
-                session = boto3.Session(
-                    region_name=self.region(data_cred),
-                )
-            case _ as unreachable:
-                assert_never(unreachable)
+        session = boto3.Session(
+            aws_access_key_id=data_cred.access_key_id,
+            aws_secret_access_key=data_cred.access_key.get_secret_value(),
+            region_name=self.region(data_cred),
+        )
 
         iam_client: mypy_boto3_iam.client.IAMClient = session.client('iam')
         sts_client: mypy_boto3_sts.client.STSClient = session.client('sts')

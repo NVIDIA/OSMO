@@ -103,7 +103,7 @@ def create_login_dict(user: str,
 
 
 def create_config_dict(
-    data_info: Mapping[str, credentials.DataCredential],
+    data_info: Mapping[str, credentials.StaticDataCredential | credentials.DefaultDataCredential],
 ) -> dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
@@ -2700,7 +2700,7 @@ class TaskGroup(pydantic.BaseModel):
         service_config: connectors.ServiceConfig | None = None,
         dataset_config: connectors.DatasetConfig | None = None,
         pool_info: connectors.Pool | None = None,
-        data_endpoints: Mapping[str, credentials.DataCredential] | None = None,
+        data_endpoints: Mapping[str, credentials.StaticDataCredential] | None = None,
         skip_refresh_token: bool = False,
         auth_token: str | None = None,
     ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[str, str]]]:
@@ -3194,10 +3194,10 @@ def decode_hstore(tasks: str) -> Set[str]:
 
 def fetch_creds(
     user: str,
-    data_creds: Mapping[str, credentials.DataCredential],
+    data_creds: Mapping[str, credentials.StaticDataCredential],
     path: str,
     disabled_data: list[str] | None = None,
-) -> credentials.DataCredential | None:
+) -> credentials.StaticDataCredential | None:
     backend_info = storage.construct_storage_backend(path)
 
     if backend_info.profile not in data_creds:
