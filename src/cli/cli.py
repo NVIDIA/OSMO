@@ -115,6 +115,12 @@ def main():
     exit_code = 0
     try:
         if hasattr(args, 'func'):
+            if getattr(args, 'is_dataset_command', False):
+                print(
+                    "WARNING: 'osmo dataset' commands are deprecated as of version 6.4 "
+                    "and will be removed in a future release.",
+                    file=sys.stderr,
+                )
             args.func(service_client, args)
         else:
             parser.print_help()
