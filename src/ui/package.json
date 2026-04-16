@@ -29,7 +29,8 @@
     "licenses:check": "node scripts/check-licenses.mjs",
     "licenses:generate": "node scripts/generate-licenses.mjs",
     "licenses": "node scripts/check-licenses.mjs && node scripts/generate-licenses.mjs",
-    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test:all && pnpm build"
+    "validate": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test:all && pnpm build",
+    "validate:coverage": "pnpm licenses:check && pnpm type-check && pnpm lint && pnpm format:check && pnpm test:coverage && pnpm test:e2e && pnpm build"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",

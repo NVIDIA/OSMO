@@ -207,15 +207,25 @@ jobs:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
 
-      - name: Run Tests
+      - name: Run Tests with Coverage
         run: |
-          bazel test --config=ci \
+          bazel coverage --config=ci \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             -- \
             //...
+
+      - name: Upload coverage to Codecov
+        if: always() && !cancelled()
+        continue-on-error: true
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: bazel-out/_coverage/_coverage_report.dat
+          flags: backend
+          fail_ci_if_error: false
 
       - name: Docker cleanup
         if: always()
@@ -470,6 +480,16 @@ jobs:
         working-directory: src/ui
         run: pnpm exec playwright install chromium
 
-      - name: Validate UI
+      - name: Validate UI with Coverage
         working-directory: src/ui
-        run: pnpm validate
+        run: pnpm validate:coverage
+
+      - name: Upload UI coverage to Codecov
+        if: always() && !cancelled()
+        continue-on-error: true
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/ui/coverage/lcov.info
+          flags: ui
+          fail_ci_if_error: false
