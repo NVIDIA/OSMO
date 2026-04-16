@@ -650,7 +650,9 @@ def clean_dataset(postgres: connectors.PostgresConnector,
                                                  dataset_info.id))
 
 
-@router.delete('/{bucket}/dataset/{name}', response_model=objects.DataDeleteResponse, deprecated=True)
+@router.delete('/{bucket}/dataset/{name}',
+               response_model=objects.DataDeleteResponse,
+               deprecated=True)
 def delete_dataset(bucket: objects.DatasetPattern,
                    name: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern | None = None,
@@ -907,7 +909,9 @@ def rename(bucket: objects.DatasetPattern, old_name: str, new_name: str):
         raise osmo_errors.OSMOUserError(f'Name {new_name} is already being used by bucket {bucket}')
 
 
-@router.post('/{bucket}/dataset/{name}/attribute', response_model=objects.DataAttributeResponse, deprecated=True)
+@router.post('/{bucket}/dataset/{name}/attribute',
+             response_model=objects.DataAttributeResponse,
+             deprecated=True)
 def change_name_tag_label_metadata(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -954,7 +958,9 @@ def change_name_tag_label_metadata(
                                          metadata_response=metadata_response)
 
 
-@router.get('/{bucket}/dataset/{name}/info', response_model=objects.DataInfoResponse, deprecated=True)
+@router.get('/{bucket}/dataset/{name}/info',
+            response_model=objects.DataInfoResponse,
+            deprecated=True)
 def get_info(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
