@@ -14,9 +14,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Runs coverage and uploads to Codecov.
-# - On push to main: provides base reports so Codecov can compute diffs on PRs.
-# - On pull_request: provides head reports for the PR branch.
+# Coverage base reports.
+#
+# PR head coverage is produced by pr-checks.yaml (ci-internal for backend,
+# ui-build for UI) so we don't double-run tests on the self-hosted runner.
+# This workflow runs only on push to main (and workflow_dispatch) to refresh
+# the Codecov base report that PRs are diffed against.
 name: Coverage
 
 on:
@@ -24,9 +27,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [main, 'feature/**', 'release/**']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
