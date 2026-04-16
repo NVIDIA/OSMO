@@ -467,8 +467,7 @@ def get_bucket_info(default_only: bool = False,
                 path=bucket_info.dataset_path,
                 description=bucket_info.description,
                 mode=bucket_info.mode,
-                default_cred=bucket_info.default_credential is not None\
-                    and bucket_info.default_credential.access_key_id != '')\
+                default_cred=bucket_info.default_credential is not None)\
                 for bucket_name, bucket_info in dataset_configs.buckets.items()
         }
 

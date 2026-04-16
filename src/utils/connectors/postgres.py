@@ -1504,7 +1504,7 @@ class PostgresConnector:
             self.execute_commit_command(cmd, (cmd_args[0], new_encrypted) + cmd_args[1:])
         return func
 
-    def get_data_cred(self, user: str, profile: str) -> credentials.StaticDataCredential | None:
+    def get_data_cred(self, user: str, profile: str) -> credentials.DataCredential | None:
         """ Fetch data credentials by profile. """
         select_data_cmd = PostgresSelectCommand(
             table='credential',
@@ -1522,13 +1522,7 @@ class PostgresConnector:
                 bucket_info = storage.construct_storage_backend(bucket.dataset_path)
                 if bucket_info.profile == profile:
                     if bucket.default_credential:
-                        return credentials.StaticDataCredential(
-                            region=bucket.region,
-                            access_key_id=bucket.default_credential.access_key_id,
-                            access_key=bucket.default_credential.access_key,
-                            endpoint=bucket_info.profile,
-                            override_url=bucket.default_credential.override_url,
-                        )
+                        return _resolve_bucket_credential(bucket, bucket_info.profile)
                     break
 
             return None
@@ -1541,7 +1535,7 @@ class PostgresConnector:
             condition_args=[user, CredentialType.DATA.value])
         rows = self.execute_fetch_command(*select_data_cmd.get_args())
 
-        user_creds = {
+        user_creds: Dict[str, credentials.StaticDataCredential] = {
             cred.profile: credentials.StaticDataCredential(
                 endpoint=cred.profile,
                 **self.decrypt_credential(cred),
@@ -1553,13 +1547,8 @@ class PostgresConnector:
         for bucket in self.get_dataset_configs().buckets.values():
             bucket_info = storage.construct_storage_backend(bucket.dataset_path)
             if bucket_info.profile not in user_creds and bucket.default_credential:
-                user_creds[bucket_info.profile] = credentials.StaticDataCredential(
-                    region=bucket.region,
-                    access_key_id=bucket.default_credential.access_key_id,
-                    access_key=bucket.default_credential.access_key,
-                    endpoint=bucket_info.profile,
-                    override_url=bucket.default_credential.override_url,
-                )
+                user_creds[bucket_info.profile] = _resolve_bucket_credential(
+                    bucket, bucket_info.profile)
         return user_creds
 
     def get_generic_cred(self, user: str, cred_name: str) -> Any:
@@ -2686,7 +2675,7 @@ def construct_path(endpoint: str, bucket: str, path: str):
 
 class LogConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.StaticDataCredential | None = None
+    credential: credentials.DataCredential | None = None
 
 
 class WorkflowInfo(ExtraArgBaseModel):
@@ -2703,7 +2692,7 @@ class WorkflowInfo(ExtraArgBaseModel):
 
 class DataConfig(ExtraArgBaseModel):
     """ Config for storing information about data. """
-    credential: credentials.StaticDataCredential | None = None
+    credential: credentials.DataCredential | None = None
 
     base_url: str = ''
     # Timeout in mins for osmo-ctrl to retry connecting to the OSMO service until exiting the task
@@ -2727,6 +2716,23 @@ class BucketMode(enum.Enum):
     READ_WRITE = 'read-write'
 
 
+def _resolve_bucket_credential(
+    bucket: 'BucketConfig',
+    profile: str,
+) -> credentials.StaticDataCredential:
+    """Resolve a bucket's default_credential, rebinding it to the bucket's profile and region."""
+    credential = bucket.default_credential
+    if credential is None:
+        raise ValueError(f'No default credential configured for bucket with profile {profile}')
+    return credentials.StaticDataCredential(
+        endpoint=profile,
+        region=bucket.region,
+        access_key_id=credential.access_key_id,
+        access_key=credential.access_key,
+        override_url=credential.override_url,
+    )
+
+
 class BucketConfig(ExtraArgBaseModel):
     """
     Class to store the name of the bucket and the dataset path
@@ -2736,7 +2742,7 @@ class BucketConfig(ExtraArgBaseModel):
     description: str = ''
     # Mode for read-only or read-write or write-only
     mode: str = BucketMode.READ_WRITE.value
-    # Default cred to use doesn't have one
+    # Default cred to use is a static credential
     # Only applies to workflow operations, NOT user cli since we cannot forward the credential
     # to the user
     default_credential: credentials.StaticDataCredential | None = None
