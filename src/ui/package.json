@@ -129,9 +129,6 @@
     ]
   },
   "pnpm": {
-    "overrides": {
-      "flatted": "3.4.2"
-    },
     "ignoredOptionalDependencies": [
       "@img/sharp-darwin-arm64",
       "@img/sharp-darwin-x64",
