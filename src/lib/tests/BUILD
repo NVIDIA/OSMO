@@ -20,8 +20,6 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 osmo_py_test(
     name = "test_import",
     srcs = ["test_import.py"],
-    # nocoverage: imports from the wheel, not source files — coverage.py crashes with NoDataError.
-    tags = ["nocoverage"],
     deps = [
         "//src/lib/distribution:osmo_py_wheel_unpacked",
     ],

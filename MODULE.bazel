@@ -100,14 +100,21 @@ bazel_dep(name = "rules_shell", version = "0.7.1")
 bazel_dep(name = "aspect_rules_py", version = "1.11.2")
 bazel_dep(name = "rules_python", version = "1.9.0")
 
-# Patch: single_version_platform_override.coverage_tool is attr.label() but
-# python_repository.coverage_tool is attr.string(), causing a type mismatch.
-# This one-line patch converts the Label to string before it flows through.
-# TODO: Remove once rules_python fixes this upstream.
+# Patches:
+#   - coverage_tool_label: single_version_platform_override.coverage_tool is
+#     attr.label() but python_repository.coverage_tool is attr.string(). Patch
+#     converts the Label to string before it flows through.
+#   - coverage_empty_data: wrap lcov_report() in try/except so tests whose
+#     imports resolve outside the tracked source tree (e.g. wheel-only tests)
+#     emit an empty lcov instead of raising NoDataError and failing.
+# TODO: Remove both once rules_python fixes these upstream.
 single_version_override(
     module_name = "rules_python",
     patch_strip = 1,
-    patches = ["//bzl/patches:rules_python_coverage_tool_label.patch"],
+    patches = [
+        "//bzl/patches:rules_python_coverage_tool_label.patch",
+        "//bzl/patches:rules_python_coverage_empty_data.patch",
+    ],
 )
 
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")

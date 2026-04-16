@@ -16,5 +16,6 @@
 
 exports_files([
     "coverage_syspath.patch",
+    "rules_python_coverage_empty_data.patch",
     "rules_python_coverage_tool_label.patch",
 ])
