@@ -450,7 +450,7 @@ def build_collection(postgres: connectors.PostgresConnector,
     return new_datasets
 
 
-@router.get('', response_model=objects.BucketInfoResponse)
+@router.get('', response_model=objects.BucketInfoResponse, deprecated=True)
 def get_bucket_info(default_only: bool = False,
                     username: str = fastapi.Depends(connectors.parse_username)
                     ) -> objects.BucketInfoResponse:
@@ -649,7 +649,7 @@ def clean_dataset(postgres: connectors.PostgresConnector,
                                                  dataset_info.id))
 
 
-@router.delete('/{bucket}/dataset/{name}', response_model=objects.DataDeleteResponse)
+@router.delete('/{bucket}/dataset/{name}', response_model=objects.DataDeleteResponse, deprecated=True)
 def delete_dataset(bucket: objects.DatasetPattern,
                    name: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern | None = None,
@@ -906,7 +906,7 @@ def rename(bucket: objects.DatasetPattern, old_name: str, new_name: str):
         raise osmo_errors.OSMOUserError(f'Name {new_name} is already being used by bucket {bucket}')
 
 
-@router.post('/{bucket}/dataset/{name}/attribute', response_model=objects.DataAttributeResponse)
+@router.post('/{bucket}/dataset/{name}/attribute', response_model=objects.DataAttributeResponse, deprecated=True)
 def change_name_tag_label_metadata(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -953,7 +953,7 @@ def change_name_tag_label_metadata(
                                          metadata_response=metadata_response)
 
 
-@router.get('/{bucket}/dataset/{name}/info', response_model=objects.DataInfoResponse)
+@router.get('/{bucket}/dataset/{name}/info', response_model=objects.DataInfoResponse, deprecated=True)
 def get_info(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -987,7 +987,7 @@ def get_info(
                                     versions=rows)
 
 
-@router.get('/list_dataset', response_model=objects.DataListResponse)
+@router.get('/list_dataset', response_model=objects.DataListResponse, deprecated=True)
 def list_dataset_from_bucket(name: objects.DatasetPattern | None = None,
                              user: List[str] | None = fastapi.Query(default = None),
                              buckets: List[str] = fastapi.Query(default = []),
@@ -1078,7 +1078,7 @@ def list_dataset_from_bucket(name: objects.DatasetPattern | None = None,
     return objects.DataListResponse(datasets=rows)
 
 
-@router.post('/{bucket}/dataset/{name}/collect')
+@router.post('/{bucket}/dataset/{name}/collect', deprecated=True)
 def create_collection(bucket: objects.DatasetPattern,
                       name: objects.DatasetPattern,
                       datasets: List[objects.DatasetStructure] = fastapi.Body(..., embed=True),
@@ -1125,7 +1125,7 @@ def create_collection(bucket: objects.DatasetPattern,
     postgres.execute_commit_command(insert_cmd, collection_versions)
 
 
-@router.get('/{bucket}/query', response_model=objects.DataQueryResponse)
+@router.get('/{bucket}/query', response_model=objects.DataQueryResponse, deprecated=True)
 def query_dataset(
     bucket: objects.DatasetPattern,
     command: str = fastapi.Query(default=''),
