@@ -284,6 +284,14 @@ def _resolve_single_pool(
     group_templates: Dict[str, Any],
 ) -> None:
     """Resolve computed fields for a single pool and its platforms."""
+    # Normalize list/dict fields to prevent crashes on null/wrong types
+    for list_field in ('common_pod_template', 'common_resource_validations',
+                       'common_group_templates'):
+        if not isinstance(pool_data.get(list_field), list):
+            pool_data[list_field] = []
+    if not isinstance(pool_data.get('platforms'), dict):
+        pool_data['platforms'] = {}
+
     # Resolve common pod template (pool-level base)
     common_pod_template_names = pool_data.get('common_pod_template', [])
     base_pod_template: Dict[str, Any] = {}
@@ -376,6 +384,11 @@ def _resolve_platform_fields(
     Always resolves from source-of-truth references (template names),
     overwriting any pre-existing parsed_* fields.
     """
+    # Normalize list fields to prevent crashes on null/wrong types
+    for list_field in ('override_pod_template', 'resource_validations'):
+        if not isinstance(platform_data.get(list_field), list):
+            platform_data[list_field] = []
+
     # Pod template: start from pool common, merge platform overrides
     platform_pod_template = copy.deepcopy(base_pod_template)
     for template_name in platform_data.get('override_pod_template', []):
@@ -384,6 +397,10 @@ def _resolve_platform_fields(
                 platform_pod_template,
                 copy.deepcopy(pod_templates[template_name]),
                 merge_lists_on_name)
+        else:
+            logging.warning(
+                'Pod template %r referenced by platform not found',
+                template_name)
     platform_data['parsed_pod_template'] = platform_pod_template
 
     # Derive tolerations, labels, default_mounts from resolved template.
@@ -401,6 +418,10 @@ def _resolve_platform_fields(
         if validation_name in resource_validations:
             platform_resource_validations.extend(
                 copy.deepcopy(resource_validations[validation_name]))
+        else:
+            logging.warning(
+                'Resource validation %r referenced by platform not found',
+                validation_name)
     platform_data['parsed_resource_validations'] = \
         platform_resource_validations
 

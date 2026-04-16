@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,8 +41,9 @@ import argparse
 import json
 import os
 import sys
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 
 import yaml
 
@@ -94,6 +95,11 @@ ROLE_INTERNAL_FIELDS = {
 def fetch(base_url, path, headers):
     """Fetch JSON from the OSMO API."""
     url = f'{base_url}{path}'
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in ('http', 'https'):
+        print(f'Error: URL must use http or https scheme: {url}',
+              file=sys.stderr)
+        return None
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -235,9 +241,6 @@ def main():
     parser.add_argument(
         '--header', action='append', default=[],
         help='Custom header (e.g., "x-osmo-user: admin"). Can be repeated.')
-    parser.add_argument(
-        '--include-defaults', action='store_true',
-        help='Include configs that match chart defaults (roles, templates, etc.)')
     args = parser.parse_args()
 
     if not args.url:
@@ -252,7 +255,7 @@ def main():
         headers[key.strip()] = value.strip()
 
     print(f'# Exported from {base_url}', file=sys.stderr)
-    print(f'# Paste this into services.configs in your Helm values.\n',
+    print('# Paste this into services.configs in your Helm values.\n',
           file=sys.stderr)
 
     configs = {}
@@ -285,6 +288,9 @@ def main():
     if pools:
         configs['pools'] = pools
 
+    # Named configs use camelCase keys to match Helm values convention.
+    # The Helm chart template (configs.yaml) converts these to snake_case
+    # when rendering the ConfigMap file that the loader reads.
     print('Exporting pod templates...', file=sys.stderr)
     pod_templates = export_named_configs(
         base_url, headers, 'pod_template')
