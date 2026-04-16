@@ -2722,6 +2722,8 @@ def _resolve_bucket_credential(
 ) -> credentials.DataCredential:
     """Resolve a bucket's default_credential into the appropriate DataCredential type."""
     credential = bucket.default_credential
+    if credential is None:
+        raise ValueError(f'No default credential configured for bucket with profile {profile}')
     if isinstance(credential, credentials.StaticDataCredential):
         return credentials.StaticDataCredential(
             region=bucket.region,
