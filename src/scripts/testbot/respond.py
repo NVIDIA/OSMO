@@ -287,8 +287,8 @@ def build_prompt(threads: list[dict]) -> str:
         "",
     ]
     for thread in threads:
-        location = f"`{thread['path']}` line {thread['line']}"
-        lines.append(f"### Comment {thread['reply_comment_id']} ({location})")
+        location = f"`{thread["path"]}` line {thread["line"]}"
+        lines.append(f"### Comment {thread["reply_comment_id"]} ({location})")
         lines.append(thread["thread_history"])
         lines.append("")
 
