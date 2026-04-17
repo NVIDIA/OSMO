@@ -20,8 +20,8 @@
 # pip-compile ./requirements.txt -o locked_requirements.txt --allow-unsafe -v --generate-hashes
 
 # Linting and type-checking
-mypy==1.10.0
-pyyaml==6.0
+mypy==1.20.0
+pyyaml==6.0.3
 
 # Additional types
 types-boto3[s3]==1.35.*

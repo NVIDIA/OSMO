@@ -53,7 +53,7 @@ def setup_parser(parser: argparse._SubParsersAction):
                              help='Display all tasks with the given status(es). '\
                                   'Users can pass multiple values to this flag. '\
                                   'Defaults to PROCESSING, SCHEDULING, INITIALIZING and RUNNING. '\
-                                  f'Acceptable values: {", ".join(status_choices)}.')
+                                  f'Acceptable values: {', '.join(status_choices)}.')
     list_parser.add_argument('--workflow-id', '-w',
                              dest='workflow_id',
                              help='Display workflows which contains the string.')

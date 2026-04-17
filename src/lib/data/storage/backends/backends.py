@@ -525,7 +525,7 @@ class S3Backend(Boto3Backend):
                 account_id = parts[4]
                 role_path = parts[5].split('assumed-role/', 1)[1].rsplit('/', 1)[0]
                 arn = f'arn:{partition}:iam::{account_id}:role/{role_path}'
-            path = f'{self.container}/{self.path if self.path else "*"}'
+            path = f'{self.container}/{self.path if self.path else '*'}'
 
             if path.endswith('/'):
                 # S3 IAM simulation will validate against an object with a trailing slash,
@@ -544,7 +544,7 @@ class S3Backend(Boto3Backend):
                 for result in results['EvaluationResults']:
                     if result['EvalDecision'] != 'allowed':
                         raise osmo_errors.OSMOCredentialError(
-                            f'Data key validation error: no {result["EvalActionName"]} '
+                            f'Data key validation error: no {result['EvalActionName']} '
                             f'access for s3://{path}')
 
         try:

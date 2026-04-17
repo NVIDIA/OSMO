@@ -243,7 +243,7 @@ def filter_actionable(
 
         # Build full thread conversation for context
         thread_history = "\n".join(
-            f"  [{c['author']}]: {c['body']}" for c in comments
+            f"  [{c["author"]}]: {c["body"]}" for c in comments
         )
         logger.info(
             "  ACTIONABLE path=%s line=%s trigger_comment=%s author=%s (%d comments in thread)",
@@ -287,8 +287,8 @@ def build_prompt(threads: list[dict], pr_number: int) -> str:
         "",
     ]
     for thread in threads:
-        location = f"`{thread['path']}` line {thread['line']}"
-        lines.append(f"### Comment {thread['reply_comment_id']} ({location})")
+        location = f"`{thread["path"]}` line {thread["line"]}"
+        lines.append(f"### Comment {thread["reply_comment_id"]} ({location})")
         lines.append(thread["thread_history"])
         lines.append("")
 

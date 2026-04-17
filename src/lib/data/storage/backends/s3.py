@@ -1123,7 +1123,7 @@ class S3StorageClient(client.StorageClient):
                         for error in delete_objects_response['Errors']:
                             delete_errors.append(client.DeleteError(
                                 key=error['Key'],
-                                message=f'Code: {error["Code"]}, Reason: {error["Message"]}',
+                                message=f'Code: {error['Code']}, Reason: {error['Message']}',
                             ))
 
             else:
@@ -1137,7 +1137,7 @@ class S3StorageClient(client.StorageClient):
                         if response_metadata['HTTPStatusCode'] >= 400:
                             delete_errors.append(client.DeleteError(
                                 key=obj.key,
-                                message=f'Code: {response_metadata["HTTPStatusCode"]}',
+                                message=f'Code: {response_metadata['HTTPStatusCode']}',
                             ))
                             continue
 

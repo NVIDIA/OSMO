@@ -17,8 +17,10 @@ SPDX-License-Identifier: Apache-2.0
 """
 import argparse
 import unittest
+from unittest import mock
 
 from src.cli import workflow
+from src.lib.rsync import rsync
 
 class TestPortParse(unittest.TestCase):
     def test_port_parse(self):
@@ -59,6 +61,100 @@ class TestPortParse(unittest.TestCase):
 
         # Ports not matched
         test_bad_port('8000-8005:9001-9002')
+
+
+class TestAsyncioEntrypoints(unittest.TestCase):
+    def test_exec_workflow_runs_without_current_event_loop(self):
+        service_client = mock.Mock()
+        service_client.request.return_value = {
+            'router_address': 'ws://router',
+            'cookie': 'session=abc',
+            'key': 'key-1',
+        }
+        args = argparse.Namespace(
+            group=None,
+            task='task-1',
+            keep_alive=False,
+            exec_entry_command='/bin/bash',
+            workflow_id='workflow-1',
+        )
+
+        with mock.patch.object(
+            workflow,
+            '_run_exec_interactive',
+            new=mock.AsyncMock(),
+        ) as run_exec_interactive:
+            workflow._exec_workflow(service_client, args)
+
+        self.assertEqual(run_exec_interactive.await_count, 1)
+
+    def test_port_forward_runs_without_current_event_loop(self):
+        service_client = mock.Mock()
+        service_client.request.return_value = [{
+            'router_address': 'ws://router',
+            'key': 'key-1',
+            'cookie': 'session=abc',
+        }]
+        args = argparse.Namespace(
+            workflow_id='workflow-1',
+            task='task-1',
+            port=([8080], [8080]),
+            udp=False,
+            host='localhost',
+            connect_timeout=10,
+        )
+
+        with mock.patch.object(
+            workflow,
+            '_single_port_forward',
+            new=mock.AsyncMock(),
+        ) as single_port_forward:
+            workflow._port_forward(service_client, args)
+
+        self.assertEqual(single_port_forward.await_count, 1)
+
+    def test_rsync_upload_runs_without_current_event_loop_for_foreground_mode(self):
+        service_client = mock.Mock()
+
+        with mock.patch.object(rsync, 'get_rsync_config', return_value={}), mock.patch.object(
+            rsync,
+            'parse_rsync_request',
+            return_value=mock.sentinel.rsync_request,
+        ), mock.patch.object(
+            rsync,
+            'rsync_upload_task',
+            new=mock.AsyncMock(),
+        ) as upload_task:
+            rsync.rsync_upload(
+                service_client,
+                'workflow-1',
+                'task-1',
+                '/tmp/local:/tmp/remote',
+                daemon=False,
+            )
+
+        self.assertEqual(upload_task.await_count, 1)
+
+    def test_rsync_download_runs_without_current_event_loop(self):
+        service_client = mock.Mock()
+
+        with mock.patch.object(rsync, 'get_rsync_config', return_value={}), mock.patch.object(
+            rsync,
+            'parse_rsync_request',
+            return_value=mock.sentinel.rsync_request,
+        ), mock.patch.object(
+            rsync,
+            'rsync_download_task',
+            new=mock.AsyncMock(),
+        ) as download_task:
+            rsync.rsync_download(
+                service_client,
+                'workflow-1',
+                'task-1',
+                '/tmp/remote:/tmp/local',
+            )
+
+        self.assertEqual(download_task.await_count, 1)
 
 
 if __name__ == "__main__":

@@ -16,12 +16,21 @@
 
 package(default_visibility = ["//visibility:public"])
 
-load("//bzl:py.bzl", "osmo_py_test")
+load("//bzl:py.bzl", "osmo_py_library", "osmo_py_test")
+
+osmo_py_library(
+    name = "executor_test_helpers",
+    srcs = ["executor_test_helpers.py"],
+    deps = [
+        "//src/lib/data/storage",
+    ],
+)
 
 osmo_py_test(
     name = "test_common",
     srcs = ["test_common.py"],
     deps = [
         "//src/lib/data/storage",
+        ":executor_test_helpers",
     ],
 )

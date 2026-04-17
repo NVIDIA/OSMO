@@ -91,14 +91,14 @@ http_archive(
 
 bazel_dep(name = "aspect_bazel_lib", version = "2.19.3")
 bazel_dep(name = "platforms", version = "1.0.0")
-bazel_dep(name = "rules_shell", version = "0.4.1")
+bazel_dep(name = "rules_shell", version = "0.7.1")
 
 ################
 #    Python    #
 ################
 
-bazel_dep(name = "aspect_rules_py", version = "1.8.4")
-bazel_dep(name = "rules_python", version = "1.8.4")
+bazel_dep(name = "aspect_rules_py", version = "1.11.2")
+bazel_dep(name = "rules_python", version = "1.9.0")
 
 # Patch: single_version_platform_override.coverage_tool is attr.label() but
 # python_repository.coverage_tool is attr.string(), causing a type mismatch.
@@ -114,7 +114,7 @@ python = use_extension("@rules_python//python/extensions:python.bzl", "python")
 python.toolchain(
     ignore_root_user_error = True,
     is_default = True,
-    python_version = "3.10.19",
+    python_version = "3.14.2",
 )
 
 # Python coverage tool for `bazel coverage` on CI (Linux x86_64).
@@ -135,16 +135,16 @@ filegroup(
 )
 """,
     patch_args = ["-p1"],
-    patches = ["@rules_python//python/private:coverage.patch"],
-    sha256 = "8f59d57baca39b32db42b83b2a7ba6f47ad9c394ec2076b084c3f029b7afca23",
+    patches = ["//bzl/patches:coverage_syspath.patch"],
+    sha256 = "6c36ddb64ed9d7e496028d1d00dfec3e428e0aabf4006583bb1839958d280510",
     type = "zip",
-    urls = ["https://files.pythonhosted.org/packages/53/23/9e2c114d0178abc42b6d8d5281f651a8e6519abfa0ef460a00a91f80879d/coverage-7.6.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl"],
+    urls = ["https://files.pythonhosted.org/packages/22/e5/06b1f88f42a5a99df42ce61208bdec3bddb3d261412874280a19796fc09c/coverage-7.13.5-cp314-cp314-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl"],
 )
 
 python.single_version_platform_override(
     coverage_tool = "@python_coverage_linux_x86_64//:coverage",
     platform = "x86_64-unknown-linux-gnu",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
@@ -159,7 +159,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_mypy_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//bzl/mypy:locked_requirements.txt",
 )
 use_repo(pip, "osmo_mypy_deps")
@@ -174,7 +174,7 @@ pip.parse(
         "30",
     ],
     hub_name = "pylint_python_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//bzl/linting:locked_requirements.txt",
 )
 use_repo(pip, "pylint_python_deps")
@@ -189,7 +189,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_python_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//src:locked_requirements.txt",
 )
 use_repo(pip, "osmo_python_deps")
@@ -204,7 +204,7 @@ pip.parse(
         "30",
     ],
     hub_name = "osmo_tests_python_deps",
-    python_version = "3.10.19",
+    python_version = "3.14.2",
     requirements_lock = "//src/tests:locked_requirements.txt",
 )
 use_repo(pip, "osmo_tests_python_deps")
@@ -240,8 +240,8 @@ bazel_dep(name = "bazel_skylib", version = "1.8.2")
 #      Go      #
 ################
 
-bazel_dep(name = "rules_go", version = "0.57.0", repo_name = "io_bazel_rules_go")
-bazel_dep(name = "gazelle", version = "0.42.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "rules_go", version = "0.60.0", repo_name = "io_bazel_rules_go")
+bazel_dep(name = "gazelle", version = "0.50.0", repo_name = "bazel_gazelle")
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(
@@ -343,9 +343,9 @@ apt.install(
 )
 
 oci.pull(
-    name = "distroless_python3_10",
-    digest = "sha256:d84b0a23be412faa58856365f069f7e2d364a2b589f4f7bb1d1080e215b61b16",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.3",
+    name = "distroless_python3_14",
+    digest = "sha256:4cf4cb9ff8d131d30b4f3d98ae003b530c819f6486247695cc79b6e3feaa5291",
+    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.3",
     platforms = [
         "linux/arm64",
         "linux/amd64",
@@ -354,13 +354,13 @@ oci.pull(
 
 # Used for local debugging
 # oci.pull(
-#     name = "distroless_python3_10_dev",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.10-v4.0.3-dev",
+#     name = "distroless_python3_14_dev",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.3-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"
 #     ],
-#     digest = "sha256:a1870afc12027e3976f9c4982a4c8e8c4f0b97f0bb1554b66db7786effd834f2",
+#     digest = "sha256:a25a2354a367dab49bd1848debab922e85f250d3cc569a0c73bc4898f84463c4",
 # )
 
 oci.pull(
@@ -374,12 +374,12 @@ oci.pull(
 )
 use_repo(
     oci,
-    "distroless_python3_10",
-    "distroless_python3_10_linux_amd64",
-    "distroless_python3_10_linux_arm64",
-    # "distroless_python3_10_dev",
-    # "distroless_python3_10_dev_linux_amd64",
-    # "distroless_python3_10_dev_linux_arm64_v8",
+    "distroless_python3_14",
+    "distroless_python3_14_linux_amd64",
+    "distroless_python3_14_linux_arm64",
+    # "distroless_python3_14_dev",
+    # "distroless_python3_14_dev_linux_amd64",
+    # "distroless_python3_14_dev_linux_arm64_v8",
     "ubuntu_22_04",
     "ubuntu_22_04_linux_amd64",
     "ubuntu_22_04_linux_arm64",

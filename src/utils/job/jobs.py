@@ -184,7 +184,7 @@ class SubmitWorkflow(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-submit'
+        return f'{values['workflow_uuid']}-submit'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -216,7 +216,7 @@ class SubmitWorkflow(WorkflowJob):
             parent_workflow_id=self.parent_workflow_id, task_db_keys=self.task_db_keys,
             app_uuid=self.app_uuid, app_version=self.app_version,
             priority=self.priority)
-        version = self.original_spec['version'] if 'version' in self.original_spec else '2'
+        version = int(self.original_spec['version']) if 'version' in self.original_spec else 2
         workflow_obj.insert_to_db(version)
 
         self.workflow_id = workflow_obj.workflow_id
@@ -372,7 +372,7 @@ class UploadWorkflowFiles(WorkflowJob):
         # 16 bytes of the hash is enough to guarantee uniqueness
         all_paths = '\n'.join(file.path for file in values['files'])
         digest = hashlib.sha256(all_paths.encode('utf-8')).hexdigest()[:32]
-        return f'{values["workflow_uuid"]}-{digest}-upload-files'
+        return f'{values['workflow_uuid']}-{digest}-upload-files'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -464,7 +464,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{values["group_name"]}-submit'
+        return f'{values['workflow_uuid']}-{values['group_name']}-submit'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -552,7 +552,7 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{values["group_name"]}-backend-cleanup'
+        return f'{values['workflow_uuid']}-{values['group_name']}-backend-cleanup'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -1280,7 +1280,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{values["task_name"]}-{values["retry_id"]}-reschedule'
+        return f'{values['workflow_uuid']}-{values['task_name']}-{values['retry_id']}-reschedule'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -1378,7 +1378,7 @@ class CleanupWorkflow(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-cleanup'
+        return f'{values['workflow_uuid']}-cleanup'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -1605,7 +1605,7 @@ class CancelWorkflow(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-cancel'
+        return f'{values['workflow_uuid']}-cancel'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -1680,7 +1680,7 @@ class CheckRunTimeout(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{common.generate_unique_id(5)}-check_run_timeout'
+        return f'{values['workflow_uuid']}-{common.generate_unique_id(5)}-check_run_timeout'
 
     def execute(self, context: JobExecutionContext,
                 progress_writer: progress.ProgressWriter,
@@ -1732,7 +1732,7 @@ class CheckQueueTimeout(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{common.generate_unique_id(5)}-check_queue_timeout'
+        return f'{values['workflow_uuid']}-{common.generate_unique_id(5)}-check_queue_timeout'
 
     def execute(self, context: JobExecutionContext,
                 progress_writer: progress.ProgressWriter,
@@ -1786,7 +1786,7 @@ class UploadApp(FrontendJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["app_uuid"]}-{values["app_version"]}-upload-app'
+        return f'{values['app_uuid']}-{values['app_version']}-upload-app'
 
     @pydantic.field_validator('job_id')
     @classmethod
@@ -1847,7 +1847,7 @@ class DeleteApp(FrontendJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["app_uuid"]}-{values["app_versions"]}-delete-app'
+        return f'{values['app_uuid']}-{values['app_versions']}-delete-app'
 
     @pydantic.field_validator('job_id')
     @classmethod

@@ -67,7 +67,7 @@ async def http2raw(request: fastapi.Request | fastapi.WebSocket) -> bytes:
     method = request.method if isinstance(request, fastapi.Request) else 'GET'
     request_lines = [
         f'{method} {request.url.path}'
-        f'{"?" + request.url.query if request.url.query else ""} '
+        f'{'?' + request.url.query if request.url.query else ''} '
         'HTTP/1.1'
     ]
     for name, value in request.headers.items():

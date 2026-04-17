@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -146,8 +146,8 @@ jobs:
       COMPOSE_PROJECT_NAME: ci-${{ github.run_id }}
       DOCKER_BUILDKIT: "1"
     container:
-      # python:3.10.18-bullseye pinned to digest for security (amd64)
-      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
+      # python:3.14.2-bookworm pinned to digest for security (amd64)
+      image: python:3.14.2-bookworm@sha256:bee107ebb973b658218ed57303beb7a8fd9f187dd574a740bc62bc88ea39b629
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
@@ -299,7 +299,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.10.18'
+          python-version: '3.14.2'
 
       - name: Install dependencies
         run: |
