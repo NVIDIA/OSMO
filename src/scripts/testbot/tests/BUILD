@@ -26,3 +26,12 @@ osmo_py_test(
     srcs = ["test_create_pr.py"],
     deps = ["//src/scripts/testbot"],
 )
+
+osmo_py_test(
+    name = "test_workflow_python_version",
+    srcs = ["test_workflow_python_version.py"],
+    data = [
+        "//:MODULE.bazel",
+        "//.github/workflows:workflows",
+    ],
+)
