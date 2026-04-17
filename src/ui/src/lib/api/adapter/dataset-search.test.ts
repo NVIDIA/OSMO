@@ -178,6 +178,50 @@ describe("searchManifest", () => {
       expect(result.files).toHaveLength(1);
       expect(result.files[0].relativePath).toBe("train/images/img001.png");
     });
+
+    it("returns all matching files when term is empty string", () => {
+      const result = searchManifest(sampleManifest, "train", "");
+      expect(result.files).toHaveLength(5);
+      expect(result.files.every((f) => f.relativePath?.startsWith("train/"))).toBe(true);
+    });
+
+    it("handles whitespace-only search term as filename prefix", () => {
+      const result = searchManifest(sampleManifest, "", "   ");
+      expect(result.files).toHaveLength(0);
+    });
+
+    it("handles term with leading/trailing whitespace", () => {
+      const result = searchManifest(sampleManifest, "", " cat ");
+      expect(result.files).toHaveLength(0);
+    });
+
+    it("handles path with trailing slash by treating as path prefix search", () => {
+      const result = searchManifest(sampleManifest, "", "train/");
+      expect(result.files).toHaveLength(5);
+      expect(result.files.every((f) => f.relativePath?.startsWith("train/"))).toBe(true);
+    });
+
+    it("handles path filter with trailing slash", () => {
+      const manifest = buildProcessedManifest(["a/b/c.txt", "a/b.txt"]);
+      const result = searchManifest(manifest, "a/b", "c");
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].relativePath).toBe("a/b/c.txt");
+    });
+
+    it("finds files with multiple extensions correctly", () => {
+      const manifest = buildProcessedManifest(["archive.tar.gz", "archive.tar", "data.json.gz"]);
+      const result = searchManifest(manifest, "", "archive");
+      expect(result.files).toHaveLength(2);
+      expect(result.files.map((f) => f.name)).toContain("archive.tar.gz");
+      expect(result.files.map((f) => f.name)).toContain("archive.tar");
+    });
+
+    it("handles files without extensions", () => {
+      const manifest = buildProcessedManifest(["Makefile", "README", "src/Dockerfile"]);
+      const result = searchManifest(manifest, "", "make");
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].name).toBe("Makefile");
+    });
   });
 });
 
@@ -246,6 +290,44 @@ describe("searchByExtension", () => {
 
     it("stops scanning when path prefix no longer matches", () => {
       const result = searchByExtension(sampleManifest, "train", "csv");
+      expect(result.files).toHaveLength(0);
+    });
+
+    it("handles files without extensions", () => {
+      const manifest = buildProcessedManifest(["Makefile", "README", "config.json"]);
+      const result = searchByExtension(manifest, "", "json");
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].name).toBe("config.json");
+    });
+
+    it("does not match extensionless files when searching for empty extension", () => {
+      const manifest = buildProcessedManifest(["Makefile", "README", "config.json"]);
+      const result = searchByExtension(manifest, "", "");
+      expect(result.files).toHaveLength(0);
+    });
+
+    it("handles files with multiple dots (matches final extension only)", () => {
+      const manifest = buildProcessedManifest(["archive.tar.gz", "archive.tar", "data.json.gz"]);
+      const result = searchByExtension(manifest, "", "gz");
+      expect(result.files).toHaveLength(2);
+      expect(result.files.map((f) => f.name)).toContain("archive.tar.gz");
+      expect(result.files.map((f) => f.name)).toContain("data.json.gz");
+    });
+
+    it("does not match partial extension names", () => {
+      const manifest = buildProcessedManifest(["file.json", "file.jsonl"]);
+      const result = searchByExtension(manifest, "", "json");
+      expect(result.files).toHaveLength(1);
+      expect(result.files[0].name).toBe("file.json");
+    });
+
+    it("handles extension with leading dot by ignoring it", () => {
+      const result = searchByExtension(sampleManifest, "", ".jpg");
+      expect(result.files).toHaveLength(0);
+    });
+
+    it("handles whitespace in extension parameter", () => {
+      const result = searchByExtension(sampleManifest, "", " jpg ");
       expect(result.files).toHaveLength(0);
     });
   });
