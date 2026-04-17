@@ -146,6 +146,24 @@ describe("isTransientError - keyword matching", () => {
 });
 
 // =============================================================================
+// isTransientError - HTTP/2 protocol errors (mentioned in call site comments)
+// =============================================================================
+
+describe("isTransientError - HTTP/2 protocol errors", () => {
+  it("returns true for ERR_HTTP2_PROTOCOL_ERROR", () => {
+    const error = new Error("net::ERR_HTTP2_PROTOCOL_ERROR");
+
+    expect(isTransientError(error)).toBe(true);
+  });
+
+  it("returns true for ERR_HTTP2_PING_FAILED", () => {
+    const error = new Error("net::ERR_HTTP2_PING_FAILED");
+
+    expect(isTransientError(error)).toBe(true);
+  });
+});
+
+// =============================================================================
 // isTransientError - HTTP 5xx errors
 // =============================================================================
 
@@ -188,6 +206,24 @@ describe("isTransientError - HTTP 5xx errors", () => {
 });
 
 // =============================================================================
+// isTransientError - HTTP 4xx auth errors (should NOT retry)
+// =============================================================================
+
+describe("isTransientError - HTTP 4xx auth errors", () => {
+  it("returns false for 'Stream failed: 401'", () => {
+    const error = new Error("Stream failed: 401 Unauthorized");
+
+    expect(isTransientError(error)).toBe(false);
+  });
+
+  it("returns false for 'Stream failed: 403'", () => {
+    const error = new Error("Stream failed: 403 Forbidden");
+
+    expect(isTransientError(error)).toBe(false);
+  });
+});
+
+// =============================================================================
 // isTransientError - Non-transient errors
 // =============================================================================
 
@@ -212,6 +248,12 @@ describe("isTransientError - non-transient errors", () => {
 
   it("returns false for 'Response body is not readable'", () => {
     const error = new Error("Response body is not readable");
+
+    expect(isTransientError(error)).toBe(false);
+  });
+
+  it("returns false for empty error message", () => {
+    const error = new Error("");
 
     expect(isTransientError(error)).toBe(false);
   });
@@ -317,6 +359,30 @@ describe("getRetryDelay - jitter range", () => {
     const delay = getRetryDelay(0);
 
     expect(Number.isInteger(delay)).toBe(true);
+  });
+});
+
+describe("getRetryDelay - edge cases", () => {
+  beforeEach(() => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("handles negative attempt by returning small positive delay", () => {
+    const delay = getRetryDelay(-1);
+
+    // 1000 * 2^-1 = 500ms with no jitter
+    expect(delay).toBe(500);
+  });
+
+  it("handles very large attempt by capping at max", () => {
+    const delay = getRetryDelay(100);
+
+    // Would overflow without cap, but capped at 30000
+    expect(delay).toBe(30000);
   });
 });
 
@@ -464,5 +530,37 @@ describe("abortableDelay - event listener cleanup", () => {
     await delayPromise;
 
     expect(removeEventListenerSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+  });
+});
+
+// =============================================================================
+// abortableDelay - Edge cases
+// =============================================================================
+
+describe("abortableDelay - edge cases", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("resolves immediately with 0ms delay", async () => {
+    const controller = new AbortController();
+    const delayPromise = abortableDelay(0, controller.signal);
+
+    vi.advanceTimersByTime(0);
+
+    await expect(delayPromise).resolves.toBeUndefined();
+  });
+
+  it("handles very small positive delay", async () => {
+    const controller = new AbortController();
+    const delayPromise = abortableDelay(1, controller.signal);
+
+    vi.advanceTimersByTime(1);
+
+    await expect(delayPromise).resolves.toBeUndefined();
   });
 });
