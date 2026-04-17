@@ -16,6 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import copy
 import json
 import logging
 import os
@@ -25,6 +26,7 @@ from typing import Any, Callable, Dict, List
 import yaml
 from watchdog import events, observers
 
+from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
 from src.service.core.config import configmap_guard
 from src.utils import connectors
 
@@ -147,6 +149,11 @@ class ConfigMapWatcher:
                 validation_errors)
             return False
 
+        # Resolve pool computed fields (parsed_pod_template, etc.) from
+        # template/validation name references. This allows compact ConfigMap
+        # YAML that only contains reference names, not expanded content.
+        _resolve_pool_computed_fields(managed_configs)
+
         # Inject runtime-generated fields (service_auth, service_base_url)
         # that are not in the ConfigMap but are needed by the service.
         self._inject_runtime_fields(managed_configs)
@@ -236,6 +243,187 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
                 f'{config_key}: must be a dict, got {type(section).__name__}')
 
     return errors
+
+
+# ---------------------------------------------------------------------------
+# Pool computed field resolution
+# ---------------------------------------------------------------------------
+
+def _resolve_pool_computed_fields(managed_configs: Dict[str, Any]) -> None:
+    """Compute parsed_pod_template, parsed_resource_validations for pools.
+
+    Pools reference pod templates and resource validations by name
+    (common_pod_template, override_pod_template, common_resource_validations,
+    resource_validations). This function resolves those references into the
+    parsed_* fields that the service uses at runtime.
+
+    This allows the ConfigMap YAML to contain only template/validation names
+    (compact) instead of the full expanded content (bloated). The resolution
+    uses the same merge logic as Pool.calculate_pod_template() and
+    Pool.calculate_resource_validations() in postgres.py.
+    """
+    pools = managed_configs.get('pools', {})
+    if not pools:
+        return
+
+    pod_templates = managed_configs.get('pod_templates', {})
+    resource_validations = managed_configs.get('resource_validations', {})
+    group_templates = managed_configs.get('group_templates', {})
+
+    for pool_data in pools.values():
+        if not isinstance(pool_data, dict):
+            continue
+        _resolve_single_pool(
+            pool_data, pod_templates, resource_validations, group_templates)
+
+
+def _resolve_single_pool(
+    pool_data: Dict[str, Any],
+    pod_templates: Dict[str, Any],
+    resource_validations: Dict[str, Any],
+    group_templates: Dict[str, Any],
+) -> None:
+    """Resolve computed fields for a single pool and its platforms."""
+    # Normalize list/dict fields to prevent crashes on null/wrong types
+    for list_field in ('common_pod_template', 'common_resource_validations',
+                       'common_group_templates'):
+        if not isinstance(pool_data.get(list_field), list):
+            pool_data[list_field] = []
+    if not isinstance(pool_data.get('platforms'), dict):
+        pool_data['platforms'] = {}
+
+    # Resolve common pod template (pool-level base)
+    common_pod_template_names = pool_data.get('common_pod_template', [])
+    base_pod_template: Dict[str, Any] = {}
+    for template_name in common_pod_template_names:
+        if template_name in pod_templates:
+            base_pod_template = recursive_dict_update(
+                base_pod_template,
+                copy.deepcopy(pod_templates[template_name]),
+                merge_lists_on_name)
+        else:
+            logging.warning(
+                'Pod template %r referenced by pool not found', template_name)
+    pool_data['parsed_pod_template'] = base_pod_template
+
+    # Resolve common resource validations (pool-level base)
+    common_resource_validation_names = pool_data.get(
+        'common_resource_validations', [])
+    base_resource_validations: List[Any] = []
+    for validation_name in common_resource_validation_names:
+        if validation_name in resource_validations:
+            base_resource_validations.extend(
+                copy.deepcopy(resource_validations[validation_name]))
+        else:
+            logging.warning(
+                'Resource validation %r referenced by pool not found',
+                validation_name)
+    pool_data['parsed_resource_validations'] = base_resource_validations
+
+    # Resolve common group templates (pool-level).
+    # Matches Pool.calculate_group_templates(): merges templates with
+    # the same (apiVersion, kind, metadata.name) key.
+    common_group_template_names = pool_data.get(
+        'common_group_templates', [])
+    merged_by_key: Dict[tuple, Dict[str, Any]] = {}
+    for template_name in common_group_template_names:
+        if template_name not in group_templates:
+            logging.warning(
+                'Group template %r referenced by pool not found',
+                template_name)
+            continue
+        template = group_templates[template_name]
+        api_version = template.get('apiVersion', '')
+        kind = template.get('kind', '')
+        resource_name = template.get('metadata', {}).get('name', '')
+        key = (api_version, kind, resource_name)
+        if key in merged_by_key:
+            merged_by_key[key] = recursive_dict_update(
+                merged_by_key[key], template, merge_lists_on_name)
+        else:
+            merged_by_key[key] = copy.deepcopy(template)
+    pool_data['parsed_group_templates'] = list(merged_by_key.values())
+
+    # Resolve per-platform computed fields
+    platforms = pool_data.get('platforms', {})
+    for platform_data in platforms.values():
+        if not isinstance(platform_data, dict):
+            continue
+        _resolve_platform_fields(
+            platform_data, base_pod_template, base_resource_validations,
+            pod_templates, resource_validations)
+
+
+def _get_default_mounts(pod_template: Dict[str, Any]) -> List[str]:
+    """Extract default mount paths from a resolved pod template.
+
+    Matches Pool.get_default_mounts(): collects mountPath from all
+    non-osmo-ctrl containers.
+    """
+    default_mounts: List[str] = []
+    spec = pod_template.get('spec', {})
+    for container in spec.get('containers', []):
+        if container.get('name', '') == 'osmo-ctrl':
+            continue
+        for mount in container.get('volumeMounts', []):
+            mount_path = mount.get('mountPath')
+            if mount_path:
+                default_mounts.append(mount_path)
+    return default_mounts
+
+
+def _resolve_platform_fields(
+    platform_data: Dict[str, Any],
+    base_pod_template: Dict[str, Any],
+    base_resource_validations: List[Any],
+    pod_templates: Dict[str, Any],
+    resource_validations: Dict[str, Any],
+) -> None:
+    """Resolve computed fields for a single platform within a pool.
+
+    Always resolves from source-of-truth references (template names),
+    overwriting any pre-existing parsed_* fields.
+    """
+    # Normalize list fields to prevent crashes on null/wrong types
+    for list_field in ('override_pod_template', 'resource_validations'):
+        if not isinstance(platform_data.get(list_field), list):
+            platform_data[list_field] = []
+
+    # Pod template: start from pool common, merge platform overrides
+    platform_pod_template = copy.deepcopy(base_pod_template)
+    for template_name in platform_data.get('override_pod_template', []):
+        if template_name in pod_templates:
+            platform_pod_template = recursive_dict_update(
+                platform_pod_template,
+                copy.deepcopy(pod_templates[template_name]),
+                merge_lists_on_name)
+        else:
+            logging.warning(
+                'Pod template %r referenced by platform not found',
+                template_name)
+    platform_data['parsed_pod_template'] = platform_pod_template
+
+    # Derive tolerations, labels, default_mounts from resolved template.
+    # Unconditional assignment — always recompute from the resolved template
+    # rather than preserving potentially stale values from the YAML.
+    spec = platform_pod_template.get('spec', {})
+    platform_data['tolerations'] = spec.get('tolerations', [])
+    platform_data['labels'] = spec.get('nodeSelector', {})
+    platform_data['default_mounts'] = _get_default_mounts(
+        platform_pod_template)
+
+    # Resource validations: start from pool common, extend with platform
+    platform_resource_validations = copy.deepcopy(base_resource_validations)
+    for validation_name in platform_data.get('resource_validations', []):
+        if validation_name in resource_validations:
+            platform_resource_validations.extend(
+                copy.deepcopy(resource_validations[validation_name]))
+        else:
+            logging.warning(
+                'Resource validation %r referenced by platform not found',
+                validation_name)
+    platform_data['parsed_resource_validations'] = \
+        platform_resource_validations
 
 
 # ---------------------------------------------------------------------------

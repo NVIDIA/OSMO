@@ -309,6 +309,79 @@ class ConfigMapModeReadIntegrationTest(fixture.ServiceTestFixture):
         finally:
             os.unlink(temp_file.name)
 
+    def test_watcher_resolves_pool_parsed_fields(self):
+        """ConfigMapWatcher resolves parsed_pod_template from references."""
+        postgres = self._get_postgres()
+        config = {
+            'pod_templates': {
+                'user_tmpl': {
+                    'spec': {
+                        'containers': [
+                            {'name': 'user', 'image': 'test:latest'}
+                        ],
+                    },
+                },
+                'gpu_override': {
+                    'spec': {
+                        'nodeSelector': {'gpu': 'a100'},
+                    },
+                },
+            },
+            'resource_validations': {
+                'cpu_check': [
+                    {'operator': 'LE',
+                     'left_operand': '{{USER_CPU}}',
+                     'right_operand': '{{K8_CPU}}'},
+                ],
+            },
+            'pools': {
+                'test-pool': {
+                    'backend': 'default',
+                    'common_pod_template': ['user_tmpl'],
+                    'common_resource_validations': ['cpu_check'],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu-a100': {
+                            'override_pod_template': ['gpu_override'],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp_file:
+            yaml.dump(config, temp_file)
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                temp_file.name, postgres)
+            result = watcher._load_and_apply()
+            self.assertTrue(result)
+
+            snapshot = configmap_state.get_snapshot()
+            assert snapshot is not None
+            platform = snapshot['pools']['test-pool']['platforms']['gpu-a100']
+
+            # Should have resolved pod template with both common + override
+            self.assertIn('spec', platform['parsed_pod_template'])
+            self.assertEqual(
+                platform['parsed_pod_template']['spec']['nodeSelector'],
+                {'gpu': 'a100'})
+            containers = platform['parsed_pod_template']['spec']['containers']
+            self.assertEqual(containers[0]['name'], 'user')
+
+            # Should have resolved resource validations
+            self.assertEqual(
+                len(platform['parsed_resource_validations']), 1)
+            self.assertEqual(
+                platform['parsed_resource_validations'][0]['operator'], 'LE')
+
+            # Should have derived labels from nodeSelector
+            self.assertEqual(
+                platform.get('labels'), {'gpu': 'a100'})
+        finally:
+            os.unlink(temp_file.name)
+
 
 if __name__ == '__main__':
     runner.run_test()
