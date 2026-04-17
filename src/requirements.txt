@@ -53,7 +53,7 @@ mypy-boto3-iam==1.38.*
 mypy-boto3-s3==1.38.*
 mypy-boto3-sts==1.38.*
 
-cryptography==46.0.5
+cryptography==46.0.7
 
 # JWE, JWK
 jwcrypto==1.5.6
