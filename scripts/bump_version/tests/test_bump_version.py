@@ -161,6 +161,35 @@ class BumpVersionTest(unittest.TestCase):
                 bump_version.main(argv=["--minor", "--patch"], root=self.root)
         self.assertEqual(ctx.exception.code, 2)
 
+    def test_comments_preserved(self) -> None:
+        paths = [
+            self.root / "src/lib/utils/version.yaml",
+            *(
+                self.root / "deployments/charts" / name / "Chart.yaml"
+                for name in CHART_NAMES
+            ),
+        ]
+        before = {path: path.read_text() for path in paths}
+
+        self.assertEqual(bump_version.main(argv=["--minor"], root=self.root), 0)
+
+        def non_version_lines(text: str) -> list[str]:
+            keep = []
+            for line in text.splitlines():
+                stripped = line.lstrip()
+                if stripped.startswith(
+                    ("major:", "minor:", "revision:", "version:", "appVersion:")
+                ):
+                    continue
+                keep.append(line)
+            return keep
+
+        for path, original in before.items():
+            new = path.read_text()
+            self.assertEqual(
+                non_version_lines(new), non_version_lines(original), str(path)
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
