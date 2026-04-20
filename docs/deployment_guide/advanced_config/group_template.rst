@@ -22,6 +22,8 @@
 Group Templates
 =======================================================
 
+.. include:: ../_shared/configmap_banner.rst
+
 Group templates define arbitrary Kubernetes resources that OSMO creates alongside each workflow task group. Unlike :ref:`pod templates <pod_template>`, which configure the pod spec for individual tasks, group templates deploy namespace-scoped resources—such as ComputeDomains or ConfigMaps—that the group's pods depend on. Resources are scoped to the namespace in which the workflow runs.
 
 
@@ -102,25 +104,18 @@ Template Structure
 
 Group templates are full Kubernetes manifests. They must include ``apiVersion``, ``kind``, and ``metadata.name``. The ``metadata.namespace`` field must be omitted—OSMO assigns the namespace at runtime.
 
-.. code-block:: json
+.. code-block:: yaml
 
-  {
-    "template_name": {
-      "apiVersion": "resource.nvidia.com/v1beta1",
-      "kind": "ComputeDomain",
-      "metadata": {
-        "name": "compute-domain-{{WF_GROUP_UUID}}"
-      },
-      "spec": {
-        "numNodes": 0,
-        "channel": {
-          "resourceClaimTemplate": {
-            "name": "compute-domain-{{WF_GROUP_UUID}}-rct"
-          }
-        }
-      }
-    }
-  }
+  template_name:
+    apiVersion: resource.nvidia.com/v1beta1
+    kind: ComputeDomain
+    metadata:
+      name: compute-domain-{{WF_GROUP_UUID}}
+    spec:
+      numNodes: 0
+      channel:
+        resourceClaimTemplate:
+          name: compute-domain-{{WF_GROUP_UUID}}-rct
 
 .. note::
 
@@ -187,87 +182,72 @@ Configuring Group Templates to Enable NvLINK
 
 This example shows how to configure a ``ComputeDomain`` group template alongside a matching pod template to enable NvLINK communication across nodes for multi-node workloads.
 
-**Step 1: Create the Group Template**
+**Step 1: Define the Group Template**
 
-Create a JSON file defining the ``ComputeDomain`` resource. The ``resourceClaimTemplate.name`` is used in the pod template in the next step:
+Add the ``ComputeDomain`` resource under ``services.configs.groupTemplates``. The ``resourceClaimTemplate.name`` is used in the pod template in the next step:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ cat << EOF > group_templates.json
-  {
-    "compute-domain": {
-      "apiVersion": "resource.nvidia.com/v1beta1",
-      "kind": "ComputeDomain",
-      "metadata": {
-        "name": "compute-domain-{{WF_GROUP_UUID}}"
-      },
-      "spec": {
-        "numNodes": 0,
-        "channel": {
-          "resourceClaimTemplate": {
-            "name": "compute-domain-{{WF_GROUP_UUID}}-rct"
-          }
-        }
-      }
-    }
-  }
-  EOF
+  services:
+    configs:
+      enabled: true
+      groupTemplates:
+        compute-domain:
+          apiVersion: resource.nvidia.com/v1beta1
+          kind: ComputeDomain
+          metadata:
+            name: compute-domain-{{WF_GROUP_UUID}}
+          spec:
+            numNodes: 0
+            channel:
+              resourceClaimTemplate:
+                name: compute-domain-{{WF_GROUP_UUID}}-rct
 
-  $ osmo config update GROUP_TEMPLATE --file group_templates.json
+**Step 2: Define the Matching Pod Template**
 
-**Step 2: Create the Pod Template**
+Add a pod template that claims the compute domain channel so each task pod is connected to the NvLINK fabric:
 
-Create a pod template that claims the compute domain channel so that each task pod is connected to the NvLINK fabric:
+.. code-block:: yaml
 
-.. code-block:: bash
-
-  $ cat << EOF > pod_templates.json
-  {
-    "use-compute-domain": {
-      "spec": {
-        "containers": [
-          {
-            "name": "{{USER_CONTAINER_NAME}}",
-            "resources": {
-              "claims": [
-                {
-                  "name": "compute-domain-channel"
-                }
-              ]
-            }
-          }
-        ],
-        "resourceClaims": [
-          {
-            "name": "compute-domain-channel",
-            "resourceClaimTemplateName": "compute-domain-{{WF_GROUP_UUID}}-rct"
-          }
-        ]
-      }
-    }
-  }
-  EOF
-
-  $ osmo config update POD_TEMPLATE --file pod_templates.json
+  services:
+    configs:
+      podTemplates:
+        use-compute-domain:
+          spec:
+            containers:
+              - name: '{{USER_CONTAINER_NAME}}'
+                resources:
+                  claims:
+                    - name: compute-domain-channel
+            resourceClaims:
+              - name: compute-domain-channel
+                resourceClaimTemplateName: compute-domain-{{WF_GROUP_UUID}}-rct
 
 **Step 3: Reference Both Templates in the Pool**
 
-Add both templates to your pool configuration:
+Add both templates to your pool under ``services.configs.pools``:
 
-.. code-block:: json
-  :emphasize-lines: 4,5-7
+.. code-block:: yaml
 
-  {
-    "my-pool": {
-      "backend": "default",
-      "common_pod_template": ["default_amd64", "default_user", "use-compute-domain"],
-      "common_group_templates": [
-        "compute-domain"
-      ]
-    }
-  }
+  services:
+    configs:
+      pools:
+        my-pool:
+          backend: default
+          common_pod_template:
+            - default_amd64
+            - default_user
+            - use-compute-domain
+          common_group_templates:
+            - compute-domain
 
-**Step 4: Verify the Configuration**
+**Step 4: Apply**
+
+.. code-block:: bash
+
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
+
+**Step 5: Verify the Configuration**
 
 .. code-block:: bash
 
@@ -276,4 +256,3 @@ Add both templates to your pool configuration:
 
   # Show a specific group template
   $ osmo config get GROUP_TEMPLATE compute-domain
-

@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@
 =======================================================
 Resource Validation
 =======================================================
+
+.. include:: ../_shared/configmap_banner.rst
 
 After configuring :ref:`pools <pool>`, add resource validation rules to prevent workflows from requesting more resources than available on your nodes. Validation acts as a pre-flight check that rejects invalid requests before they reach the scheduler.
 
@@ -93,14 +95,12 @@ Rule Structure
 
 Each validation rule has four components:
 
-.. code-block:: json
+.. code-block:: yaml
 
-  {
-    "operator": "LE",
-    "left_operand": "{{USER_CPU}}",
-    "right_operand": "{{K8_CPU}}",
-    "assert_message": "CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}"
-  }
+  operator: LE
+  left_operand: '{{USER_CPU}}'
+  right_operand: '{{K8_CPU}}'
+  assert_message: CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}
 
 - **operator**: Comparison type (EQ, LT, LE, GT, GE)
 - **left_operand**: User-requested value (e.g., ``{{USER_CPU}}``)
@@ -120,9 +120,7 @@ Standard Validation Rules
 
 Create validation templates for common resources: CPU, GPU, memory, and storage.
 
-**Step 1: Create Validation Configuration**
-
-Define validation rules using variables for user requests (``{{USER_*}}``) and node capacity (``{{K8_*}}``):
+**Step 1: Understand the Available Variables**
 
 .. dropdown:: **Available Variables**
     :color: info
@@ -166,91 +164,75 @@ Define validation rules using variables for user requests (``{{USER_*}}``) and n
 
     For all available variables and detailed configuration fields, see :ref:`resource_validation_config`.
 
-**Step 2: Apply Standard Validation Rules**
+**Step 2: Define Validation Rules in Helm Values**
 
-Create a file with recommended validation templates:
+Add recommended validation templates under ``services.configs.resourceValidations``:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ cat << EOF > validation_config.json
-  {
-    "default_cpu": [
-      {
-        "operator": "LE",
-        "left_operand": "{{USER_CPU}}",
-        "right_operand": "{{K8_CPU}}",
-        "assert_message": "CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}"
-      },
-      {
-        "operator": "GT",
-        "left_operand": "{{USER_CPU}}",
-        "right_operand": "0",
-        "assert_message": "CPU {{USER_CPU}} must be greater than 0"
-      }
-    ],
-    "default_gpu": [
-      {
-        "operator": "LE",
-        "left_operand": "{{USER_GPU}}",
-        "right_operand": "{{K8_GPU}}",
-        "assert_message": "GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}"
-      },
-      {
-        "operator": "GE",
-        "left_operand": "{{USER_GPU}}",
-        "right_operand": "0",
-        "assert_message": "GPU {{USER_GPU}} cannot be negative"
-      }
-    ],
-    "default_memory": [
-      {
-        "operator": "LT",
-        "left_operand": "{{USER_MEMORY}}",
-        "right_operand": "{{K8_MEMORY}}",
-        "assert_message": "Memory {{USER_MEMORY}} exceeds node capacity {{K8_MEMORY}}"
-      },
-      {
-        "operator": "GT",
-        "left_operand": "{{USER_MEMORY}}",
-        "right_operand": "0",
-        "assert_message": "Memory {{USER_MEMORY}} must be greater than 0"
-      }
-    ],
-    "default_storage": [
-      {
-        "operator": "LT",
-        "left_operand": "{{USER_STORAGE}}",
-        "right_operand": "{{K8_STORAGE}}",
-        "assert_message": "Storage {{USER_STORAGE}} exceeds node capacity {{K8_STORAGE}}"
-      },
-      {
-        "operator": "GT",
-        "left_operand": "{{USER_STORAGE}}",
-        "right_operand": "0",
-        "assert_message": "Storage {{USER_STORAGE}} must be greater than 0"
-      }
-    ]
-  }
-  EOF
-
-  $ osmo config update RESOURCE_VALIDATION --file validation_config.json
+  services:
+    configs:
+      enabled: true
+      resourceValidations:
+        default_cpu:
+          - operator: LE
+            left_operand: '{{USER_CPU}}'
+            right_operand: '{{K8_CPU}}'
+            assert_message: CPU {{USER_CPU}} exceeds node capacity {{K8_CPU}}
+          - operator: GT
+            left_operand: '{{USER_CPU}}'
+            right_operand: '0'
+            assert_message: CPU {{USER_CPU}} must be greater than 0
+        default_gpu:
+          - operator: LE
+            left_operand: '{{USER_GPU}}'
+            right_operand: '{{K8_GPU}}'
+            assert_message: GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}
+          - operator: GE
+            left_operand: '{{USER_GPU}}'
+            right_operand: '0'
+            assert_message: GPU {{USER_GPU}} cannot be negative
+        default_memory:
+          - operator: LT
+            left_operand: '{{USER_MEMORY}}'
+            right_operand: '{{K8_MEMORY}}'
+            assert_message: Memory {{USER_MEMORY}} exceeds node capacity {{K8_MEMORY}}
+          - operator: GT
+            left_operand: '{{USER_MEMORY}}'
+            right_operand: '0'
+            assert_message: Memory {{USER_MEMORY}} must be greater than 0
+        default_storage:
+          - operator: LT
+            left_operand: '{{USER_STORAGE}}'
+            right_operand: '{{K8_STORAGE}}'
+            assert_message: Storage {{USER_STORAGE}} exceeds node capacity {{K8_STORAGE}}
+          - operator: GT
+            left_operand: '{{USER_STORAGE}}'
+            right_operand: '0'
+            assert_message: Storage {{USER_STORAGE}} must be greater than 0
 
 **Step 3: Reference in Pool Configuration**
 
 Add validation templates to your pool's ``common_resource_validations`` field:
 
-.. code-block:: json
+.. code-block:: yaml
 
-  {
-    "name": "my-pool",
-    "backend": "default",
-    "common_resource_validations": [
-      "default_cpu",
-      "default_memory",
-      "default_storage",
-      "default_gpu"
-    ]
-  }
+  services:
+    configs:
+      pools:
+        my-pool:
+          backend: default
+          common_resource_validations:
+            - default_cpu
+            - default_memory
+            - default_storage
+            - default_gpu
+
+**Step 4: Apply**
+
+.. code-block:: bash
+
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
 
 
 Additional Examples
@@ -262,24 +244,20 @@ Additional Examples
 
     Create validation for workloads requiring at least 2 GPUs:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "min_2_gpu": [
-          {
-            "operator": "GE",
-            "left_operand": "{{USER_GPU}}",
-            "right_operand": "2",
-            "assert_message": "This pool requires minimum 2 GPUs, you requested {{USER_GPU}}"
-          },
-          {
-            "operator": "LE",
-            "left_operand": "{{USER_GPU}}",
-            "right_operand": "{{K8_GPU}}",
-            "assert_message": "GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}"
-          }
-        ]
-      }
+      services:
+        configs:
+          resourceValidations:
+            min_2_gpu:
+              - operator: GE
+                left_operand: '{{USER_GPU}}'
+                right_operand: '2'
+                assert_message: This pool requires minimum 2 GPUs, you requested {{USER_GPU}}
+              - operator: LE
+                left_operand: '{{USER_GPU}}'
+                right_operand: '{{K8_GPU}}'
+                assert_message: GPU {{USER_GPU}} exceeds node capacity {{K8_GPU}}
 
 .. dropdown:: **Memory Safety Margins** - Prevent 100% Utilization
     :color: info
@@ -287,18 +265,16 @@ Additional Examples
 
     Enforce 80% maximum memory usage to leave headroom:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "memory_80_percent": [
-          {
-            "operator": "LT",
-            "left_operand": "{{USER_MEMORY}}",
-            "right_operand": "{{K8_MEMORY}} * 0.8",
-            "assert_message": "Memory {{USER_MEMORY}} exceeds 80% of node capacity"
-          }
-        ]
-      }
+      services:
+        configs:
+          resourceValidations:
+            memory_80_percent:
+              - operator: LT
+                left_operand: '{{USER_MEMORY}}'
+                right_operand: '{{K8_MEMORY}} * 0.8'
+                assert_message: Memory {{USER_MEMORY}} exceeds 80% of node capacity
 
 .. dropdown:: **Platform-Specific Rules** - Different Limits Per Platform
     :color: info
@@ -306,26 +282,21 @@ Additional Examples
 
     Create different validation rules for different hardware platforms:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "a100_validation": [
-          {
-            "operator": "LE",
-            "left_operand": "{{USER_GPU}}",
-            "right_operand": "8",
-            "assert_message": "A100 platform supports max 8 GPUs"
-          }
-        ],
-        "h100_validation": [
-          {
-            "operator": "LE",
-            "left_operand": "{{USER_GPU}}",
-            "right_operand": "8",
-            "assert_message": "H100 platform supports max 8 GPUs"
-          }
-        ]
-      }
+      services:
+        configs:
+          resourceValidations:
+            a100_validation:
+              - operator: LE
+                left_operand: '{{USER_GPU}}'
+                right_operand: '8'
+                assert_message: A100 platform supports max 8 GPUs
+            h100_validation:
+              - operator: LE
+                left_operand: '{{USER_GPU}}'
+                right_operand: '8'
+                assert_message: H100 platform supports max 8 GPUs
 
 
 Troubleshooting

@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@
 =======================================================
 Pod Templates
 =======================================================
+
+.. include:: ../_shared/configmap_banner.rst
 
 Pod templates define how workflow tasks execute as Kubernetes pods. After configuring :ref:`pools <pool>` and :ref:`resource validation <resource_validation>`, create pod templates to specify scheduling constraints, security policies, and resource allocations that apply across your pools.
 
@@ -105,34 +107,21 @@ Template Structure
 
 Pod templates use the standard `Kubernetes PodSpec <https://kubernetes.io/docs/concepts/workloads/pods/#pod-templates>`_ format with OSMO enhancements:
 
-.. code-block:: json
+.. code-block:: yaml
 
-  {
-    "template_name": {
-      "spec": {
-        "nodeSelector": {
-          "node-label": "value"
-        },
-        "tolerations": [
-          {
-            "key": "taint-key",
-            "effect": "NoSchedule"
-          }
-        ],
-        "containers": [
-          {
-            "name": "{{USER_CONTAINER_NAME}}",
-            "resources": {
-              "limits": {
-                "cpu": "{{USER_CPU}}",
-                "memory": "{{USER_MEMORY}}"
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
+  template_name:
+    spec:
+      nodeSelector:
+        node-label: value
+      tolerations:
+        - key: taint-key
+          effect: NoSchedule
+      containers:
+        - name: '{{USER_CONTAINER_NAME}}'
+          resources:
+            limits:
+              cpu: '{{USER_CPU}}'
+              memory: '{{USER_MEMORY}}'
 
 Key Features
 ------------
@@ -209,87 +198,75 @@ Create templates that target specific hardware and handle Kubernetes scheduling 
       - Use Jinja2: ``{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}``
 
 
-**Step 2: Template Configuration File**
+**Step 2: Define Pod Templates in Helm Values**
 
-Create a configuration file with base templates for architecture, control container, and user container:
+Add base templates for architecture, control container, and user container under ``services.configs.podTemplates``:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ cat << EOF > pod_templates.json
-  {
-    # Target specific architecture
-    "default_amd64": {
-      "spec": {
-        "nodeSelector": {"kubernetes.io/arch": "amd64"}
-      }
-    },
-    "default_ctrl": {
-      "spec": {
+  services:
+    configs:
+      enabled: true
+      podTemplates:
+        # Target specific architecture
+        default_amd64:
+          spec:
+            nodeSelector:
+              kubernetes.io/arch: amd64
         # Control container
-        "containers": [{
-          "name": "osmo-ctrl",
-          "resources": {
-            # Use user specified resources as limits
-            "limits": {
-              "cpu": "{{USER_CPU}}",
-              "memory": "{{USER_MEMORY}}",
-              "ephemeral-storage": "{{USER_STORAGE}}"
-            },
-            # Use a default value of 2 if user requests are less than 2
-            "requests": {
-              "cpu": "{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}",
-              "memory": "1Gi",
-              "ephemeral-storage": "4Gi"
-            }
-          }
-        }]
-      }
-    },
-    "default_user": {
-      "spec": {
+        default_ctrl:
+          spec:
+            containers:
+              - name: osmo-ctrl
+                resources:
+                  # Use user specified resources as limits
+                  limits:
+                    cpu: '{{USER_CPU}}'
+                    memory: '{{USER_MEMORY}}'
+                    ephemeral-storage: '{{USER_STORAGE}}'
+                  # Cap ctrl container at 2 CPUs if user requests more
+                  requests:
+                    cpu: '{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}'
+                    memory: 1Gi
+                    ephemeral-storage: 4Gi
         # User container
-        "containers": [{
-          "name": "{{USER_CONTAINER_NAME}}",
-          # Use user specified resources for requests and limits
-          "resources": {
-            "limits": {
-              "cpu": "{{USER_CPU}}",
-              "memory": "{{USER_MEMORY}}",
-              "nvidia.com/gpu": "{{USER_GPU}}",
-              "ephemeral-storage": "{{USER_STORAGE}}"
-            },
-            "requests": {
-              "cpu": "{{USER_CPU}}",
-              "memory": "{{USER_MEMORY}}",
-              "nvidia.com/gpu": "{{USER_GPU}}",
-              "ephemeral-storage": "{{USER_STORAGE}}"
-            }
-          }
-        }]
-      }
-    }
-  }
-  EOF
-
-  $ osmo config update POD_TEMPLATE --file pod_templates.json
+        default_user:
+          spec:
+            containers:
+              - name: '{{USER_CONTAINER_NAME}}'
+                resources:
+                  limits:
+                    cpu: '{{USER_CPU}}'
+                    memory: '{{USER_MEMORY}}'
+                    nvidia.com/gpu: '{{USER_GPU}}'
+                    ephemeral-storage: '{{USER_STORAGE}}'
+                  requests:
+                    cpu: '{{USER_CPU}}'
+                    memory: '{{USER_MEMORY}}'
+                    nvidia.com/gpu: '{{USER_GPU}}'
+                    ephemeral-storage: '{{USER_STORAGE}}'
 
 **Step 3: Reference Templates in Pools**
 
 Add templates to your pool's ``common_pod_template`` field:
 
-.. code-block:: json
-  :emphasize-lines: 5-7
+.. code-block:: yaml
 
-  {
-    "my-pool": {
-      "backend": "default",
-      "common_pod_template": [
-        "default_amd64",
-        "default_ctrl",
-        "default_user"
-      ]
-    }
-  }
+  services:
+    configs:
+      pools:
+        my-pool:
+          backend: default
+          common_pod_template:
+            - default_amd64
+            - default_ctrl
+            - default_user
+
+**Step 4: Apply**
+
+.. code-block:: bash
+
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
 
 
 Additional Examples
@@ -301,30 +278,27 @@ Additional Examples
 
     Create templates for different GPU hardware (H100, L40, T4):
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "training_h100": {
-          "spec": {
-            "nodeSelector": {"nvidia.com/gpu.product": "NVIDIA-H100"},
-            "tolerations": [{
-              "key": "training-dedicated",
-              "value": "h100",
-              "effect": "NoSchedule"
-            }]
-          }
-        },
-        "simulation_l40": {
-          "spec": {
-            "nodeSelector": {"nvidia.com/gpu.product": "NVIDIA-L40"},
-            "tolerations": [{
-              "key": "simulation-dedicated",
-              "value": "l40",
-              "effect": "NoSchedule"
-            }]
-          }
-        }
-      }
+      services:
+        configs:
+          podTemplates:
+            training_h100:
+              spec:
+                nodeSelector:
+                  nvidia.com/gpu.product: NVIDIA-H100
+                tolerations:
+                  - key: training-dedicated
+                    value: h100
+                    effect: NoSchedule
+            simulation_l40:
+              spec:
+                nodeSelector:
+                  nvidia.com/gpu.product: NVIDIA-L40
+                tolerations:
+                  - key: simulation-dedicated
+                    value: l40
+                    effect: NoSchedule
 
 .. dropdown:: **CPU Instance Types** - Target Specific Instance Classes
     :color: info
@@ -332,17 +306,15 @@ Additional Examples
 
     Target CPU-optimized instances:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "cpu_compute": {
-          "spec": {
-            "nodeSelector": {
-              "node.kubernetes.io/instance-type": "c5.4xlarge"
-            }
-          }
-        }
-      }
+      services:
+        configs:
+          podTemplates:
+            cpu_compute:
+              spec:
+                nodeSelector:
+                  node.kubernetes.io/instance-type: c5.4xlarge
 
 .. dropdown:: **Security Templates** - Apply Security Contexts
     :color: info
@@ -350,27 +322,24 @@ Additional Examples
 
     Enforce security policies:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "secure_workload": {
-          "spec": {
-            "securityContext": {
-              "runAsNonRoot": true,
-              "runAsUser": 1000,
-              "fsGroup": 1000
-            },
-            "containers": [{
-              "name": "{{USER_CONTAINER_NAME}}",
-              "securityContext": {
-                "allowPrivilegeEscalation": false,
-                "readOnlyRootFilesystem": true,
-                "capabilities": {"drop": ["ALL"]}
-              }
-            }]
-          }
-        }
-      }
+      services:
+        configs:
+          podTemplates:
+            secure_workload:
+              spec:
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 1000
+                  fsGroup: 1000
+                containers:
+                  - name: '{{USER_CONTAINER_NAME}}'
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                        drop: [ALL]
 
 .. dropdown:: **Node Exclusion** - Exclude Specific Nodes
     :color: info
@@ -378,27 +347,21 @@ Additional Examples
 
     Use node affinity to exclude nodes from user requests. This rule can be used to avoid gpu fragmentation with in the cluster by satisfying user requests on the same node, before the scheduler chooses other nodes to schedule tasks.
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "node_exclusion": {
-          "spec": {
-            "affinity": {
-              "nodeAffinity": {
-                "requiredDuringSchedulingIgnoredDuringExecution": {
-                  "nodeSelectorTerms": [{
-                    "matchExpressions": [{
-                      "key": "kubernetes.io/hostname",
-                      "operator": "NotIn",
-                      "values": "{{USER_EXCLUDED_NODES}}"
-                    }]
-                  }]
-                }
-              }
-            }
-          }
-        }
-      }
+      services:
+        configs:
+          podTemplates:
+            node_exclusion:
+              spec:
+                affinity:
+                  nodeAffinity:
+                    requiredDuringSchedulingIgnoredDuringExecution:
+                      nodeSelectorTerms:
+                        - matchExpressions:
+                            - key: kubernetes.io/hostname
+                              operator: NotIn
+                              values: '{{USER_EXCLUDED_NODES}}'
 
 .. dropdown:: **Shared Memory** - Add /dev/shm Volume
     :color: info
@@ -406,28 +369,23 @@ Additional Examples
 
     Add shared memory for workflows requiring IPC (Example: TensorRT, PyTorch, etc.)
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "shared_memory": {
-          "spec": {
-            "containers": [{
-              "name": "{{USER_CONTAINER_NAME}}",
-              "volumeMounts": [{
-                "name": "shm",
-                "mountPath": "/dev/shm"
-              }]
-            }],
-            "volumes": [{
-              "name": "shm",
-              "emptyDir": {
-                "medium": "Memory",
-                "sizeLimit": "1Gi"
-              }
-            }]
-          }
-        }
-      }
+      services:
+        configs:
+          podTemplates:
+            shared_memory:
+              spec:
+                containers:
+                  - name: '{{USER_CONTAINER_NAME}}'
+                    volumeMounts:
+                      - name: shm
+                        mountPath: /dev/shm
+                volumes:
+                  - name: shm
+                    emptyDir:
+                      medium: Memory
+                      sizeLimit: 1Gi
 
 
 Troubleshooting
@@ -449,7 +407,7 @@ Troubleshooting
 
 **Debugging Tips**
   - Start with simple templates and add complexity gradually
-  - Validate JSON syntax before applying
+  - Validate YAML syntax before applying
   - Test with different workflow configurations
   - Review OSMO service logs for detailed errors
 

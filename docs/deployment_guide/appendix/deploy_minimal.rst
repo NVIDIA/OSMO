@@ -512,17 +512,15 @@ After deployment, you need to configure a central storage for workflow spec, wor
 
 2. Follow the :ref:`installing_required_dependencies` guide to install the KAI scheduler for running workflows.
 
-3. Set the service base URL so that workflow pods can reach the gateway:
+3. Set the service base URL so that workflow pods can reach the gateway. Add this to your values file under ``services.configs.service`` and re-apply with ``helm upgrade``:
 
-   .. code-block:: bash
+   .. code-block:: yaml
 
-      $ cat << EOF > /tmp/osmo_service_config.json
-      {
-        "service_base_url": "http://osmo-gateway.osmo-minimal.svc.cluster.local"
-      }
-      EOF
-
-      $ osmo config update SERVICE --file /tmp/osmo_service_config.json
+      services:
+        configs:
+          enabled: true
+          service:
+            service_base_url: http://osmo-gateway.osmo-minimal.svc.cluster.local
 
 Testing Your Deployment
 ========================

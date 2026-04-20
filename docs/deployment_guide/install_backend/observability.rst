@@ -66,22 +66,21 @@ To enable usage metrics for ephemeral storage in Grafana, install the `k8s-ephem
 Update Backend Configs
 =============================
 
-Next, update your OSMO backend configuration to include the Grafana and Kubernetes Dashboard URLs:
+.. include:: ../_shared/configmap_banner.rst
 
-.. code-block:: bash
-  :emphasize-lines: 4, 5
+Next, update your OSMO backend configuration to include the Grafana and Kubernetes Dashboard URLs under ``services.configs.backends.<backend-name>``:
 
-  $ cat << EOF > /tmp/backend_config.json
-  {
-    "description": "<backend-description>",
-    "dashboard_url": "<kubernetes-dashboard-url>",
-    "grafana_url": "<grafana-url>"
-  }
-  EOF
+.. code-block:: yaml
+  :emphasize-lines: 7, 8
 
-  $ export BACKEND_NAME=default  # Update to your backend name
-  $ osmo config update BACKEND $BACKEND_NAME --file /tmp/backend_config.json
-
+  services:
+    configs:
+      enabled: true
+      backends:
+        default:
+          description: <backend-description>
+          dashboard_url: <kubernetes-dashboard-url>
+          grafana_url: <grafana-url>
 
 Once configured, you can access dashboard and resource usage links for each workflow in the OSMO UI. See the :ref:`Workflow Resource Usage <faq_workflow_resource_usage>` for details.
 

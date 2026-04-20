@@ -479,7 +479,90 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 .. note::
    Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options, including gateway configuration.
 
-Step 4: Deploy Components
+
+.. _configure_data:
+
+Step 4: Configure Data Storage
+==============================
+
+.. admonition:: Prerequisites
+  :class: important
+
+  Before configuring OSMO to use data storage, ensure you have created the required data storage: :ref:`create_data_storage`
+
+OSMO needs two storage buckets to operate:
+
+- **Workflow logs** — stores stdout/stderr and workflow spec files for every run
+- **Workflow data** — stores intermediate outputs passed between workflow tasks
+
+Both are configured in ``osmo_values.yaml`` under ``services.configs.workflow``. Credentials are referenced from Kubernetes Secrets rather than stored inline in the values file.
+
+Create the credential Secrets
+-----------------------------
+
+Create a Secret for the workflow log credentials:
+
+.. code-block:: bash
+
+  kubectl create secret generic osmo-workflow-log-cred -n osmo \
+      --from-file=cred.yaml=<(cat <<EOF
+  endpoint: s3://my-bucket/workflow-logs
+  region: us-east-1
+  access_key_id: <your-access-key-id>
+  access_key: <your-secret-access-key>
+  EOF
+  )
+
+Create a second Secret for the workflow data credentials. You can point both at the same bucket or use separate buckets:
+
+.. code-block:: bash
+
+  kubectl create secret generic osmo-workflow-data-cred -n osmo \
+      --from-file=cred.yaml=<(cat <<EOF
+  endpoint: s3://my-bucket/workflow-data
+  region: us-east-1
+  access_key_id: <your-access-key-id>
+  access_key: <your-secret-access-key>
+  EOF
+  )
+
+.. note::
+
+   For non-AWS S3-compatible services (MinIO, Ceph, LocalStack), add an
+   ``override_url`` field to ``cred.yaml`` — for example ``override_url: http://minio:9000``.
+   Leave it out for standard AWS S3.
+
+Reference the Secrets in ``osmo_values.yaml``
+---------------------------------------------
+
+Add the ``services.configs`` block to ``osmo_values.yaml``. List the secrets under ``secretRefs`` so the chart mounts them, and reference them in the workflow config:
+
+.. code-block:: yaml
+
+  services:
+    configs:
+      enabled: true
+      secretRefs:
+        - secretName: osmo-workflow-log-cred
+        - secretName: osmo-workflow-data-cred
+      workflow:
+        workflow_log:
+          credential:
+            secretName: osmo-workflow-log-cred
+        workflow_data:
+          credential:
+            secretName: osmo-workflow-data-cred
+
+At startup, the service reads ``/etc/osmo/secrets/osmo-workflow-log-cred/cred.yaml`` and merges those fields (``endpoint``, ``region``, ``access_key_id``, ``access_key``) into the ``credential`` block. The same happens for ``workflow_data``.
+
+.. seealso::
+
+   **Datasets (Optional)**
+
+   To configure storage buckets for users to store OSMO datasets, see :ref:`dataset_buckets` in the Advanced Configuration section.
+
+
+Step 5: Deploy Components
 =========================
 
 Deploy the components in the following order:
@@ -507,7 +590,7 @@ Deploy the components in the following order:
 
    $ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
 
-Step 5: Verify Deployment
+Step 6: Verify Deployment
 =========================
 
 1. Verify all pods are running:
@@ -544,7 +627,7 @@ Step 5: Verify Deployment
     $ kubectl get services -n osmo | grep gateway
       osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
 
-Step 6: Post-deployment Configuration
+Step 7: Post-deployment Configuration
 =====================================
 
 1. Configure DNS records to point to the ``osmo-gateway`` service's external IP or hostname. For example, create a CNAME record for ``osmo.example.com`` pointing to the LoadBalancer hostname shown in ``kubectl get svc osmo-gateway -n osmo``.
@@ -554,8 +637,6 @@ Step 6: Post-deployment Configuration
 3. Configure IdP role mapping to map your IdP groups to OSMO roles: :doc:`../appendix/authentication/idp_role_mapping`
 
 4. Verify access to the UI at https://osmo.example.com through your domain
-
-5. Create and configure data storage to store service data: :ref:`configure_data`
 
 
 Troubleshooting
