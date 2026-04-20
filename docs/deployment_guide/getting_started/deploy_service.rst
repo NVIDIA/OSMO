@@ -302,15 +302,6 @@ Create a values file for each OSMO component.
 
 Create ``osmo_values.yaml`` for the OSMO service with the following sample. The sample assumes the **workload identity** path from :ref:`Step 3 <configure_storage_access>`; if you chose static credentials, see annotation ``(4)`` below the sample.
 
-Fill in these placeholders with your real values:
-
-- ``global.osmoImageTag`` — chart version
-- ``services.postgres``, ``services.redis`` — your database/cache endpoints
-- ``services.service.hostname`` and ``services.service.auth`` — IdP endpoints and client ID
-- ``serviceAccount.annotations`` — workload identity binding for your cloud provider
-- ``services.configs.workflow`` — your bucket ``endpoint`` and ``region``
-- ``gateway.envoy.jwt``, ``gateway.oauth2Proxy`` — IdP JWT and OAuth2 Proxy configuration
-
 .. dropdown:: ``osmo_values.yaml``
   :color: info
   :icon: file
@@ -523,7 +514,7 @@ Fill in these placeholders with your real values:
     1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
     2. OIDC issuer URL from your IdP (same as the JWT issuer).
     3. Client ID from your IdP application registration.
-    4. Static credentials path (see :ref:`Step 3 <configure_storage_access>`): delete the ``serviceAccount`` block above, then uncomment ``secretRefs`` here and swap each ``credential`` block below for a ``secretName`` reference (shown commented inline). The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents into the matching ``credential`` block at startup.
+    4. Static credentials path (see :ref:`Step 3 <configure_storage_access>`): delete the ``serviceAccount`` block above, then un-comment ``secretRefs`` here and swap each ``credential`` block below for a ``secretName`` reference (shown commented inline). The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents into the matching ``credential`` block at startup.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
 
