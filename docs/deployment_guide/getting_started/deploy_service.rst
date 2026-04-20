@@ -114,6 +114,56 @@ Create the secret used by OAuth2 Proxy for the client secret and session cookie 
      --namespace osmo
 
 
+**Workflow storage credentials (skip if using workload identity)**
+
+OSMO needs to read/write two storage buckets for workflow logs and workflow data. If you plan to use cloud workload identity (AWS IRSA, Azure Workload Identity, GCP Workload Identity) — covered in :ref:`configure_storage_access` — skip this subsection and come back only if workload identity is not an option for your deployment.
+
+Save the workflow log credentials to ``workflow-log-cred.yaml``:
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-workflow-log-cred
+     namespace: osmo
+   stringData:
+     cred.yaml: |
+       endpoint: s3://my-bucket/workflow-logs
+       region: us-east-1
+       access_key_id: <your-access-key-id>
+       access_key: <your-secret-access-key>
+
+Save the workflow data credentials to ``workflow-data-cred.yaml`` (you can use the same bucket or a different one):
+
+.. code-block:: yaml
+
+   apiVersion: v1
+   kind: Secret
+   metadata:
+     name: osmo-workflow-data-cred
+     namespace: osmo
+   stringData:
+     cred.yaml: |
+       endpoint: s3://my-bucket/workflow-data
+       region: us-east-1
+       access_key_id: <your-access-key-id>
+       access_key: <your-secret-access-key>
+
+Apply both:
+
+.. code-block:: bash
+
+   $ kubectl apply -f workflow-log-cred.yaml
+   $ kubectl apply -f workflow-data-cred.yaml
+
+.. note::
+
+   For non-AWS S3-compatible services (MinIO, Ceph, LocalStack), add
+   ``override_url: http://minio:9000`` under the ``cred.yaml`` fields.
+   Leave it out for standard AWS S3.
+
+
 Create the master encryption key (MEK) for database encryption:
 
 1. **Generate a new master encryption key**:
@@ -198,9 +248,48 @@ Create the master encryption key (MEK) for database encryption:
    EOF
 
 
+.. _configure_storage_access:
+.. _configure_data:
+
+Step 3: Configure Storage Access
+=================================
+
+OSMO needs credentials to access two buckets: ``workflow_log`` (used by the service to read/write workflow logs and specs) and ``workflow_data`` (used by workflow pods to stage task inputs/outputs). Pick one of the two approaches below. The rest of the guide uses **workload identity** as the primary walkthrough; if you pick static credentials, see the "Using static credentials instead" callout at the end of :ref:`Step 4 <deploy_service_osmo_values>` for the diff.
+
+Workload Identity (recommended on AWS, Azure, GCP)
+---------------------------------------------------
+
+With workload identity, pods assume a cloud IAM role via their Kubernetes ServiceAccount — no long-lived access keys or Kubernetes Secrets required.
+
+**1. Set up workload identity in your cloud and grant bucket access**
+
+Follow your cloud provider's guide to enable workload identity on your cluster, create a cloud identity (IAM role / managed identity / Google Service Account), and grant it read/write access to your workflow log and data buckets:
+
+- AWS (EKS): `IAM Roles for Service Accounts <https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html>`__
+- Azure (AKS): `Azure AD Workload Identity <https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview>`__
+- GCP (GKE): `Workload Identity <https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity>`__
+
+When setting up the federation/binding, the subject is the OSMO ServiceAccount the chart deploys by default: ``system:serviceaccount:osmo:osmo``.
+
+**2. Note what goes in your values file**
+
+The Helm chart deploys a ServiceAccount named ``osmo`` (configurable via ``global.serviceAccountName``). You do **not** need to create a new ServiceAccount — the chart annotates it for you via ``serviceAccount.annotations`` in ``osmo_values.yaml``.
+
+Workflow pods default to the namespace's ``default`` ServiceAccount. To reuse the annotated ``osmo`` ServiceAccount so workflow pods pick up the same cloud identity, you'll also add a ``workload_identity`` pod template and reference it from each pool.
+
+Both pieces go into ``osmo_values.yaml`` in :ref:`Step 4 <deploy_service_osmo_values>` — see the ``serviceAccount``, ``services.configs.workflow``, ``services.configs.podTemplates``, and ``services.configs.pools`` sections in the sample.
+
+Static credentials
+------------------
+
+Use the two Kubernetes Secrets you created in Step 2 (``osmo-workflow-log-cred`` and ``osmo-workflow-data-cred``). In the next step, reference them by ``secretName`` and list them under ``secretRefs`` so the chart mounts them. No pod template or ServiceAccount annotations are needed.
+
+The workload identity sample in Step 4 differs from the static credentials path in four specific places — see the "Using static credentials instead" callout at the end of :ref:`Step 4 <deploy_service_osmo_values>`.
+
+
 .. _deploy_service_osmo_values:
 
-Step 3: Prepare values
+Step 4: Prepare values
 ============================
 
 Create a values file for each OSMO component.
@@ -209,25 +298,42 @@ Create a values file for each OSMO component.
 
    See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``gateway.oauth2Proxy``, ``gateway.envoy.jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
+Create ``osmo_values.yaml`` for the OSMO service with the following sample. The sample assumes the **workload identity** path from :ref:`Step 3 <configure_storage_access>`; if you chose static credentials instead, see the callout immediately after the dropdown for the diff.
+
+Fill in these placeholders with your real values:
+
+- ``global.osmoImageTag`` — chart version
+- ``services.postgres``, ``services.redis`` — your database/cache endpoints
+- ``services.service.hostname`` and ``services.service.auth`` — IdP endpoints and client ID
+- ``serviceAccount.annotations`` — workload identity binding for your cloud provider
+- ``services.configs.workflow`` — your bucket ``endpoint`` and ``region``
+- ``gateway.envoy.jwt``, ``gateway.oauth2Proxy`` — IdP JWT and OAuth2 Proxy configuration
 
 .. dropdown:: ``osmo_values.yaml``
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21, 23, 29, 38, 41-46, 112, 116, 130-132, 147-149
 
     # Global configuration shared across all OSMO services
     global:
       osmoImageLocation: nvcr.io/nvidia/osmo
-      osmoImageTag: <version>
+      osmoImageTag: <version>                        # chart version
       serviceAccountName: osmo
 
       logs:
         enabled: true
         logLevel: DEBUG
         k8sLogLevel: WARNING
+
+    # ServiceAccount the chart deploys. Pick ONE annotation for your
+    # cloud provider and delete the other two.
+    serviceAccount:
+      create: true
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
+        # azure.workload.identity/client-id: <managed-identity-client-id>            # Azure (AKS Workload Identity)
+        # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com    # GCP (GKE Workload Identity)
 
     # Individual service configurations
     services:
@@ -326,6 +432,34 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           limits:
             memory: "512Mi"
 
+      # OSMO configs (pools, pod templates, storage credentials, roles, etc.)
+      configs:
+        enabled: true
+
+        workflow:
+          workflow_log:
+            credential:
+              endpoint: s3://my-bucket/workflow-logs
+              region: us-east-1
+          workflow_data:
+            credential:
+              endpoint: s3://my-bucket/workflow-data
+              region: us-east-1
+
+        # Pod template that runs workflow pods under the annotated 'osmo' SA
+        # so they inherit the same cloud identity.
+        podTemplates:
+          workload_identity:
+            spec:
+              serviceAccountName: osmo
+
+        pools:
+          default:
+            common_pod_template:
+              - default_user
+              - default_ctrl
+              - workload_identity
+
     # Gateway — deploys Envoy, OAuth2 Proxy, and Authz as separate services
     gateway:
       envoy:
@@ -390,6 +524,39 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
     1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
     2. OIDC issuer URL from your IdP (same as the JWT issuer).
     3. Client ID from your IdP application registration.
+
+.. admonition:: Using static credentials instead?
+   :class: tip
+
+   If you chose the static credentials path in :ref:`Step 3 <configure_storage_access>`, make these four changes to the sample above:
+
+   **1. Remove the** ``serviceAccount.annotations`` **block entirely.** The chart's default ServiceAccount needs no cloud annotation.
+
+   **2. Add** ``secretRefs`` **under** ``services.configs`` **so the chart mounts the credential Secrets you created in Step 2:**
+
+   .. code-block:: yaml
+
+      services:
+        configs:
+          secretRefs:
+            - secretName: osmo-workflow-log-cred
+            - secretName: osmo-workflow-data-cred
+
+   **3. Replace each** ``credential`` **block under** ``workflow_log`` **/** ``workflow_data`` **with a** ``secretName`` **reference:**
+
+   .. code-block:: yaml
+
+      workflow:
+        workflow_log:
+          credential:
+            secretName: osmo-workflow-log-cred
+        workflow_data:
+          credential:
+            secretName: osmo-workflow-data-cred
+
+   The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents (``endpoint``, ``region``, ``access_key_id``, ``access_key``) into the matching ``credential`` block at startup.
+
+   **4. Drop the** ``workload_identity`` **pod template and remove it from** ``pools.default.common_pod_template``. Workflow pods run under the namespace's default ServiceAccount; no cloud identity is involved.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
 
@@ -479,81 +646,6 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 .. note::
    Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options, including gateway configuration.
 
-
-.. _configure_data:
-
-Step 4: Configure Data Storage
-==============================
-
-.. admonition:: Prerequisites
-  :class: important
-
-  Before configuring OSMO to use data storage, ensure you have created the required data storage: :ref:`create_data_storage`
-
-OSMO needs two storage buckets to operate:
-
-- **Workflow logs** — stores stdout/stderr and workflow spec files for every run
-- **Workflow data** — stores intermediate outputs passed between workflow tasks
-
-Both are configured in ``osmo_values.yaml`` under ``services.configs.workflow``. Credentials are referenced from Kubernetes Secrets rather than stored inline in the values file.
-
-Create the credential Secrets
------------------------------
-
-Create a Secret for the workflow log credentials:
-
-.. code-block:: bash
-
-  kubectl create secret generic osmo-workflow-log-cred -n osmo \
-      --from-file=cred.yaml=<(cat <<EOF
-  endpoint: s3://my-bucket/workflow-logs
-  region: us-east-1
-  access_key_id: <your-access-key-id>
-  access_key: <your-secret-access-key>
-  EOF
-  )
-
-Create a second Secret for the workflow data credentials. You can point both at the same bucket or use separate buckets:
-
-.. code-block:: bash
-
-  kubectl create secret generic osmo-workflow-data-cred -n osmo \
-      --from-file=cred.yaml=<(cat <<EOF
-  endpoint: s3://my-bucket/workflow-data
-  region: us-east-1
-  access_key_id: <your-access-key-id>
-  access_key: <your-secret-access-key>
-  EOF
-  )
-
-.. note::
-
-   For non-AWS S3-compatible services (MinIO, Ceph, LocalStack), add an
-   ``override_url`` field to ``cred.yaml`` — for example ``override_url: http://minio:9000``.
-   Leave it out for standard AWS S3.
-
-Reference the Secrets in ``osmo_values.yaml``
----------------------------------------------
-
-Add the ``services.configs`` block to ``osmo_values.yaml``. List the secrets under ``secretRefs`` so the chart mounts them, and reference them in the workflow config:
-
-.. code-block:: yaml
-
-  services:
-    configs:
-      enabled: true
-      secretRefs:
-        - secretName: osmo-workflow-log-cred
-        - secretName: osmo-workflow-data-cred
-      workflow:
-        workflow_log:
-          credential:
-            secretName: osmo-workflow-log-cred
-        workflow_data:
-          credential:
-            secretName: osmo-workflow-data-cred
-
-At startup, the service reads ``/etc/osmo/secrets/osmo-workflow-log-cred/cred.yaml`` and merges those fields (``endpoint``, ``region``, ``access_key_id``, ``access_key``) into the ``credential`` block. The same happens for ``workflow_data``.
 
 .. seealso::
 
