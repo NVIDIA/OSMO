@@ -67,6 +67,38 @@ class BumpVersionTest(unittest.TestCase):
         for dep in quick_start["dependencies"]:
             self.assertEqual(dep["version"], "1.4.0", dep["name"])
 
+    def test_major_bump(self) -> None:
+        exit_code = bump_version.main(argv=["--major"], root=self.root)
+        self.assertEqual(exit_code, 0)
+
+        version = _read_yaml(self.root / "src/lib/utils/version.yaml")
+        self.assertEqual(
+            (version["major"], version["minor"], version["revision"]), (7, 0, 0)
+        )
+
+        for name in CHART_NAMES:
+            chart = _read_yaml(self.root / "deployments/charts" / name / "Chart.yaml")
+            self.assertEqual(chart["version"], "2.0.0", name)
+            self.assertEqual(chart["appVersion"], "7.0.0", name)
+
+        quick_start = _read_yaml(self.root / "deployments/charts/quick-start/Chart.yaml")
+        for dep in quick_start["dependencies"]:
+            self.assertEqual(dep["version"], "2.0.0", dep["name"])
+
+    def test_patch_bump(self) -> None:
+        exit_code = bump_version.main(argv=["--patch"], root=self.root)
+        self.assertEqual(exit_code, 0)
+
+        version = _read_yaml(self.root / "src/lib/utils/version.yaml")
+        self.assertEqual(
+            (version["major"], version["minor"], version["revision"]), (6, 3, 1)
+        )
+
+        for name in CHART_NAMES:
+            chart = _read_yaml(self.root / "deployments/charts" / name / "Chart.yaml")
+            self.assertEqual(chart["version"], "1.3.1", name)
+            self.assertEqual(chart["appVersion"], "6.3.1", name)
+
 
 if __name__ == "__main__":
     unittest.main()
