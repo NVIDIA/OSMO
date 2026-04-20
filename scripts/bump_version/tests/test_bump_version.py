@@ -99,6 +99,19 @@ class BumpVersionTest(unittest.TestCase):
             self.assertEqual(chart["version"], "1.3.1", name)
             self.assertEqual(chart["appVersion"], "6.3.1", name)
 
+    def test_repeated_minor_bump(self) -> None:
+        self.assertEqual(bump_version.main(argv=["--minor"], root=self.root), 0)
+        self.assertEqual(bump_version.main(argv=["--minor"], root=self.root), 0)
+
+        version = _read_yaml(self.root / "src/lib/utils/version.yaml")
+        self.assertEqual(
+            (version["major"], version["minor"], version["revision"]), (6, 5, 0)
+        )
+
+        service = _read_yaml(self.root / "deployments/charts/service/Chart.yaml")
+        self.assertEqual(service["version"], "1.5.0")
+        self.assertEqual(service["appVersion"], "6.5.0")
+
 
 if __name__ == "__main__":
     unittest.main()
