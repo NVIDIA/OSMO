@@ -514,7 +514,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. The 
     1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
     2. OIDC issuer URL from your IdP (same as the JWT issuer).
     3. Client ID from your IdP application registration.
-    4. Static credentials path (see :ref:`Step 3 <configure_storage_access>`): delete the ``serviceAccount`` block above, then un-comment ``secretRefs`` here and swap each ``credential`` block below for a ``secretName`` reference (shown commented inline). The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents into the matching ``credential`` block at startup.
+    4. Static credentials path (see :ref:`Step 3 <configure_storage_access>`): delete the ``serviceAccount`` block above, activate the commented ``secretRefs`` block here, and swap each ``credential`` block below for a ``secretName`` reference (shown commented inline). The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents into the matching ``credential`` block at startup.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
 
