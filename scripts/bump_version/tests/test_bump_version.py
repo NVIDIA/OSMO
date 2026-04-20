@@ -112,6 +112,31 @@ class BumpVersionTest(unittest.TestCase):
         self.assertEqual(service["version"], "1.5.0")
         self.assertEqual(service["appVersion"], "6.5.0")
 
+    def test_refuses_on_chart_version_drift(self) -> None:
+        path = self.root / "deployments/charts/router/Chart.yaml"
+        path.write_text(path.read_text().replace("version: 1.3.0", "version: 1.3.1", 1))
+
+        with self.assertRaisesRegex(SystemExit, "chart versions disagree"):
+            bump_version.main(argv=["--minor"], root=self.root)
+
+    def test_refuses_on_app_version_drift(self) -> None:
+        path = self.root / "deployments/charts/web-ui/Chart.yaml"
+        path.write_text(
+            path.read_text().replace('appVersion: "6.3.0"', 'appVersion: "6.4.0"', 1)
+        )
+
+        with self.assertRaisesRegex(SystemExit, "appVersion"):
+            bump_version.main(argv=["--minor"], root=self.root)
+
+    def test_refuses_on_quick_start_dep_drift(self) -> None:
+        path = self.root / "deployments/charts/quick-start/Chart.yaml"
+        path.write_text(
+            path.read_text().replace("  version: 1.3.0", "  version: 1.2.9", 1)
+        )
+
+        with self.assertRaisesRegex(SystemExit, "quick-start dep"):
+            bump_version.main(argv=["--minor"], root=self.root)
+
 
 if __name__ == "__main__":
     unittest.main()
