@@ -19,4 +19,4 @@
    :class: important
 
    Everything on this page lives in your Helm values file under ``services.configs``.
-   Apply changes with ``helm upgrade`` (or let ArgoCD sync).
+   Apply changes with ``helm upgrade``.

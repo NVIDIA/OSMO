@@ -322,6 +322,8 @@ Turtlebot
 txt
 ubuntu
 ui
+uncomment
+Uncomment
 unallowed
 unicast
 unschedulable

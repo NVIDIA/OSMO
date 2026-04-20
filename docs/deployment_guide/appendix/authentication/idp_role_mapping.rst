@@ -56,9 +56,7 @@ On login, OSMO resolves the IdP groups through the mapping and assigns ``ml-team
 Configuring external mappings
 -----------------------------
 
-External mappings are configured via the ``external_roles`` field on each role. Use the ``osmo config`` CLI to update a role's mappings:
-
-Add the role with its ``external_roles`` mapping under ``services.configs.roles`` in your Helm values, then apply with ``helm upgrade`` (or let ArgoCD sync):
+External mappings are configured via the ``external_roles`` field on each role. Add the role with its ``external_roles`` mapping under ``services.configs.roles`` in your Helm values, then apply with ``helm upgrade`` (or let ArgoCD sync):
 
 .. code-block:: yaml
 

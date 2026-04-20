@@ -18,25 +18,38 @@
 
 .. _workflow_pod_workload_identity:
 
-=======================================================
-Workload Identity for Workflow Pods
-=======================================================
+================================================================
+Pool-Wide Workload Identity for Workflow Pods (User Data Access)
+================================================================
 
 .. include:: ../_shared/configmap_banner.rst
 
-Workload identity on the **service cluster** (covered in :ref:`configure_storage_access`) gives the OSMO service and worker pods cloud credentials to read/write the ``workflow_log`` and ``workflow_data`` buckets. During workflow execution, the **workflow pods** themselves also need access to ``workflow_data`` — but they run on your **backend cluster**, not the service cluster. That access is configured separately, here.
+By default, when a user submits a workflow that reads or writes their own cloud buckets, they supply credentials per workflow (via ``osmo credential`` or embedded in the task spec). That's fine for one-off cases. But when a team shares a pool and everyone needs access to the same set of buckets, having each user manage the same credentials over and over is tedious and error-prone.
+
+This page covers an alternative: **grant pool-wide bucket access via cloud workload identity**. You configure a Kubernetes ServiceAccount on the backend cluster with a cloud IAM role that can read/write the shared team buckets, then attach it to the pool via a pod template. Every workflow submitted to that pool runs under that ServiceAccount and inherits the cloud identity — no per-workflow credentials needed.
+
+**Good fit:**
+
+- A team shares one pool and everyone needs access to the same cloud bucket(s).
+- You want to grant bucket access through cloud IAM (audited, revocable, no long-lived keys in specs) rather than distribute keys to every user.
+- Your backend cluster runs on a cloud that supports workload identity (EKS, AKS, GKE).
+
+**Not a fit:**
+
+- Per-user bucket access — workload identity is applied at the pool/SA level and covers every workflow in the pool equally. If User A should access bucket X and User B should access bucket Y in the same pool, use per-workflow credentials instead (or split into separate pools).
+- One-off access — if only a few workflows need a bucket, supplying credentials per workflow is simpler.
 
 .. note::
 
-   If you chose the static credentials path in :ref:`Step 3 <configure_storage_access>` and workflow pods mount the bucket via the credentials stored in the ``osmo-workflow-data-cred`` Secret, you can skip this page — static credentials already cover workflow pods.
+   This page is about **user data** buckets referenced in workflow task inputs/outputs. It is unrelated to OSMO's internal ``workflow_log`` and ``workflow_data`` buckets, which are configured on the service cluster — see :ref:`configure_storage_access`.
 
 
-Why it's a separate configuration
-=================================
+Why it's a separate configuration from service-side workload identity
+======================================================================
 
-- **Different cluster.** Workflow pods run on the backend cluster that's registered as an OSMO backend. That cluster has its own OIDC provider, its own namespaces, and its own ServiceAccounts. Annotations on the service cluster don't transfer.
-- **Possibly different cloud.** The service cluster and backend cluster can be in different cloud accounts or even different providers. Each needs its own workload identity binding.
-- **Different access scope.** Workflow pods need read/write access to ``workflow_data`` for task inputs/outputs. They don't need access to ``workflow_log``, admin APIs, etc.
+- **Different cluster.** Workflow pods run on the backend cluster registered as an OSMO backend, not the service cluster. That cluster has its own OIDC provider, ServiceAccounts, and IAM bindings.
+- **Different bucket scope.** The IAM role grants access to team-owned buckets — OSMO does not manage these buckets; you do.
+- **Different identity.** The service cluster's workload identity is for OSMO's internal ``workflow_log`` / ``workflow_data``. The backend cluster's workload identity is for user data accessed at task runtime.
 
 
 Configuration
@@ -44,7 +57,7 @@ Configuration
 
 **1. Set up workload identity in your cloud and grant bucket access**
 
-Follow your cloud provider's guide on the backend cluster to create a cloud identity (IAM role / managed identity / Google Service Account) with read/write access to the ``workflow_data`` bucket:
+Follow your cloud provider's guide on the backend cluster to create a cloud identity (IAM role / managed identity / Google Service Account) with read/write access to the **user data buckets** you want workflow pods to reach:
 
 - AWS (EKS): `IAM Roles for Service Accounts <https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html>`__
 - Azure (AKS): `Azure AD Workload Identity <https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview>`__
@@ -64,10 +77,10 @@ OSMO runs workflow pods in a namespace on the backend cluster (typically ``osmo-
      name: osmo-workflow
      namespace: osmo-workflows    # replace with your workflow namespace
      annotations:
-       # Pick ONE annotation for your cloud provider:
-       eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
-       # azure.workload.identity/client-id: <managed-identity-client-id>            # Azure (AKS Workload Identity)
-       # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com    # GCP (GKE Workload Identity)
+       # Uncomment ONE line for your cloud provider:
+       # eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
+       # azure.workload.identity/client-id: <managed-identity-client-id>              # Azure (AKS Workload Identity)
+       # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com      # GCP (GKE Workload Identity)
 
 Apply it on the backend cluster:
 
@@ -103,13 +116,13 @@ Add the template name to each pool's ``common_pod_template`` list:
              - default_ctrl
              - workflow_workload_identity
 
-Re-apply the service Helm release. New workflows submitted to those pools will run under the annotated ServiceAccount and pick up cloud credentials automatically.
+Re-apply the service Helm release. New workflows submitted to those pools run under the annotated ServiceAccount and pick up cloud credentials automatically when accessing user data buckets in task inputs/outputs.
 
 
 Verification
 ============
 
-Submit a simple workflow to one of the updated pools and check the pod spec on the backend cluster:
+Submit a workflow that references a user data bucket covered by the IAM role and check the pod spec on the backend cluster:
 
 .. code-block:: bash
 

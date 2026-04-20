@@ -176,7 +176,7 @@ Pod templates are reusable Kubernetes pod fragments — they provide node select
 
 **Step 3: Define the Pool with Platforms**
 
-Add the pool under ``services.configs.pools`` and reference the pod templates via ``override_pod_template``:
+Add the pool under ``services.configs.pools`` and reference the pod templates via ``override_pod_template``. The example below also references ``default_user`` and ``default_ctrl``, ``default_cpu``, ``default_memory``, and ``default_storage`` — these are **built-in pod templates and resource validations** that ship with the Helm chart defaults (see ``services.configs.podTemplates`` and ``services.configs.resourceValidations`` in the chart's ``values.yaml``). You can use them as-is, override them by re-declaring with the same name in your values, or drop the references from the pool.
 
 .. code-block:: yaml
 
@@ -419,10 +419,14 @@ workflow specs) to the actual Kubernetes node ``label``:
         my-pool:
           backend: my-backend
           topology_keys:
-            - {key: zone,       label: topology.kubernetes.io/zone}
-            - {key: spine,      label: topology.kubernetes.io/spine}
-            - {key: rack,       label: topology.kubernetes.io/rack}
-            - {key: gpu-clique, label: nvidia.com/gpu-clique}
+            - key: zone
+              label: topology.kubernetes.io/zone
+            - key: spine
+              label: topology.kubernetes.io/spine
+            - key: rack
+              label: topology.kubernetes.io/rack
+            - key: gpu-clique
+              label: nvidia.com/gpu-clique
 
 **Step 3: Apply the Helm values**
 

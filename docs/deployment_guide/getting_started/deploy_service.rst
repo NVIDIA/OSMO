@@ -254,11 +254,11 @@ Create the master encryption key (MEK) for database encryption:
 Step 3: Configure Storage Access
 =================================
 
-OSMO needs credentials to access two buckets: ``workflow_log`` and ``workflow_data``. The **service** and **worker** pods read/write both buckets (uploading logs, checkpointing task specs, etc.). Pick one of the two approaches below. The ``osmo_values.yaml`` sample in :ref:`Step 4 <deploy_service_osmo_values>` shows the **workload identity** path as the default; annotation ``(4)`` below that sample explains how to flip it to static credentials.
+OSMO needs credentials to access two buckets: ``workflow_log`` and ``workflow_data``. The **service** and **worker** pods read/write both buckets (uploading logs, checkpointing task specs, etc.). Pick one of the two approaches below.
 
 .. note::
 
-   **Workflow pods** running on your backend cluster also access ``workflow_data`` during task execution. That's a separate concern that lives on the backend cluster (not the service cluster) and is covered in :ref:`workflow_pod_workload_identity`. Finish this guide first, then configure workflow pod access as a follow-up.
+   ``workflow_log`` and ``workflow_data`` are OSMO-managed buckets for internal workflow logs, task specs, and intermediate outputs passed between task groups. They are distinct from **user data buckets** referenced in workflow task ``inputs`` / ``outputs`` (the S3/Swift/GCS paths users name in their specs). User data is accessed via per-workflow credentials by default; for teams that share a pool and want pool-wide cloud access without supplying credentials each time, see :ref:`workflow_pod_workload_identity` as a follow-up.
 
 Workload Identity (recommended on AWS, Azure, GCP)
 ---------------------------------------------------
@@ -300,14 +300,14 @@ Create a values file for each OSMO component.
 
    See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample. The sample assumes the **workload identity** path from :ref:`Step 3 <configure_storage_access>`; if you chose static credentials, see annotation ``(4)`` below the sample.
+Create ``osmo_values.yaml`` for the OSMO service with the following sample.
 
 .. dropdown:: ``osmo_values.yaml``
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 20-22, 33, 35, 41, 50, 53-58, 133-134, 138-139, 145, 149, 163-165, 180-182
+    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 134-135, 139-140, 146, 150, 164-166, 181-183
 
     # Global configuration shared across all OSMO services
     global:
@@ -320,17 +320,18 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. The 
         logLevel: DEBUG
         k8sLogLevel: WARNING
 
-    # ServiceAccount the chart deploys. Pick ONE annotation for your
-    # cloud provider and delete the other two.
+    # ServiceAccount the chart deploys. Uncomment ONE annotation below
+    # for your cloud provider.
     #
     # For static credentials: delete this whole serviceAccount block —
     # the default ServiceAccount needs no cloud annotation.
     serviceAccount:
       create: true
       annotations:
-        eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
-        # azure.workload.identity/client-id: <managed-identity-client-id>            # Azure (AKS Workload Identity)
-        # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com    # GCP (GKE Workload Identity)
+        # Uncomment ONE line for your cloud provider:
+        # eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
+        # azure.workload.identity/client-id: <managed-identity-client-id>              # Azure (AKS Workload Identity)
+        # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com      # GCP (GKE Workload Identity)
 
     # Individual service configurations
     services:
@@ -514,7 +515,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. The 
     1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
     2. OIDC issuer URL from your IdP (same as the JWT issuer).
     3. Client ID from your IdP application registration.
-    4. Static credentials path (see :ref:`Step 3 <configure_storage_access>`): delete the ``serviceAccount`` block above, activate the commented ``secretRefs`` block here, and swap each ``credential`` block below for a ``secretName`` reference (shown commented inline). The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents into the matching ``credential`` block at startup.
+    4. Static credentials path (see :ref:`Step 3 <configure_storage_access>`): delete the ``serviceAccount`` block above, uncomment the ``secretRefs`` block here, and swap each ``credential`` block below for a ``secretName`` reference (shown commented inline). The service mounts each ``secretRef`` at ``/etc/osmo/secrets/<secretName>/`` and merges the ``cred.yaml`` contents into the matching ``credential`` block at startup.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
 
