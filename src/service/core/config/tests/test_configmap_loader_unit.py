@@ -170,6 +170,145 @@ class TestResolveSecretFileReferences(unittest.TestCase):
             configmap_loader._resolve_secret_file_references(config_data)
 
 
+class TestResolveSecretDirectory(unittest.TestCase):
+    """Tests for per-field Secret mount support (--from-literal)."""
+
+    def _write_field(self, directory: str, name: str, value: str) -> None:
+        with open(os.path.join(directory, name), 'w', encoding='utf-8') as fh:
+            fh.write(value)
+
+    def test_per_field_mount_loads_all_fields(self):
+        """Secret created with --from-literal loads each file as a field."""
+        with tempfile.TemporaryDirectory() as secret_dir:
+            self._write_field(secret_dir, 'access_key_id', 'AKIAEXAMPLE')
+            self._write_field(
+                secret_dir, 'access_key', 'wJalrXUtnFEMI/EXAMPLE')
+            self._write_field(secret_dir, 'region', 'us-west-2')
+
+            config_data: Dict[str, Any] = {'credential': {}}
+            configmap_loader._resolve_secret_directory(
+                config_data['credential'], secret_dir, 'credential')
+
+            credential = config_data['credential']
+            self.assertEqual(credential['access_key_id'], 'AKIAEXAMPLE')
+            self.assertEqual(credential['access_key'], 'wJalrXUtnFEMI/EXAMPLE')
+            self.assertEqual(credential['region'], 'us-west-2')
+
+    def test_per_field_mount_strips_trailing_newlines(self):
+        with tempfile.TemporaryDirectory() as secret_dir:
+            self._write_field(secret_dir, 'token', 'abc123\n')
+
+            config_data: Dict[str, Any] = {'credential': {}}
+            configmap_loader._resolve_secret_directory(
+                config_data['credential'], secret_dir, 'credential')
+
+            self.assertEqual(config_data['credential']['token'], 'abc123')
+
+    def test_per_field_mount_skips_kubelet_internals(self):
+        """..data and timestamped ..YYYY_MM_DD... entries must be ignored."""
+        with tempfile.TemporaryDirectory() as secret_dir:
+            # Real kubelet mount: actual file + a ..data symlink to a
+            # timestamped hidden dir. We only care that `..`-prefixed
+            # entries are skipped, regardless of type.
+            self._write_field(secret_dir, 'access_key', 'real-value')
+            self._write_field(secret_dir, '..data', 'should-be-ignored')
+            os.makedirs(os.path.join(secret_dir, '..2024_01_01_00_00_00'))
+
+            config_data: Dict[str, Any] = {'credential': {}}
+            configmap_loader._resolve_secret_directory(
+                config_data['credential'], secret_dir, 'credential')
+
+            credential = config_data['credential']
+            self.assertEqual(credential, {'access_key': 'real-value'})
+
+    def test_per_field_mount_removes_reference_fields(self):
+        """secretName/secretKey keys are stripped after resolution."""
+        with tempfile.TemporaryDirectory() as secret_dir:
+            self._write_field(secret_dir, 'access_key', 'value')
+
+            current = {'secretName': 'my-cred'}
+            configmap_loader._resolve_secret_directory(
+                current, secret_dir, 'credential')
+
+            self.assertNotIn('secretName', current)
+            self.assertNotIn('secretKey', current)
+            self.assertEqual(current['access_key'], 'value')
+
+    def test_per_field_mount_empty_directory_logs_error(self):
+        with tempfile.TemporaryDirectory() as secret_dir:
+            current: Dict[str, Any] = {}
+            with self.assertLogs(level=logging.ERROR):
+                configmap_loader._resolve_secret_directory(
+                    current, secret_dir, 'credential')
+
+    def test_secret_name_falls_back_to_per_field(self):
+        """secretName with no cred.yaml loads per-field files from the mount."""
+        with tempfile.TemporaryDirectory() as tmp_root:
+            secret_dir = os.path.join(tmp_root, 'my-cred')
+            os.makedirs(secret_dir)
+            self._write_field(secret_dir, 'access_key_id', 'AKIA')
+            self._write_field(secret_dir, 'access_key', 'SECRET')
+
+            config_data: Dict[str, Any] = {
+                'credential': {'secretName': 'my-cred'},
+            }
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', tmp_root):
+                configmap_loader._resolve_secret_file_references(config_data)
+
+            credential = config_data['credential']
+            self.assertEqual(credential['access_key_id'], 'AKIA')
+            self.assertEqual(credential['access_key'], 'SECRET')
+            self.assertNotIn('secretName', credential)
+
+    def test_secret_name_prefers_cred_yaml_when_present(self):
+        """With both cred.yaml and per-field files, cred.yaml wins."""
+        with tempfile.TemporaryDirectory() as tmp_root:
+            secret_dir = os.path.join(tmp_root, 'my-cred')
+            os.makedirs(secret_dir)
+            self._write_field(secret_dir, 'access_key_id', 'stale-value')
+            with open(os.path.join(secret_dir, 'cred.yaml'),
+                      'w', encoding='utf-8') as fh:
+                yaml.dump({'access_key_id': 'fresh-value'}, fh)
+
+            config_data: Dict[str, Any] = {
+                'credential': {'secretName': 'my-cred'},
+            }
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', tmp_root):
+                configmap_loader._resolve_secret_file_references(config_data)
+
+            self.assertEqual(
+                config_data['credential']['access_key_id'], 'fresh-value')
+
+    def test_secretkey_explicit_does_not_fall_back(self):
+        """Explicit secretKey uses the single-file path (no directory scan)."""
+        with tempfile.TemporaryDirectory() as tmp_root:
+            secret_dir = os.path.join(tmp_root, 'my-cred')
+            os.makedirs(secret_dir)
+            # Per-field files exist but should be ignored because
+            # secretKey is explicit and points to a (missing) single file.
+            self._write_field(secret_dir, 'access_key_id', 'value')
+
+            config_data: Dict[str, Any] = {
+                'credential': {
+                    'secretName': 'my-cred',
+                    'secretKey': 'typo.yaml',
+                },
+            }
+            with mock.patch.object(
+                    configmap_loader, 'SECRETS_ROOT', tmp_root):
+                with self.assertLogs(level=logging.ERROR):
+                    configmap_loader._resolve_secret_file_references(
+                        config_data)
+
+            # Per-field fallback did NOT happen — config still has the
+            # reference keys, not loaded field values.
+            credential = config_data['credential']
+            self.assertNotIn('access_key_id', credential)
+            self.assertIn('secretName', credential)
+
+
 class TestValidateConfigs(unittest.TestCase):
     """Tests for _validate_configs."""
 

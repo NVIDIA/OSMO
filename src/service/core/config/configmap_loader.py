@@ -430,6 +430,11 @@ def _resolve_platform_fields(
 # Secret resolution
 # ---------------------------------------------------------------------------
 
+# Root directory where K8s Secrets are mounted by the chart. Overridable
+# for unit tests that don't run against a real pod.
+SECRETS_ROOT = '/etc/osmo/secrets'
+
+
 def _resolve_secret_file_references(config_data: Dict[str, Any],
                                      parent_key: str = '') -> None:
     """Recursively resolve secret_file / secretName references in a config dict.
@@ -438,6 +443,12 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
     - Reads the YAML file from the mounted K8s Secret path
     - If the file contains a dict: merges the file contents into the parent dict
     - If the file contains a 'value' key: replaces the entire dict with that value
+
+    For secretName references without an explicit secretKey, supports two
+    K8s Secret creation styles:
+    - Single-file (`--from-file=cred.yaml=...`): reads `cred.yaml` from the mount
+    - Per-field (`--from-literal=access_key_id=... --from-literal=access_key=...`):
+      reads each file in the mount directory as a key-value pair
     """
     if not isinstance(config_data, dict):
         return
@@ -448,18 +459,34 @@ def _resolve_secret_file_references(config_data: Dict[str, Any],
         if not isinstance(value, dict):
             continue
 
-        secret_file_path = value.get('secret_file')
-        if not secret_file_path:
-            secret_name = value.get('secretName')
-            if secret_name:
-                secret_key = value.get('secretKey', 'cred.yaml')
-                secret_file_path = f'/etc/osmo/secrets/{secret_name}/{secret_key}'
+        label = f'{parent_key}.{key}' if parent_key else key
 
+        secret_file_path = value.get('secret_file')
         if secret_file_path:
-            _resolve_single_secret(config_data, key, value, secret_file_path,
-                                   f'{parent_key}.{key}' if parent_key else key)
-        else:
-            _resolve_secret_file_references(value, f'{parent_key}.{key}' if parent_key else key)
+            _resolve_single_secret(
+                config_data, key, value, secret_file_path, label)
+            continue
+
+        secret_name = value.get('secretName')
+        if secret_name:
+            secret_dir = os.path.join(SECRETS_ROOT, secret_name)
+            explicit_key = value.get('secretKey')
+            if explicit_key:
+                _resolve_single_secret(
+                    config_data, key, value,
+                    os.path.join(secret_dir, explicit_key), label)
+            else:
+                # Backward compatible: prefer cred.yaml if present,
+                # otherwise treat the mount as --from-literal fields.
+                default_path = os.path.join(secret_dir, 'cred.yaml')
+                if os.path.isfile(default_path):
+                    _resolve_single_secret(
+                        config_data, key, value, default_path, label)
+                else:
+                    _resolve_secret_directory(value, secret_dir, label)
+            continue
+
+        _resolve_secret_file_references(value, label)
 
 
 def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
@@ -523,6 +550,43 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
     current_value.pop('secretKey', None)
     current_value.update(secret_data)
     logging.info('Loaded credentials for %s from secret file', path_label)
+
+
+def _resolve_secret_directory(current_value: Dict[str, Any],
+                              dir_path: str, path_label: str) -> None:
+    """Load each file in a Secret mount directory as a credential field.
+
+    Used when a K8s Secret was created with `--from-literal` (one file per
+    field) rather than `--from-file=cred.yaml=...` (a single YAML file).
+    Skips kubelet internals (`..data` symlink and the timestamped directory
+    it points to) and strips trailing newlines from each value.
+    """
+    fields: Dict[str, str] = {}
+    try:
+        for entry in os.listdir(dir_path):
+            if entry.startswith('..'):
+                continue
+            file_path = os.path.join(dir_path, entry)
+            if not os.path.isfile(file_path):
+                continue
+            with open(file_path, encoding='utf-8') as field_file:
+                fields[entry] = field_file.read().rstrip('\n')
+    except OSError as error:
+        logging.error('Failed to read secret directory %s for %s: %s',
+                      dir_path, path_label, error)
+        return
+
+    if not fields:
+        logging.error('No secret fields found in %s for %s',
+                      dir_path, path_label)
+        return
+
+    current_value.pop('secret_file', None)
+    current_value.pop('secretName', None)
+    current_value.pop('secretKey', None)
+    current_value.update(fields)
+    logging.info('Loaded %d secret fields for %s from %s',
+                 len(fields), path_label, dir_path)
 
 
 def _default_dataset_credential_endpoints(config_data: Dict[str, Any]) -> None:
