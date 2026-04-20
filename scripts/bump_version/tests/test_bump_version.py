@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import contextlib
+import io
 import pathlib
 import shutil
 import tempfile
@@ -136,6 +138,28 @@ class BumpVersionTest(unittest.TestCase):
 
         with self.assertRaisesRegex(SystemExit, "quick-start dep"):
             bump_version.main(argv=["--minor"], root=self.root)
+
+    def test_missing_version_yaml(self) -> None:
+        (self.root / "src/lib/utils/version.yaml").unlink()
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            exit_code = bump_version.main(argv=["--minor"], root=self.root)
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("version.yaml not found", stderr.getvalue())
+
+    def test_no_flag_is_error(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                bump_version.main(argv=[], root=self.root)
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_two_flags_is_error(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as ctx:
+                bump_version.main(argv=["--minor", "--patch"], root=self.root)
+        self.assertEqual(ctx.exception.code, 2)
 
 
 if __name__ == "__main__":
