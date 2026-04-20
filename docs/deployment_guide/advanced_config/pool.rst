@@ -225,7 +225,7 @@ Add the pool under ``services.configs.pools`` and reference the pod templates vi
 
   helm upgrade osmo deployments/charts/service -f my-values.yaml
 
-Once the rollout completes, verify the pool:
+Once the roll out completes, verify the pool:
 
 .. code-block:: bash
 
