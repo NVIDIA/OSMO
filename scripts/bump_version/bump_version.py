@@ -22,7 +22,7 @@ import os
 import pathlib
 import re
 import sys
-from typing import Literal
+from typing import Callable, Literal, Union
 
 import yaml
 
@@ -33,6 +33,15 @@ CHART_NAMES: tuple[str, ...] = (
     "backend-operator",
     "quick-start",
 )
+# quick-start/Chart.yaml pins exactly these four internal charts via its
+# `dependencies:` block. bump_version only touches these four entries;
+# any other dependency (e.g. an external chart) is left alone.
+QUICK_START_DEP_NAMES: tuple[str, ...] = (
+    "service",
+    "web-ui",
+    "router",
+    "backend-operator",
+)
 VERSION_YAML_RELPATH = "src/lib/utils/version.yaml"
 CHARTS_RELDIR = "deployments/charts"
 
@@ -41,6 +50,8 @@ BumpMode = Literal["major", "minor", "patch"]
 
 @dataclasses.dataclass(frozen=True)
 class Semver:
+    """Semantic version X.Y.Z as three non-negative integers."""
+
     major: int
     minor: int
     patch: int
@@ -107,7 +118,10 @@ def _validate_invariants(
     if app_version != osmo_version:
         raise SystemExit(f"appVersion {app_version} != version.yaml {osmo_version}")
     (chart_version,) = distinct_chart_versions
-    for name, dep_version in quick_start_deps.items():
+    for name in QUICK_START_DEP_NAMES:
+        if name not in quick_start_deps:
+            raise SystemExit(f"quick-start dep {name!r} is missing")
+        dep_version = quick_start_deps[name]
         if dep_version != chart_version:
             raise SystemExit(
                 f"quick-start dep {name}={dep_version} != chart {chart_version}"
@@ -115,48 +129,87 @@ def _validate_invariants(
 
 
 def _read_quick_start_deps(path: pathlib.Path) -> dict[str, Semver]:
+    """Return {name: version} for the internal OSMO charts in quick-start's deps.
+
+    External dependencies (if any) are ignored — bump_version is only responsible
+    for keeping the four internal entries in lockstep with the chart version.
+    """
     data = yaml.safe_load(path.read_text())
     deps = data.get("dependencies") or []
-    return {dep["name"]: _parse_semver(str(dep["version"])) for dep in deps}
+    return {
+        dep["name"]: _parse_semver(str(dep["version"]))
+        for dep in deps
+        if dep["name"] in QUICK_START_DEP_NAMES
+    }
+
+
+def _sub_exactly_once(
+    pattern: str,
+    replacement: Union[str, Callable[[re.Match[str]], str]],
+    text: str,
+    where: str,
+) -> str:
+    """Apply a single-occurrence regex substitution, failing loudly on miss."""
+    new_text, count = re.subn(pattern, replacement, text, count=1)
+    if count != 1:
+        raise SystemExit(
+            f"regex {pattern!r} matched {count} times in {where} (expected 1)"
+        )
+    return new_text
 
 
 def _rewrite_version_yaml(path: pathlib.Path, new: Semver) -> None:
     text = path.read_text()
-    text = re.sub(r"(?m)^major: \d+$", f"major: {new.major}", text, count=1)
-    text = re.sub(r"(?m)^minor: \d+$", f"minor: {new.minor}", text, count=1)
-    text = re.sub(r"(?m)^revision: \d+$", f"revision: {new.patch}", text, count=1)
+    text = _sub_exactly_once(
+        r"(?m)^major: \d+$", f"major: {new.major}", text, str(path)
+    )
+    text = _sub_exactly_once(
+        r"(?m)^minor: \d+$", f"minor: {new.minor}", text, str(path)
+    )
+    text = _sub_exactly_once(
+        r"(?m)^revision: \d+$", f"revision: {new.patch}", text, str(path)
+    )
     path.write_text(text)
 
 
 def _rewrite_chart(path: pathlib.Path, new_chart: Semver, new_app: Semver) -> None:
     text = path.read_text()
-    text = re.sub(
+    text = _sub_exactly_once(
         r"(?m)^version: \d+\.\d+\.\d+$",
         f"version: {new_chart}",
         text,
-        count=1,
+        str(path),
     )
-    text = re.sub(
+    text = _sub_exactly_once(
         r'(?m)^appVersion: "\d+\.\d+\.\d+"$',
         f'appVersion: "{new_app}"',
         text,
-        count=1,
+        str(path),
     )
     path.write_text(text)
 
 
 def _rewrite_quick_start_deps(path: pathlib.Path, new_chart: Semver) -> None:
+    """Bump the four internal OSMO dep versions in quick-start/Chart.yaml.
+
+    Each dep entry in the file has the structure:
+
+        - name: <name>
+          version: <X.Y.Z>
+          repository: <...>
+
+    The replacement anchors on the `- name: <exact-name>` line, so only the four
+    internal chart names listed in QUICK_START_DEP_NAMES are touched. Any other
+    dependency (e.g. an external chart) is left untouched.
+    """
     text = path.read_text()
-    # Inside the dependencies: block, each entry is:
-    #   - name: <name>
-    #     version: <X.Y.Z>
-    #     repository: <...>
-    # Anchor the replacement on `name:` to avoid touching the top-level version:.
-    text = re.sub(
-        r"(- name: [A-Za-z0-9_-]+\n  version: )\d+\.\d+\.\d+",
-        lambda m: f"{m.group(1)}{new_chart}",
-        text,
-    )
+    for name in QUICK_START_DEP_NAMES:
+        pattern = rf"(- name: {re.escape(name)}\n  version: )\d+\.\d+\.\d+"
+
+        def _replace(match: re.Match[str]) -> str:
+            return f"{match.group(1)}{new_chart}"
+
+        text = _sub_exactly_once(pattern, _replace, text, str(path))
     path.write_text(text)
 
 

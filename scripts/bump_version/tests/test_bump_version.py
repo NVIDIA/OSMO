@@ -22,6 +22,7 @@ import pathlib
 import shutil
 import tempfile
 import unittest
+from typing import Any
 
 import yaml
 
@@ -31,24 +32,27 @@ FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 CHART_NAMES = ("service", "web-ui", "router", "backend-operator", "quick-start")
 
 
-def _read_yaml(path: pathlib.Path) -> dict:
-    return yaml.safe_load(path.read_text())
+def _read_yaml(path: pathlib.Path) -> dict[str, Any]:
+    loaded = yaml.safe_load(path.read_text())
+    if not isinstance(loaded, dict):
+        raise ValueError(f"expected mapping YAML in {path}")
+    return loaded
 
 
 class BumpVersionTest(unittest.TestCase):
     def setUp(self) -> None:
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.root = self._stage(pathlib.Path(tmp.name))
+        temp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, temp_dir, True)
+        self.root = self._stage(pathlib.Path(temp_dir))
 
-    def _stage(self, tmp: pathlib.Path) -> pathlib.Path:
-        root = tmp / "repo"
+    def _stage(self, temp_dir: pathlib.Path) -> pathlib.Path:
+        root = temp_dir / "repo"
         (root / "src/lib/utils").mkdir(parents=True)
         shutil.copy(FIXTURES / "version.yaml", root / "src/lib/utils/version.yaml")
         for name in CHART_NAMES:
-            dst = root / "deployments/charts" / name
-            dst.mkdir(parents=True)
-            shutil.copy(FIXTURES / name / "Chart.yaml", dst / "Chart.yaml")
+            chart_dir = root / "deployments/charts" / name
+            chart_dir.mkdir(parents=True)
+            shutil.copy(FIXTURES / name / "Chart.yaml", chart_dir / "Chart.yaml")
         return root
 
     def test_minor_bump(self) -> None:
@@ -65,9 +69,11 @@ class BumpVersionTest(unittest.TestCase):
             self.assertEqual(chart["version"], "1.4.0", name)
             self.assertEqual(chart["appVersion"], "6.4.0", name)
 
-        quick_start = _read_yaml(self.root / "deployments/charts/quick-start/Chart.yaml")
-        for dep in quick_start["dependencies"]:
-            self.assertEqual(dep["version"], "1.4.0", dep["name"])
+        quick_start = _read_yaml(
+            self.root / "deployments/charts/quick-start/Chart.yaml"
+        )
+        for dependency in quick_start["dependencies"]:
+            self.assertEqual(dependency["version"], "1.4.0", dependency["name"])
 
     def test_major_bump(self) -> None:
         exit_code = bump_version.main(argv=["--major"], root=self.root)
@@ -83,9 +89,11 @@ class BumpVersionTest(unittest.TestCase):
             self.assertEqual(chart["version"], "2.0.0", name)
             self.assertEqual(chart["appVersion"], "7.0.0", name)
 
-        quick_start = _read_yaml(self.root / "deployments/charts/quick-start/Chart.yaml")
-        for dep in quick_start["dependencies"]:
-            self.assertEqual(dep["version"], "2.0.0", dep["name"])
+        quick_start = _read_yaml(
+            self.root / "deployments/charts/quick-start/Chart.yaml"
+        )
+        for dependency in quick_start["dependencies"]:
+            self.assertEqual(dependency["version"], "2.0.0", dependency["name"])
 
     def test_patch_bump(self) -> None:
         exit_code = bump_version.main(argv=["--patch"], root=self.root)
@@ -100,6 +108,12 @@ class BumpVersionTest(unittest.TestCase):
             chart = _read_yaml(self.root / "deployments/charts" / name / "Chart.yaml")
             self.assertEqual(chart["version"], "1.3.1", name)
             self.assertEqual(chart["appVersion"], "6.3.1", name)
+
+        quick_start = _read_yaml(
+            self.root / "deployments/charts/quick-start/Chart.yaml"
+        )
+        for dependency in quick_start["dependencies"]:
+            self.assertEqual(dependency["version"], "1.3.1", dependency["name"])
 
     def test_repeated_minor_bump(self) -> None:
         self.assertEqual(bump_version.main(argv=["--minor"], root=self.root), 0)
@@ -116,7 +130,9 @@ class BumpVersionTest(unittest.TestCase):
 
     def test_refuses_on_chart_version_drift(self) -> None:
         path = self.root / "deployments/charts/router/Chart.yaml"
-        path.write_text(path.read_text().replace("version: 1.3.0", "version: 1.3.1", 1))
+        path.write_text(
+            path.read_text().replace("version: 1.3.0", "version: 1.3.1", 1)
+        )
 
         with self.assertRaisesRegex(SystemExit, "chart versions disagree"):
             bump_version.main(argv=["--minor"], root=self.root)
@@ -151,15 +167,15 @@ class BumpVersionTest(unittest.TestCase):
 
     def test_no_flag_is_error(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as ctx:
+            with self.assertRaises(SystemExit) as context:
                 bump_version.main(argv=[], root=self.root)
-        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(context.exception.code, 2)
 
     def test_two_flags_is_error(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as ctx:
+            with self.assertRaises(SystemExit) as context:
                 bump_version.main(argv=["--minor", "--patch"], root=self.root)
-        self.assertEqual(ctx.exception.code, 2)
+        self.assertEqual(context.exception.code, 2)
 
     def test_comments_preserved(self) -> None:
         paths = [
