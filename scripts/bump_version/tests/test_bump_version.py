@@ -1,0 +1,72 @@
+"""
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+"""
+
+import pathlib
+import shutil
+import tempfile
+import unittest
+
+import yaml
+
+from scripts.bump_version import bump_version
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+CHART_NAMES = ("service", "web-ui", "router", "backend-operator", "quick-start")
+
+
+def _read_yaml(path: pathlib.Path) -> dict:
+    return yaml.safe_load(path.read_text())
+
+
+class BumpVersionTest(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = self._stage(pathlib.Path(tmp.name))
+
+    def _stage(self, tmp: pathlib.Path) -> pathlib.Path:
+        root = tmp / "repo"
+        (root / "src/lib/utils").mkdir(parents=True)
+        shutil.copy(FIXTURES / "version.yaml", root / "src/lib/utils/version.yaml")
+        for name in CHART_NAMES:
+            dst = root / "deployments/charts" / name
+            dst.mkdir(parents=True)
+            shutil.copy(FIXTURES / name / "Chart.yaml", dst / "Chart.yaml")
+        return root
+
+    def test_minor_bump(self) -> None:
+        exit_code = bump_version.main(argv=["--minor"], root=self.root)
+        self.assertEqual(exit_code, 0)
+
+        version = _read_yaml(self.root / "src/lib/utils/version.yaml")
+        self.assertEqual(version["major"], 6)
+        self.assertEqual(version["minor"], 4)
+        self.assertEqual(version["revision"], 0)
+
+        for name in CHART_NAMES:
+            chart = _read_yaml(self.root / "deployments/charts" / name / "Chart.yaml")
+            self.assertEqual(chart["version"], "1.4.0", name)
+            self.assertEqual(chart["appVersion"], "6.4.0", name)
+
+        quick_start = _read_yaml(self.root / "deployments/charts/quick-start/Chart.yaml")
+        for dep in quick_start["dependencies"]:
+            self.assertEqual(dep["version"], "1.4.0", dep["name"])
+
+
+if __name__ == "__main__":
+    unittest.main()
