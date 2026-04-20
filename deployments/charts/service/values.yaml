@@ -1135,7 +1135,7 @@ services:
       ## Resource limits (maximum allocation)
       ##
       limits:
-        memory: "500Mi"
+        memory: "1Gi"
 
     ## Tolerations for agent service pod scheduling on tainted nodes
     ##
