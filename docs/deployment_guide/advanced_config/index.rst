@@ -70,3 +70,9 @@ This section provides additional advanced configurations to customize and optimi
 
           Configure additional data buckets for managing team datasets and isolated storage.
 
+      .. grid-item-card:: :octicon:`shield-lock` Workflow Pod Workload Identity
+          :link: ./workflow_pod_workload_identity
+          :link-type: doc
+
+          Give workflow pods cloud credentials via a ServiceAccount on the backend cluster.
+
