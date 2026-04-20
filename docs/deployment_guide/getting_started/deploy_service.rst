@@ -254,7 +254,7 @@ Create the master encryption key (MEK) for database encryption:
 Step 3: Configure Storage Access
 =================================
 
-OSMO needs credentials to access two buckets: ``workflow_log`` (used by the service to read/write workflow logs and specs) and ``workflow_data`` (used by workflow pods to stage task inputs/outputs). Pick one of the two approaches below. The rest of the guide uses **workload identity** as the primary walkthrough; if you pick static credentials, see the "Using static credentials instead" callout at the end of :ref:`Step 4 <deploy_service_osmo_values>` for the diff.
+OSMO needs credentials to access two buckets: ``workflow_log`` (used by the service to read/write workflow logs and specs) and ``workflow_data`` (used by workflow pods to stage task inputs/outputs). Pick one of the two approaches below. The rest of the guide uses **workload identity** as the primary walk-through; if you pick static credentials, see the "Using static credentials instead" call-out at the end of :ref:`Step 4 <deploy_service_osmo_values>` for the diff.
 
 Workload Identity (recommended on AWS, Azure, GCP)
 ---------------------------------------------------
@@ -284,7 +284,7 @@ Static credentials
 
 Use the two Kubernetes Secrets you created in Step 2 (``osmo-workflow-log-cred`` and ``osmo-workflow-data-cred``). In the next step, reference them by ``secretName`` and list them under ``secretRefs`` so the chart mounts them. No pod template or ServiceAccount annotations are needed.
 
-The workload identity sample in Step 4 differs from the static credentials path in four specific places — see the "Using static credentials instead" callout at the end of :ref:`Step 4 <deploy_service_osmo_values>`.
+The workload identity sample in Step 4 differs from the static credentials path in four specific places — see the "Using static credentials instead" call-out at the end of :ref:`Step 4 <deploy_service_osmo_values>`.
 
 
 .. _deploy_service_osmo_values:
@@ -298,7 +298,7 @@ Create a values file for each OSMO component.
 
    See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample. The sample assumes the **workload identity** path from :ref:`Step 3 <configure_storage_access>`; if you chose static credentials instead, see the callout immediately after the dropdown for the diff.
+Create ``osmo_values.yaml`` for the OSMO service with the following sample. The sample assumes the **workload identity** path from :ref:`Step 3 <configure_storage_access>`; if you chose static credentials instead, see the call-out immediately after the dropdown for the diff.
 
 Fill in these placeholders with your real values:
 
