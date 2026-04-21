@@ -18,7 +18,6 @@ import { test, expect } from "@playwright/test";
 import {
   createPoolResponse,
   createWorkflowsResponse,
-  createWorkflowEntry,
   PoolStatus,
   WorkflowStatus,
 } from "@/mocks/factories";
@@ -44,6 +43,7 @@ import {
 
 test.describe("Dashboard Stats", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
   });
@@ -96,18 +96,23 @@ test.describe("Dashboard Stats", () => {
 
 test.describe("Dashboard Recent Workflows", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
   });
 
   test("shows recent workflows section with workflow entries", async ({ page }) => {
-    // NOTE: Dashboard uses SSR streaming — data is server-prefetched via MSW,
-    // not from Playwright route mocks. We verify the section renders with
-    // workflow entries (links to /workflows/...) rather than specific names.
+    // NOTE: Recent workflows are loaded from GET /api/workflow in the browser; Playwright
+    // route mocks must return at least one workflow or the section has no /workflows/... links.
 
     // ARRANGE
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
-    await setupWorkflows(page, createWorkflowsResponse([]));
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "recent-e2e-workflow", status: WorkflowStatus.COMPLETED, user: "test-user" },
+      ]),
+    );
 
     // ACT
     await page.goto("/");
@@ -120,9 +125,15 @@ test.describe("Dashboard Recent Workflows", () => {
   });
 
   test("shows workflow status badges in recent workflows", async ({ page }) => {
-    // ARRANGE
+    // ARRANGE — seed workflows so status labels (Completed / Running / …) appear in Recent Workflows
     await setupPools(page, createPoolResponse([{ name: "prod", status: PoolStatus.ONLINE }]));
-    await setupWorkflows(page, createWorkflowsResponse([]));
+    await setupWorkflows(
+      page,
+      createWorkflowsResponse([
+        { name: "recent-badge-a", status: WorkflowStatus.COMPLETED, user: "alice" },
+        { name: "recent-badge-b", status: WorkflowStatus.RUNNING, user: "bob" },
+      ]),
+    );
 
     // ACT
     await page.goto("/");
@@ -151,6 +162,7 @@ test.describe("Dashboard Recent Workflows", () => {
 
 test.describe("Dashboard Version", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
   });

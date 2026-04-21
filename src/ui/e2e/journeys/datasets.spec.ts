@@ -15,8 +15,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
+import { createDatasetsResponse, DatasetType } from "@/mocks/factories";
 import {
   setupDefaultMocks,
+  setupDatasets,
   setupProfile,
 } from "@/e2e/utils/mock-setup";
 
@@ -43,8 +45,16 @@ import {
 
 test.describe("Datasets List", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
+    await setupDatasets(
+      page,
+      createDatasetsResponse([
+        { name: "e2e-dataset-one", bucket: "ci-bucket", type: DatasetType.DATASET },
+        { name: "e2e-dataset-two", bucket: "ci-bucket", type: DatasetType.DATASET },
+      ]),
+    );
   });
 
   test("renders datasets table with column headers", async ({ page }) => {
@@ -113,8 +123,16 @@ test.describe("Datasets List", () => {
 
 test.describe("Dataset Row Interaction", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
+    await setupDatasets(
+      page,
+      createDatasetsResponse([
+        { name: "e2e-dataset-one", bucket: "ci-bucket", type: DatasetType.DATASET },
+        { name: "e2e-dataset-two", bucket: "ci-bucket", type: DatasetType.DATASET },
+      ]),
+    );
   });
 
   test("clicking a dataset row navigates to its detail page", async ({ page }) => {

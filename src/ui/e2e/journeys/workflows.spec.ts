@@ -43,6 +43,7 @@ import {
 
 test.describe("Workflows List", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
   });
@@ -131,6 +132,7 @@ test.describe("Workflows List", () => {
 
 test.describe("Workflow Row Interaction", () => {
   test.beforeEach(async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setupDefaultMocks(page);
     await setupProfile(page);
   });
@@ -147,9 +149,12 @@ test.describe("Workflow Row Interaction", () => {
     // ACT
     await page.goto("/workflows?all=true");
     await page.waitForLoadState("networkidle");
-    await page.getByText("clickable-workflow").first().click();
+    // Click the data row (virtualized table) — text click alone can miss [role=row] hit targets.
+    const dataRow = page.locator('[role="row"][data-index]').first();
+    await expect(dataRow).toBeVisible();
+    await dataRow.click();
 
     // ASSERT — navigates to the workflow detail page
-    await expect(page).toHaveURL(/\/workflows\/clickable-workflow/);
+    await expect(page).toHaveURL(/\/workflows\/clickable-workflow/, { timeout: 15_000 });
   });
 });
