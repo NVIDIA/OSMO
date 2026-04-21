@@ -162,16 +162,13 @@ Add buckets from different cloud providers:
 
 **Step 3: Attach Credentials (Optional)**
 
-If a bucket requires credentials, create a Kubernetes Secret and reference it via ``default_credential.secretName``. The Secret's ``cred.yaml`` file should contain the credential fields (``access_key_id``, ``access_key``, etc.):
+If a bucket requires credentials, create a Kubernetes Secret with one credential field per key and reference it via ``default_credential.secretName``:
 
 .. code-block:: bash
 
   kubectl create secret generic prod-bucket-cred \
-      --from-file=cred.yaml=<(cat <<EOF
-  access_key_id: <your-access-key-id>
-  access_key: <your-secret-access-key>
-  EOF
-  )
+      --from-literal=access_key_id=<your-access-key-id> \
+      --from-literal=access_key=<your-secret-access-key>
 
 .. code-block:: yaml
 

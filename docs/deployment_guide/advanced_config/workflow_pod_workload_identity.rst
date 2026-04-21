@@ -18,9 +18,9 @@
 
 .. _workflow_pod_workload_identity:
 
-================================================================
-Pool-Wide Workload Identity for Workflow Pods (User Data Access)
-================================================================
+======================================
+Workload Identity for Workflow Pods
+======================================
 
 .. include:: ../_shared/configmap_banner.rst
 
@@ -42,14 +42,6 @@ This page covers an alternative: **grant pool-wide bucket access via cloud workl
 .. note::
 
    This page is about **user data** buckets referenced in workflow task inputs/outputs. It is unrelated to OSMO's internal ``workflow_log`` and ``workflow_data`` buckets, which are configured on the service cluster — see :ref:`configure_storage_access`.
-
-
-Why it's a separate configuration from service-side workload identity
-======================================================================
-
-- **Different cluster.** Workflow pods run on the backend cluster registered as an OSMO backend, not the service cluster. That cluster has its own OIDC provider, ServiceAccounts, and IAM bindings.
-- **Different bucket scope.** The IAM role grants access to team-owned buckets — OSMO does not manage these buckets; you do.
-- **Different identity.** The service cluster's workload identity is for OSMO's internal ``workflow_log`` / ``workflow_data``. The backend cluster's workload identity is for user data accessed at task runtime.
 
 
 Configuration
