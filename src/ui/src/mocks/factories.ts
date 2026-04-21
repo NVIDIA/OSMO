@@ -219,9 +219,7 @@ export function createWorkflowsResponse(
   moreEntries = false,
 ): SrcServiceCoreWorkflowObjectsListResponse {
   const defaultWorkflows =
-    workflows.length > 0
-      ? workflows.map((w, i) => createWorkflowEntry({ name: `workflow-${i + 1}`, ...w }))
-      : [];
+    workflows.length > 0 ? workflows.map((w, i) => createWorkflowEntry({ name: `workflow-${i + 1}`, ...w })) : [];
 
   return {
     workflows: defaultWorkflows,
@@ -233,9 +231,7 @@ export function createWorkflowsResponse(
 // Dataset factories
 // =============================================================================
 
-export function createDatasetEntry(
-  overrides: Partial<DataListEntry> = {},
-): DataListEntry {
+export function createDatasetEntry(overrides: Partial<DataListEntry> = {}): DataListEntry {
   const now = new Date();
   return {
     name: overrides.name ?? `dataset-${Math.random().toString(36).slice(2, 8)}`,
@@ -251,13 +247,9 @@ export function createDatasetEntry(
   };
 }
 
-export function createDatasetsResponse(
-  datasets: Partial<DataListEntry>[] = [],
-): DataListResponse {
+export function createDatasetsResponse(datasets: Partial<DataListEntry>[] = []): DataListResponse {
   const defaultDatasets =
-    datasets.length > 0
-      ? datasets.map((d, i) => createDatasetEntry({ name: `dataset-${i + 1}`, ...d }))
-      : [];
+    datasets.length > 0 ? datasets.map((d, i) => createDatasetEntry({ name: `dataset-${i + 1}`, ...d })) : [];
 
   return { datasets: defaultDatasets };
 }
