@@ -31,7 +31,7 @@ import os
 import signal
 import socket
 import sys
-from typing import Callable, Dict, List, Set, Tuple
+from typing import Any, Callable, Dict, List, Set, Tuple
 
 import requests
 from watchdog import events, observers  # type: ignore
@@ -59,6 +59,13 @@ DEFAULT_DAEMON_RECONCILE_INTERVAL = 60.0
 DEFAULT_DAEMON_MAX_LOG_SIZE = 2 * 1024 * 1024  # 2MB
 
 logger = logging.getLogger(__name__)
+
+
+def _get_multiprocessing_context() -> Any:
+    """
+    Use an explicit start method so subprocess behavior does not vary by Python version.
+    """
+    return multiprocessing.get_context('spawn')
 
 
 def _format_bytes(num_bytes: float) -> str:
@@ -139,7 +146,7 @@ async def _stream_progress(stdout: asyncio.StreamReader) -> None:
             else:
                 display = f'{current_file}  {line.strip()}'
             padding = max(0, terminal_width - len(display))
-            sys.stdout.write(f'\r{display}{" " * padding}')
+            sys.stdout.write(f'\r{display}{' ' * padding}')
             sys.stdout.flush()
         else:
             file_count += 1
@@ -147,8 +154,8 @@ async def _stream_progress(stdout: asyncio.StreamReader) -> None:
 
     # Final newline to move past the in-place line
     if file_count > 0:
-        sys.stdout.write(f'\rSynced {file_count} file{"s" if file_count != 1 else ""}'
-                         f'{" " * (terminal_width - 20)}\n')
+        sys.stdout.write(f'\rSynced {file_count} file{'s' if file_count != 1 else ''}'
+                         f'{' ' * (terminal_width - 20)}\n')
         sys.stdout.flush()
 
 
@@ -944,7 +951,7 @@ class PathEventHandler(events.FileSystemEventHandler):
         rsync_client: RsyncClient,
         debounce_delay: float = 30.0,
     ):
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.get_running_loop()
         self._rsync_client = rsync_client
         self._debounce_timer = DebounceTimer(loop=self._loop, delay=debounce_delay)
 
@@ -1459,7 +1466,7 @@ def rsync_upload_task_daemon(
         )
         return
 
-    process = multiprocessing.Process(
+    process = _get_multiprocessing_context().Process(
         target=_run_daemon,
         args=(
             login_config,
@@ -1755,7 +1762,7 @@ def validate_remote_path(
     if rsync_module is None:
         raise osmo_errors.OSMOUserError(
             f'Remote path is not allowed for rsync: {path}. The allowed base paths are: '
-            f'{", ".join([p.path for p in allowed_paths])}')
+            f'{', '.join([p.path for p in allowed_paths])}')
 
     return rsync_module.name, sanitized
 
@@ -1887,7 +1894,7 @@ def rsync_upload(
         rate_limit = min(rate_limit or config_rate_limit, config_rate_limit)
 
     if not daemon:
-        asyncio.get_event_loop().run_until_complete(
+        asyncio.run(
             rsync_upload_task(
                 service_client,
                 rsync_request,
@@ -1956,7 +1963,7 @@ def rsync_download(
     rsync_request = parse_rsync_request(
         rsync_config, workflow_id, task_name, path, RsyncDirection.DOWNLOAD)
 
-    asyncio.get_event_loop().run_until_complete(
+    asyncio.run(
         rsync_download_task(
             service_client,
             rsync_request,

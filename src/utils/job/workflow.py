@@ -30,6 +30,7 @@ import pydantic
 import requests  # type: ignore
 
 from src.lib.data import storage
+from src.lib.data.storage import credentials
 from src.lib.utils import (common, jinja_sandbox, osmo_errors, priority as wf_priority,
                         workflow as workflow_utils)
 from src.utils import connectors, notify
@@ -164,7 +165,7 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
             upper_name = resource_type.name.upper()
             if resource_type.unit:
                 value = exposed_fields.get(resource_type.name, '0')
-                value = f'{common.convert_resource_value_str(value, target="Ki")}Ki'
+                value = f'{common.convert_resource_value_str(value, target='Ki')}Ki'
                 mapping[f'K8_{upper_name}'] = value
             else:
                 mapping[f'K8_{upper_name}'] = \
@@ -653,7 +654,7 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
                       seen_bucket_input: Set[str], seen_bucket_output: Set[str],
                       default_user_bucket: str | None,
                       default_service_bucket: str,
-                      user_creds: Dict[str, Any]):
+                      user_creds: Dict[str, credentials.StaticDataCredential]):
 
         def _validate_input_output(data_spec: Union[task.InputType, task.OutputType, task.TaskKPI],
                                    is_input: bool):
@@ -710,24 +711,35 @@ class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
             if bucket_info.scheme in disabled_data:
                 return
 
-            data_cred = task.fetch_creds(user, user_creds, bucket_info.uri)
+            access_type = storage.AccessType.READ if is_input else storage.AccessType.WRITE
+            uri_cache = seen_uri_input if is_input else seen_uri_output
 
-            if data_cred is None:
-                # User does not have any credentials, check if the backend
-                # supports environment authentication
-                if not bucket_info.supports_environment_auth:
-                    raise osmo_errors.OSMOCredentialError(
-                        f'Could not validate access to {bucket_info.uri} for user {user}.')
-            else:
-                # Check if user credentials have access to READ
-                if is_input and bucket_info.uri not in seen_uri_input:
-                    bucket_info.data_auth(data_cred, storage.AccessType.READ)
-                    seen_uri_input.add(bucket_info.uri)
+            if bucket_info.uri in uri_cache:
+                return
 
-                # Check if user credentials have access to WRITE
-                if not is_input and bucket_info.uri not in seen_uri_output:
-                    bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
-                    seen_uri_output.add(bucket_info.uri)
+            # Credential resolution — strict priority, no cross-tier fallback:
+            #   1. User explicit credential (from their stored credentials in DB).
+            #   2. System default_credential on the bucket config (used only when the user
+            #      has no explicit credential for this profile — already enforced by
+            #      get_all_data_creds which merges them with user taking priority).
+            #   Both tiers are represented by user_creds.get(profile): if the user has their
+            #   own credential it wins; otherwise the bucket default is returned; None means
+            #   neither tier has anything configured.
+            #
+            #   3. No configured credential + backend does not support ambient → error.
+            #   4. No configured credential + backend supports ambient → skip submit-time
+            #      validation entirely and let the runtime (osmo-ctrl) perform the real check.
+            configured_cred = user_creds.get(bucket_info.profile)
+
+            if configured_cred is not None:
+                bucket_info.data_auth(configured_cred, access_type)
+                uri_cache.add(bucket_info.uri)
+            elif not bucket_info.supports_environment_auth:
+                raise osmo_errors.OSMOCredentialError(
+                    f'No credentials configured for {bucket_info.uri} (user {user}) '
+                    f'and the backend does not support environment authentication. '
+                    f'Run `osmo credential set` to add a credential.')
+            # else: ambient — no submit-time check; osmo-ctrl validates at runtime
 
         for input_data_spec in group_task.inputs:
             _validate_input_output(input_data_spec, True)

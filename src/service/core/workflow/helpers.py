@@ -258,7 +258,7 @@ def get_pool_resources(pools: List[str] | None = None,
             AND keys = resource_platforms.platform
         LEFT JOIN resources ON resource_platforms.resource_name = resources.name
             AND resource_platforms.backend = resources.backend
-        {f'WHERE {" AND ".join(conditions)}' if conditions else ''}
+        {f'WHERE {' AND '.join(conditions)}' if conditions else ''}
         group by pools.name, keys, backends.last_heartbeat
         order by pools.name, keys
         '''
@@ -408,7 +408,7 @@ def set_workflow_tags(workflow_id: str, add_tags: List[str] | None, remove_tags:
     workflow_tags = context.database.get_workflow_configs().workflow_info.tags
     if add_tags and not set(add_tags) <= set(workflow_tags):
         raise osmo_errors.OSMOUserError(
-            f'Invalid tag detected. Users can only set specified tags: {", ".join(workflow_tags)}')
+            f'Invalid tag detected. Users can only set specified tags: {', '.join(workflow_tags)}')
 
     commit_input = []
 
@@ -431,7 +431,7 @@ def set_workflow_tags(workflow_id: str, add_tags: List[str] | None, remove_tags:
                 SELECT w.workflow_uuid, t.tag
                 FROM workflows w
                 JOIN (
-                    VALUES {",".join(["(%s, %s)"] * len(add_tags))}
+                    VALUES {','.join(['(%s, %s)'] * len(add_tags))}
                 ) AS t(workflow_id, tag)
                 ON w.workflow_id = t.workflow_id OR w.workflow_uuid = t.workflow_id
                 ON CONFLICT DO NOTHING;

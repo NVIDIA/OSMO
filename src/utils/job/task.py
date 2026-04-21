@@ -26,6 +26,7 @@ import math
 import re
 import secrets
 import time
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlencode
 
@@ -102,7 +103,7 @@ def create_login_dict(user: str,
 
 
 def create_config_dict(
-    data_info: dict[str, credentials.StaticDataCredential],
+    data_info: Mapping[str, credentials.StaticDataCredential | credentials.DefaultDataCredential],
 ) -> dict:
     '''
     Creates the config dict where the input should be a dict containing key values like:
@@ -2699,7 +2700,7 @@ class TaskGroup(pydantic.BaseModel):
         service_config: connectors.ServiceConfig | None = None,
         dataset_config: connectors.DatasetConfig | None = None,
         pool_info: connectors.Pool | None = None,
-        data_endpoints: Dict[str, credentials.StaticDataCredential] | None = None,
+        data_endpoints: Mapping[str, credentials.StaticDataCredential] | None = None,
         skip_refresh_token: bool = False,
         auth_token: str | None = None,
     ) -> Tuple[Dict, Dict[str, kb_objects.FileMount], Optional[Tuple[str, str]]]:
@@ -2786,7 +2787,7 @@ class TaskGroup(pydantic.BaseModel):
         for kpi in task_spec.kpis:
             task_io_url = f'{url_prefix}/{self.workflow_id}/{task_spec.name}'
             if '/' in kpi.path:
-                task_io_url += f'/{kpi.path.rsplit("/", 1)[0]}'
+                task_io_url += f'/{kpi.path.rsplit('/', 1)[0]}'
             ctrl_extra_args += ['-outputs', f'kpi:{task_io_url},{kpi.path}']
 
         for spec_output in task_spec.outputs:
@@ -2799,8 +2800,8 @@ class TaskGroup(pydantic.BaseModel):
                 ctrl_extra_args += ['-outputs',
                                     f'dataset:{task_io_url},' +
                                     f'{spec_output.dataset.path},' +
-                                    f'{",".join(spec_output.dataset.metadata)};' +
-                                    f'{",".join(spec_output.dataset.labels)};' +
+                                    f'{','.join(spec_output.dataset.metadata)};' +
+                                    f'{','.join(spec_output.dataset.labels)};' +
                                     spec_output.dataset.regex]
             if isinstance(spec_output, UpdateDatasetOutput):
                 dataset_info = common.DatasetStructure(spec_output.update_dataset.name, True)
@@ -2810,8 +2811,8 @@ class TaskGroup(pydantic.BaseModel):
                             disabled_data)
                 ctrl_extra_args += ['-outputs',
                                     f'update_dataset:{task_io_url};' +
-                                    f'{",".join(spec_output.update_dataset.paths)};' +
-                                    f'{",".join(spec_output.update_dataset.metadata)};' +
+                                    f'{','.join(spec_output.update_dataset.paths)};' +
+                                    f'{','.join(spec_output.update_dataset.metadata)};' +
                                     ','.join(spec_output.update_dataset.labels)]
             if isinstance(spec_output, URLInputOutput):
                 task_io_url = spec_output.url
@@ -3193,13 +3194,15 @@ def decode_hstore(tasks: str) -> Set[str]:
 
 def fetch_creds(
     user: str,
-    data_creds: dict[str, credentials.StaticDataCredential],
+    data_creds: Mapping[str, credentials.StaticDataCredential],
     path: str,
     disabled_data: list[str] | None = None,
 ) -> credentials.StaticDataCredential | None:
     backend_info = storage.construct_storage_backend(path)
 
     if backend_info.profile not in data_creds:
+        if backend_info.supports_environment_auth:
+            return None
         if not disabled_data or backend_info.scheme not in disabled_data:
             raise osmo_errors.OSMOCredentialError(
                 f'Could not find {backend_info.profile} credential for user {user}.')

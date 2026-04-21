@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -670,11 +670,11 @@ def print_submission_results(result, args: argparse.Namespace, parent_workflow_i
         else:
             message = 'Workflow submit successful.'
         print(f'{message}\n' \
-              f'Workflow ID        - {result["name"]}\n' \
-              f'Workflow Overview  - {result["overview"]}')
+              f'Workflow ID        - {result['name']}\n' \
+              f'Workflow Overview  - {result['overview']}')
         dashboard_url = result.get('dashboard_url')
         if dashboard_url is not None:
-            print(f'Workflow Dashboard - {result["dashboard_url"]}')
+            print(f'Workflow Dashboard - {result['dashboard_url']}')
         priority = wf_priority.WorkflowPriority(args.priority) \
             if hasattr(args, 'priority') and args.priority else wf_priority.WorkflowPriority.NORMAL
         if priority.preemptible:
@@ -751,7 +751,7 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
                                         payload=template_data.to_dict(), params=params)
 
         if args.dry:
-            print(f'{result["spec"]}')
+            print(f'{result['spec']}')
             return
 
         # Not a dry run, so reset the flag for the actual submission
@@ -881,7 +881,7 @@ def _validate_workflow(service_client: client.ServiceClient, args: argparse.Name
         f'api/pool/{args.pool}/workflow',
         payload=template_dict,
         params=params)
-    print(f'{result["logs"]}')
+    print(f'{result['logs']}')
 
 
 def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -972,7 +972,7 @@ def _cancel_workflow(service_client: client.ServiceClient, args: argparse.Namesp
             if args.format_type == 'json':
                 print(json.dumps(result, indent=common.JSON_INDENT_SIZE))
             else:
-                print(f'Cancel job for workflow {result["name"]} is submitted!')
+                print(f'Cancel job for workflow {result['name']} is submitted!')
         except (osmo_errors.OSMOServerError, osmo_errors.OSMOUserError) as error:
             print(f'Workflow cancelation failed for workflow {workflow_id}: {error}')
 
@@ -1310,7 +1310,7 @@ def _upload_localpath_dataset_inputs(
 
 async def _connect_stdin_stdout() -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """ Gets non-blocking reader and writer for stdin, stdout. """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
 
@@ -1348,7 +1348,7 @@ async def _send_terminal_resize(ws: websockets.WebSocketClientProtocol):  # type
 
 
 async def _watch_terminal_resize(ws: websockets.WebSocketClientProtocol):  # type: ignore
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     resize_event = asyncio.Event()
     loop.add_signal_handler(signal.SIGWINCH, resize_event.set)
     try:
@@ -1366,7 +1366,7 @@ async def _run_exec_interactive(service_client: client.ServiceClient, args: argp
                                 result: Dict[str, str], keep_alive: bool = False):
     router_address = result['router_address']
     headers = {'Cookie': result['cookie']}
-    endpoint = f'api/router/exec/{args.workflow_id}/client/{result["key"]}'
+    endpoint = f'api/router/exec/{args.workflow_id}/client/{result['key']}'
 
     old_tty = None
     try:
@@ -1390,11 +1390,10 @@ async def _run_exec_interactive(service_client: client.ServiceClient, args: argp
         writer.write(data)
         await writer.drain()
 
-        loop = asyncio.get_event_loop()
         coroutines = [
-            loop.create_task(port_forward.write_data(writer, ws)),
-            loop.create_task(port_forward.read_data(reader, ws)),
-            loop.create_task(_watch_terminal_resize(ws)),
+            asyncio.create_task(port_forward.write_data(writer, ws)),
+            asyncio.create_task(port_forward.read_data(reader, ws)),
+            asyncio.create_task(_watch_terminal_resize(ws)),
         ]
         done, pending = await asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED)
         for i in pending:
@@ -1423,7 +1422,7 @@ async def _run_exec_command(service_client: client.ServiceClient, args: argparse
                             task_name: str, result: Dict[str, str]):
     router_address = result['router_address']
     headers = {'Cookie': result['cookie']}
-    endpoint = f'api/router/exec/{args.workflow_id}/client/{result["key"]}'
+    endpoint = f'api/router/exec/{args.workflow_id}/client/{result['key']}'
 
     try:
         ws = await service_client.create_websocket(
@@ -1458,7 +1457,6 @@ def _exec_workflow(service_client: client.ServiceClient, args: argparse.Namespac
             raise osmo_errors.OSMOUserError('Keep-alive is not supported for exec groups.')
 
     params = {'entry_command': args.exec_entry_command}
-    loop = asyncio.get_event_loop()
     if args.task:
         endpoint = f'api/workflow/{args.workflow_id}/exec/task/{args.task}'
         if args.keep_alive:
@@ -1466,7 +1464,7 @@ def _exec_workflow(service_client: client.ServiceClient, args: argparse.Namespac
                 try:
                     result = service_client.request(
                         client.RequestMethod.POST, endpoint, params=params)
-                    loop.run_until_complete(
+                    asyncio.run(
                         _run_exec_interactive(
                             service_client,
                             args,
@@ -1482,15 +1480,26 @@ def _exec_workflow(service_client: client.ServiceClient, args: argparse.Namespac
         else:
             result = service_client.request(
                 client.RequestMethod.POST, endpoint, params=params)
-            loop.run_until_complete(_run_exec_interactive(service_client, args, result))
+            asyncio.run(_run_exec_interactive(service_client, args, result))
     else:
         endpoint = f'api/workflow/{args.workflow_id}/exec/group/{args.group}'
         result = service_client.request(
             client.RequestMethod.POST, endpoint, params=params)
-        coroutines = [
-            loop.create_task(_run_exec_command(service_client, args, i, result[i])) for i in result
-        ]
-        loop.run_until_complete(asyncio.wait(coroutines, return_when=asyncio.ALL_COMPLETED))
+        async def _run_group_exec():
+            coroutines = [
+                asyncio.create_task(
+                    _run_exec_command(
+                        service_client,
+                        args,
+                        task_name,
+                        result[task_name],
+                    )
+                )
+                for task_name in result
+            ]
+            await asyncio.wait(coroutines, return_when=asyncio.ALL_COMPLETED)
+
+        asyncio.run(_run_group_exec())
 
 
 def _port_forward(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -1507,8 +1516,9 @@ def _port_forward(service_client: client.ServiceClient, args: argparse.Namespace
             task_list.append(_single_port_forward(
                 service_client, args, local_port, remote_port,
                 result['router_address'], result['key'], result['cookie']))
-        await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
-    asyncio.get_event_loop().run_until_complete(_run())
+        await asyncio.wait([asyncio.create_task(t) for t in task_list],
+                           return_when=asyncio.FIRST_COMPLETED)
+    asyncio.run(_run())
 
 
 async def _single_port_forward(service_client: client.ServiceClient, args: argparse.Namespace,

@@ -749,6 +749,9 @@ class AzureBlobStorageClient(client.StorageClient):
             """
             key_start_time = common.current_time().replace(tzinfo=datetime.timezone.utc)
             key_expiry_time = key_start_time + _get_copy_sas_expiry_time()
+            account_name = source_blob_client.account_name
+            if not account_name:
+                raise ValueError('BlobClient has no account_name')
 
             match self._data_cred:
                 case credentials.StaticDataCredential():
@@ -756,7 +759,7 @@ class AzureBlobStorageClient(client.StorageClient):
                         self._data_cred.access_key.get_secret_value(),
                     )
                     sas_token = blob.generate_blob_sas(
-                        account_name=source_blob_client.account_name,
+                        account_name=account_name,
                         container_name=source_blob_client.container_name,
                         blob_name=source_blob_client.blob_name,
                         account_key=account_key,
@@ -769,7 +772,7 @@ class AzureBlobStorageClient(client.StorageClient):
                         key_expiry_time=key_expiry_time,
                     )
                     sas_token = blob.generate_blob_sas(
-                        account_name=source_blob_client.account_name,
+                        account_name=account_name,
                         container_name=source_blob_client.container_name,
                         blob_name=source_blob_client.blob_name,
                         user_delegation_key=user_delegation_key,

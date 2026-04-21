@@ -67,6 +67,7 @@ py_test(
     tags = ["manual"],
     deps = [
         "//src/lib/utils:common",
+        "//src/lib/utils:credentials",
         "//src/utils/connectors",
         "//src/utils/job",
     ]

@@ -490,7 +490,7 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
         temp_file = editor.save_to_temp_file(
             updated_config,
             directory='/tmp/',
-            prefix=f'{args.config}{f"-{args.name}" if args.name else ""}-update_')
+            prefix=f'{args.config}{f'-{args.name}' if args.name else ''}-update_')
         raise osmo_errors.OSMOUserError(
             f'Invalid JSON: {e}\nAttempted changes saved to {temp_file}'
         ) from e
@@ -513,7 +513,7 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
         )
     else:
         raise osmo_errors.OSMOUserError(
-            f'Unsupported method: {api_mapping["method"]}')
+            f'Unsupported method: {api_mapping['method']}')
 
     if diff is None:
         print('No changes were made to the config.')
@@ -551,7 +551,7 @@ def _run_update_command(service_client: client.ServiceClient, args: argparse.Nam
         temp_file = editor.save_to_temp_file(
             json.dumps(updated_config, indent=2),
             directory='/tmp/',
-            prefix=f'{args.config}{f"-{args.name}" if args.name else ""}-update_')
+            prefix=f'{args.config}{f'-{args.name}' if args.name else ''}-update_')
         raise osmo_errors.OSMOUserError(
             f'Error updating config: {e}\nAttempted changes saved to {temp_file}'
         ) from e
@@ -1002,7 +1002,7 @@ Update with description and tags::
         usage='osmo config delete [-h] config_type [name] [--description DESCRIPTION] '
               '[--tags TAGS [TAGS ...]]',
         epilog=f'''
-Available config types (CONFIG_TYPE): {", ".join(delete_choices)}
+Available config types (CONFIG_TYPE): {', '.join(delete_choices)}
 
 Examples
 ========
@@ -1192,7 +1192,7 @@ Roll back with description and tags::
         usage='osmo config set [-h] config_type name type [--field FIELD] '
               '[--description DESCRIPTION] [--tags TAGS [TAGS ...]]',
         epilog=f'''
-Available config types (CONFIG_TYPE): {", ".join(set_choices)}
+Available config types (CONFIG_TYPE): {', '.join(set_choices)}
 
 Examples
 ========

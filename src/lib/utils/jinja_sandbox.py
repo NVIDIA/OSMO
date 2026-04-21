@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,6 +37,13 @@ DEFAULT_MAX_TIME = 0.5
 DEFAULT_JINJA_MEMORY = 100*1024*1024
 
 
+def _get_multiprocessing_context() -> Any:
+    """
+    Use an explicit start method so worker startup is stable across Python versions.
+    """
+    return multiprocessing.get_context('spawn')
+
+
 @dataclasses.dataclass
 class WorkItem:
     args: Tuple
@@ -57,10 +64,14 @@ class SandboxedWorker:
         self._max_time = max_time
         self._jinja_memory = jinja_memory
         self._func = func
+        self._multiprocessing_context = _get_multiprocessing_context()
 
         # Initialize pipe and process
-        self._parent_conn, self._child_conn = multiprocessing.Pipe()
-        self._process = multiprocessing.Process(target=self._subprocess_main, daemon=True)
+        self._parent_conn, self._child_conn = self._multiprocessing_context.Pipe()
+        self._process = self._multiprocessing_context.Process(
+            target=self._subprocess_main,
+            daemon=True,
+        )
         self._process.start()
         self._child_conn.close()
 
@@ -114,16 +125,25 @@ class SandboxedWorker:
                 result = e
                 is_exception = True
 
-            # Send result through pipe, break on EOFError
             try:
                 self._child_conn.send(WorkResult(result, is_exception=is_exception))
+            except MemoryError:
+                try:
+                    self._child_conn.send(WorkResult(
+                        MemoryError('Result too large to serialize within memory limit'),
+                        is_exception=True))
+                except (MemoryError, EOFError):
+                    break
             except EOFError:
                 break
 
     def _restart(self):
-        self._parent_conn, self._child_conn = multiprocessing.Pipe()
+        self._parent_conn, self._child_conn = self._multiprocessing_context.Pipe()
         self._process.kill()
-        self._process = multiprocessing.Process(target=self._subprocess_main, daemon=True)
+        self._process = self._multiprocessing_context.Process(
+            target=self._subprocess_main,
+            daemon=True,
+        )
         self._process.start()
         self._child_conn.close()
 
@@ -151,7 +171,12 @@ class SandboxedWorker:
             self._restart()
             raise TimeoutError(f'Process exceeded time limit of {self._max_time} seconds')
 
-        result = self._parent_conn.recv()
+        try:
+            result = self._parent_conn.recv()
+        except EOFError as exc:
+            self._restart()
+            raise MemoryError(
+                f'Sandboxed process exceeded memory limit of {self._jinja_memory} bytes') from exc
 
         # If the process has died, then restart it and throw an exception
         if not self._process.is_alive():

@@ -14,4 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-exports_files(["rules_python_coverage_tool_label.patch"])
+exports_files([
+    "coverage_syspath.patch",
+    "rules_python_coverage_empty_data.patch",
+    "rules_python_coverage_tool_label.patch",
+])

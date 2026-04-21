@@ -19,7 +19,7 @@ name: Label external contributors
 on:
   issues:
     types: [opened, reopened]
-  pull_request:
+  pull_request_target:
     types: [opened, reopened]
 
 permissions:
@@ -32,6 +32,7 @@ jobs:
     steps:
       - name: Check if author is in osmo-dev
         id: team-check
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: tspascoal/get-user-teams-membership@57e9f42acd78f4d0f496b3be4368fc5f62696662
         with:
           # Use a PAT or org-level token with read:org / members:read
@@ -41,14 +42,12 @@ jobs:
           team: osmo-dev
 
       - name: Label issue or PR as external
-        if: ${{ steps.team-check.outputs.isTeamMember == 'false' }}
+        if: ${{ github.event.pull_request.head.repo.fork || steps.team-check.outputs.isTeamMember == 'false' }}
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const isPR = !!context.payload.pull_request;
             const number = (context.payload.issue || context.payload.pull_request).number;
-
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,

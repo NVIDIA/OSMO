@@ -179,7 +179,7 @@ class LoginManager():
         if 'message' in result:
             print(result['message'], flush=True)
         elif 'verification_uri_complete' in result:
-            print(f'Visit {result["verification_uri_complete"]} and complete authentication.')
+            print(f'Visit {result['verification_uri_complete']} and complete authentication.')
         else:
             print(f'Visit {user_url} and enter the following code: {user_code}', flush=True)
 

@@ -21,4 +21,4 @@
 
 # Linting
 pylint==4.0.4
-pyyaml==6.0
+pyyaml==6.0.3

@@ -14,9 +14,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-# Responds to /testbot commands in review comments and PR comments on
-# AI-generated PRs. Delegates fixes to Claude Code CLI, posts inline
-# replies, and resolves addressed threads.
+# Responds to /testbot commands in review comments on AI-generated PRs.
+# Delegates fixes to Claude Code CLI and posts inline replies.
 name: Testbot - Respond to Reviews
 
 on:
@@ -40,7 +39,7 @@ jobs:
     if: >-
       contains(github.event.pull_request.labels.*.name, 'ai-generated') &&
       github.event.pull_request.head.repo.full_name == github.repository
-    timeout-minutes: 15
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
@@ -53,7 +52,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.10'
+          python-version: '3.14.2'
 
       - name: Setup Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
@@ -88,7 +87,8 @@ jobs:
             --pr-number ${{ github.event.pull_request.number }} \
             --trigger-phrase /testbot \
             --max-responses 10 \
-            --max-turns 50 \
+            --max-turns 75 \
+            --timeout 900 \
             --model aws/anthropic/claude-opus-4-5
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}

@@ -335,6 +335,346 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             os.unlink(bad_path)
 
 
+class TestResolvePoolComputedFields(unittest.TestCase):
+    """Tests for _resolve_pool_computed_fields."""
+
+    def test_resolves_common_pod_template(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'default_user': {
+                    'spec': {
+                        'containers': [
+                            {'name': '{{USER_CONTAINER_NAME}}',
+                             'resources': {'limits': {'cpu': '{{USER_CPU}}'}}}
+                        ],
+                    },
+                },
+                'default_ctrl': {
+                    'spec': {
+                        'containers': [
+                            {'name': 'osmo-ctrl',
+                             'resources': {'limits': {'cpu': '100m'}}}
+                        ],
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': ['default_user', 'default_ctrl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu-a100': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        pool = configs['pools']['default']
+        # Pool-level parsed_pod_template should have merged templates
+        self.assertIn('spec', pool['parsed_pod_template'])
+
+        # Platform should inherit pool's template
+        platform = pool['platforms']['gpu-a100']
+        self.assertIn('spec', platform['parsed_pod_template'])
+        containers = platform['parsed_pod_template']['spec']['containers']
+        names = [c['name'] for c in containers]
+        self.assertIn('{{USER_CONTAINER_NAME}}', names)
+        self.assertIn('osmo-ctrl', names)
+
+    def test_resolves_platform_override_templates(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'default_user': {
+                    'spec': {
+                        'containers': [
+                            {'name': '{{USER_CONTAINER_NAME}}',
+                             'resources': {'limits': {'cpu': '1'}}}
+                        ],
+                    },
+                },
+                'gpu_override': {
+                    'spec': {
+                        'nodeSelector': {'gpu': 'a100'},
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': ['default_user'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu-a100': {
+                            'override_pod_template': ['gpu_override'],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        platform = configs['pools']['default']['platforms']['gpu-a100']
+        # Should have both the common template and the override merged
+        self.assertIn('containers',
+                      platform['parsed_pod_template']['spec'])
+        self.assertEqual(
+            platform['parsed_pod_template']['spec']['nodeSelector'],
+            {'gpu': 'a100'})
+
+    def test_resolves_resource_validations(self):
+        configs: Dict[str, Any] = {
+            'resource_validations': {
+                'default_cpu': [
+                    {'operator': 'LE',
+                     'left_operand': '{{USER_CPU}}',
+                     'right_operand': '{{K8_CPU}}'},
+                ],
+                'extra_gpu': [
+                    {'operator': 'GE',
+                     'left_operand': '{{USER_GPU}}',
+                     'right_operand': '0'},
+                ],
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': [],
+                    'common_resource_validations': ['default_cpu'],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu': {
+                            'override_pod_template': [],
+                            'resource_validations': ['extra_gpu'],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        pool = configs['pools']['default']
+        # Pool-level should have common validations
+        self.assertEqual(len(pool['parsed_resource_validations']), 1)
+
+        # Platform should have common + platform validations
+        platform = pool['platforms']['gpu']
+        self.assertEqual(len(platform['parsed_resource_validations']), 2)
+
+    def test_always_resolves_from_references(self):
+        """Pre-existing parsed_* fields are overwritten by resolution."""
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'tmpl': {'spec': {'containers': []}},
+            },
+            'resource_validations': {
+                'cpu_check': [
+                    {'operator': 'LE', 'left_operand': 'cpu'},
+                ],
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': ['tmpl'],
+                    'common_resource_validations': ['cpu_check'],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                            'parsed_pod_template': {
+                                'spec': {'stale': True},
+                            },
+                            'labels': {'stale': 'yes'},
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        platform = configs['pools']['default']['platforms']['gpu']
+        # Stale pre-existing data overwritten by resolution
+        self.assertNotIn(
+            'stale', platform['parsed_pod_template'].get('spec', {}))
+        self.assertIn('containers',
+                      platform['parsed_pod_template']['spec'])
+        # Resource validations also resolved
+        self.assertEqual(
+            len(platform['parsed_resource_validations']), 1)
+        # Stale labels overwritten (unconditional, not setdefault)
+        self.assertNotIn('stale', platform['labels'])
+
+    def test_no_pools_is_noop(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {'tmpl': {'spec': {}}},
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+        self.assertNotIn('pools', configs)
+
+    def test_derives_default_mounts_from_template(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'mount_tmpl': {
+                    'spec': {
+                        'containers': [
+                            {'name': '{{USER_CONTAINER_NAME}}',
+                             'volumeMounts': [
+                                 {'name': 'shm', 'mountPath': '/dev/shm'},
+                                 {'name': 'data', 'mountPath': '/mnt/data'},
+                             ]},
+                            {'name': 'osmo-ctrl',
+                             'volumeMounts': [
+                                 {'name': 'ctrl', 'mountPath': '/ctrl'},
+                             ]},
+                        ],
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': ['mount_tmpl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        platform = configs['pools']['default']['platforms']['gpu']
+        # Only non-osmo-ctrl mounts should be included
+        self.assertEqual(
+            platform['default_mounts'], ['/dev/shm', '/mnt/data'])
+
+    def test_group_templates_merge_by_key(self):
+        """Group templates with same (apiVersion, kind, name) are merged."""
+        configs: Dict[str, Any] = {
+            'group_templates': {
+                'base_pg': {
+                    'apiVersion': 'scheduling.x-k8s.io/v1beta1',
+                    'kind': 'PodGroup',
+                    'metadata': {'name': 'default'},
+                    'spec': {'minMember': 1},
+                },
+                'override_pg': {
+                    'apiVersion': 'scheduling.x-k8s.io/v1beta1',
+                    'kind': 'PodGroup',
+                    'metadata': {'name': 'default'},
+                    'spec': {'minMember': 4, 'queue': 'high'},
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': [],
+                    'common_resource_validations': [],
+                    'common_group_templates': [
+                        'base_pg', 'override_pg'],
+                    'platforms': {},
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        pool = configs['pools']['default']
+        # Should merge into one entry, not two
+        self.assertEqual(len(pool['parsed_group_templates']), 1)
+        merged = pool['parsed_group_templates'][0]
+        self.assertEqual(merged['spec']['minMember'], 4)
+        self.assertEqual(merged['spec']['queue'], 'high')
+
+    def test_derives_labels_from_node_selector(self):
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'gpu_tmpl': {
+                    'spec': {
+                        'nodeSelector': {'gpu': 'a100', 'arch': 'amd64'},
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_pod_template': ['gpu_tmpl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        platform = configs['pools']['default']['platforms']['gpu']
+        self.assertEqual(
+            platform['labels'], {'gpu': 'a100', 'arch': 'amd64'})
+
+    def test_load_and_apply_resolves_pool_fields(self):
+        """End-to-end: _load_and_apply resolves pool computed fields."""
+        config: Dict[str, Any] = {
+            'pod_templates': {
+                'user_tmpl': {
+                    'spec': {
+                        'containers': [
+                            {'name': 'user', 'image': 'test:latest'}
+                        ],
+                    },
+                },
+            },
+            'pools': {
+                'test-pool': {
+                    'backend': 'default',
+                    'common_pod_template': ['user_tmpl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'default': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            yaml.dump(config, temp)
+            path = temp.name
+
+        mock_postgres = mock.MagicMock()
+        mock_service_config = mock.MagicMock()
+        mock_service_config.plaintext_dict.return_value = {}
+        mock_postgres.get_service_configs.return_value = mock_service_config
+
+        try:
+            configmap_state.set_parsed_configs(None)
+            watcher = configmap_loader.ConfigMapWatcher(path, mock_postgres)
+            result = watcher._load_and_apply()
+            self.assertTrue(result)
+
+            snapshot = configmap_state.get_snapshot()
+            assert snapshot is not None
+            platform = snapshot['pools']['test-pool']['platforms']['default']
+            self.assertIn('spec', platform['parsed_pod_template'])
+            self.assertIn('user',
+                          [c['name'] for c in
+                           platform['parsed_pod_template']['spec']['containers']])
+        finally:
+            os.unlink(path)
+            configmap_state.set_parsed_configs(None)
+
+
 class TestConfigFileEventHandler(unittest.TestCase):
     """Tests for the watchdog event handler."""
 

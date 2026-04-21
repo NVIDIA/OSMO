@@ -95,6 +95,5 @@ class TestCommon(unittest.TestCase):
                 self.assertEqual(result.tag, exp_tag, f'tag mismatch for {image}')
                 self.assertEqual(result.digest, exp_digest, f'digest mismatch for {image}')
 
-
 if __name__ == '__main__':
     unittest.main()

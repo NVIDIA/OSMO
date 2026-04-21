@@ -241,8 +241,8 @@ exec envoy -c /etc/envoy/envoy.yaml
             self._container, self.rendered_config_path, ENVOY_CONFIG_CONTAINER_FILE)
         self._wait_until_ready()
 
-    def stop(self):
-        super().stop()
+    def stop(self, force: bool = True, delete_volume: bool = True) -> None:
+        super().stop(force=force, delete_volume=delete_volume)
         if os.path.exists(self.rendered_config_path):
             os.remove(self.rendered_config_path)
 
