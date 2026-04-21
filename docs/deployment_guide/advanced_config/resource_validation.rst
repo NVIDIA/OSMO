@@ -22,8 +22,6 @@
 Resource Validation
 =======================================================
 
-.. include:: ../_shared/configmap_banner.rst
-
 After configuring :ref:`pools <pool>`, add resource validation rules to prevent workflows from requesting more resources than available on your nodes. Validation acts as a pre-flight check that rejects invalid requests before they reach the scheduler.
 
 
@@ -114,6 +112,8 @@ Each validation rule has four components:
 
 Practical Guide
 ===============
+
+.. include:: ../_shared/configmap_banner.rst
 
 Standard Validation Rules
 ----------------------------

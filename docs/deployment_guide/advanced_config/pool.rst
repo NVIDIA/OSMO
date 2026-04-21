@@ -22,8 +22,6 @@
 Resource Pools
 =======================================================
 
-.. include:: ../_shared/configmap_banner.rst
-
 After successfully :ref:`configuring the default pool <configure_pool>`, you can create additional pools to organize and control how users access your compute resources.
 
 
@@ -135,6 +133,8 @@ Pools organize compute resources in a hierarchical structure:
 
 Practical Guide
 ===============
+
+.. include:: ../_shared/configmap_banner.rst
 
 Heterogeneous Pools
 ---------------------
@@ -395,6 +395,8 @@ appropriate Kubernetes labels applied.
 
   ``topology_keys`` can only be configured on pools backed by a KAI Scheduler backend.
   Configuring it on a pool with an unsupported scheduler will be rejected.
+
+.. include:: ../_shared/configmap_banner.rst
 
 **Step 1: Verify Node Labels**
 

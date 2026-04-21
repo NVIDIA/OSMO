@@ -21,8 +21,6 @@
 Dataset Buckets
 ===============
 
-.. include:: ../_shared/configmap_banner.rst
-
 Register external cloud storage buckets (S3, GCS, Azure) with OSMO to organize :ref:`datasets <tutorials_working_with_data_datasets>` across multiple storage locations (This configuration is optional)
 
 Why Use Dataset Buckets?
@@ -112,6 +110,8 @@ If the bucket is set as the default bucket, datasets can be referenced without t
 
 Practical Guide
 ===============
+
+.. include:: ../_shared/configmap_banner.rst
 
 Registering Buckets
 -------------------

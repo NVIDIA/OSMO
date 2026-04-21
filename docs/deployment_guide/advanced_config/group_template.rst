@@ -22,8 +22,6 @@
 Group Templates
 =======================================================
 
-.. include:: ../_shared/configmap_banner.rst
-
 Group templates define arbitrary Kubernetes resources that OSMO creates alongside each workflow task group. Unlike :ref:`pod templates <pod_template>`, which configure the pod spec for individual tasks, group templates deploy namespace-scoped resources—such as ComputeDomains or ConfigMaps—that the group's pods depend on. Resources are scoped to the namespace in which the workflow runs.
 
 
@@ -176,6 +174,8 @@ group templates, add a corresponding entry:
 
 Practical Guide
 ===============
+
+.. include:: ../_shared/configmap_banner.rst
 
 Configuring Group Templates to Enable NvLINK
 --------------------------------------------

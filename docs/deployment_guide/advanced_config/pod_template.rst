@@ -22,8 +22,6 @@
 Pod Templates
 =======================================================
 
-.. include:: ../_shared/configmap_banner.rst
-
 Pod templates define how workflow tasks execute as Kubernetes pods. After configuring :ref:`pools <pool>` and :ref:`resource validation <resource_validation>`, create pod templates to specify scheduling constraints, security policies, and resource allocations that apply across your pools.
 
 
@@ -167,6 +165,8 @@ Key Features
 
 Practical Guide
 ===============
+
+.. include:: ../_shared/configmap_banner.rst
 
 Standard Pod Templates
 --------------------------------

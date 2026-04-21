@@ -22,8 +22,6 @@
 Rsync Configuration
 =======================================================
 
-.. include:: ../_shared/configmap_banner.rst
-
 Enable rsync integration to sync files between user workstations and running workflow tasks. This configuration is optional but enables live code editing and real-time collaboration during development on a remote machine.
 
 
@@ -105,6 +103,8 @@ Practical Guide
 
 Enabling Rsync
 --------------
+
+.. include:: ../_shared/configmap_banner.rst
 
 **Step 1: Enable Rsync in Helm Values**
 

@@ -18,5 +18,5 @@
 .. admonition:: 📄 Edit in your Helm values file
    :class: important
 
-   Everything on this page lives in your Helm values file under ``services.configs``.
+   Everything on this section is to be added in your Helm values file under ``services.configs``.
    Apply changes with ``helm upgrade``.

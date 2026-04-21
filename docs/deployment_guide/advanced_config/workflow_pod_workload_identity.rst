@@ -22,8 +22,6 @@
 Workload Identity for Workflow Pods
 ======================================
 
-.. include:: ../_shared/configmap_banner.rst
-
 By default, when a user submits a workflow that reads or writes their own cloud buckets, they supply credentials per workflow (via ``osmo credential`` or embedded in the task spec). That's fine for one-off cases. But when a team shares a pool and everyone needs access to the same set of buckets, having each user manage the same credentials over and over is tedious and error-prone.
 
 This page covers an alternative: **grant pool-wide bucket access via cloud workload identity**. You configure a Kubernetes ServiceAccount on the backend cluster with a cloud IAM role that can read/write the shared team buckets, then attach it to the pool via a pod template. Every workflow submitted to that pool runs under that ServiceAccount and inherits the cloud identity — no per-workflow credentials needed.
@@ -46,6 +44,8 @@ This page covers an alternative: **grant pool-wide bucket access via cloud workl
 
 Configuration
 =============
+
+.. include:: ../_shared/configmap_banner.rst
 
 **1. Set up workload identity in your cloud and grant bucket access**
 
