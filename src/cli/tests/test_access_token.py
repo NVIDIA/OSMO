@@ -1,5 +1,6 @@
+# pylint: disable=line-too-long
 """
-SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import argparse
+import datetime
 import json
 import unittest
 from unittest import mock
@@ -146,6 +148,54 @@ class TestSetToken(unittest.TestCase):
 
         with self.assertRaises(osmo_errors.OSMOUserError):
             access_token._set_token(service_client, args)
+
+    def test_set_token_invalid_name_ending_with_hyphen(self):
+        """Test that token name ending with hyphen raises OSMOUserError."""
+        service_client = mock.Mock(spec=client.ServiceClient)
+        args = argparse.Namespace(
+            name='my-token-',
+            expires_at='2026-05-01',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            access_token._set_token(service_client, args)
+
+    def test_set_token_invalid_empty_name(self):
+        """Test that empty token name raises OSMOUserError."""
+        service_client = mock.Mock(spec=client.ServiceClient)
+        args = argparse.Namespace(
+            name='',
+            expires_at='2026-05-01',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with self.assertRaises(osmo_errors.OSMOUserError):
+            access_token._set_token(service_client, args)
+
+    def test_set_token_valid_single_char_name(self):
+        """Test that single character token name is valid."""
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = 'generated-token-value'
+        args = argparse.Namespace(
+            name='a',
+            expires_at='2026-05-01',
+            description=None,
+            roles=None,
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print'):
+            access_token._set_token(service_client, args)
+
+        service_client.request.assert_called_once()
 
     def test_set_token_success_text_format(self):
         """Test successful token creation with text output format."""
@@ -370,7 +420,7 @@ class TestListTokens(unittest.TestCase):
     def test_list_tokens_text_format_with_active_token(self, mock_datetime):
         """Test listing tokens in text format with an active token."""
         mock_datetime.datetime.utcnow.return_value.date.return_value = \
-            __import__('datetime').date(2026, 4, 1)
+            datetime.date(2026, 4, 1)
         service_client = mock.Mock(spec=client.ServiceClient)
         service_client.request.return_value = [
             {
@@ -399,7 +449,7 @@ class TestListTokens(unittest.TestCase):
     def test_list_tokens_text_format_with_expired_token(self, mock_datetime):
         """Test listing tokens in text format with an expired token."""
         mock_datetime.datetime.utcnow.return_value.date.return_value = \
-            __import__('datetime').date(2026, 6, 1)
+            datetime.date(2026, 6, 1)
         service_client = mock.Mock(spec=client.ServiceClient)
         service_client.request.return_value = [
             {
@@ -419,6 +469,31 @@ class TestListTokens(unittest.TestCase):
 
         output = ' '.join(str(arg) for call in mock_print.call_args_list for arg in call.args)
         self.assertIn('expired-token', output)
+
+    @mock.patch('src.cli.access_token.datetime')
+    def test_list_tokens_text_format_token_expires_today_shows_expired(self, mock_datetime):
+        """Test that token expiring on same day is shown as Expired."""
+        mock_datetime.datetime.utcnow.return_value.date.return_value = \
+            datetime.date(2026, 5, 1)
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = [
+            {
+                'token_name': 'expiring-today-token',
+                'description': 'Token expiring today',
+                'expires_at': '2026-05-01T00:00:00Z',
+                'roles': []
+            }
+        ]
+        args = argparse.Namespace(
+            user=None,
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_tokens(service_client, args)
+
+        output = ' '.join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('Expired', output)
 
     def test_list_tokens_for_specific_user_admin_api(self):
         """Test listing tokens for a specific user via admin API."""
@@ -579,6 +654,25 @@ class TestListTokenRoles(unittest.TestCase):
 
         output = ' '.join(str(arg) for call in mock_print.call_args_list for arg in call.args)
         self.assertIn('fallback-token', output)
+
+    def test_list_token_roles_text_format_missing_user_name(self):
+        """Test listing token roles when user_name is missing from response."""
+        service_client = mock.Mock(spec=client.ServiceClient)
+        service_client.request.return_value = {
+            'token_name': 'my-token',
+            'roles': []
+        }
+        args = argparse.Namespace(
+            name='my-token',
+            format_type='text'
+        )
+
+        with mock.patch('builtins.print') as mock_print:
+            access_token._list_token_roles(service_client, args)
+
+        output = ' '.join(str(arg) for call in mock_print.call_args_list for arg in call.args)
+        self.assertIn('Owner:', output)
+        self.assertIn('-', output)
 
 
 if __name__ == '__main__':
