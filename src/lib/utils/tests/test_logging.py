@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 import json
 import logging
+import sys
 import unittest
 
 from src.lib.utils import logging as logging_utils
@@ -109,7 +110,6 @@ class TestJsonServiceFormatter(unittest.TestCase):
         try:
             raise ValueError('boom')
         except ValueError:
-            import sys
             exc_info = sys.exc_info()
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
         payload = json.loads(formatter.format(_make_record(exc_info=exc_info)))
