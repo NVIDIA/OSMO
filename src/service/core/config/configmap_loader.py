@@ -243,36 +243,74 @@ _EXPECTED_CONFIG_KEYS = {
 }
 
 
-# Leaf field names whose input_value must be redacted from validation
-# errors. Pydantic's default error formatter echoes input_value into the
-# error message, which flows into logs and K8s Events — dangerous if the
-# input is a resolved secret. This list covers the credential fields
-# OSMO receives via secret resolution. `secretName` / `secretKey` are
-# safe (they're references, not the secret itself) and are deliberately
-# NOT included.
-_SENSITIVE_FIELD_NAMES = frozenset({
-    'access_key',
-    'api_key',
-    'auth',
+# Field-name substrings that indicate the value is sensitive. Matching
+# is case-insensitive and substring-based so that variants like
+# `postgres_password`, `redis_password`, `cluster_api_key`,
+# `default_admin_password`, `private_key`, `slack_token`,
+# `smtp_password`, `oidc_secret` all get caught. Explicit safe names
+# (metadata/references that only look sensitive) are listed below and
+# override a substring match.
+_SENSITIVE_NAME_SUBSTRINGS = (
     'password',
-    'secret_key',
-    'slack_token',
-    'smtp_password',
-    'value',  # matches {value: ...} single-string secret format
+    'token',
+    'secret',     # caught by 'secret' but `secretName`/`secretKey` are whitelisted below
+    'access_key', # caught but `access_key_id` is whitelisted below
+    'private_key',
+    'api_key',
+)
+
+# Names that contain a sensitive-looking substring but are metadata
+# (references, IDs, file paths). Treated as NON-sensitive so operators
+# can still see their values in validation errors.
+_NON_SENSITIVE_FIELD_NAMES = frozenset({
+    'access_key_id',   # public half of an S3-style credential pair
+    'secretName',      # K8s Secret name — a reference, not the secret
+    'secretKey',       # key within a K8s Secret mount — a reference
+    'secret_file',     # filesystem path to a secret file
+    'mek_file',        # filesystem path
+    'currentMek',      # key identifier, not the key itself
 })
 
 _REDACTED = '<redacted>'
 
 
+def _is_sensitive_name(name: str) -> bool:
+    """Return True if a field name should trigger value redaction."""
+    if name in _NON_SENSITIVE_FIELD_NAMES:
+        return False
+    lower = name.lower()
+    return any(token in lower for token in _SENSITIVE_NAME_SUBSTRINGS)
+
+
+def _redact_nested(value: Any) -> Any:
+    """Recursively redact sensitive values from a dict/list for display.
+
+    Pydantic validation errors can surface an entire parent dict as the
+    `input` when a union discriminator fails. That dict contains the
+    secret plaintext keyed under e.g. `access_key`. Walk it and replace
+    the values of sensitive keys so the resulting repr is safe to log.
+    """
+    if isinstance(value, dict):
+        return {
+            k: (_REDACTED if _is_sensitive_name(str(k)) else _redact_nested(v))
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_nested(item) for item in value]
+    return value
+
+
 def _format_validation_error(error: pydantic.ValidationError) -> str:
     """Rebuild a Pydantic error message with sensitive input values redacted.
 
-    Pydantic's default `str(error)` includes `input_value=<repr>` for every
-    rejected field. When the rejected field is a credential (e.g.
-    `access_key` rejected because of a discriminator mismatch), the
-    original plaintext ends up in logs and K8s Events. Walk the
-    structured errors list, detect sensitive leaf field names, and
-    replace their input repr with a placeholder.
+    Pydantic's default `str(error)` includes `input_value=<repr>` for
+    every rejected field. When the rejected field is a credential (e.g.
+    `access_key` rejected because of a discriminator mismatch) OR the
+    parent dict containing a credential, the plaintext ends up in logs
+    and K8s Events. This walker:
+
+    - redacts the whole input when any path component is sensitive, OR
+    - walks a dict/list input and redacts sensitive keys within it.
     """
     parts: List[str] = []
     for err in error.errors():
@@ -281,12 +319,16 @@ def _format_validation_error(error: pydantic.ValidationError) -> str:
         msg = err.get('msg', '')
         input_value = err.get('input')
 
-        if any(p in _SENSITIVE_FIELD_NAMES for p in loc_parts):
+        path_is_sensitive = any(_is_sensitive_name(p) for p in loc_parts)
+
+        if input_value is None:
+            input_repr: str | None = None
+        elif path_is_sensitive:
             input_repr = _REDACTED
-        elif input_value is None:
-            input_repr = None
         else:
-            input_repr = repr(input_value)
+            # Walk the input in case it's a parent dict containing a
+            # secret-keyed entry (union-discriminator failure case).
+            input_repr = repr(_redact_nested(input_value))
 
         if input_repr is None:
             parts.append(f'{loc}: {msg}')

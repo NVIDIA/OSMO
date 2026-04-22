@@ -426,6 +426,59 @@ class TestValidationErrorRedaction(unittest.TestCase):
         # Non-sensitive fields can still appear to help operators debug
         self.assertIn('_comment', combined)
 
+    def test_substring_matches_real_field_names(self):
+        """Field names actually used in OSMO models must all be detected,
+        not just the leafs hardcoded in the original name set."""
+        error = self._make_error(
+            ('postgres_password', 'PG_LEAK_CANARY'),
+            ('redis_password', 'REDIS_LEAK_CANARY'),
+            ('cluster_api_key', 'CLUSTER_LEAK_CANARY'),
+            ('default_admin_password', 'ADMIN_LEAK_CANARY'),
+            ('private_key', 'PRIVATE_KEY_LEAK_CANARY'),
+            ('oidc_secret', 'OIDC_LEAK_CANARY'),
+        )
+        formatted = configmap_loader._format_validation_error(error)
+        for canary in (
+            'PG_LEAK_CANARY', 'REDIS_LEAK_CANARY', 'CLUSTER_LEAK_CANARY',
+            'ADMIN_LEAK_CANARY', 'PRIVATE_KEY_LEAK_CANARY',
+            'OIDC_LEAK_CANARY',
+        ):
+            self.assertNotIn(canary, formatted)
+
+    def test_whitelisted_metadata_fields_not_redacted(self):
+        """Reference/metadata fields contain sensitive-looking substrings
+        but are safe — their values must still be visible."""
+        error = self._make_error(
+            ('access_key_id', 'team-osmo-ops'),
+            ('secretName', 'my-k8s-secret'),
+            ('secretKey', 'cred.yaml'),
+            ('secret_file', '/etc/osmo/secrets/path.yaml'),
+        )
+        formatted = configmap_loader._format_validation_error(error)
+        for public in (
+            'team-osmo-ops', 'my-k8s-secret', 'cred.yaml',
+            '/etc/osmo/secrets/path.yaml',
+        ):
+            self.assertIn(public, formatted)
+
+    def test_redact_nested_walks_deeply(self):
+        """Nested dicts and lists get redacted key-by-key."""
+        value = {
+            'nested': {
+                'api_key': 'DEEP_LEAK_CANARY',
+                'endpoint': 'https://api',
+            },
+            'items': [
+                {'password': 'LIST_LEAK_CANARY', 'name': 'foo'},
+            ],
+        }
+        redacted = configmap_loader._redact_nested(value)
+        rendered = repr(redacted)
+        self.assertNotIn('DEEP_LEAK_CANARY', rendered)
+        self.assertNotIn('LIST_LEAK_CANARY', rendered)
+        self.assertIn('https://api', rendered)
+        self.assertIn('foo', rendered)
+
 
 class TestConfigMapWatcherStart(unittest.TestCase):
     """Tests for ConfigMapWatcher.start() startup behavior."""
