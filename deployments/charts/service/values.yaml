@@ -55,6 +55,15 @@ global:
     ##
     k8sLogLevel: WARNING
 
+    ## Log output format for Go services that use utils/logging.
+    ## - "text" (default): legacy ServiceFormatter format used historically by
+    ##   OSMO services (one human-readable line per record).
+    ## - "json": one JSON object per record from slog.NewJSONHandler, suitable
+    ##   for direct ingestion by Loki/Elastic without a parser stage.
+    ## Currently consumed by: authz_sidecar.
+    ##
+    logFormat: text
+
 ## Service account configuration for core Osmo services
 ##
 serviceAccount:
