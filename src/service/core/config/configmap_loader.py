@@ -87,11 +87,22 @@ class ConfigMapWatcher:
         self._observer: Any = None
 
     def start(self) -> None:
-        """Load configs, activate ConfigMap mode, start file watcher."""
-        success = self._load_and_apply()
-        if success:
-            configmap_guard.set_configmap_mode(True)
-            logging.info('ConfigMap mode activated — all config writes via CLI/API are blocked')
+        """Load configs, activate ConfigMap mode, start file watcher.
+
+        A startup load failure raises RuntimeError so the pod crashes
+        and K8s stalls the rolling update at the bad revision; old
+        pods keep serving. Same behavior as CoreDNS / NGINX Ingress
+        with a bad config file at startup.
+        """
+        if not self._load_and_apply():
+            raise RuntimeError(
+                f'ConfigMap load failed at startup '
+                f'({self._config_file_path}). Refusing to serve.')
+
+        configmap_guard.set_configmap_mode(True)
+        logging.info(
+            'ConfigMap mode activated — '
+            'all config writes via CLI/API are blocked')
 
         self._observer = observers.Observer()
         self._observer.schedule(

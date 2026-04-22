@@ -341,6 +341,49 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
+class TestConfigMapWatcherStart(unittest.TestCase):
+    """Tests for ConfigMapWatcher.start() startup behavior."""
+
+    def setUp(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def test_start_raises_on_invalid_configmap(self):
+        """Bad ConfigMap at startup raises RuntimeError — pod crashes,
+        rolling update stalls, old pods keep serving."""
+        watcher = configmap_loader.ConfigMapWatcher(
+            '/nonexistent/path.yaml', postgres=None)
+        with self.assertRaises(RuntimeError) as context:
+            watcher.start()
+        self.assertIn('ConfigMap load failed', str(context.exception))
+        # Watcher must not have been started before the raise
+        self.assertIsNone(watcher._observer)
+        # ConfigMap mode must not be left half-activated
+        self.assertFalse(configmap_guard.is_configmap_mode())
+
+    def test_start_succeeds_on_valid_configmap(self):
+        """Valid ConfigMap at startup: activates mode, starts watcher."""
+        config: Dict[str, Any] = {
+            'pod_templates': {'default_ctrl': {'spec': {'containers': []}}},
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            yaml.dump(config, temp)
+            path = temp.name
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path, postgres=None)
+            watcher.start()
+            self.assertTrue(configmap_guard.is_configmap_mode())
+            self.assertIsNotNone(watcher._observer)
+            watcher.stop()
+        finally:
+            os.unlink(path)
+
+
 class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
     """Tests for ConfigMapWatcher._load_and_apply."""
 

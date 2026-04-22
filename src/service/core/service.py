@@ -475,16 +475,11 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     setup_default_admin(postgres, config)
 
     if config.config_file:
-        try:
-            watcher = configmap_loader.ConfigMapWatcher(
-                config.config_file, postgres)
-            watcher.start()
-            # Store on app state to prevent GC from killing the watcher
-            target_app.state.config_watcher = watcher
-        except Exception:  # pylint: disable=broad-exception-caught
-            logging.exception(
-                'Failed to start config watcher — '
-                'service will continue without ConfigMap management')
+        watcher = configmap_loader.ConfigMapWatcher(
+            config.config_file, postgres)
+        watcher.start()
+        # Store on app state to prevent GC from killing the watcher
+        target_app.state.config_watcher = watcher
 
     # Instantiate QueryParser
     query.QueryParser()
