@@ -107,15 +107,15 @@ class TestJsonServiceFormatter(unittest.TestCase):
         self.assertEqual(payload['workflow_uuid'], 'wf-123')
 
     def test_exception_traceback_included(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
         try:
             raise ValueError('boom')
         except ValueError:
-            exc_info = sys.exc_info()
-        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
-        payload = json.loads(formatter.format(_make_record(exc_info=exc_info)))
-        self.assertIn('exception', payload)
-        self.assertIn('ValueError', payload['exception'])
-        self.assertIn('boom', payload['exception'])
+            payload = json.loads(
+                formatter.format(_make_record(exc_info=sys.exc_info())))
+            self.assertIn('exception', payload)
+            self.assertIn('ValueError', payload['exception'])
+            self.assertIn('boom', payload['exception'])
 
     def test_output_is_single_line(self):
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
