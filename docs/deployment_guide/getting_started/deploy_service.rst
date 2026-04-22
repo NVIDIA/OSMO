@@ -659,6 +659,14 @@ Step 6: Verify Deployment
     $ kubectl get services -n osmo | grep gateway
       osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
 
+4. Verify the ConfigMap loaded successfully:
+
+   .. code-block:: bash
+
+     $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+
+   Healthy output shows no events, or a single ``Normal ConfigMapReloaded`` event after a recent change. If you see a ``Warning ConfigMapReloadFailed`` event, the service is still serving from its last good snapshot but the latest values were rejected — see Troubleshooting below.
+
 Step 7: Post-deployment Configuration
 =====================================
 
@@ -690,3 +698,54 @@ Troubleshooting
    * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
+   * **ConfigMap validation errors**: Pod in CrashLoopBackOff after a Helm upgrade — check ``kubectl describe configmap osmo-service-configs`` for the validation error
+
+ConfigMap validation failures
+-----------------------------
+
+When the service loads invalid values from the ``osmo-service-configs`` ConfigMap, the failure surfaces in one of two ways depending on when it is detected.
+
+Pod stuck in CrashLoopBackOff after Helm upgrade
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Symptom**: ``kubectl get pods`` shows the ``osmo-service`` pod's restart counter climbing and the status cycling between ``Running`` and ``CrashLoopBackOff``.
+
+**Diagnose**: the validation error is recorded both in the crashed pod's previous logs and as a Kubernetes Event attached to the ConfigMap.
+
+.. code-block:: bash
+
+   $ kubectl logs <pod> -c osmo-service --previous -n osmo | tail -20
+   ...
+   RuntimeError: ConfigMap load failed at startup (/etc/osmo/configs/config.yaml). Refusing to serve.
+
+   $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+   Events:
+     Type     Reason                 Age   From                           Message
+     ----     ------                 ----  ----                           -------
+     Warning  ConfigMapReloadFailed  30s   osmo-service-configmap-loader  ConfigMap validation failed, keeping previous config: <specific error>
+
+The exact error message points at the offending field — typically a Pydantic type error, a YAML parse error, or a section missing a required structure.
+
+**Fix**: correct the Helm values and re-upgrade. The new pod loads the corrected values on its next restart attempt.
+
+**Why the service crashes rather than falling back to the database**: crashing preserves rolling-update protection — healthy replicas running the previous version keep serving while the bad-values pod stalls, and operators get an immediate, loud signal instead of a silent drift to database-backed configuration.
+
+New config values rejected after Helm upgrade
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Symptom**: ``helm upgrade`` succeeded and the ConfigMap was updated, but the new values do not seem to have taken effect and a ``ConfigMapReloadFailed`` event is attached to the ConfigMap. All osmo-service pods remain ``Running``.
+
+**Behavior**: when a live pod detects an invalid ConfigMap update, it keeps serving the previously loaded (valid) values from memory. There is no availability impact, but the new values will not apply until the ConfigMap is valid.
+
+**Diagnose**:
+
+.. code-block:: bash
+
+   $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+
+   # or, for the raw events:
+   $ kubectl get events \
+       --field-selector involvedObject.name=osmo-service-configs \
+       -n osmo
+
+**Fix**: correct the Helm values and re-upgrade. Pods pick up the corrected ConfigMap within a few seconds of the update and emit a single ``Normal ConfigMapReloaded`` event on recovery.
