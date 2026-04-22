@@ -2459,7 +2459,7 @@ class BackendResource(pydantic.BaseModel):
                     updated_workflow_allocatable_fields=updated_workflow_allocatable_fields,
                     available_fields=available_fields,
                     backend=resource['backend'],
-                    resource_type=resource['resource_type']))
+                    resource_type=BackendResourceType(resource['resource_type'])))
 
         return all_resources
 
