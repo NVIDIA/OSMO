@@ -27,7 +27,7 @@ import yaml
 from watchdog import events, observers
 
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
-from src.service.core.config import configmap_guard
+from src.service.core.config import configmap_events, configmap_guard
 from src.utils import connectors
 
 
@@ -78,13 +78,21 @@ class ConfigMapWatcher:
     backend runtime data (agent writes heartbeats to backends table).
     """
 
-    def __init__(self, config_file_path: str,
-                 postgres: connectors.PostgresConnector | None = None):
+    def __init__(
+        self,
+        config_file_path: str,
+        postgres: connectors.PostgresConnector | None = None,
+        event_recorder: configmap_events.EventRecorder | None = None,
+    ):
         self._config_file_path = config_file_path
         self._postgres = postgres
+        self._event_recorder = event_recorder
         self._watch_directory = os.path.dirname(config_file_path)
         self._config_filename = os.path.basename(config_file_path)
         self._observer: Any = None
+        # Only emit "reload succeeded" events when recovering from a
+        # previous failure — successful reloads on their own are noise.
+        self._last_reload_failed = False
 
     def start(self) -> None:
         """Load configs, activate ConfigMap mode, start file watcher.
@@ -118,6 +126,20 @@ class ConfigMapWatcher:
             self._observer.stop()
             self._observer.join(timeout=5)
 
+    def _record_failure(self, message: str) -> None:
+        """Log + emit a K8s Warning event for a reload failure."""
+        logging.error(message)
+        if self._event_recorder is not None:
+            self._event_recorder.emit_reload_failed(message)
+        self._last_reload_failed = True
+
+    def _record_success(self) -> None:
+        """Emit a Normal event only if we just recovered from a failure."""
+        if self._last_reload_failed and self._event_recorder is not None:
+            self._event_recorder.emit_reload_succeeded(
+                'ConfigMap reload succeeded after previous failure')
+        self._last_reload_failed = False
+
     def _load_and_apply(self) -> bool:
         """Parse, resolve secrets, validate, and swap the in-memory config dict.
 
@@ -127,15 +149,14 @@ class ConfigMapWatcher:
             with open(self._config_file_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
         except (OSError, yaml.YAMLError) as error:
-            logging.error(
-                'Failed to read/parse config file %s: %s',
-                self._config_file_path, error)
+            self._record_failure(
+                f'Failed to read/parse config file '
+                f'{self._config_file_path}: {error}')
             return False
 
         if not raw_config or not isinstance(raw_config, dict):
-            logging.warning(
-                'Config file %s is empty or invalid',
-                self._config_file_path)
+            self._record_failure(
+                f'Config file {self._config_file_path} is empty or invalid')
             return False
 
         managed_configs = raw_config
@@ -155,9 +176,9 @@ class ConfigMapWatcher:
         # by configure_app().
         validation_errors = _validate_configs(managed_configs)
         if validation_errors:
-            logging.error(
-                'ConfigMap validation failed, keeping previous config: %s',
-                validation_errors)
+            self._record_failure(
+                f'ConfigMap validation failed, keeping previous config: '
+                f'{"; ".join(validation_errors)}')
             return False
 
         # Resolve pool computed fields (parsed_pod_template, etc.) from
@@ -179,6 +200,7 @@ class ConfigMapWatcher:
                 'all config writes via CLI/API are blocked')
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
+        self._record_success()
 
         return True
 
