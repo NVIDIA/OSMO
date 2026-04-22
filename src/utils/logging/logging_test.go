@@ -21,6 +21,7 @@ package logging
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -232,5 +233,176 @@ func TestCallerSource(t *testing.T) {
 	// callerSource with zero PC returns "unknown"
 	if src := callerSource(0); src != "unknown" {
 		t.Errorf("expected 'unknown' for zero PC, got: %s", src)
+	}
+}
+
+// TestParseFormat verifies that ParseFormat is case- and whitespace-tolerant
+// and that unknown / empty inputs fall back to FormatText so callers don't
+// silently switch encoding on a typo.
+func TestParseFormat(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected Format
+	}{
+		{"text", FormatText},
+		{"TEXT", FormatText},
+		{"json", FormatJSON},
+		{"JSON", FormatJSON},
+		{"  json  ", FormatJSON},
+		{"", FormatText},
+		{"yaml", FormatText}, // unknown falls back to text
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := ParseFormat(tt.input); got != tt.expected {
+				t.Errorf("ParseFormat(%q) = %v, want %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// parseJSONLines decodes one JSON object per non-empty line and fails the test
+// if any line is not valid JSON.
+func parseJSONLines(t *testing.T, data string) []map[string]any {
+	t.Helper()
+	var records []map[string]any
+	for i, line := range strings.Split(strings.TrimSpace(data), "\n") {
+		if line == "" {
+			continue
+		}
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("line %d is not valid JSON: %v\n  line: %s", i+1, err, line)
+		}
+		records = append(records, rec)
+	}
+	return records
+}
+
+// jsonHandler builds the same JSON handler InitLogger would build for a
+// FormatJSON config, but writes to the provided buffer for inspection.
+func jsonHandler(serviceName string, level slog.Level, buf *bytes.Buffer) slog.Handler {
+	return buildHandler(serviceName, Config{Level: level, Format: FormatJSON}, buf)
+}
+
+// TestJSONHandlerEmitsValidJSON checks that the JSON handler produces one
+// well-formed JSON object per record with the expected fields (msg, level,
+// service, structured attrs, time) and intentionally without a source block.
+func TestJSONHandlerEmitsValidJSON(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(jsonHandler("authz-sidecar", slog.LevelDebug, &buf))
+
+	logger.Info("hello world",
+		slog.String("file", "/tmp/roles.yaml"),
+		slog.Int("count", 7),
+	)
+
+	records := parseJSONLines(t, buf.String())
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	rec := records[0]
+
+	if rec["msg"] != "hello world" {
+		t.Errorf("msg: got %v, want %q", rec["msg"], "hello world")
+	}
+	if rec["level"] != "INFO" {
+		t.Errorf("level: got %v, want %q", rec["level"], "INFO")
+	}
+	if rec["service"] != "authz-sidecar" {
+		t.Errorf("service: got %v, want %q", rec["service"], "authz-sidecar")
+	}
+	if rec["file"] != "/tmp/roles.yaml" {
+		t.Errorf("file: got %v, want %q", rec["file"], "/tmp/roles.yaml")
+	}
+	// JSON numbers decode to float64 in Go's encoding/json
+	if got, want := rec["count"], 7.0; got != want {
+		t.Errorf("count: got %v, want %v", got, want)
+	}
+	// We intentionally do NOT enable AddSource on the JSON handler — every log
+	// line would otherwise carry a source.{file,function,line} block that we
+	// don't extract in alloy and don't query on, which would just bloat each
+	// record. Guard against accidentally re-enabling it.
+	if _, ok := rec["source"]; ok {
+		t.Errorf("source should not be present (AddSource disabled), got %v", rec["source"])
+	}
+	if _, ok := rec["time"]; !ok {
+		t.Error("expected time field to be present")
+	}
+}
+
+// TestJSONHandlerLevelFiltering verifies that records below the configured
+// slog level are dropped on the JSON path, matching the behavior of the text
+// handler.
+func TestJSONHandlerLevelFiltering(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(jsonHandler("svc", slog.LevelWarn, &buf))
+
+	logger.Debug("nope")
+	logger.Info("nope")
+	logger.Warn("yep")
+	logger.Error("yep too")
+
+	records := parseJSONLines(t, buf.String())
+	if len(records) != 2 {
+		t.Fatalf("expected 2 records (WARN+ERROR), got %d", len(records))
+	}
+	if records[0]["level"] != "WARN" || records[1]["level"] != "ERROR" {
+		t.Errorf("unexpected levels: %v %v", records[0]["level"], records[1]["level"])
+	}
+}
+
+// TestJSONHandlerServiceAttrAlwaysPresent guards that the top-level "service"
+// attribute attached by buildHandler survives derivations via With / WithGroup
+// so log backends can always filter on it.
+func TestJSONHandlerServiceAttrAlwaysPresent(t *testing.T) {
+	var buf bytes.Buffer
+	base := slog.New(jsonHandler("authz-sidecar", slog.LevelDebug, &buf))
+	derived := base.With(slog.String("user", "alice")).WithGroup("db")
+
+	derived.Info("queried", slog.String("table", "roles"))
+
+	records := parseJSONLines(t, buf.String())
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	if records[0]["service"] != "authz-sidecar" {
+		t.Errorf("service missing after WithGroup: %v", records[0])
+	}
+}
+
+// TestInitLoggerJSONFormat is the end-to-end check: InitLogger with
+// FormatJSON must produce JSON records on the file sink (not just on stdout)
+// and tag every record with the service name.
+func TestInitLoggerJSONFormat(t *testing.T) {
+	tmpDir := t.TempDir()
+	config := Config{
+		Level:   slog.LevelInfo,
+		Format:  FormatJSON,
+		LogDir:  tmpDir,
+		LogName: "json_service",
+	}
+
+	logger := InitLogger("json-service", config)
+	logger.Info("file logging works", slog.Int("port", 50052))
+
+	time.Sleep(10 * time.Millisecond)
+
+	matches, err := filepath.Glob(filepath.Join(tmpDir, "*json_service.txt"))
+	if err != nil || len(matches) == 0 {
+		t.Fatalf("expected log file in tmpDir, glob err=%v matches=%v", err, matches)
+	}
+	data, err := os.ReadFile(matches[0])
+	if err != nil {
+		t.Fatalf("read log file: %v", err)
+	}
+	records := parseJSONLines(t, string(data))
+	if len(records) < 2 {
+		t.Fatalf("expected at least 2 records (Starting + file logging), got %d", len(records))
+	}
+	for _, rec := range records {
+		if rec["service"] != "json-service" {
+			t.Errorf("expected service=json-service on every record, got %v", rec["service"])
+		}
 	}
 }

@@ -471,6 +471,9 @@ spec:
           - "--log-dir=/logs"
           - "--log-name=authz_sidecar"
           {{- end }}
+          {{- with .Values.global.logs.logFormat }}
+          - "--log-format={{ . }}"
+          {{- end }}
         env:
           {{- if .Values.services.migration.enabled }}
           - name: OSMO_SCHEMA_VERSION
