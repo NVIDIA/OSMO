@@ -59,3 +59,11 @@ osmo_py_test(
         "//src/lib/utils:workflow",
     ]
 )
+
+osmo_py_test(
+    name = "test_logging",
+    srcs = ["test_logging.py"],
+    deps = [
+        "//src/lib/utils:logging",
+    ]
+)

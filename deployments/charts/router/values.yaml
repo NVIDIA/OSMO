@@ -51,6 +51,13 @@ global:
     ##
     k8sLogLevel: WARNING
 
+    ## Log output format for the router service (uses Python utils/logging).
+    ## - "text" (default): legacy ServiceFormatter format used historically.
+    ## - "json": one JSON object per record, suitable for direct ingestion by
+    ##   Loki/Elastic without a parser stage.
+    ##
+    logFormat: text
+
 ## pgroll schema version for search_path.
 ## Convention: public_v{MAJOR}_{MINOR}_{PATCH} (e.g., public_v6_2_0)
 ## will use default schema if not set
