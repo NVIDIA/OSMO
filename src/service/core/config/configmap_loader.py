@@ -23,6 +23,7 @@ import os
 import threading
 from typing import Any, Callable, Dict, List
 
+import pydantic
 import yaml
 from watchdog import events, observers
 
@@ -242,6 +243,58 @@ _EXPECTED_CONFIG_KEYS = {
 }
 
 
+# Leaf field names whose input_value must be redacted from validation
+# errors. Pydantic's default error formatter echoes input_value into the
+# error message, which flows into logs and K8s Events — dangerous if the
+# input is a resolved secret. This list covers the credential fields
+# OSMO receives via secret resolution. `secretName` / `secretKey` are
+# safe (they're references, not the secret itself) and are deliberately
+# NOT included.
+_SENSITIVE_FIELD_NAMES = frozenset({
+    'access_key',
+    'api_key',
+    'auth',
+    'password',
+    'secret_key',
+    'slack_token',
+    'smtp_password',
+    'value',  # matches {value: ...} single-string secret format
+})
+
+_REDACTED = '<redacted>'
+
+
+def _format_validation_error(error: pydantic.ValidationError) -> str:
+    """Rebuild a Pydantic error message with sensitive input values redacted.
+
+    Pydantic's default `str(error)` includes `input_value=<repr>` for every
+    rejected field. When the rejected field is a credential (e.g.
+    `access_key` rejected because of a discriminator mismatch), the
+    original plaintext ends up in logs and K8s Events. Walk the
+    structured errors list, detect sensitive leaf field names, and
+    replace their input repr with a placeholder.
+    """
+    parts: List[str] = []
+    for err in error.errors():
+        loc_parts = tuple(str(p) for p in err.get('loc', ()))
+        loc = '.'.join(loc_parts) if loc_parts else '<root>'
+        msg = err.get('msg', '')
+        input_value = err.get('input')
+
+        if any(p in _SENSITIVE_FIELD_NAMES for p in loc_parts):
+            input_repr = _REDACTED
+        elif input_value is None:
+            input_repr = None
+        else:
+            input_repr = repr(input_value)
+
+        if input_repr is None:
+            parts.append(f'{loc}: {msg}')
+        else:
+            parts.append(f'{loc}: {msg} (input={input_repr})')
+    return '; '.join(parts)
+
+
 def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
     """Validate ConfigMap data by constructing typed Pydantic models.
 
@@ -265,6 +318,9 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
             continue
         try:
             config_class(**section)
+        except pydantic.ValidationError as error:
+            errors.append(
+                f'{config_key}: {_format_validation_error(error)}')
         except Exception as error:  # pylint: disable=broad-exception-caught
             errors.append(f'{config_key}: {error}')
 

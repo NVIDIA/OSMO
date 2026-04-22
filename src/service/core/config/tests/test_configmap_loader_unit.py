@@ -343,6 +343,90 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
+class TestValidationErrorRedaction(unittest.TestCase):
+    """Pydantic validation errors must redact sensitive field values.
+
+    Background: Pydantic's default str(error) includes `input_value=<repr>`
+    for every rejected field. If a credential (e.g. access_key) is
+    rejected by a discriminator mismatch, the plaintext ends up in logs
+    and K8s Events. The loader's error formatter must redact those
+    values while preserving visibility for non-sensitive fields.
+    """
+
+    def _make_error(self, *field_errors) -> configmap_loader.pydantic.ValidationError:
+        """Build a ValidationError by defining a small model + running it."""
+        class FakeModel(configmap_loader.pydantic.BaseModel):
+            model_config = {'extra': 'forbid'}
+            name: str = ''
+
+        # Provide a dict with only "extra" fields so Pydantic rejects each
+        # as extra_forbidden with the input_value echoed in the error.
+        try:
+            FakeModel(**dict(field_errors))
+        except configmap_loader.pydantic.ValidationError as error:
+            return error
+        raise AssertionError('Expected a ValidationError')
+
+    def test_sensitive_field_value_redacted(self):
+        error = self._make_error(
+            ('access_key', 'SECRET_PLAINTEXT_VALUE'))
+        formatted = configmap_loader._format_validation_error(error)
+        self.assertIn('access_key', formatted)
+        self.assertIn('<redacted>', formatted)
+        self.assertNotIn('SECRET_PLAINTEXT_VALUE', formatted)
+
+    def test_nonsensitive_field_value_preserved(self):
+        """Debugging depends on seeing the actual bad value for public fields."""
+        error = self._make_error(
+            ('_comment', 'Create K8s Secret with: ...'))
+        formatted = configmap_loader._format_validation_error(error)
+        self.assertIn('_comment', formatted)
+        self.assertIn('Create K8s Secret', formatted)
+        self.assertNotIn('<redacted>', formatted)
+
+    def test_mixed_sensitive_and_public_fields(self):
+        error = self._make_error(
+            ('_comment', 'docs'),
+            ('access_key', 'SENSITIVE_KEY_123'),
+            ('slack_token', 'xoxb-SENSITIVE'),
+            ('password', 'hunter2'),
+            ('endpoint', 's3://bucket'),
+        )
+        formatted = configmap_loader._format_validation_error(error)
+        # Sensitive values must not leak
+        for secret in ('SENSITIVE_KEY_123', 'xoxb-SENSITIVE', 'hunter2'):
+            self.assertNotIn(secret, formatted)
+        # Public values preserved
+        self.assertIn('docs', formatted)
+        self.assertIn('s3://bucket', formatted)
+
+    def test_full_validation_flow_redacts_access_key(self):
+        """Regression: the staging _comment bug leaked access_key via
+        _validate_configs because of discriminator mismatch. This
+        exercises the real path end-to-end."""
+        configs: Dict[str, Any] = {
+            'workflow': {
+                'workflow_data': {
+                    'credential': {
+                        # Loader-merged secret fields that should never
+                        # appear in the resulting error message.
+                        'access_key': 'LEAKED_IF_BUG_PRESENT',
+                        'access_key_id': 'team-osmo-ops',
+                        'endpoint': 'swift://host/bucket',
+                        'region': 'us-east-1',
+                        # Extra field that triggers Pydantic rejection
+                        '_comment': 'docs',
+                    },
+                },
+            },
+        }
+        errors = configmap_loader._validate_configs(configs)
+        combined = '; '.join(errors)
+        self.assertNotIn('LEAKED_IF_BUG_PRESENT', combined)
+        # Non-sensitive fields can still appear to help operators debug
+        self.assertIn('_comment', combined)
+
+
 class TestConfigMapWatcherStart(unittest.TestCase):
     """Tests for ConfigMapWatcher.start() startup behavior."""
 
