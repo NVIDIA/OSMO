@@ -35,6 +35,10 @@ from kubernetes.client.exceptions import ApiException  # type: ignore
 REASON_RELOAD_FAILED = 'ConfigMapReloadFailed'
 REASON_RELOAD_SUCCEEDED = 'ConfigMapReloaded'
 
+# K8s Event messages are capped at ~1KB; truncate with an ellipsis so we
+# don't get rejected by the apiserver.
+_MAX_MESSAGE_LENGTH = 1000
+
 
 class EventRecorder(Protocol):
     """Structural interface so tests can substitute a fake recorder."""
@@ -48,6 +52,10 @@ class ConfigMapEventRecorder:
 
     Failures creating events are logged but never raised — observability
     must not break the service's reload path.
+
+    Uses a deterministic event name per (configmap, reason) so that repeated
+    failures dedupe into a single Event with a climbing `count`, matching
+    the kubelet pattern for repeated failures like ImagePullBackOff.
     """
 
     def __init__(self, namespace: str, configmap_name: str,
@@ -55,6 +63,7 @@ class ConfigMapEventRecorder:
         self._namespace = namespace
         self._configmap_name = configmap_name
         self._component = component
+        self._configmap_uid: str | None = None
 
         try:
             kube_config.load_incluster_config()
@@ -81,91 +90,96 @@ class ConfigMapEventRecorder:
     def _emit(self, event_type: str, reason: str, message: str) -> None:
         """Emit or update the deduplicated Event for (configmap, reason).
 
-        A deterministic name (`<configmap>.<reason-lowercase>`) means every
-        emit for the same reason targets one Event object. GET it first:
-        if it exists, PATCH to update the message and bump the count; if
-        not (404), CREATE a fresh one. This matches the kubelet pattern
-        for repeated failures like ImagePullBackOff and prevents event
-        spam during crash-loops.
+        GET the event first: on 404, CREATE; otherwise PATCH with an
+        incremented count and refreshed message/timestamp. This matches
+        the kubelet pattern and prevents event spam during crash-loops.
         """
-        core_v1 = self._core_v1
-        if core_v1 is None:
+        if self._core_v1 is None:
             return
 
-        # K8s Event messages are capped at ~1KB; truncate with an
-        # ellipsis so we don't get rejected by the apiserver.
-        max_message_length = 1000
-        truncated_message = (
-            message
-            if len(message) <= max_message_length
-            else f'{message[:max_message_length - 3]}...')
+        if len(message) > _MAX_MESSAGE_LENGTH:
+            message = f'{message[:_MAX_MESSAGE_LENGTH - 3]}...'
 
         now = datetime.datetime.now(datetime.timezone.utc)
         event_name = f'{self._configmap_name}.{reason.lower()}'
 
         try:
-            existing = core_v1.read_namespaced_event(
+            existing = self._core_v1.read_namespaced_event(
                 event_name, self._namespace)
         except ApiException as error:
-            if error.status == 404:
-                self._create_event(
-                    core_v1, event_name, event_type, reason,
-                    truncated_message, now)
-            else:
+            if error.status != 404:
                 logging.warning(
                     'Failed to read K8s Event %s: %s', event_name, error)
+                return
+            # 404 → create a new event
+            event = client.CoreV1Event(
+                metadata=client.V1ObjectMeta(
+                    name=event_name, namespace=self._namespace),
+                involved_object=self._involved_object(),
+                reason=reason,
+                message=message,
+                type=event_type,
+                source=client.V1EventSource(component=self._component),
+                first_timestamp=now,
+                last_timestamp=now,
+                event_time=now,
+                reporting_component=self._component,
+                reporting_instance=self._component,
+                action='Reload',
+                count=1,
+            )
+            try:
+                self._core_v1.create_namespaced_event(self._namespace, event)
+            except Exception as create_error:  # pylint: disable=broad-exception-caught
+                logging.warning(
+                    'Failed to create K8s Event %s: %s',
+                    event_name, create_error)
             return
-        except Exception as error:  # pylint: disable=broad-exception-caught
-            logging.warning(
-                'Failed to read K8s Event %s: %s', event_name, error)
-            return
 
-        self._patch_event(
-            core_v1, event_name, existing, truncated_message, now)
-
-    def _create_event(self, core_v1: client.CoreV1Api, event_name: str,
-                      event_type: str, reason: str, message: str,
-                      now: datetime.datetime) -> None:
-        event = client.CoreV1Event(
-            metadata=client.V1ObjectMeta(
-                name=event_name,
-                namespace=self._namespace,
-            ),
-            involved_object=client.V1ObjectReference(
-                api_version='v1',
-                kind='ConfigMap',
-                name=self._configmap_name,
-                namespace=self._namespace,
-            ),
-            reason=reason,
-            message=message,
-            type=event_type,
-            source=client.V1EventSource(component=self._component),
-            first_timestamp=now,
-            last_timestamp=now,
-            event_time=now,
-            reporting_component=self._component,
-            reporting_instance=self._component,
-            action='Reload',
-            count=1,
-        )
-        try:
-            core_v1.create_namespaced_event(self._namespace, event)
-        except Exception as error:  # pylint: disable=broad-exception-caught
-            logging.warning(
-                'Failed to create K8s Event %s: %s', event_name, error)
-
-    def _patch_event(self, core_v1: client.CoreV1Api, event_name: str,
-                     existing: client.CoreV1Event, message: str,
-                     now: datetime.datetime) -> None:
+        # Existing event → patch with incremented count
         patch = {
             'count': (existing.count or 1) + 1,
             'lastTimestamp': now.strftime('%Y-%m-%dT%H:%M:%SZ'),
             'message': message,
         }
         try:
-            core_v1.patch_namespaced_event(
+            self._core_v1.patch_namespaced_event(
                 event_name, self._namespace, patch)
-        except Exception as error:  # pylint: disable=broad-exception-caught
+        except Exception as patch_error:  # pylint: disable=broad-exception-caught
             logging.warning(
-                'Failed to patch K8s Event %s: %s', event_name, error)
+                'Failed to patch K8s Event %s: %s', event_name, patch_error)
+
+    def _involved_object(self) -> client.V1ObjectReference:
+        """Build the ObjectReference pointing at the ConfigMap.
+
+        Includes the ConfigMap's UID so events match kubectl's field
+        selector and appear in `kubectl describe configmap` output.
+        Lazily fetches the UID on first use and caches it — a single
+        extra API call over the lifetime of the recorder.
+        """
+        return client.V1ObjectReference(
+            api_version='v1',
+            kind='ConfigMap',
+            name=self._configmap_name,
+            namespace=self._namespace,
+            uid=self._get_configmap_uid(),
+        )
+
+    def _get_configmap_uid(self) -> str | None:
+        if self._configmap_uid is not None:
+            return self._configmap_uid
+        if self._core_v1 is None:
+            return None
+        try:
+            configmap = self._core_v1.read_namespaced_config_map(
+                self._configmap_name, self._namespace)
+            self._configmap_uid = configmap.metadata.uid
+            return self._configmap_uid
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            # Missing UID means events still exist but won't appear in
+            # `kubectl describe configmap` output. They're still visible
+            # via `kubectl get events --field-selector` and ArgoCD UI.
+            logging.warning(
+                'Failed to fetch ConfigMap UID for event involvedObject: %s',
+                error)
+            return None

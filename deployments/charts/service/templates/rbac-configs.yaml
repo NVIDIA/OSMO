@@ -25,9 +25,18 @@ metadata:
   labels:
     app: {{ .Values.services.service.serviceName }}
 rules:
+# Emit Events on reload failures/recoveries.
 - apiGroups: [""]
   resources: ["events"]
-  verbs: ["create", "patch"]
+  verbs: ["create", "get", "patch"]
+# Read the osmo-configs ConfigMap to fetch its UID. `kubectl describe
+# configmap` filters associated events by involvedObject.uid, so without
+# this the events wouldn't appear in that view (though they'd still be
+# visible in `kubectl get events --field-selector` and the ArgoCD UI).
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["{{ .Values.services.service.serviceName }}-configs"]
+  verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

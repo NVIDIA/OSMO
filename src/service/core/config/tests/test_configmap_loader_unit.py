@@ -515,7 +515,15 @@ class TestConfigMapEventRecorder(unittest.TestCase):
         return configmap_events.ApiException(status=404, reason='Not Found')
 
     @staticmethod
-    def _build_recorder(mock_api):
+    def _stub_configmap_read(mock_api, uid='cm-uid-12345'):
+        """Default mock: ConfigMap fetch returns a UID."""
+        fake_configmap = mock.MagicMock()
+        fake_configmap.metadata.uid = uid
+        mock_api.read_namespaced_config_map.return_value = fake_configmap
+
+    @classmethod
+    def _build_recorder(cls, mock_api):
+        cls._stub_configmap_read(mock_api)
         with mock.patch(
                 'src.service.core.config.configmap_events.'
                 'kube_config.load_incluster_config'), \
@@ -544,7 +552,43 @@ class TestConfigMapEventRecorder(unittest.TestCase):
         self.assertIn('pod_templates', event.message)
         self.assertEqual(event.involved_object.kind, 'ConfigMap')
         self.assertEqual(event.involved_object.name, 'osmo-service-configs')
+        # UID must be populated so events appear in `kubectl describe configmap`
+        self.assertEqual(event.involved_object.uid, 'cm-uid-12345')
         self.assertEqual(event.count, 1)
+
+    def test_configmap_uid_is_cached_across_emits(self):
+        """UID is fetched once on first emit, reused thereafter."""
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('first')
+        recorder.emit_reload_failed('second')
+        recorder.emit_reload_failed('third')
+        self.assertEqual(mock_api.read_namespaced_config_map.call_count, 1)
+
+    def test_event_emitted_even_if_configmap_uid_fetch_fails(self):
+        """If fetching the ConfigMap UID fails, still emit the event (with
+        no UID). Operators still see it via `kubectl get events
+        --field-selector`."""
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        mock_api.read_namespaced_config_map.side_effect = (
+            RuntimeError('cannot read configmap'))
+        with mock.patch(
+                'src.service.core.config.configmap_events.'
+                'kube_config.load_incluster_config'), \
+            mock.patch(
+                'src.service.core.config.configmap_events.client.CoreV1Api',
+                return_value=mock_api):
+            recorder = configmap_events.ConfigMapEventRecorder(
+                namespace='osmo', configmap_name='osmo-service-configs')
+            recorder.emit_reload_failed('any error')
+
+        mock_api.create_namespaced_event.assert_called_once()
+        event = mock_api.create_namespaced_event.call_args.args[1]
+        self.assertIsNone(event.involved_object.uid)
 
     def test_emit_patches_existing_event_on_repeat(self):
         """Second emit for same reason finds the existing event and PATCHes
