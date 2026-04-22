@@ -158,6 +158,14 @@ spec:
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
+        {{- if .Values.services.configs.enabled }}
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: OSMO_CONFIGMAP_NAME
+          value: {{ .Values.services.service.serviceName }}-configs
+        {{- end }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}

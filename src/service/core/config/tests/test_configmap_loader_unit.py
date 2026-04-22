@@ -28,7 +28,9 @@ from unittest import mock
 import yaml
 
 from src.lib.utils import osmo_errors
-from src.service.core.config import configmap_guard, configmap_loader
+from src.service.core.config import (
+    configmap_events, configmap_guard, configmap_loader,
+)
 from src.utils import configmap_state
 
 
@@ -339,6 +341,330 @@ class TestValidateConfigs(unittest.TestCase):
     def test_empty_configs_valid(self):
         errors = configmap_loader._validate_configs({})
         self.assertEqual(errors, [])
+
+
+class TestConfigMapWatcherStart(unittest.TestCase):
+    """Tests for ConfigMapWatcher.start() startup behavior."""
+
+    def setUp(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def test_start_raises_on_invalid_configmap(self):
+        """Bad ConfigMap at startup raises RuntimeError — pod crashes,
+        rolling update stalls, old pods keep serving."""
+        watcher = configmap_loader.ConfigMapWatcher(
+            '/nonexistent/path.yaml', postgres=None)
+        with self.assertRaises(RuntimeError) as context:
+            watcher.start()
+        self.assertIn('ConfigMap load failed', str(context.exception))
+        # Watcher must not have been started before the raise
+        self.assertIsNone(watcher._observer)
+        # ConfigMap mode must not be left half-activated
+        self.assertFalse(configmap_guard.is_configmap_mode())
+
+    def test_start_succeeds_on_valid_configmap(self):
+        """Valid ConfigMap at startup: activates mode, starts watcher."""
+        config: Dict[str, Any] = {
+            'pod_templates': {'default_ctrl': {'spec': {'containers': []}}},
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            yaml.dump(config, temp)
+            path = temp.name
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(path, postgres=None)
+            watcher.start()
+            self.assertTrue(configmap_guard.is_configmap_mode())
+            self.assertIsNotNone(watcher._observer)
+            watcher.stop()
+        finally:
+            os.unlink(path)
+
+
+class _FakeEventRecorder:
+    """Captures emit calls for assertions; conforms to EventRecorder protocol."""
+
+    def __init__(self):
+        self.failures: list[str] = []
+        self.successes: list[str] = []
+
+    def emit_reload_failed(self, message: str) -> None:
+        self.failures.append(message)
+
+    def emit_reload_succeeded(self, message: str) -> None:
+        self.successes.append(message)
+
+
+class TestConfigMapWatcherEvents(unittest.TestCase):
+    """Reload failures/recoveries emit K8s Events for operator visibility."""
+
+    def setUp(self):
+        self.mock_postgres = mock.MagicMock()
+        mock_service_config = mock.MagicMock()
+        mock_service_config.plaintext_dict.return_value = {}
+        self.mock_postgres.get_service_configs.return_value = (
+            mock_service_config)
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def _write(self, config: Dict[str, Any]) -> str:
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.yaml', delete=False) as temp:
+            yaml.dump(config, temp)
+            return temp.name
+
+    def test_emits_warning_on_missing_file(self):
+        recorder = _FakeEventRecorder()
+        watcher = configmap_loader.ConfigMapWatcher(
+            '/nonexistent/path.yaml', self.mock_postgres,
+            event_recorder=recorder)
+        watcher._load_and_apply()
+        self.assertEqual(len(recorder.failures), 1)
+        self.assertIn('/nonexistent/path.yaml', recorder.failures[0])
+        self.assertEqual(recorder.successes, [])
+
+    def test_emits_warning_on_validation_failure(self):
+        bad_path = self._write({'pod_templates': 'not-a-dict'})
+        try:
+            recorder = _FakeEventRecorder()
+            watcher = configmap_loader.ConfigMapWatcher(
+                bad_path, self.mock_postgres, event_recorder=recorder)
+            watcher._load_and_apply()
+            self.assertEqual(len(recorder.failures), 1)
+            self.assertIn('pod_templates', recorder.failures[0])
+        finally:
+            os.unlink(bad_path)
+
+    def test_no_success_event_on_first_time_success(self):
+        """Successful reloads with no prior failure must not emit — noise."""
+        good_path = self._write(
+            {'pod_templates': {'ctrl': {'spec': {'containers': []}}}})
+        try:
+            recorder = _FakeEventRecorder()
+            watcher = configmap_loader.ConfigMapWatcher(
+                good_path, self.mock_postgres, event_recorder=recorder)
+            result = watcher._load_and_apply()
+            self.assertTrue(result)
+            self.assertEqual(recorder.failures, [])
+            self.assertEqual(recorder.successes, [])
+        finally:
+            os.unlink(good_path)
+
+    def test_success_event_emitted_on_recovery(self):
+        """After a failed reload, the next successful one emits Normal."""
+        bad_path = self._write({'pod_templates': 'not-a-dict'})
+        good_path = self._write(
+            {'pod_templates': {'ctrl': {'spec': {'containers': []}}}})
+        try:
+            recorder = _FakeEventRecorder()
+            watcher = configmap_loader.ConfigMapWatcher(
+                bad_path, self.mock_postgres, event_recorder=recorder)
+            watcher._load_and_apply()  # fails
+            watcher._config_file_path = good_path
+            watcher._load_and_apply()  # recovers
+            self.assertEqual(len(recorder.failures), 1)
+            self.assertEqual(len(recorder.successes), 1)
+            self.assertIn('after previous failure', recorder.successes[0])
+        finally:
+            os.unlink(bad_path)
+            os.unlink(good_path)
+
+    def test_no_recorder_does_not_break_reload(self):
+        """Recorder is optional — service must work without one."""
+        bad_path = self._write({'pod_templates': 'not-a-dict'})
+        try:
+            watcher = configmap_loader.ConfigMapWatcher(
+                bad_path, self.mock_postgres, event_recorder=None)
+            # Must not raise despite the failure
+            self.assertFalse(watcher._load_and_apply())
+        finally:
+            os.unlink(bad_path)
+
+
+class TestConfigMapEventRecorder(unittest.TestCase):
+    """Unit tests for the K8s Event emission helper."""
+
+    def test_falls_back_silently_when_no_kubeconfig(self):
+        """Local dev / test environments won't have incluster or kubeconfig.
+        The recorder must degrade to a no-op instead of crashing."""
+        with mock.patch(
+                'src.service.core.config.configmap_events.'
+                'kube_config.load_incluster_config',
+                side_effect=configmap_events.kube_config.ConfigException()), \
+            mock.patch(
+                'src.service.core.config.configmap_events.'
+                'kube_config.load_kube_config',
+                side_effect=Exception('no config')):
+            recorder = configmap_events.ConfigMapEventRecorder(
+                namespace='ns', configmap_name='osmo-configs')
+            # No raise — both emits are no-ops
+            recorder.emit_reload_failed('any error')
+            recorder.emit_reload_succeeded('any success')
+
+    @staticmethod
+    def _not_found_api_exception():
+        return configmap_events.ApiException(status=404, reason='Not Found')
+
+    @staticmethod
+    def _stub_configmap_read(mock_api, uid='cm-uid-12345'):
+        """Default mock: ConfigMap fetch returns a UID."""
+        fake_configmap = mock.MagicMock()
+        fake_configmap.metadata.uid = uid
+        mock_api.read_namespaced_config_map.return_value = fake_configmap
+
+    @classmethod
+    def _build_recorder(cls, mock_api):
+        cls._stub_configmap_read(mock_api)
+        with mock.patch(
+                'src.service.core.config.configmap_events.'
+                'kube_config.load_incluster_config'), \
+            mock.patch(
+                'src.service.core.config.configmap_events.client.CoreV1Api',
+                return_value=mock_api):
+            return configmap_events.ConfigMapEventRecorder(
+                namespace='osmo', configmap_name='osmo-service-configs')
+
+    def test_emit_creates_event_with_deterministic_name_on_first_call(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('pod_templates: must be a dict')
+
+        mock_api.create_namespaced_event.assert_called_once()
+        namespace_arg, event = mock_api.create_namespaced_event.call_args.args
+        self.assertEqual(namespace_arg, 'osmo')
+        # Deterministic name enables dedup via GET→PATCH on subsequent emits
+        self.assertEqual(
+            event.metadata.name,
+            'osmo-service-configs.configmapreloadfailed')
+        self.assertEqual(event.type, 'Warning')
+        self.assertEqual(event.reason, 'ConfigMapReloadFailed')
+        self.assertIn('pod_templates', event.message)
+        self.assertEqual(event.involved_object.kind, 'ConfigMap')
+        self.assertEqual(event.involved_object.name, 'osmo-service-configs')
+        # UID must be populated so events appear in `kubectl describe configmap`
+        self.assertEqual(event.involved_object.uid, 'cm-uid-12345')
+        self.assertEqual(event.count, 1)
+
+    def test_configmap_uid_is_cached_across_emits(self):
+        """UID is fetched once on first emit, reused thereafter."""
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('first')
+        recorder.emit_reload_failed('second')
+        recorder.emit_reload_failed('third')
+        self.assertEqual(mock_api.read_namespaced_config_map.call_count, 1)
+
+    def test_event_emitted_even_if_configmap_uid_fetch_fails(self):
+        """If fetching the ConfigMap UID fails, still emit the event (with
+        no UID). Operators still see it via `kubectl get events
+        --field-selector`."""
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        mock_api.read_namespaced_config_map.side_effect = (
+            RuntimeError('cannot read configmap'))
+        with mock.patch(
+                'src.service.core.config.configmap_events.'
+                'kube_config.load_incluster_config'), \
+            mock.patch(
+                'src.service.core.config.configmap_events.client.CoreV1Api',
+                return_value=mock_api):
+            recorder = configmap_events.ConfigMapEventRecorder(
+                namespace='osmo', configmap_name='osmo-service-configs')
+            recorder.emit_reload_failed('any error')
+
+        mock_api.create_namespaced_event.assert_called_once()
+        event = mock_api.create_namespaced_event.call_args.args[1]
+        self.assertIsNone(event.involved_object.uid)
+
+    def test_emit_patches_existing_event_on_repeat(self):
+        """Second emit for same reason finds the existing event and PATCHes
+        it — no duplicate create. Count is incremented, message refreshed."""
+        existing = mock.MagicMock()
+        existing.count = 3
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.return_value = existing
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('pod_templates: must be a dict')
+
+        mock_api.create_namespaced_event.assert_not_called()
+        mock_api.patch_namespaced_event.assert_called_once()
+        name, namespace, patch = (
+            mock_api.patch_namespaced_event.call_args.args)
+        self.assertEqual(
+            name, 'osmo-service-configs.configmapreloadfailed')
+        self.assertEqual(namespace, 'osmo')
+        self.assertEqual(patch['count'], 4)
+        self.assertIn('pod_templates', patch['message'])
+        self.assertIn('lastTimestamp', patch)
+
+    def test_emit_truncates_long_messages_on_create(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('x' * 5000)
+
+        event = mock_api.create_namespaced_event.call_args.args[1]
+        self.assertLessEqual(len(event.message), 1000)
+        self.assertTrue(event.message.endswith('...'))
+
+    def test_emit_truncates_long_messages_on_patch(self):
+        existing = mock.MagicMock()
+        existing.count = 1
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.return_value = existing
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('y' * 5000)
+
+        patch = mock_api.patch_namespaced_event.call_args.args[2]
+        self.assertLessEqual(len(patch['message']), 1000)
+        self.assertTrue(patch['message'].endswith('...'))
+
+    def test_read_non_404_error_is_swallowed(self):
+        """Observability must never take down the service."""
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            configmap_events.ApiException(status=500, reason='Internal'))
+        recorder = self._build_recorder(mock_api)
+        # Must not raise; create/patch not attempted when read fails
+        recorder.emit_reload_failed('any error')
+        mock_api.create_namespaced_event.assert_not_called()
+        mock_api.patch_namespaced_event.assert_not_called()
+
+    def test_create_exception_is_swallowed(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        mock_api.create_namespaced_event.side_effect = (
+            RuntimeError('apiserver down'))
+        recorder = self._build_recorder(mock_api)
+        # Must not raise
+        recorder.emit_reload_failed('any error')
+
+    def test_patch_exception_is_swallowed(self):
+        existing = mock.MagicMock()
+        existing.count = 1
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.return_value = existing
+        mock_api.patch_namespaced_event.side_effect = (
+            RuntimeError('apiserver down'))
+        recorder = self._build_recorder(mock_api)
+        # Must not raise
+        recorder.emit_reload_failed('any error')
 
 
 class TestConfigMapWatcherLoadAndApply(unittest.TestCase):

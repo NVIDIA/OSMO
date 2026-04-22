@@ -238,6 +238,8 @@ services:
     ## Enable ConfigMap-based configuration.
     ## When true: all configs served from in-memory (parsed from ConfigMap),
     ## CLI/API writes return 409, authz_sidecar reads roles from file.
+    ## A malformed ConfigMap at startup causes the pod to crash-loop so
+    ## the rolling update stalls at the bad revision; old pods keep serving.
     ## When false: configs in database, CLI/API works normally.
     ##
     enabled: false

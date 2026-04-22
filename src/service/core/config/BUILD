@@ -25,6 +25,7 @@ osmo_py_library(
     srcs = [
         "config_history_helpers.py",
         "config_service.py",
+        "configmap_events.py",
         "configmap_guard.py",
         "configmap_loader.py",
         "helpers.py",
@@ -32,6 +33,7 @@ osmo_py_library(
     ],
     deps = [
         requirement("fastapi"),
+        requirement("kubernetes"),
         requirement("pydantic"),
         requirement("pyyaml"),
         requirement("watchdog"),
