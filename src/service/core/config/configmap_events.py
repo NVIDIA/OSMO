@@ -27,6 +27,7 @@ import logging
 from typing import Protocol
 
 from kubernetes import client, config as kube_config  # type: ignore
+from kubernetes.client.exceptions import ApiException  # type: ignore
 
 
 # Reasons are user-facing in `kubectl get events`. Keep them stable and
@@ -78,7 +79,17 @@ class ConfigMapEventRecorder:
         self._emit('Normal', REASON_RELOAD_SUCCEEDED, message)
 
     def _emit(self, event_type: str, reason: str, message: str) -> None:
-        if self._core_v1 is None:
+        """Emit or update the deduplicated Event for (configmap, reason).
+
+        A deterministic name (`<configmap>.<reason-lowercase>`) means every
+        emit for the same reason targets one Event object. GET it first:
+        if it exists, PATCH to update the message and bump the count; if
+        not (404), CREATE a fresh one. This matches the kubelet pattern
+        for repeated failures like ImagePullBackOff and prevents event
+        spam during crash-loops.
+        """
+        core_v1 = self._core_v1
+        if core_v1 is None:
             return
 
         # K8s Event messages are capped at ~1KB; truncate with an
@@ -90,9 +101,34 @@ class ConfigMapEventRecorder:
             else f'{message[:max_message_length - 3]}...')
 
         now = datetime.datetime.now(datetime.timezone.utc)
+        event_name = f'{self._configmap_name}.{reason.lower()}'
+
+        try:
+            existing = core_v1.read_namespaced_event(
+                event_name, self._namespace)
+        except ApiException as error:
+            if error.status == 404:
+                self._create_event(
+                    core_v1, event_name, event_type, reason,
+                    truncated_message, now)
+            else:
+                logging.warning(
+                    'Failed to read K8s Event %s: %s', event_name, error)
+            return
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logging.warning(
+                'Failed to read K8s Event %s: %s', event_name, error)
+            return
+
+        self._patch_event(
+            core_v1, event_name, existing, truncated_message, now)
+
+    def _create_event(self, core_v1: client.CoreV1Api, event_name: str,
+                      event_type: str, reason: str, message: str,
+                      now: datetime.datetime) -> None:
         event = client.CoreV1Event(
             metadata=client.V1ObjectMeta(
-                generate_name=f'osmo-configs-{reason.lower()}-',
+                name=event_name,
                 namespace=self._namespace,
             ),
             involved_object=client.V1ObjectReference(
@@ -102,7 +138,7 @@ class ConfigMapEventRecorder:
                 namespace=self._namespace,
             ),
             reason=reason,
-            message=truncated_message,
+            message=message,
             type=event_type,
             source=client.V1EventSource(component=self._component),
             first_timestamp=now,
@@ -113,9 +149,23 @@ class ConfigMapEventRecorder:
             action='Reload',
             count=1,
         )
-
         try:
-            self._core_v1.create_namespaced_event(self._namespace, event)
+            core_v1.create_namespaced_event(self._namespace, event)
         except Exception as error:  # pylint: disable=broad-exception-caught
             logging.warning(
-                'Failed to emit K8s Event (%s): %s', reason, error)
+                'Failed to create K8s Event %s: %s', event_name, error)
+
+    def _patch_event(self, core_v1: client.CoreV1Api, event_name: str,
+                     existing: client.CoreV1Event, message: str,
+                     now: datetime.datetime) -> None:
+        patch = {
+            'count': (existing.count or 1) + 1,
+            'lastTimestamp': now.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'message': message,
+        }
+        try:
+            core_v1.patch_namespaced_event(
+                event_name, self._namespace, patch)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logging.warning(
+                'Failed to patch K8s Event %s: %s', event_name, error)

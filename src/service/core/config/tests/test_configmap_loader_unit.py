@@ -510,60 +510,117 @@ class TestConfigMapEventRecorder(unittest.TestCase):
             recorder.emit_reload_failed('any error')
             recorder.emit_reload_succeeded('any success')
 
-    def test_emit_creates_namespaced_event_with_expected_fields(self):
+    @staticmethod
+    def _not_found_api_exception():
+        return configmap_events.ApiException(status=404, reason='Not Found')
+
+    @staticmethod
+    def _build_recorder(mock_api):
         with mock.patch(
                 'src.service.core.config.configmap_events.'
                 'kube_config.load_incluster_config'), \
             mock.patch(
-                'src.service.core.config.configmap_events.client.CoreV1Api'
-                ) as mock_api_class:
-            mock_api = mock_api_class.return_value
-            recorder = configmap_events.ConfigMapEventRecorder(
-                namespace='osmo', configmap_name='osmo-configs')
-            recorder.emit_reload_failed('pod_templates: must be a dict')
+                'src.service.core.config.configmap_events.client.CoreV1Api',
+                return_value=mock_api):
+            return configmap_events.ConfigMapEventRecorder(
+                namespace='osmo', configmap_name='osmo-service-configs')
 
-            mock_api.create_namespaced_event.assert_called_once()
-            call_args = mock_api.create_namespaced_event.call_args
-            namespace_arg = call_args.args[0]
-            event = call_args.args[1]
-            self.assertEqual(namespace_arg, 'osmo')
-            self.assertEqual(event.type, 'Warning')
-            self.assertEqual(event.reason, 'ConfigMapReloadFailed')
-            self.assertIn('pod_templates', event.message)
-            self.assertEqual(event.involved_object.kind, 'ConfigMap')
-            self.assertEqual(event.involved_object.name, 'osmo-configs')
+    def test_emit_creates_event_with_deterministic_name_on_first_call(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('pod_templates: must be a dict')
 
-    def test_emit_truncates_long_messages(self):
-        with mock.patch(
-                'src.service.core.config.configmap_events.'
-                'kube_config.load_incluster_config'), \
-            mock.patch(
-                'src.service.core.config.configmap_events.client.CoreV1Api'
-                ) as mock_api_class:
-            mock_api = mock_api_class.return_value
-            recorder = configmap_events.ConfigMapEventRecorder(
-                namespace='osmo', configmap_name='osmo-configs')
-            long_message = 'x' * 5000
-            recorder.emit_reload_failed(long_message)
+        mock_api.create_namespaced_event.assert_called_once()
+        namespace_arg, event = mock_api.create_namespaced_event.call_args.args
+        self.assertEqual(namespace_arg, 'osmo')
+        # Deterministic name enables dedup via GET→PATCH on subsequent emits
+        self.assertEqual(
+            event.metadata.name,
+            'osmo-service-configs.configmapreloadfailed')
+        self.assertEqual(event.type, 'Warning')
+        self.assertEqual(event.reason, 'ConfigMapReloadFailed')
+        self.assertIn('pod_templates', event.message)
+        self.assertEqual(event.involved_object.kind, 'ConfigMap')
+        self.assertEqual(event.involved_object.name, 'osmo-service-configs')
+        self.assertEqual(event.count, 1)
 
-            event = mock_api.create_namespaced_event.call_args.args[1]
-            self.assertLessEqual(len(event.message), 1000)
-            self.assertTrue(event.message.endswith('...'))
+    def test_emit_patches_existing_event_on_repeat(self):
+        """Second emit for same reason finds the existing event and PATCHes
+        it — no duplicate create. Count is incremented, message refreshed."""
+        existing = mock.MagicMock()
+        existing.count = 3
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.return_value = existing
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('pod_templates: must be a dict')
 
-    def test_api_exception_is_swallowed(self):
+        mock_api.create_namespaced_event.assert_not_called()
+        mock_api.patch_namespaced_event.assert_called_once()
+        name, namespace, patch = (
+            mock_api.patch_namespaced_event.call_args.args)
+        self.assertEqual(
+            name, 'osmo-service-configs.configmapreloadfailed')
+        self.assertEqual(namespace, 'osmo')
+        self.assertEqual(patch['count'], 4)
+        self.assertIn('pod_templates', patch['message'])
+        self.assertIn('lastTimestamp', patch)
+
+    def test_emit_truncates_long_messages_on_create(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('x' * 5000)
+
+        event = mock_api.create_namespaced_event.call_args.args[1]
+        self.assertLessEqual(len(event.message), 1000)
+        self.assertTrue(event.message.endswith('...'))
+
+    def test_emit_truncates_long_messages_on_patch(self):
+        existing = mock.MagicMock()
+        existing.count = 1
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.return_value = existing
+        recorder = self._build_recorder(mock_api)
+        recorder.emit_reload_failed('y' * 5000)
+
+        patch = mock_api.patch_namespaced_event.call_args.args[2]
+        self.assertLessEqual(len(patch['message']), 1000)
+        self.assertTrue(patch['message'].endswith('...'))
+
+    def test_read_non_404_error_is_swallowed(self):
         """Observability must never take down the service."""
-        with mock.patch(
-                'src.service.core.config.configmap_events.'
-                'kube_config.load_incluster_config'), \
-            mock.patch(
-                'src.service.core.config.configmap_events.client.CoreV1Api'
-                ) as mock_api_class:
-            mock_api_class.return_value.create_namespaced_event.side_effect = \
-                RuntimeError('apiserver down')
-            recorder = configmap_events.ConfigMapEventRecorder(
-                namespace='osmo', configmap_name='osmo-configs')
-            # Must not raise
-            recorder.emit_reload_failed('any error')
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            configmap_events.ApiException(status=500, reason='Internal'))
+        recorder = self._build_recorder(mock_api)
+        # Must not raise; create/patch not attempted when read fails
+        recorder.emit_reload_failed('any error')
+        mock_api.create_namespaced_event.assert_not_called()
+        mock_api.patch_namespaced_event.assert_not_called()
+
+    def test_create_exception_is_swallowed(self):
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.side_effect = (
+            self._not_found_api_exception())
+        mock_api.create_namespaced_event.side_effect = (
+            RuntimeError('apiserver down'))
+        recorder = self._build_recorder(mock_api)
+        # Must not raise
+        recorder.emit_reload_failed('any error')
+
+    def test_patch_exception_is_swallowed(self):
+        existing = mock.MagicMock()
+        existing.count = 1
+        mock_api = mock.MagicMock()
+        mock_api.read_namespaced_event.return_value = existing
+        mock_api.patch_namespaced_event.side_effect = (
+            RuntimeError('apiserver down'))
+        recorder = self._build_recorder(mock_api)
+        # Must not raise
+        recorder.emit_reload_failed('any error')
 
 
 class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
