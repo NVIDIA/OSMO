@@ -176,9 +176,10 @@ class ConfigMapWatcher:
         # by configure_app().
         validation_errors = _validate_configs(managed_configs)
         if validation_errors:
+            joined_errors = '; '.join(validation_errors)
             self._record_failure(
                 f'ConfigMap validation failed, keeping previous config: '
-                f'{"; ".join(validation_errors)}')
+                f'{joined_errors}')
             return False
 
         # Resolve pool computed fields (parsed_pod_template, etc.) from
