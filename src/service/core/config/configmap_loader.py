@@ -244,23 +244,9 @@ _EXPECTED_CONFIG_KEYS = {
 
 
 def _format_validation_error(error: pydantic.ValidationError) -> str:
-    """Format a Pydantic ValidationError without echoing input values.
+    """Format a Pydantic error as `<path>: <reason> (input_type=<type>)`.
 
-    Pydantic's default `str(error)` includes `input_value=<repr>` for
-    every rejected field. When the rejected field is a resolved secret
-    (e.g. `access_key` plaintext) or a parent dict containing one, the
-    value ends up in logs and the K8s Event the loader writes.
-
-    Policy: emit `<path>: <reason> (input_type=<type>)`. The operator
-    gets the full field path to locate the offending config, Pydantic's
-    reason, and the Python type of the submitted value (e.g. `str`,
-    `int`, `NoneType`) — enough to diagnose common mistakes like "I
-    put a string where an int was expected" — but never the value
-    itself. The checked-in Helm values / ConfigMap are already the
-    source of truth for what was submitted; no value in the error
-    message is needed for debugging. This mirrors the error style of
-    K8s admission webhooks and eliminates the whole class of "did we
-    remember every sensitive field name?" bugs.
+    Never echoes submitted values — they can be resolved secrets.
     """
     parts: List[str] = []
     for err in error.errors():
