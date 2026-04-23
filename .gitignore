@@ -29,3 +29,7 @@ docs/**/domain_config.js
 .ruff_cache
 
 .lycheecache
+
+.venv/
+build/
+*.egg-info
