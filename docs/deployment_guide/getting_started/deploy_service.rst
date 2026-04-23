@@ -288,7 +288,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 134-135, 139-140, 146, 150, 164-166, 181-183
+    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 148-149, 153-154, 160, 164, 178-180, 195-197
 
     # Global configuration shared across all OSMO services
     global:
@@ -357,6 +357,20 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
             memory: "1Gi"
           limits:
             memory: "1Gi"
+
+      # Router service configuration — deployed as part of this chart.
+      router:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 2
+        hostname: <your-domain>
+        # webserverEnabled: true  # (Optional): Enable for UI port forwarding
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            memory: "512Mi"
 
       # Default admin (no IdP): enable to create an admin user and access token at startup
       defaultAdmin:
@@ -498,57 +512,6 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
     3. Client ID from your IdP application registration.
     4. Static credentials path: see :ref:`Step 3 <configure_storage_access>`.
 
-Create ``router_values.yaml`` for router with the following sample configurations:
-
-.. TODO: Update this link to point to the public registry when we switch to GitHub.
-
-.. dropdown:: ``router_values.yaml``
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 4, 22, 36
-
-    # Global configuration shared across router services
-    global:
-      osmoImageLocation: nvcr.io/nvidia/osmo
-      osmoImageTag: <version>
-
-      logs:
-        enabled: true
-        logLevel: DEBUG
-        k8sLogLevel: WARNING
-
-    # Router service configurations
-    services:
-      # Configuration file service settings
-      configFile:
-        enabled: true
-
-      # Router service configuration
-      service:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 2
-        hostname: <your-domain>
-        # webserverEnabled: true  # (Optional): Enable for UI port forwarding
-        serviceAccountName: router
-
-        # Resource allocation
-        resources:
-          requests:
-            cpu: "500m"
-            memory: "512Mi"
-          limits:
-            memory: "512Mi"
-
-      # PostgreSQL database configuration
-      postgres:
-        serviceName: <your-postgres-hostname>
-        port: 5432
-        db: osmo
-        user: postgres
-
 Create ``ui_values.yaml`` for ui with the following sample configurations:
 
 .. TODO: Update this link to point to the public registry when we switch to GitHub.
@@ -599,7 +562,7 @@ Step 5: Deploy Components
 
 Deploy the components in the following order:
 
-1. Deploy **API Service**:
+1. Deploy **API Service** (includes the router):
 
 .. code-block:: bash
 
@@ -607,16 +570,11 @@ Deploy the components in the following order:
    $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
    $ helm repo update
 
-   # deploy the service
+   # deploy the service — brings up the API service, router, agent, logger, worker,
+   # delayed job monitor, and gateway under a single release
    $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
 
-2. Deploy **Router**:
-
-.. code-block:: bash
-
-   $ helm upgrade --install router osmo/router -f ./router_values.yaml -n osmo
-
-3. Deploy **UI**:
+2. Deploy **UI**:
 
 .. code-block:: bash
 
