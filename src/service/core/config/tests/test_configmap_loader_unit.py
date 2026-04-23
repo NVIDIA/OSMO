@@ -343,78 +343,83 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
-class TestValidationErrorRedaction(unittest.TestCase):
-    """Pydantic validation errors must redact sensitive field values.
+class TestValidationErrorFormatting(unittest.TestCase):
+    """Pydantic validation errors must never echo input values.
 
-    Background: Pydantic's default str(error) includes `input_value=<repr>`
-    for every rejected field. If a credential (e.g. access_key) is
-    rejected by a discriminator mismatch, the plaintext ends up in logs
-    and K8s Events. The loader's error formatter must redact those
-    values while preserving visibility for non-sensitive fields.
+    Policy (see `_format_validation_error` docstring): only the field
+    path and Pydantic's reason are included in the error message. The
+    submitted value is never echoed back — this eliminates the whole
+    class of 'did we remember every sensitive field?' leak bugs.
     """
 
-    def _make_error(self, *field_errors) -> configmap_loader.pydantic.ValidationError:
-        """Build a ValidationError by defining a small model + running it."""
+    def _make_error(
+        self, *field_errors,
+    ) -> configmap_loader.pydantic.ValidationError:
+        """Build a ValidationError by running extra fields through a
+        strict model so each one is rejected with extra_forbidden."""
         class FakeModel(configmap_loader.pydantic.BaseModel):
             model_config = {'extra': 'forbid'}
             name: str = ''
 
-        # Provide a dict with only "extra" fields so Pydantic rejects each
-        # as extra_forbidden with the input_value echoed in the error.
         try:
             FakeModel(**dict(field_errors))
         except configmap_loader.pydantic.ValidationError as error:
             return error
         raise AssertionError('Expected a ValidationError')
 
-    def test_sensitive_field_value_redacted(self):
-        error = self._make_error(
-            ('access_key', 'SECRET_PLAINTEXT_VALUE'))
+    def test_output_contains_field_path_reason_and_input_type(self):
+        """Operators need loc + msg + input_type to diagnose quickly;
+        all three are kept, value is NOT."""
+        error = self._make_error(('extra_field', 'anything'))
         formatted = configmap_loader._format_validation_error(error)
-        self.assertIn('access_key', formatted)
-        self.assertIn('<redacted>', formatted)
-        self.assertNotIn('SECRET_PLAINTEXT_VALUE', formatted)
+        self.assertIn('extra_field', formatted)
+        self.assertIn('Extra inputs are not permitted', formatted)
+        self.assertIn('input_type=str', formatted)
+        self.assertNotIn('anything', formatted)
 
-    def test_nonsensitive_field_value_preserved(self):
-        """Debugging depends on seeing the actual bad value for public fields."""
-        error = self._make_error(
-            ('_comment', 'Create K8s Secret with: ...'))
-        formatted = configmap_loader._format_validation_error(error)
-        self.assertIn('_comment', formatted)
-        self.assertIn('Create K8s Secret', formatted)
-        self.assertNotIn('<redacted>', formatted)
+    def test_input_type_reflects_actual_python_type(self):
+        """A non-string input should be reported with its Python type."""
+        class IntModel(configmap_loader.pydantic.BaseModel):
+            port: int = 80
 
-    def test_mixed_sensitive_and_public_fields(self):
+        try:
+            IntModel(port='not-a-number')
+        except configmap_loader.pydantic.ValidationError as error:
+            formatted = configmap_loader._format_validation_error(error)
+            self.assertIn('port', formatted)
+            self.assertIn('input_type=str', formatted)
+            # The submitted value itself is NEVER echoed
+            self.assertNotIn('not-a-number', formatted)
+
+    def test_output_never_contains_input_value(self):
+        """Submitted values — sensitive or not — must not appear."""
         error = self._make_error(
-            ('_comment', 'docs'),
-            ('access_key', 'SENSITIVE_KEY_123'),
-            ('slack_token', 'xoxb-SENSITIVE'),
-            ('password', 'hunter2'),
-            ('endpoint', 's3://bucket'),
+            ('access_key', 'ACCESS_KEY_CANARY'),
+            ('password', 'PASSWORD_CANARY'),
+            ('private_key', 'PRIVATE_KEY_CANARY'),
+            ('endpoint', 'ENDPOINT_CANARY'),
+            ('_comment', 'COMMENT_CANARY'),
         )
         formatted = configmap_loader._format_validation_error(error)
-        # Sensitive values must not leak
-        for secret in ('SENSITIVE_KEY_123', 'xoxb-SENSITIVE', 'hunter2'):
-            self.assertNotIn(secret, formatted)
-        # Public values preserved
-        self.assertIn('docs', formatted)
-        self.assertIn('s3://bucket', formatted)
+        for canary in (
+            'ACCESS_KEY_CANARY', 'PASSWORD_CANARY',
+            'PRIVATE_KEY_CANARY', 'ENDPOINT_CANARY', 'COMMENT_CANARY',
+        ):
+            self.assertNotIn(canary, formatted)
 
-    def test_full_validation_flow_redacts_access_key(self):
-        """Regression: the staging _comment bug leaked access_key via
-        _validate_configs because of discriminator mismatch. This
-        exercises the real path end-to-end."""
+    def test_real_models_never_leak_any_value(self):
+        """End-to-end: drive _validate_configs with the exact shape
+        that caused the staging leak (nested credential dict with a
+        secret and an extra field that trips Pydantic). No submitted
+        value appears in the output; field path is retained."""
         configs: Dict[str, Any] = {
             'workflow': {
                 'workflow_data': {
                     'credential': {
-                        # Loader-merged secret fields that should never
-                        # appear in the resulting error message.
                         'access_key': 'LEAKED_IF_BUG_PRESENT',
                         'access_key_id': 'team-osmo-ops',
                         'endpoint': 'swift://host/bucket',
                         'region': 'us-east-1',
-                        # Extra field that triggers Pydantic rejection
                         '_comment': 'docs',
                     },
                 },
@@ -422,62 +427,15 @@ class TestValidationErrorRedaction(unittest.TestCase):
         }
         errors = configmap_loader._validate_configs(configs)
         combined = '; '.join(errors)
-        self.assertNotIn('LEAKED_IF_BUG_PRESENT', combined)
-        # Non-sensitive fields can still appear to help operators debug
-        self.assertIn('_comment', combined)
-
-    def test_substring_matches_real_field_names(self):
-        """Field names actually used in OSMO models must all be detected,
-        not just the leafs hardcoded in the original name set."""
-        error = self._make_error(
-            ('postgres_password', 'PG_LEAK_CANARY'),
-            ('redis_password', 'REDIS_LEAK_CANARY'),
-            ('cluster_api_key', 'CLUSTER_LEAK_CANARY'),
-            ('default_admin_password', 'ADMIN_LEAK_CANARY'),
-            ('private_key', 'PRIVATE_KEY_LEAK_CANARY'),
-            ('oidc_secret', 'OIDC_LEAK_CANARY'),
-        )
-        formatted = configmap_loader._format_validation_error(error)
-        for canary in (
-            'PG_LEAK_CANARY', 'REDIS_LEAK_CANARY', 'CLUSTER_LEAK_CANARY',
-            'ADMIN_LEAK_CANARY', 'PRIVATE_KEY_LEAK_CANARY',
-            'OIDC_LEAK_CANARY',
+        # No submitted values leak — sensitive or otherwise.
+        for value in (
+            'LEAKED_IF_BUG_PRESENT', 'team-osmo-ops',
+            'swift://host/bucket', 'us-east-1', 'docs',
         ):
-            self.assertNotIn(canary, formatted)
-
-    def test_whitelisted_metadata_fields_not_redacted(self):
-        """Reference/metadata fields contain sensitive-looking substrings
-        but are safe — their values must still be visible."""
-        error = self._make_error(
-            ('access_key_id', 'team-osmo-ops'),
-            ('secretName', 'my-k8s-secret'),
-            ('secretKey', 'cred.yaml'),
-            ('secret_file', '/etc/osmo/secrets/path.yaml'),
-        )
-        formatted = configmap_loader._format_validation_error(error)
-        for public in (
-            'team-osmo-ops', 'my-k8s-secret', 'cred.yaml',
-            '/etc/osmo/secrets/path.yaml',
-        ):
-            self.assertIn(public, formatted)
-
-    def test_redact_nested_walks_deeply(self):
-        """Nested dicts and lists get redacted key-by-key."""
-        value = {
-            'nested': {
-                'api_key': 'DEEP_LEAK_CANARY',
-                'endpoint': 'https://api',
-            },
-            'items': [
-                {'password': 'LIST_LEAK_CANARY', 'name': 'foo'},
-            ],
-        }
-        redacted = configmap_loader._redact_nested(value)
-        rendered = repr(redacted)
-        self.assertNotIn('DEEP_LEAK_CANARY', rendered)
-        self.assertNotIn('LIST_LEAK_CANARY', rendered)
-        self.assertIn('https://api', rendered)
-        self.assertIn('foo', rendered)
+            self.assertNotIn(value, combined)
+        # The field path is still visible so operators can locate it
+        self.assertIn('workflow_data', combined)
+        self.assertIn('credential', combined)
 
 
 class TestConfigMapWatcherStart(unittest.TestCase):

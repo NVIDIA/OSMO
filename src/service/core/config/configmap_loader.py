@@ -243,97 +243,35 @@ _EXPECTED_CONFIG_KEYS = {
 }
 
 
-# Field-name substrings that indicate the value is sensitive. Matching
-# is case-insensitive and substring-based so that variants like
-# `postgres_password`, `redis_password`, `cluster_api_key`,
-# `default_admin_password`, `private_key`, `slack_token`,
-# `smtp_password`, `oidc_secret` all get caught. Explicit safe names
-# (metadata/references that only look sensitive) are listed below and
-# override a substring match.
-_SENSITIVE_NAME_SUBSTRINGS = (
-    'password',
-    'token',
-    'secret',     # caught by 'secret' but `secretName`/`secretKey` are whitelisted below
-    'access_key', # caught but `access_key_id` is whitelisted below
-    'private_key',
-    'api_key',
-)
-
-# Names that contain a sensitive-looking substring but are metadata
-# (references, IDs, file paths). Treated as NON-sensitive so operators
-# can still see their values in validation errors.
-_NON_SENSITIVE_FIELD_NAMES = frozenset({
-    'access_key_id',   # public half of an S3-style credential pair
-    'secretName',      # K8s Secret name — a reference, not the secret
-    'secretKey',       # key within a K8s Secret mount — a reference
-    'secret_file',     # filesystem path to a secret file
-    'mek_file',        # filesystem path
-    'currentMek',      # key identifier, not the key itself
-})
-
-_REDACTED = '<redacted>'
-
-
-def _is_sensitive_name(name: str) -> bool:
-    """Return True if a field name should trigger value redaction."""
-    if name in _NON_SENSITIVE_FIELD_NAMES:
-        return False
-    lower = name.lower()
-    return any(token in lower for token in _SENSITIVE_NAME_SUBSTRINGS)
-
-
-def _redact_nested(value: Any) -> Any:
-    """Recursively redact sensitive values from a dict/list for display.
-
-    Pydantic validation errors can surface an entire parent dict as the
-    `input` when a union discriminator fails. That dict contains the
-    secret plaintext keyed under e.g. `access_key`. Walk it and replace
-    the values of sensitive keys so the resulting repr is safe to log.
-    """
-    if isinstance(value, dict):
-        return {
-            k: (_REDACTED if _is_sensitive_name(str(k)) else _redact_nested(v))
-            for k, v in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact_nested(item) for item in value]
-    return value
-
-
 def _format_validation_error(error: pydantic.ValidationError) -> str:
-    """Rebuild a Pydantic error message with sensitive input values redacted.
+    """Format a Pydantic ValidationError without echoing input values.
 
     Pydantic's default `str(error)` includes `input_value=<repr>` for
-    every rejected field. When the rejected field is a credential (e.g.
-    `access_key` rejected because of a discriminator mismatch) OR the
-    parent dict containing a credential, the plaintext ends up in logs
-    and K8s Events. This walker:
+    every rejected field. When the rejected field is a resolved secret
+    (e.g. `access_key` plaintext) or a parent dict containing one, the
+    value ends up in logs and the K8s Event the loader writes.
 
-    - redacts the whole input when any path component is sensitive, OR
-    - walks a dict/list input and redacts sensitive keys within it.
+    Policy: emit `<path>: <reason> (input_type=<type>)`. The operator
+    gets the full field path to locate the offending config, Pydantic's
+    reason, and the Python type of the submitted value (e.g. `str`,
+    `int`, `NoneType`) — enough to diagnose common mistakes like "I
+    put a string where an int was expected" — but never the value
+    itself. The checked-in Helm values / ConfigMap are already the
+    source of truth for what was submitted; no value in the error
+    message is needed for debugging. This mirrors the error style of
+    K8s admission webhooks and eliminates the whole class of "did we
+    remember every sensitive field name?" bugs.
     """
     parts: List[str] = []
     for err in error.errors():
         loc_parts = tuple(str(p) for p in err.get('loc', ()))
         loc = '.'.join(loc_parts) if loc_parts else '<root>'
         msg = err.get('msg', '')
-        input_value = err.get('input')
-
-        path_is_sensitive = any(_is_sensitive_name(p) for p in loc_parts)
-
-        if input_value is None:
-            input_repr: str | None = None
-        elif path_is_sensitive:
-            input_repr = _REDACTED
+        if 'input' in err:
+            input_type = type(err['input']).__name__
+            parts.append(f'{loc}: {msg} (input_type={input_type})')
         else:
-            # Walk the input in case it's a parent dict containing a
-            # secret-keyed entry (union-discriminator failure case).
-            input_repr = repr(_redact_nested(input_value))
-
-        if input_repr is None:
             parts.append(f'{loc}: {msg}')
-        else:
-            parts.append(f'{loc}: {msg} (input={input_repr})')
     return '; '.join(parts)
 
 
