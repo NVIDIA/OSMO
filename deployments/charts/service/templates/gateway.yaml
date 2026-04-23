@@ -317,6 +317,10 @@ spec:
           {{- range $gw.oauth2Proxy.extraArgs }}
           - {{ . }}
           {{- end }}
+        {{- with (include "osmo.extra-env" $gw.oauth2Proxy) }}
+        env:
+          {{- . | nindent 10 }}
+        {{- end }}
         ports:
         - name: http
           containerPort: {{ $gw.oauth2Proxy.httpPort }}
