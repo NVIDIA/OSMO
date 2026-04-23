@@ -423,7 +423,7 @@ def main():
     connectors.PostgresConnector(config)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None)
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         check_timeout_task = asyncio.create_task(check_webserver_timeout())
         try:
