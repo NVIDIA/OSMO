@@ -56,6 +56,12 @@ services:
     - name: AWS_DEFAULT_REGION
       value: us-east-1
 
+  router:
+    hostname: osmo-gateway.osmo.svc.cluster.local
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
   worker:
     scaling:
       minReplicas: 1

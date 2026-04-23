@@ -370,7 +370,7 @@ deployment guide. Replace ``<your-domain>`` with your actual domain (e.g., ``osm
 
    With Keycloak, two IdP JWT providers are configured — one for the ``osmo-device`` client (CLI) and one for the ``osmo-browser-flow`` client (Web UI) — because each client has its own audience. The third provider is for OSMO-issued JWTs (access tokens).
 
-The gateway handles authentication for all services (API, router, UI) — no separate auth configuration is needed in the router or UI values files. For the complete
+The gateway handles authentication for all services (API, router, UI) — no separate auth configuration is needed in the UI values file. For the complete
 deployment procedure including all other configuration steps, see
 :doc:`../getting_started/deploy_service`.
 

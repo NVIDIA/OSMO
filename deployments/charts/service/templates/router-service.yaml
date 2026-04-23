@@ -17,31 +17,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.services.service.serviceName }}
+  name: {{ .Values.services.router.serviceName }}
   labels:
-    app: {{ .Values.services.service.serviceName }}
+    app: {{ .Values.services.router.serviceName }}
 spec:
-  replicas: {{ .Values.services.service.scaling.minReplicas }}
+  replicas: {{ .Values.services.router.scaling.minReplicas }}
   selector:
     matchLabels:
-      app: {{ .Values.services.service.serviceName }}
+      app: {{ .Values.services.router.serviceName }}
   template:
     metadata:
       labels:
-        app: {{ .Values.services.service.serviceName }}
-        {{- with .Values.extraPodLabels }}
+        app: {{ .Values.services.router.serviceName }}
+        {{- with .Values.services.router.extraPodLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- with .Values.extraPodAnnotations }}
+        {{- with .Values.services.router.extraPodAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      {{- with .Values.services.service.hostAliases }}
+      {{- with .Values.services.router.hostAliases }}
       hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.services.service.topologySpreadConstraints }}
+      {{- with .Values.services.router.topologySpreadConstraints }}
       topologySpreadConstraints:
       {{- range . }}
       - topologyKey: {{.topologyKey }}
@@ -52,14 +52,14 @@ spec:
         {{- end }}
         labelSelector:
           matchLabels:
-            app: {{ $.Values.services.service.serviceName }}
+            app: {{ $.Values.services.router.serviceName }}
       {{- end }}
       {{- end }}
-      {{- with .Values.services.service.nodeSelector }}
+      {{- with .Values.services.router.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.services.service.tolerations }}
+      {{- with .Values.services.router.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -67,19 +67,19 @@ spec:
       imagePullSecrets:
       - name: {{ .Values.global.imagePullSecret }}
       {{- end }}
-      serviceAccountName: {{ .Values.services.service.serviceAccountName | default "default" }}
-      {{- with .Values.services.service.initContainers }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.router.serviceAccountName "Values" .Values) }}
+      {{- with .Values.services.router.initContainers }}
       initContainers:
       {{- toYaml . | nindent 6 }}
       {{- end }}
       containers:
-      - name: {{ .Values.services.service.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.service.imageName }}:{{ .Values.global.osmoImageTag }}
+      - name: {{ .Values.services.router.serviceName }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.router.imageName }}:{{ .Values.global.osmoImageTag }}
         command:
         - router
         args:
         - --hostname
-        - {{ .Values.services.service.hostname }}
+        - {{ .Values.services.router.hostname }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
         - --postgres_port
@@ -107,7 +107,7 @@ spec:
         - --log_name
         - router_service
         {{- end }}
-        {{- with .Values.extraArgs }}
+        {{- with .Values.services.router.extraArgs }}
         {{- range . }}
             - {{ . }}
         {{- end }}
@@ -125,7 +125,7 @@ spec:
               name: db-secret
               key: db-password
         {{- end }}
-        {{- with .Values.extraEnvs }}
+        {{- with .Values.services.router.extraEnvs }}
         {{- range . }}
         - name: {{ .name }}
           {{- if .value }}
@@ -136,7 +136,7 @@ spec:
           {{- end }}
         {{- end }}
         {{- end }}
-        imagePullPolicy: {{ .Values.services.service.imagePullPolicy }}
+        imagePullPolicy: {{ .Values.services.router.imagePullPolicy }}
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
@@ -147,14 +147,14 @@ spec:
         - name: http
           containerPort: 8000
           protocol: TCP
-        {{- with .Values.extraPorts }}
+        {{- with .Values.services.router.extraPorts }}
         {{- range . }}
         - name: {{ .name }}
           containerPort: {{ .containerPort }}
           protocol: {{ .protocol | default "TCP" }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.extraVolumeMounts }}
+        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.services.router.extraVolumeMounts }}
         volumeMounts:
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}
@@ -165,29 +165,29 @@ spec:
         - name: logs
           mountPath: /logs
         {{- end }}
-        {{- with .Values.extraVolumeMounts }}
+        {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- end }}
         resources:
-        {{- toYaml .Values.services.service.resources | nindent 10 }}
+        {{- toYaml .Values.services.router.resources | nindent 10 }}
 
-        {{- with .Values.services.service.livenessProbe }}
+        {{- with .Values.services.router.livenessProbe }}
         livenessProbe:
           {{- toYaml . | nindent 10 }}
         {{- end }}
 
-        {{- with .Values.services.service.startupProbe }}
+        {{- with .Values.services.router.startupProbe }}
         startupProbe:
           {{- toYaml . | nindent 10 }}
         {{- end }}
 
-        {{- with .Values.services.service.readinessProbe }}
+        {{- with .Values.services.router.readinessProbe }}
         readinessProbe:
           {{- toYaml . | nindent 10 }}
         {{- end }}
 
-      {{- with .Values.extraContainers }}
+      {{- with .Values.services.router.extraContainers }}
       {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
@@ -204,30 +204,18 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
-        {{- with .Values.extraVolumes }}
+        {{- with .Values.services.router.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
 
 ---
 
-{{- with .Values.extraConfigMaps }}
-{{- range . }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .name }}
-data:
-  {{- toYaml .data | nindent 2 }}
----
-{{- end }}
-{{- end }}
-
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.services.service.serviceName }}
+  name: {{ .Values.services.router.serviceName }}
   labels:
-    app: {{ .Values.services.service.serviceName }}
+    app: {{ .Values.services.router.serviceName }}
 spec:
   ports:
     - port: 80
@@ -235,16 +223,16 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: {{ .Values.services.service.serviceName }}
+    app: {{ .Values.services.router.serviceName }}
 
 ---
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.services.service.serviceName }}-headless
+  name: {{ .Values.services.router.serviceName }}-headless
   labels:
-    app: {{ .Values.services.service.serviceName }}
+    app: {{ .Values.services.router.serviceName }}
 spec:
   clusterIP: None
   ports:
@@ -253,39 +241,39 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: {{ .Values.services.service.serviceName }}
+    app: {{ .Values.services.router.serviceName }}
 
 ---
 
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ .Values.services.service.serviceName }}
+  name: {{ .Values.services.router.serviceName }}
   labels:
-    app: {{ .Values.services.service.serviceName }}
+    app: {{ .Values.services.router.serviceName }}
   annotations:
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ .Values.services.service.serviceName }}
-  minReplicas: {{ .Values.services.service.scaling.minReplicas }}
-  maxReplicas: {{ .Values.services.service.scaling.maxReplicas }}
+    name: {{ .Values.services.router.serviceName }}
+  minReplicas: {{ .Values.services.router.scaling.minReplicas }}
+  maxReplicas: {{ .Values.services.router.scaling.maxReplicas }}
   metrics:
   - type: ContainerResource
     containerResource:
       name: memory
-      container: {{ .Values.services.service.serviceName }}
+      container: {{ .Values.services.router.serviceName }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.service.scaling.memoryTarget }}
+        averageUtilization: {{ .Values.services.router.scaling.memoryTarget }}
   - type: ContainerResource
     containerResource:
       name: cpu
-      container: {{ .Values.services.service.serviceName }}
+      container: {{ .Values.services.router.serviceName }}
       target:
         type: Utilization
-        averageUtilization: {{ .Values.services.service.scaling.hpaCpuTarget }}
-  {{- with .Values.services.service.scaling.customMetrics }}
+        averageUtilization: {{ .Values.services.router.scaling.hpaCpuTarget }}
+  {{- with .Values.services.router.scaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
