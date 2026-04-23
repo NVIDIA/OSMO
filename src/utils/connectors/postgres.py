@@ -2171,13 +2171,14 @@ class BackendResource(pydantic.BaseModel):
 
         def check_osmo_data_resource(pod_template: Dict) -> ResourceLimitations:
             resource_limits = ResourceLimitations()
-            containers = pod_template.get('spec', {}).get('containers', [])
-            if containers:
-                for container in containers:
-                    if container.get('name', '') == 'osmo-ctrl':
-                        if 'resources' in container:
-                            resource_limits = ResourceLimitations(**container['resources'])
-                            break
+            spec = pod_template.get('spec', {})
+            containers = list(spec.get('containers', []) or [])
+            containers.extend(spec.get('initContainers', []) or [])
+            for container in containers:
+                if container.get('name', '') == 'osmo-ctrl':
+                    if 'resources' in container:
+                        resource_limits = ResourceLimitations(**container['resources'])
+                        break
             return resource_limits
 
         ctrl_usage = {}
