@@ -198,6 +198,39 @@ Ensure the backend is online (see the highlighted line in the JSON output):
 
   See :ref:`backend_config` for more information
 
+.. _configure_pool:
+
+Step 5: Default Pool Is Ready
+------------------------------
+
+The Helm chart ships with a default pool wired to a backend named ``default``. If your backend is named ``default`` (as used throughout this guide), the default pool will automatically link to it as soon as the backend shows as online in the previous step — no additional configuration is needed.
+
+Verify:
+
+.. code-block:: bash
+
+  $ osmo pool list
+  Pool      Description    Status    GPU [#]
+                                   Quota Used   Quota Limit   Total Usage   Total Capacity
+  =============================================================================================
+  default   Default pool   ONLINE    N/A          N/A           0             24
+  =============================================================================================
+                                                                0             24
+
+If the pool shows ``OFFLINE``, wait a few seconds for the backend heartbeat or re-check Step 4.
+
+If you chose a different backend name, update the default pool in ``osmo_values.yaml`` to point at it:
+
+.. code-block:: yaml
+
+  services:
+    configs:
+      pools:
+        default:
+          backend: <your-backend-name>
+
+Re-apply with ``helm upgrade``. To add additional pools or platforms, see :ref:`advanced_pool_configuration`.
+
 
 Troubleshooting
 ---------------

@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -111,69 +111,89 @@ If the bucket is set as the default bucket, datasets can be referenced without t
 Practical Guide
 ===============
 
+.. include:: ../_shared/configmap_banner.rst
+
 Registering Buckets
 -------------------
 
-**Step 1: Register Single Bucket**
+**Step 1: Register a Single Bucket**
 
-Add your first cloud storage bucket:
+Add your first cloud storage bucket under ``services.configs.dataset.buckets``:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ cat << EOF > /tmp/dataset_config.json
-  {
-    "buckets": {
-      "production": {
-        "dataset_path": "s3://my-production-bucket"
-      }
-    }
-  }
-  EOF
-
-  $ osmo config update DATASET --file /tmp/dataset_config.json
+  services:
+    configs:
+      enabled: true
+      dataset:
+        buckets:
+          production:
+            dataset_path: s3://my-production-bucket
+            region: us-east-1
+            mode: read-write
 
 **Step 2: Register Multiple Buckets**
 
 Add buckets from different cloud providers:
 
+.. code-block:: yaml
+
+  services:
+    configs:
+      dataset:
+        buckets:
+          production:
+            dataset_path: s3://prod-datasets
+            region: us-east-1
+            mode: read-write
+          staging:
+            dataset_path: s3://staging-datasets
+            region: us-east-1
+            mode: read-write
+          research:
+            dataset_path: gs://research-bucket
+            region: us-central1
+            mode: read-write
+          archive:
+            dataset_path: azure://archive-storage
+            region: eastus
+            mode: read-only
+        default_bucket: production
+
+**Step 3: Attach Credentials (Optional)**
+
+If a bucket requires credentials, create a Kubernetes Secret with one credential field per key and reference it via ``default_credential.secretName``:
+
 .. code-block:: bash
 
-  $ cat << EOF > /tmp/dataset_config.json
-  {
-    "buckets": {
-      "production": {
-        "dataset_path": "s3://prod-datasets"
-      },
-      "staging": {
-        "dataset_path": "s3://staging-datasets"
-      },
-      "research": {
-        "dataset_path": "gs://research-bucket"
-      },
-      "archive": {
-        "dataset_path": "azure://archive-storage"
-      }
-    }
-  }
-  EOF
+  kubectl create secret generic prod-bucket-cred \
+      --from-literal=access_key_id=<your-access-key-id> \
+      --from-literal=access_key=<your-secret-access-key>
 
-  $ osmo config update DATASET --file /tmp/dataset_config.json
+.. code-block:: yaml
 
-**Step 3: Set Default Bucket**
+  services:
+    configs:
+      secretRefs:
+        - secretName: prod-bucket-cred
+      dataset:
+        buckets:
+          production:
+            dataset_path: s3://prod-datasets
+            region: us-east-1
+            mode: read-write
+            default_credential:
+              secretName: prod-bucket-cred
 
-Designate one bucket as the default (users can omit the bucket name prefix):
+Buckets that rely on workload identity (IRSA, Pod Identity) or public read-only access can leave ``default_credential`` as ``null``.
+
+**Step 4: Apply**
 
 .. code-block:: bash
 
-  $ cat << EOF > /tmp/default_bucket_config.json
-  {
-    "default_bucket": "production"
-  }
-  EOF
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
 
-  $ osmo config update DATASET --file /tmp/default_bucket_config.json
-
-**Step 4: Verify Configuration**
+**Step 5: Verify Configuration**
 
 List all registered buckets:
 
@@ -198,22 +218,25 @@ Usage Examples
 
     Separate datasets by team or department:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "buckets": {
-          "robotics": {
-            "dataset_path": "s3://robotics-team-data"
-          },
-          "ml-research": {
-            "dataset_path": "s3://ml-research-data"
-          },
-          "engineering": {
-            "dataset_path": "s3://engineering-shared"
-          }
-        },
-        "default_bucket": "robotics"
-      }
+      services:
+        configs:
+          dataset:
+            buckets:
+              robotics:
+                dataset_path: s3://robotics-team-data
+                region: us-east-1
+                mode: read-write
+              ml-research:
+                dataset_path: s3://ml-research-data
+                region: us-east-1
+                mode: read-write
+              engineering:
+                dataset_path: s3://engineering-shared
+                region: us-east-1
+                mode: read-write
+            default_bucket: robotics
 
     **Workflow Usage:**
 
@@ -230,22 +253,25 @@ Usage Examples
 
     Organize by development stage:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "buckets": {
-          "dev": {
-            "dataset_path": "s3://dev-datasets"
-          },
-          "staging": {
-            "dataset_path": "s3://staging-datasets"
-          },
-          "production": {
-            "dataset_path": "s3://prod-datasets"
-          }
-        },
-        "default_bucket": "dev"
-      }
+      services:
+        configs:
+          dataset:
+            buckets:
+              dev:
+                dataset_path: s3://dev-datasets
+                region: us-east-1
+                mode: read-write
+              staging:
+                dataset_path: s3://staging-datasets
+                region: us-east-1
+                mode: read-write
+              production:
+                dataset_path: s3://prod-datasets
+                region: us-east-1
+                mode: read-write
+            default_bucket: dev
 
 .. dropdown:: **Multi-Cloud Buckets**
     :color: info
@@ -253,22 +279,25 @@ Usage Examples
 
     Mix storage providers:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "buckets": {
-          "aws-main": {
-            "dataset_path": "s3://primary-storage"
-          },
-          "gcp-backup": {
-            "dataset_path": "gs://backup-datasets"
-          },
-          "azure-archive": {
-            "dataset_path": "azure://cold-storage"
-          }
-        },
-        "default_bucket": "aws-main"
-      }
+      services:
+        configs:
+          dataset:
+            buckets:
+              aws-main:
+                dataset_path: s3://primary-storage
+                region: us-east-1
+                mode: read-write
+              gcp-backup:
+                dataset_path: gs://backup-datasets
+                region: us-central1
+                mode: read-write
+              azure-archive:
+                dataset_path: azure://cold-storage
+                region: eastus
+                mode: read-only
+            default_bucket: aws-main
 
 
 Troubleshooting
@@ -280,7 +309,7 @@ Troubleshooting
   - Run ``osmo bucket list`` to see all registered buckets
 
 **Access Denied Errors**
-  - Ensure OSMO service has IAM credentials for the bucket
+  - Ensure the referenced Secret exists and ``secretName`` is listed in ``secretRefs``
   - Verify bucket permissions allow read/write operations
   - Check bucket region matches OSMO cluster region
 

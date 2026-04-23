@@ -114,6 +114,37 @@ Create the secret used by OAuth2 Proxy for the client secret and session cookie 
      --namespace osmo
 
 
+**Workflow storage credentials (skip if using workload identity)**
+
+OSMO needs to read/write two storage buckets for workflow logs and workflow data. If you plan to use cloud workload identity (AWS IRSA, Azure Workload Identity, GCP Workload Identity) — covered in :ref:`configure_storage_access` — skip this subsection and come back only if workload identity is not an option for your deployment.
+
+Create the workflow log credentials Secret:
+
+.. code-block:: bash
+
+   $ kubectl create secret generic osmo-workflow-log-cred --namespace osmo \
+       --from-literal=endpoint=s3://my-bucket/workflow-logs \
+       --from-literal=region=us-east-1 \
+       --from-literal=access_key_id=<your-access-key-id> \
+       --from-literal=access_key=<your-secret-access-key>
+
+Create the workflow data credentials Secret (you can use the same bucket or a different one):
+
+.. code-block:: bash
+
+   $ kubectl create secret generic osmo-workflow-data-cred --namespace osmo \
+       --from-literal=endpoint=s3://my-bucket/workflow-data \
+       --from-literal=region=us-east-1 \
+       --from-literal=access_key_id=<your-access-key-id> \
+       --from-literal=access_key=<your-secret-access-key>
+
+.. note::
+
+   For non-AWS S3-compatible services (MinIO, Ceph, LocalStack), add an
+   ``--from-literal=override_url=http://minio:9000`` flag. Leave it out for
+   standard AWS S3.
+
+
 Create the master encryption key (MEK) for database encryption:
 
 1. **Generate a new master encryption key**:
@@ -198,9 +229,50 @@ Create the master encryption key (MEK) for database encryption:
    EOF
 
 
+.. _configure_storage_access:
+.. _configure_data:
+
+Step 3: Configure Storage Access
+=================================
+
+OSMO needs credentials to access two buckets: ``workflow_log`` and ``workflow_data``. The **service** and **worker** pods read/write both buckets (uploading logs, checkpointing task specs, etc.). Pick one of the two approaches below.
+
+.. note::
+
+   ``workflow_log`` and ``workflow_data`` are OSMO-managed buckets for internal workflow logs, task specs, and intermediate outputs passed between task groups. They are distinct from **user data buckets** referenced in workflow task ``inputs`` / ``outputs`` (the S3/Swift/GCS paths users name in their specs). User data is accessed via per-workflow credentials by default; for teams that share a pool and want pool-wide cloud access without supplying credentials each time, see :ref:`workflow_pod_workload_identity` as a follow-up.
+
+Workload Identity (recommended on AWS, Azure, GCP)
+---------------------------------------------------
+
+With workload identity, the service and worker pods assume a cloud IAM role via their Kubernetes ServiceAccount — no long-lived access keys or Kubernetes Secrets required.
+
+**1. Set up workload identity in your cloud and grant bucket access**
+
+Follow your cloud provider's guide to enable workload identity on your cluster, create a cloud identity (IAM role / managed identity / Google Service Account), and grant it read/write access to your workflow log and data buckets:
+
+- AWS (EKS): `IAM Roles for Service Accounts <https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html>`__
+- Azure (AKS): `Azure AD Workload Identity <https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview>`__
+- GCP (GKE): `Workload Identity <https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity>`__
+
+When setting up the federation/binding, the subject is the OSMO ServiceAccount the chart deploys by default: ``system:serviceaccount:osmo:osmo``.
+
+**2. Note what goes in your values file**
+
+The Helm chart deploys a ServiceAccount named ``osmo`` (configurable via ``global.serviceAccountName``). You do **not** need to create a new ServiceAccount — the chart annotates it for you via ``serviceAccount.annotations`` in ``osmo_values.yaml``.
+
+See the ``serviceAccount`` and ``services.configs.workflow`` sections of the sample in :ref:`Step 4 <deploy_service_osmo_values>`.
+
+Static credentials
+------------------
+
+Use the two Kubernetes Secrets you created in Step 2 (``osmo-workflow-log-cred`` and ``osmo-workflow-data-cred``). In the next step, reference them by ``secretName`` and list them under ``secretRefs`` so the chart mounts them. No ServiceAccount annotations are needed.
+
+In Step 4, follow the ``# static credentials`` comments inline in the ``osmo_values.yaml`` sample to flip the sample from workload identity to static credentials.
+
+
 .. _deploy_service_osmo_values:
 
-Step 3: Prepare values
+Step 4: Prepare values
 ============================
 
 Create a values file for each OSMO component.
@@ -209,25 +281,38 @@ Create a values file for each OSMO component.
 
    See :doc:`../appendix/authentication/identity_provider_setup` for the IdP-specific values you need to configure (client ID, endpoints, JWKS URI) and :doc:`../appendix/authentication/authentication_flow` for the request flow.
 
-Create ``osmo_values.yaml`` for the OSMO service with the following sample. Configure the ``gateway.oauth2Proxy``, ``gateway.envoy.jwt`` providers, and ``services.service.auth`` sections with your IdP's endpoints and client ID:
+Create ``osmo_values.yaml`` for the OSMO service with the following sample.
 
 .. dropdown:: ``osmo_values.yaml``
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21, 23, 29, 38, 41-46, 112, 116, 130-132, 147-149
+    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 134-135, 139-140, 146, 150, 164-166, 181-183
 
     # Global configuration shared across all OSMO services
     global:
       osmoImageLocation: nvcr.io/nvidia/osmo
-      osmoImageTag: <version>
+      osmoImageTag: <version>                        # chart version
       serviceAccountName: osmo
 
       logs:
         enabled: true
         logLevel: DEBUG
         k8sLogLevel: WARNING
+
+    # ServiceAccount the chart deploys. Uncomment ONE annotation below
+    # for your cloud provider.
+    #
+    # For static credentials: delete this whole serviceAccount block —
+    # the default ServiceAccount needs no cloud annotation. # (4)
+    serviceAccount:
+      create: true
+      annotations:
+        # Uncomment ONE line for your cloud provider:
+        # eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/<role-name>       # AWS (EKS + IRSA)
+        # azure.workload.identity/client-id: <managed-identity-client-id>              # Azure (AKS Workload Identity)
+        # iam.gke.io/gcp-service-account: <gsa>@<project>.iam.gserviceaccount.com      # GCP (GKE Workload Identity)
 
     # Individual service configurations
     services:
@@ -326,6 +411,27 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
           limits:
             memory: "512Mi"
 
+      # OSMO configs (storage credentials for the service and worker pods).
+      # Pods get cloud credentials via the annotated ServiceAccount above.
+      configs:
+        enabled: true
+        # Static credentials path: # (4)
+        # secretRefs:
+        #   - secretName: osmo-workflow-log-cred
+        #   - secretName: osmo-workflow-data-cred
+
+        workflow:
+          workflow_log:
+            credential:
+              endpoint: s3://my-bucket/workflow-logs
+              region: us-east-1
+              # secretName: osmo-workflow-log-cred         # static credentials (replaces endpoint + region) # (4)
+          workflow_data:
+            credential:
+              endpoint: s3://my-bucket/workflow-data
+              region: us-east-1
+              # secretName: osmo-workflow-data-cred        # static credentials (replaces endpoint + region) # (4)
+
     # Gateway — deploys Envoy, OAuth2 Proxy, and Authz as separate services
     gateway:
       envoy:
@@ -390,6 +496,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample. Conf
     1. Issuer URL from your IdP. See :doc:`../appendix/authentication/identity_provider_setup` for provider-specific values.
     2. OIDC issuer URL from your IdP (same as the JWT issuer).
     3. Client ID from your IdP application registration.
+    4. Static credentials path: see :ref:`Step 3 <configure_storage_access>`.
 
 Create ``router_values.yaml`` for router with the following sample configurations:
 
@@ -479,7 +586,15 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 .. note::
    Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options, including gateway configuration.
 
-Step 4: Deploy Components
+
+.. seealso::
+
+   **Datasets (Optional)**
+
+   To configure storage buckets for users to store OSMO datasets, see :ref:`dataset_buckets` in the Advanced Configuration section.
+
+
+Step 5: Deploy Components
 =========================
 
 Deploy the components in the following order:
@@ -507,7 +622,7 @@ Deploy the components in the following order:
 
    $ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
 
-Step 5: Verify Deployment
+Step 6: Verify Deployment
 =========================
 
 1. Verify all pods are running:
@@ -544,7 +659,15 @@ Step 5: Verify Deployment
     $ kubectl get services -n osmo | grep gateway
       osmo-gateway        LoadBalancer   xxx               <external>    80/TCP,443/TCP    <age>
 
-Step 6: Post-deployment Configuration
+4. Verify the ConfigMap loaded successfully:
+
+   .. code-block:: bash
+
+     $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+
+   Healthy output shows no events, or a single ``Normal ConfigMapReloaded`` event after a recent change. If you see a ``Warning ConfigMapReloadFailed`` event, the service is still serving from its last good snapshot but the latest values were rejected — see Troubleshooting below.
+
+Step 7: Post-deployment Configuration
 =====================================
 
 1. Configure DNS records to point to the ``osmo-gateway`` service's external IP or hostname. For example, create a CNAME record for ``osmo.example.com`` pointing to the LoadBalancer hostname shown in ``kubectl get svc osmo-gateway -n osmo``.
@@ -554,8 +677,6 @@ Step 6: Post-deployment Configuration
 3. Configure IdP role mapping to map your IdP groups to OSMO roles: :doc:`../appendix/authentication/idp_role_mapping`
 
 4. Verify access to the UI at https://osmo.example.com through your domain
-
-5. Create and configure data storage to store service data: :ref:`configure_data`
 
 
 Troubleshooting
@@ -577,3 +698,54 @@ Troubleshooting
    * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
+   * **ConfigMap validation errors**: Pod in CrashLoopBackOff after a Helm upgrade — check ``kubectl describe configmap osmo-service-configs`` for the validation error
+
+ConfigMap validation failures
+-----------------------------
+
+When the service loads invalid values from the ``osmo-service-configs`` ConfigMap, the failure surfaces in one of two ways depending on when it is detected.
+
+Pod stuck in CrashLoopBackOff after Helm upgrade
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Symptom**: ``kubectl get pods`` shows the ``osmo-service`` pod's restart counter climbing and the status cycling between ``Running`` and ``CrashLoopBackOff``.
+
+**Diagnose**: the validation error is recorded both in the crashed pod's previous logs and as a Kubernetes Event attached to the ConfigMap.
+
+.. code-block:: bash
+
+   $ kubectl logs <pod> -c osmo-service --previous -n osmo | tail -20
+   ...
+   RuntimeError: ConfigMap load failed at startup (/etc/osmo/configs/config.yaml). Refusing to serve.
+
+   $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+   Events:
+     Type     Reason                 Age   From                           Message
+     ----     ------                 ----  ----                           -------
+     Warning  ConfigMapReloadFailed  30s   osmo-service-configmap-loader  ConfigMap validation failed, keeping previous config: <specific error>
+
+The exact error message points at the offending field — typically a Pydantic type error, a YAML parse error, or a section missing a required structure.
+
+**Fix**: correct the Helm values and re-upgrade. The new pod loads the corrected values on its next restart attempt.
+
+**Why the service crashes rather than falling back to the database**: crashing preserves rolling-update protection — healthy replicas running the previous version keep serving while the bad-values pod stalls, and operators get an immediate, loud signal instead of a silent drift to database-backed configuration.
+
+New config values rejected after Helm upgrade
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Symptom**: ``helm upgrade`` succeeded and the ConfigMap was updated, but the new values do not seem to have taken effect and a ``ConfigMapReloadFailed`` event is attached to the ConfigMap. All osmo-service pods remain ``Running``.
+
+**Behavior**: when a live pod detects an invalid ConfigMap update, it keeps serving the previously loaded (valid) values from memory. There is no availability impact, but the new values will not apply until the ConfigMap is valid.
+
+**Diagnose**:
+
+.. code-block:: bash
+
+   $ kubectl describe configmap osmo-service-configs -n osmo | tail -5
+
+   # or, for the raw events:
+   $ kubectl get events \
+       --field-selector involvedObject.name=osmo-service-configs \
+       -n osmo
+
+**Fix**: correct the Helm values and re-upgrade. Pods pick up the corrected ConfigMap within a few seconds of the update and emit a single ``Normal ConfigMapReloaded`` event on recovery.

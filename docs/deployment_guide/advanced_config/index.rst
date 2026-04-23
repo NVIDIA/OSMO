@@ -70,3 +70,9 @@ This section provides additional advanced configurations to customize and optimi
 
           Configure additional data buckets for managing team datasets and isolated storage.
 
+      .. grid-item-card:: :octicon:`shield-lock` Pool-Wide Workload Identity
+          :link: ./workflow_pod_workload_identity
+          :link-type: doc
+
+          Grant shared cloud bucket access to every workflow in a pool, so team members don't supply credentials per workflow.
+
