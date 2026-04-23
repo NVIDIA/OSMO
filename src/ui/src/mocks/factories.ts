@@ -23,13 +23,19 @@
 
 import {
   BackendResourceType,
+  DatasetType,
   PoolStatus,
+  WorkflowStatus,
+  type DataListEntry,
+  type DataListResponse,
   type PoolResourceUsage,
   type ResourcesEntry,
   type PoolResponse,
   type ResourcesResponse,
   type ResourceUsage,
   type LoginInfo,
+  type SrcServiceCoreWorkflowObjectsListEntry,
+  type SrcServiceCoreWorkflowObjectsListResponse,
 } from "@/lib/api/generated";
 import type { Version } from "@/lib/api/adapter/types";
 
@@ -175,5 +181,78 @@ export function createResourcesResponse(resources: Partial<ResourcesEntry>[] = [
   return { resources: defaultResources };
 }
 
+// =============================================================================
+// Workflow factories
+// =============================================================================
+
+export function createWorkflowEntry(
+  overrides: Partial<SrcServiceCoreWorkflowObjectsListEntry> = {},
+): SrcServiceCoreWorkflowObjectsListEntry {
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  return {
+    user: "test-user",
+    name: `workflow-${Math.random().toString(36).slice(2, 8)}`,
+    workflow_uuid: crypto.randomUUID(),
+    submit_time: oneHourAgo.toISOString(),
+    start_time: oneHourAgo.toISOString(),
+    end_time: null,
+    queued_time: 5,
+    duration: 3600,
+    status: WorkflowStatus.RUNNING,
+    overview: "/api/workflow/test/overview",
+    logs: "/api/workflow/test/logs",
+    error_logs: null,
+    grafana_url: null,
+    dashboard_url: null,
+    pool: "test-pool",
+    app_owner: null,
+    app_name: null,
+    app_version: null,
+    priority: "NORMAL",
+    ...overrides,
+  };
+}
+
+export function createWorkflowsResponse(
+  workflows: Partial<SrcServiceCoreWorkflowObjectsListEntry>[] = [],
+  moreEntries = false,
+): SrcServiceCoreWorkflowObjectsListResponse {
+  const defaultWorkflows =
+    workflows.length > 0 ? workflows.map((w, i) => createWorkflowEntry({ name: `workflow-${i + 1}`, ...w })) : [];
+
+  return {
+    workflows: defaultWorkflows,
+    more_entries: moreEntries,
+  };
+}
+
+// =============================================================================
+// Dataset factories
+// =============================================================================
+
+export function createDatasetEntry(overrides: Partial<DataListEntry> = {}): DataListEntry {
+  const now = new Date();
+  return {
+    name: overrides.name ?? `dataset-${Math.random().toString(36).slice(2, 8)}`,
+    id: overrides.id ?? crypto.randomUUID(),
+    bucket: overrides.bucket ?? "default-bucket",
+    create_time: overrides.create_time ?? now.toISOString(),
+    last_created: overrides.last_created ?? now.toISOString(),
+    hash_location: overrides.hash_location ?? null,
+    hash_location_size: overrides.hash_location_size ?? null,
+    version_id: overrides.version_id ?? null,
+    type: overrides.type ?? DatasetType.DATASET,
+    ...overrides,
+  };
+}
+
+export function createDatasetsResponse(datasets: Partial<DataListEntry>[] = []): DataListResponse {
+  const defaultDatasets =
+    datasets.length > 0 ? datasets.map((d, i) => createDatasetEntry({ name: `dataset-${i + 1}`, ...d })) : [];
+
+  return { datasets: defaultDatasets };
+}
+
 // Re-export generated enums so E2E tests can import from one place
-export { BackendResourceType, PoolStatus } from "@/lib/api/generated";
+export { BackendResourceType, DatasetType, PoolStatus, WorkflowStatus } from "@/lib/api/generated";

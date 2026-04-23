@@ -34,6 +34,10 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NODE_ENV !== "development") return;
   if (process.env.NEXT_PUBLIC_MOCK_API !== "true") return;
+  // Playwright registers `page.route` mocks in the browser. Server-side MSW would
+  // still satisfy SSR/RSC prefetch and hydrate TanStack Query with faker data;
+  // long staleTime then prevents client refetch, so route mocks never apply.
+  if (process.env.PLAYWRIGHT_E2E === "1") return;
   if (globalThis.__mswServerStarted) return;
 
   const { server } = await import("@/mocks/server");

@@ -17,6 +17,7 @@
 "use server";
 
 import http from "node:http";
+import { getE2eDatasetManifest } from "@/lib/e2e/dataset-manifest-fixtures";
 import { fetchManifest as prodFetchManifest } from "@/lib/api/server/dataset-actions.production";
 
 /**
@@ -51,7 +52,28 @@ function mockFetchManifest(url: string): Promise<unknown[]> {
   });
 }
 
+function isE2eDatasetManifestUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.pathname.includes("/api/e2e/dataset-manifest");
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchManifest(url: string): Promise<unknown[]> {
+  // Playwright E2E disables Node MSW (see instrumentation.ts). mockFetchManifest
+  // would http.request localhost:9999 with nothing listening.
+  // Resolve E2E manifest URLs in-process — avoids undici fetch() to the same Next
+  // dev server (can deadlock or fail during server actions).
+  if (process.env.PLAYWRIGHT_E2E === "1" && isE2eDatasetManifestUrl(url)) {
+    const u = new URL(url);
+    const caseParam = u.searchParams.get("case") ?? "default";
+    return getE2eDatasetManifest(caseParam) as unknown[];
+  }
+  if (process.env.PLAYWRIGHT_E2E === "1") {
+    return prodFetchManifest(url);
+  }
   if (process.env.NEXT_PUBLIC_MOCK_API === "true") {
     return mockFetchManifest(url);
   }
