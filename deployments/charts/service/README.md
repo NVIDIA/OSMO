@@ -290,6 +290,7 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
 | `gateway.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
 | `gateway.oauth2Proxy.redisSessionStore` | Use Redis for session store | `true` |
+| `gateway.oauth2Proxy.extraEnv` | Extra environment variables for the oauth2-proxy container (e.g. `OAUTH2_PROXY_REDIS_PASSWORD` from a Secret ref when Redis requires AUTH) | `[]` |
 
 #### Gateway Authz
 

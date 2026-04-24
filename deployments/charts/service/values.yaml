@@ -1539,6 +1539,10 @@ gateway:
       clientSecret: /etc/oauth2-proxy/client-secret
       cookieSecret: /etc/oauth2-proxy/cookie-secret
     extraArgs: []
+    ## Extra environment variables for the oauth2-proxy container. Useful for
+    ## passing credentials from Secrets — e.g. Redis password via
+    ## OAUTH2_PROXY_REDIS_PASSWORD when redisSessionStore is enabled.
+    extraEnv: []
     redis:
       serviceName: ""
       port: 6379
