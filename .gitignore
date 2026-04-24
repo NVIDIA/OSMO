@@ -29,3 +29,6 @@ docs/**/domain_config.js
 .ruff_cache
 
 .lycheecache
+
+# Git worktrees
+.worktrees/
