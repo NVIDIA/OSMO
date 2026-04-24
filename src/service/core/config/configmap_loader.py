@@ -23,6 +23,7 @@ import os
 import threading
 from typing import Any, Callable, Dict, List
 
+import pydantic
 import yaml
 from watchdog import events, observers
 
@@ -242,6 +243,24 @@ _EXPECTED_CONFIG_KEYS = {
 }
 
 
+def _format_validation_error(error: pydantic.ValidationError) -> str:
+    """Format a Pydantic error as `<path>: <reason> (input_type=<type>)`.
+
+    Never echoes submitted values — they can be resolved secrets.
+    """
+    parts: List[str] = []
+    for err in error.errors():
+        loc_parts = tuple(str(p) for p in err.get('loc', ()))
+        loc = '.'.join(loc_parts) if loc_parts else '<root>'
+        msg = err.get('msg', '')
+        if 'input' in err:
+            input_type = type(err['input']).__name__
+            parts.append(f'{loc}: {msg} (input_type={input_type})')
+        else:
+            parts.append(f'{loc}: {msg}')
+    return '; '.join(parts)
+
+
 def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
     """Validate ConfigMap data by constructing typed Pydantic models.
 
@@ -265,6 +284,9 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
             continue
         try:
             config_class(**section)
+        except pydantic.ValidationError as error:
+            errors.append(
+                f'{config_key}: {_format_validation_error(error)}')
         except Exception as error:  # pylint: disable=broad-exception-caught
             errors.append(f'{config_key}: {error}')
 
