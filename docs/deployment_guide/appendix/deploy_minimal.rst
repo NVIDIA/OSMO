@@ -248,6 +248,11 @@ Create the following values files for the minimal deployment:
           minReplicas: 1
           maxReplicas: 1
 
+      router:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
+
       agent:
         scaling:
           minReplicas: 1
@@ -292,34 +297,6 @@ Create the following values files for the minimal deployment:
       ui:
         apiHostname: osmo-gateway.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
 
-**Router Service Values** (``router_values.yaml``):
-
-.. dropdown:: ``router_values.yaml``
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 2,3,10,13
-
-    global:
-      osmoImageLocation: <insert-osmo-image-registry>
-      osmoImageTag: <insert-osmo-image-tag>
-
-    services:
-      configFile:
-        enabled: true
-
-      postgres:
-        serviceName: <your-postgres-host>
-
-        # This should match the database name in the prior configuration step
-        db: osmo_db
-
-      service:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 1
-
 .. important::
 
    1. Replace ``<insert-osmo-image-tag>`` with the desired OSMO version you want to deploy
@@ -330,7 +307,7 @@ Step 6: Helm Deploy
 
 Deploy the OSMO components using the minimal configuration:
 
-1. **Deploy OSMO Service**:
+1. **Deploy OSMO Service** (includes the router):
 
    .. code-block:: bash
 
@@ -344,14 +321,6 @@ Deploy the OSMO components using the minimal configuration:
 
       $ helm upgrade --install ui-minimal osmo/web-ui \
         -f ./ui_values.yaml \
-        --namespace osmo-minimal
-
-3. **Deploy OSMO Router**:
-
-   .. code-block:: bash
-
-      $ helm upgrade --install router-minimal osmo/router \
-        -f ./router_values.yaml \
         --namespace osmo-minimal
 
 Step 7: Verify Deployment
@@ -547,7 +516,6 @@ To remove the minimal deployment:
    # Uninstall all helm releases
    $ helm uninstall osmo-minimal --namespace osmo-minimal
    $ helm uninstall ui-minimal --namespace osmo-minimal
-   $ helm uninstall router-minimal --namespace osmo-minimal
    $ helm uninstall osmo-operator --namespace osmo-operator
 
    # Delete the namespace

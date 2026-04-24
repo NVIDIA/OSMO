@@ -435,6 +435,52 @@ service:
       - name: AWS_DEFAULT_REGION
         value: us-east-1
 
+    ## Router service configuration
+    ##
+    router:
+      ## Hostname for the router service
+      ##
+      hostname: quick-start.osmo
+      ## Kubernetes image pull policy for the router service
+      ##
+      imagePullPolicy: IfNotPresent
+      ## Horizontal Pod Autoscaler (HPA) configuration for the router service
+      ##
+      scaling:
+        ## Minimum number of router service replicas
+        ##
+        minReplicas: 1
+        ## Maximum number of router service replicas
+        ##
+        maxReplicas: 1
+      ## Init containers for router service
+      ##
+      ## Wait for data infra to be up before starting service
+      ##
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z postgres 5432; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
+          echo "Postgres is ready"
+      - name: wait-for-redis
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z redis 6379; do
+            echo "Waiting for redis..."
+            sleep 2
+          done
+          echo "Redis is ready"
+
     ## Delayed job monitor service configuration
     ##
     delayedJobMonitor:
@@ -519,75 +565,6 @@ web-ui:
       ## API hostname — point at the gateway for server-side rendering
       ##
       apiHostname: quick-start.osmo.svc.cluster.local:80
-
-## Router service configuration
-##
-router:
-  ## Configuration for router services
-  ##
-  services:
-    ## Configuration file service settings
-    ##
-    configFile:
-      ## Enable external configuration file loading (MEK configuration)
-      ##
-      enabled: true
-      ## Path to the Master Encryption Key (MEK) configuration file
-      ##
-      path: /home/osmo/config/mek.yaml
-
-    ## Main router service configuration
-    ##
-    service:
-      ## Hostname for the router service
-      ##
-      hostname: quick-start.osmo
-      ## Kubernetes image pull policy for the router service
-      ##
-      imagePullPolicy: IfNotPresent
-      ## Horizontal Pod Autoscaler (HPA) configuration for the router service
-      ##
-      scaling:
-        ## Minimum number of router service replicas
-        ##
-        minReplicas: 1
-        ## Maximum number of router service replicas
-        ##
-        maxReplicas: 1
-      ## Init containers for router service
-      ##
-      ## Wait for data infra to be up before starting service
-      ##
-      initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-
-    ## PostgreSQL database service configuration
-    ##
-    postgres:
-      ## PostgreSQL password
-      ##
-      password: "osmo"
 
 ## Backend operator configuration for managing compute workloads
 ##
