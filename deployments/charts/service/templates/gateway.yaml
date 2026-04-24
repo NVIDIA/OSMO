@@ -315,7 +315,7 @@ spec:
           - --skip-provider-button=true
           - --api-route=/api/.+
           {{- range $gw.oauth2Proxy.extraArgs }}
-          - {{ . }}
+          - {{ . | quote }}
           {{- end }}
         ports:
         - name: http
