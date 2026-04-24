@@ -413,6 +413,8 @@ sidecars:
     enabled: false
   oauth2Proxy:
     enabled: false
+podMonitor:
+  enabled: false
 EOF
 
     # UI values
@@ -509,6 +511,8 @@ services:
 sidecars:
   otel:
     enabled: false
+podMonitor:
+  enabled: false
 EOF
 
     log_success "Helm values files created"
@@ -577,13 +581,16 @@ setup_backend_operator() {
 
         if command -v osmo &> /dev/null; then
             log_info "Logging into OSMO..."
-            osmo login http://localhost:9000 --method=dev --username=testuser || true
+            osmo login http://localhost:9000 --method=dev --username=admin || true
+
+            log_info "Creating backend-operator user..."
+            osmo user create backend-operator --roles osmo-backend 2>/dev/null || true
 
             log_info "Generating backend operator token..."
             local backend_token=$(osmo token set backend-token \
                 --expires-at "$BACKEND_TOKEN_EXPIRY" \
                 --description "Backend Operator Token" \
-                --service \
+                --user backend-operator \
                 --roles osmo-backend \
                 -t json 2>/dev/null | jq -r '.token' || echo "")
 
