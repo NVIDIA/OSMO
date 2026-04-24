@@ -315,7 +315,7 @@ spec:
           - --skip-provider-button=true
           - --api-route=/api/.+
           {{- range $gw.oauth2Proxy.extraArgs }}
-          - {{ . }}
+          - {{ . | quote }}
           {{- end }}
         ports:
         - name: http
@@ -470,6 +470,9 @@ spec:
           {{- if .Values.global.logs.enabled }}
           - "--log-dir=/logs"
           - "--log-name=authz_sidecar"
+          {{- end }}
+          {{- with .Values.global.logs.logFormat }}
+          - "--log-format={{ . }}"
           {{- end }}
         env:
           {{- if .Values.services.migration.enabled }}

@@ -100,6 +100,8 @@ spec:
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
         - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.global.logs.logFormat | default "text" }}
         - --metrics_otel_collector_component
         - {{ $name }}-{{ .Values.services.backendListener.serviceName }}
         - --metrics_otel_enable
