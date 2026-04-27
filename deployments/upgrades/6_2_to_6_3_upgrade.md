@@ -57,6 +57,26 @@ The script:
 
 Review the stderr output carefully — it lists the TODO placeholders you need to fill in plus any existing `secretRefs` that need matching K8s Secrets in the target namespace.
 
+### Resolving the TODO placeholders
+
+For each `{secretName: TODO-REPLACE-ME, secretKey: <field>}` block in the output, pick one of these patterns and replace `TODO-REPLACE-ME` with a real Secret name:
+
+1. **Per-field Secret (matches the placeholder layout as-is).** Create a Secret with `--from-literal` keys that match each `secretKey` referenced in the placeholders. The loader reads files from `/etc/osmo/secrets/<secretName>/<secretKey>` so each masked field resolves independently.
+   ```bash
+   kubectl create secret generic osmo-workflow-creds \
+       --from-literal=access_key=<S3 secret key> \
+       --from-literal=auth=<base64 NGC token>
+   ```
+
+2. **Whole-credential Secret (collapses the entire credential dict).** Replace the parent dict (e.g. the whole `credential:` block under `workflow_data`) with a single `{secretName: <name>}` ref pointing at a Secret whose `cred.yaml` key contains the full YAML mapping. The loader detects `cred.yaml` and merges all its keys into the parent dict — useful when you want to keep `endpoint` / `region` / `access_key_id` / `access_key` together.
+   ```yaml
+   workflow_data:
+     credential:
+       secretName: osmo-workflow-data-cred   # provides cred.yaml
+   ```
+
+Either way, every `secretName` you settle on must also be listed under `services.configs.secretRefs` so the chart actually mounts it into the service pods.
+
 ### Dependencies
 
 The export script requires PyYAML:

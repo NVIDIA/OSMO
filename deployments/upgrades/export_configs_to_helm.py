@@ -114,19 +114,28 @@ OPTIONAL_CONFIG_ENDPOINTS = {
 }
 
 
+class ExportError(Exception):
+    """Raised when a required API call fails. Aborts the export — we don't
+    want a partial export silently dropping a config section."""
+
+
 def fetch(base_url, path, headers, optional=False):
     """Fetch JSON from the OSMO API.
 
     When optional=True and the API responds with HTTP 400 "relation … does
     not exist" (table absent on this schema version), logs a short message
     and returns None quietly instead of dumping the raw SQL error.
+
+    For all other failures, raises ExportError so the caller fails fast
+    instead of producing a partial export. A migration export that
+    silently omits a section because of a 401 / 500 / timeout is much
+    worse than an aborted run — partial output is still syntactically
+    valid YAML and the operator may apply it without realizing.
     """
     url = f'{base_url}{path}'
     parsed = urllib.parse.urlsplit(url)
     if parsed.scheme not in ('http', 'https'):
-        print(f'Error: URL must use http or https scheme: {url}',
-              file=sys.stderr)
-        return None
+        raise ExportError(f'URL must use http or https scheme: {url}')
     req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -135,7 +144,7 @@ def fetch(base_url, path, headers, optional=False):
         body = ''
         try:
             body = error.read().decode()
-        except Exception:  # pylint: disable=broad-except
+        except OSError:
             pass
         if (optional and error.code == 400
                 and 'does not exist' in body
@@ -143,13 +152,13 @@ def fetch(base_url, path, headers, optional=False):
             print(f'  (skipped {path}: table not present on this schema)',
                   file=sys.stderr)
             return None
-        print(f'Error fetching {path}: HTTP {error.code}', file=sys.stderr)
+        message = f'Error fetching {path}: HTTP {error.code}'
         if body:
-            print(f'  {body[:200]}', file=sys.stderr)
-        return None
+            message = f'{message}\n  {body[:200]}'
+        raise ExportError(message) from error
     except urllib.error.URLError as error:
-        print(f'Error connecting to {url}: {error.reason}', file=sys.stderr)
-        return None
+        raise ExportError(
+            f'Error connecting to {url}: {error.reason}') from error
 
 
 def strip_fields(data, fields):
@@ -365,7 +374,19 @@ def load_chart_defaults(values_path):
               f'{error}', file=sys.stderr)
         return {}
 
-    configs = values.get('services', {}).get('configs', {})
+    # Walk the expected services.configs path, falling back to "no defaults
+    # available" if any node isn't a mapping. --chart-values can point at
+    # any YAML file, so don't trust the shape.
+    configs = values
+    for key in ('services', 'configs'):
+        if not isinstance(configs, dict):
+            print(f'Warning: unexpected structure at {values_path} '
+                  f'(no services.configs mapping); skipping default-diff',
+                  file=sys.stderr)
+            return {}
+        configs = configs.get(key, {})
+    if not isinstance(configs, dict):
+        return {}
     # Drop the enabled flag — we always set that explicitly in the output.
     configs = {k: v for k, v in configs.items() if k != 'enabled'}
     # Normalize: the same drop_empty pass we run on the export, so sides
@@ -563,8 +584,12 @@ def main():
     configs = drop_empty(configs)
 
     # 2. Strip pinned backend image tags — they silently lock workflow pods
-    # to whatever version was running at export time.
+    # to whatever version was running at export time. Re-run drop_empty so
+    # workflow.backend_images doesn't survive as `{}` if it only held the
+    # pinned init/client tags.
     stripped_image_pins = strip_backend_image_pins(configs)
+    if stripped_image_pins:
+        configs = drop_empty(configs)
 
     # 3. Diff against the chart's shipped defaults. Only fields that differ
     # from the chart's out-of-the-box configs remain.
@@ -626,4 +651,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except ExportError as error:
+        print(f'\nExport aborted: {error}', file=sys.stderr)
+        sys.exit(1)
