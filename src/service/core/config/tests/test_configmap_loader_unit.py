@@ -343,6 +343,101 @@ class TestValidateConfigs(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
+class TestValidationErrorFormatting(unittest.TestCase):
+    """Pydantic validation errors must never echo input values.
+
+    Policy (see `_format_validation_error` docstring): only the field
+    path and Pydantic's reason are included in the error message. The
+    submitted value is never echoed back — this eliminates the whole
+    class of 'did we remember every sensitive field?' leak bugs.
+    """
+
+    def _make_error(
+        self, *field_errors,
+    ) -> configmap_loader.pydantic.ValidationError:
+        """Build a ValidationError by running extra fields through a
+        strict model so each one is rejected with extra_forbidden."""
+        class FakeModel(configmap_loader.pydantic.BaseModel):
+            model_config = {'extra': 'forbid'}
+            name: str = ''
+
+        try:
+            FakeModel(**dict(field_errors))
+        except configmap_loader.pydantic.ValidationError as error:
+            return error
+        raise AssertionError('Expected a ValidationError')
+
+    def test_output_contains_field_path_reason_and_input_type(self):
+        """Operators need loc + msg + input_type to diagnose quickly;
+        all three are kept, value is NOT."""
+        error = self._make_error(('extra_field', 'anything'))
+        formatted = configmap_loader._format_validation_error(error)
+        self.assertIn('extra_field', formatted)
+        self.assertIn('Extra inputs are not permitted', formatted)
+        self.assertIn('input_type=str', formatted)
+        self.assertNotIn('anything', formatted)
+
+    def test_input_type_reflects_actual_python_type(self):
+        """A non-string input should be reported with its Python type."""
+        class IntModel(configmap_loader.pydantic.BaseModel):
+            port: int = 80
+
+        try:
+            IntModel(port='not-a-number')
+        except configmap_loader.pydantic.ValidationError as error:
+            formatted = configmap_loader._format_validation_error(error)
+            self.assertIn('port', formatted)
+            self.assertIn('input_type=str', formatted)
+            # The submitted value itself is NEVER echoed
+            self.assertNotIn('not-a-number', formatted)
+
+    def test_output_never_contains_input_value(self):
+        """Submitted values — sensitive or not — must not appear."""
+        error = self._make_error(
+            ('access_key', 'ACCESS_KEY_CANARY'),
+            ('password', 'PASSWORD_CANARY'),
+            ('private_key', 'PRIVATE_KEY_CANARY'),
+            ('endpoint', 'ENDPOINT_CANARY'),
+            ('_comment', 'COMMENT_CANARY'),
+        )
+        formatted = configmap_loader._format_validation_error(error)
+        for canary in (
+            'ACCESS_KEY_CANARY', 'PASSWORD_CANARY',
+            'PRIVATE_KEY_CANARY', 'ENDPOINT_CANARY', 'COMMENT_CANARY',
+        ):
+            self.assertNotIn(canary, formatted)
+
+    def test_real_models_never_leak_any_value(self):
+        """End-to-end: drive _validate_configs with the exact shape
+        that caused the staging leak (nested credential dict with a
+        secret and an extra field that trips Pydantic). No submitted
+        value appears in the output; field path is retained."""
+        configs: Dict[str, Any] = {
+            'workflow': {
+                'workflow_data': {
+                    'credential': {
+                        'access_key': 'LEAKED_IF_BUG_PRESENT',
+                        'access_key_id': 'team-osmo-ops',
+                        'endpoint': 'swift://host/bucket',
+                        'region': 'us-east-1',
+                        '_comment': 'docs',
+                    },
+                },
+            },
+        }
+        errors = configmap_loader._validate_configs(configs)
+        combined = '; '.join(errors)
+        # No submitted values leak — sensitive or otherwise.
+        for value in (
+            'LEAKED_IF_BUG_PRESENT', 'team-osmo-ops',
+            'swift://host/bucket', 'us-east-1', 'docs',
+        ):
+            self.assertNotIn(value, combined)
+        # The field path is still visible so operators can locate it
+        self.assertIn('workflow_data', combined)
+        self.assertIn('credential', combined)
+
+
 class TestConfigMapWatcherStart(unittest.TestCase):
     """Tests for ConfigMapWatcher.start() startup behavior."""
 
