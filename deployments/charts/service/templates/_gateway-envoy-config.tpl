@@ -149,6 +149,33 @@ data:
               virtual_hosts:
               - name: gateway
                 domains: ["*"]
+                {{- /* Default identity for minimal/demo deployments without
+                       oauth2Proxy + authz. Uses Envoy's built-in
+                       request_headers_to_add with ADD_IF_ABSENT so that when
+                       authz IS enabled and sets these headers via ext_authz
+                       response, the real values win.
+                */ -}}
+                {{- with $envoy.defaultIdentity }}
+                {{- if .user }}
+                request_headers_to_add:
+                - header:
+                    key: x-osmo-user
+                    value: {{ .user | quote }}
+                  append_action: ADD_IF_ABSENT
+                {{- if .roles }}
+                - header:
+                    key: x-osmo-roles
+                    value: {{ .roles | quote }}
+                  append_action: ADD_IF_ABSENT
+                {{- end }}
+                {{- if .allowedPools }}
+                - header:
+                    key: x-osmo-allowed-pools
+                    value: {{ .allowedPools | quote }}
+                  append_action: ADD_IF_ABSENT
+                {{- end }}
+                {{- end }}
+                {{- end }}
                 routes:
                 {{- if $gw.oauth2Proxy.enabled }}
                 - match:

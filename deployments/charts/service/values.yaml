@@ -1283,6 +1283,28 @@ gateway:
     ##
     serviceAccountName: ""
 
+    ## Default identity headers for unauthenticated requests.
+    ##
+    ## In minimal / demo deployments where oauth2Proxy and authz are both
+    ## disabled, no upstream sets the x-osmo-{user,roles,allowed-pools}
+    ## headers — the API treats every UI request as anonymous and returns
+    ## empty role/pool lists, so the UI shows blank pages.
+    ##
+    ## Setting these renders Envoy `request_headers_to_add` rules at the
+    ## gateway virtual host with `append_action: ADD_IF_ABSENT`. The
+    ## strip-unauthorized-headers Lua filter still removes any incoming
+    ## headers (preventing impersonation from outside the cluster), and
+    ## `ADD_IF_ABSENT` only fills them in when nothing else has — so
+    ## production deployments with authz enabled are unaffected (authz's
+    ## response headers win).
+    ##
+    ## Leave all three empty to opt out (production default).
+    ##
+    defaultIdentity:
+      user: ""           # e.g. "admin"
+      roles: ""          # comma-separated, e.g. "osmo-admin"
+      allowedPools: ""   # comma-separated, e.g. "default"
+
     ## Kubernetes Service configuration for the gateway.
     ##
     ## Two modes for external access:

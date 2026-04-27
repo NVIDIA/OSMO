@@ -252,6 +252,9 @@ Benefits of the separate gateway model:
 | `gateway.envoy.routerRoute.cookie.name` | Cookie name for router session affinity | `_osmo_router_affinity` |
 | `gateway.envoy.routerRoute.cookie.ttl` | Cookie TTL for router affinity | `60s` |
 | `gateway.envoy.ingress.enabled` | Enable Ingress for the gateway | `false` |
+| `gateway.envoy.defaultIdentity.user` | Default `x-osmo-user` for unauthenticated requests (minimal/demo deployments only) — leave empty in production | `""` |
+| `gateway.envoy.defaultIdentity.roles` | Default `x-osmo-roles` (comma-separated) — only applied when `defaultIdentity.user` is set | `""` |
+| `gateway.envoy.defaultIdentity.allowedPools` | Default `x-osmo-allowed-pools` (comma-separated) — only applied when `defaultIdentity.user` is set | `""` |
 
 Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
 

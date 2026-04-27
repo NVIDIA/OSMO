@@ -274,6 +274,17 @@ Create the following values files for the minimal deployment:
         enabled: false
       authz:
         enabled: false
+      envoy:
+        # With oauth2Proxy + authz both off, no upstream sets the
+        # x-osmo-{user,roles,allowed-pools} headers, so every UI request
+        # would land on the API as anonymous (empty roles/pools, blank UI).
+        # In minimal mode, inject default identity headers at the gateway
+        # so the UI is usable. Production deployments leave defaultIdentity
+        # empty — authz sets these headers from validated JWTs.
+        defaultIdentity:
+          user: admin
+          roles: osmo-admin
+          allowedPools: default
 
 **UI Service Values** (``ui_values.yaml``):
 
