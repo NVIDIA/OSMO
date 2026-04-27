@@ -252,8 +252,20 @@ Benefits of the separate gateway model:
 | `gateway.envoy.routerRoute.cookie.name` | Cookie name for router session affinity | `_osmo_router_affinity` |
 | `gateway.envoy.routerRoute.cookie.ttl` | Cookie TTL for router affinity | `60s` |
 | `gateway.envoy.ingress.enabled` | Enable Ingress for the gateway | `false` |
+| `gateway.envoy.defaultIdentity.user` | Default `x-osmo-user` for unauthenticated requests (minimal/demo deployments only) — leave empty in production | `""` |
+| `gateway.envoy.defaultIdentity.roles` | Default `x-osmo-roles` (comma-separated) — only applied when `defaultIdentity.user` is set | `""` |
+| `gateway.envoy.defaultIdentity.allowedPools` | Default `x-osmo-allowed-pools` (comma-separated) — only applied when `defaultIdentity.user` is set | `""` |
 
 Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
+
+**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-{user,roles,allowed-pools}` headers based on whether `gateway.oauth2Proxy.enabled` or `gateway.authz.enabled` is `true`:
+
+| `oauth2Proxy.enabled` | `authz.enabled` | Identity headers from clients |
+|---|---|---|
+| `true` (default) | `true` (default) | Stripped at the HCM `internal_only_headers` layer **and** by the Lua filter. ext_authz (the authz sidecar) is the only source. Production posture. |
+| `true` | `false` | Same — both strip mechanisms still run. |
+| `false` | `true` | Same — both strip mechanisms still run. |
+| `false` | `false` (minimal mode) | **Trusted.** Both strip mechanisms are skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
 
 #### Gateway Upstreams
 

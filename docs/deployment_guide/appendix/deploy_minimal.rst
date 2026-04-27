@@ -24,7 +24,7 @@ Minimal Deployment
 This guide provides instructions for deploying OSMO in a minimal configuration suitable for testing, development, and evaluation purposes. This setup of OSMO creates the service and backend operator in the same kubernetes cluster, is suitable for single-tenant, has no authentication, and is designed for quick setup and experimentation.
 
 .. warning::
-   Minimal deployment is **not** recommended for production use as it lacks authentication and has limited features.
+   Minimal deployment is **not** recommended for production use as it lacks authentication and has limited features. With ``oauth2Proxy`` and ``authz`` both disabled, the gateway trusts client-supplied ``x-osmo-{user,roles,allowed-pools}`` headers — any caller with network access can claim any user, role, or pool. Only deploy on clusters whose gateway is not reachable from untrusted networks (e.g. local development clusters, ephemeral demo environments behind a VPN).
 
 Overview
 ========
@@ -274,6 +274,17 @@ Create the following values files for the minimal deployment:
         enabled: false
       authz:
         enabled: false
+      envoy:
+        # With oauth2Proxy + authz both off, no upstream sets the
+        # x-osmo-{user,roles,allowed-pools} headers, so every UI request
+        # would land on the API as anonymous (empty roles/pools, blank UI).
+        # In minimal mode, inject default identity headers at the gateway
+        # so the UI is usable. Production deployments leave defaultIdentity
+        # empty — authz sets these headers from validated JWTs.
+        defaultIdentity:
+          user: admin
+          roles: osmo-admin
+          allowedPools: default
 
 **UI Service Values** (``ui_values.yaml``):
 
