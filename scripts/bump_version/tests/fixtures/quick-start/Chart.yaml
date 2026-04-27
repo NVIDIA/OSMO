@@ -28,9 +28,6 @@ dependencies:
 - name: web-ui
   version: 1.3.0
   repository: file://../web-ui
-- name: router
-  version: 1.3.0
-  repository: file://../router
 - name: backend-operator
   version: 1.3.0
   repository: file://../backend-operator

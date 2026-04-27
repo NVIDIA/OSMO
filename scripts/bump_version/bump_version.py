@@ -29,17 +29,15 @@ import yaml
 CHART_NAMES: tuple[str, ...] = (
     "service",
     "web-ui",
-    "router",
     "backend-operator",
     "quick-start",
 )
-# quick-start/Chart.yaml pins exactly these four internal charts via its
-# `dependencies:` block. bump_version only touches these four entries;
+# quick-start/Chart.yaml pins exactly these three internal charts via its
+# `dependencies:` block. bump_version only touches these three entries;
 # any other dependency (e.g. an external chart) is left alone.
 QUICK_START_DEP_NAMES: tuple[str, ...] = (
     "service",
     "web-ui",
-    "router",
     "backend-operator",
 )
 VERSION_YAML_RELPATH = "src/lib/utils/version.yaml"

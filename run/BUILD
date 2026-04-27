@@ -55,7 +55,6 @@ osmo_py_binary(
         "kind-osmo-cluster-config.yaml",
         "//deployments/charts:service",
         "//deployments/charts:web-ui",
-        "//deployments/charts:router",
         "//run/minimal:minimal",
     ],
     deps = [

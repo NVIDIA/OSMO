@@ -29,7 +29,7 @@ import yaml
 from scripts.bump_version import bump_version
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
-CHART_NAMES = ("service", "web-ui", "router", "backend-operator", "quick-start")
+CHART_NAMES = ("service", "web-ui", "backend-operator", "quick-start")
 
 
 def _read_yaml(path: pathlib.Path) -> dict[str, Any]:
@@ -129,7 +129,7 @@ class BumpVersionTest(unittest.TestCase):
         self.assertEqual(service["appVersion"], "6.5.0")
 
     def test_refuses_on_chart_version_drift(self) -> None:
-        path = self.root / "deployments/charts/router/Chart.yaml"
+        path = self.root / "deployments/charts/backend-operator/Chart.yaml"
         path.write_text(
             path.read_text().replace("version: 1.3.0", "version: 1.3.1", 1)
         )
