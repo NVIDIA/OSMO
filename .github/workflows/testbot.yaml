@@ -31,7 +31,7 @@ on:
         default: '300'
       max_turns:
         description: 'Max Claude Code agent turns'
-        default: '50'
+        default: '200'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
         default: '30'
@@ -83,11 +83,21 @@ jobs:
         working-directory: src/ui
         run: pnpm install --frozen-lockfile
 
+      # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
+      # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
+      # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
+      # Install bazelisk directly from the asset URL to bypass the broken path.
+      - name: Install Bazelisk
+        run: |
+          curl -fsSL -o /usr/local/bin/bazelisk \
+            https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64
+          sudo chmod +x /usr/local/bin/bazelisk
+          sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+
       - name: Setup Bazel
         uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
           bazelisk-cache: true
-          bazelisk-version: 1.27.0
           disk-cache: ${{ github.workflow }}
           repository-cache: true
           external-cache: |
@@ -119,14 +129,56 @@ jobs:
       - name: Generate tests
         run: |
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
-          npx @anthropic-ai/claude-code@2.1.91 --print \
-            --model "$ANTHROPIC_MODEL" \
-            --allowedTools "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep" \
-            --max-turns ${{ inputs.max_turns || '50' }} \
-            "$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
+          PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
 
           Coverage targets:
           $TARGETS"
+          STREAM_LOG="$RUNNER_TEMP/claude-stream.jsonl"
+
+          # Stream every turn and tool use to the action log (matches the
+          # diagnostics surfaced by the respond workflow). The final result
+          # message is parsed below for a summary. We disable -e so the
+          # diagnostics block runs even when Claude exits non-zero.
+          set +e
+          npx @anthropic-ai/claude-code@2.1.91 --print \
+            --model "$ANTHROPIC_MODEL" \
+            --output-format stream-json --verbose \
+            --allowedTools "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep" \
+            --max-turns ${{ inputs.max_turns || '200' }} \
+            "$PROMPT" | tee "$STREAM_LOG"
+          status=$?
+
+          echo "::group::Claude Code diagnostics"
+          python3 - "$STREAM_LOG" "$status" <<'PY'
+          import json, sys
+          path, status = sys.argv[1], sys.argv[2]
+          final = None
+          with open(path) as f:
+              for line in f:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      msg = json.loads(line)
+                  except json.JSONDecodeError:
+                      continue
+                  if msg.get("type") == "result":
+                      final = msg
+          print(f"exit_status: {status}")
+          if final is None:
+              print("no final result message captured")
+              sys.exit(0)
+          for key in ("subtype", "is_error", "num_turns", "duration_ms",
+                      "duration_api_ms", "total_cost_usd"):
+              if key in final:
+                  print(f"{key}: {final[key]}")
+          result = final.get("result")
+          if isinstance(result, str) and result:
+              print("result:")
+              print(result[:2000])
+          PY
+          echo "::endgroup::"
+          exit $status
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com

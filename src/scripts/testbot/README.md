@@ -62,7 +62,7 @@ Claude Code is sandboxed: it can only read files, edit test files, and run test 
 gh workflow run testbot.yaml --ref <branch> \
   -f max_targets=1 \
   -f max_uncovered=300 \
-  -f max_turns=50 \
+  -f max_turns=200 \
   -f model=aws/anthropic/claude-opus-4-5
 ```
 
@@ -101,7 +101,7 @@ Then post a new `/testbot` comment with clearer instructions.
 |-------|---------|-------------|
 | `max_targets` | `1` | Files to target per run |
 | `max_uncovered` | `300` | Uncovered lines cap per target (0 = no cap) |
-| `max_turns` | `50` | Claude Code agent turns |
+| `max_turns` | `200` | Claude Code agent turns |
 | `timeout_minutes` | `30` | Workflow timeout |
 | `model` | `aws/anthropic/claude-opus-4-5` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
@@ -110,7 +110,7 @@ Then post a new `/testbot` comment with clearer instructions.
 
 | Arg | Default | Description |
 |-----|---------|-------------|
-| `--max-turns` | `50` | Claude Code agent turns |
+| `--max-turns` | `200` | Claude Code agent turns |
 | `--max-responses` | `10` | Max threads to address per trigger |
 | `--timeout` | `720` | Claude Code CLI timeout in seconds |
 | `--model` | `aws/anthropic/claude-opus-4-5` | LLM model |
