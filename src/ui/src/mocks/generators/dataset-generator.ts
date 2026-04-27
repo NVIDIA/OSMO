@@ -274,6 +274,22 @@ export class DatasetGenerator {
       }
     }
 
+    // Hive-style partitioned directories with a prefix-sharing sibling pair.
+    // Exercises the dataset browser on real-world Parquet layouts and guards
+    // against sort-vs-binary-search regressions where `arctic_processed/` and
+    // `arctic_processed_invalid/` are siblings under the same root.
+    for (const base of ["processed", "processed_invalid"]) {
+      for (const sequence of ["s01", "s02"]) {
+        const filePath = `${base}/sequence_id=${sequence}/robot_name=sharpa_wave/data.parquet`;
+        items.push({
+          relative_path: filePath,
+          size: faker.number.int({ min: 1024, max: 32768 }),
+          url: buildUrl(filePath),
+          storage_path: buildStoragePath(filePath),
+        });
+      }
+    }
+
     return items;
   }
 
