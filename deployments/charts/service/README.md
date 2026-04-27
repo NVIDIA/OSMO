@@ -22,6 +22,8 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 
 ## Values
 
+> **Hostname configuration.** Three template fields read the external hostname for this deployment: `services.service.hostname` (API service `--service_hostname`), `services.router.hostname` (router `--hostname` for session-key extraction from `Host:` headers), and `gateway.envoy.hostname` (Ingress / TLS / OAuth2 redirect). Each one falls back to `global.hostname` when empty, so the recommended pattern is **set `global.hostname` once** at the top level and leave the per-component fields blank. Per-component fields still take precedence on the (rare) deployments that need a different value.
+
 ### Global Settings
 
 | Parameter | Description | Default |
@@ -30,6 +32,7 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
+| `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
 
 ### Global Logging Settings
 
@@ -149,7 +152,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
-| `services.service.hostname` | Service hostname | `""` |
+| `services.service.hostname` | External DNS hostname for the API service (passed as `--service_hostname`, used to set `service_base_url` in the DB-backed configs). When empty, falls back to `global.hostname`. | `""` |
 | `services.service.extraArgs` | Additional command line arguments | `[]` |
 | `services.service.hostAliases` | Host aliases for custom DNS resolution | `[]` |
 | `services.service.disableTaskMetrics` | Disable task metrics collection | `false` |
@@ -209,7 +212,7 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 | `services.router.imagePullPolicy` | Image pull policy | `Always` |
 | `services.router.serviceName` | Service name | `osmo-router` |
 | `services.router.initContainers` | Init containers for router service | `[]` |
-| `services.router.hostname` | Router hostname (passed as `--hostname` to the router binary). When empty the flag is omitted. | `""` |
+| `services.router.hostname` | External hostname (e.g. `staging.osmo.nvidia.com`) used by the router to extract a session key from `Host` / `X-Forwarded-Host` headers — requests to `<key>.<hostname>` resolve to session `<key>`. Required for subdomain-based session routing. When empty, falls back to `global.hostname`; if both are empty the chart omits `--hostname` and the binary's default of `localhost` applies (only matches `*.localhost`). | `""` |
 | `services.router.webserverEnabled` | Enable webserver functionality for wildcard subdomain support | `false` |
 | `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
 | `services.router.extraArgs` | Additional command line arguments | `[]` |
@@ -281,7 +284,7 @@ Benefits of the separate gateway model:
 | `gateway.envoy.logLevel` | Envoy log level | `info` |
 | `gateway.envoy.listenerPort` | Listener port | `8080` |
 | `gateway.envoy.maxHeadersSizeKb` | Max header size in KB | `128` |
-| `gateway.envoy.hostname` | External hostname (used in OAuth2 redirect) | `""` |
+| `gateway.envoy.hostname` | External hostname (used in the Ingress `host:` rule, TLS hosts list, and the OAuth2 redirect URL). When empty, falls back to `global.hostname`. | `""` |
 | `gateway.envoy.maxRequests` | Circuit breaker max concurrent requests | `100` |
 | `gateway.envoy.idp.host` | IDP host for JWKS (e.g. `login.microsoftonline.com`) | `""` |
 | `gateway.envoy.jwt.providers` | JWT provider configurations | `[]` |

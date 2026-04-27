@@ -118,9 +118,10 @@ spec:
         - --logout_endpoint
         - {{ .Values.services.service.auth.logout_endpoint }}
         {{- end }}
-        {{- if .Values.services.service.hostname }}
+        {{- $serviceHostname := .Values.services.service.hostname | default .Values.global.hostname }}
+        {{- if $serviceHostname }}
         - --service_hostname
-        - {{ .Values.services.service.hostname }}
+        - {{ $serviceHostname }}
         {{- end }}
         {{- if .Values.services.service.clientInstallUrl }}
         - --client_install_url

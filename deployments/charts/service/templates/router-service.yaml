@@ -81,9 +81,10 @@ spec:
         command:
         - router
         args:
-        {{- if .Values.services.router.hostname }}
+        {{- $routerHostname := .Values.services.router.hostname | default .Values.global.hostname }}
+        {{- if $routerHostname }}
         - --hostname
-        - {{ .Values.services.router.hostname }}
+        - {{ $routerHostname }}
         {{- end }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}

@@ -40,6 +40,19 @@ global:
   ##
   serviceAccountName: osmo
 
+  ## External DNS hostname this OSMO deployment serves on
+  ## (e.g. "staging.osmo.nvidia.com").
+  ##
+  ## Used as the canonical fallback for:
+  ##   - services.service.hostname  (API service `--service_hostname`)
+  ##   - services.router.hostname   (router `--hostname` for session-key extraction)
+  ##   - gateway.envoy.hostname     (Ingress host rule + OAuth2 redirect URL)
+  ##
+  ## Each per-component hostname above takes precedence when explicitly set;
+  ## leaving them empty falls back to this global value.
+  ##
+  hostname: ""
+
   ## Logging configuration for all Osmo services
   ##
   logs:
@@ -795,8 +808,8 @@ services:
     ##
     initContainers: []
 
-    ## Hostname on which the ingress is served
-    ## Leave empty to use the default cluster hostname
+    ## External DNS hostname for the API service (passed as `--service_hostname`).
+    ## When empty, falls back to global.hostname.
     ##
     hostname: ""
 
@@ -1001,8 +1014,13 @@ services:
     ##
     initContainers: []
 
-    ## Hostname on which the router is served
-    ## Leave empty to use the default cluster hostname
+    ## External hostname on which the router is served (e.g. staging.osmo.nvidia.com).
+    ## Used by the router to extract a session key from the `Host` / `X-Forwarded-Host`
+    ## header — requests to `<key>.<hostname>` resolve to session `<key>`. Required for
+    ## subdomain-based session routing (webserver port-forwarding); otherwise the binary
+    ## falls back to its default of "localhost", which only matches `*.localhost`.
+    ## When empty, falls back to global.hostname; if that is also empty the chart omits
+    ## the `--hostname` flag and the binary's default applies.
     ##
     hostname: ""
 
@@ -1436,7 +1454,8 @@ gateway:
     ##
     blockedIPs: []
 
-    ## External hostname (used for OAuth2 redirect URL)
+    ## External hostname (used for the Ingress `host:` rule, TLS hosts list, and
+    ## OAuth2 redirect URL). When empty, falls back to global.hostname.
     ##
     hostname: ""
 

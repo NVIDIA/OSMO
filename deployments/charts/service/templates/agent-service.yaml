@@ -95,9 +95,10 @@ spec:
         - --redis_db_number
         - {{ .Values.services.redis.dbNumber | quote }}
         {{- end}}
-        {{- if .Values.services.service.hostname }}
+        {{- $serviceHostname := .Values.services.service.hostname | default .Values.global.hostname }}
+        {{- if $serviceHostname }}
         - --service_hostname
-        - {{ .Values.services.service.hostname }}
+        - {{ $serviceHostname }}
         {{- end }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
