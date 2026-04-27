@@ -982,6 +982,12 @@ services:
     ##
     imageName: router
 
+    ## Override the router image tag independently from global.osmoImageTag.
+    ## Leave empty to use global.osmoImageTag. Useful for canary-deploying
+    ## a new router image without bumping the rest of the service chart.
+    ##
+    imageTag: ""
+
     ## Kubernetes image pull policy for the router service
     ## Options: Always, IfNotPresent, Never
     ##

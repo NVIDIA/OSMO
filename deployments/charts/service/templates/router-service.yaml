@@ -55,10 +55,13 @@ spec:
             app: {{ $.Values.services.router.serviceName }}
       {{- end }}
       {{- end }}
-      {{- with .Values.services.router.nodeSelector }}
       nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- range $k, $v := .Values.global.nodeSelector }}
+        {{ $k }}: {{ $v }}
+        {{- end }}
+        {{- range $k, $v := .Values.services.router.nodeSelector }}
+        {{ $k }}: {{ $v }}
+        {{- end }}
       {{- with .Values.services.router.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -74,12 +77,14 @@ spec:
       {{- end }}
       containers:
       - name: {{ .Values.services.router.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.router.imageName }}:{{ .Values.global.osmoImageTag }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.router.imageName }}:{{ .Values.services.router.imageTag | default .Values.global.osmoImageTag }}
         command:
         - router
         args:
+        {{- if .Values.services.router.hostname }}
         - --hostname
         - {{ .Values.services.router.hostname }}
+        {{- end }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
         - --postgres_port

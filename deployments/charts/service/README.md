@@ -193,6 +193,44 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 
+#### Router Service
+
+The router was its own Helm chart prior to v6.3 and is now deployed as part of the service chart. The gateway routes `/api/router/*` to the `osmo-router` Kubernetes Service.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.router.scaling.minReplicas` | Minimum replicas | `3` |
+| `services.router.scaling.maxReplicas` | Maximum replicas | `5` |
+| `services.router.scaling.memoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.router.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.router.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
+| `services.router.imageName` | Router image name | `router` |
+| `services.router.imageTag` | Per-router image tag override; falls back to `global.osmoImageTag` when empty. Useful for canary-deploying a new router image without bumping the rest of the chart. | `""` |
+| `services.router.imagePullPolicy` | Image pull policy | `Always` |
+| `services.router.serviceName` | Service name | `osmo-router` |
+| `services.router.initContainers` | Init containers for router service | `[]` |
+| `services.router.hostname` | Router hostname (passed as `--hostname` to the router binary). When empty the flag is omitted. | `""` |
+| `services.router.webserverEnabled` | Enable webserver functionality for wildcard subdomain support | `false` |
+| `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
+| `services.router.extraArgs` | Additional command line arguments | `[]` |
+| `services.router.extraPodLabels` | Extra labels applied to the router pod | `{}` |
+| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod (e.g. vault-injector annotations) | `{}` |
+| `services.router.extraEnvs` | Extra container env vars (list of `{name, value}` or `{name, valueFrom}`) | `[]` |
+| `services.router.extraPorts` | Extra named container ports | `[]` |
+| `services.router.extraVolumes` | Extra pod volumes | `[]` |
+| `services.router.extraVolumeMounts` | Extra container volume mounts | `[]` |
+| `services.router.extraContainers` | Extra sidecar containers | `[]` |
+| `services.router.hostAliases` | Host aliases for custom DNS resolution within router pods | `[]` |
+| `services.router.nodeSelector` | Node selector constraints (merged with `global.nodeSelector`; per-router keys take precedence on collision) | `{}` |
+| `services.router.tolerations` | Pod tolerations | See values.yaml |
+| `services.router.resources` | Resource limits and requests | `{}` |
+| `services.router.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.router.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.router.startupProbe` | Startup probe configuration | See values.yaml |
+| `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
+
+The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
+
 ### Ingress Settings
 
 | Parameter | Description | Default |
@@ -349,6 +387,7 @@ The OSMO platform consists of:
 
 ### Core Services
 - **API Service**: Main REST API with ingress, scaling, and authentication
+- **Router Service**: Routes per-workflow client traffic; the gateway routes `/api/router/*` here. Was its own Helm chart prior to v6.3 and is now deployed by this chart.
 - **Worker Service**: Background job processing with queue-based scaling
 - **Logger Service**: Log collection and processing with connection-based scaling
 - **Agent Service**: Client communication and management
@@ -367,7 +406,7 @@ The OSMO platform consists of:
 
 ## Notes
 
-- The chart consists of multiple services: API, Worker, Logger, Agent, and Delayed Job Monitor
+- The chart consists of multiple services: API, Router, Worker, Logger, Agent, and Delayed Job Monitor
 - Each service can be scaled independently using HPA
 - Authentication is handled through the gateway's OAuth2 Proxy and JWT validation
 - The gateway Envoy provides cookie-based session affinity for the router service
