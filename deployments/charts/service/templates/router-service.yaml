@@ -109,7 +109,7 @@ spec:
         {{- end }}
         {{- with .Values.services.router.extraArgs }}
         {{- range . }}
-            - {{ . }}
+        - {{ . }}
         {{- end }}
         {{- end }}
         env:
