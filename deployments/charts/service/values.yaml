@@ -1291,14 +1291,22 @@ gateway:
     ## empty role/pool lists, so the UI shows blank pages.
     ##
     ## Setting these renders Envoy `request_headers_to_add` rules at the
-    ## gateway virtual host with `append_action: ADD_IF_ABSENT`. The
-    ## strip-unauthorized-headers Lua filter still removes any incoming
-    ## headers (preventing impersonation from outside the cluster), and
-    ## `ADD_IF_ABSENT` only fills them in when nothing else has — so
-    ## production deployments with authz enabled are unaffected (authz's
-    ## response headers win).
+    ## gateway virtual host with `append_action: ADD_IF_ABSENT`. The chart
+    ## also conditionally drops these headers from the gateway's
+    ## `internal_only_headers` and Lua strip filter when oauth2Proxy and
+    ## authz are both disabled, so client-supplied identity (e.g. dev-mode
+    ## CLI's `x-osmo-user: <name>`) flows through; the default is only
+    ## injected when the client didn't set its own.
     ##
-    ## Leave all three empty to opt out (production default).
+    ## SECURITY: in this mode the gateway TRUSTS the client's identity
+    ## headers. Any caller with network access can claim any user, any
+    ## role, and any pool. Only enable on clusters whose gateway is not
+    ## reachable from untrusted networks.
+    ##
+    ## In production (oauth2Proxy or authz enabled), client identity
+    ## headers are stripped at both the HCM and Lua-filter layers, so
+    ## defaultIdentity is irrelevant — authz/JWT is the canonical source.
+    ## Leave all three empty in that mode.
     ##
     defaultIdentity:
       user: ""           # e.g. "admin"

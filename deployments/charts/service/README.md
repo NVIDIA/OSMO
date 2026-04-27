@@ -258,6 +258,15 @@ Benefits of the separate gateway model:
 
 Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
 
+**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-{user,roles,allowed-pools}` headers based on whether `gateway.oauth2Proxy.enabled` or `gateway.authz.enabled` is `true`:
+
+| `oauth2Proxy.enabled` | `authz.enabled` | Identity headers from clients |
+|---|---|---|
+| `true` (default) | `true` (default) | Stripped at the HCM `internal_only_headers` layer **and** by the Lua filter. ext_authz (the authz sidecar) is the only source. Production posture. |
+| `true` | `false` | Same — both strip mechanisms still run. |
+| `false` | `true` | Same — both strip mechanisms still run. |
+| `false` | `false` (minimal mode) | **Trusted.** Both strip mechanisms are skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
+
 #### Gateway Upstreams
 
 | Parameter | Description | Default |

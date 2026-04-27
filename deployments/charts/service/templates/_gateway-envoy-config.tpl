@@ -139,12 +139,22 @@ data:
             route_config:
               name: gateway_routes
 
+              # Headers Envoy auto-strips from external requests at the HCM
+              # layer (before any HTTP filter runs). The identity headers
+              # (x-osmo-user, x-osmo-roles, x-osmo-allowed-pools) are only
+              # listed when an upstream auth component owns them. In
+              # minimal mode (oauth2Proxy and authz both off) the CLI and
+              # gateway-injected defaults are the only sources, so we
+              # leave them off and let client values flow.
               internal_only_headers:
               - x-osmo-auth-skip
+              {{- if or $gw.oauth2Proxy.enabled $gw.authz.enabled }}
               - x-osmo-user
+              - x-osmo-roles
+              - x-osmo-allowed-pools
+              {{- end }}
               - x-osmo-token-name
               - x-osmo-workflow-id
-              - x-osmo-allowed-pools
 
               virtual_hosts:
               - name: gateway
@@ -287,11 +297,21 @@ data:
                   inline_string: |
                     function envoy_on_request(request_handle)
                       request_handle:headers():remove("x-osmo-auth-skip")
+                      {{- /* In minimal mode (no oauth2Proxy, no authz),
+                             trust the client-supplied identity headers so
+                             dev-mode CLI multi-user works (workflows get
+                             attributed to the right user). When either auth
+                             component is on, ext_authz is the canonical
+                             source and any client claim must be stripped to
+                             prevent impersonation.
+                          */ -}}
+                      {{- if or $gw.oauth2Proxy.enabled $gw.authz.enabled }}
                       request_handle:headers():remove("x-osmo-user")
                       request_handle:headers():remove("x-osmo-roles")
+                      request_handle:headers():remove("x-osmo-allowed-pools")
+                      {{- end }}
                       request_handle:headers():remove("x-osmo-token-name")
                       request_handle:headers():remove("x-osmo-workflow-id")
-                      request_handle:headers():remove("x-osmo-allowed-pools")
                       request_handle:headers():remove("x-envoy-internal")
                       request_handle:headers():remove("x-forwarded-host")
                     end
