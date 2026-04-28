@@ -1,0 +1,140 @@
+"""
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.  # pylint: disable=line-too-long
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+SPDX-License-Identifier: Apache-2.0
+"""
+
+import argparse
+import os
+import sys
+
+import shtab
+
+from src.utils import standalone_executor
+
+
+def setup_parser(parser: argparse._SubParsersAction):
+    """Register the 'standalone' subcommand and its nested 'run' action with the CLI argument parser."""
+    standalone_parser = parser.add_parser(
+        'standalone',
+        help='Run workflows in standalone mode using Docker containers (no Kubernetes cluster required).')
+    subparsers = standalone_parser.add_subparsers(dest='command')
+    subparsers.required = True
+
+    run_parser = subparsers.add_parser(
+        'run',
+        help='Execute a workflow spec in standalone mode using Docker containers.')
+    run_parser.add_argument(
+        '-f', '--file',
+        required=True,
+        dest='workflow_file',
+        help='Path to the workflow YAML spec file.').complete = shtab.FILE
+    run_parser.add_argument(
+        '--work-dir',
+        dest='work_dir',
+        default=None,
+        help='Directory for task inputs/outputs. Defaults to a temporary directory.')
+    run_parser.add_argument(
+        '--keep',
+        action='store_true',
+        default=False,
+        help='Keep the work directory after execution (always kept on failure).')
+    run_parser.add_argument(
+        '--docker',
+        dest='docker_cmd',
+        default='docker',
+        help='Docker-compatible command to use (e.g. podman). Default: docker.')
+    run_parser.add_argument(
+        '--resume',
+        action='store_true',
+        default=False,
+        help='Resume a previous run, skipping tasks that already completed successfully. '
+             'Requires --work-dir pointing to the previous run directory.')
+    run_parser.add_argument(
+        '--from-step',
+        dest='from_step',
+        default=None,
+        help='Resume from a specific task, re-running it and all downstream tasks. '
+             'Tasks upstream of the specified step are skipped if they completed '
+             'successfully. Requires --work-dir pointing to the previous run directory.')
+    run_parser.add_argument(
+        '--credential',
+        nargs='+',
+        default=[],
+        help='Map credential names to local directories. '
+             'Format: "<name>=<path>". The directory is bind-mounted read-only '
+             'into the container at the path declared in the spec. '
+             'Example: --credential hf-token=$HOME/.hf')
+    run_parser.add_argument(
+        '--set',
+        nargs='+',
+        default=[],
+        help='Override default-values in the workflow spec. '
+             'Format: "<field>=<value>". Values are cast as int or float if '
+             'applicable, otherwise kept as strings.')
+    run_parser.add_argument(
+        '--set-string',
+        dest='set_string',
+        nargs='+',
+        default=[],
+        help='Override default-values in the workflow spec, forcing string type. '
+             'Format: "<field>=<value>".')
+    run_parser.add_argument(
+        '--shm-size',
+        dest='shm_size',
+        default=None,
+        help='Shared memory size for GPU containers (e.g. 16g, 32g). '
+             'Defaults to 16g for tasks that request GPUs. '
+             'PyTorch DataLoader workers require large shared memory.')
+    run_parser.set_defaults(func=_run_standalone)
+
+
+def _parse_credentials(raw_credentials: list[str]) -> dict[str, str]:
+    """Parse --credential name=path arguments into a dict."""
+    result: dict[str, str] = {}
+    for entry in raw_credentials:
+        if '=' not in entry:
+            raise ValueError(
+                f'--credential value "{entry}" is incorrectly formatted (expected name=/path)')
+        name, path = entry.split('=', 1)
+        if not os.path.isdir(path):
+            raise ValueError(
+                f'Credential path for "{name}" does not exist or is not a directory: {path}')
+        result[name] = path
+    return result
+
+
+def _run_standalone(service_client, args: argparse.Namespace):
+    """Execute a workflow in standalone mode via Docker using the parsed CLI arguments."""
+    try:
+        credentials = _parse_credentials(args.credential)
+        success = standalone_executor.run_workflow_standalone(
+            spec_path=args.workflow_file,
+            work_dir=args.work_dir,
+            keep_work_dir=args.keep,
+            resume=args.resume,
+            from_step=args.from_step,
+            docker_cmd=args.docker_cmd,
+            shm_size=args.shm_size,
+            set_variables=args.set,
+            set_string_variables=args.set_string,
+            credentials=credentials,
+        )
+    except (ValueError, FileNotFoundError, PermissionError) as error:
+        print(f'Error: {error}', file=sys.stderr)
+        sys.exit(1)
+
+    if not success:
+        sys.exit(1)

@@ -30,3 +30,25 @@ osmo_py_test(
         requirement("jwcrypto"),
     ]
 )
+
+py_test(
+    name = "test_standalone_executor",
+    srcs = ["test_standalone_executor.py"],
+    deps = [
+        "//src/utils:standalone_executor",
+    ],
+    data = [
+        "//cookbook/tutorials:tutorial_specs",
+    ],
+    local = True,
+)
+
+py_test(
+    name = "test_compose_executor",
+    srcs = ["test_compose_executor.py"],
+    deps = [
+        "//src/utils:compose_executor",
+        "//src/utils:standalone_executor",
+    ],
+    local = True,
+)
