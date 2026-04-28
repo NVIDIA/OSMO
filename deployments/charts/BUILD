@@ -22,12 +22,6 @@ filegroup(
 )
 
 filegroup(
-    name = "router",
-    srcs = glob(["router/**"]),
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
     name = "backend-operator",
     srcs = glob(["backend-operator/**"]),
     visibility = ["//visibility:public"],

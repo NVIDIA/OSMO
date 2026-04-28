@@ -22,6 +22,8 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 
 ## Values
 
+> **Hostname configuration.** Three template fields read the external hostname for this deployment: `services.service.hostname` (API service `--service_hostname`), `services.router.hostname` (router `--hostname` for session-key extraction from `Host:` headers), and `gateway.envoy.hostname` (Ingress / TLS / OAuth2 redirect). Each one falls back to `global.hostname` when empty, so the recommended pattern is **set `global.hostname` once** at the top level and leave the per-component fields blank. Per-component fields still take precedence on the (rare) deployments that need a different value.
+
 ### Global Settings
 
 | Parameter | Description | Default |
@@ -30,6 +32,7 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
+| `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
 
 ### Global Logging Settings
 
@@ -149,7 +152,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
-| `services.service.hostname` | Service hostname | `""` |
+| `services.service.hostname` | External DNS hostname for the API service (passed as `--service_hostname`, used to set `service_base_url` in the DB-backed configs). When empty, falls back to `global.hostname`. | `""` |
 | `services.service.extraArgs` | Additional command line arguments | `[]` |
 | `services.service.hostAliases` | Host aliases for custom DNS resolution | `[]` |
 | `services.service.disableTaskMetrics` | Disable task metrics collection | `false` |
@@ -192,6 +195,44 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.tolerations` | Pod tolerations | `[]` |
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+
+#### Router Service
+
+The router was its own Helm chart prior to v6.3 and is now deployed as part of the service chart. The gateway routes `/api/router/*` to the `osmo-router` Kubernetes Service.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.router.scaling.minReplicas` | Minimum replicas | `3` |
+| `services.router.scaling.maxReplicas` | Maximum replicas | `5` |
+| `services.router.scaling.memoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.router.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.router.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
+| `services.router.imageName` | Router image name | `router` |
+| `services.router.imageTag` | Per-router image tag override; falls back to `global.osmoImageTag` when empty. Useful for canary-deploying a new router image without bumping the rest of the chart. | `""` |
+| `services.router.imagePullPolicy` | Image pull policy | `Always` |
+| `services.router.serviceName` | Service name | `osmo-router` |
+| `services.router.initContainers` | Init containers for router service | `[]` |
+| `services.router.hostname` | External hostname (e.g. `staging.osmo.nvidia.com`) used by the router to extract a session key from `Host` / `X-Forwarded-Host` headers — requests to `<key>.<hostname>` resolve to session `<key>`. Required for subdomain-based session routing. When empty, falls back to `global.hostname`; if both are empty the chart omits `--hostname` and the binary's default of `localhost` applies (only matches `*.localhost`). | `""` |
+| `services.router.webserverEnabled` | Enable webserver functionality for wildcard subdomain support | `false` |
+| `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
+| `services.router.extraArgs` | Additional command line arguments | `[]` |
+| `services.router.extraPodLabels` | Extra labels applied to the router pod | `{}` |
+| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod (e.g. vault-injector annotations) | `{}` |
+| `services.router.extraEnvs` | Extra container env vars (list of `{name, value}` or `{name, valueFrom}`) | `[]` |
+| `services.router.extraPorts` | Extra named container ports | `[]` |
+| `services.router.extraVolumes` | Extra pod volumes | `[]` |
+| `services.router.extraVolumeMounts` | Extra container volume mounts | `[]` |
+| `services.router.extraContainers` | Extra sidecar containers | `[]` |
+| `services.router.hostAliases` | Host aliases for custom DNS resolution within router pods | `[]` |
+| `services.router.nodeSelector` | Node selector constraints (merged with `global.nodeSelector`; per-router keys take precedence on collision) | `{}` |
+| `services.router.tolerations` | Pod tolerations | See values.yaml |
+| `services.router.resources` | Resource limits and requests | `{}` |
+| `services.router.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.router.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.router.startupProbe` | Startup probe configuration | See values.yaml |
+| `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
+
+The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
 
 ### Ingress Settings
 
@@ -243,7 +284,7 @@ Benefits of the separate gateway model:
 | `gateway.envoy.logLevel` | Envoy log level | `info` |
 | `gateway.envoy.listenerPort` | Listener port | `8080` |
 | `gateway.envoy.maxHeadersSizeKb` | Max header size in KB | `128` |
-| `gateway.envoy.hostname` | External hostname (used in OAuth2 redirect) | `""` |
+| `gateway.envoy.hostname` | External hostname (used in the Ingress `host:` rule, TLS hosts list, and the OAuth2 redirect URL). When empty, falls back to `global.hostname`. | `""` |
 | `gateway.envoy.maxRequests` | Circuit breaker max concurrent requests | `100` |
 | `gateway.envoy.idp.host` | IDP host for JWKS (e.g. `login.microsoftonline.com`) | `""` |
 | `gateway.envoy.jwt.providers` | JWT provider configurations | `[]` |
@@ -362,6 +403,7 @@ The OSMO platform consists of:
 
 ### Core Services
 - **API Service**: Main REST API with ingress, scaling, and authentication
+- **Router Service**: Routes per-workflow client traffic; the gateway routes `/api/router/*` here. Was its own Helm chart prior to v6.3 and is now deployed by this chart.
 - **Worker Service**: Background job processing with queue-based scaling
 - **Logger Service**: Log collection and processing with connection-based scaling
 - **Agent Service**: Client communication and management
@@ -380,7 +422,7 @@ The OSMO platform consists of:
 
 ## Notes
 
-- The chart consists of multiple services: API, Worker, Logger, Agent, and Delayed Job Monitor
+- The chart consists of multiple services: API, Router, Worker, Logger, Agent, and Delayed Job Monitor
 - Each service can be scaled independently using HPA
 - Authentication is handled through the gateway's OAuth2 Proxy and JWT validation
 - The gateway Envoy provides cookie-based session affinity for the router service
