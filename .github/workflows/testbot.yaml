@@ -128,6 +128,14 @@ jobs:
 
       - name: Generate tests
         run: |
+          # Validate workflow_dispatch input before splicing it into the
+          # shell command (defense in depth — the input is interpolated
+          # by GitHub Actions, not the shell, so quoting alone isn't enough).
+          if ! [[ "$MAX_TURNS" =~ ^[0-9]+$ ]]; then
+            echo "max_turns must be a non-negative integer, got: $MAX_TURNS" >&2
+            exit 2
+          fi
+
           TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
           PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
 
@@ -144,11 +152,17 @@ jobs:
             --model "$ANTHROPIC_MODEL" \
             --output-format stream-json --verbose \
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
-            --max-turns ${{ inputs.max_turns || '200' }} \
+            --max-turns "$MAX_TURNS" \
             "$PROMPT" | tee "$STREAM_LOG"
-          status=$?
+          # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
+          # Claude failures as success.
+          status=${PIPESTATUS[0]}
 
+          # Wrap untrusted Claude result text in ::stop-commands:: so it can't
+          # inject workflow commands (::warning::, ::add-mask::, etc.).
+          STOP_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
           echo "::group::Claude Code diagnostics"
+          echo "::stop-commands::$STOP_TOKEN"
           python3 - "$STREAM_LOG" "$status" <<'PY'
           import json, sys
           path, status = sys.argv[1], sys.argv[2]
@@ -177,12 +191,16 @@ jobs:
               print("result:")
               print(result[:2000])
           PY
+          echo "::$STOP_TOKEN::"
           echo "::endgroup::"
           exit $status
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/claude-opus-4-5' }}
+          # Inputs go via env (literal string) instead of being interpolated
+          # into the run script, then validated below before use.
+          MAX_TURNS: ${{ inputs.max_turns || '200' }}
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
 
