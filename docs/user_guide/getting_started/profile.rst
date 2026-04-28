@@ -65,8 +65,6 @@ Default Dataset Bucket
     - 🎯 **Any file type** - no restrictions on what you can store
     - ☁️ **Multi-cloud support** - works with S3, GCS, Azure, and more
 
-    See :ref:`tutorials_working_with_data_datasets` for complete details.
-
 To choose a default bucket, first view available buckets with the :ref:`Bucket List CLI command <cli_reference_bucket>`.
 
 .. code-block:: bash

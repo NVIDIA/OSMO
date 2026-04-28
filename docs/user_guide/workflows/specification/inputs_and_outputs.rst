@@ -34,7 +34,7 @@ There are 3 types of inputs supported:
   All files uploaded from the upstream tasks' output directory will be downloaded.
 * ``url``: Downloads files from an external object storage bucket using a URI.
   Learn more about the URI syntax at :ref:`Storage URLs <tutorials_working_with_data_storage_urls>`.
-* ``dataset``: Downloads the files from a dataset. Learn more about datasets at :ref:`Working with Data <tutorials_working_with_data_datasets>`.
+* ``dataset``: Downloads the files from a dataset.
 
 .. note::
 
@@ -143,7 +143,7 @@ types of supported output types:
 
 * ``url``: Upload files to an external object storage bucket using a URI.
   Learn more about the URI syntax at :ref:`Storage URLs <tutorials_working_with_data_storage_urls>`.
-* ``dataset``: Uploads the files to a dataset. Learn more about datasets at :ref:`Working with Data <tutorials_working_with_data_datasets>`.
+* ``dataset``: Uploads the files to a dataset.
 * ``update_dataset``: Creates a new dataset version with the combined files from the task's
   output folder and the existing dataset version. Learn more about datasets at :ref:`Update Dataset <cli_reference_dataset_update>`.
 
