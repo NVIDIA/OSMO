@@ -270,24 +270,34 @@ create_secrets() {
     $RUN_KUBECTL "delete secret redis-secret --namespace $OSMO_NAMESPACE --ignore-not-found=true"
     $RUN_KUBECTL "create secret generic redis-secret --from-literal=redis-password=$REDIS_PASSWORD --namespace $OSMO_NAMESPACE"
 
-    # Generate and create MEK
-    log_info "Generating Master Encryption Key (MEK)..."
-    local random_key=$(openssl rand -base64 32 | tr -d '\n')
-    local jwk_json="{\"k\":\"$random_key\",\"kid\":\"key1\",\"kty\":\"oct\"}"
-    local encoded_jwk=$(echo -n "$jwk_json" | base64 | tr -d '\n')
+    # Generate and create MEK (skip if already exists to avoid key material mismatch)
+    if $RUN_KUBECTL "get configmap mek-config -n $OSMO_NAMESPACE" >/dev/null 2>&1; then
+        log_info "MEK ConfigMap already exists, skipping generation"
+    else
+        log_info "Generating Master Encryption Key (MEK)..."
+        local random_key
+        random_key="$(openssl rand -base64 32 | tr -d '\n')"
+        # Use a unique kid per generation to make key material mismatches
+        # detectable. See https://github.com/NVIDIA/OSMO/issues/731
+        local kid
+        kid="key-$(openssl rand -hex 8)"
+        local jwk_json="{\"k\":\"$random_key\",\"kid\":\"$kid\",\"kty\":\"oct\"}"
+        local encoded_jwk
+        encoded_jwk="$(echo -n "$jwk_json" | base64 | tr -d '\n')"
 
-    local mek_manifest="apiVersion: v1
+        local mek_manifest="apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mek-config
   namespace: $OSMO_NAMESPACE
 data:
   mek.yaml: |
-    currentMek: key1
+    currentMek: $kid
     meks:
-      key1: $encoded_jwk"
+      $kid: $encoded_jwk"
 
-    $RUN_KUBECTL_APPLY_STDIN "$mek_manifest"
+        $RUN_KUBECTL_APPLY_STDIN "$mek_manifest"
+    fi
 
     log_success "Secrets created"
 }

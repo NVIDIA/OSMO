@@ -60,9 +60,10 @@ def _generate_mek() -> None:
 
         random_key = base64.b64encode(secrets.token_bytes(32)).decode('utf-8')
 
+        kid = f'key-{secrets.token_hex(8)}'
         jwk_json = {
             'k': random_key,
-            'kid': 'key1',
+            'kid': kid,
             'kty': 'oct'
         }
 
@@ -77,9 +78,9 @@ metadata:
 data:
   mek.yaml: |
     # MEK generated {time.strftime('%Y-%m-%d %H:%M:%S')}
-    currentMek: key1
+    currentMek: {kid}
     meks:
-      key1: {encoded_jwk}
+      {kid}: {encoded_jwk}
 """
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_file:
