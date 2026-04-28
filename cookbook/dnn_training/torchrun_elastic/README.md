@@ -35,5 +35,5 @@ This workflow example contains:
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_elastic/train.py
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_elastic/train.yaml
-osmo workflow submit train.yaml --set min_nodes=2 max_nodes=4 n_epochs=10
+osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets min_nodes=2 max_nodes=4 n_epochs=10
 ```

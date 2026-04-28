@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit groot_finetune.yaml
+# osmo workflow submit groot_finetune.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: groot-finetune

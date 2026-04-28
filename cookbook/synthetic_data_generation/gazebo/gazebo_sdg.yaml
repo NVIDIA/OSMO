@@ -16,7 +16,7 @@
 
 # This workflow has multiple files. Please refer to README for more details.
 # To submit:
-# osmo workflow submit gazebo_sdg.yaml
+# osmo workflow submit gazebo_sdg.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: gazebo-sdg

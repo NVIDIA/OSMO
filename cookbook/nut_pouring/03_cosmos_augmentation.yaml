@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 3: Apply Cosmos Transfer 2.5 for visual augmentation
-# Usage: osmo workflow submit 03_cosmos_augmentation.yaml --pool default
+# Usage: osmo workflow submit 03_cosmos_augmentation.yaml --pool default --set storage_url=s3://my-bucket/datasets
 
 workflow:
   groups:

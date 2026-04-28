@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 4: Merge augmented MP4 videos back into HDF5 format
-# Usage: osmo workflow submit 04_mp4_to_hdf5.yaml --pool default
+# Usage: osmo workflow submit 04_mp4_to_hdf5.yaml --pool default --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: {{ workflow_name }}

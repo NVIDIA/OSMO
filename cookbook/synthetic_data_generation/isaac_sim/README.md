@@ -31,5 +31,5 @@ networks. The workflow consists of one main task that launches Isaac Sim, and ge
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/isaac_sim/isaac_sim_sdg.yaml
-osmo workflow submit isaac_sim_sdg.yaml
+osmo workflow submit isaac_sim_sdg.yaml --set storage_url=s3://my-bucket/datasets
 ```

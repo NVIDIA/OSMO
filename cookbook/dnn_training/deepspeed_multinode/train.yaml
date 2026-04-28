@@ -16,7 +16,7 @@
 
 # This workflow has multiple files. Please refer to README for more details.
 # To submit:
-# osmo workflow submit train.yaml --set n_nodes=2 n_gpus_per_node=4 n_epochs=10
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets n_nodes=2 n_gpus_per_node=4 n_epochs=10
 
 workflow:
   name: deepspeed-sample

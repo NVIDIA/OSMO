@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 5: Convert HDF5 to LeRobot dataset format for GROOT training
-# Usage: osmo workflow submit 05_lerobot_conversion.yaml --pool default
+# Usage: osmo workflow submit 05_lerobot_conversion.yaml --pool default --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: {{workflow_name}}

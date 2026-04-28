@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit train_policy.yaml
+# osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets
 # To see TensorBoard dashboard:
 # osmo workflow port-forward <workflow ID> train --port 6006
 

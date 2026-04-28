@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit train.yaml --set n_nodes=<number of nodes> n_gpus_per_node=<number of GPUs per node>
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets n_nodes=<number of nodes> n_gpus_per_node=<number of GPUs per node>
 
 workflow:
   name: wandb-sample

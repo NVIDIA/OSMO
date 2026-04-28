@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 2: Convert HDF5 camera observations to MP4 videos
-# Usage: osmo workflow submit 02_hdf5_to_mp4.yaml --pool default
+# Usage: osmo workflow submit 02_hdf5_to_mp4.yaml --pool default --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: {{ workflow_name }}
