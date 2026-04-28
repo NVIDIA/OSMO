@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 6: Fine-tune GROOT-N1.5 VLA model on prepared dataset
-# Usage: osmo workflow submit 06_groot_finetune.yaml --pool default
+# Usage: osmo workflow submit 06_groot_finetune.yaml --pool default --set storage_url=s3://my-bucket/datasets
 
 workflow:
   groups:

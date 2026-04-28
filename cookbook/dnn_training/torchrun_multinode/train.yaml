@@ -16,7 +16,7 @@
 
 # This workflow has multiple files. Please refer to README for more details.
 # To submit:
-# osmo workflow submit train.yaml
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: train-multi-gpu

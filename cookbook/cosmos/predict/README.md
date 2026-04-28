@@ -41,7 +41,7 @@ conditions for pulling the model. The terms and conditions submission can be fou
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/cosmos/cosmos_video2world.yaml
-osmo workflow submit cosmos_video2world.yaml
+osmo workflow submit cosmos_video2world.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 The workflow will take this input image below, and create a video from this image.
@@ -51,10 +51,10 @@ The workflow will take this input image below, and create a video from this imag
 
 ## Output
 
-After the workflow completes successfully, you can access the generated video through the `cosmos_video2world` dataset:
+After the workflow completes successfully, you can download the generated video from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ```bash
-osmo dataset download cosmos_video2world
+osmo data download s3://my-bucket/datasets/cosmos_video2world/<workflow-id>/ ./
 ```
 
 ## More Information

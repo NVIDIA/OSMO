@@ -32,15 +32,15 @@ This workflow demonstrates synthetic data generation using the Gazebo simulator.
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/gazebo_sdg.yaml
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/sdg.py
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/synthetic_data_generation/gazebo/segmentation_world.sdf
-osmo workflow submit gazebo_sdg.yaml
+osmo workflow submit gazebo_sdg.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ## Downloading Output Dataset
 
-Once the workflow is completed, download the generated dataset:
+Once the workflow is completed, download the generated data from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ```bash
-osmo dataset download gazebo-sdg-sample <local_folder>
+osmo data download s3://my-bucket/datasets/gazebo-sdg-sample/<workflow-id>/ <local_folder>
 ```
 
 ## Example Output

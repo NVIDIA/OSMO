@@ -36,5 +36,5 @@ This workflow example contains:
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_multinode/train_template.yaml
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_multinode/train.py
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/dnn_training/torchrun_multinode/osmo_barrier.py
-osmo workflow submit train_template.yaml
+osmo workflow submit train_template.yaml --set storage_url=s3://my-bucket/datasets
 ```

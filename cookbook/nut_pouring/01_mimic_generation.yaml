@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Step 1: Generate MimicGen dataset from teleop data
-# Usage: osmo workflow submit 01_mimic_generation.yaml --pool default
+# Usage: osmo workflow submit 01_mimic_generation.yaml --pool default --set storage_url=s3://my-bucket/datasets
 
 version: 2
 workflow:

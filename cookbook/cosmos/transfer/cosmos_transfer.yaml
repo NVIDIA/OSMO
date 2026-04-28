@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit cosmos_transfer.yaml
+# osmo workflow submit cosmos_transfer.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: isaac-sim-cosmos-transfer

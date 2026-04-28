@@ -2,7 +2,7 @@
 # Generates photorealistic videos from synthetic robot data using Cosmos Transfer
 #
 # To submit:
-#   osmo workflow submit cosmos_transfer_mobility.yaml --pool isaac-hil
+#   osmo workflow submit cosmos_transfer_mobility.yaml --pool isaac-hil --set storage_url=s3://my-bucket/datasets
 #
 # To connect:
 #   osmo workflow exec <workflow-id> -t cosmos_transfer

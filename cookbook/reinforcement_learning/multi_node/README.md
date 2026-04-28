@@ -40,7 +40,7 @@ This workflow example contains:
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/multi_node/train_policy.yaml
-osmo workflow submit train_policy.yaml
+osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ### Customizing GPU Count
@@ -48,7 +48,7 @@ osmo workflow submit train_policy.yaml
 To run with a different number of GPUs per node, override the default value:
 
 ```bash
-osmo workflow submit train_policy.yaml --set num_gpu=4
+osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets num_gpu=4
 ```
 
 ## Architecture
