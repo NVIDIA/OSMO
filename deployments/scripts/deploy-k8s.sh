@@ -394,6 +394,9 @@ services:
       minReplicas: 1
       maxReplicas: 1
 
+  ui:
+    enabled: false
+
   agent:
     scaling:
       minReplicas: 1
@@ -694,4 +697,3 @@ deploy_k8s_main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     deploy_k8s_main "$@"
 fi
-

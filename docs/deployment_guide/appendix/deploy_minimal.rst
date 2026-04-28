@@ -316,23 +316,14 @@ Create the following values files for the minimal deployment:
 Step 6: Helm Deploy
 ===============================
 
-Deploy the OSMO components using the minimal configuration:
+**Deploy OSMO Service** (includes the router):
 
-1. **Deploy OSMO Service** (includes the router):
+.. code-block:: bash
 
-   .. code-block:: bash
+  $ helm upgrade --install osmo-minimal osmo/service \
+    -f ./osmo_values.yaml \
+    --namespace osmo-minimal
 
-      $ helm upgrade --install osmo-minimal osmo/service \
-        -f ./osmo_values.yaml \
-        --namespace osmo-minimal
-
-2. **Deploy OSMO UI**:
-
-   .. code-block:: bash
-
-      $ helm upgrade --install ui-minimal osmo/web-ui \
-        -f ./ui_values.yaml \
-        --namespace osmo-minimal
 
 Step 7: Verify Deployment
 ==========================

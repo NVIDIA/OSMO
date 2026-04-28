@@ -560,25 +560,17 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 Step 5: Deploy Components
 =========================
 
-Deploy the components in the following order:
-
-1. Deploy **API Service** (includes the router):
+Deploy **API Service** (includes the router):
 
 .. code-block:: bash
 
-   # add the helm repository
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-   $ helm repo update
+  # add the helm repository
+  $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+  $ helm repo update
 
-   # deploy the service — brings up the API service, router, agent, logger, worker,
-   # delayed job monitor, and gateway under a single release
-   $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
-
-2. Deploy **UI**:
-
-.. code-block:: bash
-
-   $ helm upgrade --install ui osmo/web-ui -f ./ui_values.yaml -n osmo
+  # deploy the service — brings up the API service, router, agent, logger, worker,
+  # delayed job monitor, and gateway under a single release
+  $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
 
 Step 6: Verify Deployment
 =========================

@@ -196,6 +196,45 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
 
+#### UI Service
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.ui.enabled` | Render the UI Deployment/Service/HPA | `true` |
+| `services.ui.replicas` | Number of UI replicas | `1` |
+| `services.ui.imageName` | UI image name | `web-ui` |
+| `services.ui.imagePullPolicy` | Image pull policy | `Always` |
+| `services.ui.serviceName` | Service name | `osmo-ui` |
+| `services.ui.hostname` | Hostname for the service | `""` |
+| `services.ui.apiHostname` | Hostname used for server-side rendering | `osmo-gateway:80` |
+| `services.ui.portForwardEnabled` | Enable port-forwarding through the UI | `false` |
+| `services.ui.nextjsSslEnabled` | Enable SSL for UI-to-API server-side requests | `false` |
+| `services.ui.containerPort` | Container port | `8000` |
+| `services.ui.serviceAccountName` | Service account name | `""` |
+| `services.ui.maxHttpHeaderSizeKb` | Maximum Node.js header size in KB | `128` |
+| `services.ui.docsBaseUrl` | Documentation URL shown in the UI | `https://nvidia.github.io/OSMO/main/user_guide/` |
+| `services.ui.cliInstallScriptUrl` | CLI install script URL shown in the UI | See values.yaml |
+| `services.ui.scaling.enabled` | Enable HorizontalPodAutoscaler | `false` |
+| `services.ui.scaling.minReplicas` | Minimum replicas | `1` |
+| `services.ui.scaling.maxReplicas` | Maximum replicas | `3` |
+| `services.ui.scaling.hpaTarget` | Target memory utilization percentage | `85` |
+| `services.ui.skipAuth` | Skip authentication for the UI container | `false` |
+| `services.ui.extraPodAnnotations` | Extra pod annotations | `{}` |
+| `services.ui.extraEnvs` | Extra environment variables | `[]` |
+| `services.ui.extraVolumeMounts` | Extra volume mounts | `[]` |
+| `services.ui.extraVolumes` | Extra volumes | `[]` |
+| `services.ui.extraContainers` | Extra sidecar containers | `[]` |
+| `services.ui.service.type` | Service type | `""` |
+| `services.ui.service.port` | Service port | `80` |
+| `services.ui.service.extraPorts` | Additional service ports | `[]` |
+| `services.ui.nodeSelector` | Node selector constraints | `{}` |
+| `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
+| `services.ui.tolerations` | Pod tolerations | `[]` |
+| `services.ui.resources` | Resource limits and requests | `{}` |
+| `services.ui.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.ui.startupProbe` | Startup probe configuration | See values.yaml |
+| `services.ui.readinessProbe` | Readiness probe configuration | See values.yaml |
+
 #### Router Service
 
 The router was its own Helm chart prior to v6.3 and is now deployed as part of the service chart. The gateway routes `/api/router/*` to the `osmo-router` Kubernetes Service.

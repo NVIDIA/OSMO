@@ -28,12 +28,6 @@ filegroup(
 )
 
 filegroup(
-    name = "web-ui",
-    srcs = glob(["web-ui/**"]),
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
     name = "quick-start",
     srcs = glob(["quick-start/**"]),
     visibility = ["//visibility:public"],

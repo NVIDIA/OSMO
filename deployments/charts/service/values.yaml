@@ -1367,6 +1367,299 @@ services:
     # maxRequests: 100
     # routes: [...]
 
+  ## UI service configuration for the OSMO web frontend
+  ##
+  ui:
+    ## Enable rendering of the UI Deployment/Service/HPA
+    ##
+    enabled: true
+
+    ## Number of UI service replicas to run when scaling is disabled
+    ##
+    replicas: 1
+
+    ## Docker image name for the UI service (without registry or tag)
+    ##
+    imageName: web-ui
+
+    ## Kubernetes image pull policy for the UI service
+    ## Options: Always, IfNotPresent, Never
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the UI service
+    ##
+    serviceName: osmo-ui
+
+    ## Hostname on which the ingress is served
+    ##
+    hostname: ""
+
+    ## Internal hostname for server-side rendering (SSR) API calls.
+    ## Used only by the Next.js server process (not the browser).
+    ## Must point at the gateway so SSR requests go through Envoy's auth filters.
+    ## Browser API calls use window.location.host automatically.
+    ## Override with FQDN for cross-namespace deployments.
+    ##
+    apiHostname: "osmo-gateway:80"
+
+    ## Enable port-forwarding through Web UI
+    ##
+    portForwardEnabled: false
+
+    ## Enable SSL/TLS encryption for nextjs server to connect to the osmo API server
+    ##
+    nextjsSslEnabled: false
+
+    ## Container port for the UI service
+    ##
+    containerPort: 8000
+
+    ## Kubernetes service account name for the pods
+    ##
+    serviceAccountName: ""
+
+    ## Maximum HTTP header size in KB for Node.js server
+    ## Prevents 431 "Request Header Fields Too Large" errors
+    ## Should match sidecars.envoy.maxHeadersSizeKb
+    ##
+    maxHttpHeaderSizeKb: 128
+
+    ## Command override for the container
+    ## Leave empty to use the default command from the image
+    ##
+    command: []
+    # - "/bin/sh"
+    # - "-c"
+
+    ## Arguments for the container
+    ## Leave empty to use the default args from the image
+    ##
+    args: []
+    # - "npm start"
+
+    ## Additional labels for pods
+    ##
+    podLabels: {}
+    # environment: production
+    # team: osmo
+
+    ## Extra pod annotations for the UI service
+    ##
+    extraPodAnnotations: {}
+
+    ## Skip authentication for UI service
+    ##
+    skipAuth: false
+
+    ## Documentation base URL
+    ##
+    docsBaseUrl: "https://nvidia.github.io/OSMO/main/user_guide/"
+
+    ## CLI Installation Script URL
+    ##
+    cliInstallScriptUrl: "https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh"
+
+    ## Horizontal Pod Autoscaler (HPA) configuration
+    ##
+    scaling:
+      ## Enable automatic scaling based on CPU usage
+      ##
+      enabled: false
+
+      ## Minimum number of replicas when scaling is enabled
+      ##
+      minReplicas: 1
+
+      ## Maximum number of replicas when scaling is enabled
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaTarget: 85
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
+    ## Kubernetes service configuration
+    ##
+    service:
+      ## Service type (ClusterIP, NodePort, LoadBalancer)
+      ## Leave empty to use default behavior
+      ##
+      type: ""
+
+      ## Service port
+      ##
+      port: 80
+
+      ## Service port name
+      ##
+      portName: http
+
+      ## Service protocol
+      ##
+      protocol: TCP
+
+      ## Additional labels for the service
+      ##
+      labels: {}
+      # version: v1.0.0
+      # component: frontend
+
+      ## Additional annotations for the service
+      ##
+      annotations: {}
+      # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      # cloud.google.com/neg: '{"ingress": true}'
+
+      ## Additional service ports
+      ##
+      extraPorts: []
+      # - name: metrics
+      #   port: 9090
+      #   targetPort: 9090
+      #   protocol: TCP
+
+      ## Additional selector labels for the service
+      ##
+      selector: {}
+      # version: v1.0.0
+
+    ## Node selector constraints for UI pod scheduling
+    ## Leave empty to allow scheduling on any node
+    ##
+    nodeSelector: {}
+    # kubernetes.io/os: linux
+    # node-type: compute
+
+    ## Topology spread constraints to distribute pods across nodes/zones
+    ##
+    topologySpreadConstraints:
+    ## Spread pods across different hostnames (nodes)
+    ##
+    - topologyKey: kubernetes.io/hostname
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+    ## Spread pods across different availability zones
+    ##
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Host aliases for custom DNS resolution within the UI pods
+    ## Leave empty if no custom host aliases are needed
+    ##
+    hostAliases: []
+    # - ip: "192.168.1.100"
+    #   hostnames:
+    #   - "example.local"
+    #   - "test.example.local"
+
+    ## Tolerations for pod scheduling on tainted nodes
+    ## Leave empty to use default tolerations
+    ##
+    tolerations: []
+    # - key: "node-type"
+    #   operator: "Equal"
+    #   value: "gpu"
+    #   effect: "NoSchedule"
+
+    ## Resource limits and requests for the UI container
+    ##
+    resources: {}
+    # limits:
+    #   cpu: 500m
+    #   memory: 512Mi
+    # requests:
+    #   cpu: 250m
+    #   memory: 256Mi
+
+    ## Additional container ports
+    ##
+    extraPorts: []
+    # - name: metrics
+    #   containerPort: 9090
+    #   protocol: TCP
+
+    ## Extra environment variables for the UI container
+    ## Supports both value and valueFrom
+    ##
+    extraEnvs: []
+    # - name: NEXT_PUBLIC_OSMO_SSL_ENABLED
+    #   value: "false"
+    # - name: NEXT_PUBLIC_USE_MOCK_DATA
+    #   value: "true"
+
+    ## Environment variables from ConfigMaps and Secrets
+    ##
+    envFrom: []
+    # - configMapRef:
+    #     name: ui-config
+    # - secretRef:
+    #     name: ui-secrets
+
+    ## Extra volume mounts for the UI container
+    ##
+    extraVolumeMounts: []
+    # - name: config-volume
+    #   mountPath: /app/config
+    #   readOnly: true
+    # - name: cache-volume
+    #   mountPath: /app/cache
+
+    ## Extra volumes for the pod
+    ##
+    extraVolumes: []
+    # - name: config-volume
+    #   configMap:
+    #     name: ui-config
+    # - name: cache-volume
+    #   emptyDir: {}
+    # - name: shared-data
+    #   persistentVolumeClaim:
+    #     claimName: shared-data-pvc
+
+    ## Extra sidecar containers for the UI pod
+    ##
+    extraContainers: []
+
+    ## Liveness probe configuration
+    ## Leave empty to use the default hardcoded probe
+    ##
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    ## Startup probe configuration
+    ## Leave empty to use the default hardcoded probe
+    ##
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 6
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
+
+    ## Readiness probe configuration
+    ## Leave empty to use the default hardcoded probe
+    ##
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      timeoutSeconds: 3
+      periodSeconds: 5
+
 ## PodMonitor configuration (requires Prometheus Operator / monitoring.coreos.com CRD)
 ## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
 ##
