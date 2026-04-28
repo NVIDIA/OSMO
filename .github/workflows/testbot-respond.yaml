@@ -72,10 +72,16 @@ jobs:
       # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
       # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
       # Install bazelisk directly from the asset URL to bypass the broken path.
+      # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
+      # so we pin the SHA256 we observed and verify before sudo-installing.
       - name: Install Bazelisk
+        env:
+          BAZELISK_VERSION: v1.27.0
+          BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
         run: |
           curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
-            https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64
+            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
+          echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
           sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
           sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
 
