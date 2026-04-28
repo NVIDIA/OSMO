@@ -298,7 +298,7 @@ Create the following values files for the minimal deployment:
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 3,5
+    :emphasize-lines: 2-4
 
     services:
       ui:
