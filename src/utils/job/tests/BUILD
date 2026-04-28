@@ -107,3 +107,57 @@ osmo_py_test(
     size = "large",
     tags = ["requires-network"],
 )
+
+py_test(
+    name = "test_common_utils",
+    srcs = ["test_common_utils.py"],
+    deps = [
+        "//src/lib/data/storage",
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/job",
+    ],
+)
+
+py_test(
+    name = "test_backend_job_defs",
+    srcs = ["test_backend_job_defs.py"],
+    deps = [
+        "//src/utils/job:backend_job",
+    ],
+)
+
+py_test(
+    name = "test_task_models",
+    srcs = ["test_task_models.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/utils/job",
+    ],
+)
+
+py_test(
+    name = "test_workflow_models",
+    srcs = ["test_workflow_models.py"],
+    deps = [
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+)
+
+py_test(
+    name = "test_kb_objects_unit",
+    srcs = ["test_kb_objects_unit.py"],
+    deps = [
+        "//src/lib/utils:priority",
+        "//src/utils/job",
+        "//src/utils/job:backend_job",
+    ],
+)
+
+py_test(
+    name = "test_jobs_base_unit",
+    srcs = ["test_jobs_base_unit.py"],
+    deps = [
+        "//src/utils/job:jobs_base",
+    ],
+)
