@@ -205,7 +205,6 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.ui.imageName` | UI image name | `web-ui` |
 | `services.ui.imagePullPolicy` | Image pull policy | `Always` |
 | `services.ui.serviceName` | Service name | `osmo-ui` |
-| `services.ui.hostname` | Hostname for the service | `""` |
 | `services.ui.apiHostname` | Hostname used for server-side rendering | `osmo-gateway:80` |
 | `services.ui.portForwardEnabled` | Enable port-forwarding through the UI | `false` |
 | `services.ui.nextjsSslEnabled` | Enable SSL for UI-to-API server-side requests | `false` |
@@ -218,7 +217,6 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.ui.scaling.minReplicas` | Minimum replicas | `1` |
 | `services.ui.scaling.maxReplicas` | Maximum replicas | `3` |
 | `services.ui.scaling.hpaTarget` | Target memory utilization percentage | `85` |
-| `services.ui.skipAuth` | Skip authentication for the UI container | `false` |
 | `services.ui.extraPodAnnotations` | Extra pod annotations | `{}` |
 | `services.ui.extraEnvs` | Extra environment variables | `[]` |
 | `services.ui.extraVolumeMounts` | Extra volume mounts | `[]` |

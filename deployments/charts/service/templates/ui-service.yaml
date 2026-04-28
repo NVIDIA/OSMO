@@ -70,7 +70,7 @@ spec:
       serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.ui.serviceAccountName "Values" .Values) }}
       containers:
       - name: {{ .Values.services.ui.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.ui.imageName }}:{{ .Values.global.osmoImageTag }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.ui.imageName }}:{{ .Values.services.ui.imageTag | default .Values.global.osmoImageTag }}
         {{- with .Values.services.ui.command }}
         command:
           {{- toYaml . | nindent 10 }}

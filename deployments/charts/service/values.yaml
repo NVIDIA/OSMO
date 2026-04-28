@@ -114,6 +114,11 @@ services:
     ##
     imageName: web-ui
 
+    ## Optional UI image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
     ## Kubernetes image pull policy for the UI service
     ##
     imagePullPolicy: Always
@@ -121,10 +126,6 @@ services:
     ## Kubernetes service name for the UI service
     ##
     serviceName: osmo-ui
-
-    ## Hostname on which the UI is served
-    ##
-    hostname: ""
 
     ## Internal hostname used by the Next.js server for API requests
     ##
