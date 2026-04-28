@@ -32,8 +32,9 @@ ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # Shared with testbot.yaml — update both when changing the tool allowlist.
 ALLOWED_TOOLS = (
     "Read,Edit,Write,Glob,Grep,"
-    "Bash(bazel test *),Bash(pnpm --dir src/ui test *),"
-    "Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),"
+    "Bash(bazel test *),Bash(bazel build *),"
+    "Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),"
+    "Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *),"
     "Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
 )
 

@@ -43,6 +43,11 @@ When a test fails:
 
 ## Verification
 
+> **Run commands as a single program with arguments — no `cd`, `&&`, `;`, `|`,
+> `||`, or `2>&1`.** The tool sandbox rejects compound commands and redirects.
+> For UI scripts use `pnpm --dir src/ui <script>` with the relative path
+> (`src/ui`), not the absolute runner path.
+
 1. **Run the test**:
    - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file)
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
