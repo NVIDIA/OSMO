@@ -149,11 +149,12 @@ jobs:
           $TARGETS"
           STREAM_LOG="$RUNNER_TEMP/claude-stream.jsonl"
 
-          # Stream every turn and tool use to the action log (matches the
-          # diagnostics surfaced by the respond workflow). The final result
-          # message is parsed below for a summary. We disable -e so the
-          # diagnostics block runs even when Claude exits non-zero.
+          # Stream every turn and tool use into a foldable group so the
+          # diagnostics summary stays visible by default; the verbose
+          # stream is one click away. We disable -e so the diagnostics
+          # block runs even when Claude exits non-zero.
           set +e
+          echo "::group::Claude Code stream (click to expand turn-by-turn log)"
           npx @anthropic-ai/claude-code@2.1.91 --print \
             --model "$ANTHROPIC_MODEL" \
             --output-format stream-json --verbose \
@@ -163,6 +164,7 @@ jobs:
           # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
           # Claude failures as success.
           status=${PIPESTATUS[0]}
+          echo "::endgroup::"
 
           # Wrap untrusted Claude result text in ::stop-commands:: so it can't
           # inject workflow commands (::warning::, ::add-mask::, etc.).
