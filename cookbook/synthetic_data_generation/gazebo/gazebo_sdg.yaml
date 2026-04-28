@@ -27,9 +27,7 @@ workflow:
     command: ["bash"]
     args: ["/tmp/entry.sh"]
     outputs:
-    # Dataset output
-    - dataset:
-        name: {{ dataset }}
+    - url: {{ storage_url }}/{{ dataset }}/{{ workflow_id }}/
     files:
     - path: /tmp/entry.sh
       contents: |
@@ -62,4 +60,4 @@ workflow:
 
 default-values:
   platform: ovx-a40
-  dataset: gazebo-sdg-sample
+  dataset: gazebo-sdg-sample  # Name of the output dataset under storage_url.

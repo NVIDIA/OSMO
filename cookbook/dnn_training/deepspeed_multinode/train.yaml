@@ -34,9 +34,7 @@ workflow:
     - name: master
       lead: true
       outputs:
-      - dataset:
-          name: {{ dataset }}
-          path: models
+      - url: {{ storage_url }}/{{ dataset }}/{{ workflow_id }}/
     {% else %}
     - name: worker_{{item}}
     {% endif %}
@@ -91,4 +89,4 @@ default-values:
   master_port: 29400
   n_epochs: 10
   batch_size: 32
-  dataset: model-sample
+  dataset: model-sample  # Name of the output dataset under storage_url.

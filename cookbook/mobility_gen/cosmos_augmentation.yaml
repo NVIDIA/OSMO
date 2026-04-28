@@ -93,8 +93,7 @@ workflow:
               }
           }
     outputs:
-      - dataset:
-          name: cosmos-transfer-augmented-mobility
+      - url: {{ storage_url }}/cosmos-transfer-augmented-mobility/{{ workflow_id }}/
 
 default-values:
   workflow_name: cosmos_transfer_mobility

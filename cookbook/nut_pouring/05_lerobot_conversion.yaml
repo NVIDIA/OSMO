@@ -38,10 +38,10 @@ workflow:
       OMNI_KIT_ALLOW_ROOT: 1
 
     inputs:
-    - dataset: {{ input_dataset }}
+    - url: {{ storage_url }}/{{ input_dataset }}/
 
     outputs:
-    - dataset: {{ output_dataset }}
+    - url: {{ storage_url }}/{{ output_dataset }}/
 
     command: ["bash"]
     args: ["/tmp/entry.sh"]
@@ -139,5 +139,5 @@ default-values:
   num_cpu: 32
   platform: ovx-a40
   image_name: nvcr.io/nvidia/isaac-lab:2.3.0
-  input_dataset: PhysAI-CosmosAugmentedHDF5
-  output_dataset: PhysAI-LeRobotDataset
+  input_dataset: PhysAI-CosmosAugmentedHDF5  # Produced by stage 04.
+  output_dataset: PhysAI-LeRobotDataset  # Consumed by stage 06.

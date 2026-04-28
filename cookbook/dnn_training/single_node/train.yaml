@@ -16,7 +16,7 @@
 
 # This workflow has multiple files. Please refer to README for more details.
 # To submit:
-# osmo workflow submit train.yaml
+# osmo workflow submit train.yaml --set storage_url=s3://my-bucket
 
 workflow:
   name: train-single-gpu
@@ -39,7 +39,7 @@ workflow:
 
           # Directory of training inputs
           {% if input_dataset %}
-          INPUT_DIR="{{input:0}}/{{input_dataset}}"
+          INPUT_DIR="{{input:0}}"
           {% else %}
           INPUT_DIR="./data"
           {% endif %}
@@ -66,13 +66,10 @@ workflow:
         localpath: train.py
     {% if input_dataset %}
     inputs:
-      - dataset:
-          name: {{ input_dataset }}
+      - url: {{ storage_url }}/{{ input_dataset }}/
     {% endif %}
     outputs:
-      - dataset:
-          name: {{ output_dataset }}
-          path: experiments/models  # The local path of the output dataset
+      - url: {{ storage_url }}/{{ output_dataset }}/{{ workflow_id }}/
     {% if checkpoint_url %}
     checkpoint:
     - path: experiments/checkpoints  # The local path of the checkpoints
@@ -82,6 +79,6 @@ workflow:
     {% endif %}
 
 default-values:
-  input_dataset: ""  # The name of the input dataset
-  output_dataset: my-trained-model  # The name of the output dataset
+  input_dataset: ""  # Optional. Name of the input dataset under storage_url.
+  output_dataset: my-trained-model  # Name of the output dataset under storage_url.
   checkpoint_url: ""  # The remote path in the data store to checkpoint to
