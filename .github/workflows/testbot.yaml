@@ -166,9 +166,12 @@ jobs:
           python3 - "$STREAM_LOG" "$status" <<'PY'
           import json, sys
           path, status = sys.argv[1], sys.argv[2]
+          # Result message is the final stream-json event; iterate in reverse
+          # and stop at the first match instead of parsing every assistant
+          # turn and tool-use line.
           final = None
           with open(path) as f:
-              for line in f:
+              for line in reversed(f.readlines()):
                   line = line.strip()
                   if not line:
                       continue
@@ -178,6 +181,7 @@ jobs:
                       continue
                   if msg.get("type") == "result":
                       final = msg
+                      break
           print(f"exit_status: {status}")
           if final is None:
               print("no final result message captured")
@@ -198,8 +202,6 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
           ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/claude-opus-4-5' }}
-          # Inputs go via env (literal string) instead of being interpolated
-          # into the run script, then validated below before use.
           MAX_TURNS: ${{ inputs.max_turns || '200' }}
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
