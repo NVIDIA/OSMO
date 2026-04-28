@@ -550,13 +550,6 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
    Refer to the `README <https://github.com/NVIDIA/OSMO/blob/main/deployments/charts/service/README.md>`_ page for detailed configuration options, including gateway configuration.
 
 
-.. seealso::
-
-   **Datasets (Optional)**
-
-   To configure storage buckets for users to store OSMO datasets, see :ref:`dataset_buckets` in the Advanced Configuration section.
-
-
 Step 5: Deploy Components
 =========================
 
