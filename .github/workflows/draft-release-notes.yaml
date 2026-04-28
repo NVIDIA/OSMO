@@ -126,6 +126,10 @@ jobs:
         run: |
           set -euo pipefail
           bundle="$RUNNER_TEMP/release-notes-input.md"
+          # Bundle is intentionally lean: commit log + diff stat only. Full
+          # per-file diffs are dropped because a feature-heavy release blows
+          # past the model context window. The model is instructed below to
+          # pull diffs on-demand for commits it judges important.
           {
             echo "## Range"
             echo
@@ -143,29 +147,6 @@ jobs:
             echo '```'
             git diff --stat "$PREV_TAG..$CURRENT_REF"
             echo '```'
-            echo
-            echo "## Per-file diffs (user-facing surfaces)"
-            for path in \
-              src/cli \
-              src/service/core/auth \
-              src/service/core/workflow \
-              src/service/core/data \
-              src/service/core/app \
-              src/service/core/config \
-              src/service/core/profile \
-              src/utils/roles \
-              src/lib/data \
-              src/ui ; do
-              if git diff --quiet "$PREV_TAG..$CURRENT_REF" -- "$path" 2>/dev/null; then
-                continue
-              fi
-              echo
-              echo "### $path"
-              echo
-              echo '```diff'
-              git diff "$PREV_TAG..$CURRENT_REF" -- "$path" || true
-              echo '```'
-            done
           } > "$bundle"
           echo "bundle_path=$bundle" >> "$GITHUB_OUTPUT"
           echo "::group::Input bundle (first 200 lines)"
@@ -182,6 +163,8 @@ jobs:
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
           VERSION: ${{ inputs.version }}
           BUNDLE: ${{ steps.bundle.outputs.bundle_path }}
+          PREV_TAG: ${{ steps.tags.outputs.prev_tag }}
+          CURRENT_REF: ${{ steps.tags.outputs.current_ref }}
         run: |
           set -euo pipefail
           template=".github/release-notes-template.md"
@@ -190,29 +173,41 @@ jobs:
             exit 1
           fi
           out="$RUNNER_TEMP/release-notes.md"
+          prompt_file="$RUNNER_TEMP/release-notes-prompt.md"
 
-          prompt=$(cat <<EOF
-          $(cat "$template")
-
-          ----
-
-          Generate release notes for OSMO $VERSION following the template above.
-          Output ONLY the markdown body of the release notes file — no
-          surrounding commentary, no code fences. Start with the RC notice
-          block (this is a pre-release variant) and end with the Getting OSMO
-          section verbatim from the template.
-
-          Inputs from git history follow:
-
-          $(cat "$BUNDLE")
-          EOF
-          )
+          # Build the prompt as a file rather than an argv string — for large
+          # releases the bundle can still approach the OS argv limit even
+          # after dropping full diffs.
+          {
+            cat "$template"
+            printf '\n\n----\n\n'
+            printf 'Generate release notes for OSMO %s following the template above.\n' "$VERSION"
+            printf 'Output ONLY the markdown body of the release notes file — no\n'
+            printf 'surrounding commentary, no code fences. Start with the RC notice\n'
+            printf 'block (this is a pre-release variant) and end with the Getting OSMO\n'
+            printf 'section verbatim from the template.\n\n'
+            printf 'Per-file diffs are not pre-loaded. The repo is checked out at\n'
+            printf '%s and the previous release tag is %s. For any commit whose\n' "$CURRENT_REF" "$PREV_TAG"
+            printf 'message is vague, ambiguous, or describes a user-visible change\n'
+            printf 'whose details matter for the release notes, investigate using:\n'
+            printf '\n'
+            printf '  git show <hash>                        # full diff for one commit\n'
+            printf '  git diff %s..%s -- <path>              # full diff for a path\n' "$PREV_TAG" "$CURRENT_REF"
+            printf '  git log %s..%s -- <path>               # commits touching a path\n' "$PREV_TAG" "$CURRENT_REF"
+            printf '\n'
+            printf 'Use these tools deliberately — pull diffs only for commits where\n'
+            printf 'the log message alone is insufficient. Do not pull diffs for\n'
+            printf 'every commit; trust the message when it is clear.\n\n'
+            printf 'Inputs from git history follow:\n\n'
+            cat "$BUNDLE"
+          } > "$prompt_file"
+          echo "prompt size: $(wc -c < "$prompt_file") bytes"
 
           npx @anthropic-ai/claude-code@2.1.91 --print \
             --model "$ANTHROPIC_MODEL" \
-            --allowedTools "Read,Glob,Grep" \
-            --max-turns 20 \
-            "$prompt" > "$out"
+            --allowedTools "Read,Glob,Grep,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Bash(git rev-parse:*)" \
+            --max-turns 40 \
+            < "$prompt_file" > "$out"
 
           if [[ ! -s "$out" ]]; then
             echo "::error::Claude returned empty output"
