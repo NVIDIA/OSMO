@@ -512,30 +512,23 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
     3. Client ID from your IdP application registration.
     4. Static credentials path: see :ref:`Step 3 <configure_storage_access>`.
 
-Create ``ui_values.yaml`` for ui with the following sample configurations:
+Add the UI configuration to ``osmo_values.yaml`` with the following sample values:
 
 .. TODO: Update this link to point to the public registry when we switch to GitHub.
 
-.. dropdown:: ``ui_values.yaml``
+.. dropdown:: ``osmo_values.yaml`` UI block
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 10-11
+    :emphasize-lines: 3, 5-6
 
-    # Global configuration shared across UI services
-    global:
-      osmoImageLocation: nvcr.io/nvidia/osmo
-      osmoImageTag: <version>
-
-    # UI service configurations
     services:
-      # UI service configuration
       ui:
+        enabled: true
         hostname: <your-domain>
         apiHostname: osmo-gateway:80
 
-        # Resource allocation
         resources:
           requests:
             cpu: "500m"
@@ -560,17 +553,19 @@ Create ``ui_values.yaml`` for ui with the following sample configurations:
 Step 5: Deploy Components
 =========================
 
-Deploy **API Service** (includes the router):
+Deploy the components in the following order:
+
+1. Deploy **OSMO Service** (includes the API service, UI, router, agent, logger, worker, delayed job monitor, and gateway):
 
 .. code-block:: bash
 
-  # add the helm repository
-  $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-  $ helm repo update
+   # add the helm repository
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ helm repo update
 
-  # deploy the service — brings up the API service, router, agent, logger, worker,
-  # delayed job monitor, and gateway under a single release
-  $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
+   # deploy the service — brings up the API service, UI, router, agent, logger,
+   # worker, delayed job monitor, and gateway under a single release
+   $ helm upgrade --install service osmo/service -f ./osmo_values.yaml -n osmo
 
 Step 6: Verify Deployment
 =========================

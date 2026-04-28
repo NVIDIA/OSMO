@@ -99,6 +99,187 @@ services:
     ##
     path: /opt/osmo/config.yaml
 
+  ## UI service configuration
+  ##
+  ui:
+    ## Enable the UI workload in the merged service chart
+    ##
+    enabled: true
+
+    ## Number of UI service replicas to run
+    ##
+    replicas: 1
+
+    ## Docker image name for the UI service (without registry or tag)
+    ##
+    imageName: web-ui
+
+    ## Kubernetes image pull policy for the UI service
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the UI service
+    ##
+    serviceName: osmo-ui
+
+    ## Hostname on which the UI is served
+    ##
+    hostname: ""
+
+    ## Internal hostname used by the Next.js server for API requests
+    ##
+    apiHostname: osmo-gateway:80
+
+    ## Enable port-forwarding through the UI
+    ##
+    portForwardEnabled: false
+
+    ## Enable TLS for Next.js API requests
+    ##
+    nextjsSslEnabled: false
+
+    ## Container port for the UI service
+    ##
+    containerPort: 8000
+
+    ## Service account name for the UI pods
+    ##
+    serviceAccountName: ""
+
+    ## Maximum HTTP header size in KB for the Node.js server
+    ##
+    maxHttpHeaderSizeKb: 128
+
+    ## Optional command override
+    ##
+    command: []
+
+    ## Optional args override
+    ##
+    args: []
+
+    ## Additional pod labels
+    ##
+    podLabels: {}
+
+    ## UI documentation base URL
+    ##
+    docsBaseUrl: https://nvidia.github.io/OSMO/main/user_guide/
+
+    ## CLI install script URL shown by the UI
+    ##
+    cliInstallScriptUrl: https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh
+
+    ## Horizontal Pod Autoscaler (HPA) configuration
+    ##
+    scaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 3
+      hpaTarget: 85
+      customMetrics: []
+
+    ## Kubernetes service configuration
+    ##
+    service:
+      type: ""
+      port: 80
+      portName: http
+      protocol: TCP
+      labels: {}
+      annotations: {}
+      extraPorts: []
+      selector: {}
+
+    ## Node selector constraints for UI pod scheduling
+    ##
+    nodeSelector: {}
+
+    ## Topology spread constraints to distribute pods across nodes and zones
+    ##
+    topologySpreadConstraints:
+    - topologyKey: kubernetes.io/hostname
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Host aliases for the UI pods
+    ##
+    hostAliases: []
+
+    ## Tolerations for the UI pods
+    ##
+    tolerations: []
+
+    ## Resource requests and limits for the UI container
+    ##
+    resources: {}
+
+    ## Additional container ports
+    ##
+    extraPorts: []
+
+    ## Additional environment variables for the UI container
+    ##
+    extraEnvs: []
+
+    ## Environment variable sources from ConfigMaps or Secrets
+    ##
+    envFrom: []
+
+    ## Additional volume mounts for the UI container
+    ##
+    extraVolumeMounts: []
+
+    ## Additional volumes for the UI pod
+    ##
+    extraVolumes: []
+
+    ## Additional annotations for the UI pod
+    ##
+    extraPodAnnotations: {}
+
+    ## Additional sidecar or helper containers for the UI pod
+    ##
+    extraContainers: []
+
+    ## Optional init containers for the UI pod
+    ##
+    initContainers: []
+
+    ## Liveness probe configuration
+    ##
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    ## Startup probe configuration
+    ##
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 6
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
+
+    ## Readiness probe configuration
+    ##
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      timeoutSeconds: 3
+      periodSeconds: 5
+
   ## Database migration configuration (pgroll)
   ## When enabled, a Helm pre-upgrade hook Job runs migrations before pods are updated.
   ## Uses postgres:15-alpine with pgroll downloaded at runtime.

@@ -291,21 +291,18 @@ Create the following values files for the minimal deployment:
           roles: osmo-admin
           allowedPools: default
 
-**UI Service Values** (``ui_values.yaml``):
+**UI Configuration** (add to ``osmo_values.yaml``):
 
-.. dropdown:: ``ui_values.yaml``
+.. dropdown:: ``osmo_values.yaml`` UI block
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,7
-
-    global:
-      osmoImageLocation: <insert-osmo-image-registry>
-      osmoImageTag: <insert-osmo-image-tag>
+    :emphasize-lines: 3,5
 
     services:
       ui:
+        enabled: true
         apiHostname: osmo-gateway.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
 
 .. important::
@@ -316,14 +313,15 @@ Create the following values files for the minimal deployment:
 Step 6: Helm Deploy
 ===============================
 
-**Deploy OSMO Service** (includes the router):
+Deploy the OSMO components using the minimal configuration:
 
-.. code-block:: bash
+1. **Deploy OSMO Service** (includes the UI and router):
 
-  $ helm upgrade --install osmo-minimal osmo/service \
-    -f ./osmo_values.yaml \
-    --namespace osmo-minimal
+   .. code-block:: bash
 
+      $ helm upgrade --install osmo-minimal osmo/service \
+        -f ./osmo_values.yaml \
+        --namespace osmo-minimal
 
 Step 7: Verify Deployment
 ==========================
@@ -517,7 +515,6 @@ To remove the minimal deployment:
 
    # Uninstall all helm releases
    $ helm uninstall osmo-minimal --namespace osmo-minimal
-   $ helm uninstall ui-minimal --namespace osmo-minimal
    $ helm uninstall osmo-operator --namespace osmo-operator
 
    # Delete the namespace

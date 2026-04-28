@@ -394,9 +394,6 @@ services:
       minReplicas: 1
       maxReplicas: 1
 
-  ui:
-    enabled: false
-
   agent:
     scaling:
       minReplicas: 1
@@ -412,34 +409,17 @@ services:
       minReplicas: 1
       maxReplicas: 1
 
+  ui:
+    enabled: true
+    replicas: 1
+    hostname: "osmo-minimal.local"
+    apiHostname: "osmo-service.${OSMO_NAMESPACE}.svc.cluster.local:80"
+
 sidecars:
   otel:
     enabled: false
   rateLimit:
     enabled: false
-  envoy:
-    enabled: false
-  oauth2Proxy:
-    enabled: false
-EOF
-
-    # UI values
-    cat > "$VALUES_DIR/ui_values.yaml" <<EOF
-# OSMO Web UI Values - Auto-generated
-global:
-  osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
-  osmoImageTag: ${OSMO_IMAGE_TAG}
-${ngc_pull_secret_yaml}
-
-services:
-  ui:
-    replicas: 1
-    hostname: "osmo-minimal.local"
-    apiHostname: "osmo-service.${OSMO_NAMESPACE}.svc.cluster.local:80"
-    ingress:
-      enabled: false
-
-sidecars:
   envoy:
     enabled: false
   oauth2Proxy:
@@ -498,20 +478,6 @@ deploy_osmo_service() {
         "upgrade --install osmo-minimal osmo/service --namespace $OSMO_NAMESPACE --wait --timeout 10m"
 
     log_success "OSMO service deployed"
-}
-
-deploy_osmo_ui() {
-    log_info "Deploying OSMO UI..."
-
-    if [[ "$DRY_RUN" == true ]]; then
-        log_info "[DRY-RUN] Would deploy OSMO UI"
-        return
-    fi
-
-    $RUN_HELM_WITH_VALUES "$VALUES_DIR/ui_values.yaml" \
-        "upgrade --install ui-minimal osmo/web-ui --namespace $OSMO_NAMESPACE --wait --timeout 5m"
-
-    log_success "OSMO UI deployed"
 }
 
 setup_backend_operator() {
@@ -589,7 +555,6 @@ cleanup_osmo() {
     fi
 
     $RUN_HELM "uninstall osmo-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
-    $RUN_HELM "uninstall ui-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
     $RUN_HELM "uninstall osmo-operator --namespace $OSMO_OPERATOR_NAMESPACE" 2>/dev/null || true
 
     for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE" "$OSMO_WORKFLOWS_NAMESPACE"; do
@@ -682,8 +647,6 @@ deploy_k8s_main() {
     create_helm_values
 
     deploy_osmo_service
-    deploy_osmo_ui
-
     wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
 
     setup_backend_operator
