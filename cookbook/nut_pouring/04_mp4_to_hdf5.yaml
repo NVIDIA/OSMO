@@ -41,10 +41,10 @@ workflow:
         HF_TOKEN: token
 
     inputs:
-    - dataset: {{ input_dataset_mimic_gen}}
-    - dataset: {{ input_dataset_cosmos_augmented_mp4}}
+    - url: {{ storage_url }}/{{ input_dataset_mimic_gen }}/
+    - url: {{ storage_url }}/{{ input_dataset_cosmos_augmented_mp4 }}/
     outputs:
-    - dataset: {{ output_dataset }}
+    - url: {{ storage_url }}/{{ output_dataset }}/
 
     args:
     - /tmp/entry.sh
@@ -105,6 +105,6 @@ default-values:
   storage: 256Gi
   num_gpu: 1
   num_cpu: 16
-  input_dataset_mimic_gen: PhysAI-MimicGen
-  input_dataset_cosmos_augmented_mp4: PhysAI-CosmosAugmentedMP4
-  output_dataset: PhysAI-CosmosAugmentedHDF5
+  input_dataset_mimic_gen: PhysAI-MimicGen  # Produced by stage 01.
+  input_dataset_cosmos_augmented_mp4: PhysAI-CosmosAugmentedMP4  # Produced by stage 03.
+  output_dataset: PhysAI-CosmosAugmentedHDF5  # Consumed by stage 05.

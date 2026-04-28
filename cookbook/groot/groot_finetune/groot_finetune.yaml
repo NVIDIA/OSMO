@@ -72,6 +72,4 @@ workflow:
 
       path: /tmp/entry.sh
     outputs:
-    - dataset:
-        name: groot-finetune-dataset
-        path: finetuned-model
+    - url: {{ storage_url }}/groot-finetune-dataset/{{ workflow_id }}/

@@ -41,8 +41,7 @@ workflow:
         }
       path: /tmp/config.json
     outputs:
-    - dataset:
-        name: isaac-sim-sdg-sample
+    - url: {{ storage_url }}/isaac-sim-sdg-sample/{{ workflow_id }}/
   resources:
     default:
       cpu: 4

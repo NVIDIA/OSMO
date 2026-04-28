@@ -41,9 +41,9 @@ workflow:
           HF_TOKEN: token
 
     inputs:
-    - dataset: {{ input_dataset }}
+    - url: {{ storage_url }}/{{ input_dataset }}/
     outputs:
-    - dataset: {{ output_dataset }}
+    - url: {{ storage_url }}/{{ output_dataset }}/
 
     args:
     - /tmp/entry.sh
@@ -131,5 +131,5 @@ default-values:
   storage: 256Gi
   num_gpu: 1
   num_cpu: 16
-  input_dataset: PhysAI-MimicGen
-  output_dataset: PhysAI-MP4Videos
+  input_dataset: PhysAI-MimicGen  # Produced by stage 01.
+  output_dataset: PhysAI-MP4Videos  # Consumed by stage 03.

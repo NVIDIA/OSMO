@@ -37,7 +37,7 @@ workflow:
           ls -lah {{input:0}}
           echo ""
           echo "=== HDF5 file ==="
-          ls -lah {{input:0}}/{{input_dataset}}/dataset_annotated_gr1_nut_pouring.hdf5
+          ls -lah {{input:0}}/dataset_annotated_gr1_nut_pouring.hdf5
           echo ""
           echo "=== Copying nutpour_gr1t2_base_env_cfg.py ==="
           cp /tmp/nutpour_gr1t2_base_env_cfg.py /workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/pick_place/
@@ -60,7 +60,7 @@ workflow:
             --task Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0 \
             --generation_num_trials 1000 \
             --num_envs 5 \
-            --input_file {{input:0}}/input_mimic/dataset_annotated_gr1_nut_pouring.hdf5 \
+            --input_file {{input:0}}/dataset_annotated_gr1_nut_pouring.hdf5 \
             --output_file ./datasets/generated_dataset_gr1_nut_pouring.hdf5
 
           echo ""
@@ -84,9 +84,9 @@ workflow:
         path: /tmp/nutpour_gr1t2_base_env_cfg.py
       image: {{ image_name }}
       inputs:
-      - dataset: {{ input_dataset }}
+      - url: {{ storage_url }}/{{ input_dataset }}/
       outputs:
-      - dataset: {{ output_dataset }}
+      - url: {{ storage_url }}/{{ output_dataset }}/
       lead: true
       name: mimic_task
   name: isaac_mimic_25
@@ -102,5 +102,5 @@ workflow:
 
 default-values:
   image_name: nvcr.io/nvidia/isaac-lab:2.3.0
-  input_dataset: PhysAI-InputMimic
-  output_dataset: PhysAI-MimicGen
+  input_dataset: PhysAI-InputMimic  # Name of the input dataset under storage_url.
+  output_dataset: PhysAI-MimicGen  # Name of the output dataset under storage_url; consumed by stage 02.

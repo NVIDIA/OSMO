@@ -143,11 +143,11 @@ workflow:
         path: /tmp/entry.sh
       image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
       inputs:
-      - dataset: {{ input_dataset }}
+      - url: {{ storage_url }}/{{ input_dataset }}/
       lead: true
       name: cosmos_transfer_augmentation
       outputs:
-      - dataset: {{ output_dataset }}
+      - url: {{ storage_url }}/{{ output_dataset }}/
   name: cosmos_transfer_augmentation
   resources:
     default:
@@ -160,5 +160,5 @@ workflow:
     queue_timeout: 1d
 
 default-values:
-  input_dataset: PhysAI-MP4Videos
-  output_dataset: PhysAI-CosmosAugmentedMP4
+  input_dataset: PhysAI-MP4Videos  # Produced by stage 02.
+  output_dataset: PhysAI-CosmosAugmentedMP4  # Consumed by stage 04.
