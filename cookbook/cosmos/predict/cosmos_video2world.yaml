@@ -45,7 +45,7 @@ workflow:
             mv output/hf_video2world {{output}}/output/
 
       outputs:
-        - url: {{ storage_url }}/cosmos_video2world/{{ workflow_id }}/
+        - url: {{ storage_url }}/cosmos_video2world/{{workflow_id}}/
   resources:
     default:
       cpu: 16

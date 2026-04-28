@@ -30,7 +30,7 @@ workflow:
     - name: master  # Master task for torchrun
       lead: true  # Set to the lead of the group
       outputs:  # Only save the trained model in lead task
-      - url: {{ storage_url }}/{{ output_dataset }}/{{ workflow_id }}/
+      - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
     {% else %}
     - name: worker_{{item}}  # Worker task that will communicate with the master task
     {% endif %}

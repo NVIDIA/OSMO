@@ -41,7 +41,7 @@ workflow:
 
       path: /tmp/entry.sh
     outputs:
-    - url: {{ storage_url }}/robot-policy-dataset/{{ workflow_id }}/
+    - url: {{ storage_url }}/robot-policy-dataset/{{workflow_id}}/
   name: train-robot-multi-gpu
   resources:
     default:

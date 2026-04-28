@@ -34,7 +34,7 @@ workflow:
     - name: master
       lead: true
       outputs:
-      - url: {{ storage_url }}/{{ dataset }}/{{ workflow_id }}/
+      - url: {{ storage_url }}/{{ dataset }}/{{workflow_id}}/
     {% else %}
     - name: worker_{{item}}
     {% endif %}

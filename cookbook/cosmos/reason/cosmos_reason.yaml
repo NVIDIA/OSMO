@@ -52,7 +52,7 @@ workflow:
               --timestamp -v -o {{output}}/temporal_caption_text
 
       outputs:
-        - url: {{ storage_url }}/cosmos-reason-sample/{{ workflow_id }}/
+        - url: {{ storage_url }}/cosmos-reason-sample/{{workflow_id}}/
   resources:
     default:
       cpu: 16

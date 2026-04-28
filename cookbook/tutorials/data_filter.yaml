@@ -31,5 +31,5 @@ workflow:
       regex: .*\.txt$ # (1)
 
     outputs:
-    - url: {{ storage_url }}/output_dataset/{{ workflow_id }}/
+    - url: {{ storage_url }}/output_dataset/{{workflow_id}}/
       regex: .*\.(json|yaml)$ # (2)

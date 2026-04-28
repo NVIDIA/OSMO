@@ -69,7 +69,7 @@ workflow:
       - url: {{ storage_url }}/{{ input_dataset }}/
     {% endif %}
     outputs:
-      - url: {{ storage_url }}/{{ output_dataset }}/{{ workflow_id }}/
+      - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
     {% if checkpoint_url %}
     checkpoint:
     - path: experiments/checkpoints  # The local path of the checkpoints

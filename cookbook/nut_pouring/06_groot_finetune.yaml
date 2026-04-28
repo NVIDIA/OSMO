@@ -97,7 +97,7 @@ workflow:
       lead: true
       name: master
       outputs:
-      - url: {{ storage_url }}/{{ output_dataset }}/{{ workflow_id }}/
+      - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
   name: groot_finetune_nut_pouring
   resources:
     default:
