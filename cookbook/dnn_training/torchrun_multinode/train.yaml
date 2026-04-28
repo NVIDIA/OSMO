@@ -48,7 +48,7 @@ workflow:
       - path: /tmp/train.py
         localpath: train.py
       outputs:
-        - url: {{ storage_url }}/{{ output_dataset }}/{{ workflow_id }}/
+        - url: {{ storage_url }}/{{ output_dataset }}/{{workflow_id}}/
 
     - name: worker  # Worker task that will communicate with the master task
       image: nvcr.io/nvidia/pytorch:24.03-py3

@@ -27,7 +27,7 @@ workflow:
     command: ["bash"]
     args: ["/tmp/entry.sh"]
     outputs:
-    - url: {{ storage_url }}/{{ dataset }}/{{ workflow_id }}/
+    - url: {{ storage_url }}/{{ dataset }}/{{workflow_id}}/
     files:
     - path: /tmp/entry.sh
       contents: |

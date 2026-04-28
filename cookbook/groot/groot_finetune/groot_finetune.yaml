@@ -72,4 +72,4 @@ workflow:
 
       path: /tmp/entry.sh
     outputs:
-    - url: {{ storage_url }}/groot-finetune-dataset/{{ workflow_id }}/
+    - url: {{ storage_url }}/groot-finetune-dataset/{{workflow_id}}/

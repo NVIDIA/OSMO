@@ -44,7 +44,7 @@ workflow:
 
         path: /tmp/entry.sh
       outputs:
-      - url: {{ storage_url }}/robot-policy-dataset/{{ workflow_id }}/
+      - url: {{ storage_url }}/robot-policy-dataset/{{workflow_id}}/
     {% for i in range(1, num_nodes) %}
     - name: worker-{{i}}
       command: ["bash"]

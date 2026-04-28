@@ -33,7 +33,7 @@ workflow:
     - name: master  # Master task for torchrun
       lead: true
       outputs:
-      - url: {{ storage_url }}/{{ dataset }}/{{ workflow_id }}/
+      - url: {{ storage_url }}/{{ dataset }}/{{workflow_id}}/
     {% else %}
     - name: worker_{{item}}  # Worker task that will communicate with the master task
     {% endif %}

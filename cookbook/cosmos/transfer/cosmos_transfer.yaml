@@ -42,7 +42,7 @@ workflow:
         }
       path: /tmp/config.json
     outputs:
-    - url: {{ storage_url }}/isaac-sim-cosmos-warehouse-sample/{{ workflow_id }}/
+    - url: {{ storage_url }}/isaac-sim-cosmos-warehouse-sample/{{workflow_id}}/
   - name: cosmos-transfer
     image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
     command: ["bash"]
@@ -53,7 +53,7 @@ workflow:
     resource: cosmos
     inputs:
     - task: isaac-sim-sdg
-    - url: {{ storage_url }}/isaac-sim-cosmos-warehouse-sample/{{ workflow_id }}/
+    - url: {{ storage_url }}/isaac-sim-cosmos-warehouse-sample/{{workflow_id}}/
     files:
       - path: /tmp/entry.sh
         contents: |
@@ -92,7 +92,7 @@ workflow:
               }
           }
     outputs:
-      - url: {{ storage_url }}/cosmos-transfer-sample/{{ workflow_id }}/
+      - url: {{ storage_url }}/cosmos-transfer-sample/{{workflow_id}}/
   resources:
     cosmos:
       cpu: 16

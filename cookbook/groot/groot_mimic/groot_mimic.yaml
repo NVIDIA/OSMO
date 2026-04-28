@@ -62,7 +62,7 @@ workflow:
       image: nvcr.io/nvidia/isaac-lab:2.3.0
       name: mimic
       outputs:
-      - url: {{ storage_url }}/mimic-dataset/{{ workflow_id }}/
+      - url: {{ storage_url }}/mimic-dataset/{{workflow_id}}/
   name: groot-mimic
   resources:
     default:
