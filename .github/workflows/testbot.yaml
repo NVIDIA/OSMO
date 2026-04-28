@@ -89,9 +89,9 @@ jobs:
       # Install bazelisk directly from the asset URL to bypass the broken path.
       - name: Install Bazelisk
         run: |
-          curl -fsSL -o /usr/local/bin/bazelisk \
+          curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
             https://github.com/bazelbuild/bazelisk/releases/download/v1.27.0/bazelisk-linux-amd64
-          sudo chmod +x /usr/local/bin/bazelisk
+          sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
           sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
 
       - name: Setup Bazel
