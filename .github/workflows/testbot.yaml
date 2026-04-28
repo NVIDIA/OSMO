@@ -31,7 +31,7 @@ on:
         default: '300'
       max_turns:
         description: 'Max Claude Code agent turns'
-        default: '200'
+        default: '100'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
         default: '30'
@@ -158,7 +158,7 @@ jobs:
           npx @anthropic-ai/claude-code@2.1.91 --print \
             --model "$ANTHROPIC_MODEL" \
             --output-format stream-json --verbose \
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
             --max-turns "$MAX_TURNS" \
             "$PROMPT" | tee "$STREAM_LOG"
           # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
