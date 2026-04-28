@@ -68,11 +68,27 @@ jobs:
         working-directory: src/ui
         run: pnpm install --frozen-lockfile
 
+      # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
+      # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
+      # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
+      # Install bazelisk directly from the asset URL to bypass the broken path.
+      # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
+      # so we pin the SHA256 we observed and verify before sudo-installing.
+      - name: Install Bazelisk
+        env:
+          BAZELISK_VERSION: v1.27.0
+          BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
+            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
+          echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
+          sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+
       - name: Setup Bazel
         uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
           bazelisk-cache: true
-          bazelisk-version: 1.27.0
           disk-cache: ${{ github.workflow }}
           repository-cache: true
 
@@ -87,7 +103,7 @@ jobs:
             --pr-number ${{ github.event.pull_request.number }} \
             --trigger-phrase /testbot \
             --max-responses 10 \
-            --max-turns 75 \
+            --max-turns 200 \
             --timeout 900 \
             --model aws/anthropic/claude-opus-4-5
         env:
