@@ -313,9 +313,7 @@ Create the following values files for the minimal deployment:
 Step 6: Helm Deploy
 ===============================
 
-Deploy the OSMO components using the minimal configuration:
-
-1. **Deploy OSMO Service** (includes the UI and router):
+**Deploy OSMO Service** (includes the UI and router):
 
    .. code-block:: bash
 

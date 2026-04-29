@@ -553,9 +553,7 @@ Add the UI configuration to ``osmo_values.yaml`` with the following sample value
 Step 5: Deploy Components
 =========================
 
-Deploy the components in the following order:
-
-1. Deploy **OSMO Service** (includes the API service, UI, router, agent, logger, worker, delayed job monitor, and gateway):
+Deploy **OSMO Service** (includes the API service, UI, router, agent, logger, worker, delayed job monitor, and gateway):
 
 .. code-block:: bash
 
