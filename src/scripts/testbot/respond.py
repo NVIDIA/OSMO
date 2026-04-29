@@ -308,7 +308,7 @@ def build_prompt(threads: list[dict], pr_number: int) -> str:
 
 def run_claude(
     prompt: str,
-    model: str = "aws/anthropic/claude-opus-4-5",
+    model: str = "aws/anthropic/bedrock-claude-opus-4-7",
     max_turns: int = 50,
     timeout: int = 720,
 ) -> dict:
@@ -317,7 +317,7 @@ def run_claude(
     Returns a dict with 'structured_output' and/or 'result' fields.
     Returns empty dict on failure.
     """
-    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.91")
+    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.116")
     cmd = [
         *shlex.split(claude_bin), "--print",
         "--model", model,
@@ -485,8 +485,8 @@ def main() -> None:
                         help="Max Claude Code agent turns (default: 50)")
     parser.add_argument("--timeout", type=int, default=720,
                         help="Claude Code CLI timeout in seconds (default: 720)")
-    parser.add_argument("--model", default="aws/anthropic/claude-opus-4-5",
-                        help="LLM model name (default: aws/anthropic/claude-opus-4-5)")
+    parser.add_argument("--model", default="aws/anthropic/bedrock-claude-opus-4-7",
+                        help="LLM model name (default: aws/anthropic/bedrock-claude-opus-4-7)")
     args = parser.parse_args()
 
     github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")

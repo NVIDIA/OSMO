@@ -63,7 +63,7 @@ gh workflow run testbot.yaml --ref <branch> \
   -f max_targets=1 \
   -f max_uncovered=300 \
   -f max_turns=100 \
-  -f model=aws/anthropic/claude-opus-4-5
+  -f model=aws/anthropic/bedrock-claude-opus-4-7
 ```
 
 ### Schedule
@@ -103,7 +103,7 @@ Then post a new `/testbot` comment with clearer instructions.
 | `max_uncovered` | `300` | Uncovered lines cap per target (0 = no cap) |
 | `max_turns` | `100` | Claude Code agent turns |
 | `timeout_minutes` | `30` | Workflow timeout |
-| `model` | `aws/anthropic/claude-opus-4-5` | LLM model on API gateway |
+| `model` | `aws/anthropic/bedrock-claude-opus-4-7` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
 
 ### Review response (CLI args in `testbot-respond.yaml`)
@@ -113,7 +113,7 @@ Then post a new `/testbot` comment with clearer instructions.
 | `--max-turns` | `200` | Claude Code agent turns |
 | `--max-responses` | `10` | Max threads to address per trigger |
 | `--timeout` | `720` | Claude Code CLI timeout in seconds |
-| `--model` | `aws/anthropic/claude-opus-4-5` | LLM model |
+| `--model` | `aws/anthropic/bedrock-claude-opus-4-7` | LLM model |
 
 ### Coverage target selection (constants in `coverage_targets.py`)
 
