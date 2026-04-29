@@ -138,6 +138,11 @@ jobs:
         github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.fork == false
       )
+    # Serialize across PRs on the self-hosted runner: 16 GB main + 4 GB DinD
+    # leaves no room for two concurrent runs on a 24 GB host.
+    concurrency:
+      group: ci-internal-self-hosted
+      cancel-in-progress: false
     runs-on: self-hosted
     environment:
       name: internal-ci
@@ -151,7 +156,7 @@ jobs:
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
-      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
+      options: --memory=16g --cpus=4 --memory-swap=16g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
     services:
       docker:
         # docker:29.2.1-dind pinned to digest for security
