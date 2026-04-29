@@ -16,11 +16,14 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+import base64
 import copy
+import enum
 import json
 import logging
 import os
 import threading
+import time
 from typing import Any, Callable, Dict, List
 
 import pydantic
@@ -30,6 +33,43 @@ from watchdog import events, observers
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
 from src.service.core.config import configmap_events, configmap_guard
 from src.utils import connectors
+
+
+# Cold-start retry: kubelet may take up to ~60s to project a freshly-created
+# ConfigMap volume on a new pod, so we retry the initial load before giving up.
+_STARTUP_RETRY_DEADLINE_S = 30.0
+_STARTUP_RETRY_INTERVAL_S = 1.0
+
+
+class LoadResult(enum.Enum):
+    """Outcome of a ConfigMapWatcher load attempt.
+
+    TRANSIENT means retrying may succeed (file isn't readable yet —
+    kubelet projection in progress). PERMANENT means the file is there
+    but malformed or invalid; retrying won't help so cold-start fails
+    fast and operators see the bad ConfigMap immediately.
+    """
+    SUCCESS = 'success'
+    TRANSIENT_FAILURE = 'transient'
+    PERMANENT_FAILURE = 'permanent'
+
+
+class ConfigFileMixin(pydantic.BaseModel):
+    """Pydantic mixin adding `--config_file` to a service config class.
+
+    Inherited by every service binary that wants ConfigMap mode (api,
+    worker, logger, and the WorkflowServiceConfig that the agent loads
+    alongside its BackendServiceConfig). Centralizing the field keeps
+    the flag name (`--config_file`) and env var (`OSMO_CONFIG_FILE`)
+    consistent and avoids argparse divergence.
+    """
+    config_file: str | None = pydantic.Field(
+        default=None,
+        description='Path to ConfigMap YAML file to load configs from.',
+        json_schema_extra={
+            'command_line': 'config_file',
+            'env': 'OSMO_CONFIG_FILE',
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -83,11 +123,14 @@ class ConfigMapWatcher:
         self,
         config_file_path: str,
         postgres: connectors.PostgresConnector | None = None,
+        *,
         event_recorder: configmap_events.EventRecorder | None = None,
+        inject_runtime: bool = True,
     ):
         self._config_file_path = config_file_path
         self._postgres = postgres
         self._event_recorder = event_recorder
+        self._inject_runtime = inject_runtime
         self._watch_directory = os.path.dirname(config_file_path)
         self._config_filename = os.path.basename(config_file_path)
         self._observer: Any = None
@@ -98,15 +141,30 @@ class ConfigMapWatcher:
     def start(self) -> None:
         """Load configs, activate ConfigMap mode, start file watcher.
 
-        A startup load failure raises RuntimeError so the pod crashes
-        and K8s stalls the rolling update at the bad revision; old
-        pods keep serving. Same behavior as CoreDNS / NGINX Ingress
-        with a bad config file at startup.
+        Retries the initial load on transient failures (file missing
+        because kubelet hasn't finished projecting the ConfigMap volume)
+        for up to _STARTUP_RETRY_DEADLINE_S. Permanent failures (bad
+        YAML / failed validation) fail fast — operator gets the signal
+        immediately and old pods keep serving via the rolling-update
+        stall.
         """
-        if not self._load_and_apply():
-            raise RuntimeError(
-                f'ConfigMap load failed at startup '
-                f'({self._config_file_path}). Refusing to serve.')
+        deadline = time.monotonic() + _STARTUP_RETRY_DEADLINE_S
+        while True:
+            result = self._load_and_apply()
+            if result == LoadResult.SUCCESS:
+                break
+            if result == LoadResult.PERMANENT_FAILURE:
+                raise RuntimeError(
+                    f'ConfigMap load failed at startup '
+                    f'({self._config_file_path}): malformed or invalid '
+                    f'config file. Refusing to serve.')
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f'ConfigMap load failed at startup after '
+                    f'{_STARTUP_RETRY_DEADLINE_S:.0f}s '
+                    f'({self._config_file_path}): file never became '
+                    f'readable. Refusing to serve.')
+            time.sleep(_STARTUP_RETRY_INTERVAL_S)
 
         configmap_guard.set_configmap_mode(True)
         logging.info(
@@ -141,24 +199,31 @@ class ConfigMapWatcher:
                 'ConfigMap reload succeeded after previous failure')
         self._last_reload_failed = False
 
-    def _load_and_apply(self) -> bool:
+    def _load_and_apply(self) -> LoadResult:
         """Parse, resolve secrets, validate, and swap the in-memory config dict.
 
-        Returns True if configs were successfully loaded.
+        TRANSIENT_FAILURE means retrying may succeed (file not yet
+        readable). PERMANENT_FAILURE means the file exists but is
+        unparseable / invalid; retrying won't help.
         """
         try:
             with open(self._config_file_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
-        except (OSError, yaml.YAMLError) as error:
+        except OSError as error:
             self._record_failure(
-                f'Failed to read/parse config file '
+                f'Failed to read config file '
                 f'{self._config_file_path}: {error}')
-            return False
+            return LoadResult.TRANSIENT_FAILURE
+        except yaml.YAMLError as error:
+            self._record_failure(
+                f'Failed to parse config file '
+                f'{self._config_file_path}: {error}')
+            return LoadResult.PERMANENT_FAILURE
 
         if not raw_config or not isinstance(raw_config, dict):
             self._record_failure(
                 f'Config file {self._config_file_path} is empty or invalid')
-            return False
+            return LoadResult.PERMANENT_FAILURE
 
         managed_configs = raw_config
 
@@ -181,7 +246,7 @@ class ConfigMapWatcher:
             self._record_failure(
                 f'ConfigMap validation failed, keeping previous config: '
                 f'{joined_errors}')
-            return False
+            return LoadResult.PERMANENT_FAILURE
 
         # Resolve pool computed fields (parsed_pod_template, etc.) from
         # template/validation name references. This allows compact ConfigMap
@@ -190,10 +255,11 @@ class ConfigMapWatcher:
 
         # Inject runtime-generated fields (service_auth, service_base_url)
         # that are not in the ConfigMap but are needed by the service.
-        self._inject_runtime_fields(managed_configs)
+        # Only the API service generates these; non-API services (worker,
+        # agent, logger) skip the injection and the unnecessary DB read.
+        if self._inject_runtime:
+            self._inject_runtime_fields(managed_configs)
 
-        # Atomic swap — in-flight requests holding a reference to the old
-        # dict continue using it; new requests get the new dict.
         configmap_guard.set_parsed_configs(managed_configs)
         if not configmap_guard.is_configmap_mode():
             configmap_guard.set_configmap_mode(True)
@@ -204,7 +270,7 @@ class ConfigMapWatcher:
             'ConfigMap configs loaded from %s', self._config_file_path)
         self._record_success()
 
-        return True
+        return LoadResult.SUCCESS
 
     def _inject_runtime_fields(
         self, managed_configs: Dict[str, Any],
@@ -231,6 +297,49 @@ class ConfigMapWatcher:
         for field in ('service_auth', 'service_base_url'):
             if field not in service_config and field in prev_service:
                 service_config[field] = prev_service[field]
+
+
+def start_config_watcher(
+    config_file: str | None,
+    postgres: connectors.PostgresConnector,
+    *,
+    is_api_service: bool = False,
+) -> 'ConfigMapWatcher | None':
+    """Initialize and start a ConfigMapWatcher when `config_file` is set.
+
+    Returns the watcher so the caller can keep a reference (the watchdog
+    Observer thread is daemonic; without a live reference the watcher may
+    be GC'd while the process is still alive).
+
+    The API service has two extra responsibilities tied to it being the
+    primary reader and writer of configs: it emits K8s Events on reload
+    failures, and it injects runtime-generated fields (service_auth,
+    service_base_url) into the snapshot. Worker/agent/logger don't do
+    either — they'd race on the same Event object across replicas, and
+    they don't generate the runtime fields.
+    """
+    if not config_file:
+        return None
+
+    event_recorder: configmap_events.EventRecorder | None = None
+    if is_api_service:
+        pod_namespace = os.environ.get('POD_NAMESPACE')
+        configmap_name = os.environ.get('OSMO_CONFIGMAP_NAME')
+        if pod_namespace and configmap_name:
+            event_recorder = configmap_events.ConfigMapEventRecorder(
+                namespace=pod_namespace, configmap_name=configmap_name)
+        else:
+            logging.warning(
+                'POD_NAMESPACE or OSMO_CONFIGMAP_NAME unset; '
+                'ConfigMap reload events will not be emitted')
+
+    watcher = ConfigMapWatcher(
+        config_file, postgres,
+        event_recorder=event_recorder,
+        inject_runtime=is_api_service,
+    )
+    watcher.start()
+    return watcher
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +600,31 @@ def _resolve_platform_fields(
 SECRETS_ROOT = '/etc/osmo/secrets'
 
 
+def _decode_dockerconfig_auth(auth_b64: str, username: str) -> str:
+    """Recover the raw password from a `.dockerconfigjson` `auth` field.
+
+    The `auth` field is base64(`username:password`); strip the username
+    prefix and a single ':' to get the password back. Returns '' on any
+    decode failure — caller logs and proceeds with empty credentials.
+    """
+    if not auth_b64:
+        return ''
+    try:
+        decoded = base64.b64decode(auth_b64).decode('utf-8')
+    except (ValueError, UnicodeDecodeError):
+        logging.warning(
+            'Could not base64-decode dockerconfigjson auth field; '
+            'returning empty password')
+        return ''
+    prefix = f'{username}:'
+    if username and decoded.startswith(prefix):
+        return decoded[len(prefix):]
+    # No username, or auth doesn't start with username: — just split on
+    # first ':' as a best effort.
+    _, sep, password = decoded.partition(':')
+    return password if sep else ''
+
+
 def _resolve_secret_file_references(config_data: Dict[str, Any],
                                      parent_key: str = '') -> None:
     """Recursively resolve secret_file / secretName references in a config dict.
@@ -588,10 +722,22 @@ def _resolve_single_secret(parent_dict: Dict[str, Any], key: str,
         if isinstance(auths, dict) and auths:
             registry_url = next(iter(auths))
             registry_data = auths[registry_url]
+            # RegistryCredential.auth is the raw password/token; the worker
+            # base64s `username:auth` to build the dockerconfigjson auth
+            # header at pod-creation time. Source files store either
+            # `password` (raw, what we want) or `auth` (already
+            # base64(username:password)). Prefer password; fall back to
+            # decoding auth and stripping the username prefix so we always
+            # land in the model with a raw token.
+            password = registry_data.get('password')
+            if not password:
+                password = _decode_dockerconfig_auth(
+                    registry_data.get('auth', ''),
+                    registry_data.get('username', ''))
             extracted = {
                 'registry': registry_url,
                 'username': registry_data.get('username', ''),
-                'auth': registry_data.get('auth', ''),
+                'auth': password,
             }
             current_value.pop('secret_file', None)
             current_value.pop('secretName', None)

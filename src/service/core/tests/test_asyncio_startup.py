@@ -83,6 +83,7 @@ class AsyncioStartupTestCase(unittest.TestCase):
             host='http://127.0.0.1:8000',
             progress_file='/tmp/logger-progress',
             progress_period=60,
+            config_file=None,
         )
 
         with (
@@ -104,6 +105,7 @@ class AsyncioStartupTestCase(unittest.TestCase):
         workflow_config = types.SimpleNamespace(
             host='http://127.0.0.1:8000',
             progress_file='/tmp/agent-progress',
+            config_file=None,
         )
         agent_config = types.SimpleNamespace(progress_period=60)
 

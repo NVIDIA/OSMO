@@ -18,9 +18,13 @@ SPDX-License-Identifier: Apache-2.0
 
 # pylint: disable=protected-access
 
+import base64
+import json
 import logging
 import os
 import tempfile
+import threading
+import time
 import unittest
 from typing import Any, Dict
 from unittest import mock
@@ -170,6 +174,69 @@ class TestResolveSecretFileReferences(unittest.TestCase):
         }
         with self.assertLogs(level=logging.ERROR):
             configmap_loader._resolve_secret_file_references(config_data)
+
+    def test_resolve_dockerconfigjson_prefers_password(self):
+        """The worker treats RegistryCredential.auth as the raw password
+        and re-encodes username:auth. If the loader fed it the
+        already-base64-encoded composite, the resulting pull-secret
+        would be double-encoded and registries reject it.
+        """
+        secret_data = {
+            'auths': {
+                'nvcr.io': {
+                    'username': '$oauthtoken',
+                    'password': 'raw-token-value',
+                    'auth': base64.b64encode(
+                        b'$oauthtoken:raw-token-value').decode(),
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False) as secret_file:
+            json.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'backend_images': {
+                    'credential': {'secret_file': secret_path},
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+
+            credential = config_data['backend_images']['credential']
+            self.assertEqual(credential['registry'], 'nvcr.io')
+            self.assertEqual(credential['username'], '$oauthtoken')
+            self.assertEqual(credential['auth'], 'raw-token-value')
+        finally:
+            os.unlink(secret_path)
+
+    def test_resolve_dockerconfigjson_falls_back_to_decoding_auth(self):
+        """When `password` is missing, decode `auth` and strip username."""
+        secret_data = {
+            'auths': {
+                'nvcr.io': {
+                    'username': '$oauthtoken',
+                    'auth': base64.b64encode(
+                        b'$oauthtoken:fallback-token').decode(),
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False) as secret_file:
+            json.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'backend_images': {
+                    'credential': {'secret_file': secret_path},
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+
+            credential = config_data['backend_images']['credential']
+            self.assertEqual(credential['auth'], 'fallback-token')
+        finally:
+            os.unlink(secret_path)
 
 
 class TestResolveSecretDirectory(unittest.TestCase):
@@ -548,7 +615,7 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 good_path, self.mock_postgres, event_recorder=recorder)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
             self.assertEqual(recorder.failures, [])
             self.assertEqual(recorder.successes, [])
         finally:
@@ -580,7 +647,8 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 bad_path, self.mock_postgres, event_recorder=None)
             # Must not raise despite the failure
-            self.assertFalse(watcher._load_and_apply())
+            result = watcher._load_and_apply()
+            self.assertNotEqual(result, configmap_loader.LoadResult.SUCCESS)
         finally:
             os.unlink(bad_path)
 
@@ -784,7 +852,8 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         watcher = configmap_loader.ConfigMapWatcher(
             '/nonexistent/path.yaml', self.mock_postgres)
         result = watcher._load_and_apply()
-        self.assertFalse(result)
+        self.assertEqual(
+            result, configmap_loader.LoadResult.TRANSIENT_FAILURE)
         self.assertIsNone(configmap_state.get_snapshot())
 
     def test_load_empty_file(self):
@@ -796,7 +865,8 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
             result = watcher._load_and_apply()
-            self.assertFalse(result)
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
         finally:
             os.unlink(path)
 
@@ -819,7 +889,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
@@ -847,7 +917,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
@@ -886,7 +956,8 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher2 = configmap_loader.ConfigMapWatcher(
                 bad_path, self.mock_postgres)
             result = watcher2._load_and_apply()
-            self.assertFalse(result)
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
 
             # Previous snapshot preserved
             self.assertIs(configmap_state.get_snapshot(), old_snapshot)
@@ -1221,7 +1292,7 @@ class TestResolvePoolComputedFields(unittest.TestCase):
             configmap_state.set_parsed_configs(None)
             watcher = configmap_loader.ConfigMapWatcher(path, mock_postgres)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
@@ -1273,6 +1344,123 @@ class TestConfigFileEventHandler(unittest.TestCase):
         handler.on_any_event(event)
 
         self.assertIsNotNone(handler._debounce_timer)
+
+
+class TestStartConfigWatcher(unittest.TestCase):
+    """Tests for the start_config_watcher convenience helper."""
+
+    def setUp(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def test_returns_none_when_config_file_unset(self):
+        watcher = configmap_loader.start_config_watcher(
+            None, mock.MagicMock(), is_api_service=True)
+        self.assertIsNone(watcher)
+        self.assertFalse(configmap_state.is_configmap_mode())
+
+    def test_non_api_service_skips_event_recorder_and_db_read(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump({'service': {}}, f)
+
+            postgres = mock.MagicMock()
+            with mock.patch.object(
+                configmap_events, 'ConfigMapEventRecorder',
+            ) as mock_recorder:
+                watcher = configmap_loader.start_config_watcher(
+                    config_path, postgres, is_api_service=False)
+                assert watcher is not None
+                try:
+                    # No K8s Event recorder, no DB read for runtime fields.
+                    self.assertIsNone(watcher._event_recorder)
+                    mock_recorder.assert_not_called()
+                    postgres.get_service_configs.assert_not_called()
+                finally:
+                    watcher.stop()
+
+    def test_cold_start_retry_succeeds_when_file_appears(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+
+            def write_file_late():
+                time.sleep(0.15)
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump({'service': {}}, f)
+
+            # Speed up the retry loop so the test runs in <1s.
+            with mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 5.0,
+            ), mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 0.05,
+            ), mock.patch.object(
+                configmap_loader.ConfigMapWatcher,
+                '_load_and_apply',
+                autospec=True,
+                wraps=configmap_loader.ConfigMapWatcher._load_and_apply,
+            ) as load_spy:
+                writer = threading.Thread(target=write_file_late)
+                writer.start()
+                watcher = None
+                try:
+                    watcher = configmap_loader.start_config_watcher(
+                        config_path, mock.MagicMock(),
+                        is_api_service=False)
+                    self.assertIsNotNone(watcher)
+                    # First call(s) must fail (file not yet present), then
+                    # the writer thread creates the file and a later call
+                    # succeeds. Anything less than 2 invocations means the
+                    # retry path was never exercised.
+                    self.assertGreaterEqual(load_spy.call_count, 2)
+                finally:
+                    writer.join()
+                    if watcher is not None:
+                        watcher.stop()
+
+    def test_cold_start_raises_after_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            missing_path = os.path.join(tmp_dir, 'never-appears.yaml')
+
+            with mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 0.2,
+            ), mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 0.05,
+            ):
+                with self.assertRaises(RuntimeError) as ctx:
+                    configmap_loader.start_config_watcher(
+                        missing_path, mock.MagicMock(),
+                        is_api_service=False)
+                self.assertIn('failed at startup', str(ctx.exception))
+                self.assertIn('never became readable', str(ctx.exception))
+
+    def test_cold_start_fails_fast_on_permanent_error(self):
+        """Bad YAML must not consume the full retry deadline."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write('not: [valid: yaml')
+
+            with mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 60.0,
+            ), mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 1.0,
+            ):
+                start = time.monotonic()
+                with self.assertRaises(RuntimeError) as ctx:
+                    configmap_loader.start_config_watcher(
+                        config_path, mock.MagicMock(),
+                        is_api_service=False)
+                elapsed = time.monotonic() - start
+                # Should bail out essentially immediately (single attempt).
+                # Bound generously to absorb CI jitter; the point is that
+                # we don't sit through the 60s deadline.
+                self.assertLess(elapsed, 5.0)
+                self.assertIn('malformed or invalid', str(ctx.exception))
 
 
 if __name__ == '__main__':

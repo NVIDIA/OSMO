@@ -29,11 +29,16 @@ get_static_data_credential_from_config = credentials.get_static_data_credential_
 CREDNAMEREGEX = r'^[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?$'
 
 
-class RegistryCredential(pydantic.BaseModel, extra='forbid'):
+class RegistryCredential(pydantic.BaseModel, extra='forbid', populate_by_name=True):
     """ Authentication information for a Docker registry. """
     registry: str = pydantic.Field('', description='The Docker registry URL')
     username: str = pydantic.Field('', description='The username for the Docker registry')
+    # Accepts both `auth` (legacy field name) and `password` (matches the
+    # K8s Secret convention `kubectl create secret generic --from-literal=password=...`).
+    # Internally always stored as `auth`; the worker base64s `username:auth`
+    # to build the dockerconfigjson auth header at pod-creation time.
     auth: pydantic.SecretStr = pydantic.Field(
         pydantic.SecretStr(''),
-        description='The authentication token for the Docker registry',
+        description='The authentication token (raw password) for the Docker registry',
+        validation_alias=pydantic.AliasChoices('auth', 'password'),
     )

@@ -19,7 +19,6 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import datetime
 import logging
-import os
 from pathlib import Path
 import sys
 from typing import Dict, List
@@ -38,7 +37,7 @@ from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
 from src.service.core.auth import auth_service, objects as auth_objects
 from src.service.core.config import (
-    config_service, configmap_events, configmap_loader,
+    config_service, configmap_loader,
     helpers as config_helpers, objects as config_objects,
 )
 from src.service.core.data import data_service, query
@@ -470,29 +469,23 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
             username='',
         )
 
-    create_default_pool(postgres)
-    set_default_backend_images(postgres)
+    # In ConfigMap mode, the YAML snapshot is authoritative for these fields,
+    # so DB writes here are invisible to readers (the snapshot wins in
+    # get_configs) and just bloat the configs/pools tables on every restart.
+    # set_default_service_url is kept unconditionally because it seeds
+    # service_base_url, which _inject_runtime_fields reads from DB on first
+    # cold-start when the ConfigMap omits it. setup_default_admin writes a
+    # user record, not a config row, so it stays unconditional too.
+    if not config.config_file:
+        create_default_pool(postgres)
+        set_default_backend_images(postgres)
+        set_client_install_url(postgres, config)
     set_default_service_url(postgres)
-    set_client_install_url(postgres, config)
     setup_default_admin(postgres, config)
 
-    if config.config_file:
-        event_recorder: configmap_events.EventRecorder | None = None
-        pod_namespace = os.environ.get('POD_NAMESPACE')
-        configmap_name = os.environ.get('OSMO_CONFIGMAP_NAME')
-        if pod_namespace and configmap_name:
-            event_recorder = configmap_events.ConfigMapEventRecorder(
-                namespace=pod_namespace, configmap_name=configmap_name)
-        else:
-            logging.warning(
-                'POD_NAMESPACE or OSMO_CONFIGMAP_NAME unset; '
-                'ConfigMap reload events will not be emitted')
-
-        watcher = configmap_loader.ConfigMapWatcher(
-            config.config_file, postgres, event_recorder=event_recorder)
-        watcher.start()
-        # Store on app state to prevent GC from killing the watcher
-        target_app.state.config_watcher = watcher
+    # Store on app state to prevent GC from killing the watcher thread.
+    target_app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres, is_api_service=True)
 
     # Instantiate QueryParser
     query.QueryParser()

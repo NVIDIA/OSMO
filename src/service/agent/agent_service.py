@@ -29,13 +29,20 @@ import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers
 from src.service.core.auth import auth_service
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.service.core.workflow import objects
 from src.utils import connectors, static_config
 from src.utils.progress_check import progress
 
 
+# ConfigFileMixin is required even though we read config.config_file from
+# WorkflowServiceConfig: the chart adds --config_file to argv, and
+# StaticConfig.load() does a strict parse_args() per class — without the
+# mixin BackendServiceConfig.load() would reject the unknown flag and crash.
 class BackendServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
-                           src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
+                           src.lib.utils.logging.LoggingConfig,
+                           static_config.StaticConfig, ConfigFileMixin):
     """Config settings for the backend service"""
     progress_period: int = pydantic.Field(
         default=30,
@@ -112,6 +119,9 @@ def main():
     connectors.RedisConnector(config)
     agent_metrics = metrics.MetricCreator(config=config).get_meter_instance()
     agent_metrics.start_server()
+    # Pin the watcher on app.state so the daemon Observer thread isn't GC'd.
+    app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres)
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
     parsed_url = urlparse(config.host)

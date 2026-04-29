@@ -119,10 +119,12 @@ spec:
         - --log_name
         - logger_service
         {{- end }}
+        {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.logger.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
         env:
+        {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.logger | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
@@ -141,7 +143,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.logger.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.logger.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.logger.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -149,6 +151,7 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
+        {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           mountPath: /logs
@@ -209,6 +212,7 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
+        {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
 ---
 
