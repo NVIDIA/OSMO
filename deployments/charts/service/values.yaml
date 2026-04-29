@@ -145,7 +145,7 @@ services:
 
     ## Service account name for the UI pods
     ##
-    serviceAccountName: ""
+    serviceAccountName: osmo
 
     ## Maximum HTTP header size in KB for the Node.js server
     ##
