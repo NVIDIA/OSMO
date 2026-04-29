@@ -18,6 +18,8 @@ SPDX-License-Identifier: Apache-2.0
 
 # pylint: disable=protected-access
 
+import base64
+import json
 import logging
 import os
 import tempfile
@@ -172,6 +174,69 @@ class TestResolveSecretFileReferences(unittest.TestCase):
         }
         with self.assertLogs(level=logging.ERROR):
             configmap_loader._resolve_secret_file_references(config_data)
+
+    def test_resolve_dockerconfigjson_prefers_password(self):
+        """The worker treats RegistryCredential.auth as the raw password
+        and re-encodes username:auth. If the loader fed it the
+        already-base64-encoded composite, the resulting pull-secret
+        would be double-encoded and registries reject it.
+        """
+        secret_data = {
+            'auths': {
+                'nvcr.io': {
+                    'username': '$oauthtoken',
+                    'password': 'raw-token-value',
+                    'auth': base64.b64encode(
+                        b'$oauthtoken:raw-token-value').decode(),
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False) as secret_file:
+            json.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'backend_images': {
+                    'credential': {'secret_file': secret_path},
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+
+            credential = config_data['backend_images']['credential']
+            self.assertEqual(credential['registry'], 'nvcr.io')
+            self.assertEqual(credential['username'], '$oauthtoken')
+            self.assertEqual(credential['auth'], 'raw-token-value')
+        finally:
+            os.unlink(secret_path)
+
+    def test_resolve_dockerconfigjson_falls_back_to_decoding_auth(self):
+        """When `password` is missing, decode `auth` and strip username."""
+        secret_data = {
+            'auths': {
+                'nvcr.io': {
+                    'username': '$oauthtoken',
+                    'auth': base64.b64encode(
+                        b'$oauthtoken:fallback-token').decode(),
+                },
+            },
+        }
+        with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.json', delete=False) as secret_file:
+            json.dump(secret_data, secret_file)
+            secret_path = secret_file.name
+        try:
+            config_data: Dict[str, Any] = {
+                'backend_images': {
+                    'credential': {'secret_file': secret_path},
+                },
+            }
+            configmap_loader._resolve_secret_file_references(config_data)
+
+            credential = config_data['backend_images']['credential']
+            self.assertEqual(credential['auth'], 'fallback-token')
+        finally:
+            os.unlink(secret_path)
 
 
 class TestResolveSecretDirectory(unittest.TestCase):
