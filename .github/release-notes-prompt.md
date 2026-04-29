@@ -124,13 +124,11 @@ read as "added entries for new commits" — not as a wholesale rewrite.
 
 ### Helm Charts and Containers
 
-Helm charts and container images are available on
-[NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/osmo/containers/osmo).
+Helm charts and container images are available on [NGC](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/osmo/containers/osmo).
 
 ### CLI Client
 
-Installers for the CLI client for macOS (Apple Silicon), x86-64 Linux, and
-ARM64 Linux are attached as assets to this release.
+Installers for the CLI client for macOS (Apple Silicon), x86-64 Linux, and ARM64 Linux are attached as assets to this release.
 ```
 
 **Always include the exact Getting OSMO section** above (heading, both
@@ -149,6 +147,9 @@ notes file. Do not paraphrase, condense, or omit it.
   change gets one terse bullet. A release with 3 user-facing changes is short.
   A release with 50 is long. Don't pad. Don't truncate. Don't omit changes to
   hit a length, and don't invent filler to fill space.
+- **No hard line wraps.** Each bullet and each paragraph stays on a single
+  line in the file — no mid-sentence newlines. The GitHub releases UI renders
+  soft breaks as visible breaks, so wrapping at ~80 chars produces ragged output.
 
 ## Voice
 

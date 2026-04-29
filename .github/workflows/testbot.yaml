@@ -53,7 +53,7 @@ concurrency:
 
 jobs:
   generate-tests:
-    environment: testbot-generate
+    environment: nim-env
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '30') }}
     runs-on: ubuntu-latest
     steps:
