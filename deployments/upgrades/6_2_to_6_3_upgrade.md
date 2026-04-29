@@ -51,10 +51,33 @@ python3 deployments/upgrades/export_configs_to_helm.py \
 The script:
 - Exports all config sections (service, workflow, dataset, backends, pools, templates, validations, roles)
 - Strips runtime/computed fields (`parsed_pod_template`, `parsed_resource_validations`, etc.) — the service resolves these at load time from template name references
-- Replaces masked credentials with `secretName` placeholders
+- Drops `None`-valued keys and empty containers — Pydantic defaults don't need to be written out
+- Strips pinned tags from `workflow.backend_images.{init,client}` so workflow pods track `global.osmoImageTag` after the upgrade instead of staying on the version that was running at export time
+- Replaces masked secret values (`**********`) with `{secretName: TODO-REPLACE-ME, secretKey: <field>}` placeholders and lists each path on stderr so you know which K8s Secrets to create
+- Diffs the output against the chart's `services.configs.*` defaults so only fields you've genuinely customized appear in the file (pass `--no-strip-defaults` for a full dump)
 - Outputs YAML ready to paste into your Helm values under `services.configs`
 
-Review the output and check the `secretRefs` list printed to stderr — you'll need to create matching K8s Secrets.
+Review the stderr output carefully — it lists the TODO placeholders you need to fill in plus any existing `secretRefs` that need matching K8s Secrets in the target namespace.
+
+### Resolving the TODO placeholders
+
+For each `{secretName: TODO-REPLACE-ME, secretKey: <field>}` block in the output, pick one of these patterns and replace `TODO-REPLACE-ME` with a real Secret name:
+
+1. **Per-field Secret (matches the placeholder layout as-is).** Create a Secret with `--from-literal` keys that match each `secretKey` referenced in the placeholders. The loader reads files from `/etc/osmo/secrets/<secretName>/<secretKey>` so each masked field resolves independently.
+   ```bash
+   kubectl create secret generic osmo-workflow-creds \
+       --from-literal=access_key=<S3 secret key> \
+       --from-literal=auth=<base64 NGC token>
+   ```
+
+2. **Whole-credential Secret (collapses the entire credential dict).** Replace the parent dict (e.g. the whole `credential:` block under `workflow_data`) with a single `{secretName: <name>}` ref pointing at a Secret whose `cred.yaml` key contains the full YAML mapping. The loader detects `cred.yaml` and merges all its keys into the parent dict — useful when you want to keep `endpoint` / `region` / `access_key_id` / `access_key` together.
+   ```yaml
+   workflow_data:
+     credential:
+       secretName: osmo-workflow-data-cred   # provides cred.yaml
+   ```
+
+Either way, every `secretName` you settle on must also be listed under `services.configs.secretRefs` so the chart actually mounts it into the service pods.
 
 ### Dependencies
 
