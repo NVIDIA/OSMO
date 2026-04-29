@@ -76,22 +76,22 @@ workflow:
         echo "  python examples/inference.py -i <spec_file> -o /workspace/output"
         echo ""
     - path: /workspace/params.json
-        contents: |
-          {
-              "name": "cosmos-transfer-mobility",
-              "prompt": "High-quality warehouse simulation...",
-              "video_path": "/workspace/input/clip_0000/rgb.mp4",
-              "vis": {"control_weight": 0.25},
-              "edge": {"control_weight": 0.25},
-              "depth": {
-                  "input_control": "/workspace/input/clip_0000/depth.mp4",
-                  "control_weight": 0.25
-              },
-              "seg": {
-                  "input_control": "/workspace/input/clip_0000/segmentation.mp4",
-                  "control_weight": 0.25
-              }
-          }
+      contents: |
+        {
+            "name": "cosmos-transfer-mobility",
+            "prompt": "High-quality warehouse simulation...",
+            "video_path": "/workspace/input/clip_0000/rgb.mp4",
+            "vis": {"control_weight": 0.25},
+            "edge": {"control_weight": 0.25},
+            "depth": {
+                "input_control": "/workspace/input/clip_0000/depth.mp4",
+                "control_weight": 0.25
+            },
+            "seg": {
+                "input_control": "/workspace/input/clip_0000/segmentation.mp4",
+                "control_weight": 0.25
+            }
+        }
     outputs:
       - url: {{ storage_url }}/cosmos-transfer-augmented-mobility/{{workflow_id}}/
 
