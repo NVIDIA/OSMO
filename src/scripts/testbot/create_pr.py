@@ -14,6 +14,7 @@ Usage:
 import argparse
 import datetime
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -128,7 +129,33 @@ def main() -> None:
         ["git", "commit", "-m", f"Add AI-generated tests for {files_summary}"],
         check=True,
     )
-    push_result = run(["git", "push", "-u", "origin", branch], check=False)
+
+    # Pre-create the remote branch as a server-side copy of main, then push
+    # only the test commit on top. A direct `git push` of a fresh branch
+    # would be rejected by GH013: GitHub treats every file in the branch
+    # tree as "created" and requires the `workflow` scope on the PAT for
+    # any .github/workflows/* files present (even unchanged from main).
+    # Server-side ref creation doesn't go through the workflow-scope check,
+    # and the subsequent push diff is just the test files.
+    base_sha = run(["git", "rev-parse", "origin/main"]).stdout.strip()
+    repo_full = os.environ.get("GITHUB_REPOSITORY", "")
+    if not repo_full:
+        logger.error("GITHUB_REPOSITORY env var is required to pre-create branch ref")
+        sys.exit(1)
+    ref_result = run(
+        ["gh", "api", "-X", "POST", f"repos/{repo_full}/git/refs",
+         "-f", f"ref=refs/heads/{branch}",
+         "-f", f"sha={base_sha}"],
+        check=False,
+    )
+    if ref_result.returncode != 0:
+        logger.error("Failed to pre-create branch ref '%s'", branch)
+        sys.exit(1)
+
+    push_result = run(
+        ["git", "push", "origin", f"HEAD:refs/heads/{branch}"],
+        check=False,
+    )
     if push_result.returncode != 0:
         logger.error("Failed to push branch '%s'", branch)
         sys.exit(1)
