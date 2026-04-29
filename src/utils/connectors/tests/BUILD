@@ -30,3 +30,17 @@ py_test(
     ],
     size = "small"
 )
+
+py_test(
+    name = "test_cli_config",
+    srcs = [
+        "test_cli_config.py"
+        ],
+    deps = [
+        "//src/utils/connectors:connectors",
+    ],
+    tags = [
+        "exclusive"
+    ],
+    size = "small"
+)

@@ -46,7 +46,7 @@ from src.utils import configmap_state
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
-                           osmo_errors, role)
+                           osmo_errors, role, version)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
 
@@ -2928,6 +2928,24 @@ class CliConfig(ExtraArgBaseModel):
     latest_version: str | None = None
     min_supported_version: str | None = None
     client_install_url: str | None = None
+
+    @pydantic.field_validator('latest_version', 'min_supported_version')
+    @classmethod
+    def validate_version_format(
+            cls, v: str | None, info: pydantic.ValidationInfo) -> str | None:
+        """ Reject malformed version strings at write time so the version-check
+        middleware can trust the persisted value. None and empty pass through
+        unchanged (treated as "not configured" by callers). """
+        if not v:
+            return v
+        try:
+            version.Version.from_string(v)
+        except osmo_errors.OSMOError as exc:
+            raise osmo_errors.OSMOUserError(
+                f'Invalid {info.field_name} "{v}": '
+                'must be of the format major.minor.revision'
+            ) from exc
+        return v
 
 
 class ServiceConfig(DynamicConfig):

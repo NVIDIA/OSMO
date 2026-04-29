@@ -22,6 +22,7 @@ osmo_py_library(
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:role",
         "//src/lib/utils:validation",
+        "//src/lib/utils:version",
         "//src/utils:auth",
         "//src/utils:configmap_state",
         "//src/utils:notify",
