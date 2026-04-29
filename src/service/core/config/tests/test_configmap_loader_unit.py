@@ -550,7 +550,7 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 good_path, self.mock_postgres, event_recorder=recorder)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
             self.assertEqual(recorder.failures, [])
             self.assertEqual(recorder.successes, [])
         finally:
@@ -582,7 +582,8 @@ class TestConfigMapWatcherEvents(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 bad_path, self.mock_postgres, event_recorder=None)
             # Must not raise despite the failure
-            self.assertFalse(watcher._load_and_apply())
+            result = watcher._load_and_apply()
+            self.assertNotEqual(result, configmap_loader.LoadResult.SUCCESS)
         finally:
             os.unlink(bad_path)
 
@@ -786,7 +787,8 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
         watcher = configmap_loader.ConfigMapWatcher(
             '/nonexistent/path.yaml', self.mock_postgres)
         result = watcher._load_and_apply()
-        self.assertFalse(result)
+        self.assertEqual(
+            result, configmap_loader.LoadResult.TRANSIENT_FAILURE)
         self.assertIsNone(configmap_state.get_snapshot())
 
     def test_load_empty_file(self):
@@ -798,7 +800,8 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
             result = watcher._load_and_apply()
-            self.assertFalse(result)
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
         finally:
             os.unlink(path)
 
@@ -821,7 +824,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
@@ -849,7 +852,7 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher = configmap_loader.ConfigMapWatcher(
                 path, self.mock_postgres)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
@@ -888,7 +891,8 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             watcher2 = configmap_loader.ConfigMapWatcher(
                 bad_path, self.mock_postgres)
             result = watcher2._load_and_apply()
-            self.assertFalse(result)
+            self.assertEqual(
+                result, configmap_loader.LoadResult.PERMANENT_FAILURE)
 
             # Previous snapshot preserved
             self.assertIs(configmap_state.get_snapshot(), old_snapshot)
@@ -1223,7 +1227,7 @@ class TestResolvePoolComputedFields(unittest.TestCase):
             configmap_state.set_parsed_configs(None)
             watcher = configmap_loader.ConfigMapWatcher(path, mock_postgres)
             result = watcher._load_and_apply()
-            self.assertTrue(result)
+            self.assertEqual(result, configmap_loader.LoadResult.SUCCESS)
 
             snapshot = configmap_state.get_snapshot()
             assert snapshot is not None
@@ -1290,45 +1294,30 @@ class TestStartConfigWatcher(unittest.TestCase):
 
     def test_returns_none_when_config_file_unset(self):
         watcher = configmap_loader.start_config_watcher(
-            None, mock.MagicMock(), emit_events=True, inject_runtime=True)
+            None, mock.MagicMock(), is_api_service=True)
         self.assertIsNone(watcher)
         self.assertFalse(configmap_state.is_configmap_mode())
 
-    def test_emit_events_false_skips_event_recorder(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            config_path = os.path.join(tmp_dir, 'config.yaml')
-            with open(config_path, 'w', encoding='utf-8') as f:
-                yaml.dump({'service': {}}, f)
-
-            with mock.patch.object(
-                configmap_events, 'ConfigMapEventRecorder',
-            ) as mock_recorder:
-                watcher = configmap_loader.start_config_watcher(
-                    config_path, mock.MagicMock(),
-                    emit_events=False, inject_runtime=False)
-                assert watcher is not None
-                try:
-                    self.assertIsNone(watcher._event_recorder)
-                    mock_recorder.assert_not_called()
-                finally:
-                    watcher.stop()
-
-    def test_inject_runtime_false_skips_db_read(self):
+    def test_non_api_service_skips_event_recorder_and_db_read(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = os.path.join(tmp_dir, 'config.yaml')
             with open(config_path, 'w', encoding='utf-8') as f:
                 yaml.dump({'service': {}}, f)
 
             postgres = mock.MagicMock()
-            watcher = configmap_loader.start_config_watcher(
-                config_path, postgres,
-                emit_events=False, inject_runtime=False)
-            assert watcher is not None
-            try:
-                # _inject_runtime_fields was not invoked, so no DB read.
-                postgres.get_service_configs.assert_not_called()
-            finally:
-                watcher.stop()
+            with mock.patch.object(
+                configmap_events, 'ConfigMapEventRecorder',
+            ) as mock_recorder:
+                watcher = configmap_loader.start_config_watcher(
+                    config_path, postgres, is_api_service=False)
+                assert watcher is not None
+                try:
+                    # No K8s Event recorder, no DB read for runtime fields.
+                    self.assertIsNone(watcher._event_recorder)
+                    mock_recorder.assert_not_called()
+                    postgres.get_service_configs.assert_not_called()
+                finally:
+                    watcher.stop()
 
     def test_cold_start_retry_succeeds_when_file_appears(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -1356,7 +1345,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 try:
                     watcher = configmap_loader.start_config_watcher(
                         config_path, mock.MagicMock(),
-                        emit_events=False, inject_runtime=False)
+                        is_api_service=False)
                     self.assertIsNotNone(watcher)
                     # First call(s) must fail (file not yet present), then
                     # the writer thread creates the file and a later call
@@ -1380,7 +1369,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as ctx:
                     configmap_loader.start_config_watcher(
                         missing_path, mock.MagicMock(),
-                        emit_events=False, inject_runtime=False)
+                        is_api_service=False)
                 self.assertIn('failed at startup', str(ctx.exception))
                 self.assertIn('never became readable', str(ctx.exception))
 
@@ -1400,7 +1389,7 @@ class TestStartConfigWatcher(unittest.TestCase):
                 with self.assertRaises(RuntimeError) as ctx:
                     configmap_loader.start_config_watcher(
                         config_path, mock.MagicMock(),
-                        emit_events=False, inject_runtime=False)
+                        is_api_service=False)
                 elapsed = time.monotonic() - start
                 # Should bail out essentially immediately (single attempt).
                 # Bound generously to absorb CI jitter; the point is that

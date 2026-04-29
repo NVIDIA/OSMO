@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 import copy
+import enum
 import json
 import logging
 import os
@@ -39,15 +40,27 @@ _STARTUP_RETRY_DEADLINE_S = 30.0
 _STARTUP_RETRY_INTERVAL_S = 1.0
 
 
+class LoadResult(enum.Enum):
+    """Outcome of a ConfigMapWatcher load attempt.
+
+    TRANSIENT means retrying may succeed (file isn't readable yet —
+    kubelet projection in progress). PERMANENT means the file is there
+    but malformed or invalid; retrying won't help so cold-start fails
+    fast and operators see the bad ConfigMap immediately.
+    """
+    SUCCESS = 'success'
+    TRANSIENT_FAILURE = 'transient'
+    PERMANENT_FAILURE = 'permanent'
+
+
 class ConfigFileMixin(pydantic.BaseModel):
     """Pydantic mixin adding `--config_file` to a service config class.
 
     Inherited by every service binary that wants ConfigMap mode (api,
-    worker, agent, logger). Centralizing the field keeps the flag name
-    (`--config_file`) and env var (`OSMO_CONFIG_FILE`) consistent across
-    services and avoids argparse divergence when one binary loads more
-    than one config class (e.g. agent loads both WorkflowServiceConfig
-    and BackendServiceConfig).
+    worker, logger, and the WorkflowServiceConfig that the agent loads
+    alongside its BackendServiceConfig). Centralizing the field keeps
+    the flag name (`--config_file`) and env var (`OSMO_CONFIG_FILE`)
+    consistent and avoids argparse divergence.
     """
     config_file: str | None = pydantic.Field(
         default=None,
@@ -123,12 +136,6 @@ class ConfigMapWatcher:
         # Only emit "reload succeeded" events when recovering from a
         # previous failure — successful reloads on their own are noise.
         self._last_reload_failed = False
-        # 'transient' means the file isn't readable yet (kubelet projection
-        # in progress); 'permanent' means the file exists but is unparseable
-        # or invalid. start() retries on transient and fails fast on
-        # permanent so a bad ConfigMap surfaces immediately instead of
-        # spinning for the full retry deadline.
-        self._last_failure_kind: str | None = None
 
     def start(self) -> None:
         """Load configs, activate ConfigMap mode, start file watcher.
@@ -142,9 +149,10 @@ class ConfigMapWatcher:
         """
         deadline = time.monotonic() + _STARTUP_RETRY_DEADLINE_S
         while True:
-            if self._load_and_apply():
+            result = self._load_and_apply()
+            if result == LoadResult.SUCCESS:
                 break
-            if self._last_failure_kind == 'permanent':
+            if result == LoadResult.PERMANENT_FAILURE:
                 raise RuntimeError(
                     f'ConfigMap load failed at startup '
                     f'({self._config_file_path}): malformed or invalid '
@@ -190,34 +198,31 @@ class ConfigMapWatcher:
                 'ConfigMap reload succeeded after previous failure')
         self._last_reload_failed = False
 
-    def _load_and_apply(self) -> bool:
+    def _load_and_apply(self) -> LoadResult:
         """Parse, resolve secrets, validate, and swap the in-memory config dict.
 
-        Returns True if configs were successfully loaded. Sets
-        self._last_failure_kind to 'transient' (file not yet readable)
-        or 'permanent' (file exists but unparseable / invalid) on failure.
+        TRANSIENT_FAILURE means retrying may succeed (file not yet
+        readable). PERMANENT_FAILURE means the file exists but is
+        unparseable / invalid; retrying won't help.
         """
         try:
             with open(self._config_file_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
         except OSError as error:
-            self._last_failure_kind = 'transient'
             self._record_failure(
                 f'Failed to read config file '
                 f'{self._config_file_path}: {error}')
-            return False
+            return LoadResult.TRANSIENT_FAILURE
         except yaml.YAMLError as error:
-            self._last_failure_kind = 'permanent'
             self._record_failure(
                 f'Failed to parse config file '
                 f'{self._config_file_path}: {error}')
-            return False
+            return LoadResult.PERMANENT_FAILURE
 
         if not raw_config or not isinstance(raw_config, dict):
-            self._last_failure_kind = 'permanent'
             self._record_failure(
                 f'Config file {self._config_file_path} is empty or invalid')
-            return False
+            return LoadResult.PERMANENT_FAILURE
 
         managed_configs = raw_config
 
@@ -236,12 +241,11 @@ class ConfigMapWatcher:
         # by configure_app().
         validation_errors = _validate_configs(managed_configs)
         if validation_errors:
-            self._last_failure_kind = 'permanent'
             joined_errors = '; '.join(validation_errors)
             self._record_failure(
                 f'ConfigMap validation failed, keeping previous config: '
                 f'{joined_errors}')
-            return False
+            return LoadResult.PERMANENT_FAILURE
 
         # Resolve pool computed fields (parsed_pod_template, etc.) from
         # template/validation name references. This allows compact ConfigMap
@@ -255,8 +259,6 @@ class ConfigMapWatcher:
         if self._inject_runtime:
             self._inject_runtime_fields(managed_configs)
 
-        # Atomic swap — in-flight requests holding a reference to the old
-        # dict continue using it; new requests get the new dict.
         configmap_guard.set_parsed_configs(managed_configs)
         if not configmap_guard.is_configmap_mode():
             configmap_guard.set_configmap_mode(True)
@@ -266,9 +268,8 @@ class ConfigMapWatcher:
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
         self._record_success()
-        self._last_failure_kind = None
 
-        return True
+        return LoadResult.SUCCESS
 
     def _inject_runtime_fields(
         self, managed_configs: Dict[str, Any],
@@ -301,8 +302,7 @@ def start_config_watcher(
     config_file: str | None,
     postgres: connectors.PostgresConnector,
     *,
-    emit_events: bool = False,
-    inject_runtime: bool = False,
+    is_api_service: bool = False,
 ) -> 'ConfigMapWatcher | None':
     """Initialize and start a ConfigMapWatcher when `config_file` is set.
 
@@ -310,21 +310,18 @@ def start_config_watcher(
     Observer thread is daemonic; without a live reference the watcher may
     be GC'd while the process is still alive).
 
-    Args:
-        emit_events: Pass True only for the API service. Worker/agent/logger
-            run with multiple replicas and N replicas racing on the same K8s
-            Event object produces 409 Conflict storms; let them log to stderr
-            instead.
-        inject_runtime: Pass True only for the API service. service_auth
-            and service_base_url are runtime-generated fields meaningful
-            only for the API; injecting them in non-API services adds an
-            unnecessary DB round-trip and confuses readers.
+    The API service has two extra responsibilities tied to it being the
+    primary reader and writer of configs: it emits K8s Events on reload
+    failures, and it injects runtime-generated fields (service_auth,
+    service_base_url) into the snapshot. Worker/agent/logger don't do
+    either — they'd race on the same Event object across replicas, and
+    they don't generate the runtime fields.
     """
     if not config_file:
         return None
 
     event_recorder: configmap_events.EventRecorder | None = None
-    if emit_events:
+    if is_api_service:
         pod_namespace = os.environ.get('POD_NAMESPACE')
         configmap_name = os.environ.get('OSMO_CONFIGMAP_NAME')
         if pod_namespace and configmap_name:
@@ -338,7 +335,7 @@ def start_config_watcher(
     watcher = ConfigMapWatcher(
         config_file, postgres,
         event_recorder=event_recorder,
-        inject_runtime=inject_runtime,
+        inject_runtime=is_api_service,
     )
     watcher.start()
     return watcher

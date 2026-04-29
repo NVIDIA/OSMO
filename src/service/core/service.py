@@ -485,10 +485,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
 
     # Store on app state to prevent GC from killing the watcher thread.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(
-        config.config_file, postgres,
-        emit_events=True,
-        inject_runtime=True,
-    )
+        config.config_file, postgres, is_api_service=True)
 
     # Instantiate QueryParser
     query.QueryParser()

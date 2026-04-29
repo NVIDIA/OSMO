@@ -229,12 +229,10 @@ def main():
     worker_metrics.start_server()
     connectors.RedisConnector(config)
     postgres = connectors.PostgresConnector(config)
-    # Pin to module-level global so the daemon Observer thread isn't GC'd;
-    # only the API service emits K8s Events / injects runtime fields.
+    # Pin to module-level global so the daemon Observer thread isn't GC'd.
     global _active_config_watcher  # noqa: PLW0603
     _active_config_watcher = configmap_loader.start_config_watcher(
-        config.config_file, postgres,
-        emit_events=False, inject_runtime=False)
+        config.config_file, postgres)
 
     if config.method != 'dev':
         worker_metrics.send_observable_gauge(

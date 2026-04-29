@@ -74,8 +74,7 @@ def main():
     postgres = connectors.PostgresConnector(config)
     # Pin the watcher on app.state so the daemon Observer thread isn't GC'd.
     app.state.config_watcher = configmap_loader.start_config_watcher(
-        config.config_file, postgres,
-        emit_events=False, inject_runtime=False)
+        config.config_file, postgres)
     parsed_url = urlparse(config.host)
     host = parsed_url.hostname if parsed_url.hostname else ''
     if parsed_url.port:
