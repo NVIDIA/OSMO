@@ -31,9 +31,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- if .Values.services.configs.enabled }}
-        checksum/configs: {{ .Values.services.configs | toYaml | sha256sum }}
-        {{- end }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
     spec:
       {{- with .Values.services.service.hostAliases }}
