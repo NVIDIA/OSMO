@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 import traceback
-from typing import Callable, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Iterable, Optional
 
 import kombu  # type: ignore
 import kombu.mixins  # type: ignore
@@ -43,6 +43,14 @@ from src.utils.progress_check import progress
 
 # How long to keep uuids for deduplicating jobs
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
+
+# Module-level pin for the ConfigMap watcher's daemon Observer thread.
+# A local in main() works today (worker.run() blocks for the process
+# lifetime) but is fragile to refactors that move the call into a
+# returning helper — silently dropping the reference would let the GC
+# stop the watcher mid-flight. The agent and logger pin to app.state for
+# the same reason; worker has no FastAPI app to use.
+_active_config_watcher: Any = None
 
 class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                    src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
@@ -221,9 +229,10 @@ def main():
     worker_metrics.start_server()
     connectors.RedisConnector(config)
     postgres = connectors.PostgresConnector(config)
-    # Bind to a local so the watchdog Observer thread isn't GC'd; only the
-    # API service emits K8s Events / injects runtime fields.
-    _config_watcher = configmap_loader.start_config_watcher(  # noqa: F841
+    # Pin to module-level global so the daemon Observer thread isn't GC'd;
+    # only the API service emits K8s Events / injects runtime fields.
+    global _active_config_watcher  # noqa: PLW0603
+    _active_config_watcher = configmap_loader.start_config_watcher(
         config.config_file, postgres,
         emit_events=False, inject_runtime=False)
 

@@ -123,25 +123,38 @@ class ConfigMapWatcher:
         # Only emit "reload succeeded" events when recovering from a
         # previous failure — successful reloads on their own are noise.
         self._last_reload_failed = False
+        # 'transient' means the file isn't readable yet (kubelet projection
+        # in progress); 'permanent' means the file exists but is unparseable
+        # or invalid. start() retries on transient and fails fast on
+        # permanent so a bad ConfigMap surfaces immediately instead of
+        # spinning for the full retry deadline.
+        self._last_failure_kind: str | None = None
 
     def start(self) -> None:
         """Load configs, activate ConfigMap mode, start file watcher.
 
-        Retries the initial load for up to _STARTUP_RETRY_DEADLINE_S so a
-        pod scheduled before kubelet finishes projecting the ConfigMap
-        volume doesn't immediately CrashLoopBackoff. After the deadline,
-        a load failure raises RuntimeError; K8s stalls the rolling update
-        at the bad revision and old pods keep serving.
+        Retries the initial load on transient failures (file missing
+        because kubelet hasn't finished projecting the ConfigMap volume)
+        for up to _STARTUP_RETRY_DEADLINE_S. Permanent failures (bad
+        YAML / failed validation) fail fast — operator gets the signal
+        immediately and old pods keep serving via the rolling-update
+        stall.
         """
         deadline = time.monotonic() + _STARTUP_RETRY_DEADLINE_S
         while True:
             if self._load_and_apply():
                 break
+            if self._last_failure_kind == 'permanent':
+                raise RuntimeError(
+                    f'ConfigMap load failed at startup '
+                    f'({self._config_file_path}): malformed or invalid '
+                    f'config file. Refusing to serve.')
             if time.monotonic() >= deadline:
                 raise RuntimeError(
                     f'ConfigMap load failed at startup after '
                     f'{_STARTUP_RETRY_DEADLINE_S:.0f}s '
-                    f'({self._config_file_path}). Refusing to serve.')
+                    f'({self._config_file_path}): file never became '
+                    f'readable. Refusing to serve.')
             time.sleep(_STARTUP_RETRY_INTERVAL_S)
 
         configmap_guard.set_configmap_mode(True)
@@ -180,18 +193,28 @@ class ConfigMapWatcher:
     def _load_and_apply(self) -> bool:
         """Parse, resolve secrets, validate, and swap the in-memory config dict.
 
-        Returns True if configs were successfully loaded.
+        Returns True if configs were successfully loaded. Sets
+        self._last_failure_kind to 'transient' (file not yet readable)
+        or 'permanent' (file exists but unparseable / invalid) on failure.
         """
         try:
             with open(self._config_file_path, encoding='utf-8') as f:
                 raw_config = yaml.safe_load(f)
-        except (OSError, yaml.YAMLError) as error:
+        except OSError as error:
+            self._last_failure_kind = 'transient'
             self._record_failure(
-                f'Failed to read/parse config file '
+                f'Failed to read config file '
+                f'{self._config_file_path}: {error}')
+            return False
+        except yaml.YAMLError as error:
+            self._last_failure_kind = 'permanent'
+            self._record_failure(
+                f'Failed to parse config file '
                 f'{self._config_file_path}: {error}')
             return False
 
         if not raw_config or not isinstance(raw_config, dict):
+            self._last_failure_kind = 'permanent'
             self._record_failure(
                 f'Config file {self._config_file_path} is empty or invalid')
             return False
@@ -213,6 +236,7 @@ class ConfigMapWatcher:
         # by configure_app().
         validation_errors = _validate_configs(managed_configs)
         if validation_errors:
+            self._last_failure_kind = 'permanent'
             joined_errors = '; '.join(validation_errors)
             self._record_failure(
                 f'ConfigMap validation failed, keeping previous config: '
@@ -242,6 +266,7 @@ class ConfigMapWatcher:
         logging.info(
             'ConfigMap configs loaded from %s', self._config_file_path)
         self._record_success()
+        self._last_failure_kind = None
 
         return True
 

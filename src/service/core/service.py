@@ -469,14 +469,18 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
             username='',
         )
 
-    create_default_pool(postgres)
-    # In ConfigMap mode, backend_images comes from the YAML snapshot.
-    # Skip the DB seed so the configs table doesn't accumulate values
-    # that are invisible to readers (the snapshot wins in get_configs).
+    # In ConfigMap mode, the YAML snapshot is authoritative for these fields,
+    # so DB writes here are invisible to readers (the snapshot wins in
+    # get_configs) and just bloat the configs/pools tables on every restart.
+    # set_default_service_url is kept unconditionally because it seeds
+    # service_base_url, which _inject_runtime_fields reads from DB on first
+    # cold-start when the ConfigMap omits it. setup_default_admin writes a
+    # user record, not a config row, so it stays unconditional too.
     if not config.config_file:
+        create_default_pool(postgres)
         set_default_backend_images(postgres)
+        set_client_install_url(postgres, config)
     set_default_service_url(postgres)
-    set_client_install_url(postgres, config)
     setup_default_admin(postgres, config)
 
     # Store on app state to prevent GC from killing the watcher thread.

@@ -1344,7 +1344,12 @@ class TestStartConfigWatcher(unittest.TestCase):
                 configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 5.0,
             ), mock.patch.object(
                 configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 0.05,
-            ):
+            ), mock.patch.object(
+                configmap_loader.ConfigMapWatcher,
+                '_load_and_apply',
+                autospec=True,
+                wraps=configmap_loader.ConfigMapWatcher._load_and_apply,
+            ) as load_spy:
                 writer = threading.Thread(target=write_file_late)
                 writer.start()
                 watcher = None
@@ -1353,6 +1358,11 @@ class TestStartConfigWatcher(unittest.TestCase):
                         config_path, mock.MagicMock(),
                         emit_events=False, inject_runtime=False)
                     self.assertIsNotNone(watcher)
+                    # First call(s) must fail (file not yet present), then
+                    # the writer thread creates the file and a later call
+                    # succeeds. Anything less than 2 invocations means the
+                    # retry path was never exercised.
+                    self.assertGreaterEqual(load_spy.call_count, 2)
                 finally:
                     writer.join()
                     if watcher is not None:
@@ -1372,6 +1382,31 @@ class TestStartConfigWatcher(unittest.TestCase):
                         missing_path, mock.MagicMock(),
                         emit_events=False, inject_runtime=False)
                 self.assertIn('failed at startup', str(ctx.exception))
+                self.assertIn('never became readable', str(ctx.exception))
+
+    def test_cold_start_fails_fast_on_permanent_error(self):
+        """Bad YAML must not consume the full retry deadline."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write('not: [valid: yaml')
+
+            with mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 60.0,
+            ), mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 1.0,
+            ):
+                start = time.monotonic()
+                with self.assertRaises(RuntimeError) as ctx:
+                    configmap_loader.start_config_watcher(
+                        config_path, mock.MagicMock(),
+                        emit_events=False, inject_runtime=False)
+                elapsed = time.monotonic() - start
+                # Should bail out essentially immediately (single attempt).
+                # Bound generously to absorb CI jitter; the point is that
+                # we don't sit through the 60s deadline.
+                self.assertLess(elapsed, 5.0)
+                self.assertIn('malformed or invalid', str(ctx.exception))
 
 
 if __name__ == '__main__':
