@@ -31,7 +31,7 @@ on:
         required: true
       model:
         description: 'LLM model name on NVIDIA gateway'
-        default: 'aws/anthropic/claude-opus-4-7'
+        default: 'aws/anthropic/claude-opus-4-5'
 
 permissions:
   contents: write
@@ -167,38 +167,30 @@ jobs:
           CURRENT_REF: ${{ steps.tags.outputs.current_ref }}
         run: |
           set -euo pipefail
-          template=".github/release-notes-template.md"
-          if [[ ! -f "$template" ]]; then
-            echo "::error::missing $template"
+          system_prompt=".github/release-notes-prompt.md"
+          if [[ ! -f "$system_prompt" ]]; then
+            echo "::error::missing $system_prompt"
             exit 1
           fi
           out="$RUNNER_TEMP/release-notes.md"
-          prompt_file="$RUNNER_TEMP/release-notes-prompt.md"
+          prompt_file="$RUNNER_TEMP/release-notes-prompt-with-bundle.md"
 
-          # Build the prompt as a file rather than an argv string — for large
-          # releases the bundle can still approach the OS argv limit even
-          # after dropping full diffs.
+          # Concatenate the system prompt with a per-run context block + the
+          # commit-log bundle. The system prompt has the goal, format rules,
+          # and humanization guidance; the context block grounds it in the
+          # specific version/range; the bundle is the source signal.
           {
-            cat "$template"
-            printf '\n\n----\n\n'
-            printf 'Generate release notes for OSMO %s following the template above.\n' "$VERSION"
-            printf 'Output ONLY the markdown body of the release notes file — no\n'
-            printf 'surrounding commentary, no code fences. Start with the RC notice\n'
-            printf 'block (this is a pre-release variant) and end with the Getting OSMO\n'
-            printf 'section verbatim from the template.\n\n'
-            printf 'Per-file diffs are not pre-loaded. The repo is checked out at\n'
-            printf '%s and the previous release tag is %s. For any commit whose\n' "$CURRENT_REF" "$PREV_TAG"
-            printf 'message is vague, ambiguous, or describes a user-visible change\n'
-            printf 'whose details matter for the release notes, investigate using:\n'
-            printf '\n'
-            printf '  git show <hash>                        # full diff for one commit\n'
-            printf '  git diff %s..%s -- <path>              # full diff for a path\n' "$PREV_TAG" "$CURRENT_REF"
-            printf '  git log %s..%s -- <path>               # commits touching a path\n' "$PREV_TAG" "$CURRENT_REF"
-            printf '\n'
-            printf 'Use these tools deliberately — pull diffs only for commits where\n'
-            printf 'the log message alone is insufficient. Do not pull diffs for\n'
-            printf 'every commit; trust the message when it is clear.\n\n'
-            printf 'Inputs from git history follow:\n\n'
+            cat "$system_prompt"
+            echo
+            echo
+            echo "## Context for this run"
+            echo
+            echo "- VERSION: \`$VERSION\`"
+            echo "- PREV_TAG: \`$PREV_TAG\`"
+            echo "- CURRENT_REF: \`$CURRENT_REF\`"
+            echo
+            echo "## Commit log bundle"
+            echo
             cat "$BUNDLE"
           } > "$prompt_file"
           echo "prompt size: $(wc -c < "$prompt_file") bytes"
@@ -209,7 +201,7 @@ jobs:
           npx @anthropic-ai/claude-code@2.1.91 --print --verbose \
             --output-format stream-json \
             --model "$ANTHROPIC_MODEL" \
-            --allowedTools "Read,Glob,Grep,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Bash(git rev-parse:*)" \
+            --allowedTools "Read,Glob,Grep,WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:nvidia.github.io),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Bash(git rev-parse:*)" \
             --max-turns 40 \
             < "$prompt_file" > "$stream_log" 2> "$stderr_log"
           claude_rc=$?
@@ -229,21 +221,44 @@ jobs:
             exit "$claude_rc"
           fi
 
-          # Extract final result text from the stream. claude-code emits a
-          # final event with type=result containing the assistant's complete
-          # response in the .result field.
-          jq -r 'select(.type == "result") | .result // empty' < "$stream_log" > "$out"
+          # Extract final result text from the stream.
+          raw_out="$RUNNER_TEMP/release-notes-raw.md"
+          jq -r 'select(.type == "result") | .result // empty' < "$stream_log" > "$raw_out"
 
-          if [[ ! -s "$out" ]]; then
+          if [[ ! -s "$raw_out" ]]; then
             echo "::error::Claude stream produced no result text. Inspect the stream above for max_turns or other stop reasons."
             exit 1
           fi
 
-          mkdir -p releases
-          cp "$out" "releases/${VERSION}.md"
-          echo "wrote releases/${VERSION}.md ($(wc -c < "releases/${VERSION}.md") bytes)"
+          # Sanitize: strip any chatter before the first heading. Models
+          # occasionally ignore "no preamble" instructions and emit
+          # "Now I have enough context. Let me generate..." before the
+          # actual notes.
+          awk '
+            !found && /^## / { found=1 }
+            found { print }
+          ' "$raw_out" > "$out"
+
+          if [[ ! -s "$out" ]]; then
+            echo "::error::Sanitized output is empty — no heading found in raw output"
+            echo "::group::raw output"
+            cat "$raw_out"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          stripped_bytes=$(($(wc -c < "$raw_out") - $(wc -c < "$out")))
+          if [[ "$stripped_bytes" -gt 0 ]]; then
+            echo "Sanitizer stripped ${stripped_bytes} bytes of preamble"
+          fi
+
+          # Keep the sanitized file in $RUNNER_TEMP only. The PR step copies
+          # it into releases/ AFTER the branch checkout, so we don't risk a
+          # checkout overwriting our generated content if releases/X.Y.Z.md
+          # already exists on main.
+          echo "wrote ${out} ($(wc -c < "$out") bytes)"
           echo "::group::Generated release notes"
-          cat "releases/${VERSION}.md"
+          cat "$out"
           echo "::endgroup::"
 
       - name: Open or update PR
@@ -255,7 +270,19 @@ jobs:
           branch="release-notes/${VERSION}"
           title="release notes: ${VERSION}"
 
-          git checkout -B "$branch"
+          # Branch from origin/main rather than the workflow's trigger ref so
+          # the PR contains only the generated release notes file. When the
+          # workflow is dispatched against a feature branch (e.g. for testing),
+          # we don't want that branch's other changes to leak into the PR.
+          git fetch origin main
+          git checkout -B "$branch" origin/main
+
+          # The generated file is in $RUNNER_TEMP — copy it in AFTER the
+          # checkout so the checkout can't overwrite our content (e.g. if
+          # main already has a tracked releases/${VERSION}.md from a prior
+          # release).
+          mkdir -p releases
+          cp "$RUNNER_TEMP/release-notes.md" "releases/${VERSION}.md"
           git add "releases/${VERSION}.md"
           if git diff --cached --quiet; then
             echo "no changes to commit; release notes already up to date"
@@ -268,9 +295,22 @@ jobs:
             echo "Updated existing PR #$existing on branch $branch"
             gh pr comment "$existing" --body "Refreshed by workflow run ${{ github.run_id }}."
           else
+            body=$(cat <<EOF
+          ## Description
+
+          Release notes for OSMO ${VERSION}, generated by the \`draft-release-notes\` workflow. Review the content for accuracy before merging.
+
+          Issue #None
+
+          ## Checklist
+          - [x] I am familiar with the [Contributing Guidelines](https://github.com/NVIDIA/OSMO/blob/main/CONTRIBUTING.md).
+          - [x] New or existing tests cover these changes.
+          - [x] The documentation is up to date with these changes.
+          EOF
+          )
             gh pr create \
               --title "$title" \
-              --body "Release notes for OSMO ${VERSION}, generated by the draft-release-notes workflow. Review the content for accuracy before merging." \
+              --body "$body" \
               --base main \
               --head "$branch"
           fi
