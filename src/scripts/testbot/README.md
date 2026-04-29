@@ -121,6 +121,7 @@ Then post a new `/testbot` comment with clearer instructions.
 |----------|-------|-------------|
 | `MIN_FILE_LINES` | `10` | Skip files smaller than this |
 | `MAX_FILE_LINES` | `0` | Skip files larger than this (0 = no cap) |
+| `LANGUAGE_PRIORITY` | `.py`/`.go` = 0, `.ts`/`.tsx` = 1 | Backend code is prioritized over UI; lower bucket picked first, ties broken by coverage % asc |
 
 ## File Structure
 

@@ -46,6 +46,26 @@ SKIP_BASENAME_PATTERNS = [
 MIN_FILE_LINES = 10
 MAX_FILE_LINES = 0  # 0 = no cap
 
+# Language priority bucket — lower value picked first within a target run.
+# Backend code (Python, Go) gets the limited test-generation budget before
+# frontend (TS/TSX) at the same coverage level; UI files are still eligible
+# but only after backend gaps are addressed.
+LANGUAGE_PRIORITY = {
+    ".py": 0,
+    ".go": 0,
+    ".ts": 1,
+    ".tsx": 1,
+}
+DEFAULT_LANGUAGE_PRIORITY = 2
+
+
+def _language_priority(file_path: str) -> int:
+    """Return the language priority bucket for a file path."""
+    if "." not in file_path:
+        return DEFAULT_LANGUAGE_PRIORITY
+    ext = "." + file_path.rsplit(".", maxsplit=1)[-1]
+    return LANGUAGE_PRIORITY.get(ext, DEFAULT_LANGUAGE_PRIORITY)
+
 
 def _is_ignored(file_path: str) -> bool:
     """Check if a file path matches ignore patterns.
@@ -192,7 +212,12 @@ def select_targets(
             "uncovered_ranges": uncovered_ranges,
         })
 
-    entries.sort(key=lambda entry: entry["coverage_pct"])
+    # Primary: language priority (backend before frontend).
+    # Secondary: coverage_pct ascending (worst coverage first within bucket).
+    entries.sort(key=lambda entry: (
+        _language_priority(entry["file_path"]),
+        entry["coverage_pct"],
+    ))
     return entries[:max_targets]
 
 

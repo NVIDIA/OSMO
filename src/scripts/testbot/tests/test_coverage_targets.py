@@ -193,6 +193,44 @@ class TestSelectTargets(unittest.TestCase):
         result = select_targets(report, max_targets=1, max_uncovered=10)
         self.assertEqual(result[0]["uncovered_lines"], 10)
 
+    def test_prefers_backend_over_frontend_at_same_coverage(self):
+        # Frontend file at 0% coverage but a higher-coverage backend file
+        # is picked first because language priority dominates.
+        report = {"files": [
+            {"name": "src/ui/foo.ts", "line_coverage": [[i, 1] for i in range(20)]},
+            {"name": "src/service/bar.py",
+             "line_coverage": [[i, 0] for i in range(15)] + [[i, 1] for i in range(15, 20)]},
+        ]}
+        result = select_targets(report, max_targets=2, max_uncovered=0)
+        self.assertEqual(result[0]["file_path"], "src/service/bar.py")
+        self.assertEqual(result[1]["file_path"], "src/ui/foo.ts")
+
+    def test_prefers_go_over_tsx_at_same_coverage(self):
+        report = {"files": [
+            {"name": "src/ui/page.tsx", "line_coverage": [[i, 1] for i in range(20)]},
+            {"name": "src/runtime/cmd/main.go", "line_coverage": [[i, 1] for i in range(20)]},
+        ]}
+        result = select_targets(report, max_targets=1, max_uncovered=0)
+        self.assertEqual(result[0]["file_path"], "src/runtime/cmd/main.go")
+
+    def test_falls_back_to_frontend_when_backend_fully_covered(self):
+        report = {"files": [
+            {"name": "src/service/done.py", "line_coverage": [[i, 0] for i in range(20)]},
+            {"name": "src/ui/foo.ts", "line_coverage": [[i, 1] for i in range(20)]},
+        ]}
+        result = select_targets(report, max_targets=1, max_uncovered=0)
+        self.assertEqual(result[0]["file_path"], "src/ui/foo.ts")
+
+    def test_within_backend_sorts_by_coverage_ascending(self):
+        report = {"files": [
+            {"name": "src/a.py",
+             "line_coverage": [[i, 0] for i in range(15)] + [[i, 1] for i in range(15, 20)]},
+            {"name": "src/b.py", "line_coverage": [[i, 1] for i in range(20)]},
+        ]}
+        result = select_targets(report, max_targets=2, max_uncovered=0)
+        self.assertEqual(result[0]["file_path"], "src/b.py")  # 0% covered
+        self.assertEqual(result[1]["file_path"], "src/a.py")  # 75% covered
+
 
 class TestFormatTargets(unittest.TestCase):
     """Tests for format_targets output formatting."""
