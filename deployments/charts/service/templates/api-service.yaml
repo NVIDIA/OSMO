@@ -149,24 +149,14 @@ spec:
         - --default_admin_username
         - {{ .Values.services.defaultAdmin.username | quote }}
         {{- end }}
-        {{- if .Values.services.configs.enabled }}
-        - --config_file
-        - /etc/osmo/configs/config.yaml
-        {{- end }}
+        {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
-        {{- if .Values.services.configs.enabled }}
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: OSMO_CONFIGMAP_NAME
-          value: {{ .Values.services.service.serviceName }}-configs
-        {{- end }}
+        {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}
@@ -212,16 +202,7 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- if .Values.services.configs.enabled }}
-        - name: configs
-          mountPath: /etc/osmo/configs
-          readOnly: true
-        {{- range .Values.services.configs.secretRefs }}
-        - name: secret-{{ .secretName }}
-          mountPath: /etc/osmo/secrets/{{ .secretName }}
-          readOnly: true
-        {{- end }}
-        {{- end }}
+        {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           mountPath: /logs
@@ -273,16 +254,7 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
-        {{- if .Values.services.configs.enabled }}
-        - name: configs
-          configMap:
-            name: {{ .Values.services.service.serviceName }}-configs
-        {{- range .Values.services.configs.secretRefs }}
-        - name: secret-{{ .secretName }}
-          secret:
-            secretName: {{ .secretName }}
-        {{- end }}
-        {{- end }}
+        {{- include "osmo.configmap-volumes" . | nindent 8 }}
 ---
 
 apiVersion: v1

@@ -33,6 +33,8 @@ import pydantic
 
 from src.lib.utils import common, osmo_errors
 import src.lib.utils.logging
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.utils.job import jobs, jobs_base
 from src.utils.metrics import metrics
 from src.utils import connectors, static_config
@@ -44,7 +46,7 @@ UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 
 class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                    src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
-                   metrics.MetricsCreatorConfig):
+                   metrics.MetricsCreatorConfig, ConfigFileMixin):
     progress_file: str = pydantic.Field(
         default='/var/run/osmo/last_progress',
         description='The file to write progress timestamps to (For liveness/startup probes)',
@@ -68,7 +70,7 @@ class Worker(kombu.mixins.ConsumerMixin):
         self.config = config
         self.connection = connection
         self.context = jobs.JobExecutionContext(
-            postgres=connectors.PostgresConnector(self.config),
+            postgres=connectors.PostgresConnector.get_instance(),
             redis=self.config)
         self.redis_client = connectors.RedisConnector.get_instance().client
         self._worker_metrics = metrics.MetricCreator.get_meter_instance()
@@ -218,6 +220,12 @@ def main():
     worker_metrics = metrics.MetricCreator(config=config).get_meter_instance()
     worker_metrics.start_server()
     connectors.RedisConnector(config)
+    postgres = connectors.PostgresConnector(config)
+    # Bind to a local so the watchdog Observer thread isn't GC'd; only the
+    # API service emits K8s Events / injects runtime fields.
+    _config_watcher = configmap_loader.start_config_watcher(  # noqa: F841
+        config.config_file, postgres,
+        emit_events=False, inject_runtime=False)
 
     if config.method != 'dev':
         worker_metrics.send_observable_gauge(

@@ -21,6 +21,8 @@ SPDX-License-Identifier: Apache-2.0
 import logging
 import os
 import tempfile
+import threading
+import time
 import unittest
 from typing import Any, Dict
 from unittest import mock
@@ -1273,6 +1275,103 @@ class TestConfigFileEventHandler(unittest.TestCase):
         handler.on_any_event(event)
 
         self.assertIsNotNone(handler._debounce_timer)
+
+
+class TestStartConfigWatcher(unittest.TestCase):
+    """Tests for the start_config_watcher convenience helper."""
+
+    def setUp(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def tearDown(self):
+        configmap_state.set_configmap_mode(False)
+        configmap_state.set_parsed_configs(None)
+
+    def test_returns_none_when_config_file_unset(self):
+        watcher = configmap_loader.start_config_watcher(
+            None, mock.MagicMock(), emit_events=True, inject_runtime=True)
+        self.assertIsNone(watcher)
+        self.assertFalse(configmap_state.is_configmap_mode())
+
+    def test_emit_events_false_skips_event_recorder(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump({'service': {}}, f)
+
+            with mock.patch.object(
+                configmap_events, 'ConfigMapEventRecorder',
+            ) as mock_recorder:
+                watcher = configmap_loader.start_config_watcher(
+                    config_path, mock.MagicMock(),
+                    emit_events=False, inject_runtime=False)
+                assert watcher is not None
+                try:
+                    self.assertIsNone(watcher._event_recorder)
+                    mock_recorder.assert_not_called()
+                finally:
+                    watcher.stop()
+
+    def test_inject_runtime_false_skips_db_read(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+            with open(config_path, 'w', encoding='utf-8') as f:
+                yaml.dump({'service': {}}, f)
+
+            postgres = mock.MagicMock()
+            watcher = configmap_loader.start_config_watcher(
+                config_path, postgres,
+                emit_events=False, inject_runtime=False)
+            assert watcher is not None
+            try:
+                # _inject_runtime_fields was not invoked, so no DB read.
+                postgres.get_service_configs.assert_not_called()
+            finally:
+                watcher.stop()
+
+    def test_cold_start_retry_succeeds_when_file_appears(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config_path = os.path.join(tmp_dir, 'config.yaml')
+
+            def write_file_late():
+                time.sleep(0.15)
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump({'service': {}}, f)
+
+            # Speed up the retry loop so the test runs in <1s.
+            with mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 5.0,
+            ), mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 0.05,
+            ):
+                writer = threading.Thread(target=write_file_late)
+                writer.start()
+                watcher = None
+                try:
+                    watcher = configmap_loader.start_config_watcher(
+                        config_path, mock.MagicMock(),
+                        emit_events=False, inject_runtime=False)
+                    self.assertIsNotNone(watcher)
+                finally:
+                    writer.join()
+                    if watcher is not None:
+                        watcher.stop()
+
+    def test_cold_start_raises_after_deadline(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            missing_path = os.path.join(tmp_dir, 'never-appears.yaml')
+
+            with mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_DEADLINE_S', 0.2,
+            ), mock.patch.object(
+                configmap_loader, '_STARTUP_RETRY_INTERVAL_S', 0.05,
+            ):
+                with self.assertRaises(RuntimeError) as ctx:
+                    configmap_loader.start_config_watcher(
+                        missing_path, mock.MagicMock(),
+                        emit_events=False, inject_runtime=False)
+                self.assertIn('failed at startup', str(ctx.exception))
 
 
 if __name__ == '__main__':

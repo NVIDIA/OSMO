@@ -26,12 +26,15 @@ import uvicorn  # type: ignore
 import src.lib.utils.logging
 from src.service.logger import ctrl_websocket
 from src.service.core.auth import auth_service
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.utils import connectors, static_config
 from src.utils.progress_check import progress
 
 
 class LoggerServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
-                          src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
+                          src.lib.utils.logging.LoggingConfig,
+                          static_config.StaticConfig, ConfigFileMixin):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
@@ -68,7 +71,11 @@ async def put_workflow_logs(websocket: fastapi.WebSocket, name: str, task_name: 
 def main():
     config = LoggerServiceConfig.load()
     src.lib.utils.logging.init_logger('logger', config)
-    _ = connectors.PostgresConnector(config)
+    postgres = connectors.PostgresConnector(config)
+    # Pin the watcher on app.state so the daemon Observer thread isn't GC'd.
+    app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres,
+        emit_events=False, inject_runtime=False)
     parsed_url = urlparse(config.host)
     host = parsed_url.hostname if parsed_url.hostname else ''
     if parsed_url.port:

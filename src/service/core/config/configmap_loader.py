@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import threading
+import time
 from typing import Any, Callable, Dict, List
 
 import pydantic
@@ -30,6 +31,31 @@ from watchdog import events, observers
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
 from src.service.core.config import configmap_events, configmap_guard
 from src.utils import connectors
+
+
+# Cold-start retry: kubelet may take up to ~60s to project a freshly-created
+# ConfigMap volume on a new pod, so we retry the initial load before giving up.
+_STARTUP_RETRY_DEADLINE_S = 30.0
+_STARTUP_RETRY_INTERVAL_S = 1.0
+
+
+class ConfigFileMixin(pydantic.BaseModel):
+    """Pydantic mixin adding `--config_file` to a service config class.
+
+    Inherited by every service binary that wants ConfigMap mode (api,
+    worker, agent, logger). Centralizing the field keeps the flag name
+    (`--config_file`) and env var (`OSMO_CONFIG_FILE`) consistent across
+    services and avoids argparse divergence when one binary loads more
+    than one config class (e.g. agent loads both WorkflowServiceConfig
+    and BackendServiceConfig).
+    """
+    config_file: str | None = pydantic.Field(
+        default=None,
+        description='Path to ConfigMap YAML file to load configs from.',
+        json_schema_extra={
+            'command_line': 'config_file',
+            'env': 'OSMO_CONFIG_FILE',
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -83,11 +109,14 @@ class ConfigMapWatcher:
         self,
         config_file_path: str,
         postgres: connectors.PostgresConnector | None = None,
+        *,
         event_recorder: configmap_events.EventRecorder | None = None,
+        inject_runtime: bool = True,
     ):
         self._config_file_path = config_file_path
         self._postgres = postgres
         self._event_recorder = event_recorder
+        self._inject_runtime = inject_runtime
         self._watch_directory = os.path.dirname(config_file_path)
         self._config_filename = os.path.basename(config_file_path)
         self._observer: Any = None
@@ -98,15 +127,22 @@ class ConfigMapWatcher:
     def start(self) -> None:
         """Load configs, activate ConfigMap mode, start file watcher.
 
-        A startup load failure raises RuntimeError so the pod crashes
-        and K8s stalls the rolling update at the bad revision; old
-        pods keep serving. Same behavior as CoreDNS / NGINX Ingress
-        with a bad config file at startup.
+        Retries the initial load for up to _STARTUP_RETRY_DEADLINE_S so a
+        pod scheduled before kubelet finishes projecting the ConfigMap
+        volume doesn't immediately CrashLoopBackoff. After the deadline,
+        a load failure raises RuntimeError; K8s stalls the rolling update
+        at the bad revision and old pods keep serving.
         """
-        if not self._load_and_apply():
-            raise RuntimeError(
-                f'ConfigMap load failed at startup '
-                f'({self._config_file_path}). Refusing to serve.')
+        deadline = time.monotonic() + _STARTUP_RETRY_DEADLINE_S
+        while True:
+            if self._load_and_apply():
+                break
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f'ConfigMap load failed at startup after '
+                    f'{_STARTUP_RETRY_DEADLINE_S:.0f}s '
+                    f'({self._config_file_path}). Refusing to serve.')
+            time.sleep(_STARTUP_RETRY_INTERVAL_S)
 
         configmap_guard.set_configmap_mode(True)
         logging.info(
@@ -190,7 +226,10 @@ class ConfigMapWatcher:
 
         # Inject runtime-generated fields (service_auth, service_base_url)
         # that are not in the ConfigMap but are needed by the service.
-        self._inject_runtime_fields(managed_configs)
+        # Only the API service generates these; non-API services (worker,
+        # agent, logger) skip the injection and the unnecessary DB read.
+        if self._inject_runtime:
+            self._inject_runtime_fields(managed_configs)
 
         # Atomic swap — in-flight requests holding a reference to the old
         # dict continue using it; new requests get the new dict.
@@ -231,6 +270,53 @@ class ConfigMapWatcher:
         for field in ('service_auth', 'service_base_url'):
             if field not in service_config and field in prev_service:
                 service_config[field] = prev_service[field]
+
+
+def start_config_watcher(
+    config_file: str | None,
+    postgres: connectors.PostgresConnector,
+    *,
+    emit_events: bool = False,
+    inject_runtime: bool = False,
+) -> 'ConfigMapWatcher | None':
+    """Initialize and start a ConfigMapWatcher when `config_file` is set.
+
+    Returns the watcher so the caller can keep a reference (the watchdog
+    Observer thread is daemonic; without a live reference the watcher may
+    be GC'd while the process is still alive).
+
+    Args:
+        emit_events: Pass True only for the API service. Worker/agent/logger
+            run with multiple replicas and N replicas racing on the same K8s
+            Event object produces 409 Conflict storms; let them log to stderr
+            instead.
+        inject_runtime: Pass True only for the API service. service_auth
+            and service_base_url are runtime-generated fields meaningful
+            only for the API; injecting them in non-API services adds an
+            unnecessary DB round-trip and confuses readers.
+    """
+    if not config_file:
+        return None
+
+    event_recorder: configmap_events.EventRecorder | None = None
+    if emit_events:
+        pod_namespace = os.environ.get('POD_NAMESPACE')
+        configmap_name = os.environ.get('OSMO_CONFIGMAP_NAME')
+        if pod_namespace and configmap_name:
+            event_recorder = configmap_events.ConfigMapEventRecorder(
+                namespace=pod_namespace, configmap_name=configmap_name)
+        else:
+            logging.warning(
+                'POD_NAMESPACE or OSMO_CONFIGMAP_NAME unset; '
+                'ConfigMap reload events will not be emitted')
+
+    watcher = ConfigMapWatcher(
+        config_file, postgres,
+        event_recorder=event_recorder,
+        inject_runtime=inject_runtime,
+    )
+    watcher.start()
+    return watcher
 
 
 # ---------------------------------------------------------------------------
