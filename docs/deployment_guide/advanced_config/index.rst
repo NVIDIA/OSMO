@@ -64,12 +64,6 @@ This section provides additional advanced configurations to customize and optimi
 
           File synchronization configuration for seamless data transfer in workflows.
 
-      .. grid-item-card:: :octicon:`file` Dataset Buckets
-          :link: ./dataset_buckets
-          :link-type: doc
-
-          Configure additional data buckets for managing team datasets and isolated storage.
-
       .. grid-item-card:: :octicon:`shield-lock` Pool-Wide Workload Identity
           :link: ./workflow_pod_workload_identity
           :link-type: doc
