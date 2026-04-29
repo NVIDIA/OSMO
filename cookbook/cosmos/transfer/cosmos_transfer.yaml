@@ -53,7 +53,6 @@ workflow:
     resource: cosmos
     inputs:
     - task: isaac-sim-sdg
-    - url: {{ storage_url }}/isaac-sim-cosmos-warehouse-sample/{{workflow_id}}/
     files:
       - path: /tmp/entry.sh
         contents: |
@@ -79,15 +78,15 @@ workflow:
           {
               "name": "cosmos-transfer-sample",
               "prompt": "High-quality warehouse simulation...",
-              "video_path": "{{input:1}}/clip_0000/rgb.mp4",
+              "video_path": "{{input:0}}/clip_0000/rgb.mp4",
               "vis": {"control_weight": 0.25},
               "edge": {"control_weight": 0.25},
               "depth": {
-                  "input_control": "{{input:1}}/clip_0000/depth.mp4",
+                  "input_control": "{{input:0}}/clip_0000/depth.mp4",
                   "control_weight": 0.25
               },
               "seg": {
-                  "input_control": "{{input:1}}/clip_0000/segmentation.mp4",
+                  "input_control": "{{input:0}}/clip_0000/segmentation.mp4",
                   "control_weight": 0.25
               }
           }
