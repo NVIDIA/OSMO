@@ -34,7 +34,10 @@ ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # non-terminal so the user's /testbot is still eligible for retry on the next
 # event without having to repost the comment.
 ERROR_REPLY_MARKER = "<!-- testbot-status: error -->"
-# Shared with testbot.yaml — update both when changing the tool allowlist.
+# Mostly mirrored in testbot.yaml's `--allowedTools` — keep the shared
+# entries (Read/Edit/Write/Glob/Grep, cd/mv/rm, bazel/pnpm/npx/vitest/tsc)
+# in sync. The `gh pr view/diff/checks` entries are respond-only because
+# generate runs before any PR exists.
 ALLOWED_TOOLS = (
     "Read,Edit,Write,Glob,Grep,"
     "Bash(cd *),Bash(mv *),Bash(rm *),"
