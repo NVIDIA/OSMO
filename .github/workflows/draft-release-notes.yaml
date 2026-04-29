@@ -203,14 +203,39 @@ jobs:
           } > "$prompt_file"
           echo "prompt size: $(wc -c < "$prompt_file") bytes"
 
-          npx @anthropic-ai/claude-code@2.1.91 --print \
+          stream_log="$RUNNER_TEMP/claude-stream.jsonl"
+          stderr_log="$RUNNER_TEMP/claude-stderr.log"
+          set +e
+          npx @anthropic-ai/claude-code@2.1.91 --print --verbose \
+            --output-format stream-json \
             --model "$ANTHROPIC_MODEL" \
             --allowedTools "Read,Glob,Grep,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Bash(git rev-parse:*)" \
             --max-turns 40 \
-            < "$prompt_file" > "$out"
+            < "$prompt_file" > "$stream_log" 2> "$stderr_log"
+          claude_rc=$?
+          set -e
+
+          echo "::group::claude-code stderr"
+          cat "$stderr_log" || true
+          echo "::endgroup::"
+          echo "::group::claude-code stream (JSONL)"
+          cat "$stream_log" || true
+          echo "::endgroup::"
+          echo "claude-code exit code: ${claude_rc}"
+          echo "stream size: $(wc -c < "$stream_log") bytes"
+
+          if [[ "$claude_rc" -ne 0 ]]; then
+            echo "::error::claude-code exited with code ${claude_rc}"
+            exit "$claude_rc"
+          fi
+
+          # Extract final result text from the stream. claude-code emits a
+          # final event with type=result containing the assistant's complete
+          # response in the .result field.
+          jq -r 'select(.type == "result") | .result // empty' < "$stream_log" > "$out"
 
           if [[ ! -s "$out" ]]; then
-            echo "::error::Claude returned empty output"
+            echo "::error::Claude stream produced no result text. Inspect the stream above for max_turns or other stop reasons."
             exit 1
           fi
 
