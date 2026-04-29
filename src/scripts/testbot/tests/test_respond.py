@@ -107,6 +107,33 @@ class TestFilterActionable(unittest.TestCase):
         result = filter_actionable(threads, "/testbot")
         self.assertEqual(result, [])
 
+    def test_actionable_after_bot_error_reply(self):
+        # A bot reply bearing the error marker is non-terminal: the user's
+        # /testbot stays actionable so a retry on the next event proceeds.
+        comments = [
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200,
+             "body": "I hit the max-turns limit after 201 turns.\n\n<!-- testbot-status: error -->",
+             "author": "svc-osmo-ci", "association": "NONE"},
+        ]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["reply_comment_id"], 100)
+
+    def test_skips_thread_after_bot_error_then_success(self):
+        # Error → user followup → bot success: no retry
+        comments = [
+            {"id": 100, "body": "/testbot fix this", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 200, "body": "Error.\n\n<!-- testbot-status: error -->",
+             "author": "svc-osmo-ci", "association": "NONE"},
+            {"id": 300, "body": "/testbot retry", "author": "jiaenren", "association": "MEMBER"},
+            {"id": 400, "body": "Fix applied.", "author": "svc-osmo-ci", "association": "NONE"},
+        ]
+        threads = [self._make_thread(comments=comments)]
+        result = filter_actionable(threads, "/testbot")
+        self.assertEqual(result, [])
+
     def test_skips_thread_without_trigger(self):
         comments = [{"id": 100, "body": "please fix this", "author": "jiaenren", "association": "MEMBER"}]
         threads = [self._make_thread(comments=comments)]
