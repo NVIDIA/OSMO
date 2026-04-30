@@ -815,9 +815,11 @@ class CheckRunTimeoutDbTest(TaskDbFixture):
 class CheckQueueTimeoutDbTest(TaskDbFixture):
     """DB-backed integration tests for CheckQueueTimeout per-group queue_timeout enforcement.
 
-    Per-group semantics: the clock starts when a group enters SCHEDULING and runs until the
-    group reaches RUNNING. If the group is still in SCHEDULING/INITIALIZING after queue_timeout,
-    just that group is marked FAILED_QUEUE_TIMEOUT.
+    Per-group semantics: the clock starts when a group enters SCHEDULING and stops when the
+    group is assigned a node and enters INITIALIZING. If the group is still in SCHEDULING
+    after queue_timeout, just that group is marked FAILED_QUEUE_TIMEOUT. Once the group has
+    progressed to INITIALIZING (or beyond) the queue clock has stopped — image-pull and
+    preflight time is governed separately by the start timeout.
     """
 
     QUEUE_TIMEOUT_SECONDS = 100
