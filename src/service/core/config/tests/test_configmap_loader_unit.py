@@ -924,8 +924,12 @@ class TestConfigMapWatcherLoadAndApply(unittest.TestCase):
             service_config = snapshot['service']
             self.assertEqual(
                 service_config['max_pod_restart_limit'], '30m')
+            # Only service_auth is injected from DB now. service_base_url
+            # is sourced from the ConfigMap (Helm template auto-derives
+            # it from services.service.hostname); falling back to DB
+            # silently masked ConfigMap misconfiguration.
             self.assertIn('service_auth', service_config)
-            self.assertIn('service_base_url', service_config)
+            self.assertNotIn('service_base_url', service_config)
         finally:
             os.unlink(path)
 

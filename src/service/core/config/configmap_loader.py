@@ -286,12 +286,6 @@ class ConfigMapWatcher:
         reads from DB; subsequent reloads carry forward from the
         previous snapshot.
 
-        service_base_url is intentionally NOT injected — the Helm
-        template auto-derives it from services.service.hostname into
-        the ConfigMap, so the snapshot is the only source of truth.
-        Falling back to DB here would mask a missing/misconfigured
-        ConfigMap value with whatever stale URL happens to be in the
-        configs table.
         """
         previous = configmap_guard.get_snapshot()
         if previous is not None:
@@ -321,12 +315,18 @@ def start_config_watcher(
     Observer thread is daemonic; without a live reference the watcher may
     be GC'd while the process is still alive).
 
-    Only the API service emits K8s Events on reload failures — worker,
-    agent, and logger run as multiple replicas and would race on the same
-    Event object. Runtime field injection (service_auth) runs in every
-    service so the worker's JWT-minting path doesn't fall through to
-    ServiceConfig's default_factory and generate a fresh RSA keypair the
-    API/authz_sidecar can't validate against.
+    Only the API service emits K8s Events on reload failures. All four
+    services watch the same ConfigMap and all reload on the same file
+    change; emitting from each would multiply the same logical event.
+    The API is the natural single emitter — operators look there first.
+    (Replica-level races on the same Event object exist regardless and
+    are handled defensively by configmap_events; this gate just avoids
+    cross-service duplication.)
+
+    Runtime field injection (service_auth) runs in every service so the
+    worker's JWT-minting path doesn't fall through to ServiceConfig's
+    default_factory and generate a fresh RSA keypair the API/authz_sidecar
+    can't validate against.
     """
     if not config_file:
         return None
