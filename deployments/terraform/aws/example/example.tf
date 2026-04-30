@@ -115,28 +115,65 @@ module "eks" {
     attach_cluster_primary_security_group = true
   }
 
-  eks_managed_node_groups = {
-    main = {
-      name = "${local.name}-nodes"
+  eks_managed_node_groups = merge(
+    {
+      main = {
+        name = "${local.name}-nodes"
 
-      min_size     = var.node_group_min_size
-      max_size     = var.node_group_max_size
-      desired_size = var.node_group_desired_size
+        min_size     = var.node_group_min_size
+        max_size     = var.node_group_max_size
+        desired_size = var.node_group_desired_size
 
-      instance_types = var.node_instance_types
-      capacity_type  = "ON_DEMAND"
+        instance_types = var.node_instance_types
+        capacity_type  = "ON_DEMAND"
 
-      k8s_labels = {
-        NodeGroup   = "${local.name}-nodes"
+        k8s_labels = {
+          NodeGroup = "${local.name}-nodes"
+        }
+
+        update_config = {
+          max_unavailable_percentage = 33
+        }
+
+        tags = local.tags
       }
+    },
+    # Optional GPU node group (gated on var.gpu_node_pool_enabled).
+    # Tainted with sku=gpu:NoSchedule so non-GPU pods don't schedule here;
+    # deploy-k8s.sh detects GPU nodes and renders a matching toleration.
+    var.gpu_node_pool_enabled ? {
+      gpu = {
+        name = "${local.name}-gpu"
 
-      update_config = {
-        max_unavailable_percentage = 33
+        min_size     = var.gpu_node_group_min_size
+        max_size     = var.gpu_node_group_max_size
+        desired_size = var.gpu_node_group_min_size
+
+        instance_types = [var.gpu_instance_type]
+        capacity_type  = var.gpu_node_group_capacity_type
+        ami_type       = "AL2_x86_64_GPU"
+
+        labels = {
+          "nvidia.com/gpu" = "present"
+          "sku"            = "gpu"
+        }
+
+        taints = {
+          gpu = {
+            key    = "sku"
+            value  = "gpu"
+            effect = "NO_SCHEDULE"
+          }
+        }
+
+        update_config = {
+          max_unavailable_percentage = 33
+        }
+
+        tags = local.tags
       }
-
-      tags = local.tags
-    }
-  }
+    } : {}
+  )
 
   # EKS Access Entries (replaces aws-auth ConfigMap in module v20+)
   # This is the new AWS-native way to manage cluster access

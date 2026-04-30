@@ -235,6 +235,65 @@ resource "azurerm_kubernetes_cluster" "main" {
 }
 
 ################################################################################
+# Optional GPU node pool (gated on var.gpu_node_pool_enabled)
+#
+# Adds a separate AKS node pool with `sku=gpu:NoSchedule` taint so non-GPU
+# workloads don't schedule there. deploy-k8s.sh detects nodes labeled
+# `nvidia.com/gpu.present` (set by the NVIDIA GPU Operator's device plugin)
+# and renders a matching toleration into Helm values for the OSMO pool.
+################################################################################
+
+resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
+  count                 = var.gpu_node_pool_enabled ? 1 : 0
+  name                  = "gpu"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.main.id
+  vm_size               = var.gpu_vm_size
+  min_count             = var.gpu_node_pool_min_size
+  max_count             = var.gpu_node_pool_max_size
+  auto_scaling_enabled  = true
+  vnet_subnet_id        = azurerm_subnet.private[0].id
+  zones                 = var.availability_zones
+  os_disk_size_gb       = 100
+  priority              = var.gpu_node_pool_priority
+  eviction_policy       = var.gpu_node_pool_priority == "Spot" ? "Delete" : null
+  spot_max_price        = var.gpu_node_pool_priority == "Spot" ? -1 : null
+
+  node_taints = ["sku=gpu:NoSchedule"]
+  node_labels = {
+    "nvidia.com/gpu" = "present"
+    "sku"            = "gpu"
+  }
+
+  tags = local.tags
+}
+
+################################################################################
+# Optional Storage Account for OSMO workflow data (gated on var.storage_account_enabled)
+#
+# When enabled, configure-storage.sh --backend azure-blob reads the outputs
+# (storage_account, storage_account_key) directly. Disable to BYO an existing
+# Storage Account; pass STORAGE_ACCOUNT/STORAGE_KEY as env vars instead.
+################################################################################
+
+resource "azurerm_storage_account" "osmo" {
+  count                    = var.storage_account_enabled ? 1 : 0
+  name                     = replace("${local.name}osmo", "-", "")
+  resource_group_name      = data.azurerm_resource_group.main.name
+  location                 = data.azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  min_tls_version          = "TLS1_2"
+  tags                     = local.tags
+}
+
+resource "azurerm_storage_container" "osmo_workflows" {
+  count                 = var.storage_account_enabled ? 1 : 0
+  name                  = "osmo-workflows"
+  storage_account_id    = azurerm_storage_account.osmo[0].id
+  container_access_type = "private"
+}
+
+################################################################################
 # PostgreSQL Flexible Server
 ################################################################################
 

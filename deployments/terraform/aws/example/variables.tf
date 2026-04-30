@@ -175,10 +175,9 @@ variable "rds_username" {
 }
 
 variable "rds_password" {
-  description = "RDS master password"
+  description = "RDS master password — required, no default. Pass via --postgres-password to deploy-osmo-minimal.sh or set TF_VAR_rds_password."
   type        = string
   sensitive   = true
-  default     = "changeme123!"
 }
 
 variable "rds_port" {
@@ -237,10 +236,9 @@ variable "redis_snapshot_retention_limit" {
 }
 
 variable "redis_auth_token" {
-  description = "Auth token for Redis (password). Must be at least 16 characters."
+  description = "Auth token for Redis (password) — required, no default. Must be at least 16 characters. Pass via --redis-password to deploy-osmo-minimal.sh or set TF_VAR_redis_auth_token."
   type        = string
   sensitive   = true
-  default     = "changeme-redis-password-123!"
 }
 
 # ALB Variables
@@ -269,5 +267,40 @@ variable "alb_ip_address_type" {
   validation {
     condition     = contains(["ipv4", "dualstack"], var.alb_ip_address_type)
     error_message = "Valid values for alb_ip_address_type are ipv4 and dualstack."
+  }
+}
+
+# Optional GPU node group — disabled by default to keep `example` minimal.
+variable "gpu_node_pool_enabled" {
+  description = "Provision an optional GPU EKS node group tainted with sku=gpu:NoSchedule"
+  type        = bool
+  default     = false
+}
+
+variable "gpu_instance_type" {
+  description = "EC2 instance type for GPU nodes (e.g. g5.xlarge for A10G, p4d.24xlarge for A100, p5.48xlarge for H100)"
+  type        = string
+  default     = "g5.xlarge"
+}
+
+variable "gpu_node_group_min_size" {
+  description = "Minimum number of nodes in the GPU node group"
+  type        = number
+  default     = 0
+}
+
+variable "gpu_node_group_max_size" {
+  description = "Maximum number of nodes in the GPU node group"
+  type        = number
+  default     = 4
+}
+
+variable "gpu_node_group_capacity_type" {
+  description = "Capacity type for GPU nodes: ON_DEMAND or SPOT"
+  type        = string
+  default     = "ON_DEMAND"
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.gpu_node_group_capacity_type)
+    error_message = "gpu_node_group_capacity_type must be ON_DEMAND or SPOT."
   }
 }

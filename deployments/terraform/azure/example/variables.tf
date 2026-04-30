@@ -190,10 +190,9 @@ variable "postgres_username" {
 }
 
 variable "postgres_password" {
-  description = "PostgreSQL admin password"
+  description = "PostgreSQL admin password — required, no default. Pass via --postgres-password to deploy-osmo-minimal.sh or set TF_VAR_postgres_password."
   type        = string
   sensitive   = true
-  default     = "changeme123!"
 }
 
 variable "postgres_backup_retention_days" {
@@ -255,4 +254,49 @@ variable "log_analytics_retention_days" {
   description = "The workspace data retention in days"
   type        = number
   default     = 30
+}
+
+# Optional GPU node pool — disabled by default to keep `example` minimal.
+variable "gpu_node_pool_enabled" {
+  description = "Provision an optional GPU node pool tainted with sku=gpu:NoSchedule"
+  type        = bool
+  default     = false
+}
+
+variable "gpu_vm_size" {
+  description = "Azure VM size for GPU nodes (e.g. Standard_NC24ads_A100_v4, Standard_NC40ads_H100_v5)"
+  type        = string
+  default     = "Standard_NC24ads_A100_v4"
+}
+
+variable "gpu_node_pool_min_size" {
+  description = "Minimum number of nodes in the GPU pool"
+  type        = number
+  default     = 0
+}
+
+variable "gpu_node_pool_max_size" {
+  description = "Maximum number of nodes in the GPU pool"
+  type        = number
+  default     = 4
+}
+
+variable "gpu_node_pool_priority" {
+  description = "Node pool priority: Regular (default) or Spot"
+  type        = string
+  default     = "Regular"
+
+  validation {
+    condition     = contains(["Regular", "Spot"], var.gpu_node_pool_priority)
+    error_message = "gpu_node_pool_priority must be 'Regular' or 'Spot'."
+  }
+}
+
+# Optional Storage Account for OSMO workflow data — disabled by default.
+# When false, BYO an existing Storage Account by setting STORAGE_ACCOUNT and
+# STORAGE_KEY env vars before running configure-storage.sh --backend azure-blob.
+variable "storage_account_enabled" {
+  description = "Provision an Azure Storage Account for OSMO workflow data"
+  type        = bool
+  default     = false
 }

@@ -218,3 +218,27 @@ output "container_insights_solution_id" {
   description = "The ID of the Container Insights solution"
   value       = azurerm_log_analytics_solution.container_insights.id
 }
+
+# Optional GPU node pool
+output "gpu_node_pool_name" {
+  description = "Name of the GPU node pool (empty when disabled)"
+  value       = var.gpu_node_pool_enabled ? azurerm_kubernetes_cluster_node_pool.gpu[0].name : ""
+}
+
+# Optional Storage Account for OSMO workflow data
+# Read by configure-storage.sh --backend azure-blob via `terraform output`
+output "storage_account" {
+  description = "Name of the OSMO workflow data Storage Account (empty when disabled)"
+  value       = var.storage_account_enabled ? azurerm_storage_account.osmo[0].name : ""
+}
+
+output "storage_account_key" {
+  description = "Primary access key of the OSMO Storage Account"
+  value       = var.storage_account_enabled ? azurerm_storage_account.osmo[0].primary_access_key : ""
+  sensitive   = true
+}
+
+output "storage_container_name" {
+  description = "Name of the OSMO workflow Blob container"
+  value       = var.storage_account_enabled ? azurerm_storage_container.osmo_workflows[0].name : ""
+}
