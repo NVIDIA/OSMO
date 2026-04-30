@@ -105,7 +105,7 @@ jobs:
             --max-responses 10 \
             --max-turns 200 \
             --timeout 900 \
-            --model aws/anthropic/claude-opus-4-5
+            --model aws/anthropic/bedrock-claude-opus-4-7
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
