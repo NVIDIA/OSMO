@@ -322,7 +322,7 @@ http_archive(
 ################
 
 bazel_dep(name = "rules_oci", version = "2.2.3")
-bazel_dep(name = "rules_distroless", version = "0.5.1")
+bazel_dep(name = "rules_distroless", version = "0.6.1")
 
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 
