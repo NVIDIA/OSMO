@@ -1251,6 +1251,121 @@ class TestResolvePoolComputedFields(unittest.TestCase):
         self.assertEqual(
             platform['labels'], {'gpu': 'a100', 'arch': 'amd64'})
 
+    def test_pre_renders_jinja_in_ctrl_resources_for_accounting(self):
+        """parsed_pod_template_for_accounting must have Jinja in osmo-ctrl
+        resources rendered with default variables, leaving the original
+        parsed_pod_template templated for per-workflow rendering.
+        """
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'default_ctrl': {
+                    'spec': {
+                        'containers': [
+                            {
+                                'name': 'osmo-ctrl',
+                                'resources': {
+                                    'requests': {
+                                        'cpu': '{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}',
+                                        'memory': '{{USER_MEMORY}}',
+                                    },
+                                    'limits': {
+                                        'cpu': '{{USER_CPU}}',
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_default_variables': {
+                        'USER_CPU': 1,
+                        'USER_MEMORY': '1Gi',
+                    },
+                    'common_pod_template': ['default_ctrl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'gpu': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        pool = configs['pools']['default']
+        platform = pool['platforms']['gpu']
+
+        # Originals stay templated for substitute_pod_template_tokens.
+        ctrl_orig = pool['parsed_pod_template']['spec']['containers'][0]
+        self.assertIn(
+            '{% if', ctrl_orig['resources']['requests']['cpu'])
+
+        # Accounting copy is rendered with USER_CPU=1 → else-branch → '1'.
+        ctrl_acct = (pool['parsed_pod_template_for_accounting']
+                     ['spec']['containers'][0])
+        self.assertEqual(
+            ctrl_acct['resources']['requests']['cpu'], '1')
+        self.assertEqual(
+            ctrl_acct['resources']['requests']['memory'], '1Gi')
+        self.assertEqual(
+            ctrl_acct['resources']['limits']['cpu'], '1')
+
+        # Platform inherits the same accounting copy.
+        plat_acct = (platform['parsed_pod_template_for_accounting']
+                     ['spec']['containers'][0])
+        self.assertEqual(
+            plat_acct['resources']['requests']['cpu'], '1')
+
+    def test_pre_render_uses_platform_default_variables_overrides(self):
+        """Platform-level default_variables must override pool defaults
+        when rendering the accounting copy.
+        """
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'default_ctrl': {
+                    'spec': {
+                        'containers': [
+                            {
+                                'name': 'osmo-ctrl',
+                                'resources': {
+                                    'requests': {
+                                        'cpu': '{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}',
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_default_variables': {'USER_CPU': 1},
+                    'common_pod_template': ['default_ctrl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'big': {
+                            'default_variables': {'USER_CPU': 8},
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        platform = configs['pools']['default']['platforms']['big']
+        ctrl = (platform['parsed_pod_template_for_accounting']
+                ['spec']['containers'][0])
+        # USER_CPU=8 > 2 → if-branch → '2'.
+        self.assertEqual(ctrl['resources']['requests']['cpu'], '2')
+
     def test_load_and_apply_resolves_pool_fields(self):
         """End-to-end: _load_and_apply resolves pool computed fields."""
         config: Dict[str, Any] = {

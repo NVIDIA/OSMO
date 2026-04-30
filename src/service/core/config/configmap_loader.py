@@ -30,6 +30,7 @@ import pydantic
 import yaml
 from watchdog import events, observers
 
+from src.lib.utils import jinja_sandbox, osmo_errors
 from src.lib.utils.common import merge_lists_on_name, recursive_dict_update
 from src.service.core.config import configmap_events, configmap_guard
 from src.utils import connectors
@@ -442,6 +443,49 @@ def _resolve_pool_computed_fields(managed_configs: Dict[str, Any]) -> None:
             pool_data, pod_templates, resource_validations, group_templates)
 
 
+def _render_pod_template_for_accounting(
+    pod_template: Dict[str, Any],
+    default_variables: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Return a copy of `pod_template` with Jinja in osmo-ctrl resources
+    rendered using `default_variables` as sentinel inputs.
+
+    Pool-quota math reads osmo-ctrl request/limit fields as numeric K8s
+    resource values, but those fields can be Jinja templates that depend
+    on per-workflow variables (e.g. `{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}`).
+    Without rendering, the accounting code can't parse the value and
+    silently treats it as zero. Pre-rendering with the pool's defaults
+    gives an exact value for workflows that don't override these vars
+    and a representative one for those that do — close enough for the
+    capacity-vs-overhead estimate this feeds into.
+    """
+    if not default_variables:
+        return pod_template
+    rendered = copy.deepcopy(pod_template)
+    containers = rendered.get('spec', {}).get('containers', [])
+    for container in containers:
+        if container.get('name') != 'osmo-ctrl':
+            continue
+        resources = container.get('resources')
+        if not isinstance(resources, dict):
+            continue
+        for kind in ('requests', 'limits'):
+            fields = resources.get(kind)
+            if not isinstance(fields, dict):
+                continue
+            for key, value in fields.items():
+                if not isinstance(value, str) or '{' not in value:
+                    continue
+                try:
+                    fields[key] = jinja_sandbox.sandboxed_jinja_substitute(
+                        value, default_variables)
+                except osmo_errors.OSMOUsageError:
+                    # Leave the original template; accounting falls back
+                    # to convert_cpu_unit's zero-on-parse-failure path.
+                    pass
+    return rendered
+
+
 def _resolve_single_pool(
     pool_data: Dict[str, Any],
     pod_templates: Dict[str, Any],
@@ -470,6 +514,10 @@ def _resolve_single_pool(
             logging.warning(
                 'Pod template %r referenced by pool not found', template_name)
     pool_data['parsed_pod_template'] = base_pod_template
+    pool_data['parsed_pod_template_for_accounting'] = (
+        _render_pod_template_for_accounting(
+            base_pod_template,
+            pool_data.get('common_default_variables', {}) or {}))
 
     # Resolve common resource validations (pool-level base)
     common_resource_validation_names = pool_data.get(
@@ -511,12 +559,13 @@ def _resolve_single_pool(
 
     # Resolve per-platform computed fields
     platforms = pool_data.get('platforms', {})
+    pool_defaults = pool_data.get('common_default_variables', {}) or {}
     for platform_data in platforms.values():
         if not isinstance(platform_data, dict):
             continue
         _resolve_platform_fields(
             platform_data, base_pod_template, base_resource_validations,
-            pod_templates, resource_validations)
+            pod_templates, resource_validations, pool_defaults)
 
 
 def _get_default_mounts(pod_template: Dict[str, Any]) -> List[str]:
@@ -543,6 +592,7 @@ def _resolve_platform_fields(
     base_resource_validations: List[Any],
     pod_templates: Dict[str, Any],
     resource_validations: Dict[str, Any],
+    pool_default_variables: Dict[str, Any],
 ) -> None:
     """Resolve computed fields for a single platform within a pool.
 
@@ -567,6 +617,17 @@ def _resolve_platform_fields(
                 'Pod template %r referenced by platform not found',
                 template_name)
     platform_data['parsed_pod_template'] = platform_pod_template
+
+    # Accounting copy: render Jinja in osmo-ctrl resources using pool
+    # defaults overlaid by platform-specific defaults so the values are
+    # numeric for pool-quota math.
+    platform_defaults = {
+        **pool_default_variables,
+        **(platform_data.get('default_variables') or {}),
+    }
+    platform_data['parsed_pod_template_for_accounting'] = (
+        _render_pod_template_for_accounting(
+            platform_pod_template, platform_defaults))
 
     # Derive tolerations, labels, default_mounts from resolved template.
     # Unconditional assignment — always recompute from the resolved template
