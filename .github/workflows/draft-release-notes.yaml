@@ -31,7 +31,7 @@ on:
         required: true
       model:
         description: 'LLM model name on NVIDIA gateway'
-        default: 'aws/anthropic/claude-opus-4-5'
+        default: 'aws/anthropic/bedrock-claude-opus-4-7'
 
 permissions:
   contents: write
@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   draft:
-    environment: testbot-generate
+    environment: nim-env
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -198,7 +198,7 @@ jobs:
           stream_log="$RUNNER_TEMP/claude-stream.jsonl"
           stderr_log="$RUNNER_TEMP/claude-stderr.log"
           set +e
-          npx @anthropic-ai/claude-code@2.1.91 --print --verbose \
+          npx @anthropic-ai/claude-code@2.1.116 --print --verbose \
             --output-format stream-json \
             --model "$ANTHROPIC_MODEL" \
             --allowedTools "Read,Glob,Grep,WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:nvidia.github.io),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Bash(git rev-parse:*)" \

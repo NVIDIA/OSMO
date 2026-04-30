@@ -13,13 +13,14 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-
+{{- if .Values.services.ui.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Values.services.ui.serviceName }}
   labels:
     app: {{ .Values.services.ui.serviceName }}
+    {{- include "osmo.labels" . | nindent 4 }}
 spec:
   replicas: {{ if .Values.services.ui.scaling.enabled }}{{ .Values.services.ui.scaling.minReplicas }}{{ else }}{{ .Values.services.ui.replicas }}{{ end }}
   selector:
@@ -30,12 +31,10 @@ spec:
       labels:
         app: {{ .Values.services.ui.serviceName }}
         {{- with .Values.services.ui.podLabels }}
-          {{- toYaml . | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-      {{- with .Values.extraPodAnnotations }}
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- include "osmo.extra-annotations" .Values.services.ui | nindent 8 }}
     spec:
       hostAliases:
         {{ toYaml .Values.services.ui.hostAliases | nindent 8}}
@@ -68,10 +67,10 @@ spec:
       initContainers:
         {{- toYaml .Values.services.ui.initContainers | nindent 6 }}
       {{- end }}
-      serviceAccountName: {{ .Values.services.ui.serviceAccountName }}
+      serviceAccountName: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.ui.serviceAccountName "Values" .Values) }}
       containers:
       - name: {{ .Values.services.ui.serviceName }}
-        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.ui.imageName }}:{{ .Values.global.osmoImageTag }}
+        image: {{ .Values.global.osmoImageLocation }}/{{ .Values.services.ui.imageName }}:{{ .Values.services.ui.imageTag | default .Values.global.osmoImageTag }}
         {{- with .Values.services.ui.command }}
         command:
           {{- toYaml . | nindent 10 }}
@@ -240,7 +239,7 @@ spec:
           {{- end }}
         {{- end }}
 
-      {{- with .Values.extraContainers }}
+      {{- with .Values.services.ui.extraContainers }}
         {{- toYaml . | nindent 6 }}
       {{- end }}
       volumes:
@@ -260,6 +259,7 @@ metadata:
   name: {{ .Values.services.ui.serviceName }}
   labels:
     app: {{ .Values.services.ui.serviceName }}
+    {{- include "osmo.labels" . | nindent 4 }}
     {{- with .Values.services.ui.service.labels }}
       {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -299,6 +299,7 @@ metadata:
   name: {{ .Values.services.ui.serviceName }}
   labels:
     app: {{ .Values.services.ui.serviceName }}
+    {{- include "osmo.labels" . | nindent 4 }}
   annotations:
 spec:
   scaleTargetRef:
@@ -318,4 +319,5 @@ spec:
   {{- with .Values.services.ui.scaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
+{{- end }}
 {{- end }}
