@@ -37,7 +37,7 @@ on:
         default: '30'
       model:
         description: 'LLM model name on NVIDIA gateway'
-        default: 'aws/anthropic/claude-opus-4-5'
+        default: 'aws/anthropic/bedrock-claude-opus-4-7'
       dry_run:
         description: 'Generate but do not create PR'
         type: boolean
@@ -155,10 +155,10 @@ jobs:
           # block runs even when Claude exits non-zero.
           set +e
           echo "::group::Claude Code stream (click to expand turn-by-turn log)"
-          npx @anthropic-ai/claude-code@2.1.91 --print \
+          npx @anthropic-ai/claude-code@2.1.116 --print \
             --model "$ANTHROPIC_MODEL" \
             --output-format stream-json --verbose \
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
             --max-turns "$MAX_TURNS" \
             "$PROMPT" | tee "$STREAM_LOG"
           # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
@@ -209,7 +209,7 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
-          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/claude-opus-4-5' }}
+          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-4-7' }}
           MAX_TURNS: ${{ inputs.max_turns || '200' }}
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
           CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
