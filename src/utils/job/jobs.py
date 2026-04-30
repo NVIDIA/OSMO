@@ -959,10 +959,13 @@ class UpdateGroup(WorkflowJob):
             # enters the backend k8s queue (SCHEDULING) and ends when it reaches RUNNING.
             if group_obj.status.prescheduling() and \
                     self.status == task.TaskGroupStatus.SCHEDULING:
-                queue_timeout = workflow_obj.timeout.queue_timeout or \
-                    common.to_timedelta(pool_info.default_queue_timeout
-                                        if pool_info.default_queue_timeout else
-                                        workflow_config.default_queue_timeout)
+                if workflow_obj.timeout.queue_timeout is not None:
+                    queue_timeout = workflow_obj.timeout.queue_timeout
+                else:
+                    queue_timeout = common.to_timedelta(
+                        pool_info.default_queue_timeout
+                        if pool_info.default_queue_timeout
+                        else workflow_config.default_queue_timeout)
                 check_queue_timeout = CheckQueueTimeout(workflow_id=self.workflow_id,
                                                         workflow_uuid=self.workflow_uuid,
                                                         group_name=self.group_name)
@@ -970,10 +973,13 @@ class UpdateGroup(WorkflowJob):
 
             # Is the status being updated to running? If so, schedule a CheckRunTimeout task
             if group_obj.status.prerunning() and self.status == task.TaskGroupStatus.RUNNING:
-                exec_timeout = workflow_obj.timeout.exec_timeout or \
-                    common.to_timedelta(pool_info.default_exec_timeout
-                                        if pool_info.default_exec_timeout else
-                                        workflow_config.default_exec_timeout)
+                if workflow_obj.timeout.exec_timeout is not None:
+                    exec_timeout = workflow_obj.timeout.exec_timeout
+                else:
+                    exec_timeout = common.to_timedelta(
+                        pool_info.default_exec_timeout
+                        if pool_info.default_exec_timeout
+                        else workflow_config.default_exec_timeout)
                 check_run_timeout = CheckRunTimeout(workflow_id=self.workflow_id,
                                                     workflow_uuid=self.workflow_uuid,
                                                     group_name=self.group_name)
@@ -1644,13 +1650,13 @@ class CancelWorkflow(WorkflowJob):
                 message += f' {self.message}'
             if self.workflow_status == workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT:
                 limit_message = 'Task ran longer than the set limit'
-                if workflow_obj.timeout.exec_timeout:
+                if workflow_obj.timeout.exec_timeout is not None:
                     limit_message += \
                         f' of {common.readable_timedelta(workflow_obj.timeout.exec_timeout)}'
                 message = f'{limit_message}.'
             elif self.workflow_status == workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT:
                 limit_message = 'Task stayed in queue longer than the set limit'
-                if workflow_obj.timeout.queue_timeout:
+                if workflow_obj.timeout.queue_timeout is not None:
                     limit_message += \
                         f' of {common.readable_timedelta(workflow_obj.timeout.queue_timeout)}'
                 message = f'{limit_message}.'
@@ -1696,7 +1702,7 @@ class CheckRunTimeout(WorkflowJob):
     def _resolve_exec_timeout(self,
                               context: JobExecutionContext,
                               workflow_obj: workflow.Workflow) -> datetime.timedelta:
-        if workflow_obj.timeout.exec_timeout:
+        if workflow_obj.timeout.exec_timeout is not None:
             return workflow_obj.timeout.exec_timeout
         if not workflow_obj.pool:
             raise osmo_errors.OSMOUserError('No Pool Specified')
@@ -1732,7 +1738,7 @@ class CheckRunTimeout(WorkflowJob):
             return JobResult()
 
         limit_message = 'Task ran longer than the set limit'
-        if workflow_obj.timeout.exec_timeout:
+        if workflow_obj.timeout.exec_timeout is not None:
             limit_message += f' of {common.readable_timedelta(workflow_obj.timeout.exec_timeout)}'
         UpdateGroup(
             workflow_id=self.workflow_id,
@@ -1810,7 +1816,7 @@ class CheckQueueTimeout(WorkflowJob):
     def _resolve_queue_timeout(self,
                                context: JobExecutionContext,
                                workflow_obj: workflow.Workflow) -> datetime.timedelta:
-        if workflow_obj.timeout.queue_timeout:
+        if workflow_obj.timeout.queue_timeout is not None:
             return workflow_obj.timeout.queue_timeout
         if not workflow_obj.pool:
             raise osmo_errors.OSMOUserError('No Pool Specified')
@@ -1847,7 +1853,7 @@ class CheckQueueTimeout(WorkflowJob):
             return JobResult()
 
         limit_message = 'Task stayed in queue longer than the set limit'
-        if workflow_obj.timeout.queue_timeout:
+        if workflow_obj.timeout.queue_timeout is not None:
             limit_message += f' of {common.readable_timedelta(workflow_obj.timeout.queue_timeout)}'
         UpdateGroup(
             workflow_id=self.workflow_id,
