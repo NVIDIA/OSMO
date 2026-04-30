@@ -435,6 +435,38 @@ service:
       - name: AWS_DEFAULT_REGION
         value: us-east-1
 
+    ## UI service configuration
+    ##
+    ui:
+      ## Enable rendering of the UI Deployment/Service/HPA
+      ##
+      enabled: true
+      ## Init containers for UI service
+      ##
+      ## Wait for the API service to be up before starting the UI
+      ##
+      initContainers:
+      - name: wait-for-service
+        image: busybox:1.37.0
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z osmo-service 80; do
+            echo "Waiting for osmo-service..."
+            sleep 2
+          done
+          echo "OSMO service is ready"
+      ## Skip authentication for UI service
+      ##
+      skipAuth: true
+      ## Hostname for the UI service
+      ##
+      hostname: quick-start.osmo
+      ## API hostname — point at the gateway for server-side rendering
+      ##
+      apiHostname: quick-start.osmo.svc.cluster.local:80
+
     ## Router service configuration
     ##
     router:
@@ -530,41 +562,6 @@ service:
   ##
   podMonitor:
     enabled: false
-
-## Web UI service configuration
-##
-web-ui:
-  ## Configuration for web UI services
-  ##
-  services:
-    ## Main UI service configuration
-    ##
-    ui:
-      ## Init containers for UI service
-      ##
-      ## Wait for the API service to be up before starting the UI
-      ##
-      initContainers:
-      - name: wait-for-service
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z osmo-service 80; do
-            echo "Waiting for osmo-service..."
-            sleep 2
-          done
-          echo "OSMO service is ready"
-      ## Skip authentication for UI service
-      ##
-      skipAuth: true
-      ## Hostname for the UI service
-      ##
-      hostname: quick-start.osmo
-      ## API hostname — point at the gateway for server-side rendering
-      ##
-      apiHostname: quick-start.osmo.svc.cluster.local:80
 
 ## Backend operator configuration for managing compute workloads
 ##
