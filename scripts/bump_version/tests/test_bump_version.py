@@ -29,7 +29,8 @@ import yaml
 from scripts.bump_version import bump_version
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
-CHART_NAMES = ("service", "web-ui", "backend-operator", "quick-start")
+CHART_NAMES = ("service", "backend-operator", "quick-start")
+QUICK_START_DEP_NAMES = ("service", "backend-operator")
 
 
 def _read_yaml(path: pathlib.Path) -> dict[str, Any]:
@@ -73,7 +74,8 @@ class BumpVersionTest(unittest.TestCase):
             self.root / "deployments/charts/quick-start/Chart.yaml"
         )
         for dependency in quick_start["dependencies"]:
-            self.assertEqual(dependency["version"], "1.4.0", dependency["name"])
+            if dependency["name"] in QUICK_START_DEP_NAMES:
+                self.assertEqual(dependency["version"], "1.4.0", dependency["name"])
 
     def test_major_bump(self) -> None:
         exit_code = bump_version.main(argv=["--major"], root=self.root)
@@ -93,7 +95,8 @@ class BumpVersionTest(unittest.TestCase):
             self.root / "deployments/charts/quick-start/Chart.yaml"
         )
         for dependency in quick_start["dependencies"]:
-            self.assertEqual(dependency["version"], "2.0.0", dependency["name"])
+            if dependency["name"] in QUICK_START_DEP_NAMES:
+                self.assertEqual(dependency["version"], "2.0.0", dependency["name"])
 
     def test_patch_bump(self) -> None:
         exit_code = bump_version.main(argv=["--patch"], root=self.root)
@@ -113,7 +116,8 @@ class BumpVersionTest(unittest.TestCase):
             self.root / "deployments/charts/quick-start/Chart.yaml"
         )
         for dependency in quick_start["dependencies"]:
-            self.assertEqual(dependency["version"], "1.3.1", dependency["name"])
+            if dependency["name"] in QUICK_START_DEP_NAMES:
+                self.assertEqual(dependency["version"], "1.3.1", dependency["name"])
 
     def test_repeated_minor_bump(self) -> None:
         self.assertEqual(bump_version.main(argv=["--minor"], root=self.root), 0)
@@ -138,7 +142,7 @@ class BumpVersionTest(unittest.TestCase):
             bump_version.main(argv=["--minor"], root=self.root)
 
     def test_refuses_on_app_version_drift(self) -> None:
-        path = self.root / "deployments/charts/web-ui/Chart.yaml"
+        path = self.root / "deployments/charts/service/Chart.yaml"
         path.write_text(
             path.read_text().replace('appVersion: "6.3.0"', 'appVersion: "6.4.0"', 1)
         )
