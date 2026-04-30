@@ -1251,6 +1251,95 @@ class TestResolvePoolComputedFields(unittest.TestCase):
         self.assertEqual(
             platform['labels'], {'gpu': 'a100', 'arch': 'amd64'})
 
+    def test_pre_renders_jinja_in_ctrl_resources_for_accounting(self):
+        """parsed_pod_template_for_accounting renders Jinja in osmo-ctrl
+        resources with the merged pool+platform default variables, while
+        parsed_pod_template stays templated for per-workflow rendering.
+
+        Two platforms exercise both invariants: 'default' inherits pool
+        defaults (USER_CPU=1 → else-branch); 'big' overrides via its own
+        default_variables (USER_CPU=8 → if-branch clamps to 2).
+        """
+        configs: Dict[str, Any] = {
+            'pod_templates': {
+                'default_ctrl': {
+                    'spec': {
+                        'containers': [
+                            {
+                                'name': 'osmo-ctrl',
+                                'resources': {
+                                    'requests': {
+                                        'cpu': (
+                                            '{% if USER_CPU > 2 %}2'
+                                            '{% else %}{{USER_CPU}}'
+                                            '{% endif %}'),
+                                        'memory': '{{USER_MEMORY}}',
+                                    },
+                                    'limits': {
+                                        'cpu': '{{USER_CPU}}',
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+            'pools': {
+                'default': {
+                    'common_default_variables': {
+                        'USER_CPU': 1,
+                        'USER_MEMORY': '1Gi',
+                    },
+                    'common_pod_template': ['default_ctrl'],
+                    'common_resource_validations': [],
+                    'common_group_templates': [],
+                    'platforms': {
+                        'default': {
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                        'big': {
+                            'default_variables': {'USER_CPU': 8},
+                            'override_pod_template': [],
+                            'resource_validations': [],
+                        },
+                    },
+                },
+            },
+        }
+        configmap_loader._resolve_pool_computed_fields(configs)
+
+        pool = configs['pools']['default']
+
+        # Original stays templated for substitute_pod_template_tokens.
+        ctrl_orig = pool['parsed_pod_template']['spec']['containers'][0]
+        self.assertIn(
+            '{% if', ctrl_orig['resources']['requests']['cpu'])
+
+        # Pool-level accounting copy renders with pool defaults.
+        ctrl_pool = (pool['parsed_pod_template_for_accounting']
+                     ['spec']['containers'][0])
+        self.assertEqual(
+            ctrl_pool['resources']['requests']['cpu'], '1')
+        self.assertEqual(
+            ctrl_pool['resources']['requests']['memory'], '1Gi')
+        self.assertEqual(
+            ctrl_pool['resources']['limits']['cpu'], '1')
+
+        # Platform inheriting pool defaults gets the else-branch ('1').
+        ctrl_default = (pool['platforms']['default']
+                        ['parsed_pod_template_for_accounting']
+                        ['spec']['containers'][0])
+        self.assertEqual(
+            ctrl_default['resources']['requests']['cpu'], '1')
+
+        # Platform overriding USER_CPU=8 trips the if-branch ('2').
+        ctrl_big = (pool['platforms']['big']
+                    ['parsed_pod_template_for_accounting']
+                    ['spec']['containers'][0])
+        self.assertEqual(
+            ctrl_big['resources']['requests']['cpu'], '2')
+
     def test_load_and_apply_resolves_pool_fields(self):
         """End-to-end: _load_and_apply resolves pool computed fields."""
         config: Dict[str, Any] = {
