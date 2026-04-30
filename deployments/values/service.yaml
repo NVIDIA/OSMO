@@ -1,0 +1,184 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OSMO minimal-deployment service values.
+#
+# Modeled on the canonical docs example at:
+#   external/docs/deployment_guide/appendix/deploy_minimal.rst
+#
+# This file is consumed by `deploy-osmo-minimal.sh` via `helm install -f`.
+# Values that vary per cluster (PG/Redis hosts, image tag, NGC pull secret
+# name, OSMO namespace) are NOT set here — they're injected with `--set` at
+# install time. Edit the rest of this file directly to customize a deploy.
+#
+# WARNING (matches docs): minimal mode disables OAuth2 Proxy + authz at the
+# gateway. The gateway then trusts client-supplied identity headers. Do NOT
+# expose this gateway to untrusted networks. For production, use the standard
+# deploy guide which keeps `gateway.oauth2Proxy.enabled` and
+# `gateway.authz.enabled` at their chart defaults (true).
+
+# `global: {}` (not `global:` alone) — a key with only comments parses as null,
+# which makes `helm --set global.foo=bar` fail with
+# "interface conversion: interface {} is nil, not map[string]interface {}".
+# osmoImageLocation / osmoImageTag / imagePullSecret are injected via --set.
+global: {}
+
+services:
+  configFile:
+    enabled: true
+
+  # ────────────────────────────────────────────────────────────────────────
+  # ConfigMap-mode (6.3) configs. The chart renders this block into the
+  # ConfigMap mounted at /etc/osmo/configs/ that the service reads at boot.
+  # In 6.3 the config IS the source of truth — `osmo config update` returns
+  # HTTP 409. Edit this file (and re-run helm) to change config.
+  #
+  # Per-cluster values (image registry/tag, NGC pull secret, OSMO_NAMESPACE)
+  # are injected via `--set` by deploy-k8s.sh. `workflow_data.base_url` is
+  # the only backend-specific bit and gets layered in from the storage
+  # values fragment (configure-storage.sh writes scripts/values/.storage-values.yaml).
+  # ────────────────────────────────────────────────────────────────────────
+  configs:
+    enabled: true
+
+    service:
+      # service_base_url is the gateway URL workflow pods use to call back into
+      # the OSMO API. The hostname `osmo-gateway.<namespace>.svc.cluster.local`
+      # — namespace varies per install, injected via --set.
+      service_base_url: http://osmo-gateway.osmo-minimal.svc.cluster.local
+
+    backends:
+      default:
+        description: "Default backend"
+        # Same pattern as service_base_url — gateway DNS name; namespace via --set.
+        router_address: ws://osmo-gateway.osmo-minimal.svc.cluster.local
+        scheduler_settings:
+          scheduler_type: kai
+          scheduler_name: kai-scheduler
+          scheduler_timeout: 30
+
+    # secretRefs tells the chart which K8s Secrets to mount at
+    # /etc/osmo/secrets/<name>/ so the config loader can resolve `secretName`
+    # references at boot. Without this list the chart never mounts the Secrets
+    # and the loader throws "No such file or directory" at startup.
+    #
+    # Index [3] is the NGC pull secret. deploy-k8s.sh overrides it via
+    # `--set 'services.configs.secretRefs[3].secretName=<NGC_SECRET_NAME>'` so
+    # clusters that ship with a non-default name (`imagepullsecret` on existing
+    # infra-managed AKS, etc.) work without editing this file.
+    secretRefs:
+      - secretName: osmo-workflow-data-cred
+      - secretName: osmo-workflow-log-cred
+      - secretName: osmo-workflow-app-cred
+      - secretName: nvcr-secret
+
+    workflow:
+      # backend_images: the init + client (osmo_ctrl) container images that the
+      # backend-worker injects into every workflow Pod. Empty image fields cause
+      # K8s 422 (FieldValueRequired). Image registry/tag come from --set so the
+      # chart resolves the values block at install time.
+      backend_images:
+        init: nvcr.io/nvidia/osmo/init-container:latest
+        client: nvcr.io/nvidia/osmo/client:latest
+        credential:
+          # Pull credentials for workflow pods. secretName is overridden by
+          # --set global.imagePullSecret in deploy-k8s.sh so it tracks the
+          # cluster's actual NGC secret name.
+          secretName: nvcr-secret
+          secretKey: .dockerconfigjson
+
+      # Per-secret references for workflow data / log / app artifact credentials.
+      # The Secret payloads (access_key_id, access_key, endpoint, region,
+      # override_url) are written by configure-storage.sh per backend.
+      # `workflow_data.base_url` is the only field that genuinely differs across
+      # backends (s3://bucket vs az://container@account vs s3+http://host) — it
+      # comes from the storage values fragment.
+      workflow_data:
+        credential:
+          secretName: osmo-workflow-data-cred
+        # base_url is layered in via scripts/values/.storage-values.yaml
+      workflow_log:
+        credential:
+          secretName: osmo-workflow-log-cred
+      workflow_app:
+        credential:
+          secretName: osmo-workflow-app-cred
+
+  postgres:
+    # External PostgreSQL — set to true if you want the chart to deploy
+    # an in-cluster PG instead of pointing at a managed/external one.
+    enabled: false
+    # serviceName / port / db / user are injected via --set
+    passwordSecretName: db-secret
+    passwordSecretKey: db-password
+
+  redis:
+    # External Redis — set to true to deploy an in-cluster instance.
+    enabled: false
+    # serviceName / port injected via --set
+    tlsEnabled: true   # set to false if your Redis doesn't require TLS
+    passwordSecretName: redis-secret
+    passwordSecretKey: redis-password
+
+  service:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  router:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  agent:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  worker:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  logger:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+  ui:
+    enabled: true
+    # apiHostname is injected via --set so the namespace can vary.
+
+  defaultAdmin:
+    enabled: true
+    username: admin
+    passwordSecretName: default-admin-secret
+    passwordSecretKey: password
+
+  # PodMonitor objects require prometheus-operator CRDs. Off by default;
+  # users with prometheus-operator should layer values/pod-monitor-on.yaml
+  # on top of this file (deploy-osmo-minimal.sh does that auto-detection).
+  # Top-level podMonitor toggle — see also the chart's per-service overrides.
+
+# Standalone Envoy gateway — auth disabled per the minimal docs reference.
+# See the WARNING at the top of this file.
+gateway:
+  enabled: true
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
+  envoy:
+    # With oauth2Proxy + authz both off, no upstream sets the
+    # x-osmo-{user,roles,allowed-pools} headers. Inject defaults so the UI
+    # shows pages instead of empty role/pool lists for the local admin.
+    defaultIdentity:
+      user: admin
+      roles: osmo-admin
+      allowedPools: default
+
+# Top-level PodMonitor — disabled to avoid CRD-not-installed errors on
+# clusters without prometheus-operator. Re-enable by passing
+# `-f values/pod-monitor-on.yaml` to helm.
+podMonitor:
+  enabled: false

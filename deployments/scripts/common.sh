@@ -151,3 +151,50 @@ export_outputs() {
     fi
 }
 
+# Local-port defaults for the watchdog port-forwards. Override via env when
+# something else is already on the standard port.
+export OSMO_API_PORT="${OSMO_API_PORT:-9000}"
+export OSMO_UI_PORT="${OSMO_UI_PORT:-3000}"
+
+# Resolve the OSMO API Service name to port-forward against. When the chart's
+# Envoy gateway (services.gateway.enabled) is rendered, an `osmo-gateway`
+# Service exists and is the correct entry point — it injects auth headers and
+# routes to osmo-service/router/ui. When the gateway is disabled, fall back to
+# osmo-service directly.
+#
+# Args: <namespace> [kubectl-binary]
+# Output: service name on stdout
+resolve_osmo_api_service() {
+    local ns="${1:-osmo-minimal}"
+    local kubectl_bin="${2:-kubectl}"
+    # 6.3 chart names the gateway Service `osmo-gateway`. Older / partial
+    # builds may have called it `osmo-gateway-envoy`; check both, fall back to
+    # the direct service.
+    if $kubectl_bin get svc osmo-gateway -n "$ns" &>/dev/null; then
+        echo "osmo-gateway"
+    elif $kubectl_bin get svc osmo-gateway-envoy -n "$ns" &>/dev/null; then
+        echo "osmo-gateway-envoy"
+    else
+        echo "osmo-service"
+    fi
+}
+
+# Install the osmo CLI from GitHub if missing. Idempotent.
+install_osmo_cli_if_missing() {
+    if command -v osmo &>/dev/null; then
+        return 0
+    fi
+    log_info "Installing osmo CLI from GitHub"
+    if ! command -v curl &>/dev/null; then
+        log_error "curl is required to install the osmo CLI"
+        return 1
+    fi
+    curl -sL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+    if ! command -v osmo &>/dev/null; then
+        log_error "osmo CLI installer ran but 'osmo' is still not on PATH"
+        log_error "Check ~/.local/bin or the installer's install location and update PATH"
+        return 1
+    fi
+    log_success "osmo CLI installed: $(osmo version 2>/dev/null | head -1 || echo 'unknown')"
+}
+
