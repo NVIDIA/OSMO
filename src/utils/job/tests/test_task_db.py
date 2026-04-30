@@ -687,17 +687,19 @@ class CheckRunTimeoutDbTest(TaskDbFixture):
             '''INSERT INTO workflows
                (workflow_id, workflow_name, workflow_uuid, submitted_by,
                 backend, logs, exec_timeout, queue_timeout, plugins, status,
-                start_time, submit_time)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                start_time, submit_time, outputs, priority)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
             (WORKFLOW_ID, 'test-wf', WORKFLOW_UUID, 'user@nvidia.com',
              'default', '', exec_timeout_seconds, 100, '{}', status,
-             start_time, submit_time))
+             start_time, submit_time, '', 'NORMAL'))
 
     def _insert_group_running(self, group_name: str,
                               start_time: datetime.datetime,
                               status: str = 'RUNNING') -> None:
         group_uuid = common.generate_unique_id()
         self._insert_group(group_name=group_name, group_uuid=group_uuid, status=status)
+        # TaskGroup.fetch_from_db loads tasks by group name and raises if none exist.
+        self._insert_task(f'{group_name}-lead', group_name=group_name, lead=True, status=status)
         self._get_db().execute_commit_command(
             'UPDATE groups SET start_time = %s WHERE workflow_id = %s AND name = %s',
             (start_time, WORKFLOW_ID, group_name))
@@ -768,6 +770,7 @@ class CheckRunTimeoutDbTest(TaskDbFixture):
         """
         self._insert_workflow_running()
         self._insert_group(group_name='group1', status='SCHEDULING')
+        self._insert_task('group1-lead', group_name='group1', lead=True, status='SCHEDULING')
 
         self._run_check(group_name='group1')
 
@@ -853,16 +856,19 @@ class CheckQueueTimeoutDbTest(TaskDbFixture):
             '''INSERT INTO workflows
                (workflow_id, workflow_name, workflow_uuid, submitted_by,
                 backend, logs, exec_timeout, queue_timeout, plugins, status,
-                submit_time)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                submit_time, outputs, priority)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
             (WORKFLOW_ID, 'test-wf', WORKFLOW_UUID, 'user@nvidia.com',
-             'default', '', 100, queue_timeout_seconds, '{}', status, submit_time))
+             'default', '', 100, queue_timeout_seconds, '{}', status, submit_time,
+             '', 'NORMAL'))
 
     def _insert_group_scheduling(self, group_name: str,
                                  scheduling_start_time: datetime.datetime,
                                  status: str = 'SCHEDULING') -> None:
         group_uuid = common.generate_unique_id()
         self._insert_group(group_name=group_name, group_uuid=group_uuid, status=status)
+        # TaskGroup.fetch_from_db loads tasks by group name and raises if none exist.
+        self._insert_task(f'{group_name}-lead', group_name=group_name, lead=True, status=status)
         self._get_db().execute_commit_command(
             'UPDATE groups SET scheduling_start_time = %s '
             'WHERE workflow_id = %s AND name = %s',
