@@ -28,20 +28,44 @@ This directory contains scripts for deploying OSMO on various cloud providers.
 
 # AWS deployment (interactive)
 ./deploy-osmo-minimal.sh --provider aws
+
+# Single-node MicroK8s (auto-installs MicroK8s on a fresh Ubuntu box)
+./deploy-osmo-minimal.sh --provider microk8s --gpu
+
+# Bring-your-own cluster (kubectl already configured)
+export POSTGRES_HOST=... POSTGRES_USERNAME=... POSTGRES_PASSWORD=...
+export POSTGRES_DB_NAME=... REDIS_HOST=... REDIS_PORT=... REDIS_PASSWORD=...
+./deploy-osmo-minimal.sh --provider byo --storage-backend byo \
+    --postgres-password "$POSTGRES_PASSWORD" --redis-password "$REDIS_PASSWORD"
 ```
 
 ## Directory Structure
 
 ```
 scripts/
-├── deploy-osmo-minimal.sh   # Main entry point
-├── deploy-k8s.sh            # Kubernetes/Helm deployment logic
-├── common.sh                # Shared helper functions
-├── azure/
-│   └── terraform.sh         # Azure-specific Terraform provisioning
-├── aws/
-│   └── terraform.sh         # AWS-specific Terraform provisioning
-└── README.md                # This file
+├── deploy-osmo-minimal.sh    # Main entry point
+├── deploy-k8s.sh             # Kubernetes/Helm deployment logic
+├── common.sh                 # Shared helper functions (logging, osmo CLI install, etc.)
+├── install-kai-scheduler.sh  # KAI Scheduler install (idempotent via CRD detection)
+├── install-gpu-operator.sh   # NVIDIA GPU Operator install (multi-signal auto-skip)
+├── install-minio.sh          # In-cluster MinIO install (auto-skips if addon/release present)
+├── configure-storage.sh      # 6.3 storage config: K8s Secrets + Helm values fragment
+├── storage/                  # Per-backend storage helpers (minio, azure-blob, byo)
+├── port-forward.sh           # One-shot or --watchdog kubectl port-forward
+├── verify.sh                 # End-to-end smoke tests (hello + GPU workflows)
+├── azure/terraform.sh        # Azure-specific Terraform provisioning
+├── aws/terraform.sh          # AWS-specific Terraform provisioning
+├── microk8s/install.sh       # Single-node MicroK8s bootstrap (snap, addons, GPU)
+└── README.md                 # This file
+```
+
+Workflows + values consumed by these scripts live one level up at:
+```
+../workflows/        # verify-hello.yaml, verify-gpu.yaml (smoke tests)
+../values/           # static, hand-editable Helm values (see ../values/README.md):
+                     #   service.yaml, backend-operator.yaml, gpu-pool.yaml, pod-monitor-on.yaml
+./values/            # auto-generated runtime values (do not commit / hand-edit):
+                     #   .storage-values.yaml (written by configure-storage.sh)
 ```
 
 ## Scripts Overview
@@ -63,19 +87,30 @@ The main entry point for deploying OSMO. This script orchestrates:
 
 | Argument | Description |
 |----------|-------------|
-| `--provider` | Cloud provider: `azure` or `aws` |
+| `--provider` | Cluster provider: `azure`, `aws`, `microk8s`, or `byo` |
 
 #### General Options
 
 | Option | Description |
 |--------|-------------|
-| `--skip-terraform` | Skip infrastructure provisioning (use existing) |
+| `--skip-terraform` | Skip infrastructure provisioning (azure/aws only; implied for microk8s/byo) |
 | `--skip-osmo` | Skip OSMO deployment (only provision infrastructure) |
-| `--destroy` | Destroy all resources |
+| `--destroy` | Destroy all resources (azure/aws: TF destroy; microk8s/byo: cleanup OSMO ns only) |
 | `--dry-run` | Show what would be done without making changes |
 | `--non-interactive` | Fail if required parameters are missing (for CI/CD) |
 | `--ngc-api-key` | NGC API key for pulling images and Helm charts from `nvcr.io` (optional) |
+| `--storage-backend` | Storage backend: `auto`, `minio`, `azure-blob`, `byo`, `none` (default: `auto`) |
+| `--gpu-node-pool` | Provision a GPU node pool (azure/aws only — requires the optional TF resources) |
+| `--no-gpu` | Skip GPU Operator install + GPU smoke test |
+| `--gpu` | microk8s only: enable the nvidia addon during bootstrap (requires NVIDIA driver ≥ 525) |
 | `-h, --help` | Show help message |
+
+#### MicroK8s & BYO Provider Options
+
+| Provider | Notes |
+|----------|-------|
+| `microk8s` | Bootstraps MicroK8s on the local box if not already installed. Uses `microk8s/install.sh` (snapd + snap install + addons + optional `nvidia` addon + kubeconfig export). |
+| `byo` | Skips bootstrap and TF entirely. Required env vars: `POSTGRES_HOST`, `POSTGRES_USERNAME`, `POSTGRES_PASSWORD`, `POSTGRES_DB_NAME`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`. Optional: `IS_PRIVATE_CLUSTER` (default false). |
 
 #### Azure-specific Options
 
@@ -129,6 +164,33 @@ Shared helper functions used by all scripts:
 - User input prompts (`prompt_value`)
 - Password validation (`validate_password`)
 - Pod readiness waiting (`wait_for_pods`)
+- OSMO CLI install from GitHub (`install_osmo_cli_if_missing`) — used by deploy-k8s.sh when minting the backend-operator token
+
+### Cluster-agnostic install helpers
+
+These scripts work on any kubectl-reachable cluster and are invoked as phases by `deploy-osmo-minimal.sh`. Each is idempotent and safe to run on top of a cluster where the target component is already installed (e.g. when an upstream skill already installed KAI/GPU Operator).
+
+| Script | Purpose | Auto-skip detection |
+|--------|---------|---------------------|
+| `install-kai-scheduler.sh` | KAI Scheduler v0.14.0 (gang scheduling for OSMO workflows) | CRD `podgroups.scheduling.run.ai` |
+| `install-gpu-operator.sh` | NVIDIA GPU Operator (drivers + container toolkit) | microk8s `nvidia` addon, helm release in any ns, `clusterpolicies.nvidia.com` CR (NVAIE), or `nvidia-device-plugin` DaemonSet |
+| `install-minio.sh` | Bitnami MinIO chart (in-cluster S3 backend) | microk8s `minio` addon or existing `minio` service in `minio-operator` ns |
+| `configure-storage.sh` | 6.3-mode storage wiring: creates K8s Secrets (`osmo-workflow-{data,log,app}-cred`) + emits a Helm values fragment under `services.configs.workflow.workflow_*.credential.secretName`. Dispatcher delegates to `storage/{minio,azure-blob,byo}.sh`. | n/a — backend selection via `--backend` |
+| `port-forward.sh` | One-shot or `--watchdog` kubectl port-forward, tagged `osmo-pf-watchdog:<svc>` for cleanup via `pkill -f` | Reuses live PF if context+namespace match |
+| `verify.sh` | End-to-end smoke tests (`workflows/verify-hello.yaml` + `verify-gpu.yaml`); polls until terminal state, dumps logs on failure. `SKIP_GPU=1` to skip GPU test. | n/a |
+
+### `microk8s/install.sh`
+
+Single-node MicroK8s bootstrap. Used only by `--provider microk8s`. Installs:
+- snapd (auto-installed on Ubuntu cloud images that ship without it, e.g. Brev NemoClaw)
+- microk8s 1.31/stable
+- kubectl, helm, helmfile (snap + GitHub release for helmfile)
+- Standard addons: `dns`, `hostpath-storage`, `helm3`, `rbac`, `minio` (the `registry` addon is intentionally not enabled)
+- Optional `nvidia` addon (`--gpu`) with the `/dev/char` symlink workaround for host-driver mode
+- Containerd Docker Hub credentials patch (only when `~/.docker/config.json` exists) — avoids Docker Hub rate limits during addon image pulls
+- Kubeconfig export to `~/.kube/config` with proper ownership
+
+Run as root: `sudo ./microk8s/install.sh [--gpu]`. Re-running is safe (no-ops if microk8s + tooling are already present).
 
 ### `azure/terraform.sh`
 
