@@ -1363,7 +1363,13 @@ class TestStartConfigWatcher(unittest.TestCase):
         self.assertIsNone(watcher)
         self.assertFalse(configmap_state.is_configmap_mode())
 
-    def test_non_api_service_skips_event_recorder_and_db_read(self):
+    def test_non_api_service_skips_event_recorder_but_injects_runtime(self):
+        """Worker/agent/logger must NOT emit K8s reload events (replicas
+        would race on the same Event object) but MUST still inject
+        service_auth from DB on first load — otherwise the worker falls
+        through to ServiceConfig's default_factory and signs workflow
+        JWTs with a freshly-generated keypair the API can't validate.
+        """
         with tempfile.TemporaryDirectory() as tmp_dir:
             config_path = os.path.join(tmp_dir, 'config.yaml')
             with open(config_path, 'w', encoding='utf-8') as f:
@@ -1377,10 +1383,9 @@ class TestStartConfigWatcher(unittest.TestCase):
                     config_path, postgres, is_api_service=False)
                 assert watcher is not None
                 try:
-                    # No K8s Event recorder, no DB read for runtime fields.
                     self.assertIsNone(watcher._event_recorder)
                     mock_recorder.assert_not_called()
-                    postgres.get_service_configs.assert_not_called()
+                    postgres.get_service_configs.assert_called()
                 finally:
                     watcher.stop()
 
