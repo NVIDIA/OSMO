@@ -1979,9 +1979,9 @@ class ResourceSpec(pydantic.BaseModel):
 
 class ResourceLimitationsField(ExtraArgBaseModel):
     # Defaults of '0' let pod templates omit individual fields without
-    # failing strict validation in pool-quota accounting. K8s itself
-    # treats an absent limit as "unbounded" — the pool-quota math here
-    # subtracts these as overhead, so '0' is the right neutral value.
+    # failing strict validation in pool-quota accounting. The math in
+    # check_osmo_data_resource subtracts requests as ctrl-pod overhead,
+    # so '0' is the right neutral value when fields are omitted.
     cpu: str = '0'
     memory: str = '0'
     ephemeral_storage: str = pydantic.Field('1Gi', alias='ephemeral-storage')

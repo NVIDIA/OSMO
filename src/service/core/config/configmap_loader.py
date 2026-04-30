@@ -459,9 +459,13 @@ def _render_pod_template_for_accounting(
     and a representative one for those that do — close enough for the
     capacity-vs-overhead estimate this feeds into.
     """
-    if not default_variables:
-        return pod_template
+    # Always return a standalone dict — callers store this alongside
+    # parsed_pod_template, and the templated copy is mutated at workflow
+    # render time by substitute_pod_template_tokens. Aliasing would let
+    # those mutations corrupt the accounting copy.
     rendered = copy.deepcopy(pod_template)
+    if not default_variables:
+        return rendered
     containers = rendered.get('spec', {}).get('containers', [])
     for container in containers:
         if container.get('name') != 'osmo-ctrl':
@@ -479,10 +483,15 @@ def _render_pod_template_for_accounting(
                 try:
                     fields[key] = jinja_sandbox.sandboxed_jinja_substitute(
                         value, default_variables)
-                except osmo_errors.OSMOUsageError:
-                    # Leave the original template; accounting falls back
-                    # to convert_cpu_unit's zero-on-parse-failure path.
-                    pass
+                except osmo_errors.OSMOUsageError as exc:
+                    # Leave the original template in place; accounting
+                    # falls back to convert_cpu_unit's zero-on-parse
+                    # path. Log so operators see the bad template rather
+                    # than silently undercounting pool overhead.
+                    logging.warning(
+                        'Failed to pre-render osmo-ctrl %s.%s for '
+                        'accounting (template kept as-is): %s',
+                        kind, key, exc)
     return rendered
 
 
