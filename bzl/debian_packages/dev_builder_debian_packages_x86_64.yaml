@@ -29,6 +29,7 @@ archs:
 packages:
   - ca-certificates
   - docker-ce-cli
+  - docker-buildx-plugin
   - build-essential
   - libenchant-2-2
   - bash
