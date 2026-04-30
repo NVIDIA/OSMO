@@ -89,7 +89,7 @@ def main():
             await asyncio.sleep(config.progress_period)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None)
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         liveness_task = asyncio.create_task(liveness_update())
         try:

@@ -23,10 +23,8 @@ SPDX-License-Identifier: Apache-2.0
 //	<ISO8601_time> <service_name> [<LEVEL>] <source>: [user=<user> ]<message>[ key=value ...]
 //
 // The "user" attribute is treated as a special filter field: it is extracted
-// from the slog record and placed before the message body so Fluent Bit
+// from the slog record and placed before the message body so upstream log
 // parsers can capture it as a named group.
-//
-// This format is parseable by the osmo-log / authz-log Fluent Bit parsers.
 package logging
 
 import (
@@ -43,27 +41,60 @@ import (
 	"time"
 )
 
+// Format selects the on-disk/stdout encoding for log records.
+type Format int
+
+const (
+	// FormatText emits the legacy ServiceFormatter text format used
+	// historically by OSMO services (one human-readable line per record).
+	FormatText Format = iota
+	// FormatJSON emits one JSON object per record using slog's stdlib JSON
+	// handler, suitable for direct ingestion by Loki/Elastic without parsing.
+	FormatJSON
+)
+
+// ParseFormat converts a string format name to a Format. Unknown values
+// fall back to FormatText to preserve existing behavior.
+func ParseFormat(s string) Format {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "json":
+		return FormatJSON
+	case "text", "":
+		return FormatText
+	default:
+		return FormatText
+	}
+}
+
 // Config holds the logging configuration, mirroring Python's LoggingConfig.
 type Config struct {
-	Level   slog.Level
-	LogDir  string
+	// Level is the minimum slog level emitted; records below it are dropped.
+	Level slog.Level
+	// Format selects the on-disk/stdout encoding (text vs JSON).
+	Format Format
+	// LogDir is the directory to write log files to; empty disables file output.
+	LogDir string
+	// LogName is the base name of the log file (without extension); empty
+	// falls back to the service name passed to InitLogger.
 	LogName string
 }
 
 // FlagPointers holds pointers to flag values for logging configuration.
 type FlagPointers struct {
-	logLevel *string
-	logDir   *string
-	logName  *string
+	logLevel  *string
+	logFormat *string
+	logDir    *string
+	logName   *string
 }
 
 // RegisterFlags registers logging-related command-line flags and returns
 // pointers that should be converted to Config after flag.Parse().
 func RegisterFlags() *FlagPointers {
 	return &FlagPointers{
-		logLevel: flag.String("log-level", "info", "Log level (debug, info, warn, error)"),
-		logDir:   flag.String("log-dir", "", "Directory to write log files to"),
-		logName:  flag.String("log-name", "", "Name for the log file (without extension)"),
+		logLevel:  flag.String("log-level", "info", "Log level (debug, info, warn, error)"),
+		logFormat: flag.String("log-format", "text", "Log output format: text (legacy ServiceFormatter) or json (slog JSON)"),
+		logDir:    flag.String("log-dir", "", "Directory to write log files to"),
+		logName:   flag.String("log-name", "", "Name for the log file (without extension)"),
 	}
 }
 
@@ -71,6 +102,7 @@ func RegisterFlags() *FlagPointers {
 func (f *FlagPointers) ToConfig() Config {
 	return Config{
 		Level:   ParseLevel(*f.logLevel),
+		Format:  ParseFormat(*f.logFormat),
 		LogDir:  *f.logDir,
 		LogName: *f.logName,
 	}
@@ -96,8 +128,8 @@ func ParseLevel(level string) slog.Level {
 
 // specialAttrKey is the slog attribute key that is extracted from the log
 // record and placed before the message body as a named filter field
-// (e.g. "user=alice ..."). This becomes a named capture group in the
-// Fluent Bit authz-log parser.
+// (e.g. "user=alice ...") so upstream parsers can pick it up as a named
+// capture group.
 const specialAttrKey = "user"
 
 // ServiceHandler is a slog.Handler that formats log records in the same format
@@ -247,13 +279,27 @@ func InitLogger(serviceName string, config Config) *slog.Logger {
 	}
 
 	writer := io.MultiWriter(writers...)
-	handler := NewServiceHandler(serviceName, config.Level, writer)
-	logger := slog.New(handler)
+	logger := slog.New(buildHandler(serviceName, config, writer))
 	slog.SetDefault(logger)
 
 	logger.Info("Starting service ...")
 
 	return logger
+}
+
+// buildHandler returns the slog.Handler for the requested format.
+// For JSON, the standard library handler is used and the service name is
+// attached as a stable top-level attribute so log backends can filter on it.
+func buildHandler(serviceName string, config Config, writer io.Writer) slog.Handler {
+	switch config.Format {
+	case FormatJSON:
+		h := slog.NewJSONHandler(writer, &slog.HandlerOptions{
+			Level: config.Level,
+		})
+		return h.WithAttrs([]slog.Attr{slog.String("service", serviceName)})
+	default:
+		return NewServiceHandler(serviceName, config.Level, writer)
+	}
 }
 
 // callerSource extracts the Go package name from the program counter,

@@ -114,6 +114,8 @@ spec:
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
         - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.global.logs.logFormat | default "text" }}
         - --log_dir
         - /logs
         - --log_name
