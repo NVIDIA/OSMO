@@ -29,12 +29,16 @@ UI pool information.
   * - **Field**
     - **Description**
   * - ``exec_timeout``
-    - Maximum execution time for a workflow before the service cleans it up. This is the time since
-      the **workflow status** is set to ``READY``.
+    - Maximum execution time for **each group** in the workflow. The clock starts when a group's
+      status transitions to ``RUNNING`` and applies independently per group, so a long-running
+      group does not affect the budget of other groups in the same workflow.
   * - ``queue_timeout``
-    - Maximum queue time for a workflow in the workflow queue before the service cleans it up.
-      This is the time calculated after the **workflow status** is set to ``PENDING`` and until
-      the **workflow status** is set to ``READY``.
+    - Maximum queue time for **each group**, measured from when the group enters
+      ``SCHEDULING`` (submitted to the backend k8s queue) until it is assigned a
+      node and enters ``INITIALIZING``. A group still in ``SCHEDULING`` past this
+      window is marked ``FAILED_QUEUE_TIMEOUT``. Image pull and preflight time in
+      ``INITIALIZING`` is governed separately by the start timeout, not this one.
+      Each group has its own clock.
 
 .. note::
 
@@ -53,9 +57,15 @@ For example:
       queue_timeout: 6h
     ...
 
-If a running workflow is timed out, the workflow status is set to ``FAILED_EXEC_TIMEOUT``.
-If a workflow stays in the pending state it is timed out and the workflow status is set to
-``FAILED_QUEUE_TIMEOUT``.
+If a running group exceeds ``exec_timeout``, that group is marked ``FAILED_EXEC_TIMEOUT`` and
+its downstream groups cascade to ``FAILED_UPSTREAM``. Sibling groups that are still within their
+own ``exec_timeout`` window continue running. The workflow status aggregates to
+``FAILED_EXEC_TIMEOUT`` once all groups have finished and at least one timed out.
+
+If a group stays in ``SCHEDULING`` (waiting for a node assignment) longer than
+``queue_timeout``, that group is marked ``FAILED_QUEUE_TIMEOUT``. The workflow status
+aggregates to ``FAILED_QUEUE_TIMEOUT`` once all groups have finished and at least one
+hit the queue timeout.
 
 The timeout values are defined in the format ``<integer><unit>``. The units supported are:
 

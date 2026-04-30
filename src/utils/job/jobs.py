@@ -263,19 +263,6 @@ class SubmitWorkflow(WorkflowJob):
         # Fetch workflow_obj to get latest info
         workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, workflow_obj.workflow_id)
 
-        # Enqueue a delayed job to check the queue timeout
-        if not workflow_obj.pool:
-            raise osmo_errors.OSMOUserError('No Pool Specified')
-        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-        workflow_config = context.postgres.get_workflow_configs()
-        queue_timeout = workflow_obj.timeout.queue_timeout or \
-            common.to_timedelta(pool_info.default_queue_timeout
-                                if pool_info.default_queue_timeout else
-                                workflow_config.default_queue_timeout)
-        check_queue_timeout = CheckQueueTimeout(workflow_id=workflow_obj.workflow_id,
-                                                workflow_uuid=self.workflow_uuid)
-        check_queue_timeout.send_delayed_job_to_queue(queue_timeout)
-
         # Check if workflow has been canceled.
         # If it hasn't, mark all the groups as WAITING
         # If this is false, the workflow has been canceled
@@ -967,14 +954,35 @@ class UpdateGroup(WorkflowJob):
             if self.status == task.TaskGroupStatus.RESCHEDULED:
                 self.status = task.TaskGroupStatus.RUNNING
 
+            # Is the status being updated to scheduling? If so, schedule a per-group
+            # CheckQueueTimeout — the clock for queue_timeout starts when the group
+            # enters the backend k8s queue (SCHEDULING) and ends when it reaches RUNNING.
+            if group_obj.status.prescheduling() and \
+                    self.status == task.TaskGroupStatus.SCHEDULING:
+                if workflow_obj.timeout.queue_timeout is not None:
+                    queue_timeout = workflow_obj.timeout.queue_timeout
+                else:
+                    queue_timeout = common.to_timedelta(
+                        pool_info.default_queue_timeout
+                        if pool_info.default_queue_timeout
+                        else workflow_config.default_queue_timeout)
+                check_queue_timeout = CheckQueueTimeout(workflow_id=self.workflow_id,
+                                                        workflow_uuid=self.workflow_uuid,
+                                                        group_name=self.group_name)
+                check_queue_timeout.send_delayed_job_to_queue(queue_timeout)
+
             # Is the status being updated to running? If so, schedule a CheckRunTimeout task
             if group_obj.status.prerunning() and self.status == task.TaskGroupStatus.RUNNING:
-                exec_timeout = workflow_obj.timeout.exec_timeout or \
-                    common.to_timedelta(pool_info.default_exec_timeout
-                                        if pool_info.default_exec_timeout else
-                                        workflow_config.default_exec_timeout)
+                if workflow_obj.timeout.exec_timeout is not None:
+                    exec_timeout = workflow_obj.timeout.exec_timeout
+                else:
+                    exec_timeout = common.to_timedelta(
+                        pool_info.default_exec_timeout
+                        if pool_info.default_exec_timeout
+                        else workflow_config.default_exec_timeout)
                 check_run_timeout = CheckRunTimeout(workflow_id=self.workflow_id,
-                                                    workflow_uuid=self.workflow_uuid)
+                                                    workflow_uuid=self.workflow_uuid,
+                                                    group_name=self.group_name)
                 check_run_timeout.send_delayed_job_to_queue(exec_timeout)
 
         group_obj.update_status_to_db(update_time, self.status, self.message)
@@ -1642,13 +1650,13 @@ class CancelWorkflow(WorkflowJob):
                 message += f' {self.message}'
             if self.workflow_status == workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT:
                 limit_message = 'Task ran longer than the set limit'
-                if workflow_obj.timeout.exec_timeout:
+                if workflow_obj.timeout.exec_timeout is not None:
                     limit_message += \
                         f' of {common.readable_timedelta(workflow_obj.timeout.exec_timeout)}'
                 message = f'{limit_message}.'
             elif self.workflow_status == workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT:
                 limit_message = 'Task stayed in queue longer than the set limit'
-                if workflow_obj.timeout.queue_timeout:
+                if workflow_obj.timeout.queue_timeout is not None:
                     limit_message += \
                         f' of {common.readable_timedelta(workflow_obj.timeout.queue_timeout)}'
                 message = f'{limit_message}.'
@@ -1674,106 +1682,233 @@ class CancelWorkflow(WorkflowJob):
 
 class CheckRunTimeout(WorkflowJob):
     """
-    CheckRunTimeout job. When executed, it should create a CancelWorkflow job if the
-    target workflow is still running.
+    CheckRunTimeout job. When executed, it should mark the target group as
+    FAILED_EXEC_TIMEOUT if it has been running longer than the workflow's
+    exec_timeout. Per-group: each group has its own clock starting from when
+    that group entered RUNNING, and only that group is canceled on expiry
+    (downstream groups cascade via FAILED_UPSTREAM as usual).
+
+    Legacy: jobs serialized before group_name existed deserialize with
+    group_name=None and fall back to workflow-level enforcement.
     """
+    group_name: task_common.NamePattern | None = None
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values['workflow_uuid']}-{common.generate_unique_id(5)}-check_run_timeout'
+        group_name = values.get('group_name') or 'workflow'
+        return (f'{values['workflow_uuid']}-{group_name}'
+                f'-{common.generate_unique_id(5)}-check_run_timeout')
+
+    def _resolve_exec_timeout(self,
+                              context: JobExecutionContext,
+                              workflow_obj: workflow.Workflow) -> datetime.timedelta:
+        if workflow_obj.timeout.exec_timeout is not None:
+            return workflow_obj.timeout.exec_timeout
+        if not workflow_obj.pool:
+            raise osmo_errors.OSMOUserError('No Pool Specified')
+        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+        workflow_config = context.postgres.get_workflow_configs()
+        return common.to_timedelta(pool_info.default_exec_timeout
+                                   if pool_info.default_exec_timeout
+                                   else workflow_config.default_exec_timeout)
+
+    def _execute_per_group(self, context: JobExecutionContext,
+                           group_name: task_common.NamePattern) -> JobResult:
+        group_obj = task.TaskGroup.fetch_from_db(
+            context.postgres, self.workflow_id, group_name)
+        if group_obj.status.finished():
+            return JobResult()
+        if not group_obj.start_time:
+            return JobResult()
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        exec_timeout = self._resolve_exec_timeout(context, workflow_obj)
+        time_elapsed = datetime.datetime.now() - group_obj.start_time
+
+        if exec_timeout > time_elapsed:
+            logging.info('Execution timeout for workflow %s group %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, group_name, time_elapsed, exec_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckRunTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+                group_name=group_name,
+            ).send_delayed_job_to_queue(exec_timeout - time_elapsed)
+            return JobResult()
+
+        limit_message = 'Task ran longer than the set limit'
+        if workflow_obj.timeout.exec_timeout is not None:
+            limit_message += f' of {common.readable_timedelta(workflow_obj.timeout.exec_timeout)}'
+        UpdateGroup(
+            workflow_id=self.workflow_id,
+            workflow_uuid=self.workflow_uuid,
+            group_name=group_name,
+            status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT,
+            message=f'{limit_message}.',
+            user='osmo',
+        ).send_job_to_queue()
+        return JobResult()
+
+    def _execute_legacy_workflow_level(self, context: JobExecutionContext) -> JobResult:
+        logging.warning(
+            'CheckRunTimeout for workflow %s has no group_name; falling back to legacy '
+            'workflow-level timeout enforcement. This payload predates the per-group change.',
+            self.workflow_id, extra={'workflow_uuid': self.workflow_uuid})
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        if workflow_obj.status.finished() or not workflow_obj.start_time:
+            return JobResult()
+
+        exec_timeout = self._resolve_exec_timeout(context, workflow_obj)
+        time_elapsed = datetime.datetime.now() - workflow_obj.start_time
+        if exec_timeout > time_elapsed:
+            logging.info('Execution timeout for workflow %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, time_elapsed, exec_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckRunTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+            ).send_delayed_job_to_queue(exec_timeout - time_elapsed)
+        else:
+            CancelWorkflow(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid, user='osmo',
+                workflow_status=workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT,
+                task_status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT,
+            ).send_job_to_queue()
+        return JobResult()
 
     def execute(self, context: JobExecutionContext,
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
         """
-        Executes the job. Return true if the CancelWorkflow job is submitted.
+        Executes the job. With group_name, marks just that group as
+        FAILED_EXEC_TIMEOUT; without it (legacy payload), enforces workflow-level.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
-        if not workflow_obj.status.finished():
-            if workflow_obj.start_time:
-                time_elapsed = datetime.datetime.now() - workflow_obj.start_time
-
-                if not workflow_obj.pool:
-                    raise osmo_errors.OSMOUserError('No Pool Specified')
-                pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                workflow_config = context.postgres.get_workflow_configs()
-                exec_timeout = workflow_obj.timeout.exec_timeout or \
-                    common.to_timedelta(pool_info.default_exec_timeout
-                                        if pool_info.default_exec_timeout else
-                                        workflow_config.default_exec_timeout)
-                # Comparing two timedelta objects
-                if exec_timeout > time_elapsed:
-                    logging.info('Execution timeout for workflow %s increased from %s to %s, '
-                                'resubmitting it back to delayed job queue.',
-                                self.workflow_id, time_elapsed, exec_timeout,
-                                extra={'workflow_uuid': self.workflow_uuid})
-                    check_queue_timeout = CheckRunTimeout(workflow_id=self.workflow_id,
-                                                        workflow_uuid=self.workflow_uuid)
-                    # The amount of time left before hitting the new expiration timestamp
-                    delta = exec_timeout - time_elapsed
-                    check_queue_timeout.send_delayed_job_to_queue(delta)
-                else:
-                    cancel_job = CancelWorkflow(
-                        workflow_id=self.workflow_id,
-                        workflow_uuid=self.workflow_uuid, user='osmo',
-                        workflow_status=workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT,
-                        task_status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT
-                    )
-                    cancel_job.send_job_to_queue()
-
-        return JobResult()
+        if self.group_name:
+            return self._execute_per_group(context, self.group_name)
+        return self._execute_legacy_workflow_level(context)
 
 class CheckQueueTimeout(WorkflowJob):
     """
-    CheckQueueTimeout job. When executed, it should create a CancelWorkflow job if the
-    target workflow is still pending (stuck in queue).
+    CheckQueueTimeout job. Per-group: queue_timeout measures how long a group
+    waits in the backend k8s queue for a node assignment — the window is just
+    the SCHEDULING phase. Once the group reaches INITIALIZING (node assigned,
+    image pulling starts) or beyond, the queue clock has stopped. If the group
+    is still in SCHEDULING after queue_timeout, mark it FAILED_QUEUE_TIMEOUT.
+
+    Legacy: jobs serialized before group_name existed deserialize with
+    group_name=None and fall back to workflow-level enforcement (cancels the
+    workflow if it has stayed in PENDING longer than queue_timeout from
+    submit_time).
     """
+    group_name: task_common.NamePattern | None = None
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values['workflow_uuid']}-{common.generate_unique_id(5)}-check_queue_timeout'
+        group_name = values.get('group_name') or 'workflow'
+        return (f'{values['workflow_uuid']}-{group_name}'
+                f'-{common.generate_unique_id(5)}-check_queue_timeout')
+
+    def _resolve_queue_timeout(self,
+                               context: JobExecutionContext,
+                               workflow_obj: workflow.Workflow) -> datetime.timedelta:
+        if workflow_obj.timeout.queue_timeout is not None:
+            return workflow_obj.timeout.queue_timeout
+        if not workflow_obj.pool:
+            raise osmo_errors.OSMOUserError('No Pool Specified')
+        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+        workflow_config = context.postgres.get_workflow_configs()
+        return common.to_timedelta(pool_info.default_queue_timeout
+                                   if pool_info.default_queue_timeout
+                                   else workflow_config.default_queue_timeout)
+
+    def _execute_per_group(self, context: JobExecutionContext,
+                           group_name: task_common.NamePattern) -> JobResult:
+        group_obj = task.TaskGroup.fetch_from_db(
+            context.postgres, self.workflow_id, group_name)
+        # Queue clock stops once a node is assigned (INITIALIZING) or beyond.
+        if group_obj.status != task.TaskGroupStatus.SCHEDULING:
+            return JobResult()
+        if not group_obj.scheduling_start_time:
+            return JobResult()
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        queue_timeout = self._resolve_queue_timeout(context, workflow_obj)
+        time_elapsed = datetime.datetime.now() - group_obj.scheduling_start_time
+
+        if queue_timeout > time_elapsed:
+            logging.info('Queue timeout for workflow %s group %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, group_name, time_elapsed, queue_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckQueueTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+                group_name=group_name,
+            ).send_delayed_job_to_queue(queue_timeout - time_elapsed)
+            return JobResult()
+
+        limit_message = 'Task stayed in queue longer than the set limit'
+        if workflow_obj.timeout.queue_timeout is not None:
+            limit_message += f' of {common.readable_timedelta(workflow_obj.timeout.queue_timeout)}'
+        UpdateGroup(
+            workflow_id=self.workflow_id,
+            workflow_uuid=self.workflow_uuid,
+            group_name=group_name,
+            status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
+            message=f'{limit_message}.',
+            user='osmo',
+        ).send_job_to_queue()
+        return JobResult()
+
+    def _execute_legacy_workflow_level(self, context: JobExecutionContext) -> JobResult:
+        logging.warning(
+            'CheckQueueTimeout for workflow %s has no group_name; falling back to legacy '
+            'workflow-level timeout enforcement. This payload predates the per-group change.',
+            self.workflow_id, extra={'workflow_uuid': self.workflow_uuid})
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        if workflow_obj.status != workflow.WorkflowStatus.PENDING:
+            return JobResult()
+        if not workflow_obj.submit_time:
+            return JobResult()
+
+        queue_timeout = self._resolve_queue_timeout(context, workflow_obj)
+        time_since_submission = datetime.datetime.now() - workflow_obj.submit_time
+        if queue_timeout > time_since_submission:
+            logging.info('Queue timeout for workflow %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, time_since_submission, queue_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckQueueTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+            ).send_delayed_job_to_queue(queue_timeout - time_since_submission)
+        else:
+            CancelWorkflow(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid, user='osmo',
+                workflow_status=workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+                task_status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
+            ).send_job_to_queue()
+        return JobResult()
 
     def execute(self, context: JobExecutionContext,
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
         """
-        Executes the job. Return true if the CancelWorkflow job is submitted.
+        Executes the job. With group_name, marks just that group as
+        FAILED_QUEUE_TIMEOUT if it has been queueing too long; without it
+        (legacy payload), enforces the workflow-level PENDING timeout.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
-        if workflow_obj.status == workflow.WorkflowStatus.PENDING:
-            if workflow_obj.submit_time:
-                time_since_submission = datetime.datetime.now() - workflow_obj.submit_time
-
-                if not workflow_obj.pool:
-                    raise osmo_errors.OSMOUserError('No Pool Specified')
-                pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                workflow_config = context.postgres.get_workflow_configs()
-                queue_timeout = workflow_obj.timeout.queue_timeout or \
-                    common.to_timedelta(pool_info.default_queue_timeout
-                                        if pool_info.default_queue_timeout else
-                                        workflow_config.default_queue_timeout)
-                if queue_timeout > time_since_submission:
-                    logging.info('Queue timeout for workflow %s increased from %s to %s, '
-                                'resubmitting it back to delayed job queue.',
-                                self.workflow_id, time_since_submission, queue_timeout,
-                                extra={'workflow_uuid': self.workflow_uuid})
-                    check_queue_timeout = CheckQueueTimeout(workflow_id=self.workflow_id,
-                                                            workflow_uuid=self.workflow_uuid)
-                    # The amount of time left before hitting the new expiration timestamp
-                    delta = queue_timeout - time_since_submission
-                    check_queue_timeout.send_delayed_job_to_queue(delta)
-                else:
-                    cancel_job = CancelWorkflow(
-                        workflow_id=self.workflow_id,
-                        workflow_uuid=self.workflow_uuid, user='osmo',
-                        workflow_status=workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT,
-                        task_status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT
-                    )
-                    cancel_job.send_job_to_queue()
-
-        return JobResult()
+        if self.group_name:
+            return self._execute_per_group(context, self.group_name)
+        return self._execute_legacy_workflow_level(context)
 
 
 class UploadApp(FrontendJob):
