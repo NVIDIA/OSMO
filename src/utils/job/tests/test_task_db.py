@@ -730,7 +730,10 @@ class CheckRunTimeoutDbTest(TaskDbFixture):
         self.assertIsInstance(update, jobs.UpdateGroup)
         self.assertEqual(update.group_name, 'group1')
         self.assertEqual(update.status, task.TaskGroupStatus.FAILED_EXEC_TIMEOUT)
-        self.assertIn(str(self.EXEC_TIMEOUT_SECONDS), update.message)
+        self.assertIn(
+            common.readable_timedelta(
+                datetime.timedelta(seconds=self.EXEC_TIMEOUT_SECONDS)),
+            update.message)
         self.assertEqual(self.delayed, [])
 
     def test_per_group_within_window_reschedules(self):
@@ -904,7 +907,10 @@ class CheckQueueTimeoutDbTest(TaskDbFixture):
         self.assertIsInstance(update, jobs.UpdateGroup)
         self.assertEqual(update.group_name, 'group1')
         self.assertEqual(update.status, task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT)
-        self.assertIn(str(self.QUEUE_TIMEOUT_SECONDS), update.message)
+        self.assertIn(
+            common.readable_timedelta(
+                datetime.timedelta(seconds=self.QUEUE_TIMEOUT_SECONDS)),
+            update.message)
         self.assertEqual(self.delayed, [])
 
     def test_per_group_queue_within_window_reschedules(self):
