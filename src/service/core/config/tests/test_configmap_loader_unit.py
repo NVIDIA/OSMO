@@ -1269,7 +1269,10 @@ class TestResolvePoolComputedFields(unittest.TestCase):
                                 'name': 'osmo-ctrl',
                                 'resources': {
                                     'requests': {
-                                        'cpu': '{% if USER_CPU > 2 %}2{% else %}{{USER_CPU}}{% endif %}',
+                                        'cpu': (
+                                            '{% if USER_CPU > 2 %}2'
+                                            '{% else %}{{USER_CPU}}'
+                                            '{% endif %}'),
                                         'memory': '{{USER_MEMORY}}',
                                     },
                                     'limits': {
