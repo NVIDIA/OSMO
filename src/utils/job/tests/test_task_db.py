@@ -17,6 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 import datetime
 import json
+from typing import Any, List
 from unittest import mock
 
 from src.lib.utils import common, osmo_errors
@@ -665,7 +666,7 @@ class CheckRunTimeoutDbTest(TaskDbFixture):
         def _capture_delayed(captured_self, delay):
             self.delayed.append((captured_self, delay))
 
-        self._patches = [
+        self._patches: List[Any] = [
             mock.patch.object(jobs.UpdateGroup, 'send_job_to_queue', _capture_send),
             mock.patch.object(jobs.CancelWorkflow, 'send_job_to_queue', _capture_send),
             mock.patch.object(
@@ -832,7 +833,7 @@ class CheckQueueTimeoutDbTest(TaskDbFixture):
         def _capture_delayed(captured_self, delay):
             self.delayed.append((captured_self, delay))
 
-        self._patches = [
+        self._patches: List[Any] = [
             mock.patch.object(jobs.UpdateGroup, 'send_job_to_queue', _capture_send),
             mock.patch.object(jobs.CancelWorkflow, 'send_job_to_queue', _capture_send),
             mock.patch.object(

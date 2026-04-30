@@ -1690,7 +1690,7 @@ class CheckRunTimeout(WorkflowJob):
     @classmethod
     def _get_job_id(cls, values):
         group_name = values.get('group_name') or 'workflow'
-        return (f'{values["workflow_uuid"]}-{group_name}'
+        return (f'{values['workflow_uuid']}-{group_name}'
                 f'-{common.generate_unique_id(5)}-check_run_timeout')
 
     def _resolve_exec_timeout(self,
@@ -1804,7 +1804,7 @@ class CheckQueueTimeout(WorkflowJob):
     @classmethod
     def _get_job_id(cls, values):
         group_name = values.get('group_name') or 'workflow'
-        return (f'{values["workflow_uuid"]}-{group_name}'
+        return (f'{values['workflow_uuid']}-{group_name}'
                 f'-{common.generate_unique_id(5)}-check_queue_timeout')
 
     def _resolve_queue_timeout(self,
