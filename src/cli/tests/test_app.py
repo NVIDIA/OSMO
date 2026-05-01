@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long
 """
 SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
@@ -45,8 +46,8 @@ class TestSetupParser(unittest.TestCase):
     def test_create_command_with_file(self):
         parser = self._build_parser()
         args = parser.parse_args(
-            ['app', 'create', 'my-app', '-d', 'desc', '-f', '/tmp/spec.yaml'])
-        self.assertEqual(args.file, '/tmp/spec.yaml')
+            ['app', 'create', 'my-app', '-d', 'desc', '-f', 'spec.yaml'])
+        self.assertEqual(args.file, 'spec.yaml')
 
     def test_update_command(self):
         parser = self._build_parser()
@@ -169,7 +170,7 @@ class TestCreateApp(unittest.TestCase):
 
     def test_create_app_with_file(self):
         service_client = mock.Mock(spec=client.ServiceClient)
-        args = argparse.Namespace(name='my-app', description='desc', file='/tmp/spec.yaml')
+        args = argparse.Namespace(name='my-app', description='desc', file='spec.yaml')
         mock_open = mock.mock_open(read_data='workflow-content')
         with mock.patch('builtins.open', mock_open), mock.patch('builtins.print'):
             app._create_app(service_client, args)
@@ -203,11 +204,11 @@ class TestCreateApp(unittest.TestCase):
         args = argparse.Namespace(name='my-app', description='d', file=None)
         with mock.patch('src.cli.app.editor.get_editor_input', return_value='content'), \
              mock.patch('src.cli.app.editor.save_to_temp_file',
-                        return_value='/tmp/saved.yaml') as save_mock:
+                        return_value='saved.yaml') as save_mock:
             with self.assertRaises(osmo_errors.OSMOUserError) as cm:
                 app._create_app(service_client, args)
         save_mock.assert_called_once_with('content', suffix='.yaml')
-        self.assertIn('/tmp/saved.yaml', str(cm.exception))
+        self.assertIn('saved.yaml', str(cm.exception))
 
 
 class TestUpdateApp(unittest.TestCase):
@@ -241,7 +242,7 @@ class TestUpdateApp(unittest.TestCase):
             'old-content',
             {'name': 'my-app', 'version': 3},
         ]
-        args = argparse.Namespace(name='my-app', file='/tmp/updated.yaml')
+        args = argparse.Namespace(name='my-app', file='updated.yaml')
         mock_open = mock.mock_open(read_data='new-content')
         with mock.patch('builtins.open', mock_open), mock.patch('builtins.print'):
             app._update_app(service_client, args)
@@ -290,11 +291,11 @@ class TestUpdateApp(unittest.TestCase):
         with mock.patch('src.cli.app.editor.get_editor_input',
                         return_value='new-content'), \
              mock.patch('src.cli.app.editor.save_to_temp_file',
-                        return_value='/tmp/saved.yaml') as save_mock:
+                        return_value='saved.yaml') as save_mock:
             with self.assertRaises(osmo_errors.OSMOUserError) as cm:
                 app._update_app(service_client, args)
         save_mock.assert_called_once()
-        self.assertIn('/tmp/saved.yaml', str(cm.exception))
+        self.assertIn('saved.yaml', str(cm.exception))
 
 
 class TestInfoApp(unittest.TestCase):
