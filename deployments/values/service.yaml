@@ -116,30 +116,53 @@ services:
     passwordSecretName: redis-secret
     passwordSecretKey: redis-password
 
+  # Startup probe failureThreshold bumped from chart default (6) to 30. The
+  # chart's defaults assume fast bootstrap (30s tolerance: initialDelay 5s +
+  # 6 × periodSeconds 5s). On Azure with managed PostgreSQL (~30s for first
+  # connect on cold start) and Managed Redis (~5-10s TLS handshake),
+  # osmo-service / osmo-router / osmo-delayed-job-monitor consistently lose
+  # the probe-vs-bind race. 30 × 5s = 2.5min is plenty for any cloud
+  # bootstrap and harmless on fast clusters (probe stops once a request
+  # succeeds — extra failureThreshold has no overhead unless the service is
+  # actually broken).
   service:
     scaling:
       minReplicas: 1
       maxReplicas: 1
+    startupProbe:
+      failureThreshold: 30
 
   router:
     scaling:
       minReplicas: 1
       maxReplicas: 1
+    startupProbe:
+      failureThreshold: 30
 
   agent:
     scaling:
       minReplicas: 1
       maxReplicas: 1
+    startupProbe:
+      failureThreshold: 30
 
   worker:
     scaling:
       minReplicas: 1
       maxReplicas: 1
+    startupProbe:
+      failureThreshold: 30
 
   logger:
     scaling:
       minReplicas: 1
       maxReplicas: 1
+    startupProbe:
+      failureThreshold: 30
+
+  delayedJobMonitor:
+    startupProbe:
+      failureThreshold: 30
 
   ui:
     enabled: true

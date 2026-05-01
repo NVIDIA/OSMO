@@ -661,8 +661,11 @@ deploy_osmo_service() {
     #   4. .storage-values.yaml                    (from configure-storage.sh — overrides as needed)
     #   5. --set per-cluster overrides             (PG/Redis hosts, image tag, etc.)
     # In 6.3 the service chart bundles router + UI, so this is the only release.
+    # --timeout 15m by default — Azure Managed Redis cold start (~10-15 min)
+    # + AKS image pulls (~3-5 min) + Postgres + service init can push past 10m
+    # on a fresh cluster. Override via HELM_TIMEOUT_SERVICE for slower envs.
     $RUN_HELM \
-        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout 10m$(chart_version_flag) -f $STATIC_VALUES_DIR/service.yaml$(extra_values_flags)$(service_set_flags)"
+        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout ${HELM_TIMEOUT_SERVICE:-15m}$(chart_version_flag) -f $STATIC_VALUES_DIR/service.yaml$(extra_values_flags)$(service_set_flags)"
 
     log_success "OSMO service deployed"
 }
@@ -697,7 +700,7 @@ setup_backend_operator() {
     # backend-operator.yaml first, then --set overrides last (no per-cluster
     # values fragment for backend-operator, so order is straightforward).
     $RUN_HELM \
-        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout 5m$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)"
+        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)"
 
     log_success "Backend Operator deployed"
 }

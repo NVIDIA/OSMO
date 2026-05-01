@@ -377,9 +377,23 @@ resource "azurerm_managed_redis" "main" {
   sku_name            = var.redis_sku_name
 
   default_database {
-    client_protocol   = "Encrypted"
-    clustering_policy = "EnterpriseCluster"
+    client_protocol = "Encrypted"
+    # OSSCluster (not EnterpriseCluster): standard Redis OSS Cluster wire
+    # protocol that redis-py / kombu / and other typical Redis client
+    # libraries understand. EnterpriseCluster is a proprietary multi-shard
+    # protocol that requires Redis Enterprise–aware clients. Empirically
+    # validated against an existing osmo-cluster Redis (working in prior
+    # deploys) which uses OSSCluster.
+    clustering_policy = "OSSCluster"
     eviction_policy   = "VolatileLRU"
+    # Required to surface primary_access_key / secondary_access_key as
+    # computed outputs. When this is unset (default: Disabled), the keys
+    # exist on Azure side (callable via REST listKeys) but the Terraform
+    # provider returns empty strings, so the redis-secret in K8s gets
+    # created with an empty password and every Redis-using pod fails
+    # AUTH with "Authentication required". Setting this true at create
+    # time ensures the keys are visible to TF immediately.
+    access_keys_authentication_enabled = true
   }
 
   tags = local.tags
