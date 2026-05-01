@@ -57,7 +57,7 @@ TF_CLUSTER_NAME="${TF_CLUSTER_NAME:-osmo-cluster}"
 TF_REGION="${TF_REGION:-East US 2}"
 TF_ENVIRONMENT="${TF_ENVIRONMENT:-dev}"
 TF_PROJECT_NAME="${TF_PROJECT_NAME:-osmo}"
-TF_K8S_VERSION="${TF_K8S_VERSION:-1.32.9}"
+TF_K8S_VERSION="${TF_K8S_VERSION:-1.35.3}"
 
 # Private cluster detection
 IS_PRIVATE_CLUSTER=false
@@ -406,14 +406,25 @@ postgres_backup_retention_days         = 7
 postgres_geo_redundant_backup_enabled  = false
 postgres_extensions                    = ["hstore", "uuid-ossp", "pg_stat_statements"]
 
-# Redis Cache Configuration
-redis_sku_name = "Standard"
-redis_family   = "C"
-redis_capacity = 1
+# Azure Managed Redis Configuration (OSMO requires Redis 7+; Managed Redis is
+# the only path now that Enterprise is retired). Default Balanced_B1 — B0 is
+# theoretically smallest but frequently hits AllocationFailed in busy regions
+# (eastus2, westus2). Override TF_REDIS_SKU_NAME for different tiers.
+redis_sku_name  = "${TF_REDIS_SKU_NAME:-Balanced_B1}"
+redis_version   = "7"
 
 # Log Analytics Configuration
 log_analytics_sku            = "PerGB2018"
 log_analytics_retention_days = 30
+
+# Optional GPU node pool
+# Triggered by --gpu-node-pool on deploy-osmo-minimal.sh
+gpu_node_pool_enabled = ${TF_GPU_NODE_POOL_ENABLED:-false}
+
+# Optional Azure Blob Storage Account for workflow data
+# Triggered by --storage-backend azure-blob on deploy-osmo-minimal.sh
+# (the storage backend script reads storage_account/storage_account_key TF outputs)
+storage_account_enabled = ${TF_STORAGE_ACCOUNT_ENABLED:-false}
 EOF
 
     log_success "terraform.tfvars generated successfully"
@@ -433,6 +444,24 @@ azure_preflight_checks() {
     if ! az account show &> /dev/null; then
         log_error "Azure CLI is not authenticated. Please run 'az login' first."
         exit 1
+    fi
+
+    # Resource group: TF uses a `data` block (assumes RG exists). Create here
+    # if missing, with a marker tag so destroy can recognize what we created
+    # vs. what was pre-existing. This unblocks the "create new RG" flow without
+    # requiring TF restructuring.
+    if [[ -n "${TF_RESOURCE_GROUP:-}" ]]; then
+        if ! az group show -n "$TF_RESOURCE_GROUP" &>/dev/null; then
+            log_info "Resource group '$TF_RESOURCE_GROUP' does not exist — creating in '$TF_REGION'"
+            az group create \
+                --name "$TF_RESOURCE_GROUP" \
+                --location "$TF_REGION" \
+                --tags 'osmo-deploy-managed=true' \
+                --output none
+            log_success "Resource group created (tagged osmo-deploy-managed=true)"
+        else
+            log_info "Resource group '$TF_RESOURCE_GROUP' already exists — using as-is"
+        fi
     fi
 
     log_success "Azure pre-flight checks passed"
@@ -477,6 +506,21 @@ azure_terraform_destroy() {
 
     terraform destroy -auto-approve
     log_success "Terraform resources destroyed"
+
+    # Resource group cleanup: TF uses a `data` block so it doesn't own the RG.
+    # Delete it here if azure_preflight_checks created it (marked with tag
+    # `osmo-deploy-managed=true`). Pre-existing RGs are left intact.
+    if [[ -n "${TF_RESOURCE_GROUP:-}" ]] && az group show -n "$TF_RESOURCE_GROUP" &>/dev/null; then
+        local managed_tag
+        managed_tag=$(az group show -n "$TF_RESOURCE_GROUP" --query "tags.\"osmo-deploy-managed\"" -o tsv 2>/dev/null)
+        if [[ "$managed_tag" == "true" ]]; then
+            log_info "Resource group '$TF_RESOURCE_GROUP' was created by deploy (tag osmo-deploy-managed=true) — deleting"
+            az group delete --name "$TF_RESOURCE_GROUP" --yes --no-wait
+            log_success "Resource group deletion initiated (running in background)"
+        else
+            log_info "Resource group '$TF_RESOURCE_GROUP' is not deploy-managed — preserving"
+        fi
+    fi
 }
 
 azure_get_terraform_outputs() {

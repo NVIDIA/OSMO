@@ -360,21 +360,26 @@ resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
 }
 
 ################################################################################
-# Azure Cache for Redis (Standard/Premium tier)
+# Azure Managed Redis (required for Redis 7+)
+#
+# OSMO requires Redis 7. The standard `azurerm_redis_cache` resource caps at
+# Redis 6, and `azurerm_redis_enterprise_cluster` was retired by Azure
+# (creations of new Enterprise resources return BadRequest as of 2025).
+# Azure Managed Redis is the current path forward — same cluster+database
+# split, Balanced/MemoryOptimized/ComputeOptimized SKU families, port 10000
+# by convention.
 ################################################################################
 
-resource "azurerm_redis_cache" "main" {
+resource "azurerm_managed_redis" "main" {
   name                = "${local.name}-redis"
   location            = data.azurerm_resource_group.main.location
   resource_group_name = data.azurerm_resource_group.main.name
-  capacity            = var.redis_capacity
-  family              = var.redis_family
   sku_name            = var.redis_sku_name
-  minimum_tls_version = "1.2"
-  redis_version       = var.redis_version
 
-  redis_configuration {
-    maxmemory_policy = "volatile-lru"
+  default_database {
+    client_protocol   = "Encrypted"
+    clustering_policy = "EnterpriseCluster"
+    eviction_policy   = "VolatileLRU"
   }
 
   tags = local.tags

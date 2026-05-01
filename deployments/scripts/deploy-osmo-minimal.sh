@@ -307,6 +307,20 @@ setup_provider_env() {
             ;;
     esac
 
+    # Optional TF resources triggered by deploy flags. Read by
+    # azure_generate_tfvars / aws_generate_tfvars to flip the corresponding
+    # TF variables.
+    if [[ "$GPU_NODE_POOL" == true ]]; then
+        export TF_GPU_NODE_POOL_ENABLED=true
+    fi
+    # The Azure Blob storage backend reads SA credentials from TF outputs when
+    # STORAGE_ACCOUNT/STORAGE_KEY env aren't set, so auto-provision the SA when
+    # the user picks --storage-backend azure-blob without supplying creds.
+    if [[ "$PROVIDER" == "azure" && "$STORAGE_BACKEND" == "azure-blob" \
+          && -z "${STORAGE_ACCOUNT:-}" ]]; then
+        export TF_STORAGE_ACCOUNT_ENABLED=true
+    fi
+
     # Set output file paths
     OUTPUTS_FILE="$SCRIPT_DIR/.${PROVIDER}_outputs.env"
     VALUES_DIR="$SCRIPT_DIR/values"

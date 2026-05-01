@@ -213,33 +213,29 @@ variable "postgres_extensions" {
   default     = ["hstore", "uuid-ossp", "pg_stat_statements"]
 }
 
-# Redis Cache Variables
+# Azure Managed Redis Variables (OSMO requires Redis 7+).
+# SKU families: Balanced (default), MemoryOptimized, ComputeOptimized,
+#               FlashOptimized (RAM-on-NVMe, cheaper at scale).
+# Sizes: B0 (~250MB) → B1000 (~10TB+ on Flash). B0 is the smallest dev/test SKU.
 variable "redis_sku_name" {
-  description = "Redis SKU name (Basic, Standard, Premium)"
+  description = "Azure Managed Redis SKU (e.g. Balanced_B0, MemoryOptimized_M10)."
   type        = string
-  default     = "Standard"
-}
+  default     = "Balanced_B0"
 
-variable "redis_family" {
-  description = "Redis family (C for Basic/Standard, P for Premium)"
-  type        = string
-  default     = "C"
-}
-
-variable "redis_capacity" {
-  description = "Redis cache capacity (0-6 for Basic/Standard C family, 1-5 for Premium P family)"
-  type        = number
-  default     = 1
+  validation {
+    condition     = can(regex("^(Balanced|MemoryOptimized|ComputeOptimized|FlashOptimized)_[BMC][0-9]+$", var.redis_sku_name))
+    error_message = "redis_sku_name must be a Managed Redis SKU (e.g. Balanced_B0)."
+  }
 }
 
 variable "redis_version" {
-  description = "Redis version (must be 7 or higher)"
+  description = "Redis version. OSMO requires Redis 7+, which on Azure is only available via Redis Enterprise (azurerm_redis_enterprise_cluster). The basic azurerm_redis_cache resource caps at 6."
   type        = string
   default     = "7"
 
   validation {
     condition     = tonumber(var.redis_version) >= 7
-    error_message = "Redis version must be 7 or higher."
+    error_message = "OSMO requires Redis 7 or higher (Azure Redis Enterprise)."
   }
 }
 

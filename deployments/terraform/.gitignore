@@ -1,0 +1,26 @@
+# Terraform runtime artifacts — local-only, never committed.
+# These get regenerated on every `terraform init` / `apply`.
+
+# Provider plugin cache
+.terraform/
+
+# Local state — for example/dev only. Real environments use a remote backend.
+*.tfstate
+*.tfstate.*
+
+# Lock file is intentionally NOT ignored — should be committed for reproducibility.
+# .terraform.lock.hcl is checked in.
+
+# Auto-generated tfvars from deploy-osmo-minimal.sh
+# (real users supply their own terraform.tfvars; the deploy script regenerates
+# this file from --flag inputs, so tracking it would create churn)
+**/terraform.tfvars
+
+# Plan output files
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
