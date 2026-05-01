@@ -198,21 +198,7 @@ def create_access_token(token_name: str,
     """
     postgres = connectors.PostgresConnector.get_instance()
 
-    # In ConfigMap mode, only declarative users (those in the ConfigMap
-    # `users:` block) can have access tokens. IDP users authenticate via
-    # JWT and don't have OSMO-managed access tokens. Surface this here
-    # with a token-creation-specific message rather than letting the
-    # generic 409 from _get_user_role_names / insert_into_db bubble up.
-    if (configmap_state.is_configmap_mode()
-            and configmap_state.get_declarative_user_roles(user_name) is None):
-        raise osmo_errors.OSMOUserError(
-            f'Cannot create an access token for {user_name}: this user is '
-            f'not declared in the ConfigMap users: block. IDP users '
-            f'authenticate via JWT — use the standard OIDC login flow '
-            f'(e.g. `osmo login`) instead. To grant a service account a '
-            f'long-lived token, add them to the ConfigMap users: block '
-            f'and redeploy.',
-            status_code=409)
+    _reject_token_create_for_idp_user(user_name, 'this user')
 
     access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
@@ -361,18 +347,7 @@ def admin_create_access_token(
     _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
-    # ConfigMap mode: target must be declarative. Surface here with the
-    # admin-mint-specific guidance instead of letting insert_into_db's
-    # generic 409 bubble up.
-    if (configmap_state.is_configmap_mode()
-            and configmap_state.get_declarative_user_roles(user_id) is None):
-        raise osmo_errors.OSMOUserError(
-            f'Cannot create an access token for {user_id}: target user is '
-            f'not declared in the ConfigMap users: block. IDP users do '
-            f'not have OSMO-managed access tokens — they authenticate via '
-            f'JWT. To mint a token for a service account, add them to the '
-            f'ConfigMap users: block and redeploy.',
-            status_code=409)
+    _reject_token_create_for_idp_user(user_id, 'target user')
 
     access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
@@ -441,6 +416,26 @@ def admin_delete_access_token(user_id: str, token_name: str):
 # User Management Helper Functions
 # =============================================================================
 
+def _reject_token_create_for_idp_user(user_id: str, target_phrase: str) -> None:
+    """409 if ConfigMap mode is on and the user isn't in the snapshot's
+    `users:` block.
+
+    `target_phrase` is interpolated into the error message so the same
+    helper serves self-mint ('this user') and admin-mint ('target user')
+    flows with consistent guidance.
+    """
+    if (configmap_state.is_configmap_mode()
+            and configmap_state.get_declarative_user_roles(user_id) is None):
+        raise osmo_errors.OSMOUserError(
+            f'Cannot create an access token for {user_id}: {target_phrase} is '
+            f'not declared in the ConfigMap users: block. IDP users '
+            f'authenticate via JWT — use the standard OIDC login flow '
+            f'(e.g. `osmo login`) instead. To grant a service account a '
+            f'long-lived token, add them to the ConfigMap users: block '
+            f'and redeploy.',
+            status_code=409)
+
+
 def _get_user_from_db(postgres: connectors.PostgresConnector,
                       user_id: str) -> Optional[dict]:
     """Fetch a user record from the database."""
@@ -476,7 +471,7 @@ def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
             role_name=role_name,
             assigned_by='configmap',
             assigned_at=None,
-        ) for role_name in declared]
+        ) for role_name in sorted(declared)]
 
     fetch_cmd = '''
         SELECT role_name, assigned_by, assigned_at
@@ -493,18 +488,10 @@ def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
 
 def _get_user_role_names(postgres: connectors.PostgresConnector,
                          user_id: str) -> List[str]:
-    """Fetch all role names assigned to a user. See _get_user_roles_from_db
-    for the ConfigMap-mode behavior; this is the same lookup specialized
-    to just role names."""
-    if configmap_state.is_configmap_mode():
-        declared = configmap_state.get_declarative_user_roles(user_id)
-        if declared is None:
-            raise osmo_errors.OSMOUserError(
-                f'User {user_id} is not declared in the ConfigMap '
-                f'users: block. Per-user role queries for IDP users '
-                f'are not supported in ConfigMap mode.',
-                status_code=409)
-        return sorted(declared)
+    """Fetch role names for a user. Thin projection over
+    _get_user_roles_from_db so the ConfigMap-mode 409 and the user_roles
+    SQL live in one place."""
+    return [role.role_name for role in _get_user_roles_from_db(postgres, user_id)]
 
     fetch_cmd = '''
         SELECT role_name FROM user_roles WHERE user_id = %s ORDER BY role_name;
