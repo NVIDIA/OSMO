@@ -594,17 +594,33 @@ azure_configure_kubectl() {
     # Check cluster type
     azure_check_cluster_type
 
-    # Grant RBAC permissions
-    azure_grant_cluster_rbac
-
     if [[ "$IS_PRIVATE_CLUSTER" == true ]]; then
+        # Private clusters route through `az aks command invoke` which
+        # authenticates via the caller's Azure AD RBAC. Grant the role
+        # assignments and verify access via the API.
+        azure_grant_cluster_rbac
         log_info "Private cluster detected - skipping local kubectl config"
         log_info "Verifying cluster access via Azure API..."
         azure_run_kubectl "get nodes"
     else
+        # Public cluster — fetch the local cluster-admin certificate via --admin
+        # rather than Azure-AD-bound credentials. --admin uses the cluster's
+        # built-in admin cert (stored in the kubeconfig) and bypasses Azure AD
+        # RBAC entirely. This is the right choice for an automated deploy
+        # script because:
+        #   1. Azure AD role-assignment propagation is racy (30s–15min). The
+        #      prior code's 30s sleep + immediate `kubectl get nodes` would
+        #      sporadically fail on fresh clusters with "User does not have
+        #      access to the resource in Azure".
+        #   2. The deploy needs cluster-admin-equivalent power anyway (creates
+        #      namespaces, secrets, ConfigMaps, helm installs).
+        # For non-admin Azure AD access by human users *after* the deploy,
+        # run `az aks get-credentials` (without --admin) separately and grant
+        # role assignments out-of-band.
         az aks get-credentials \
             --resource-group "$RESOURCE_GROUP_NAME" \
             --name "$AKS_CLUSTER_NAME" \
+            --admin \
             --overwrite-existing
 
         kubectl get nodes
