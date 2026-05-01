@@ -27,6 +27,11 @@ from typing import Any, Dict, List
 
 _configmap_mode_active: bool = False
 _parsed_configs: Dict[str, Any] | None = None
+# Pre-built name -> List[role_name] index, rebuilt every time
+# set_parsed_configs swaps the snapshot. Lookup is hot (every access
+# token validation, every per-user role query) so we pay the build cost
+# once at reload and serve O(1) reads.
+_user_roles_index: Dict[str, List[str]] = {}
 
 
 def set_configmap_mode(active: bool) -> None:
@@ -39,8 +44,27 @@ def is_configmap_mode() -> bool:
 
 
 def set_parsed_configs(configs: Dict[str, Any] | None) -> None:
-    global _parsed_configs  # noqa: PLW0603
+    global _parsed_configs, _user_roles_index  # noqa: PLW0603
     _parsed_configs = configs
+    _user_roles_index = _build_user_roles_index(configs)
+
+
+def _build_user_roles_index(
+    configs: Dict[str, Any] | None,
+) -> Dict[str, List[str]]:
+    """Materialize the name -> roles map from the snapshot's `users:` block."""
+    if configs is None:
+        return {}
+    index: Dict[str, List[str]] = {}
+    for entry in configs.get('users') or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get('name')
+        if not isinstance(name, str) or not name:
+            continue
+        roles = entry.get('roles') or []
+        index[name] = [r for r in roles if isinstance(r, str)]
+    return index
 
 
 def get_snapshot() -> Dict[str, Any] | None:
@@ -59,25 +83,9 @@ def get_declarative_user_roles(user_name: str) -> List[str] | None:
     managed) or when the snapshot isn't loaded. Returns an empty list
     when the user is declared with no roles. The caller can distinguish
     "not declared" from "declared with no roles" by the None check.
+
+    O(1) — backed by the index rebuilt at set_parsed_configs time.
     """
-    snapshot = _parsed_configs
-    if snapshot is None:
+    if _parsed_configs is None:
         return None
-    for entry in snapshot.get('users') or []:
-        if isinstance(entry, dict) and entry.get('name') == user_name:
-            roles = entry.get('roles') or []
-            return [r for r in roles if isinstance(r, str)]
-    return None
-
-
-def get_declared_role_names() -> set:
-    """Return the set of role names declared in the ConfigMap `roles:` block.
-
-    Empty set when not in ConfigMap mode or the snapshot lacks a `roles:`
-    block. Used by access-token validation to confirm a requested role
-    is declarative before storing the role_name on `access_token_roles`.
-    """
-    snapshot = _parsed_configs
-    if snapshot is None:
-        return set()
-    return set((snapshot.get('roles') or {}).keys())
+    return _user_roles_index.get(user_name)

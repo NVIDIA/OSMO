@@ -31,3 +31,15 @@ osmo_py_test(
     tags = ["requires-network"],
     visibility = ["//visibility:public"],
 )
+
+osmo_py_test(
+    name = "test_configmap_mode_unit",
+    srcs = ["test_configmap_mode_unit.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/auth:auth",
+        "//src/utils:configmap_state",
+    ],
+    size = "small",
+    visibility = ["//visibility:public"],
+)

@@ -66,8 +66,13 @@ class AccessToken(pydantic.BaseModel):
             spec_rows = database.execute_fetch_command(
                 fetch_cmd, (user_name,), True)
             roles = configmap_state.get_declarative_user_roles(user_name) or []
+            sorted_roles = sorted(roles)
             return [
-                AccessTokenWithRoles(**spec_row, roles=sorted(roles))
+                AccessTokenWithRoles(
+                    **spec_row,
+                    roles=sorted_roles,
+                    roles_source='per_user',
+                )
                 for spec_row in spec_rows
             ]
 
@@ -266,7 +271,19 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def validate_access_token(cls, database: connectors.PostgresConnector, access_token: str) \
         -> Optional['AccessToken']:
-        """Validate the access token."""
+        """Validate the access token.
+
+        DB mode: hash match against access_token row.
+
+        ConfigMap mode: same hash match, but the token is rejected
+        unless the owning user is currently declared in the snapshot's
+        users: block. This closes the privilege-expansion-on-flip
+        window — a token minted in DB mode for a user who later
+        appears in the ConfigMap with broader roles would otherwise
+        silently inherit those roles. It also rejects tokens for users
+        removed from the ConfigMap, giving operators a single
+        revocation primitive (edit users:, redeploy).
+        """
         fetch_cmd = '''
             SELECT user_name, token_name, expires_at, description
             FROM access_token WHERE access_token = %s;
@@ -275,7 +292,12 @@ class AccessToken(pydantic.BaseModel):
             fetch_cmd, (auth.hash_access_token(access_token),), True)
         if not spec_rows:
             return None
-        return AccessToken(**spec_rows[0])
+        token = AccessToken(**spec_rows[0])
+        if configmap_state.is_configmap_mode():
+            declared = configmap_state.get_declarative_user_roles(token.user_name)
+            if declared is None:
+                return None
+        return token
 
     @classmethod
     def get_roles_for_token(cls, database: connectors.PostgresConnector,
@@ -307,8 +329,18 @@ class AccessToken(pydantic.BaseModel):
 
 
 class AccessTokenWithRoles(AccessToken):
-    """Access Token with roles."""
+    """Access Token with roles.
+
+    `roles_source` discriminates how the role list was resolved:
+    - `per_token`: roles are bound to this specific token (DB mode,
+      `access_token_roles` rows). The same user can own multiple tokens
+      with different role subsets.
+    - `per_user`: roles come from the user's ConfigMap `users:` block,
+      so all of the user's tokens carry the same role set in
+      ConfigMap mode. Per-token subsetting is not supported.
+    """
     roles: List[str] = []
+    roles_source: str = 'per_token'
 
 
 # =============================================================================
@@ -316,10 +348,14 @@ class AccessTokenWithRoles(AccessToken):
 # =============================================================================
 
 class UserRole(pydantic.BaseModel):
-    """User role assignment."""
+    """User role assignment.
+
+    `assigned_at` is None for ConfigMap-mode users — the binding lives
+    in the ConfigMap, not in a per-row timestamped grant.
+    """
     role_name: str
     assigned_by: str
-    assigned_at: datetime.datetime
+    assigned_at: Optional[datetime.datetime] = None
 
 
 class User(pydantic.BaseModel):
@@ -392,10 +428,14 @@ class BulkAssignResponse(pydantic.BaseModel):
 
 
 class AccessTokenRole(pydantic.BaseModel):
-    """Access token role assignment."""
+    """Access token role assignment.
+
+    `assigned_at` is None for ConfigMap-mode tokens — the binding is
+    declarative (ConfigMap users: block), not an explicit per-row grant.
+    """
     role_name: str
     assigned_by: str
-    assigned_at: datetime.datetime
+    assigned_at: Optional[datetime.datetime] = None
 
 
 class AccessTokenRolesResponse(pydantic.BaseModel):

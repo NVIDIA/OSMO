@@ -198,6 +198,22 @@ def create_access_token(token_name: str,
     """
     postgres = connectors.PostgresConnector.get_instance()
 
+    # In ConfigMap mode, only declarative users (those in the ConfigMap
+    # `users:` block) can have access tokens. IDP users authenticate via
+    # JWT and don't have OSMO-managed access tokens. Surface this here
+    # with a token-creation-specific message rather than letting the
+    # generic 409 from _get_user_role_names / insert_into_db bubble up.
+    if (configmap_state.is_configmap_mode()
+            and configmap_state.get_declarative_user_roles(user_name) is None):
+        raise osmo_errors.OSMOUserError(
+            f'Cannot create an access token for {user_name}: this user is '
+            f'not declared in the ConfigMap users: block. IDP users '
+            f'authenticate via JWT — use the standard OIDC login flow '
+            f'(e.g. `osmo login`) instead. To grant a service account a '
+            f'long-lived token, add them to the ConfigMap users: block '
+            f'and redeploy.',
+            status_code=409)
+
     access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
@@ -264,16 +280,15 @@ def list_access_token_roles(
 
     # In ConfigMap mode tokens carry the user's full declared role set;
     # there are no per-token role rows in access_token_roles. Return the
-    # snapshot view with synthetic assigned_by/at (the chart commit and
-    # now() are the closest semantic equivalents).
+    # snapshot view with assigned_by='configmap' and assigned_at=None —
+    # the binding is declarative, not a timestamped per-row grant.
     if configmap_state.is_configmap_mode():
         declared = (
             configmap_state.get_declarative_user_roles(user_name) or [])
-        now = datetime.datetime.now(datetime.timezone.utc)
         roles = [objects.AccessTokenRole(
             role_name=role_name,
             assigned_by='configmap',
-            assigned_at=now,
+            assigned_at=None,
         ) for role_name in sorted(declared)]
     else:
         fetch_cmd = '''
@@ -346,6 +361,19 @@ def admin_create_access_token(
     _validate_user_id_not_empty(user_id)
     postgres = connectors.PostgresConnector.get_instance()
 
+    # ConfigMap mode: target must be declarative. Surface here with the
+    # admin-mint-specific guidance instead of letting insert_into_db's
+    # generic 409 bubble up.
+    if (configmap_state.is_configmap_mode()
+            and configmap_state.get_declarative_user_roles(user_id) is None):
+        raise osmo_errors.OSMOUserError(
+            f'Cannot create an access token for {user_id}: target user is '
+            f'not declared in the ConfigMap users: block. IDP users do '
+            f'not have OSMO-managed access tokens — they authenticate via '
+            f'JWT. To mint a token for a service account, add them to the '
+            f'ConfigMap users: block and redeploy.',
+            status_code=409)
+
     access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
@@ -361,9 +389,6 @@ def admin_create_access_token(
         raise osmo_errors.OSMOUserError(
             f'Access token expiration date cannot be more than {max_token_duration} from now')
 
-    # In ConfigMap mode insert_into_db looks up the target user in the
-    # snapshot's `users:` block — admin mints for IDP users (not in
-    # users:) raise inside _insert_configmap_mode.
     objects.AccessToken.insert_into_db(
         postgres, user_id, token_name, access_token,
         expires_at, description, token_roles, admin_user)
@@ -450,7 +475,7 @@ def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
         return [objects.UserRole(
             role_name=role_name,
             assigned_by='configmap',
-            assigned_at=datetime.datetime.now(datetime.timezone.utc),
+            assigned_at=None,
         ) for role_name in declared]
 
     fetch_cmd = '''
@@ -737,6 +762,14 @@ def delete_user(user_id: str):
     """
     Delete a user and all associated role assignments and PATs.
 
+    In ConfigMap mode this is the supported primitive for revoking a
+    declarative service account's runtime access — `remove_role_from_user`
+    and friends are 409'd because role membership is declarative, but
+    `delete_user` operates on runtime state (the `users` row + cascading
+    `access_token` rows) and is intentionally not gated. To fully retire
+    the account, also remove its entry from the ConfigMap `users:` block
+    so the watcher reload doesn't keep advertising it.
+
     Args:
         user_id: The user ID to delete
     """
@@ -746,7 +779,8 @@ def delete_user(user_id: str):
     # Check if user exists
     _validate_user_exists(postgres, user_id)
 
-    # Delete user (cascades to user_roles due to ON DELETE CASCADE)
+    # Delete user (cascades to user_roles, access_token, and
+    # access_token_roles via FK ON DELETE CASCADE).
     delete_cmd = 'DELETE FROM users WHERE id = %s;'
     postgres.execute_commit_command(delete_cmd, (user_id,))
 
@@ -846,23 +880,10 @@ def remove_role_from_user(user_id: str, role_name: str):
     configmap_guard.reject_user_role_writes_in_configmap_mode()
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Two writes in one transaction:
-    # 1. DELETE FROM user_roles — primary effect of the API
-    # 2. DELETE FROM access_token_roles — explicit cascade replacement.
-    #    Pre-decoupling this happened automatically via the FK on
-    #    access_token_roles.user_role_id; now that role_name is the
-    #    source of truth and the FK is nullable, we delete by
-    #    (user_name, role_name) directly to keep the privilege-revoke
-    #    invariant tight.
-    delete_user_role_cmd = (
-        'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;')
-    delete_token_roles_cmd = (
-        'DELETE FROM access_token_roles '
-        'WHERE user_name = %s AND role_name = %s;')
-    postgres.execute_commit_commands([
-        (delete_user_role_cmd, (user_id, role_name)),
-        (delete_token_roles_cmd, (user_id, role_name)),
-    ])
+    # access_token_roles entries referencing this user_role are auto-deleted
+    # via ON DELETE CASCADE on access_token_roles.user_role_id.
+    delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
+    postgres.execute_commit_command(delete_cmd, (user_id, role_name))
 
 
 @router.get('/api/auth/roles/{role_name}/users', response_model=objects.RoleUsersResponse)
