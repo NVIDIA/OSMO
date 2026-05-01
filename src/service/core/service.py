@@ -383,15 +383,20 @@ def setup_default_admin(postgres: connectors.PostgresConnector,
     # Create or update the user
     connectors.upsert_user(postgres, admin_username)
 
-    # Assign the osmo-admin role if not already assigned
-    now = common.current_time()
-    assign_role_cmd = '''
-        INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (user_id, role_name) DO NOTHING;
-    '''
-    postgres.execute_commit_command(
-        assign_role_cmd, (admin_username, 'osmo-admin', 'System', now))
+    # In ConfigMap mode the admin's role membership is declarative (via the
+    # ConfigMap `users:` block); user_roles is empty by design. The
+    # access_token write below picks up role_name directly. Gating on
+    # config.config_file rather than runtime is_configmap_mode() avoids
+    # the bootstrap ordering bug where the watcher hasn't activated yet.
+    if not config.config_file:
+        now = common.current_time()
+        assign_role_cmd = '''
+            INSERT INTO user_roles (user_id, role_name, assigned_by, assigned_at)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, role_name) DO NOTHING;
+        '''
+        postgres.execute_commit_command(
+            assign_role_cmd, (admin_username, 'osmo-admin', 'System', now))
 
     # Check if token already exists and compare hashed values
     check_token_cmd = '''
@@ -481,11 +486,15 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
         set_default_backend_images(postgres)
         set_client_install_url(postgres, config)
     set_default_service_url(postgres)
-    setup_default_admin(postgres, config)
 
-    # Store on app state to prevent GC from killing the watcher thread.
+    # Start the watcher BEFORE setup_default_admin so the snapshot is
+    # loaded when the admin's access token is minted in ConfigMap mode.
+    # Otherwise insert_into_db's ConfigMap branch can't look up the
+    # admin's role against the (not-yet-loaded) snapshot.
     target_app.state.config_watcher = configmap_loader.start_config_watcher(
         config.config_file, postgres, is_api_service=True)
+
+    setup_default_admin(postgres, config)
 
     # Instantiate QueryParser
     query.QueryParser()

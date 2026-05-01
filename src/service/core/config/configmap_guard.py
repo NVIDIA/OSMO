@@ -44,3 +44,20 @@ def reject_if_configmap_mode(username: str) -> None:
             'Configs are managed by ConfigMap and cannot be modified '
             'via CLI/API. Update the Helm values and redeploy instead.',
             status_code=409)
+
+
+def reject_user_role_writes_in_configmap_mode() -> None:
+    """Raise 409 when a user-role write hits ConfigMap mode.
+
+    Distinct from reject_if_configmap_mode because the remediation is
+    different: role membership is declarative via either an IDP group
+    (mapped to OSMO roles by `external_roles` in the ConfigMap) or via
+    the ConfigMap's `users:` block for service accounts. There's no
+    runtime grant path.
+    """
+    if configmap_state.is_configmap_mode():
+        raise osmo_errors.OSMOUserError(
+            'User role assignment is declarative in ConfigMap mode. '
+            'For IDP users, edit the IDP group mapped to the role. '
+            'For service accounts, edit the ConfigMap users: block.',
+            status_code=409)

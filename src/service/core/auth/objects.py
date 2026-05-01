@@ -23,7 +23,7 @@ from typing import List, Optional
 import pydantic
 
 from src.lib.utils import common, osmo_errors
-from src.utils import auth, connectors
+from src.utils import auth, configmap_state, connectors
 
 
 class AccessToken(pydantic.BaseModel):
@@ -47,7 +47,30 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def list_with_roles_from_db(cls, database: connectors.PostgresConnector,
                                 user_name: str) -> List['AccessTokenWithRoles']:
-        """Fetches access tokens with their roles for a user."""
+        """Fetch access tokens with their roles for a user.
+
+        DB mode: roles come from access_token_roles JOINed against
+        user_roles (per-token role subsetting is supported here).
+
+        ConfigMap mode: tokens carry the user's full set of declared
+        roles from the ConfigMap snapshot. access_token_roles is not
+        consulted — the user_roles table is empty in this mode and
+        per-token subsetting isn't a feature ConfigMap mode supports.
+        """
+        if configmap_state.is_configmap_mode():
+            fetch_cmd = '''
+                SELECT user_name, token_name, expires_at, description
+                FROM access_token WHERE user_name = %s
+                ORDER BY token_name;
+            '''
+            spec_rows = database.execute_fetch_command(
+                fetch_cmd, (user_name,), True)
+            roles = configmap_state.get_declarative_user_roles(user_name) or []
+            return [
+                AccessTokenWithRoles(**spec_row, roles=sorted(roles))
+                for spec_row in spec_rows
+            ]
+
         fetch_cmd = '''
             SELECT
                 at.user_name,
@@ -98,12 +121,19 @@ class AccessToken(pydantic.BaseModel):
     def insert_into_db(cls, database: connectors.PostgresConnector, user_name: str,
                        token_name: str, access_token: str, expires_at: str,
                        description: str, roles: List[str], assigned_by: str):
-        """Create an entry in the access token table and assign roles via access_token_roles.
+        """Create an access token entry and (in DB mode) assign roles.
 
-        This operation is atomic - the role validation and all inserts happen in a
-        single SQL transaction. If any requested role is not assigned to the user
-        in the user_roles table at the moment of insert, the entire operation fails
-        and no token is created.
+        DB mode: a single CTE validates that every requested role is in
+        the user's `user_roles` rows AND inserts the token +
+        access_token_roles rows atomically. Per-token role subsetting
+        is supported here.
+
+        ConfigMap mode: roles aren't stored per-token. The token always
+        carries the user's full set of declared roles from the snapshot
+        at validation time. The `roles` argument must equal that
+        declared set (or be a subset of it for the caller's check) —
+        we validate and then INSERT only the access_token row, no
+        access_token_roles rows.
         """
         if not re.fullmatch(common.TOKEN_NAME_REGEX, token_name):
             raise osmo_errors.OSMOUserError(
@@ -127,6 +157,12 @@ class AccessToken(pydantic.BaseModel):
 
         now = datetime.datetime.now(datetime.timezone.utc)
         hashed_token = auth.hash_access_token(access_token)
+
+        if configmap_state.is_configmap_mode():
+            cls._insert_configmap_mode(
+                database, user_name, token_name, hashed_token,
+                expires_at, description, roles)
+            return
 
         # Atomic insert with role validation using CTEs
         # The query validates roles and inserts in a single transaction.
@@ -185,6 +221,48 @@ class AccessToken(pydantic.BaseModel):
                     f'Token name {token_name} already exists.') from e
             raise
 
+    @staticmethod
+    def _insert_configmap_mode(database: connectors.PostgresConnector,
+                               user_name: str, token_name: str,
+                               hashed_token: bytes, expires_at: str,
+                               description: str, roles: List[str]) -> None:
+        # ConfigMap mode: tokens carry the user's full declared role set;
+        # there's no per-token storage in access_token_roles. We still
+        # validate that every requested role is in the user's snapshot
+        # entry — that catches admins asking for a role the user doesn't
+        # have, even though the token will end up carrying the full set.
+        declared = configmap_state.get_declarative_user_roles(user_name)
+        if declared is None:
+            raise osmo_errors.OSMOUserError(
+                f'Cannot mint access token for {user_name}: user is not '
+                f'declared in the ConfigMap users: block. IDP users do not '
+                f'have OSMO-managed access tokens — use IDP authentication '
+                f'instead.')
+
+        declared_set = set(declared)
+        missing = [r for r in roles if r not in declared_set]
+        if missing:
+            raise osmo_errors.OSMOUserError(
+                f'User {user_name} does not have role(s) {missing}. '
+                f'Token creation failed.')
+
+        insert_token_cmd = '''
+            INSERT INTO access_token
+            (user_name, token_name, access_token, expires_at, description)
+            VALUES (%s, %s, %s, %s, %s);
+        '''
+
+        try:
+            database.execute_commit_command(
+                insert_token_cmd,
+                (user_name, token_name, hashed_token, expires_at, description))
+        except osmo_errors.OSMODatabaseError as e:
+            error_str = str(e).lower()
+            if 'already exists' in error_str or 'duplicate key' in error_str:
+                raise osmo_errors.OSMOUserError(
+                    f'Token name {token_name} already exists.') from e
+            raise
+
     @classmethod
     def validate_access_token(cls, database: connectors.PostgresConnector, access_token: str) \
         -> Optional['AccessToken']:
@@ -202,9 +280,20 @@ class AccessToken(pydantic.BaseModel):
     @classmethod
     def get_roles_for_token(cls, database: connectors.PostgresConnector,
                             user_name: str, token_name: str) -> List[str]:
+        """Return the role names attached to an access token.
+
+        DB mode: roles come from access_token_roles JOINed against
+        user_roles, which lets the same user own multiple tokens with
+        different role subsets.
+
+        ConfigMap mode: tokens always carry the user's full set of
+        declared roles from the snapshot. token_name is unused there —
+        every token owned by `user_name` resolves to the same role set.
         """
-        Get the roles assigned to a access_token by joining access_token_roles with user_roles.
-        """
+        if configmap_state.is_configmap_mode():
+            roles = configmap_state.get_declarative_user_roles(user_name)
+            return sorted(roles) if roles else []
+
         fetch_cmd = '''
             SELECT ur.role_name
             FROM access_token_roles pr
@@ -212,7 +301,8 @@ class AccessToken(pydantic.BaseModel):
             WHERE pr.user_name = %s AND pr.token_name = %s
             ORDER BY ur.role_name;
         '''
-        rows = database.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
+        rows = database.execute_fetch_command(
+            fetch_cmd, (user_name, token_name), True)
         return [row['role_name'] for row in rows]
 
 

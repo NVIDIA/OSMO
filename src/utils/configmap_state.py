@@ -16,7 +16,7 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # Global ConfigMap mode state. Set by ConfigMapWatcher, read by
 # postgres.py model methods and configmap_guard.py.
@@ -50,3 +50,34 @@ def get_snapshot() -> Dict[str, Any] | None:
     for all config lookups to get a consistent snapshot.
     """
     return _parsed_configs
+
+
+def get_declarative_user_roles(user_name: str) -> List[str] | None:
+    """Return roles for a user declared in the ConfigMap `users:` block.
+
+    Returns None when the user isn't declared (caller treats them as IDP-
+    managed) or when the snapshot isn't loaded. Returns an empty list
+    when the user is declared with no roles. The caller can distinguish
+    "not declared" from "declared with no roles" by the None check.
+    """
+    snapshot = _parsed_configs
+    if snapshot is None:
+        return None
+    for entry in snapshot.get('users') or []:
+        if isinstance(entry, dict) and entry.get('name') == user_name:
+            roles = entry.get('roles') or []
+            return [r for r in roles if isinstance(r, str)]
+    return None
+
+
+def get_declared_role_names() -> set:
+    """Return the set of role names declared in the ConfigMap `roles:` block.
+
+    Empty set when not in ConfigMap mode or the snapshot lacks a `roles:`
+    block. Used by access-token validation to confirm a requested role
+    is declarative before storing the role_name on `access_token_roles`.
+    """
+    snapshot = _parsed_configs
+    if snapshot is None:
+        return set()
+    return set((snapshot.get('roles') or {}).keys())

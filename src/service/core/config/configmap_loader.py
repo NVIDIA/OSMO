@@ -349,7 +349,7 @@ def start_config_watcher(
 
 _EXPECTED_CONFIG_KEYS = {
     'service', 'workflow', 'dataset', 'resource_validations', 'pod_templates',
-    'group_templates', 'backends', 'backend_tests', 'pools', 'roles',
+    'group_templates', 'backends', 'backend_tests', 'pools', 'roles', 'users',
 }
 
 
@@ -407,6 +407,53 @@ def _validate_configs(managed_configs: Dict[str, Any]) -> List[str]:
         if section is not None and not isinstance(section, dict):
             errors.append(
                 f'{config_key}: must be a dict, got {type(section).__name__}')
+
+    errors.extend(_validate_users(managed_configs))
+
+    return errors
+
+
+def _validate_users(managed_configs: Dict[str, Any]) -> List[str]:
+    """Validate the `users:` block.
+
+    Each entry must be a dict with `name` and `roles` (list of strings).
+    Every role name must exist in the same ConfigMap's `roles:` block —
+    otherwise an admin can declare a user with a role that nothing else
+    knows about and the resulting access tokens silently won't work.
+    """
+    users = managed_configs.get('users')
+    if users is None:
+        return []
+
+    errors: List[str] = []
+    if not isinstance(users, list):
+        return [f'users: must be a list, got {type(users).__name__}']
+
+    declared_role_names = set((managed_configs.get('roles') or {}).keys())
+    seen_names: set = set()
+
+    for index, entry in enumerate(users):
+        prefix = f'users[{index}]'
+        if not isinstance(entry, dict):
+            errors.append(f'{prefix}: must be a dict, got {type(entry).__name__}')
+            continue
+        name = entry.get('name')
+        if not isinstance(name, str) or not name:
+            errors.append(f'{prefix}.name: must be a non-empty string')
+            continue
+        if name in seen_names:
+            errors.append(f'{prefix}.name: duplicate user "{name}"')
+            continue
+        seen_names.add(name)
+        roles = entry.get('roles')
+        if not isinstance(roles, list) or not all(isinstance(r, str) for r in roles):
+            errors.append(f'{prefix}.roles: must be a list of strings')
+            continue
+        unknown = [r for r in roles if r not in declared_role_names]
+        if unknown:
+            errors.append(
+                f'{prefix}.roles: unknown role(s) {unknown} '
+                f'(roles must be declared in the roles: block)')
 
     return errors
 

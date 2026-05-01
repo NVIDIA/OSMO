@@ -26,7 +26,8 @@ import fastapi
 from src.lib.utils import common, osmo_errors
 from src.utils.job import task as task_lib
 from src.service.core.auth import objects
-from src.utils import auth, connectors
+from src.service.core.config import configmap_guard
+from src.utils import auth, configmap_state, connectors
 
 
 router = fastapi.APIRouter(
@@ -193,14 +194,16 @@ def create_access_token(token_name: str,
     If roles are specified, all specified roles must be assigned to the user.
     If any role is not assigned to the user, the request fails and no token
     is created. If no roles are specified, the access token inherits all of the user's
-    current roles from the user_roles table.
+    current roles.
     """
     postgres = connectors.PostgresConnector.get_instance()
 
     access_token = secrets.token_urlsafe(task_lib.REFRESH_TOKEN_LENGTH)
 
     if roles is None:
-        # No roles specified - inherit all user's roles
+        # No roles specified - inherit all user's roles. _get_user_role_names
+        # handles both DB mode (user_roles table) and ConfigMap mode
+        # (snapshot users: block).
         token_roles = _get_user_role_names(postgres, user_name)
     else:
         # Use the specified roles - validation happens in insert_into_db
@@ -259,21 +262,34 @@ def list_access_token_roles(
         raise osmo_errors.OSMOUserError(
             f'Token {token_name} not found or does not belong to current user')
 
-    # Fetch access token roles by joining with user_roles to get role_name
-    fetch_cmd = '''
-        SELECT ur.role_name, pr.assigned_by, pr.assigned_at
-        FROM access_token_roles pr
-        JOIN user_roles ur ON pr.user_role_id = ur.id
-        WHERE pr.user_name = %s AND pr.token_name = %s
-        ORDER BY ur.role_name;
-    '''
-    rows = postgres.execute_fetch_command(fetch_cmd, (user_name, token_name), True)
-
-    roles = [objects.AccessTokenRole(
-        role_name=row['role_name'],
-        assigned_by=row['assigned_by'],
-        assigned_at=row['assigned_at']
-    ) for row in rows]
+    # In ConfigMap mode tokens carry the user's full declared role set;
+    # there are no per-token role rows in access_token_roles. Return the
+    # snapshot view with synthetic assigned_by/at (the chart commit and
+    # now() are the closest semantic equivalents).
+    if configmap_state.is_configmap_mode():
+        declared = (
+            configmap_state.get_declarative_user_roles(user_name) or [])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        roles = [objects.AccessTokenRole(
+            role_name=role_name,
+            assigned_by='configmap',
+            assigned_at=now,
+        ) for role_name in sorted(declared)]
+    else:
+        fetch_cmd = '''
+            SELECT ur.role_name, pr.assigned_by, pr.assigned_at
+            FROM access_token_roles pr
+            JOIN user_roles ur ON pr.user_role_id = ur.id
+            WHERE pr.user_name = %s AND pr.token_name = %s
+            ORDER BY ur.role_name;
+        '''
+        rows = postgres.execute_fetch_command(
+            fetch_cmd, (user_name, token_name), True)
+        roles = [objects.AccessTokenRole(
+            role_name=row['role_name'],
+            assigned_by=row['assigned_by'],
+            assigned_at=row['assigned_at']
+        ) for row in rows]
 
     return objects.AccessTokenRolesResponse(
         user_name=user_name,
@@ -345,6 +361,9 @@ def admin_create_access_token(
         raise osmo_errors.OSMOUserError(
             f'Access token expiration date cannot be more than {max_token_duration} from now')
 
+    # In ConfigMap mode insert_into_db looks up the target user in the
+    # snapshot's `users:` block — admin mints for IDP users (not in
+    # users:) raise inside _insert_configmap_mode.
     objects.AccessToken.insert_into_db(
         postgres, user_id, token_name, access_token,
         expires_at, description, token_roles, admin_user)
@@ -410,7 +429,30 @@ def _get_user_from_db(postgres: connectors.PostgresConnector,
 
 def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
                             user_id: str) -> List[objects.UserRole]:
-    """Fetch all roles assigned to a user."""
+    """Fetch all roles assigned to a user.
+
+    DB mode: reads user_roles. ConfigMap mode: looks up the user in the
+    snapshot's `users:` block (declarative service accounts). IDP users
+    don't have a per-user record in either source — for arbitrary-user
+    queries we 409 in ConfigMap mode rather than returning empty roles
+    that look like "no roles assigned" but actually mean "OSMO doesn't
+    track per-user state for this user — see IDP groups."
+    """
+    if configmap_state.is_configmap_mode():
+        declared = configmap_state.get_declarative_user_roles(user_id)
+        if declared is None:
+            raise osmo_errors.OSMOUserError(
+                f'User {user_id} is not declared in the ConfigMap '
+                f'users: block. Per-user role queries for IDP users '
+                f'are not supported in ConfigMap mode — role membership '
+                f'lives in the IDP, not in OSMO.',
+                status_code=409)
+        return [objects.UserRole(
+            role_name=role_name,
+            assigned_by='configmap',
+            assigned_at=datetime.datetime.now(datetime.timezone.utc),
+        ) for role_name in declared]
+
     fetch_cmd = '''
         SELECT role_name, assigned_by, assigned_at
         FROM user_roles WHERE user_id = %s
@@ -426,7 +468,19 @@ def _get_user_roles_from_db(postgres: connectors.PostgresConnector,
 
 def _get_user_role_names(postgres: connectors.PostgresConnector,
                          user_id: str) -> List[str]:
-    """Fetch all role names assigned to a user."""
+    """Fetch all role names assigned to a user. See _get_user_roles_from_db
+    for the ConfigMap-mode behavior; this is the same lookup specialized
+    to just role names."""
+    if configmap_state.is_configmap_mode():
+        declared = configmap_state.get_declarative_user_roles(user_id)
+        if declared is None:
+            raise osmo_errors.OSMOUserError(
+                f'User {user_id} is not declared in the ConfigMap '
+                f'users: block. Per-user role queries for IDP users '
+                f'are not supported in ConfigMap mode.',
+                status_code=409)
+        return sorted(declared)
+
     fetch_cmd = '''
         SELECT role_name FROM user_roles WHERE user_id = %s ORDER BY role_name;
     '''
@@ -503,6 +557,17 @@ def list_users(
 
     # Add roles filter (users who have ANY of the specified roles)
     role_list = roles if roles else []
+
+    # The role-filter path joins user_roles, which is empty in ConfigMap
+    # mode. We don't have a sidecar-level "list users in IDP group X"
+    # API in OSMO, so the operation has no answer that's correct for IDP
+    # users. 409 instead of silently returning only declarative users.
+    if role_list and configmap_state.is_configmap_mode():
+        raise osmo_errors.OSMOUserError(
+            'Listing users by role is not supported in ConfigMap mode. '
+            'IDP membership is the source of truth — query the IDP '
+            '(e.g. Azure AD group members) instead.',
+            status_code=409)
 
     # Build the query
     if role_list:
@@ -587,6 +652,11 @@ def create_user(
     """
     _validate_username(request.id)
     postgres = connectors.PostgresConnector.get_instance()
+
+    # If roles are requested, role assignment is declarative in
+    # ConfigMap mode — refuse the runtime grant.
+    if request.roles:
+        configmap_guard.reject_user_role_writes_in_configmap_mode()
 
     # Check if user already exists
     existing_user = _get_user_from_db(postgres, request.id)
@@ -729,6 +799,7 @@ def assign_role_to_user(
         UserRoleAssignment with assignment details
     """
     _validate_user_id_not_empty(user_id)
+    configmap_guard.reject_user_role_writes_in_configmap_mode()
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate role exists (user existence is enforced by FK constraint on user_roles)
@@ -772,12 +843,26 @@ def remove_role_from_user(user_id: str, role_name: str):
         role_name: The role to remove
     """
     _validate_user_id_not_empty(user_id)
+    configmap_guard.reject_user_role_writes_in_configmap_mode()
     postgres = connectors.PostgresConnector.get_instance()
 
-    # Delete role assignment from user_roles
-    # access_token_roles entries referencing this user_role are auto-deleted via ON DELETE CASCADE
-    delete_cmd = 'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;'
-    postgres.execute_commit_command(delete_cmd, (user_id, role_name))
+    # Two writes in one transaction:
+    # 1. DELETE FROM user_roles — primary effect of the API
+    # 2. DELETE FROM access_token_roles — explicit cascade replacement.
+    #    Pre-decoupling this happened automatically via the FK on
+    #    access_token_roles.user_role_id; now that role_name is the
+    #    source of truth and the FK is nullable, we delete by
+    #    (user_name, role_name) directly to keep the privilege-revoke
+    #    invariant tight.
+    delete_user_role_cmd = (
+        'DELETE FROM user_roles WHERE user_id = %s AND role_name = %s;')
+    delete_token_roles_cmd = (
+        'DELETE FROM access_token_roles '
+        'WHERE user_name = %s AND role_name = %s;')
+    postgres.execute_commit_commands([
+        (delete_user_role_cmd, (user_id, role_name)),
+        (delete_token_roles_cmd, (user_id, role_name)),
+    ])
 
 
 @router.get('/api/auth/roles/{role_name}/users', response_model=objects.RoleUsersResponse)
@@ -791,6 +876,13 @@ def list_users_with_role(role_name: str) -> objects.RoleUsersResponse:
     Returns:
         RoleUsersResponse with list of users
     """
+    if configmap_state.is_configmap_mode():
+        raise osmo_errors.OSMOUserError(
+            'Listing users by role is not supported in ConfigMap mode. '
+            'IDP membership is the source of truth — query the IDP '
+            '(e.g. Azure AD group members) instead.',
+            status_code=409)
+
     postgres = connectors.PostgresConnector.get_instance()
 
     # Validate role exists
@@ -835,6 +927,8 @@ def bulk_assign_role(
     Returns:
         BulkAssignResponse with results
     """
+    configmap_guard.reject_user_role_writes_in_configmap_mode()
+
     for user_id in request.user_ids:
         _validate_user_id_not_empty(user_id)
 

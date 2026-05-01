@@ -409,6 +409,43 @@ class TestValidateConfigs(unittest.TestCase):
         errors = configmap_loader._validate_configs({})
         self.assertEqual(errors, [])
 
+    def test_users_block_valid(self):
+        configs: Dict[str, Any] = {
+            'roles': {'osmo-admin': {}, 'osmo-user': {}},
+            'users': [
+                {'name': 'admin', 'roles': ['osmo-admin']},
+                {'name': 'ci-bot', 'roles': ['osmo-user']},
+            ],
+        }
+        errors = configmap_loader._validate_configs(configs)
+        self.assertEqual(errors, [])
+
+    def test_users_block_unknown_role_rejected(self):
+        configs: Dict[str, Any] = {
+            'roles': {'osmo-user': {}},
+            'users': [{'name': 'rogue', 'roles': ['nonexistent-role']}],
+        }
+        errors = configmap_loader._validate_configs(configs)
+        self.assertTrue(
+            any('nonexistent-role' in e for e in errors),
+            f'Expected error mentioning nonexistent-role, got {errors}')
+
+    def test_users_block_duplicate_name_rejected(self):
+        configs: Dict[str, Any] = {
+            'roles': {'osmo-admin': {}},
+            'users': [
+                {'name': 'admin', 'roles': ['osmo-admin']},
+                {'name': 'admin', 'roles': ['osmo-admin']},
+            ],
+        }
+        errors = configmap_loader._validate_configs(configs)
+        self.assertTrue(any('duplicate' in e for e in errors))
+
+    def test_users_block_must_be_list(self):
+        configs: Dict[str, Any] = {'users': {'admin': ['osmo-admin']}}
+        errors = configmap_loader._validate_configs(configs)
+        self.assertTrue(any('must be a list' in e for e in errors))
+
 
 class TestValidationErrorFormatting(unittest.TestCase):
     """Pydantic validation errors must never echo input values.
