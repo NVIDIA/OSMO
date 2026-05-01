@@ -177,6 +177,58 @@ class RsyncDirection(str, enum.Enum):
     DOWNLOAD = 'download'
 
 
+class RsyncFilterRuleKind(str, enum.Enum):
+    """
+    Represents the kind of an rsync filter rule. Values match the rsync CLI flag names so
+    serialized rules round-trip cleanly through PID-file JSON.
+    """
+    EXCLUDE = 'exclude'
+    INCLUDE = 'include'
+    EXCLUDE_FROM = 'exclude-from'
+    INCLUDE_FROM = 'include-from'
+
+
+@dataclasses.dataclass(frozen=True)
+class RsyncFilterRule:
+    """
+    A single rsync filter rule. The pair (kind, value) is emitted on the rsync CLI as
+    `--<kind> <value>`.
+    """
+    kind: RsyncFilterRuleKind
+    value: str
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'RsyncFilterRule':
+        return cls(kind=RsyncFilterRuleKind(data['kind']), value=data['value'])
+
+
+@dataclasses.dataclass(frozen=True)
+class RsyncFilterSpec:
+    """
+    Ordered list of rsync filter rules. Rsync uses first-match-wins semantics, so order
+    across `--exclude`/`--include` is significant — store as a single ordered tuple.
+    """
+    rules: Tuple[RsyncFilterRule, ...] = ()
+
+    @classmethod
+    def from_dict(cls, data: Dict | None) -> 'RsyncFilterSpec':
+        if not data:
+            return cls()
+        return cls(rules=tuple(
+            RsyncFilterRule.from_dict(r) for r in data.get('rules', [])
+        ))
+
+
+def _build_filter_args(filter_spec: RsyncFilterSpec) -> List[str]:
+    """
+    Convert a filter spec into rsync CLI args, preserving rule order.
+    """
+    args: List[str] = []
+    for rule in filter_spec.rules:
+        args.extend([f'--{rule.kind.value}', rule.value])
+    return args
+
+
 @dataclasses.dataclass(frozen=True)
 class RsyncRequest:
     """
@@ -189,6 +241,7 @@ class RsyncRequest:
     remote_module: str
     remote_path: str
     original_remote_path: str
+    filter_spec: RsyncFilterSpec = dataclasses.field(default_factory=RsyncFilterSpec)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -233,7 +286,10 @@ class RsyncDaemonMetadata:
                 'remote_path': rsync_request_data['dst_path'],
                 'original_remote_path': rsync_request_data['original_dst_path'],
             }
-        rsync_request = RsyncRequest(**rsync_request_data)
+        # filter_spec is nested; rebuild explicitly. .pop() so the leftover dict can be
+        # passed to RsyncRequest via **kwargs without clashing on the field.
+        filter_spec = RsyncFilterSpec.from_dict(rsync_request_data.pop('filter_spec', None))
+        rsync_request = RsyncRequest(filter_spec=filter_spec, **rsync_request_data)
 
         return cls(
             pid=data['pid'],
@@ -616,6 +672,7 @@ class RsyncClient:
 
             try:
                 rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+                rsync_args.extend(_build_filter_args(self._rsync_request.filter_spec))
                 if self._show_progress:
                     rsync_args.append('--progress')
                 rsync_args.extend([self._rsync_request.local_path, resolved_dst])
@@ -692,6 +749,7 @@ class RsyncClient:
             os.makedirs(resolved_dst, exist_ok=True)
 
             rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
+            rsync_args.extend(_build_filter_args(self._rsync_request.filter_spec))
             if self._show_progress:
                 rsync_args.append('--progress')
             rsync_args.extend([resolved_src, resolved_dst])
@@ -1773,6 +1831,7 @@ def parse_rsync_request(
     task_name: str,
     rsync_path: str,
     direction: RsyncDirection,
+    filter_spec: RsyncFilterSpec | None = None,
 ) -> RsyncRequest:
     """
     Parses a rsync path into a rsync request.
@@ -1785,6 +1844,7 @@ def parse_rsync_request(
     :param task_name: The task name.
     :param rsync_path: The rsync path.
     :param direction: The rsync direction.
+    :param filter_spec: Optional filter rules to apply to the transfer.
 
     :return: The rsync request.
     """
@@ -1824,6 +1884,7 @@ def parse_rsync_request(
         remote_module=remote_module,
         remote_path=remote_path,
         original_remote_path=original_remote_path,
+        filter_spec=filter_spec or RsyncFilterSpec(),
     )
 
 
@@ -1860,6 +1921,7 @@ def rsync_upload(
     daemon_verbose_logging: bool = False,
     quiet: bool = False,
     show_progress: bool = False,
+    filter_spec: RsyncFilterSpec | None = None,
 ):
     """
     Rsync uploads to a remote workflow task.
@@ -1880,11 +1942,16 @@ def rsync_upload(
     :param daemon_verbose_logging: Whether to enable verbose logging for the daemon.
     :param quiet: Whether to suppress the output.
     :param show_progress: Whether to show transfer progress for foreground uploads.
+    :param filter_spec: Optional rsync filter rules. Applies to both foreground and daemon
+        modes. For daemon mode, file-based rules (`--exclude-from`/`--include-from`) are
+        re-read by rsync on every reconnect, so the file must remain readable for the
+        daemon's lifetime.
     """
     rsync_config = get_rsync_config(service_client)
     task_name = task_name or get_lead_task_name(service_client, workflow_id)
     rsync_request = parse_rsync_request(
-        rsync_config, workflow_id, task_name, path, RsyncDirection.UPLOAD)
+        rsync_config, workflow_id, task_name, path, RsyncDirection.UPLOAD,
+        filter_spec=filter_spec)
 
     # Determine the rate limit to use.
     # If the server rate limit is not configured or is zero, default to user provided rate limit.
@@ -1945,6 +2012,7 @@ def rsync_download(
     *,
     timeout: int = 10,
     show_progress: bool = False,
+    filter_spec: RsyncFilterSpec | None = None,
 ):
     """
     Rsync downloads from a remote workflow task.
@@ -1957,11 +2025,13 @@ def rsync_download(
     :param path: The rsync path in <remote_path>:<local_path> format.
     :param timeout: The connection timeout.
     :param show_progress: Whether to show transfer progress.
+    :param filter_spec: Optional rsync filter rules to apply to the download.
     """
     rsync_config = get_rsync_config(service_client)
     task_name = task_name or get_lead_task_name(service_client, workflow_id)
     rsync_request = parse_rsync_request(
-        rsync_config, workflow_id, task_name, path, RsyncDirection.DOWNLOAD)
+        rsync_config, workflow_id, task_name, path, RsyncDirection.DOWNLOAD,
+        filter_spec=filter_spec)
 
     asyncio.run(
         rsync_download_task(
