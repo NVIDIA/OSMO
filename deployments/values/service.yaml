@@ -41,21 +41,16 @@ services:
   configs:
     enabled: true
 
-    service:
-      # service_base_url is the gateway URL workflow pods use to call back into
-      # the OSMO API. The hostname `osmo-gateway.<namespace>.svc.cluster.local`
-      # — namespace varies per install, injected via --set.
-      service_base_url: http://osmo-gateway.osmo-minimal.svc.cluster.local
-
-    backends:
-      default:
-        description: "Default backend"
-        # Same pattern as service_base_url — gateway DNS name; namespace via --set.
-        router_address: ws://osmo-gateway.osmo-minimal.svc.cluster.local
-        scheduler_settings:
-          scheduler_type: kai
-          scheduler_name: kai-scheduler
-          scheduler_timeout: 30
+    # services.configs.service.service_base_url is injected via --set by
+    # deploy-k8s.sh (gateway DNS name with namespace baked in). No literal
+    # default here — the chart auto-derives it from services.service.hostname
+    # when unset (charts/service/values.yaml:442) so this stays empty unless
+    # --set overrides it.
+    #
+    # services.configs.backends.default — chart already provides
+    # `description` and `scheduler_settings` (kai, 30s timeout) at
+    # charts/service/values.yaml:578. deploy-k8s.sh adds `router_address` via
+    # --set on top of those chart defaults; no literal block needed here.
 
     # secretRefs tells the chart which K8s Secrets to mount at
     # /etc/osmo/secrets/<name>/ so the config loader can resolve `secretName`
@@ -74,16 +69,14 @@ services:
 
     workflow:
       # backend_images: the init + client (osmo_ctrl) container images that the
-      # backend-worker injects into every workflow Pod. Empty image fields cause
-      # K8s 422 (FieldValueRequired). Image registry/tag come from --set so the
-      # chart resolves the values block at install time.
+      # backend-worker injects into every workflow Pod. The chart has no defaults
+      # for `init` / `client` — deploy-k8s.sh always --sets them from
+      # OSMO_IMAGE_REGISTRY + OSMO_IMAGE_TAG, so no literals here. The
+      # `credential` block IS the real default (.dockerconfigjson is K8s-standard,
+      # nvcr-secret is the NGC default secret name; deploy-k8s.sh only --sets
+      # secretName when NGC_SECRET_NAME differs from the default).
       backend_images:
-        init: nvcr.io/nvidia/osmo/init-container:latest
-        client: nvcr.io/nvidia/osmo/client:latest
         credential:
-          # Pull credentials for workflow pods. secretName is overridden by
-          # --set global.imagePullSecret in deploy-k8s.sh so it tracks the
-          # cluster's actual NGC secret name.
           secretName: nvcr-secret
           secretKey: .dockerconfigjson
 

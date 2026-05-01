@@ -503,8 +503,10 @@ service_set_flags() {
     sets+=" --set services.redis.serviceName=${REDIS_HOST}"
     sets+=" --set services.redis.port=${REDIS_PORT}"
 
-    # UI talks to the in-cluster service via the svc DNS name; namespace-scoped.
-    sets+=" --set services.ui.apiHostname=osmo-service.${OSMO_NAMESPACE}.svc.cluster.local:80"
+    # UI talks to the API through the gateway (which injects auth headers in
+    # minimal mode and is the only HTTP entry point when gateway.enabled=true).
+    # Matches the docs minimal-deploy reference (deploy_minimal.rst:306).
+    sets+=" --set services.ui.apiHostname=osmo-gateway.${OSMO_NAMESPACE}.svc.cluster.local:80"
 
     # services.configs.* — namespace and image-tag substitutions for the
     # ConfigMap-rendered configfile. service.yaml carries the structural
