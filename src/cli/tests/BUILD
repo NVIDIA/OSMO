@@ -57,3 +57,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_bucket",
+    srcs = [
+        "test_bucket.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
