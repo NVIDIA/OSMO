@@ -308,6 +308,31 @@ create_secrets() {
     $RUN_KUBECTL "delete secret redis-secret --namespace $OSMO_NAMESPACE --ignore-not-found=true"
     $RUN_KUBECTL "create secret generic redis-secret --from-literal=redis-password=$REDIS_PASSWORD --namespace $OSMO_NAMESPACE"
 
+    # Default admin secret — referenced by services.defaultAdmin.passwordSecretName
+    # in values/service.yaml. The chart renders this into the bootstrap admin
+    # user's credentials. The osmo service validates the password is exactly
+    # 43 characters (matches src/utils/job/task_lib.REFRESH_TOKEN_STR_LENGTH);
+    # mismatched length crashes osmo-service with OSMOUserError on startup.
+    # Preserve on re-run to keep the admin password stable (caller can
+    # `kubectl delete secret default-admin-secret` to force rotate).
+    if ! $RUN_KUBECTL "get secret default-admin-secret -n $OSMO_NAMESPACE" &>/dev/null; then
+        log_info "Generating default-admin-secret — first install"
+        # 43 chars: openssl rand -base64 32 yields ~44 chars (incl. trailing =);
+        # strip newlines + padding then take exactly 43.
+        local admin_pw
+        admin_pw=$(openssl rand -base64 32 | tr -d '\n=' | head -c 43)
+        local admin_secret_yaml
+        admin_secret_yaml=$(kubectl create secret generic default-admin-secret \
+            --from-literal=password="$admin_pw" \
+            --namespace "$OSMO_NAMESPACE" \
+            --dry-run=client -o yaml)
+        $RUN_KUBECTL_APPLY_STDIN "$admin_secret_yaml"
+        log_info "  Admin user 'admin' password stored in $OSMO_NAMESPACE/default-admin-secret"
+        log_info "  Recover via: kubectl get secret default-admin-secret -n $OSMO_NAMESPACE -o jsonpath='{.data.password}' | base64 -d"
+    else
+        log_info "default-admin-secret already exists in $OSMO_NAMESPACE — preserving"
+    fi
+
     # MEK (Master Encryption Key) — DO NOT regenerate on re-run. Any data
     # encrypted with the previous MEK becomes unreadable if we replace it.
     # Generate only when the ConfigMap is missing, OR when RESET_MEK=true is
@@ -622,15 +647,22 @@ deploy_osmo_service() {
         return
     fi
 
-    # Layer order:
-    #   1. values/service.yaml                     (base, from RUN_HELM_WITH_VALUES)
+    # Layer order — IMPORTANT: helm REPLACES list values when the same path
+    # appears in multiple -f files; later wins. service.yaml MUST come first
+    # so the storage fragment's secretRefs list (4 entries: NGC + 3 workflow
+    # creds) replaces service.yaml's (1 entry: NGC). Earlier versions of this
+    # function used RUN_HELM_WITH_VALUES which appended service.yaml LAST,
+    # which clobbered the storage fragment's secretRefs and left workflow
+    # pods unable to mount /etc/osmo/secrets/osmo-workflow-*-cred/.
+    #
+    #   1. values/service.yaml                     (base — first)
     #   2. values/pod-monitor-on.yaml              (if prometheus-operator detected)
     #   3. values/gpu-pool.yaml                    (if GPU nodes detected)
-    #   4. .storage-values.yaml                    (from configure-storage.sh)
+    #   4. .storage-values.yaml                    (from configure-storage.sh — overrides as needed)
     #   5. --set per-cluster overrides             (PG/Redis hosts, image tag, etc.)
     # In 6.3 the service chart bundles router + UI, so this is the only release.
-    $RUN_HELM_WITH_VALUES "$STATIC_VALUES_DIR/service.yaml" \
-        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout 10m$(chart_version_flag)$(extra_values_flags)$(service_set_flags)"
+    $RUN_HELM \
+        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout 10m$(chart_version_flag) -f $STATIC_VALUES_DIR/service.yaml$(extra_values_flags)$(service_set_flags)"
 
     log_success "OSMO service deployed"
 }
@@ -662,8 +694,10 @@ setup_backend_operator() {
 
     # Phase 2: install/upgrade backend-operator chart unconditionally.
     log_info "Deploying Backend Operator..."
-    $RUN_HELM_WITH_VALUES "$STATIC_VALUES_DIR/backend-operator.yaml" \
-        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout 5m$(chart_version_flag)$(backend_operator_set_flags)"
+    # backend-operator.yaml first, then --set overrides last (no per-cluster
+    # values fragment for backend-operator, so order is straightforward).
+    $RUN_HELM \
+        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout 5m$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)"
 
     log_success "Backend Operator deployed"
 }
