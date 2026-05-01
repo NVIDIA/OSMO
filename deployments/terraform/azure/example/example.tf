@@ -378,13 +378,21 @@ resource "azurerm_managed_redis" "main" {
 
   default_database {
     client_protocol = "Encrypted"
-    # OSSCluster (not EnterpriseCluster): standard Redis OSS Cluster wire
-    # protocol that redis-py / kombu / and other typical Redis client
-    # libraries understand. EnterpriseCluster is a proprietary multi-shard
-    # protocol that requires Redis Enterprise–aware clients. Empirically
-    # validated against an existing osmo-cluster Redis (working in prior
-    # deploys) which uses OSSCluster.
-    clustering_policy = "OSSCluster"
+    # EnterpriseCluster (not OSSCluster): exposes a SINGLE proxy endpoint that
+    # hides multi-shard routing from clients. OSMO uses standard non-cluster
+    # redis-py / kombu clients (no RedisCluster awareness), so they can't
+    # follow `MOVED` redirects that OSSCluster sends when a key lives on a
+    # different shard. With multi-shard SKUs like ComputeOptimized_X3 +
+    # OSSCluster, `osmo workflow submit` fails on the first sharded LLEN with
+    # `MOVED 11355 <other-node>:<port>`. EnterpriseCluster avoids this by
+    # routing all client commands through the front-door proxy.
+    #
+    # IMPORTANT: clustering_policy is IMMUTABLE post-create — Azure rejects
+    # in-place changes with BadRequest. The resource must be replaced to change
+    # this. Earlier osmo-cluster Redis used OSSCluster + Enterprise tier (now
+    # retired), which proxies internally regardless; that's why it worked
+    # there but fails here on the new Managed Redis SKU families.
+    clustering_policy = "EnterpriseCluster"
     eviction_policy   = "VolatileLRU"
     # Required to surface primary_access_key / secondary_access_key as
     # computed outputs. When this is unset (default: Disabled), the keys
