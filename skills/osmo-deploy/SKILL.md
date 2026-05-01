@@ -68,7 +68,63 @@ Use `--storage-backend {auto|minio|azure-blob|byo|none}`:
 - **byo**: caller provides credentials via env (`STORAGE_ACCESS_KEY_ID`, `STORAGE_ACCESS_KEY`, `STORAGE_ENDPOINT`, optional `STORAGE_REGION`, `STORAGE_OVERRIDE_URL`). No resources created.
 - **none**: skip storage entirely (manual configuration later)
 
-In all cases the helper writes K8s Secrets (`osmo-workflow-{data,log,app}-cred`) and a Helm values fragment that the chart consumes via `services.configs.workflow.workflow_*.credential.secretName`. There are **no** `osmo config update` or `osmo credential set` CLI calls — those return HTTP 409 in 6.3 ConfigMap mode.
+In static-auth mode the helper writes K8s Secrets (`osmo-workflow-{data,log,app}-cred`) and a Helm values fragment that the chart consumes via `services.configs.workflow.workflow_*.credential.secretName`. There are **no** `osmo config update` or `osmo credential set` CLI calls — those return HTTP 409 in 6.3 ConfigMap mode.
+
+## Auth modes (`--auth-method`)
+
+`--auth-method {static|workload-identity}` controls how OSMO services authenticate to the cloud storage backend.
+
+- **static** (default): K8s Secrets carry static cloud credentials (account keys / connection strings / S3 access keys). Works with every backend.
+- **workload-identity**: No K8s Secrets. OSMO services use the cluster's federated identity:
+  - `azure-blob` + WI = AKS Workload Identity (UAMI + federated credential)
+  - `byo` + WI = AWS IRSA (IAM role + EKS OIDC trust policy)
+  - `minio` + WI = **not supported** (MinIO has no cloud-vendor IdP)
+
+> ⚠ **Workload identity mode requires caller-provisioned cloud-side identity.** The deploy scripts do **not** create the UAMI / IAM role, attach RBAC, or create the federated credential — those are owned by the caller (typically the platform/security team). The script does the K8s-side wiring (SA annotation + pod labels for the AKS WI mutating webhook + DefaultDataCredential values fragment) and surfaces a prominent prerequisite checklist before any work begins. If prerequisites aren't met, OSMO will start successfully but workflows will fail at runtime with 401/403 from the storage backend.
+
+### Azure Workload Identity prerequisites
+
+```bash
+# 1. AKS cluster has OIDC issuer + Workload Identity addons
+az aks update -g <rg> -n <cluster> --enable-oidc-issuer --enable-workload-identity
+
+# 2. Provision UAMI
+az identity create -g <rg> -n osmo-data-uami
+
+# 3. Grant Storage Blob Data Contributor on the storage account
+az role assignment create \
+  --role "Storage Blob Data Contributor" \
+  --assignee <UAMI-principal-id> \
+  --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<account>
+
+# 4. Federate UAMI to the chart's ServiceAccount (default name: osmo-minimal)
+az identity federated-credential create \
+  --name osmo-osmo-minimal \
+  --identity-name osmo-data-uami \
+  --resource-group <rg> \
+  --issuer "$(az aks show -g <rg> -n <cluster> --query oidcIssuerProfile.issuerUrl -o tsv)" \
+  --subject "system:serviceaccount:osmo-minimal:osmo-minimal"
+
+# 5. Run deploy with WI
+./scripts/deploy-osmo-minimal.sh --provider byo \
+  --storage-backend azure-blob --auth-method workload-identity \
+  --workload-identity-client-id "$(az identity show -g <rg> -n osmo-data-uami --query clientId -o tsv)"
+```
+
+### AWS IRSA prerequisites
+
+```bash
+# 1. EKS cluster has an OIDC identity provider (most clusters already do)
+aws eks describe-cluster --name <cluster> --query "cluster.identity.oidc.issuer"
+
+# 2. Create IAM role with S3 access + EKS OIDC trust policy
+#    Trust policy admits: system:serviceaccount:osmo-minimal:osmo-minimal
+
+# 3. Run deploy with WI
+./scripts/deploy-osmo-minimal.sh --provider byo \
+  --storage-backend byo --auth-method workload-identity \
+  --workload-identity-role-arn arn:aws:iam::<acct>:role/osmo-data-access
+```
 
 ## Customizing values
 

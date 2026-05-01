@@ -83,6 +83,9 @@ TF_REDIS_PASSWORD="${TF_REDIS_PASSWORD:-}"
 # New flags (cluster-agnostic OSMO deploy)
 GPU_NODE_POOL=false
 STORAGE_BACKEND="${STORAGE_BACKEND:-auto}"
+AUTH_METHOD="${AUTH_METHOD:-static}"
+WORKLOAD_IDENTITY_CLIENT_ID="${WORKLOAD_IDENTITY_CLIENT_ID:-}"
+WORKLOAD_IDENTITY_ROLE_ARN="${WORKLOAD_IDENTITY_ROLE_ARN:-}"
 NO_GPU="${NO_GPU:-0}"
 ENABLE_MICROK8S_GPU=false
 
@@ -115,6 +118,14 @@ General Options:
   --non-interactive      Fail if required parameters are missing (for CI/CD)
   --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io
   --storage-backend X    Storage backend: auto|minio|azure-blob|byo|none (default: auto)
+  --auth-method X        Storage auth: static|workload-identity (default: static)
+                         workload-identity REQUIRES caller-provisioned cloud
+                         identity (UAMI for Azure, IAM role for AWS) + RBAC.
+                         Not valid for --storage-backend minio.
+  --workload-identity-client-id ID
+                         Azure UAMI client ID (required for azure-blob + WI)
+  --workload-identity-role-arn ARN
+                         AWS IAM role ARN (required for byo + WI / IRSA)
   --gpu-node-pool        Provision a GPU node pool (azure/aws only; requires TF variables)
   --no-gpu               Skip GPU Operator install + GPU smoke test
   --gpu                  microk8s only: enable the nvidia addon during bootstrap
@@ -233,6 +244,12 @@ while [[ $# -gt 0 ]]; do
             GPU_NODE_POOL=true; shift ;;
         --storage-backend)
             STORAGE_BACKEND="$2"; shift 2 ;;
+        --auth-method)
+            AUTH_METHOD="$2"; shift 2 ;;
+        --workload-identity-client-id)
+            WORKLOAD_IDENTITY_CLIENT_ID="$2"; shift 2 ;;
+        --workload-identity-role-arn)
+            WORKLOAD_IDENTITY_ROLE_ARN="$2"; shift 2 ;;
         --no-gpu)
             NO_GPU=1; shift ;;
         --gpu)
@@ -468,13 +485,25 @@ configure_storage_phase() {
         return 0
     fi
 
-    log_info "Configuring storage backend: $STORAGE_BACKEND"
+    log_info "Configuring storage backend: $STORAGE_BACKEND (auth: $AUTH_METHOD)"
+
+    local extra_args=()
+    if [[ "$AUTH_METHOD" == "workload-identity" ]]; then
+        extra_args+=(--auth-method workload-identity)
+        [[ -n "$WORKLOAD_IDENTITY_CLIENT_ID" ]] && \
+            extra_args+=(--workload-identity-client-id "$WORKLOAD_IDENTITY_CLIENT_ID")
+        [[ -n "$WORKLOAD_IDENTITY_ROLE_ARN" ]] && \
+            extra_args+=(--workload-identity-role-arn "$WORKLOAD_IDENTITY_ROLE_ARN")
+    fi
+    [[ "$NON_INTERACTIVE" == "true" ]] && extra_args+=(--non-interactive)
+
     OSMO_NAMESPACE="${OSMO_NAMESPACE:-osmo-minimal}" \
     NAMESPACE="${OSMO_NAMESPACE:-osmo-minimal}" \
     bash "$SCRIPT_DIR/configure-storage.sh" \
         --backend "$STORAGE_BACKEND" \
         --namespace "${OSMO_NAMESPACE:-osmo-minimal}" \
-        --output-values "$STORAGE_VALUES_FILE"
+        --output-values "$STORAGE_VALUES_FILE" \
+        "${extra_args[@]}"
 }
 
 ###############################################################################

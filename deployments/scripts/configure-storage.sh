@@ -30,11 +30,14 @@
 #   configure-storage.sh [options]
 #
 # Options:
-#   --backend {auto|minio|azure-blob|byo|none}   Backend selection (default: auto)
-#   --namespace NS                               OSMO namespace (default: osmo-minimal)
-#   --output-values PATH                         Where to write the values fragment
-#                                                (default: $SCRIPT_DIR/values/.storage-values.yaml)
-#   -h, --help                                   Show this help
+#   --backend {auto|minio|azure-blob|byo|none}        Backend (default: auto)
+#   --auth-method {static|workload-identity}          Auth mode (default: static)
+#   --namespace NS                                    OSMO namespace (default: osmo-minimal)
+#   --output-values PATH                              Where to write the values fragment
+#                                                     (default: $SCRIPT_DIR/values/.storage-values.yaml)
+#   --workload-identity-client-id ID                  Azure UAMI client ID (WI + azure-blob)
+#   --workload-identity-role-arn ARN                  AWS IAM role ARN (WI + byo)
+#   -h, --help                                        Show this help
 #
 # Backend selection:
 #   auto       — Probe live signals: BYO env vars → microk8s minio addon →
@@ -44,18 +47,41 @@
 #   byo        — Read all values from env vars (S3-compatible)
 #   none       — Skip storage configuration entirely (caller will configure later)
 #
-# BYO env vars:
+# Auth modes:
+#   static              — Workflow pods read static cloud credentials from
+#                         K8s Secrets the script creates. Default. Works with
+#                         any backend.
+#   workload-identity   — No K8s Secrets created; OSMO services use the
+#                         cluster's federated identity (AKS Workload Identity
+#                         for azure-blob; AWS IRSA for byo). REQUIRES the
+#                         caller to have provisioned the cloud-side identity
+#                         (UAMI / IAM role) and storage RBAC out-of-band.
+#                         Not supported for `minio` (no cloud-vendor identity
+#                         provider exists).
+#
+# BYO env vars (--auth-method static):
 #   STORAGE_ACCESS_KEY_ID   — required
 #   STORAGE_ACCESS_KEY      — required
 #   STORAGE_ENDPOINT        — required, e.g. s3://my-bucket
 #   STORAGE_REGION          — optional (default us-east-1)
 #   STORAGE_OVERRIDE_URL    — optional (e.g. https://s3.us-east-1.amazonaws.com)
 #
-# Azure-blob env vars (used when --backend azure-blob):
+# BYO env vars (--auth-method workload-identity, AWS IRSA):
+#   WORKLOAD_IDENTITY_ROLE_ARN — required, e.g. arn:aws:iam::123:role/osmo-data-access
+#   STORAGE_ENDPOINT           — required, e.g. s3://my-bucket
+#   STORAGE_REGION             — optional (default us-east-1)
+#   STORAGE_OVERRIDE_URL       — optional
+#
+# Azure-blob env vars (--auth-method static):
 #   STORAGE_ACCOUNT         — Azure Storage Account name
 #   STORAGE_KEY             — Account key
-#   STORAGE_LOCATION        — Region (e.g. eastus2), used to build endpoint
+#   STORAGE_LOCATION        — Region (e.g. eastus2)
 #                             (alternatively read from osmo Azure TF output)
+#
+# Azure-blob env vars (--auth-method workload-identity):
+#   WORKLOAD_IDENTITY_CLIENT_ID — required, UAMI client ID (GUID)
+#   STORAGE_ACCOUNT             — required, Azure Storage Account name
+#   AZURE_CONTAINER_NAME        — optional (default: osmo-workflows)
 ###############################################################################
 
 set -euo pipefail
@@ -64,17 +90,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 BACKEND="auto"
+AUTH_METHOD="${AUTH_METHOD:-static}"
 NAMESPACE="${OSMO_NAMESPACE:-osmo-minimal}"
 OUTPUT_VALUES="$SCRIPT_DIR/values/.storage-values.yaml"
+NON_INTERACTIVE="${NON_INTERACTIVE:-false}"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --backend)
             BACKEND="$2"; shift 2 ;;
+        --auth-method)
+            AUTH_METHOD="$2"; shift 2 ;;
         --namespace)
             NAMESPACE="$2"; shift 2 ;;
         --output-values)
             OUTPUT_VALUES="$2"; shift 2 ;;
+        --workload-identity-client-id)
+            WORKLOAD_IDENTITY_CLIENT_ID="$2"; shift 2 ;;
+        --workload-identity-role-arn)
+            WORKLOAD_IDENTITY_ROLE_ARN="$2"; shift 2 ;;
+        --non-interactive)
+            NON_INTERACTIVE=true; shift ;;
         -h|--help)
             sed -n '/^# Usage:/,/^###/p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'
             exit 0
@@ -86,8 +122,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+case "$AUTH_METHOD" in
+    static|workload-identity) ;;
+    *)
+        log_error "Unknown --auth-method '$AUTH_METHOD' (expected: static|workload-identity)"
+        exit 1
+        ;;
+esac
+
 KUBECTL="${KUBECTL:-kubectl}"
-export KUBECTL NAMESPACE OUTPUT_VALUES
+export KUBECTL NAMESPACE OUTPUT_VALUES AUTH_METHOD
+[[ -n "${WORKLOAD_IDENTITY_CLIENT_ID:-}" ]] && export WORKLOAD_IDENTITY_CLIENT_ID
+[[ -n "${WORKLOAD_IDENTITY_ROLE_ARN:-}" ]] && export WORKLOAD_IDENTITY_ROLE_ARN
 
 if [[ "$BACKEND" == "none" ]]; then
     log_info "Storage backend = none — skipping storage configuration"
@@ -137,8 +183,111 @@ MSG
 fi
 
 log_info "Storage backend: $BACKEND"
-log_info "Namespace: $NAMESPACE"
+log_info "Auth method:    $AUTH_METHOD"
+log_info "Namespace:      $NAMESPACE"
 log_info "Output values fragment: $OUTPUT_VALUES"
+
+# ────────────────────────────────────────────────────────────────────────────
+# BIG WARNING when running with workload-identity auth.
+# We do NOT provision the cloud-side identity (UAMI / IAM role / RBAC / OIDC
+# federation) — those are owned by the caller (typically the platform/security
+# team). Fail fast and visibly so users know what they need to have ready.
+# ────────────────────────────────────────────────────────────────────────────
+if [[ "$AUTH_METHOD" == "workload-identity" ]]; then
+    case "$BACKEND" in
+        azure-blob)
+            cat >&2 <<EOF
+
+${YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗
+║                  ⚠  WORKLOAD IDENTITY MODE — Azure Blob  ⚠                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝${NC}
+
+${RED}This script does NOT provision Azure-side identity or storage RBAC.${NC}
+You must have the following in place BEFORE this run, owned by your platform
+/ security team (typically out-of-band Terraform or az CLI commands):
+
+${CYAN}  1. AKS cluster has OIDC issuer + Workload Identity addons enabled${NC}
+       az aks show -g <rg> -n <cluster> --query oidcIssuerProfile.enabled
+       az aks show -g <rg> -n <cluster> --query securityProfile.workloadIdentity.enabled
+
+${CYAN}  2. Azure Storage Account + Blob container exist and are reachable${NC}
+       Account name: ${STORAGE_ACCOUNT:-<NOT SET>}
+       Container:    ${AZURE_CONTAINER_NAME:-osmo-workflows}
+
+${CYAN}  3. User-Assigned Managed Identity (UAMI) provisioned${NC}
+       client-id:    ${WORKLOAD_IDENTITY_CLIENT_ID:-<NOT SET>}
+
+${CYAN}  4. UAMI has 'Storage Blob Data Contributor' role on the storage account${NC}
+       az role assignment create \\
+         --role "Storage Blob Data Contributor" \\
+         --assignee <UAMI-principal-id> \\
+         --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/${STORAGE_ACCOUNT:-<account>}
+
+${CYAN}  5. Federated credential links UAMI to AKS OIDC issuer + namespace + SA${NC}
+       az identity federated-credential create \\
+         --name osmo-${NAMESPACE} \\
+         --identity-name <UAMI-name> \\
+         --resource-group <rg> \\
+         --issuer <AKS-OIDC-issuer-URL> \\
+         --subject "system:serviceaccount:${NAMESPACE}:osmo-minimal"
+
+${RED}If ANY of these prerequisites is missing, OSMO services will start but workflows
+will fail at runtime with 401/403 from Azure Blob. There is no safety net here.${NC}
+
+EOF
+            ;;
+        byo)
+            cat >&2 <<EOF
+
+${YELLOW}╔══════════════════════════════════════════════════════════════════════════════╗
+║                ⚠  WORKLOAD IDENTITY MODE — AWS IRSA / S3  ⚠                 ║
+╚══════════════════════════════════════════════════════════════════════════════╝${NC}
+
+${RED}This script does NOT provision AWS-side identity or S3 bucket policy.${NC}
+You must have the following in place BEFORE this run, owned by your platform
+/ security team:
+
+${CYAN}  1. EKS cluster has an OIDC identity provider configured${NC}
+       aws eks describe-cluster --name <cluster> \\
+         --query "cluster.identity.oidc.issuer"
+
+${CYAN}  2. S3 bucket exists and is reachable${NC}
+       Endpoint: ${STORAGE_ENDPOINT:-<NOT SET>}
+
+${CYAN}  3. IAM role provisioned with bucket access${NC}
+       Role ARN: ${WORKLOAD_IDENTITY_ROLE_ARN:-<NOT SET>}
+       Trust policy MUST admit:
+         system:serviceaccount:${NAMESPACE}:osmo-minimal
+
+${CYAN}  4. IAM policy attached to the role grants S3 read/write on the bucket${NC}
+       Minimum: s3:GetObject s3:PutObject s3:DeleteObject s3:ListBucket
+       Scope:   arn:aws:s3:::<bucket> arn:aws:s3:::<bucket>/*
+
+${RED}If ANY of these prerequisites is missing, OSMO services will start but workflows
+will fail at runtime with 401/403 from S3. There is no safety net here.${NC}
+
+EOF
+            ;;
+        minio)
+            log_error "Workload identity is not supported for the minio backend (no cloud-vendor IdP)."
+            log_error "Use --auth-method static for minio, or switch to azure-blob / byo."
+            exit 2
+            ;;
+    esac
+
+    if [[ "$NON_INTERACTIVE" != "true" ]]; then
+        echo -en "${YELLOW}Have you completed the prerequisites above? Type 'yes' to continue:${NC} " >&2
+        read -r ack
+        if [[ "$ack" != "yes" ]]; then
+            log_error "Aborting. Re-run when the cloud-side prerequisites are in place."
+            exit 1
+        fi
+    else
+        log_warning "--non-interactive: skipping the WI prerequisite confirmation prompt."
+        log_warning "Caller is responsible for the prerequisites listed above."
+    fi
+fi
+
 
 HELPER="$SCRIPT_DIR/storage/${BACKEND}.sh"
 if [[ ! -f "$HELPER" ]]; then

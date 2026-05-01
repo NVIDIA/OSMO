@@ -510,8 +510,7 @@ service_set_flags() {
 
     # services.configs.* — namespace and image-tag substitutions for the
     # ConfigMap-rendered configfile. service.yaml carries the structural
-    # defaults (paths, default secret names, scheduler block); these --set
-    # overrides fill in the per-cluster bits.
+    # defaults; these --set overrides fill in the per-cluster bits.
     local gateway_dns="osmo-gateway.${OSMO_NAMESPACE}.svc.cluster.local"
     sets+=" --set services.configs.service.service_base_url=http://${gateway_dns}"
     sets+=" --set services.configs.backends.default.router_address=ws://${gateway_dns}"
@@ -521,10 +520,12 @@ service_set_flags() {
     sets+=" --set services.configs.workflow.backend_images.init=${OSMO_IMAGE_REGISTRY}/init-container:${OSMO_IMAGE_TAG}"
     sets+=" --set services.configs.workflow.backend_images.client=${OSMO_IMAGE_REGISTRY}/client:${OSMO_IMAGE_TAG}"
 
-    # Override the NGC pull secret references where it varies from the default
-    # `nvcr-secret`. service.yaml's secretRefs[3] is the placeholder slot.
+    # Override the NGC pull secret reference when the cluster ships a secret
+    # with a non-default name (e.g. `imagepullsecret` on infra-managed AKS).
+    # service.yaml's secretRefs is `[nvcr-secret]`; the storage fragment
+    # appends data/log/app secret refs in static mode (or none in WI mode).
     if [[ "$has_pull_secret" == "true" && "$NGC_SECRET_NAME" != "nvcr-secret" ]]; then
-        sets+=" --set services.configs.secretRefs[3].secretName=${NGC_SECRET_NAME}"
+        sets+=" --set services.configs.secretRefs[0].secretName=${NGC_SECRET_NAME}"
         sets+=" --set services.configs.workflow.backend_images.credential.secretName=${NGC_SECRET_NAME}"
     fi
 

@@ -54,17 +54,17 @@ services:
 
     # secretRefs tells the chart which K8s Secrets to mount at
     # /etc/osmo/secrets/<name>/ so the config loader can resolve `secretName`
-    # references at boot. Without this list the chart never mounts the Secrets
-    # and the loader throws "No such file or directory" at startup.
+    # references at boot.
     #
-    # Index [3] is the NGC pull secret. deploy-k8s.sh overrides it via
-    # `--set 'services.configs.secretRefs[3].secretName=<NGC_SECRET_NAME>'` so
-    # clusters that ship with a non-default name (`imagepullsecret` on existing
-    # infra-managed AKS, etc.) work without editing this file.
+    # service.yaml only owns the NGC pull-secret reference (used by
+    # workflow.backend_images.credential below — needed in every auth mode for
+    # pulling osmo images). The workflow-data/log/app secret refs are added by
+    # the storage fragment in static auth mode; they're absent in
+    # workload-identity mode (no secrets to mount; SDK uses the SA's WI token).
+    #
+    # deploy-k8s.sh's --set global.imagePullSecret tracks NGC_SECRET_NAME to
+    # override `nvcr-secret` when the cluster's pull secret has a different name.
     secretRefs:
-      - secretName: osmo-workflow-data-cred
-      - secretName: osmo-workflow-log-cred
-      - secretName: osmo-workflow-app-cred
       - secretName: nvcr-secret
 
     workflow:
@@ -80,22 +80,25 @@ services:
           secretName: nvcr-secret
           secretKey: .dockerconfigjson
 
-      # Per-secret references for workflow data / log / app artifact credentials.
-      # The Secret payloads (access_key_id, access_key, endpoint, region,
-      # override_url) are written by configure-storage.sh per backend.
-      # `workflow_data.base_url` is the only field that genuinely differs across
-      # backends (s3://bucket vs az://container@account vs s3+http://host) — it
-      # comes from the storage values fragment.
-      workflow_data:
-        credential:
-          secretName: osmo-workflow-data-cred
-        # base_url is layered in via scripts/values/.storage-values.yaml
-      workflow_log:
-        credential:
-          secretName: osmo-workflow-log-cred
-      workflow_app:
-        credential:
-          secretName: osmo-workflow-app-cred
+      # workflow_data / workflow_log / workflow_app credential blocks are owned
+      # entirely by the storage values fragment (configure-storage.sh writes
+      # scripts/values/.storage-values.yaml). Two shapes:
+      #
+      # - Static auth (default):
+      #     workflow_data:
+      #       credential:
+      #         secretName: osmo-workflow-data-cred   # K8s Secret w/ access_key_id+access_key
+      #       base_url: <backend-specific URL>
+      #
+      # - Workload identity (--auth-method workload-identity):
+      #     workflow_data:
+      #       credential:
+      #         endpoint: <bucket URL>               # DefaultDataCredential — SDK
+      #                                              # resolves creds via SA's WI token
+      #       base_url: <backend-specific URL>
+      #
+      # Keeping these out of service.yaml lets the fragment cleanly own the
+      # auth-mode-specific shape without needing to "delete" base values.
 
   postgres:
     # External PostgreSQL — set to true if you want the chart to deploy
