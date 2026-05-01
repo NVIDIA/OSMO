@@ -214,28 +214,36 @@ variable "postgres_extensions" {
 }
 
 # Azure Managed Redis Variables (OSMO requires Redis 7+).
-# SKU families: Balanced (default), MemoryOptimized, ComputeOptimized,
-#               FlashOptimized (RAM-on-NVMe, cheaper at scale).
-# Sizes: B0 (~250MB) → B1000 (~10TB+ on Flash). B0 is the smallest dev/test SKU.
+# SKU families and their size letters:
+#   Balanced_B*         (B0, B1, B3, B5, B10, ..., B1000)        general purpose
+#   ComputeOptimized_X* (X3, X5, X10, ..., X700)                 more cores per dollar
+#   MemoryOptimized_M*  (M10, M20, ..., M2000)                   more RAM per dollar
+#   FlashOptimized_A*   (A250, A500, ..., A4500)                 RAM-on-NVMe, cheap at scale
+#
+# Default ComputeOptimized_X3 — empirically validated against eastus2 capacity
+# (2026-05-01: Balanced_B0/B1/B3 all returned AllocationFailed; X3/M10/A250
+# allocated cleanly). X3 is small (3GB) + cheap (~$200/mo) and the X family
+# tends to have reliable capacity in busy regions. Override TF_REDIS_SKU_NAME
+# for different tiers.
 variable "redis_sku_name" {
-  description = "Azure Managed Redis SKU (e.g. Balanced_B0, MemoryOptimized_M10)."
+  description = "Azure Managed Redis SKU (e.g. ComputeOptimized_X3, MemoryOptimized_M10, Balanced_B0)."
   type        = string
-  default     = "Balanced_B0"
+  default     = "ComputeOptimized_X3"
 
   validation {
-    condition     = can(regex("^(Balanced|MemoryOptimized|ComputeOptimized|FlashOptimized)_[BMC][0-9]+$", var.redis_sku_name))
-    error_message = "redis_sku_name must be a Managed Redis SKU (e.g. Balanced_B0)."
+    condition     = can(regex("^(Balanced_B|ComputeOptimized_X|MemoryOptimized_M|FlashOptimized_A)[0-9]+$", var.redis_sku_name))
+    error_message = "redis_sku_name must be a Managed Redis SKU (Balanced_B*, ComputeOptimized_X*, MemoryOptimized_M*, or FlashOptimized_A*)."
   }
 }
 
 variable "redis_version" {
-  description = "Redis version. OSMO requires Redis 7+, which on Azure is only available via Redis Enterprise (azurerm_redis_enterprise_cluster). The basic azurerm_redis_cache resource caps at 6."
+  description = "Redis version. OSMO requires Redis 7+, which on Azure is only available via Azure Managed Redis (azurerm_managed_redis). The basic azurerm_redis_cache resource caps at 6, and azurerm_redis_enterprise_cluster is retired."
   type        = string
   default     = "7"
 
   validation {
     condition     = tonumber(var.redis_version) >= 7
-    error_message = "OSMO requires Redis 7 or higher (Azure Redis Enterprise)."
+    error_message = "OSMO requires Redis 7 or higher (Azure Managed Redis)."
   }
 }
 

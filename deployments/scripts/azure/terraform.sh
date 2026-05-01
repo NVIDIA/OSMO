@@ -406,11 +406,12 @@ postgres_backup_retention_days         = 7
 postgres_geo_redundant_backup_enabled  = false
 postgres_extensions                    = ["hstore", "uuid-ossp", "pg_stat_statements"]
 
-# Azure Managed Redis Configuration (OSMO requires Redis 7+; Managed Redis is
-# the only path now that Enterprise is retired). Default Balanced_B1 — B0 is
-# theoretically smallest but frequently hits AllocationFailed in busy regions
-# (eastus2, westus2). Override TF_REDIS_SKU_NAME for different tiers.
-redis_sku_name  = "${TF_REDIS_SKU_NAME:-Balanced_B1}"
+# Azure Managed Redis Configuration (OSMO requires Redis 7+).
+# Default ComputeOptimized_X3 — empirically validated against eastus2 capacity
+# on 2026-05-01: Balanced_B0/B1/B3 all returned AllocationFailed, while
+# X3/M10/A250 allocated cleanly. X3 is small (3GB) + cheap (~$200/mo).
+# Override TF_REDIS_SKU_NAME for different tiers.
+redis_sku_name  = "${TF_REDIS_SKU_NAME:-ComputeOptimized_X3}"
 redis_version   = "7"
 
 # Log Analytics Configuration
