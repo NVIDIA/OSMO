@@ -703,66 +703,6 @@ setup_backend_operator() {
         "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)"
 
     log_success "Backend Operator deployed"
-
-    # Phase 3: bootstrap KAI scheduler queues for the default backend's pool.
-    # Workaround for src/service/agent/helpers.py:120 only invoking
-    # update_backend_queues when the backend is *new* in postgres
-    # (`k8s_info[0].is_new == True`). With ConfigMap-mode boot, configmap_loader
-    # writes the backend row to postgres BEFORE the agent's first heartbeat
-    # arrives, so by the time backend-listener handles the registration,
-    # `is_new=False` and queue creation is skipped. Workflow pods then sit in
-    # Pending forever with `QueueDoesNotExist: Queue
-    # 'osmo-pool-<ns>-<pool>' does not exist`. Apply the queues directly here
-    # so submit→schedule→exec works on first deploy.
-    bootstrap_kai_queues_for_default_backend
-}
-
-# Apply KAI Queue CRs for the default backend + default pool. Idempotent
-# (--server-side --force-conflicts will replace existing); harmless when
-# scheduler_type isn't kai (the queues just sit unused). Queue names follow
-# the convention from src/utils/job/kb_objects.py:526:
-#   parent: osmo-default-<workflow-namespace>
-#   pool:   osmo-pool-<workflow-namespace>-<pool-name>
-bootstrap_kai_queues_for_default_backend() {
-    if ! $RUN_KUBECTL "get crd queues.scheduling.run.ai" &>/dev/null; then
-        log_info "KAI scheduler CRDs not present — skipping queue bootstrap"
-        return 0
-    fi
-
-    log_info "Bootstrapping KAI scheduler queues for default backend/pool..."
-
-    local manifest
-    read -r -d '' manifest <<EOF || true
-apiVersion: scheduling.run.ai/v2
-kind: Queue
-metadata:
-  name: osmo-default-${OSMO_WORKFLOWS_NAMESPACE}
-  labels:
-    osmo.namespace: ${OSMO_WORKFLOWS_NAMESPACE}
-    osmo.deploy-managed: "true"
-spec:
-  resources:
-    cpu:    { quota: -1, limit: -1, overQuotaWeight: 1 }
-    memory: { quota: -1, limit: -1, overQuotaWeight: 1 }
-    gpu:    { quota: -1, limit: -1, overQuotaWeight: 1 }
----
-apiVersion: scheduling.run.ai/v2
-kind: Queue
-metadata:
-  name: osmo-pool-${OSMO_WORKFLOWS_NAMESPACE}-default
-  labels:
-    osmo.namespace: ${OSMO_WORKFLOWS_NAMESPACE}
-    osmo.deploy-managed: "true"
-spec:
-  parentQueue: osmo-default-${OSMO_WORKFLOWS_NAMESPACE}
-  resources:
-    cpu:    { quota: -1, limit: -1, overQuotaWeight: 1 }
-    memory: { quota: -1, limit: -1, overQuotaWeight: 1 }
-    gpu:    { quota: -1, limit: -1, overQuotaWeight: 1 }
-EOF
-
-    $RUN_KUBECTL_APPLY_STDIN "$manifest"
-    log_success "KAI queues bootstrapped: osmo-default-${OSMO_WORKFLOWS_NAMESPACE} + osmo-pool-${OSMO_WORKFLOWS_NAMESPACE}-default"
 }
 
 mint_backend_operator_token() {
