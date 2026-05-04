@@ -67,3 +67,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_credential",
+    srcs = [
+        "test_credential.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
