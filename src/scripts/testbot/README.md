@@ -63,7 +63,7 @@ Claude Code is sandboxed: it can only read files, edit test files, and run test 
 ```bash
 gh workflow run testbot.yaml --ref <branch> \
   -f max_targets=1 \
-  -f max_uncovered=300 \
+  -f max_uncovered=500 \
   -f max_turns=100 \
   -f model=aws/anthropic/bedrock-claude-opus-4-7
 ```
@@ -102,7 +102,7 @@ Then post a new `/testbot` comment with clearer instructions.
 | Input | Default | Description |
 |-------|---------|-------------|
 | `max_targets` | `1` | Files to target per run |
-| `max_uncovered` | `300` | Uncovered lines cap per target (0 = no cap) |
+| `max_uncovered` | `500` | Uncovered lines cap per target (0 = no cap) |
 | `max_turns` | `100` | Claude Code agent turns |
 | `timeout_minutes` | `30` | Workflow timeout |
 | `model` | `aws/anthropic/bedrock-claude-opus-4-7` | LLM model on API gateway |
@@ -127,7 +127,7 @@ The selector runs in two stages. Tunables live in `criticality_scorer.py`
 | Constant | Value | Description |
 |----------|-------|-------------|
 | `TIER_PREFIXES` | `lib/`, `utils/`, `runtime/pkg/` = 0; `service/core/` = 1; `cli/`, `runtime/cmd/` = 2; supporting services + `operator/` = 3 | Path-prefix tier (lower = more critical). |
-| `Weights` | tier=1.0, fan_in=1.5, churn=0.8 | Default weights for the criticality score. |
+| `Weights` | tier=1.0, fan_in=2.5, churn=0.8 | Default weights for the criticality score. fan_in dominates because dependency centrality is the most durable signal — a hub stays a hub for years, while coverage and churn shift week to week. |
 | `CHURN_SINCE` | `6 months ago` | Window for the `git log` churn count. |
 | `MIN_LOC` | `30` | Skip files smaller than this — too small to give useful coverage gain. |
 | `--shortlist-size` | `20` | Number of candidates handed to the Stage-2 picker. |
@@ -135,7 +135,7 @@ The selector runs in two stages. Tunables live in `criticality_scorer.py`
 Score formula:
 ```
 criticality = w_tier·(4 - tier) + w_fan_in·log(fan_in+1)/log(peak+1) + w_churn·log(churn+1)/log(peak+1)
-gap         = (1 - coverage) · log(min(uncovered_lines, 300) + 1)
+gap         = (1 - coverage) · log(min(uncovered_lines, 500) + 1)
 score       = criticality · gap
 ```
 

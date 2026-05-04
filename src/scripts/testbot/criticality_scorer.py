@@ -98,9 +98,16 @@ GO_PACKAGE_PREFIX = "go.corp.nvidia.com/osmo/"
 
 @dataclasses.dataclass(frozen=True)
 class Weights:
-    """Tunable weights for the criticality score."""
+    """Tunable weights for the criticality score.
+
+    fan_in is weighted highest because dependency centrality is the most
+    durable signal of criticality — a hub stays a hub for years, while
+    coverage gaps and recent churn shift week to week. Both fan_in and
+    churn are log-normalized in score_entry so the heaviest hub's
+    contribution is bounded at the weight value itself.
+    """
     tier: float = 1.0
-    fan_in: float = 1.5
+    fan_in: float = 2.5
     churn: float = 0.8
 
 
@@ -404,7 +411,7 @@ def score_entry(
     fan_in_term = weights.fan_in * _normalize(fan_in, peak_fan_in)
     churn_term = weights.churn * _normalize(churn, peak_churn)
     criticality = tier_term + fan_in_term + churn_term
-    gap = (1.0 - coverage_pct / 100.0) * math.log(min(uncovered_lines, 300) + 1)
+    gap = (1.0 - coverage_pct / 100.0) * math.log(min(uncovered_lines, 500) + 1)
     final = criticality * gap
     breakdown = {
         "tier": round(tier_term, 4),
@@ -515,7 +522,7 @@ def main() -> None:
     parser.add_argument("--repo-root", default=".",
                         help="Path to the OSMO repo root (default: cwd)")
     parser.add_argument("--shortlist-size", type=int, default=20)
-    parser.add_argument("--max-uncovered", type=int, default=300,
+    parser.add_argument("--max-uncovered", type=int, default=500,
                         help="Cap uncovered lines per target (0 = no cap)")
     parser.add_argument("--output", default="-",
                         help="Output path; '-' (default) writes to stdout")

@@ -28,7 +28,7 @@ on:
         default: '1'
       max_uncovered:
         description: 'Max uncovered lines per target (0 = no cap)'
-        default: '300'
+        default: '500'
       max_turns:
         description: 'Max Claude Code agent turns'
         default: '100'
@@ -134,7 +134,7 @@ jobs:
           PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
             --repo-root . \
             --shortlist-size 20 \
-            --max-uncovered ${{ inputs.max_uncovered || '300' }} \
+            --max-uncovered ${{ inputs.max_uncovered || '500' }} \
             --output "$RUNNER_TEMP/shortlist.json"
           echo "::group::Shortlist JSON (full per-signal breakdown)"
           cat "$RUNNER_TEMP/shortlist.json"
