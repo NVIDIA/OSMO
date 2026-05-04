@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import ast
 import dataclasses
+import fnmatch
 import json
 import logging
 import math
@@ -43,6 +44,7 @@ import sys
 from pathlib import Path
 
 from src.scripts.testbot.coverage_targets import (
+    IGNORE_PATTERNS,
     _cap_ranges,
     _is_ignored,
     _lines_to_ranges,
@@ -154,8 +156,40 @@ def _walk_files(repo_root: Path, suffixes: tuple[str, ...]) -> list[Path]:
     return results
 
 
+def _walk_init_files(repo_root: Path) -> list[Path]:
+    """List ``__init__.py`` files for re-export resolution.
+
+    Unlike ``_walk_files``, this keeps ``__init__.py`` through the filter —
+    we still apply ``IGNORE_PATTERNS`` (skip tests, scripts, deployments)
+    but ignore ``SKIP_BASENAME_PATTERNS`` since ``__init__.py`` is exactly
+    what we want to read here.
+    """
+    results: list[Path] = []
+    for path in repo_root.rglob("__init__.py"):
+        if not path.is_file():
+            continue
+        rel = str(path.relative_to(repo_root))
+        if any(fnmatch.fnmatch(rel, pattern) for pattern in IGNORE_PATTERNS):
+            continue
+        if _extra_skip(rel):
+            continue
+        results.append(path)
+    return results
+
+
 def _python_imports(path: Path) -> set[str]:
-    """Return the set of dotted module names imported by a Python file."""
+    """Return the set of dotted module names imported by a Python file.
+
+    OSMO uses ``from src.utils.job import jobs, workflow, task`` style heavily.
+    For those, we record both the source package (``src.utils.job``) and each
+    imported name as a candidate submodule (``src.utils.job.jobs``,
+    ``src.utils.job.workflow``, etc.). The fan-in resolver only counts the
+    candidates that resolve to an actual file in the repo, so this is safe
+    even when the imported name is a symbol rather than a submodule —
+    ``from src.lib.utils.redact import redact_secrets`` records both
+    ``src.lib.utils.redact`` (which resolves to a file) and
+    ``src.lib.utils.redact.redact_secrets`` (which doesn't, so it's dropped).
+    """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
     except SyntaxError:
@@ -167,7 +201,59 @@ def _python_imports(path: Path) -> set[str]:
                 modules.add(alias.name)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
             modules.add(node.module)
+            for alias in node.names:
+                if alias.name != "*":
+                    modules.add(f"{node.module}.{alias.name}")
     return modules
+
+
+def _re_export_targets(
+    repo_root: Path,
+) -> tuple[dict[str, str], dict[str, set[str]]]:
+    """Parse every ``__init__.py`` for relative-import re-exports.
+
+    Returns two maps:
+
+    * ``aliases`` — ``<package>.<symbol>`` → implementing file, so a caller's
+      ``from src.lib.data.storage import Client`` credits ``client.py``.
+    * ``package_re_exports`` — ``<package>`` → set of files referenced by the
+      package's ``__init__.py``. The dominant OSMO pattern is
+      ``from src.lib.data import storage``: the importer pulls in the
+      package as a name, Python runs ``storage/__init__.py``, and every
+      file it imports from is part of the effective surface. Crediting all
+      of them is more accurate than crediting nothing.
+    """
+    aliases: dict[str, str] = {}
+    package_re_exports: dict[str, set[str]] = {}
+    for init_path in _walk_init_files(repo_root):
+        package_dir = init_path.parent.relative_to(repo_root)
+        if str(package_dir) == ".":
+            continue
+        package_module = ".".join(package_dir.parts)
+        try:
+            tree = ast.parse(init_path.read_text(encoding="utf-8", errors="replace"))
+        except SyntaxError:
+            continue
+        files_in_init: set[str] = set()
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            # 1-level relative imports only (``from .X import Y``).
+            # Higher levels (``from ..pkg import Z``) need parent-traversal
+            # logic that hasn't been worth the complexity yet.
+            if node.level != 1 or not node.module:
+                continue
+            sub_parts = node.module.split(".")
+            target_file = package_dir.joinpath(*sub_parts).with_suffix(".py")
+            target_str = str(target_file).replace(os.sep, "/")
+            files_in_init.add(target_str)
+            for alias in node.names:
+                if alias.name == "*":
+                    continue
+                aliases[f"{package_module}.{alias.name}"] = target_str
+        if files_in_init:
+            package_re_exports[package_module] = files_in_init
+    return aliases, package_re_exports
 
 
 def build_python_fan_in(repo_root: Path) -> dict[str, int]:
@@ -176,6 +262,12 @@ def build_python_fan_in(repo_root: Path) -> dict[str, int]:
     Returns a dict from relative file path (e.g. ``src/lib/utils/client.py``)
     to the number of *other* repo files that import that module. Imports that
     don't resolve to a file in the repo (third-party, stdlib) are dropped.
+
+    Resolution order for each imported name:
+      1. Direct submodule (``from src.utils.job import jobs`` -> ``src/utils/job/jobs.py``)
+      2. ``__init__.py`` re-export alias (``from src.lib.data.storage import Client`` -> ``src/lib/data/storage/client.py``)
+      3. Package re-export expansion (``from src.lib.data import storage`` ->
+         credit every file that ``storage/__init__.py`` imports from)
     """
     files = _walk_files(repo_root, (".py",))
     module_to_path: dict[str, str] = {}
@@ -183,12 +275,25 @@ def build_python_fan_in(repo_root: Path) -> dict[str, int]:
         module_to_path[_python_module_name(path, repo_root)] = str(
             path.relative_to(repo_root)
         )
+    aliases, package_re_exports = _re_export_targets(repo_root)
+    for alias_module, alias_target in aliases.items():
+        module_to_path.setdefault(alias_module, alias_target)
     counts: dict[str, int] = {p: 0 for p in module_to_path.values()}
     for path in files:
+        importer_rel = str(path.relative_to(repo_root))
+        # Dedup: a file that imports both `Client` and `SingleObjectClient`
+        # from the same package (both resolving to client.py) should add
+        # exactly 1 to client.py's fan-in, not 2. The same set also collapses
+        # the overlap between alias resolution and package expansion.
+        resolved: set[str] = set()
         for module in _python_imports(path):
             target = module_to_path.get(module)
-            if target is None or target == str(path.relative_to(repo_root)):
-                continue
+            if target is not None and target != importer_rel:
+                resolved.add(target)
+            for pkg_target in package_re_exports.get(module, ()):
+                if pkg_target != importer_rel:
+                    resolved.add(pkg_target)
+        for target in resolved:
             counts[target] = counts.get(target, 0) + 1
     return counts
 

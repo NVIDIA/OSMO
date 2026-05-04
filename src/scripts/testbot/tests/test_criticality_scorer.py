@@ -135,11 +135,45 @@ class TestPythonImports(unittest.TestCase):
             path.unlink()
 
     def test_extracts_from_import(self):
+        # ``from X.Y import Z`` records both X.Y (the source) and X.Y.Z
+        # (a possible submodule). The submodule candidate is dropped later
+        # if it doesn't resolve to a file, so this is safe.
         with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
             f.write("from src.lib.utils.client import ServiceClient\n")
             path = Path(f.name)
         try:
-            self.assertEqual(_python_imports(path), {"src.lib.utils.client"})
+            self.assertEqual(
+                _python_imports(path),
+                {"src.lib.utils.client", "src.lib.utils.client.ServiceClient"},
+            )
+        finally:
+            path.unlink()
+
+    def test_records_each_submodule_in_multi_name_from_import(self):
+        # The OSMO-prevalent pattern: ``from src.utils.job import a, b, c``
+        # must register fan-in against a, b, and c — each of which is a file.
+        with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
+            f.write("from src.utils.job import jobs, workflow, task\n")
+            path = Path(f.name)
+        try:
+            self.assertEqual(
+                _python_imports(path),
+                {
+                    "src.utils.job",
+                    "src.utils.job.jobs",
+                    "src.utils.job.workflow",
+                    "src.utils.job.task",
+                },
+            )
+        finally:
+            path.unlink()
+
+    def test_skips_star_import_name(self):
+        with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
+            f.write("from src.lib.utils import *\n")
+            path = Path(f.name)
+        try:
+            self.assertEqual(_python_imports(path), {"src.lib.utils"})
         finally:
             path.unlink()
 
@@ -209,6 +243,103 @@ class TestBuildPythonFanIn(unittest.TestCase):
             counts = build_python_fan_in(root)
             self.assertEqual(counts.get("src/service/core/helpers.py"), 1)
             self.assertEqual(counts.get("src/service/core/service.py"), 0)
+
+    def test_credits_init_py_re_exports_to_implementing_file(self):
+        # `from .client import Client` in storage/__init__.py + caller's
+        # `from src.lib.data.storage import Client` should credit
+        # `src/lib/data/storage/client.py` with fan-in, not the package
+        # directory and not __init__.py.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src" / "lib" / "data" / "storage").mkdir(parents=True)
+            (root / "src" / "service").mkdir(parents=True)
+            (root / "src" / "lib" / "data" / "storage" / "__init__.py").write_text(
+                "from .client import Client, SingleObjectClient\n"
+            )
+            (root / "src" / "lib" / "data" / "storage" / "client.py").write_text(
+                "class Client: pass\nclass SingleObjectClient: pass\n"
+            )
+            (root / "src" / "service" / "main.py").write_text(
+                "from src.lib.data.storage import Client\n"
+                "from src.lib.data.storage import SingleObjectClient as SOC\n"
+            )
+            counts = build_python_fan_in(root)
+            self.assertEqual(counts.get("src/lib/data/storage/client.py"), 1)
+
+    def test_credits_package_import_to_full_re_export_set(self):
+        # The dominant OSMO pattern is `from src.lib.data import storage`
+        # (importing the package as a name). Python runs storage/__init__.py
+        # which imports from client.py and backends/common.py — both files
+        # should get fan-in credit because the importer's behavior is
+        # tied to anything the __init__ surfaces.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backends = root / "src" / "lib" / "data" / "storage" / "backends"
+            backends.mkdir(parents=True)
+            (root / "src" / "service").mkdir(parents=True)
+            (root / "src" / "lib" / "data" / "__init__.py").write_text("")
+            (root / "src" / "lib" / "data" / "storage" / "__init__.py").write_text(
+                "from .client import Client\n"
+                "from .backends.common import StorageBackend\n"
+            )
+            (root / "src" / "lib" / "data" / "storage" / "client.py").write_text(
+                "class Client: pass\n"
+            )
+            (backends / "common.py").write_text(
+                "class StorageBackend: pass\n"
+            )
+            (root / "src" / "service" / "main.py").write_text(
+                "from src.lib.data import storage\n"
+            )
+            counts = build_python_fan_in(root)
+            self.assertEqual(counts.get("src/lib/data/storage/client.py"), 1)
+            self.assertEqual(
+                counts.get("src/lib/data/storage/backends/common.py"), 1,
+            )
+
+    def test_credits_nested_init_re_export_to_target_file(self):
+        # `from .backends.common import StorageBackend` should credit
+        # `src/lib/data/storage/backends/common.py` for callers that say
+        # `from src.lib.data.storage import StorageBackend`.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backends = root / "src" / "lib" / "data" / "storage" / "backends"
+            backends.mkdir(parents=True)
+            (root / "src" / "service").mkdir(parents=True)
+            (root / "src" / "lib" / "data" / "storage" / "__init__.py").write_text(
+                "from .backends.common import StorageBackend\n"
+            )
+            (backends / "common.py").write_text(
+                "class StorageBackend: pass\n"
+            )
+            (root / "src" / "service" / "main.py").write_text(
+                "from src.lib.data.storage import StorageBackend\n"
+            )
+            counts = build_python_fan_in(root)
+            self.assertEqual(
+                counts.get("src/lib/data/storage/backends/common.py"), 1,
+            )
+
+    def test_counts_from_package_import_submodule(self):
+        # The OSMO-prevalent pattern: importer says
+        # ``from src.utils.job import jobs`` — the file we want fan-in
+        # credited to is ``src/utils/job/jobs.py``, not the directory.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src" / "utils" / "job").mkdir(parents=True)
+            (root / "src" / "service").mkdir(parents=True)
+            (root / "src" / "utils" / "job" / "jobs.py").write_text(
+                "def run():\n    return 1\n"
+            )
+            (root / "src" / "utils" / "job" / "task.py").write_text(
+                "def go():\n    return 1\n"
+            )
+            (root / "src" / "service" / "main.py").write_text(
+                "from src.utils.job import jobs, task\n"
+            )
+            counts = build_python_fan_in(root)
+            self.assertEqual(counts.get("src/utils/job/jobs.py"), 1)
+            self.assertEqual(counts.get("src/utils/job/task.py"), 1)
 
     def test_ignores_third_party_imports(self):
         with tempfile.TemporaryDirectory() as tmp:
