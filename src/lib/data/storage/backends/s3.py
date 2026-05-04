@@ -94,24 +94,34 @@ def _get_s3_timeout() -> datetime.timedelta:
     return utils_common.to_timedelta(os.getenv(OSMO_S3_TIMEOUT, '24h'))
 
 
-def _get_s3_addressing_style(endpoint_url: str | None) -> str | None:
+def _get_s3_addressing_style(
+    scheme: str,
+    endpoint_url: str | None,
+    addressing_style: str | None = None,
+) -> str | None:
     """
     Returns the S3 addressing style to pass to boto3, or None to defer to its
     default resolver.
 
-    For custom (non-AWS) endpoints we default to 'virtual' because several
+    For S3 custom (non-AWS) endpoints we default to 'virtual' because several
     S3-compatible providers (CAIOS, Cloudflare R2 strict, Wasabi strict) reject
     path-style requests on operations like HeadBucket and GetBucketLocation.
     Boto3's 'auto' default picks path-style whenever endpoint_url is set, which
     breaks those backends.
 
     Resolution order:
-      1. OSMO_S3_ADDRESSING_STYLE env var (explicit operator override).
-      2. AWS_S3_FORCE_PATH_STYLE env var (the convention chart deployments and
+      1. Credential addressing_style (explicit per-endpoint override).
+      2. OSMO_S3_ADDRESSING_STYLE env var (explicit operator override).
+      3. AWS_S3_FORCE_PATH_STYLE env var (the convention chart deployments and
          localstack/MinIO setups already use to signal "path-style required";
          boto3 does not honor it natively, so we honor it here).
-      3. 'virtual' for custom endpoints, None (boto3 default) for AWS.
+      4. 'virtual' for S3 custom endpoints, None (boto3 default) for AWS and
+         other S3-API backends.
     """
+    if addressing_style:
+        return addressing_style
+    if scheme != common.StorageBackendType.S3.value:
+        return None
     override = os.getenv(OSMO_S3_ADDRESSING_STYLE)
     if override:
         return override
@@ -125,6 +135,7 @@ def _get_s3_addressing_style(endpoint_url: str | None) -> str | None:
 def _get_boto_config(
     scheme: str,
     endpoint_url: str | None = None,
+    addressing_style: str | None = None,
 ) -> botocore.config.Config:
     """
     Returns the boto3 configuration for the given scheme and endpoint.
@@ -137,7 +148,11 @@ def _get_boto_config(
         # TOS only supports virtual-hosted style.
         s3_config['addressing_style'] = 'virtual'
     else:
-        addressing_style = _get_s3_addressing_style(endpoint_url)
+        addressing_style = _get_s3_addressing_style(
+            scheme,
+            endpoint_url,
+            addressing_style=addressing_style,
+        )
         if addressing_style is not None:
             s3_config['addressing_style'] = addressing_style
 
@@ -577,7 +592,11 @@ def create_client(
         mypy_boto3_s3.S3Client
     """
     def _get_client() -> mypy_boto3_s3.S3Client:
-        config = _get_boto_config(scheme, endpoint_url=endpoint_url)
+        config = _get_boto_config(
+            scheme,
+            endpoint_url=endpoint_url,
+            addressing_style=data_cred.addressing_style,
+        )
 
         session = boto3.Session()
         _add_request_headers(session, extra_headers)

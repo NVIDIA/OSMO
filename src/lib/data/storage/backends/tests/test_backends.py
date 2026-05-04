@@ -511,25 +511,28 @@ class GetS3AddressingStyleTest(unittest.TestCase):
     def test_no_endpoint_returns_none(self):
         """AWS S3 (no custom endpoint): defer to boto3 default."""
         with mock.patch.dict('os.environ', {}, clear=True):
-            self.assertIsNone(s3._get_s3_addressing_style(None))
+            self.assertIsNone(s3._get_s3_addressing_style('s3', None))
 
     def test_custom_endpoint_returns_virtual(self):
         """Custom endpoint defaults to virtual-hosted style."""
         with mock.patch.dict('os.environ', {}, clear=True):
-            self.assertEqual(s3._get_s3_addressing_style('https://cwobject.com'), 'virtual')
+            self.assertEqual(
+                s3._get_s3_addressing_style('s3', 'https://cwobject.com'),
+                'virtual',
+            )
 
     def test_env_override_wins(self):
         """OSMO_S3_ADDRESSING_STYLE overrides the default for both endpoint cases."""
         with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
-            self.assertEqual(s3._get_s3_addressing_style('https://cwobject.com'), 'path')
-            self.assertEqual(s3._get_s3_addressing_style(None), 'path')
+            self.assertEqual(s3._get_s3_addressing_style('s3', 'https://cwobject.com'), 'path')
+            self.assertEqual(s3._get_s3_addressing_style('s3', None), 'path')
 
     def test_aws_s3_force_path_style_returns_path(self):
         """AWS_S3_FORCE_PATH_STYLE=true preserves localstack/MinIO chart deployments."""
         for value in ('true', 'True', 'TRUE', '1'):
             with mock.patch.dict('os.environ', {'AWS_S3_FORCE_PATH_STYLE': value}, clear=True):
                 self.assertEqual(
-                    s3._get_s3_addressing_style('http://localstack-s3.osmo:4566'),
+                    s3._get_s3_addressing_style('s3', 'http://localstack-s3.osmo:4566'),
                     'path',
                     value,
                 )
@@ -541,7 +544,7 @@ class GetS3AddressingStyleTest(unittest.TestCase):
             'AWS_S3_FORCE_PATH_STYLE': 'true',
         }):
             self.assertEqual(
-                s3._get_s3_addressing_style('http://localstack-s3.osmo:4566'),
+                s3._get_s3_addressing_style('s3', 'http://localstack-s3.osmo:4566'),
                 'virtual',
             )
 
@@ -600,6 +603,28 @@ class GetBotoConfigTest(unittest.TestCase):
             config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
         self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
 
+    def test_swift_endpoint_keeps_boto_default(self):
+        """Swift uses path-style S3 API paths and should not inherit S3 virtual defaults."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('swift', endpoint_url='https://swift.example.com')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_gs_endpoint_keeps_boto_default(self):
+        """GS should not inherit the S3 custom-endpoint virtual default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('gs', endpoint_url='https://storage.googleapis.com')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_credential_addressing_style_overrides_default(self):
+        """Credential-level addressing_style is passed to botocore config."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config(
+                's3',
+                endpoint_url='https://cwobject.com',
+                addressing_style='path',
+            )
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
     def test_tos_unchanged(self):
         """TOS still hardcodes virtual regardless of endpoint."""
         with mock.patch.dict('os.environ', {}, clear=True):
@@ -611,6 +636,24 @@ class GetBotoConfigTest(unittest.TestCase):
         with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
             config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
         self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
+
+class CredentialAddressingStyleTest(unittest.TestCase):
+    """Tests for carrying S3 addressing style through data credentials."""
+
+    def test_static_credential_to_decrypted_dict_includes_addressing_style(self):
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket',
+            access_key_id='ak',
+            access_key='sk',
+            region='us-east-1',
+            override_url='https://cwobject.com',
+            addressing_style='virtual',
+        )
+
+        result = data_cred.to_decrypted_dict()
+
+        self.assertEqual(result['addressing_style'], 'virtual')
 
 
 class WorkflowConfigCredentialTest(unittest.TestCase):

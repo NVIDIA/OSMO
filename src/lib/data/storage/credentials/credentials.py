@@ -23,7 +23,7 @@ Credentials for the data module.
 import abc
 import os
 import re
-from typing import Union
+from typing import Literal, Union
 from urllib.parse import urlparse
 
 import pydantic
@@ -76,6 +76,14 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra='forbid'):
             'Leave unset for native AWS S3, GCS, Azure, etc.'
         ),
     )
+    addressing_style: Literal['virtual', 'path', 'auto'] | None = pydantic.Field(
+        default=None,
+        description=(
+            'S3 request addressing style for S3-compatible providers. '
+            "Use 'virtual' for providers such as CoreWeave CAIOS that reject "
+            "path-style requests, or 'path' for localstack/MinIO-style endpoints."
+        ),
+    )
 
     @pydantic.field_validator('endpoint')
     @classmethod
@@ -115,6 +123,9 @@ class StaticDataCredential(DataCredentialBase, abc.ABC, extra='forbid'):
         if self.override_url:
             output['override_url'] = self.override_url
 
+        if self.addressing_style:
+            output['addressing_style'] = self.addressing_style
+
         return output
 
 
@@ -145,6 +156,9 @@ class DefaultDataCredential(DataCredentialBase, extra='forbid'):
 
         if self.override_url:
             output['override_url'] = self.override_url
+
+        if self.addressing_style:
+            output['addressing_style'] = self.addressing_style
 
         return output
 
@@ -187,6 +201,7 @@ def get_static_data_credential_from_config(
                 endpoint=url,
                 region=data_cred_dict.get('region'),
                 override_url=data_cred_dict.get('override_url'),
+                addressing_style=data_cred_dict.get('addressing_style'),
             )
 
             return data_cred
