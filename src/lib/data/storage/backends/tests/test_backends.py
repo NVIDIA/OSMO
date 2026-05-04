@@ -597,7 +597,7 @@ class EndpointValidationErrorTest(unittest.TestCase):
 
     def test_http_url_with_port_directs_operator_to_override_url(self):
         err = str(self._build_with('http://minio.local:9000/bucket'))
-        self.assertIn("override_url=http://minio.local:9000", err)
+        self.assertIn('override_url=http://minio.local:9000', err)
 
     def test_https_no_path_directs_operator_to_override_url(self):
         err = str(self._build_with('https://host.example'))
