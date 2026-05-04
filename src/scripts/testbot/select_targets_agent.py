@@ -26,9 +26,11 @@ import json
 import logging
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -77,6 +79,98 @@ def build_prompt(shortlist: list[dict], max_targets: int) -> str:
     )
 
 
+DIAGNOSTIC_KEYS = (
+    "subtype",
+    "is_error",
+    "num_turns",
+    "duration_ms",
+    "duration_api_ms",
+    "total_cost_usd",
+)
+
+
+def _stream_npx(cmd: list[str], stream_log_path: Path, timeout_sec: int) -> int:
+    """Run ``cmd`` streaming stdout into both the workflow log and a JSONL file.
+
+    Returns the subprocess exit code. Wraps the live stream in a foldable
+    ``::group::`` so the per-turn JSON doesn't spam the default workflow view.
+    """
+    print("::group::Claude Code stream — target picker (click to expand)",
+          flush=True)
+    try:
+        with open(stream_log_path, "w", encoding="utf-8") as logf:
+            with subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            ) as proc:
+                assert proc.stdout is not None  # bound by stdout=PIPE
+                try:
+                    for line in proc.stdout:
+                        sys.stdout.write(line)
+                        logf.write(line)
+                    proc.wait(timeout=timeout_sec)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                    logger.error("Claude CLI timed out after %ds", timeout_sec)
+                    return 124
+                return proc.returncode
+    finally:
+        print("::endgroup::", flush=True)
+
+
+def _load_final_result(stream_log_path: Path) -> dict | None:
+    """Pull the final stream-json ``result`` event out of the JSONL log.
+
+    Iterates the file in reverse so we stop at the first match instead of
+    parsing every assistant turn and tool-use line.
+    """
+    if not stream_log_path.exists():
+        return None
+    with open(stream_log_path, encoding="utf-8") as logf:
+        lines = logf.readlines()
+    for line in reversed(lines):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "result":
+            return event
+    return None
+
+
+def _emit_diagnostics(final: dict | None, exit_status: int) -> None:
+    """Print a foldable diagnostics block, stop-command-protected.
+
+    Mirrors the ``Claude Code diagnostics`` block on the generate step in
+    testbot.yaml: untrusted ``result`` text is wrapped in
+    ``::stop-commands::`` so it can't inject ``::warning::``,
+    ``::add-mask::``, etc. into the workflow.
+    """
+    stop_token = secrets.token_hex(16)
+    print("::group::Claude Code diagnostics — target picker", flush=True)
+    print(f"::stop-commands::{stop_token}", flush=True)
+    print(f"exit_status: {exit_status}")
+    if final is None:
+        print("no final result message captured")
+    else:
+        for key in DIAGNOSTIC_KEYS:
+            if key in final:
+                print(f"{key}: {final[key]}")
+        result_text = final.get("result")
+        if isinstance(result_text, str) and result_text:
+            print("result:")
+            print(result_text[:2000])
+    print(f"::{stop_token}::", flush=True)
+    print("::endgroup::", flush=True)
+
+
 def invoke_claude(
     prompt: str,
     *,
@@ -84,12 +178,16 @@ def invoke_claude(
     max_turns: int,
     timeout_sec: int,
 ) -> str:
-    """Run ``claude --print`` and return its stdout.
+    """Run the picker subagent and return its final assistant text.
 
-    The same NVIDIA-gateway env (``ANTHROPIC_API_KEY``, ``ANTHROPIC_BASE_URL``,
+    Streams the per-turn stream-json events live into a foldable workflow
+    group, then prints a diagnostics summary (turns, duration, cost, exit
+    status) modelled on the generate step in ``testbot.yaml``.
+
+    The NVIDIA-gateway env (``ANTHROPIC_API_KEY``, ``ANTHROPIC_BASE_URL``,
     ``ANTHROPIC_MODEL``, ``DISABLE_PROMPT_CACHING``,
     ``CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS``) is inherited from the calling
-    workflow step, so this function doesn't manage credentials itself.
+    workflow step.
     """
     npx = shutil.which("npx")
     if npx is None:
@@ -99,21 +197,36 @@ def invoke_claude(
         "--model", model,
         "--allowedTools", ALLOWED_TOOLS,
         "--max-turns", str(max_turns),
+        "--output-format", "stream-json",
+        "--verbose",
         prompt,
     ]
-    logger.info("Invoking Claude CLI (model=%s, max_turns=%d)", model, max_turns)
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout_sec,
-        check=False,
-    )
-    if result.returncode != 0:
-        logger.error("Claude CLI exited %d", result.returncode)
-        logger.error("stderr: %s", result.stderr[:1000])
-        sys.exit(result.returncode)
-    return result.stdout
+    logger.info("Invoking Claude CLI (model=%s, max_turns=%d)",
+                model, max_turns)
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+    ) as tmp:
+        stream_log_path = Path(tmp.name)
+    try:
+        exit_status = _stream_npx(cmd, stream_log_path, timeout_sec)
+        final = _load_final_result(stream_log_path)
+        _emit_diagnostics(final, exit_status)
+
+        if exit_status != 0:
+            sys.exit(exit_status)
+        if final is None:
+            raise RuntimeError(
+                "Claude CLI exited 0 but no final result event was captured"
+            )
+        result_text = final.get("result")
+        if not isinstance(result_text, str):
+            raise RuntimeError(
+                f"Final event missing string 'result' field: {final!r}"
+            )
+        return result_text
+    finally:
+        stream_log_path.unlink(missing_ok=True)
 
 
 def parse_agent_output(output: str) -> list[dict]:
