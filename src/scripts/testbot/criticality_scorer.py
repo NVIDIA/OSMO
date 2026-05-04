@@ -550,9 +550,11 @@ def main() -> None:
     logger.info("Top %d shortlist:", len(ranked))
     for rank, target in enumerate(ranked, start=1):
         logger.info(
-            "  %2d. score=%.2f tier=%d fan_in=%d churn=%d cov=%.1f%% %s",
+            "  %2d. score=%.2f tier=%d fan_in=%d churn=%d "
+            "cov=%.1f%% uncov=%d %s",
             rank, target.score, target.tier, target.fan_in,
-            target.churn, target.coverage_pct, target.file_path,
+            target.churn, target.coverage_pct, target.uncovered_lines,
+            target.file_path,
         )
 
     payload = json.dumps(
