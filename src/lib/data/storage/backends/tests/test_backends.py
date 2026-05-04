@@ -503,6 +503,64 @@ class IsAwsEndpointTest(unittest.TestCase):
             self.assertFalse(backends._is_aws_endpoint(url), url)
 
 
+class GetS3AddressingStyleTest(unittest.TestCase):
+    """Tests for _get_s3_addressing_style helper."""
+
+    # pylint: disable=protected-access
+
+    def test_no_endpoint_returns_none(self):
+        """AWS S3 (no custom endpoint): defer to boto3 default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertIsNone(s3._get_s3_addressing_style(None))
+
+    def test_custom_endpoint_returns_virtual(self):
+        """Custom endpoint defaults to virtual-hosted style."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(s3._get_s3_addressing_style('https://cwobject.com'), 'virtual')
+
+    def test_env_override_wins(self):
+        """OSMO_S3_ADDRESSING_STYLE overrides the default for both endpoint cases."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
+            self.assertEqual(s3._get_s3_addressing_style('https://cwobject.com'), 'path')
+            self.assertEqual(s3._get_s3_addressing_style(None), 'path')
+
+
+class GetBotoConfigTest(unittest.TestCase):
+    """Tests for _get_boto_config addressing_style selection."""
+
+    # pylint: disable=protected-access
+
+    @staticmethod
+    def _s3_options(config) -> dict:
+        # botocore.config.Config exposes 's3' as an instance attribute when set,
+        # but it's not in the type stubs — read defensively.
+        return getattr(config, 's3', None) or {}
+
+    def test_aws_s3_no_addressing_style(self):
+        """AWS S3 (no endpoint): no addressing_style is set, boto3 picks the default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('s3')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_custom_endpoint_uses_virtual(self):
+        """Custom endpoint sets addressing_style=virtual."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
+
+    def test_tos_unchanged(self):
+        """TOS still hardcodes virtual regardless of endpoint."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('tos')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
+
+    def test_env_override_to_path(self):
+        """OSMO_S3_ADDRESSING_STYLE=path reverts custom endpoints to path-style."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
+
 class WorkflowConfigCredentialTest(unittest.TestCase):
     """Tests for WorkflowConfig credential type support."""
 
