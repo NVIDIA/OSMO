@@ -28,6 +28,18 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_criticality_scorer",
+    srcs = ["test_criticality_scorer.py"],
+    deps = ["//src/scripts/testbot"],
+)
+
+osmo_py_test(
+    name = "test_select_targets_agent",
+    srcs = ["test_select_targets_agent.py"],
+    deps = ["//src/scripts/testbot"],
+)
+
+osmo_py_test(
     name = "test_workflow_python_version",
     srcs = ["test_workflow_python_version.py"],
     data = [

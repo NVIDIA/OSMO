@@ -120,17 +120,38 @@ jobs:
           git config user.name "testbot[bot]"
           git config user.email "testbot[bot]@users.noreply.github.com"
 
-      - name: Select coverage targets
+      # Two-stage target selection: a heuristic scorer narrows the candidate
+      # pool to ~20 critical-but-undertested files (using fan-in, churn, and
+      # path-tier signals), then a small Claude subagent reads each candidate
+      # and picks the 1-3 best test targets by ROI.
+      - name: Score criticality (Stage 1)
         run: |
-          python src/scripts/testbot/coverage_targets.py \
-            --max-targets ${{ inputs.max_targets || '1' }} \
+          python src/scripts/testbot/criticality_scorer.py \
+            --repo-root . \
+            --shortlist-size 20 \
             --max-uncovered ${{ inputs.max_uncovered || '300' }} \
-            > "$RUNNER_TEMP/targets.txt"
+            --output "$RUNNER_TEMP/shortlist.json"
+          echo "::group::Criticality shortlist"
+          python -c 'import json,sys; data=json.load(open(sys.argv[1])); [print(f"{i+1:2d}. score={t[\"score\"]:6.2f} cov={t[\"coverage_pct\"]:5.1f}%  fan_in={t[\"fan_in\"]:3d} churn={t[\"churn\"]:3d}  {t[\"file_path\"]}") for i,t in enumerate(data)]' "$RUNNER_TEMP/shortlist.json"
+          echo "::endgroup::"
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Pick targets via subagent (Stage 2)
+        run: |
+          python src/scripts/testbot/select_targets_agent.py \
+            --shortlist "$RUNNER_TEMP/shortlist.json" \
+            --max-targets ${{ inputs.max_targets || '1' }} \
+            --output "$RUNNER_TEMP/targets.txt"
           echo "::group::Selected targets"
           cat "$RUNNER_TEMP/targets.txt"
           echo "::endgroup::"
         env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-4-7' }}
+          DISABLE_PROMPT_CACHING: "1"
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
 
       - name: Generate tests
         run: |

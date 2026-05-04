@@ -7,14 +7,16 @@ Testbot analyzes coverage gaps, generates tests using Claude Code, validates the
 ### Test Generation (`testbot.yaml`)
 
 ```text
-Codecov API → coverage_targets.py → Claude Code CLI → guardrails → create_pr.py
-                                      |         ↑
-                                      └─────────┘ (agent retries on test failures)
+Codecov API ──┐
+              ├─► criticality_scorer.py ──► select_targets_agent.py ──► Claude Code CLI ──► guardrails ──► create_pr.py
+git log ──────┤    (heuristic shortlist)       (LLM target picker)         |          ↑
+filesystem ───┘                                                            └──────────┘ (agent retries on test failures)
 ```
 
 | Stage | Component | Description |
 |-------|-----------|-------------|
-| **Coverage analysis** | `coverage_targets.py` | Fetches Codecov report, selects lowest-coverage files |
+| **Stage 1: Heuristic** | `criticality_scorer.py` | Combines Codecov coverage with static fan-in (Python AST + Go scan), 6-month git churn, and a path-tier classification to rank candidates by `criticality * coverage_gap`. Outputs a top-20 JSON shortlist. |
+| **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate, rejects hard-to-test infra glue, and picks the 1-3 files where unit tests would have the highest ROI. Can return zero picks if nothing meets the bar. |
 | **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures |
 | **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
 | **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label |
@@ -115,19 +117,54 @@ Then post a new `/testbot` comment with clearer instructions.
 | `--timeout` | `720` | Claude Code CLI timeout in seconds |
 | `--model` | `aws/anthropic/bedrock-claude-opus-4-7` | LLM model |
 
-### Coverage target selection (constants in `coverage_targets.py`)
+### Coverage target selection
+
+The selector runs in two stages. Tunables live in `criticality_scorer.py`
+(Stage 1) and `select_targets_agent.py` (Stage 2).
+
+**Stage 1 — heuristic (`criticality_scorer.py`):**
 
 | Constant | Value | Description |
 |----------|-------|-------------|
-| `MIN_FILE_LINES` | `10` | Skip files smaller than this |
-| `MAX_FILE_LINES` | `0` | Skip files larger than this (0 = no cap) |
-| `LANGUAGE_PRIORITY` | `.py`/`.go` = 0, `.ts`/`.tsx` = 1 | Backend code is prioritized over UI; lower bucket picked first, ties broken by coverage % asc |
+| `TIER_PREFIXES` | `lib/`, `utils/`, `runtime/pkg/` = 0; `service/core/` = 1; `cli/`, `runtime/cmd/` = 2; supporting services + `operator/` = 3 | Path-prefix tier (lower = more critical). |
+| `Weights` | tier=1.0, fan_in=1.5, churn=0.8 | Default weights for the criticality score. |
+| `CHURN_SINCE` | `6 months ago` | Window for the `git log` churn count. |
+| `MIN_LOC` | `30` | Skip files smaller than this — too small to give useful coverage gain. |
+| `--shortlist-size` | `20` | Number of candidates handed to the Stage-2 picker. |
+
+Score formula:
+```
+criticality = w_tier·(4 - tier) + w_fan_in·log(fan_in+1)/log(peak+1) + w_churn·log(churn+1)/log(peak+1)
+gap         = (1 - coverage) · log(min(uncovered_lines, 300) + 1)
+score       = criticality · gap
+```
+
+Log normalization keeps a single mega-hub from swamping the rest of the
+signals. Used together with the existing `IGNORE_PATTERNS` /
+`SKIP_BASENAME_PATTERNS` from `coverage_targets.py` plus extra skips for
+generated barrels and vendored code.
+
+**Stage 2 — LLM picker (`select_targets_agent.py`):**
+
+| Setting | Value | Description |
+|---------|-------|-------------|
+| `ALLOWED_TOOLS` | `Read,Glob,Grep` | Read-only — the picker can never modify anything. |
+| `DEFAULT_MAX_TURNS` | `30` | Hard turn cap for the picker subagent. |
+| Output contract | JSON `{targets: [{file_path, reason}]}` in a fenced block | Picker can return `[]` to skip a day. |
+
+The picker rejects heavy I/O glue, long-running orchestration, and SDK-call
+delegators where unit-test coverage gain would be shallow. When picks are
+made, the rationale is surfaced in the resulting PR description so reviewers
+can see *why* a file was chosen.
 
 ## File Structure
 
 ```text
 src/scripts/testbot/
-├── coverage_targets.py         # Codecov API → select low-coverage targets
+├── coverage_targets.py         # Codecov API client + filtering helpers
+├── criticality_scorer.py       # Stage 1: heuristic shortlist (fan-in × churn × tier × coverage gap)
+├── select_targets_agent.py     # Stage 2: Claude subagent that picks the best test targets
+├── SELECT_TARGETS_PROMPT.md    # System prompt for the Stage-2 picker
 ├── create_pr.py                # Branch, commit, push, open PR
 ├── guardrails.py               # Test-file-only filter, shared by all scripts
 ├── respond.py                  # Review response: Claude Code CLI + GitHub API
@@ -138,8 +175,10 @@ src/scripts/testbot/
 └── tests/
     ├── test_coverage_targets.py
     ├── test_create_pr.py
+    ├── test_criticality_scorer.py
     ├── test_guardrails.py
-    └── test_respond.py
+    ├── test_respond.py
+    └── test_select_targets_agent.py
 
 .github/workflows/
 ├── testbot.yaml                    # Scheduled test generation
