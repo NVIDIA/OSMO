@@ -116,8 +116,9 @@ def create_backend(postgres: connectors.PostgresConnector,
         raise osmo_errors.OSMOBackendError(f'Backend {name} is already being used by a '
                                            'different cluster')
 
-    if k8s_info[0].is_new:
-        config_helpers.update_backend_queues(connectors.Backend.fetch_from_db(postgres, name))
+    # Snapshot pre-UPDATE; passed to update_backend_queues below so it can
+    # clean up old scheduler resources on scheduler_type / namespace changes.
+    previous_backend = connectors.Backend.fetch_from_db(postgres, name)
 
     # Update node_conditions column to set the prefix while preserving existing values
     update_cmd = '''
@@ -150,6 +151,17 @@ def create_backend(postgres: connectors.PostgresConnector,
                                                     name,
                                                     message.k8s_namespace,
                                                     message.version, message.node_condition_prefix))
+
+    # MUST run after the UPDATE above: queue names embed k8s_namespace
+    # (`osmo-pool-<ns>-<pool>`), so the fetched backend has to reflect the
+    # just-written namespace. previous_backend (snapshot pre-UPDATE) lets
+    # update_backend_queues clean up old scheduler resources on
+    # scheduler_type / namespace transitions. Idempotent on every reconnect:
+    # the worker no-ops unchanged specs.
+    config_helpers.update_backend_queues(
+        connectors.Backend.fetch_from_db(postgres, name),
+        previous_backend,
+    )
 
     # Only create a single history entry for the backend creation or update
     if k8s_info[0].is_new:
