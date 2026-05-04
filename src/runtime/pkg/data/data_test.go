@@ -157,6 +157,26 @@ func TestBuildMountCommandArgsOsmoEnvVarSelectsVirtual(t *testing.T) {
 	}
 }
 
+func TestBuildMountCommandArgsAutoFallsThroughToHeuristic(t *testing.T) {
+	// 'auto' is accepted by the credential schema (Literal['virtual','path','auto'])
+	// but the runtime intentionally does NOT mirror boto3's 'auto', which would
+	// pick path-style for any custom endpoint and re-break CAIOS. Treat 'auto'
+	// as "use OSMO's heuristic" — same as an unset value.
+	t.Setenv(osmoS3AddressingStyle, "")
+	t.Setenv(awsS3ForcePathStyle, "")
+	backend := ParseStorageBackend("s3://coreweave-bucket/data")
+	credential := DataCredential{
+		OverrideUrl:     "https://cwobject.com",
+		AddressingStyle: "auto",
+	}
+
+	args := buildMountCommandArgs(backend, credential, "/mnt/input", "/mnt/cache", 0)
+
+	if slices.Contains(args, "--force-path-style") {
+		t.Fatalf("'auto' with override_url must fall through to virtual-host: %v", args)
+	}
+}
+
 func TestBuildMountCommandArgsCredentialBeatsEnv(t *testing.T) {
 	// Per-credential addressing_style takes precedence over both env vars.
 	t.Setenv(osmoS3AddressingStyle, "path")

@@ -60,6 +60,7 @@ const (
 const (
 	s3AddressingStylePath    string = "path"
 	s3AddressingStyleVirtual string = "virtual"
+	s3AddressingStyleAuto    string = "auto"
 	osmoS3AddressingStyle    string = "OSMO_S3_ADDRESSING_STYLE"
 	awsS3ForcePathStyle      string = "AWS_S3_FORCE_PATH_STYLE"
 )
@@ -96,6 +97,13 @@ func shouldForcePathStyle(storageBackend StorageBackend, dataCredential DataCred
 			return false
 		case s3AddressingStylePath:
 			return true
+		case s3AddressingStyleAuto:
+			// 'auto' is accepted by the credential schema for parity with
+			// boto3, but mount-s3 has no auto-detect knob. We deliberately
+			// diverge from boto3's 'auto' (which picks path-style for custom
+			// endpoints — the very behavior that breaks CAIOS) and instead
+			// fall through to OSMO's heuristic: AWS_S3_FORCE_PATH_STYLE,
+			// then OverrideUrl presence.
 		}
 		if awsForcePathStyleEnabled() {
 			return true
