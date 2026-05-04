@@ -82,7 +82,7 @@ Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` an
 
       curl -X POST "$GATEWAY/api/auth/jwt/access_token" \
           -H "Content-Type: application/json" \
-          -d '{"username":"admin","token":"<access-token-value>"}'
+          -d '{"token":"<access-token-value>"}'
 
 Operating with an identity provider
 ===================================
