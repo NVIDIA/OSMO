@@ -126,7 +126,9 @@ jobs:
       # and picks the 1-3 best test targets by ROI.
       - name: Score criticality (Stage 1)
         run: |
-          python src/scripts/testbot/criticality_scorer.py \
+          # PYTHONPATH=. so the namespace-package import
+          # `from src.scripts.testbot.coverage_targets import ...` resolves.
+          PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
             --repo-root . \
             --shortlist-size 20 \
             --max-uncovered ${{ inputs.max_uncovered || '300' }} \
@@ -139,7 +141,7 @@ jobs:
 
       - name: Pick targets via subagent (Stage 2)
         run: |
-          python src/scripts/testbot/select_targets_agent.py \
+          PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
             --shortlist "$RUNNER_TEMP/shortlist.json" \
             --max-targets ${{ inputs.max_targets || '1' }} \
             --output "$RUNNER_TEMP/targets.txt"
