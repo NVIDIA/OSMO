@@ -312,7 +312,15 @@ class TestRunSetCommand(unittest.TestCase):
                 mock.patch('src.cli.credential._save_config') as mock_save:
             credential._run_set_command(service_client, args)
 
-        service_client.request.assert_called_once()
+        service_client.request.assert_called_once_with(
+            client.RequestMethod.POST,
+            'api/credentials/mycred',
+            payload={'data_credential': {
+                'access_key_id': 'ak',
+                'access_key': 'sk',
+                'endpoint': 's3://bucket',
+            }},
+        )
         mock_save.assert_called_once()
         saved_cred = mock_save.call_args[0][0]
         self.assertEqual(saved_cred.access_key_id, 'ak')
@@ -398,9 +406,10 @@ class TestRunListCommand(unittest.TestCase):
                     'src.cli.credential.credentials.'
                     'get_static_data_credential_from_config',
                     return_value=_make_static_data_credential(),
-                ):
+                ) as mock_lookup:
             credential._run_list_command(service_client, args)
 
+        mock_lookup.assert_called_once_with(url='s3://b')
         output = ' '.join(
             str(arg) for call in mock_print.call_args_list for arg in call.args
         )
@@ -419,9 +428,10 @@ class TestRunListCommand(unittest.TestCase):
                     'src.cli.credential.credentials.'
                     'get_static_data_credential_from_config',
                     return_value=None,
-                ):
+                ) as mock_lookup:
             credential._run_list_command(service_client, args)
 
+        mock_lookup.assert_called_once_with(url='s3://b')
         output = ' '.join(
             str(arg) for call in mock_print.call_args_list for arg in call.args
         )
@@ -460,6 +470,9 @@ class TestRunDeleteCommand(unittest.TestCase):
                 mock.patch('src.cli.credential._delete_config') as mock_delete:
             credential._run_delete_command(service_client, args)
 
+        service_client.request.assert_called_once_with(
+            client.RequestMethod.DELETE, 'api/credentials/datacred'
+        )
         mock_delete.assert_called_once_with('s3://bucket')
 
 
