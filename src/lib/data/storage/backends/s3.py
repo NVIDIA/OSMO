@@ -122,9 +122,9 @@ def _get_s3_addressing_style(
         return addressing_style
     if scheme != common.StorageBackendType.S3.value:
         return None
-    override = os.getenv(OSMO_S3_ADDRESSING_STYLE)
-    if override:
-        return override
+    osmo_override = os.getenv(OSMO_S3_ADDRESSING_STYLE)
+    if osmo_override:
+        return osmo_override
     if os.getenv('AWS_S3_FORCE_PATH_STYLE', '').lower() in ('true', '1'):
         return 'path'
     if endpoint_url is None:
