@@ -46,6 +46,10 @@ SKIP_BASENAME_PATTERNS = [
 MIN_FILE_LINES = 10
 MAX_FILE_LINES = 0  # 0 = no cap
 
+# Codecov line_coverage format: [[line_num, status], ...]
+CODECOV_LINE_HIT = 0
+CODECOV_LINE_MISS = 1
+
 # Language priority bucket — lower value picked first within a target run.
 # Backend code (Python, Go) gets the limited test-generation budget before
 # frontend (TS/TSX) at the same coverage level; UI files are still eligible
@@ -152,30 +156,24 @@ def fetch_codecov_report(
         sys.exit(1)
 
 
-def select_targets(
+def parse_coverage_entries(
     report: dict,
-    max_targets: int,
     max_uncovered: int,
 ) -> list[dict]:
-    """Parse the Codecov report and return the lowest-coverage targets.
+    """Convert a Codecov report into per-file coverage entries.
 
-    Args:
-        report: Raw JSON response from the Codecov API.
-        max_targets: Maximum number of files to return.
-        max_uncovered: Cap on uncovered lines per target (0 = no cap).
-
-    Returns:
-        A list of target dicts with keys: file_path, coverage_pct,
-        uncovered_lines, uncovered_ranges.
+    Returns a list of dicts with keys: ``file_path``, ``coverage_pct``,
+    ``uncovered_lines``, ``uncovered_ranges``, ``loc``. No ranking or
+    truncation — callers (``select_targets``, ``criticality_scorer``)
+    apply their own ordering and slicing.
     """
     entries = []
     for file_report in report.get("files", []):
         file_path = file_report["name"]
-
         if _is_ignored(file_path):
             continue
 
-        line_coverage = file_report.get("line_coverage", [])
+        line_coverage = file_report.get("line_coverage") or []
         if not line_coverage:
             continue
 
@@ -185,14 +183,12 @@ def select_targets(
         if 0 < MAX_FILE_LINES < total_lines:
             continue
 
-        # Codecov line_coverage format: [[line_num, status], ...]
-        # where 0 = hit (covered), 1 = miss (uncovered)
         covered = 0
-        uncovered_numbers = []
+        uncovered_numbers: list[int] = []
         for line, status in line_coverage:
-            if status == 0:
+            if status == CODECOV_LINE_HIT:
                 covered += 1
-            elif status == 1:
+            elif status == CODECOV_LINE_MISS:
                 uncovered_numbers.append(line)
         uncovered_numbers.sort()
         coverage_pct = (covered / total_lines * 100) if total_lines else 0.0
@@ -210,10 +206,22 @@ def select_targets(
             "coverage_pct": coverage_pct,
             "uncovered_lines": uncovered_line_count,
             "uncovered_ranges": uncovered_ranges,
+            "loc": total_lines,
         })
+    return entries
 
-    # Primary: language priority (backend before frontend).
-    # Secondary: coverage_pct ascending (worst coverage first within bucket).
+
+def select_targets(
+    report: dict,
+    max_targets: int,
+    max_uncovered: int,
+) -> list[dict]:
+    """Return the lowest-coverage Codecov files for test generation.
+
+    Primary sort: language priority (backend before frontend).
+    Secondary: coverage_pct ascending (worst coverage first).
+    """
+    entries = parse_coverage_entries(report, max_uncovered)
     entries.sort(key=lambda entry: (
         _language_priority(entry["file_path"]),
         entry["coverage_pct"],
@@ -221,10 +229,17 @@ def select_targets(
     return entries[:max_targets]
 
 
-def format_targets(targets: list[dict]) -> str:
-    """Format targets as structured text for the Claude Code prompt."""
+def format_targets(
+    targets: list[dict],
+    empty_message: str = "No coverage targets found.",
+) -> str:
+    """Format targets as structured text for the Claude Code prompt.
+
+    A ``reason`` string on a target (set by the Stage-2 picker) is rendered
+    as a ``Why this file:`` line so the rationale lands in the PR description.
+    """
     if not targets:
-        return "No coverage targets found."
+        return empty_message
 
     lines: list[str] = []
     for i, target in enumerate(targets, start=1):
@@ -238,6 +253,8 @@ def format_targets(targets: list[dict]) -> str:
             f"({target["uncovered_lines"]} uncovered lines)"
         )
         lines.append(f"Uncovered ranges: {ranges_str}")
+        if target.get("reason"):
+            lines.append(f"Why this file: {target["reason"]}")
         lines.append("")
     return "\n".join(lines)
 

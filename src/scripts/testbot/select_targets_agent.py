@@ -33,6 +33,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from src.scripts.testbot.coverage_targets import format_targets
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -106,9 +108,11 @@ def _stream_npx(cmd: list[str], stream_log_path: Path, timeout_sec: int) -> int:
                 text=True,
                 bufsize=1,
             ) as proc:
-                assert proc.stdout is not None  # bound by stdout=PIPE
+                stdout = proc.stdout
+                if stdout is None:
+                    raise RuntimeError("subprocess.Popen returned no stdout")
                 try:
-                    for line in proc.stdout:
+                    for line in stdout:
                         sys.stdout.write(line)
                         logf.write(line)
                     proc.wait(timeout=timeout_sec)
@@ -272,32 +276,20 @@ def merge_picks_with_shortlist(
     return merged
 
 
+SKIP_MESSAGE = (
+    "No coverage targets selected — shortlist did not contain any "
+    "high-ROI candidates today."
+)
+
+
 def format_targets_markdown(picks: list[dict]) -> str:
-    """Render the final target list in the format coverage_targets.py emits.
+    """Thin wrapper around ``coverage_targets.format_targets``.
 
-    Identical to ``coverage_targets.format_targets`` but with an extra
-    ``Why this file:`` line carrying the LLM's rationale so reviewers can
-    see why it was chosen.
+    Kept as a named symbol so existing tests and imports continue to work;
+    delegates to the shared formatter (which renders ``Why this file:``
+    when a pick carries a ``reason``).
     """
-    if not picks:
-        return "No coverage targets selected — shortlist did not contain any high-ROI candidates today."
-
-    lines: list[str] = []
-    for index, target in enumerate(picks, start=1):
-        ranges_str = ", ".join(
-            f"{s}-{e}" if s != e else str(s)
-            for s, e in target["uncovered_ranges"]
-        )
-        lines.append(f"## Target {index}: {target["file_path"]}")
-        lines.append(
-            f"Coverage: {target["coverage_pct"]:.1f}% "
-            f"({target["uncovered_lines"]} uncovered lines)"
-        )
-        lines.append(f"Uncovered ranges: {ranges_str}")
-        if target.get("reason"):
-            lines.append(f"Why this file: {target["reason"]}")
-        lines.append("")
-    return "\n".join(lines)
+    return format_targets(picks, empty_message=SKIP_MESSAGE)
 
 
 def main() -> None:

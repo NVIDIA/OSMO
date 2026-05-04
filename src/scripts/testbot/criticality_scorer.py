@@ -45,10 +45,9 @@ from pathlib import Path
 
 from src.scripts.testbot.coverage_targets import (
     IGNORE_PATTERNS,
-    _cap_ranges,
     _is_ignored,
-    _lines_to_ranges,
     fetch_codecov_report,
+    parse_coverage_entries,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -85,7 +84,7 @@ EXTRA_SKIP_PATTERNS: tuple[str, ...] = (
     "node_modules/",
 )
 
-MIN_LOC = 30  # Skip trivial files; tiny modules give shallow coverage gain.
+MIN_LOC = 30
 
 CHURN_SINCE = "6 months ago"
 
@@ -245,9 +244,6 @@ def _re_export_targets(
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom):
                 continue
-            # 1-level relative imports only (``from .X import Y``).
-            # Higher levels (``from ..pkg import Z``) need parent-traversal
-            # logic that hasn't been worth the complexity yet.
             if node.level != 1 or not node.module:
                 continue
             sub_parts = node.module.split(".")
@@ -277,21 +273,21 @@ def build_python_fan_in(repo_root: Path) -> dict[str, int]:
          credit every file that ``storage/__init__.py`` imports from)
     """
     files = _walk_files(repo_root, (".py",))
-    module_to_path: dict[str, str] = {}
-    for path in files:
-        module_to_path[_python_module_name(path, repo_root)] = str(
-            path.relative_to(repo_root)
-        )
+    rel_for: dict[Path, str] = {
+        path: str(path.relative_to(repo_root)) for path in files
+    }
+    module_to_path: dict[str, str] = {
+        _python_module_name(path, repo_root): rel_for[path] for path in files
+    }
     aliases, package_re_exports = _re_export_targets(repo_root)
     for alias_module, alias_target in aliases.items():
         module_to_path.setdefault(alias_module, alias_target)
     counts: dict[str, int] = {p: 0 for p in module_to_path.values()}
     for path in files:
-        importer_rel = str(path.relative_to(repo_root))
-        # Dedup: a file that imports both `Client` and `SingleObjectClient`
-        # from the same package (both resolving to client.py) should add
-        # exactly 1 to client.py's fan-in, not 2. The same set also collapses
-        # the overlap between alias resolution and package expansion.
+        importer_rel = rel_for[path]
+        # Dedup so a file that imports both `Client` and `SingleObjectClient`
+        # adds 1 to client.py, not 2 — also collapses the alias/package
+        # expansion overlap.
         resolved: set[str] = set()
         for module in _python_imports(path):
             target = module_to_path.get(module)
@@ -346,12 +342,10 @@ def build_go_fan_in(repo_root: Path) -> dict[str, int]:
     """
     files = _walk_files(repo_root, (".go",))
     package_files: dict[str, list[Path]] = {}
-    for path in files:
-        pkg = _go_package_for_file(path, repo_root)
-        package_files.setdefault(pkg, []).append(path)
     package_imports: dict[str, set[str]] = {}
     for path in files:
         pkg = _go_package_for_file(path, repo_root)
+        package_files.setdefault(pkg, []).append(path)
         package_imports.setdefault(pkg, set()).update(_go_imports(path))
     package_fan_in: dict[str, int] = {pkg: 0 for pkg in package_files}
     for pkg, imports in package_imports.items():
@@ -423,44 +417,6 @@ def score_entry(
     return final, breakdown
 
 
-def _coverage_entries(report: dict, max_uncovered: int) -> list[dict]:
-    """Mirror coverage_targets.select_targets but return *all* candidates."""
-    entries: list[dict] = []
-    for file_report in report.get("files", []):
-        file_path = file_report["name"]
-        if _is_ignored(file_path) or _extra_skip(file_path):
-            continue
-        line_coverage = file_report.get("line_coverage") or []
-        if not line_coverage:
-            continue
-        total_lines = len(line_coverage)
-        if total_lines < MIN_LOC:
-            continue
-        covered = 0
-        uncovered_numbers: list[int] = []
-        for line, status in line_coverage:
-            if status == 0:
-                covered += 1
-            elif status == 1:
-                uncovered_numbers.append(line)
-        uncovered_numbers.sort()
-        coverage_pct = (covered / total_lines * 100) if total_lines else 0.0
-        ranges = _lines_to_ranges(uncovered_numbers)
-        if max_uncovered > 0:
-            ranges = _cap_ranges(ranges, max_uncovered)
-        uncovered_count = sum(e - s + 1 for s, e in ranges)
-        if uncovered_count == 0:
-            continue
-        entries.append({
-            "file_path": file_path,
-            "coverage_pct": coverage_pct,
-            "uncovered_lines": uncovered_count,
-            "uncovered_ranges": ranges,
-            "loc": total_lines,
-        })
-    return entries
-
-
 def rank_targets(
     report: dict,
     repo_root: Path,
@@ -472,7 +428,10 @@ def rank_targets(
     churn: dict[str, int] | None = None,
 ) -> list[RankedTarget]:
     """Build the ranked shortlist."""
-    entries = _coverage_entries(report, max_uncovered)
+    entries = [
+        entry for entry in parse_coverage_entries(report, max_uncovered)
+        if not _extra_skip(entry["file_path"]) and entry["loc"] >= MIN_LOC
+    ]
     if fan_in is None:
         py_fan_in = build_python_fan_in(repo_root)
         go_fan_in = build_go_fan_in(repo_root)
