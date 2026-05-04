@@ -128,13 +128,16 @@ jobs:
         run: |
           # PYTHONPATH=. so the namespace-package import
           # `from src.scripts.testbot.coverage_targets import ...` resolves.
+          # criticality_scorer logs the ranked shortlist itself; we just
+          # dump the JSON in a foldable group so reviewers can see the full
+          # per-signal breakdown when debugging a pick.
           PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
             --repo-root . \
             --shortlist-size 20 \
             --max-uncovered ${{ inputs.max_uncovered || '300' }} \
             --output "$RUNNER_TEMP/shortlist.json"
-          echo "::group::Criticality shortlist"
-          python -c 'import json,sys; data=json.load(open(sys.argv[1])); [print(f"{i+1:2d}. score={t[\"score\"]:6.2f} cov={t[\"coverage_pct\"]:5.1f}%  fan_in={t[\"fan_in\"]:3d} churn={t[\"churn\"]:3d}  {t[\"file_path\"]}") for i,t in enumerate(data)]' "$RUNNER_TEMP/shortlist.json"
+          echo "::group::Shortlist JSON (full per-signal breakdown)"
+          cat "$RUNNER_TEMP/shortlist.json"
           echo "::endgroup::"
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
