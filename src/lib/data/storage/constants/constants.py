@@ -18,6 +18,7 @@
 Constants for the data module.
 """
 
+import re
 from typing import Annotated
 
 import pydantic
@@ -39,6 +40,13 @@ TOS_REGEX = fr'^tos://{URI_COMPONENT}(/{URI_COMPONENT})+/*$'
 AZURE_REGEX = fr'^azure://{URI_COMPONENT}(/{URI_COMPONENT})+/*$'
 STORAGE_BACKEND_REGEX = fr'({SWIFT_REGEX}|{S3_REGEX}|{GS_REGEX}|{TOS_REGEX}|{AZURE_REGEX})'
 StorageBackendPattern = Annotated[str, pydantic.Field(pattern=STORAGE_BACKEND_REGEX)]
+
+# Schemes are derived from STORAGE_BACKEND_REGEX so adding a new backend
+# (e.g., a new *_REGEX included in the union above) auto-propagates here
+# and to any consumer that lists supported schemes (e.g., error messages).
+STORAGE_BACKEND_SCHEMES: tuple[str, ...] = tuple(
+    re.findall(r'\^(\w+)://', STORAGE_BACKEND_REGEX)
+)
 
 
 # Regex rules for storage profiles

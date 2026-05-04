@@ -22,6 +22,7 @@ import unittest
 from typing import cast
 from unittest import mock
 
+from src.lib.data.storage import constants
 from src.lib.data.storage.backends import azure, backends, s3
 from src.lib.data.storage.credentials import credentials
 from src.lib.data.storage.core import header
@@ -580,6 +581,60 @@ class WorkflowConfigCredentialTest(unittest.TestCase):
         self.assertEqual(result['region'], 'us-west-2')
         self.assertNotIn('access_key_id', result)
         self.assertNotIn('access_key', result)
+
+
+class EndpointValidationErrorTest(unittest.TestCase):
+    """Tests for the helpful error message produced by validate_endpoint."""
+
+    def _build_with(self, endpoint: str) -> osmo_errors.OSMOUserError:
+        with self.assertRaises(osmo_errors.OSMOUserError) as ctx:
+            credentials.StaticDataCredential(
+                endpoint=endpoint,
+                access_key_id='k',
+                access_key='s',
+            )
+        return ctx.exception
+
+    def test_path_style_https_includes_canonical_split(self):
+        err = str(self._build_with('https://s3-compat.example.com/my-bucket/workflows'))
+        self.assertIn("endpoint='s3://my-bucket/workflows'", err)
+        self.assertIn("override_url='https://s3-compat.example.com'", err)
+
+    def test_path_style_http_with_port_preserves_port(self):
+        err = str(self._build_with('http://minio.local:9000/bucket'))
+        self.assertIn("endpoint='s3://bucket'", err)
+        self.assertIn("override_url='http://minio.local:9000'", err)
+
+    def test_https_no_path_suggests_override_url(self):
+        err = str(self._build_with('https://host.example'))
+        self.assertIn('override_url', err)
+        self.assertIn("'https://host.example'", err)
+
+    def test_https_root_path_treated_as_no_path(self):
+        err = str(self._build_with('https://host.example/'))
+        self.assertIn('override_url', err)
+        self.assertNotIn('Did you mean', err)
+
+    def test_non_url_falls_back_to_generic_message(self):
+        err = str(self._build_with('not-a-url'))
+        self.assertIn("'not-a-url'", err)
+        self.assertNotIn('Did you mean', err)
+
+    def test_error_lists_every_registered_scheme(self):
+        """If a backend is added, this test guards the error against drift."""
+        err = str(self._build_with('not-a-url'))
+        for scheme in constants.STORAGE_BACKEND_SCHEMES:
+            self.assertIn(f'{scheme}://', err)
+        # Sanity: the registry isn't empty.
+        self.assertGreater(len(constants.STORAGE_BACKEND_SCHEMES), 0)
+
+    def test_valid_endpoint_still_accepted(self):
+        cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket/prefix',
+            access_key_id='k',
+            access_key='s',
+        )
+        self.assertEqual(cred.endpoint, 's3://bucket/prefix')
 
 
 if __name__ == '__main__':

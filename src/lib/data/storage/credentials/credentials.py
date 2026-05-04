@@ -24,6 +24,7 @@ import abc
 import os
 import re
 from typing import Union
+from urllib.parse import urlparse
 
 import pydantic
 import yaml
@@ -32,13 +33,49 @@ from .. import constants
 from ....utils import client_configs, osmo_errors
 
 
+def _format_invalid_endpoint_error(value: str) -> str:
+    """
+    Build a helpful error message for an invalid endpoint.
+
+    When the value parses as an http(s) URL, include a concrete
+    `endpoint`/`override_url` split the operator can copy-paste.
+    """
+    schemes = ', '.join(f'{s}://' for s in constants.STORAGE_BACKEND_SCHEMES)
+    parsed = urlparse(value)
+    if parsed.scheme in ('http', 'https') and parsed.netloc:
+        override = f'{parsed.scheme}://{parsed.netloc}'
+        path = parsed.path.strip('/')
+        if path:
+            bucket, _, prefix = path.partition('/')
+            canonical = f's3://{bucket}/{prefix}' if prefix else f's3://{bucket}'
+            return (
+                f'Invalid endpoint: {value!r}. Endpoint must use one of: '
+                f'{schemes} (e.g., {canonical!r}). Did you mean: '
+                f'endpoint={canonical!r}, override_url={override!r}?'
+            )
+        return (
+            f'Invalid endpoint: {value!r}. Endpoint must use one of: '
+            f"{schemes} (e.g., 's3://my-bucket/prefix'). For HTTP service "
+            f"URL {override!r}, set 'override_url' separately."
+        )
+    return (
+        f'Invalid endpoint: {value!r}. Endpoint must use one of: {schemes} '
+        f"(e.g., 's3://my-bucket/prefix'). For HTTP service URLs, set "
+        f"'override_url' separately."
+    )
+
+
 class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra='forbid'):
     """
     Base class for data credentials (i.e. credentials with endpoint and region).
     """
     endpoint: str = pydantic.Field(
         ...,
-        description='The OSMO storage URI for the data service (e.g., s3://bucket)',
+        description=(
+            'The OSMO storage URI for the data service (e.g., s3://bucket). '
+            "For S3-compatible services with HTTP endpoints, set 'override_url' "
+            'separately rather than pasting the full HTTPS URL here.'
+        ),
     )
     region: str | None = pydantic.Field(
         default=None,
@@ -46,7 +83,11 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra='forbid'):
     )
     override_url: str | None = pydantic.Field(
         default=None,
-        description='HTTP endpoint URL override the storage URI (e.g., http://minio:9000)',
+        description=(
+            'HTTP service URL for S3-compatible providers '
+            '(e.g., http://minio:9000, https://s3-compat.example.com). '
+            'Leave unset for native AWS S3, GCS, Azure, etc.'
+        ),
     )
 
     @pydantic.field_validator('endpoint')
@@ -56,7 +97,7 @@ class DataCredentialBase(pydantic.BaseModel, abc.ABC, extra='forbid'):
         Validates endpoint. Returns the value of parsed job_id if valid.
         """
         if not re.fullmatch(constants.STORAGE_CREDENTIAL_REGEX, value):
-            raise osmo_errors.OSMOUserError(f'Invalid endpoint: {value}')
+            raise osmo_errors.OSMOUserError(_format_invalid_endpoint_error(value))
         return value.rstrip('/')
 
 
