@@ -118,19 +118,16 @@ function SearchPanel({ view, isDark }: SearchPanelProps) {
   };
 
   /** Navigate to a match and update position tracking after CodeMirror state settles */
-  const navigateMatch = React.useCallback(
-    (direction: "next" | "previous") => {
-      if (direction === "next") {
-        findNext(view);
-      } else {
-        findPrevious(view);
-      }
-      requestAnimationFrame(() => {
-        setSelectionPos(view.state.selection.main.from);
-      });
-    },
-    [view],
-  );
+  const navigateMatch = (direction: "next" | "previous") => {
+    if (direction === "next") {
+      findNext(view);
+    } else {
+      findPrevious(view);
+    }
+    requestAnimationFrame(() => {
+      setSelectionPos(view.state.selection.main.from);
+    });
+  };
 
   // Handle keydown at panel level to catch Cmd+F even when input isn't focused
   const handlePanelKeyDown = React.useCallback((e: React.KeyboardEvent) => {
