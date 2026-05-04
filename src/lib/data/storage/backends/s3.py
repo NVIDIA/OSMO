@@ -94,6 +94,28 @@ def _get_s3_timeout() -> datetime.timedelta:
     return utils_common.to_timedelta(os.getenv(OSMO_S3_TIMEOUT, '24h'))
 
 
+_VALID_S3_ADDRESSING_STYLES = ('virtual', 'path', 'auto')
+
+
+def _normalize_env_addressing_style(raw: str) -> str:
+    """
+    Normalizes and validates an OSMO_S3_ADDRESSING_STYLE env var value.
+
+    Trims whitespace and lowercases the value, then verifies it's one of the
+    supported addressing styles. Raises ValueError with the offending raw
+    value on miss, so a typo surfaces immediately instead of silently flowing
+    into botocore's Config.
+    """
+    normalized = raw.strip().lower()
+    if normalized not in _VALID_S3_ADDRESSING_STYLES:
+        supported = ', '.join(_VALID_S3_ADDRESSING_STYLES)
+        raise ValueError(
+            f'Invalid {OSMO_S3_ADDRESSING_STYLE} value {raw!r}; '
+            f'expected one of: {supported}'
+        )
+    return normalized
+
+
 def _get_s3_addressing_style(
     scheme: str,
     endpoint_url: str | None,
@@ -124,7 +146,7 @@ def _get_s3_addressing_style(
         return None
     osmo_override = os.getenv(OSMO_S3_ADDRESSING_STYLE)
     if osmo_override:
-        return osmo_override
+        return _normalize_env_addressing_style(osmo_override)
     if os.getenv('AWS_S3_FORCE_PATH_STYLE', '').lower() in ('true', '1'):
         return 'path'
     if endpoint_url is None:

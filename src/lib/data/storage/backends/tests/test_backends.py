@@ -548,6 +548,20 @@ class GetS3AddressingStyleTest(unittest.TestCase):
                 'virtual',
             )
 
+    def test_env_override_normalizes_case_and_whitespace(self):
+        """OSMO_S3_ADDRESSING_STYLE is trimmed and lowercased before use."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: '  Virtual  '}):
+            self.assertEqual(s3._get_s3_addressing_style('s3', None), 'virtual')
+
+    def test_env_override_invalid_raises(self):
+        """An unsupported OSMO_S3_ADDRESSING_STYLE value surfaces a clear error
+        rather than silently flowing into botocore."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'virtua'}):
+            with self.assertRaises(ValueError) as ctx:
+                s3._get_s3_addressing_style('s3', 'https://cwobject.com')
+        self.assertIn(s3.OSMO_S3_ADDRESSING_STYLE, str(ctx.exception))
+        self.assertIn("'virtua'", str(ctx.exception))
+
 
 class S3BackendRegionTest(unittest.TestCase):
     """Tests for S3Backend.region() endpoint routing."""
