@@ -36,32 +36,19 @@ from ....utils import client_configs, osmo_errors
 def _format_invalid_endpoint_error(value: str) -> str:
     """
     Build a helpful error message for an invalid endpoint.
-
-    When the value parses as an http(s) URL, include a concrete
-    `endpoint`/`override_url` split the operator can copy-paste.
     """
     schemes = ', '.join(f'{s}://' for s in constants.STORAGE_BACKEND_SCHEMES)
     parsed = urlparse(value)
     if parsed.scheme in ('http', 'https') and parsed.netloc:
         override = f'{parsed.scheme}://{parsed.netloc}'
-        path = parsed.path.strip('/')
-        if path:
-            bucket, _, prefix = path.partition('/')
-            canonical = f's3://{bucket}/{prefix}' if prefix else f's3://{bucket}'
-            return (
-                f'Invalid endpoint: {value!r}. Endpoint must use one of: '
-                f'{schemes} (e.g., {canonical!r}). Did you mean: '
-                f'endpoint={canonical!r}, override_url={override!r}?'
-            )
         return (
             f'Invalid endpoint: {value!r}. Endpoint must use one of: '
-            f"{schemes} (e.g., 's3://my-bucket/prefix'). For HTTP service "
-            f"URL {override!r}, set 'override_url' separately."
+            f"{schemes}. The value looks like an HTTP service URL — set "
+            f"'override_url={override}' and put the storage URI in 'endpoint'."
         )
     return (
-        f'Invalid endpoint: {value!r}. Endpoint must use one of: {schemes} '
-        f"(e.g., 's3://my-bucket/prefix'). For HTTP service URLs, set "
-        f"'override_url' separately."
+        f'Invalid endpoint: {value!r}. Endpoint must use one of: {schemes}. '
+        f"For HTTP service URLs, set 'override_url' separately."
     )
 
 

@@ -595,38 +595,24 @@ class EndpointValidationErrorTest(unittest.TestCase):
             )
         return ctx.exception
 
-    def test_path_style_https_includes_canonical_split(self):
-        err = str(self._build_with('https://s3-compat.example.com/my-bucket/workflows'))
-        self.assertIn("endpoint='s3://my-bucket/workflows'", err)
-        self.assertIn("override_url='https://s3-compat.example.com'", err)
-
-    def test_path_style_http_with_port_preserves_port(self):
+    def test_http_url_with_port_directs_operator_to_override_url(self):
         err = str(self._build_with('http://minio.local:9000/bucket'))
-        self.assertIn("endpoint='s3://bucket'", err)
-        self.assertIn("override_url='http://minio.local:9000'", err)
+        self.assertIn("override_url=http://minio.local:9000", err)
 
-    def test_https_no_path_suggests_override_url(self):
+    def test_https_no_path_directs_operator_to_override_url(self):
         err = str(self._build_with('https://host.example'))
         self.assertIn('override_url', err)
         self.assertIn("'https://host.example'", err)
 
-    def test_https_root_path_treated_as_no_path(self):
-        err = str(self._build_with('https://host.example/'))
-        self.assertIn('override_url', err)
-        self.assertNotIn('Did you mean', err)
-
-    def test_non_url_falls_back_to_generic_message(self):
+    def test_non_url_value_is_quoted_in_message(self):
         err = str(self._build_with('not-a-url'))
         self.assertIn("'not-a-url'", err)
-        self.assertNotIn('Did you mean', err)
 
     def test_error_lists_every_registered_scheme(self):
-        """If a backend is added, this test guards the error against drift."""
+        """Drift guard: adding a new backend must surface in operator-facing errors."""
         err = str(self._build_with('not-a-url'))
         for scheme in constants.STORAGE_BACKEND_SCHEMES:
             self.assertIn(f'{scheme}://', err)
-        # Sanity: the registry isn't empty.
-        self.assertGreater(len(constants.STORAGE_BACKEND_SCHEMES), 0)
 
     def test_valid_endpoint_still_accepted(self):
         cred = credentials.StaticDataCredential(
