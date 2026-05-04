@@ -572,9 +572,12 @@ class S3Backend(Boto3Backend):
         if data_cred.region is not None:
             return data_cred.region
 
+        # Route the precheck to the credential's endpoint so it actually targets
+        # the bucket's backend (CAIOS, MinIO, etc.) rather than AWS S3.
         s3_client = s3.create_client(
             data_cred=data_cred,
             scheme=self.scheme,
+            endpoint_url=data_cred.override_url,
         )
 
         def _get_region() -> str:

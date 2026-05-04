@@ -104,10 +104,19 @@ def _get_s3_addressing_style(endpoint_url: str | None) -> str | None:
     path-style requests on operations like HeadBucket and GetBucketLocation.
     Boto3's 'auto' default picks path-style whenever endpoint_url is set, which
     breaks those backends.
+
+    Resolution order:
+      1. OSMO_S3_ADDRESSING_STYLE env var (explicit operator override).
+      2. AWS_S3_FORCE_PATH_STYLE env var (the convention chart deployments and
+         localstack/MinIO setups already use to signal "path-style required";
+         boto3 does not honor it natively, so we honor it here).
+      3. 'virtual' for custom endpoints, None (boto3 default) for AWS.
     """
     override = os.getenv(OSMO_S3_ADDRESSING_STYLE)
     if override:
         return override
+    if os.getenv('AWS_S3_FORCE_PATH_STYLE', '').lower() in ('true', '1'):
+        return 'path'
     if endpoint_url is None:
         return None
     return 'virtual'

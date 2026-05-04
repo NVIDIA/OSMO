@@ -524,6 +524,58 @@ class GetS3AddressingStyleTest(unittest.TestCase):
             self.assertEqual(s3._get_s3_addressing_style('https://cwobject.com'), 'path')
             self.assertEqual(s3._get_s3_addressing_style(None), 'path')
 
+    def test_aws_s3_force_path_style_returns_path(self):
+        """AWS_S3_FORCE_PATH_STYLE=true preserves localstack/MinIO chart deployments."""
+        for value in ('true', 'True', 'TRUE', '1'):
+            with mock.patch.dict('os.environ', {'AWS_S3_FORCE_PATH_STYLE': value}, clear=True):
+                self.assertEqual(
+                    s3._get_s3_addressing_style('http://localstack-s3.osmo:4566'),
+                    'path',
+                    value,
+                )
+
+    def test_osmo_override_beats_aws_force_path(self):
+        """OSMO_S3_ADDRESSING_STYLE takes precedence over AWS_S3_FORCE_PATH_STYLE."""
+        with mock.patch.dict('os.environ', {
+            s3.OSMO_S3_ADDRESSING_STYLE: 'virtual',
+            'AWS_S3_FORCE_PATH_STYLE': 'true',
+        }):
+            self.assertEqual(
+                s3._get_s3_addressing_style('http://localstack-s3.osmo:4566'),
+                'virtual',
+            )
+
+
+class S3BackendRegionTest(unittest.TestCase):
+    """Tests for S3Backend.region() endpoint routing."""
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_region_inference_targets_override_url(self, mock_create_client):
+        """When the credential has override_url but no region, the precheck must
+        target that endpoint — not AWS S3 — so GetBucketLocation actually hits
+        the right backend (e.g., CAIOS, MinIO)."""
+        mock_s3_client = mock.Mock()
+        mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': 'us-east-1'}
+        mock_create_client.return_value = mock_s3_client
+
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://my-caios-bucket/data',
+        ))
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://my-caios-bucket',
+            access_key_id='ak',
+            access_key='sk',
+            override_url='https://cwobject.com',
+            # region intentionally not set: forces the GetBucketLocation path.
+        )
+
+        result = s3_backend.region(data_cred=data_cred)
+
+        self.assertEqual(result, 'us-east-1')
+        mock_create_client.assert_called_once()
+        call_kwargs = mock_create_client.call_args.kwargs
+        self.assertEqual(call_kwargs.get('endpoint_url'), 'https://cwobject.com')
+
 
 class GetBotoConfigTest(unittest.TestCase):
     """Tests for _get_boto_config addressing_style selection."""
