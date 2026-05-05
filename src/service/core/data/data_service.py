@@ -121,14 +121,20 @@ def get_collection_info(postgres: connectors.PostgresConnector,
 
     dataset_rows = get_collection_datasets(postgres, bucket, name)
     bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    default_cred = bucket_config.default_credential
+    override_url = default_cred.override_url if default_cred else None
+    addressing_style = default_cred.addressing_style if default_cred else None
 
     rows: List[objects.DataInfoCollectionEntry] = []
     for row in dataset_rows:
         rows.append(objects.DataInfoCollectionEntry(
             name=row.name,
             version=row.version_id,
-            location=storage.construct_storage_backend(row.location)\
-                .parse_uri_to_link(bucket_config.region),
+            location=storage.construct_storage_backend(row.location).parse_uri_to_link(
+                bucket_config.region,
+                override_url=override_url,
+                addressing_style=addressing_style,
+            ),
             uri=row.location,
             hash_location=row.hash_location,
             size=row.size))
@@ -177,6 +183,9 @@ def get_dataset_info(postgres: connectors.PostgresConnector,
                                             f'any entry fitting the parameters in bucket {bucket}.')
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    default_cred = bucket_config.default_credential
+    override_url = default_cred.override_url if default_cred else None
+    addressing_style = default_cred.addressing_style if default_cred else None
 
     rows: List[objects.DataInfoDatasetEntry] = []
     for row in dataset_rows:
@@ -199,8 +208,11 @@ def get_dataset_info(postgres: connectors.PostgresConnector,
             last_used=row.last_used.replace(microsecond=0),
             size=row.size if row.size else 0,
             checksum=row.checksum if row.checksum else '',
-            location=storage.construct_storage_backend(row.location)\
-                .parse_uri_to_link(bucket_config.region),
+            location=storage.construct_storage_backend(row.location).parse_uri_to_link(
+                bucket_config.region,
+                override_url=override_url,
+                addressing_style=addressing_style,
+            ),
             uri=row.location,
             metadata=row.metadata,
             tags=[element.tag for element in tags],

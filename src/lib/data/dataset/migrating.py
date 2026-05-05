@@ -150,6 +150,7 @@ def _dataset_migrate_worker(
     migrate_entry: DatasetMigrateEntry = worker_input.entry
     destination_backend = migrate_entry.destination_backend
     destination_region = migrate_entry.destination_region
+    destination_data_cred = destination_backend.resolved_data_credential
 
     def _callback(
         copy_input: copying.CopyWorkerInput,
@@ -160,7 +161,11 @@ def _dataset_migrate_worker(
             relative_path=migrate_entry.relative_path,
             storage_path=os.path.join(destination_backend.uri, migrate_entry.source_checksum),
             url=os.path.join(
-                destination_backend.parse_uri_to_link(destination_region),
+                destination_backend.parse_uri_to_link(
+                    destination_region,
+                    override_url=destination_data_cred.override_url,
+                    addressing_style=destination_data_cred.addressing_style,
+                ),
                 migrate_entry.source_checksum,
             ),
             size=migrate_entry.size,
