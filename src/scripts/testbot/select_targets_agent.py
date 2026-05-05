@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 from pathlib import Path
 
 from src.scripts.testbot.coverage_targets import format_targets
@@ -111,16 +112,27 @@ def _stream_npx(cmd: list[str], stream_log_path: Path, timeout_sec: int) -> int:
                 stdout = proc.stdout
                 if stdout is None:
                     raise RuntimeError("subprocess.Popen returned no stdout")
-                try:
+
+                # Drain stdout from a background thread so proc.wait() can
+                # actually enforce the timeout — a synchronous for-loop
+                # would block until the agent closes its pipe and would
+                # mask a hang where the agent stops writing entirely.
+                def _drain() -> None:
                     for line in stdout:
                         sys.stdout.write(line)
                         logf.write(line)
+
+                drain = threading.Thread(target=_drain, daemon=True)
+                drain.start()
+                try:
                     proc.wait(timeout=timeout_sec)
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
+                    drain.join(timeout=2.0)
                     logger.error("Claude CLI timed out after %ds", timeout_sec)
                     return 124
+                drain.join(timeout=2.0)
                 return proc.returncode
     finally:
         print("::endgroup::", flush=True)
