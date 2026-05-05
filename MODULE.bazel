@@ -198,6 +198,11 @@ pip.parse(
     hub_name = "osmo_python_deps",
     python_version = "3.14.2",
     requirements_lock = "//src:locked_requirements.txt",
+    target_platforms = [
+        "{os}_{arch}",
+        "linux_x86_64",
+        "linux_aarch64",
+    ],
 )
 use_repo(pip, "osmo_python_deps")
 
