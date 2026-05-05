@@ -481,10 +481,22 @@ class S3Backend(Boto3Backend):
         if override_url:
             parsed = parse.urlparse(override_url)
             scheme = parsed.scheme or 'https'
-            host = parsed.netloc or parsed.path
+            if parsed.netloc:
+                host = parsed.netloc
+                base_path = parsed.path.rstrip('/')
+            else:
+                # No scheme prefix on override_url: urlparse drops the whole
+                # input into 'path'. Split off the host from any base path so
+                # reverse-proxied endpoints like 'gateway.example.com/s3' keep
+                # the '/s3' prefix in the resulting link.
+                bare = parsed.path.lstrip('/')
+                host, _, rest = bare.partition('/')
+                base_path = ('/' + rest).rstrip('/') if rest else ''
             if addressing_style == 'path':
-                return f'{scheme}://{host}/{self.container}/{self.path}'.rstrip('/')
-            return f'{scheme}://{self.container}.{host}/{self.path}'.rstrip('/')
+                return (
+                    f'{scheme}://{host}{base_path}/{self.container}/{self.path}'.rstrip('/')
+                )
+            return f'{scheme}://{self.container}.{host}{base_path}/{self.path}'.rstrip('/')
         return f'https://{self.container}.s3.{region}.amazonaws.com/{self.path}'.rstrip('/')
 
     @override

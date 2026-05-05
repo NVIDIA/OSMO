@@ -17,26 +17,44 @@
 /**
  * Dataset File Proxy — Production Implementation
  *
- * Server-side proxy for fetching dataset files from storage URLs.
- *
- * When bucket/name/storagePath params are present, routes through the backend
- * service's file-content endpoint (handles private buckets with credentials).
- * Falls back to direct fetch for legacy callers that only provide a url param.
+ * Server-side proxy for fetching dataset files. All requests route through
+ * the backend service's authenticated /file-content endpoint, which signs
+ * the upstream call against the bucket credential. The proxy itself does
+ * not accept arbitrary URLs — that would be an SSRF vector
+ * (cloud-metadata endpoints, RFC1918 ranges, loopback). Manifests since
+ * #795 always carry storage_path, so callers no longer need a url= form.
  *
  * GET /proxy/dataset/file?bucket=...&name=...&storagePath=...  → service proxy
- * GET /proxy/dataset/file?url={encodedFileUrl}                 → direct fetch (legacy)
- * HEAD variants of the above                                   → headers only
+ * HEAD variant                                                 → headers only
  */
 
 import type { NextRequest } from "next/server";
 import { getServerApiBaseUrl } from "@/lib/api/server/config";
 import { forwardAuthHeaders } from "@/lib/api/server/proxy-headers";
 
-const FORWARDED_HEADERS = ["content-type", "content-length", "last-modified", "etag", "cache-control"] as const;
+const FORWARDED_REQUEST_HEADERS = ["range"] as const;
+const FORWARDED_RESPONSE_HEADERS = [
+  "content-type",
+  "content-length",
+  "last-modified",
+  "etag",
+  "cache-control",
+  "accept-ranges",
+  "content-range",
+] as const;
+
+function forwardRequestHeaders(request: NextRequest, base: HeadersInit = {}): HeadersInit {
+  const headers = new Headers(base);
+  for (const header of FORWARDED_REQUEST_HEADERS) {
+    const value = request.headers.get(header);
+    if (value) headers.set(header, value);
+  }
+  return headers;
+}
 
 function forwardResponseHeaders(upstream: Response): Headers {
   const headers = new Headers();
-  for (const header of FORWARDED_HEADERS) {
+  for (const header of FORWARDED_RESPONSE_HEADERS) {
     const value = upstream.headers.get(header);
     if (value) headers.set(header, value);
   }
@@ -53,11 +71,7 @@ interface ServiceParams {
   filename?: string;
 }
 
-interface LegacyParams {
-  url: string;
-}
-
-function parseParams(request: Request): ServiceParams | LegacyParams | Response {
+function parseParams(request: Request): ServiceParams | Response {
   const { searchParams } = new URL(request.url);
 
   const bucket = searchParams.get("bucket");
@@ -65,39 +79,20 @@ function parseParams(request: Request): ServiceParams | LegacyParams | Response 
   const storagePath = searchParams.get("storagePath");
   const filename = searchParams.get("filename") ?? undefined;
 
-  if (bucket && name && storagePath) {
-    return { bucket, name, storagePath, filename };
+  if (!bucket || !name || !storagePath) {
+    return Response.json({ error: "bucket, name, and storagePath query params are required" }, { status: 400 });
   }
 
-  // Legacy fallback: direct URL fetch (works for public buckets only)
-  const url = searchParams.get("url");
-  if (!url) {
-    return Response.json({ error: "bucket/name/storagePath or url parameter is required" }, { status: 400 });
-  }
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return Response.json({ error: "Only http/https URLs are supported" }, { status: 400 });
-  }
-  return { url };
+  return { bucket, name, storagePath, filename };
 }
 
-function isServiceParams(params: ServiceParams | LegacyParams): params is ServiceParams {
-  return "storagePath" in params;
-}
-
-async function fetchUpstream(
-  request: NextRequest,
-  params: ServiceParams | LegacyParams,
-  method: string,
-): Promise<Response> {
-  if (isServiceParams(params)) {
-    const backendUrl = getServerApiBaseUrl();
-    const query = new URLSearchParams({ storage_path: params.storagePath });
-    if (params.filename) query.set("filename", params.filename);
-    const serviceUrl = `${backendUrl}/api/bucket/${encodeURIComponent(params.bucket)}/dataset/${encodeURIComponent(params.name)}/file-content?${query}`;
-    const headers = forwardAuthHeaders(request);
-    return fetch(serviceUrl, { method, headers });
-  }
-  return fetch(params.url, { method });
+async function fetchUpstream(request: NextRequest, params: ServiceParams, method: string): Promise<Response> {
+  const backendUrl = getServerApiBaseUrl();
+  const query = new URLSearchParams({ storage_path: params.storagePath });
+  if (params.filename) query.set("filename", params.filename);
+  const serviceUrl = `${backendUrl}/api/bucket/${encodeURIComponent(params.bucket)}/dataset/${encodeURIComponent(params.name)}/file-content?${query}`;
+  const headers = forwardRequestHeaders(request, forwardAuthHeaders(request));
+  return fetch(serviceUrl, { method, headers });
 }
 
 export async function GET(request: NextRequest) {

@@ -81,24 +81,20 @@ interface HeadResult {
 function toProxyUrl(
   bucket: string,
   datasetName: string,
-  file: { url?: string; storagePath?: string; relativePath?: string; name?: string },
+  file: { storagePath: string; relativePath?: string; name?: string },
 ): string {
-  if (file.storagePath) {
-    const params = new URLSearchParams({ bucket, name: datasetName, storagePath: file.storagePath });
-    // Forward original filename so the service can derive a useful Content-Type
-    // (storage_path is hash-keyed and carries no extension).
-    const filename = file.relativePath ?? file.name;
-    if (filename) params.set("filename", filename);
-    return getBasePathUrl(`/proxy/dataset/file?${params}`);
-  }
-  // Legacy fallback for public buckets without storagePath
-  return getBasePathUrl(`/proxy/dataset/file?url=${encodeURIComponent(file.url ?? "")}`);
+  const params = new URLSearchParams({ bucket, name: datasetName, storagePath: file.storagePath });
+  // Forward original filename so the service can derive a useful Content-Type
+  // (storage_path is hash-keyed and carries no extension).
+  const filename = file.relativePath ?? file.name;
+  if (filename) params.set("filename", filename);
+  return getBasePathUrl(`/proxy/dataset/file?${params}`);
 }
 
 async function fetchHeadResult(
   bucket: string,
   datasetName: string,
-  file: { url?: string; storagePath?: string; relativePath?: string; name?: string },
+  file: { storagePath: string; relativePath?: string; name?: string },
 ): Promise<HeadResult> {
   const response = await fetch(toProxyUrl(bucket, datasetName, file), { method: "HEAD" });
   const contentType = response.headers.get("Content-Type") ?? "";
@@ -338,8 +334,11 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({
   onClose,
 }: FilePreviewPanelProps) {
   const relativePath = file.relativePath ?? (path ? `${path}/${file.name}` : file.name);
-  const hasPreviewSource = !!(file.storagePath || file.url);
-  const proxyUrl = hasPreviewSource ? toProxyUrl(bucket, datasetName, file) : undefined;
+  // Preview requires storagePath — the proxy no longer accepts arbitrary URLs.
+  const previewSource = file.storagePath
+    ? { storagePath: file.storagePath, relativePath: file.relativePath, name: file.name }
+    : undefined;
+  const proxyUrl = previewSource ? toProxyUrl(bucket, datasetName, previewSource) : undefined;
 
   // HEAD preflight — only when we have a source to check
   const {
@@ -349,8 +348,12 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({
     refetch,
   } = useQuery({
     queryKey: ["file-preview-head", proxyUrl],
-    queryFn: () => fetchHeadResult(bucket, datasetName, file),
-    enabled: hasPreviewSource,
+    queryFn: () => {
+      // Type narrowed by `enabled` below; assertion mirrors the React Query contract.
+      if (!previewSource) throw new Error("preview source not available");
+      return fetchHeadResult(bucket, datasetName, previewSource);
+    },
+    enabled: !!previewSource,
     staleTime: Infinity,
     retry: false,
   });

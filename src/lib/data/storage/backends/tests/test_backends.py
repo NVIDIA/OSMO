@@ -601,6 +601,23 @@ class S3BackendParseUriToLinkTest(unittest.TestCase):
         )
         self.assertEqual(link, 'http://my-bucket.minio.local:9000/foo/bar')
 
+    def test_override_url_preserves_base_path_virtual_host(self):
+        """Reverse-proxied endpoint (gateway.example.com/s3) keeps the /s3 prefix."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='https://gateway.example.com/s3',
+        )
+        self.assertEqual(link, 'https://my-bucket.gateway.example.com/s3/foo/bar')
+
+    def test_override_url_preserves_base_path_path_style(self):
+        """Reverse-proxied endpoint with addressing_style=path preserves base path."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='https://gateway.example.com/s3',
+            addressing_style='path',
+        )
+        self.assertEqual(link, 'https://gateway.example.com/s3/my-bucket/foo/bar')
+
 
 class S3BackendRegionTest(unittest.TestCase):
     """Tests for S3Backend.region() endpoint routing."""

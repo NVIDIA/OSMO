@@ -1054,10 +1054,14 @@ def get_file_content(
     postgres = connectors.PostgresConnector.get_instance()
     dataset_info = get_dataset(postgres, bucket=bucket, name=name)
 
-    # Validate that the storage path belongs to this dataset's storage prefix
+    # Validate that the storage path belongs to this dataset's hash storage
+    # prefix. Container-only matching would let a caller request any object
+    # in the same bucket (e.g. another dataset's manifest) via this endpoint.
     requested_backend = storage.construct_storage_backend(storage_path)
     dataset_backend = storage.construct_storage_backend(dataset_info.hash_location)
-    if requested_backend.container != dataset_backend.container:
+    hash_prefix = dataset_backend.path.rstrip('/') + '/'
+    if (requested_backend.container != dataset_backend.container
+            or not requested_backend.path.startswith(hash_prefix)):
         raise osmo_errors.OSMOUserError(
             'Storage path does not belong to this dataset.')
 
