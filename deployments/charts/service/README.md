@@ -407,23 +407,18 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 
 Traffic between the Envoy gateway and the upstream services (`osmo-service`, `osmo-router`, `osmo-agent`, `osmo-logger`) is encrypted by default. The UI intentionally stays on plain HTTP behind NetworkPolicy — Next.js does not natively serve TLS.
 
-Two modes:
+**Default — encryption without validation.** Each upstream service mints its own ephemeral self-signed cert in-process at startup (ECDSA P-256, ~1ms) and loads it into uvicorn's SSLContext via `--ssl_self_signed true`. Envoy connects with TLS but does *not* validate the cert. The wire is encrypted; identity verification is delegated to NetworkPolicy + Kubernetes RBAC. No CA management, no Secrets, no rotation — cert lifecycle is tied to process lifecycle.
 
-**Default — encryption without validation.** Each upstream service mints its own ephemeral self-signed cert in-process at startup (ECDSA P-256, ~1ms), writes it to a temp dir, and loads it into uvicorn's SSLContext. The Python service does this via `--ssl_self_signed true` from the chart; the cert generation happens in `SSLConfig._mint_ephemeral_self_signed()` (`src/utils/static_config.py`). Envoy connects with TLS but configures `common_tls_context: {}` on the upstream cluster — it does *not* validate the cert. The wire is encrypted; identity verification is delegated to NetworkPolicy + Kubernetes RBAC.
-
-This means: no CA management, no Secrets to rotate, no ArgoCD churn, no init containers, no cross-pod cert dependency. Cert lifecycle is tied to process lifecycle — a pod restart mints a fresh cert.
-
-**Validated — cert-manager.** Set `gateway.tls.certManager.enabled: true`. The chart emits cert-manager `Issuer` + `Certificate` resources. By default it creates a self-signed root + a CA Issuer + per-service Certificates; the upstream Deployments mount the resulting Secrets read-only. To plug in an existing CA (Vault, internal PKI, ACME), set `gateway.tls.certManager.issuerRef`. Requires cert-manager installed in the cluster.
+**Externally-provisioned certs.** Point `gateway.tls.upstreamCerts.<service>` at an existing `kubernetes.io/tls` Secret containing `tls.crt` + `tls.key`. That Secret is mounted at `/etc/osmo/tls` and uvicorn loads it instead of self-signing. To make Envoy validate against a CA, set `gateway.tls.caSecret` to a Secret containing `ca.crt`. The chart does not create these Secrets — provision them however suits your environment (cert-manager, Vault CSI, sealed-secrets, manual `kubectl create secret tls`, etc.). The two knobs are independent: you can use external certs without validation, or validation alone (rarely useful), but typical "real" TLS sets both.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `gateway.tls.enabled` | Encrypt gateway → upstream traffic. | `true` |
-| `gateway.tls.caDuration` | CA cert validity (cert-manager mode). | `87600h` (10y) |
-| `gateway.tls.caRenewBefore` | Renew CA this long before expiry (cert-manager mode). | `720h` (30d) |
-| `gateway.tls.certDuration` | Leaf cert validity (cert-manager mode). | `43800h` (5y) |
-| `gateway.tls.certRenewBefore` | Renew leaf this long before expiry (cert-manager mode). | `360h` (15d) |
-| `gateway.tls.certManager.enabled` | Switch from default mode to cert-manager-managed validated TLS. | `false` |
-| `gateway.tls.certManager.issuerRef` | Optional: point at an existing Issuer/ClusterIssuer. Map with `name`, `kind` (`Issuer` or `ClusterIssuer`), and `group` (defaults to `cert-manager.io`). When empty, the chart creates a self-signed Issuer + CA chain. | `{}` |
+| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`. Empty string ⇒ self-signed. | `""` |
+| `gateway.tls.upstreamCerts.router` | Same, for `osmo-router`. | `""` |
+| `gateway.tls.upstreamCerts.agent` | Same, for `osmo-agent`. | `""` |
+| `gateway.tls.upstreamCerts.logger` | Same, for `osmo-logger`. | `""` |
+| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`. When set, Envoy validates upstreams against this CA; when empty, TLS is encryption-only. | `""` |
 
 NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect at L3/L4; TLS encrypts the bytes at L7. Run them together for defense in depth.
 

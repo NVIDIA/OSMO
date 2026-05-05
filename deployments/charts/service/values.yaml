@@ -2105,24 +2105,29 @@ gateway:
       port: 8000
 
   ## TLS for gateway -> upstream traffic. Default: each service mints an
-  ## ephemeral self-signed cert in-process; Envoy uses common_tls_context: {}
-  ## (encrypt, no validation). Set certManager.enabled to use cert-manager
-  ## for validated TLS instead. UI is excluded — stays HTTP.
+  ## ephemeral self-signed cert in-process; Envoy connects with TLS but does
+  ## not validate (encryption-only — identity is provided by NetworkPolicy /
+  ## RBAC). UI is excluded; stays HTTP.
+  ##
+  ## To use externally-provisioned certs, set upstreamCerts.<service> to the
+  ## name of an existing kubernetes.io/tls Secret containing tls.crt + tls.key.
+  ## To make Envoy validate against a CA, set caSecret to an existing Secret
+  ## containing ca.crt. How those Secrets get created (cert-manager, Vault
+  ## CSI, sealed-secrets, manual, etc.) is up to the operator — OSMO just
+  ## consumes them.
   tls:
     enabled: true
 
-    ## cert-manager mode validity periods.
-    caDuration: 87600h       # 10y
-    caRenewBefore: 720h      # 30d
-    certDuration: 43800h     # 5y
-    certRenewBefore: 360h    # 15d
+    ## Per-upstream server certs. Empty string = mint ephemeral self-signed
+    ## in-process. Otherwise the named Secret is mounted at /etc/osmo/tls
+    ## and uvicorn loads tls.crt + tls.key from it.
+    upstreamCerts:
+      service: ""
+      router: ""
+      agent: ""
+      logger: ""
 
-    certManager:
-      ## Switch from in-process self-signed to cert-manager-managed CA + leafs.
-      ## Requires cert-manager installed in the cluster.
-      enabled: false
-
-      ## Optional: existing Issuer/ClusterIssuer to use instead of the
-      ## chart's self-signed CA. Example:
-      ##   issuerRef: {name: vault-issuer, kind: ClusterIssuer, group: cert-manager.io}
-      issuerRef: {}
+    ## Optional CA bundle for Envoy upstream validation. When set, Envoy
+    ## validates upstream certs against ca.crt from this Secret. When empty,
+    ## TLS is encryption-only (no validation).
+    caSecret: ""

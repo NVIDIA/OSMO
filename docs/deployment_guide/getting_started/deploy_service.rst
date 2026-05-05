@@ -485,21 +485,21 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
       # Gateway -> upstream TLS. Enabled by default: each upstream service
       # (osmo-service, osmo-router, osmo-agent, osmo-logger) mints an
       # ephemeral self-signed cert in-process at startup, uvicorn serves
-      # HTTPS on :8000, and Envoy connects with TLS but skips cert validation
-      # (common_tls_context: {}). UI stays HTTP behind NetworkPolicy.
+      # HTTPS on :8000, and Envoy connects with TLS but skips cert validation.
+      # UI stays HTTP behind NetworkPolicy.
       #
-      # To switch to validated TLS managed by cert-manager, set
-      # certManager.enabled=true and (optionally) point at an existing
-      # Issuer/ClusterIssuer via certManager.issuerRef. See the chart README
-      # for the full set of fields.
+      # To use externally-provisioned certs (cert-manager, Vault CSI,
+      # sealed-secrets, manual — OSMO doesn't care), point upstreamCerts at
+      # existing kubernetes.io/tls Secrets. To make Envoy validate against a
+      # CA, set caSecret to an existing Secret containing ca.crt.
       tls:
         enabled: true
-        # certManager:
-        #   enabled: true
-        #   issuerRef:
-        #     name: vault-issuer
-        #     kind: ClusterIssuer
-        #     group: cert-manager.io
+        # upstreamCerts:
+        #   service: osmo-service-tls
+        #   router:  osmo-router-tls
+        #   agent:   osmo-agent-tls
+        #   logger:  osmo-logger-tls
+        # caSecret: osmo-gateway-ca
 
       # OAuth2 Proxy configuration
       # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.

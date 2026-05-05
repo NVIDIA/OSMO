@@ -152,7 +152,7 @@ spec:
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" .) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
@@ -194,7 +194,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.certManager.enabled) }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -208,7 +208,7 @@ spec:
           mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" .) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
@@ -248,7 +248,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secret" "osmo-service-tls") | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}

@@ -32,18 +32,16 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{/*
-Per-upstream TLS args. Pass a dict with "context".
+Per-upstream TLS args. Pass a dict with "context" and "secretName".
 
-Default mode (no cert-manager): emits --ssl_self_signed true. The Python
-service mints a fresh self-signed cert at process start and points uvicorn
-at it. No init container, no volume, no Secret on the chart side.
-
-cert-manager mode: emits --ssl_keyfile / --ssl_certfile pointing at the
-PEMs mounted from the cert-manager-managed Secret at /etc/osmo/tls.
+When secretName is non-empty, that Secret is mounted at /etc/osmo/tls and
+uvicorn loads tls.crt + tls.key from there (--ssl_keyfile / --ssl_certfile).
+When empty, the Python service mints an ephemeral self-signed cert in
+process at startup (--ssl_self_signed true) — no chart-side cert material.
 */}}
 {{- define "osmo.upstream-tls-args" -}}
 {{- if .context.Values.gateway.tls.enabled }}
-{{- if .context.Values.gateway.tls.certManager.enabled }}
+{{- if .secretName }}
 - --ssl_keyfile
 - /etc/osmo/tls/tls.key
 - --ssl_certfile
@@ -56,11 +54,12 @@ PEMs mounted from the cert-manager-managed Secret at /etc/osmo/tls.
 {{- end }}
 
 {{/*
-TLS volume mount for an upstream container. Only emitted in cert-manager
-mode — default mode keeps cert material in an in-process tempdir.
+TLS volume mount for an upstream container. Only emitted when a Secret
+name is provided — self-signed mode keeps cert material in an in-process
+tempdir, so no mount is needed.
 */}}
 {{- define "osmo.upstream-tls-volume-mount" -}}
-{{- if and .context.Values.gateway.tls.enabled .context.Values.gateway.tls.certManager.enabled }}
+{{- if and .context.Values.gateway.tls.enabled .secretName }}
 - name: tls
   mountPath: /etc/osmo/tls
   readOnly: true
@@ -68,15 +67,14 @@ mode — default mode keeps cert material in an in-process tempdir.
 {{- end }}
 
 {{/*
-TLS volume for an upstream pod. Pass dict with "context" and "secret" (the
-per-service Secret name in cert-manager mode, e.g. "osmo-service-tls").
-Only emitted in cert-manager mode.
+TLS volume for an upstream pod. Pass dict with "context" and "secretName".
+Only emitted when secretName is non-empty.
 */}}
 {{- define "osmo.upstream-tls-volume" -}}
-{{- if and .context.Values.gateway.tls.enabled .context.Values.gateway.tls.certManager.enabled }}
+{{- if and .context.Values.gateway.tls.enabled .secretName }}
 - name: tls
   secret:
-    secretName: {{ .secret }}
+    secretName: {{ .secretName }}
 {{- end }}
 {{- end }}
 

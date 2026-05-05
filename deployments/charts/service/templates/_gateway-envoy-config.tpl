@@ -70,7 +70,7 @@ data:
           filename: /etc/ssl/envoy-certs/tls.key
   {{- end }}
 
-  {{- if and $gw.tls.enabled $gw.tls.certManager.enabled }}
+  {{- if and $gw.tls.enabled $gw.tls.caSecret }}
   sds_upstream_ca.yaml: |
     resources:
     - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
@@ -587,7 +587,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.certManager.enabled }}
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -630,7 +630,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.certManager.enabled }}
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -696,7 +696,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.certManager.enabled }}
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -738,7 +738,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.certManager.enabled }}
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -867,7 +867,7 @@ data:
             tls_params:
               tls_minimum_protocol_version: TLSv1_2
               tls_maximum_protocol_version: TLSv1_3
-            {{- if $gw.tls.certManager.enabled }}
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:

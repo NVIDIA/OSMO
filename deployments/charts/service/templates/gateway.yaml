@@ -84,7 +84,7 @@ spec:
           - mountPath: /var/config
             name: envoy-config
             readOnly: true
-          {{- if and $gw.tls.enabled $gw.tls.certManager.enabled }}
+          {{- if and $gw.tls.enabled $gw.tls.caSecret }}
           - name: gateway-tls-ca
             mountPath: /etc/gateway-tls
             readOnly: true
@@ -112,10 +112,10 @@ spec:
         - name: envoy-config
           configMap:
             name: {{ $gwName }}-envoy-config
-        {{- if and $gw.tls.enabled $gw.tls.certManager.enabled }}
+        {{- if and $gw.tls.enabled $gw.tls.caSecret }}
         - name: gateway-tls-ca
           secret:
-            secretName: {{ $gwName }}-ca-tls
+            secretName: {{ $gw.tls.caSecret }}
             items:
             - key: ca.crt
               path: ca.crt

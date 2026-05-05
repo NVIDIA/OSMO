@@ -130,7 +130,7 @@ spec:
         {{- range $arg := .Values.services.agent.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- include "osmo.upstream-tls-args" (dict "context" .) | nindent 8 }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         env:
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
@@ -155,7 +155,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.agent.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.certManager.enabled) }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -169,7 +169,7 @@ spec:
           mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.agent | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume-mount" (dict "context" .) | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.agent.resources | nindent 10 }}
 
@@ -215,7 +215,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
-        {{- include "osmo.upstream-tls-volume" (dict "context" . "secret" "osmo-agent-tls") | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
