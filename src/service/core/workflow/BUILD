@@ -41,6 +41,7 @@ osmo_py_library(
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:redact",
         "//src/service/core/config:configmap_loader_lib",
+        "//src/utils:ssl_config",
         "//src/utils:static_config",
         "//src/utils/job:job",
         "//src/utils:yaml",

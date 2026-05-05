@@ -51,6 +51,18 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "ssl_config",
+    srcs = [
+        "ssl_config.py",
+    ],
+    deps = [
+        requirement("cryptography"),
+        requirement("pydantic"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "auth",
     srcs = ["auth.py"],
     deps = [

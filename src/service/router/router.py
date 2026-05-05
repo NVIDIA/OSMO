@@ -32,11 +32,11 @@ import uvicorn  # type: ignore
 from src.lib.utils import common, version
 import src.lib.utils.logging
 from src.service.router import helper
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 
 
 class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
-                          static_config.SSLConfig, connectors.PostgresConfig):
+                          ssl_config.SSLConfig, connectors.PostgresConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',

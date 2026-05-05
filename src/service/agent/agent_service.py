@@ -32,7 +32,7 @@ from src.service.core.auth import auth_service
 from src.service.core.config import configmap_loader
 from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.service.core.workflow import objects
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 from src.utils.progress_check import progress
 
 
@@ -43,7 +43,7 @@ from src.utils.progress_check import progress
 class BackendServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                            src.lib.utils.logging.LoggingConfig,
                            static_config.StaticConfig,
-                           static_config.SSLConfig, ConfigFileMixin):
+                           ssl_config.SSLConfig, ConfigFileMixin):
     """Config settings for the backend service"""
     progress_period: int = pydantic.Field(
         default=30,

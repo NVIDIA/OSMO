@@ -28,14 +28,14 @@ from src.service.logger import ctrl_websocket
 from src.service.core.auth import auth_service
 from src.service.core.config import configmap_loader
 from src.service.core.config.configmap_loader import ConfigFileMixin
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 from src.utils.progress_check import progress
 
 
 class LoggerServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                           src.lib.utils.logging.LoggingConfig,
                           static_config.StaticConfig,
-                          static_config.SSLConfig, ConfigFileMixin):
+                          ssl_config.SSLConfig, ConfigFileMixin):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
