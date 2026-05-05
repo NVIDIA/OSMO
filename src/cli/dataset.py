@@ -1023,6 +1023,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     """
     dataset_parser = parser.add_parser('dataset',
                                        help='Dataset CLI.')
+    dataset_parser.set_defaults(is_dataset_command=True)
     subparsers = dataset_parser.add_subparsers(dest='command')
     subparsers.required = True
 
