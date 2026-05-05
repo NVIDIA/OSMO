@@ -297,6 +297,32 @@ class TestBuildPythonFanIn(unittest.TestCase):
                 counts.get("src/lib/data/storage/backends/common.py"), 1,
             )
 
+    def test_resolves_re_export_to_package_init_when_module_missing(self):
+        # `from .backends import construct_storage_backend` in
+        # storage/__init__.py: there is no `backends.py`, only
+        # `backends/__init__.py`. The resolver must fall back to the
+        # package's __init__.py instead of pointing at a phantom file.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backends = root / "src" / "lib" / "data" / "storage" / "backends"
+            backends.mkdir(parents=True)
+            (root / "src" / "service").mkdir(parents=True)
+            (root / "src" / "lib" / "data" / "storage" / "__init__.py").write_text(
+                "from .backends import construct_storage_backend\n"
+            )
+            (backends / "__init__.py").write_text(
+                "def construct_storage_backend(): pass\n"
+            )
+            (root / "src" / "service" / "main.py").write_text(
+                "from src.lib.data.storage import construct_storage_backend\n"
+            )
+            counts = build_python_fan_in(root)
+            self.assertEqual(
+                counts.get("src/lib/data/storage/backends/__init__.py"), 1,
+            )
+            # Phantom path must not appear in the counts dict.
+            self.assertNotIn("src/lib/data/storage/backends.py", counts)
+
     def test_credits_nested_init_re_export_to_target_file(self):
         # `from .backends.common import StorageBackend` should credit
         # `src/lib/data/storage/backends/common.py` for callers that say

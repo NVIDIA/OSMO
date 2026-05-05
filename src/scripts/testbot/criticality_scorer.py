@@ -41,6 +41,7 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 from src.scripts.testbot.coverage_targets import (
@@ -146,41 +147,59 @@ def _python_module_name(path: Path, repo_root: Path) -> str:
     return ".".join(rel.parts)
 
 
+# Directory subtrees we never want to descend into. Pruning at os.walk time
+# avoids stat'ing every file in heavy trees like src/ui/node_modules (~645MB
+# of npm packages on the OSMO repo). The names mirror IGNORE_PATTERNS /
+# EXTRA_SKIP_PATTERNS but applied as directory prunes instead of per-file
+# filters.
+PRUNE_DIR_NAMES = frozenset({
+    "node_modules", "vendor", "tests", "__pycache__", ".git",
+})
+PRUNE_ROOTED_DIRS = frozenset({"src/scripts", "bzl", "run", "deployments"})
+
+
+def _iter_repo_files(repo_root: Path) -> Iterator[tuple[Path, str]]:
+    """Walk the repo, pruning ignored subtrees, yielding (path, rel_str)."""
+    for root, dirnames, filenames in os.walk(repo_root):
+        rel_root = os.path.relpath(root, repo_root)
+        rel_root_norm = "" if rel_root == "." else rel_root.replace(os.sep, "/")
+        kept: list[str] = []
+        for dirname in dirnames:
+            if dirname in PRUNE_DIR_NAMES or dirname.startswith("."):
+                continue
+            sub = f"{rel_root_norm}/{dirname}" if rel_root_norm else dirname
+            if sub in PRUNE_ROOTED_DIRS:
+                continue
+            kept.append(dirname)
+        dirnames[:] = kept
+        for filename in filenames:
+            rel = f"{rel_root_norm}/{filename}" if rel_root_norm else filename
+            yield Path(root) / filename, rel
+
+
 def _walk_files(repo_root: Path, suffixes: tuple[str, ...]) -> list[Path]:
     """List repo files matching any of the suffixes, excluding ignored paths."""
-    results: list[Path] = []
-    for path in repo_root.rglob("*"):
-        if not path.is_file() or path.suffix not in suffixes:
-            continue
-        try:
-            rel = str(path.relative_to(repo_root))
-        except ValueError:
-            continue
-        if _is_ignored(rel) or _extra_skip(rel):
-            continue
-        results.append(path)
-    return results
+    return [
+        path for path, rel in _iter_repo_files(repo_root)
+        if path.suffix in suffixes
+        and not _is_ignored(rel)
+        and not _extra_skip(rel)
+    ]
 
 
 def _walk_init_files(repo_root: Path) -> list[Path]:
     """List ``__init__.py`` files for re-export resolution.
 
     Unlike ``_walk_files``, this keeps ``__init__.py`` through the filter —
-    we still apply ``IGNORE_PATTERNS`` (skip tests, scripts, deployments)
-    but ignore ``SKIP_BASENAME_PATTERNS`` since ``__init__.py`` is exactly
-    what we want to read here.
+    ``IGNORE_PATTERNS`` still applies but ``SKIP_BASENAME_PATTERNS`` doesn't
+    since ``__init__.py`` is exactly what we want to read here.
     """
-    results: list[Path] = []
-    for path in repo_root.rglob("__init__.py"):
-        if not path.is_file():
-            continue
-        rel = str(path.relative_to(repo_root))
-        if any(fnmatch.fnmatch(rel, pattern) for pattern in IGNORE_PATTERNS):
-            continue
-        if _extra_skip(rel):
-            continue
-        results.append(path)
-    return results
+    return [
+        path for path, rel in _iter_repo_files(repo_root)
+        if path.name == "__init__.py"
+        and not any(fnmatch.fnmatch(rel, pattern) for pattern in IGNORE_PATTERNS)
+        and not _extra_skip(rel)
+    ]
 
 
 def _python_imports(path: Path) -> set[str]:
@@ -247,8 +266,17 @@ def _re_export_targets(
             if node.level != 1 or not node.module:
                 continue
             sub_parts = node.module.split(".")
-            target_file = package_dir.joinpath(*sub_parts).with_suffix(".py")
-            target_str = str(target_file).replace(os.sep, "/")
+            # Try `<sub>.py` first; if that doesn't exist, fall back to
+            # `<sub>/__init__.py` so `from .backends import X` resolves to
+            # backends/__init__.py instead of a phantom backends.py.
+            module_target = package_dir.joinpath(*sub_parts).with_suffix(".py")
+            package_target = package_dir.joinpath(*sub_parts, "__init__.py")
+            if (repo_root / module_target).exists():
+                target_str = str(module_target).replace(os.sep, "/")
+            elif (repo_root / package_target).exists():
+                target_str = str(package_target).replace(os.sep, "/")
+            else:
+                continue
             files_in_init.add(target_str)
             for alias in node.names:
                 if alias.name == "*":
