@@ -354,7 +354,9 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({
       return fetchHeadResult(bucket, datasetName, previewSource);
     },
     enabled: !!previewSource,
-    staleTime: Infinity,
+    // staleTime: 0 — auth-sensitive: a cached 401/403 must re-validate when
+    // the user's session changes. Default React Query cadence is fine.
+    staleTime: 0,
     retry: false,
   });
 

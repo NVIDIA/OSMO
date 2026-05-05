@@ -33,12 +33,16 @@ import { getServerApiBaseUrl } from "@/lib/api/server/config";
 import { forwardAuthHeaders } from "@/lib/api/server/proxy-headers";
 
 const FORWARDED_REQUEST_HEADERS = ["range"] as const;
+// Upstream cache directives are intentionally NOT forwarded — this is a
+// per-user authenticated route and any 'public' / 'max-age' from the storage
+// provider could let an intermediate cache serve another user's bytes. We
+// override with 'private, no-store' below. 'vary' is similarly not forwarded
+// for the same reason.
 const FORWARDED_RESPONSE_HEADERS = [
   "content-type",
   "content-length",
   "last-modified",
   "etag",
-  "cache-control",
   "accept-ranges",
   "content-range",
 ] as const;
@@ -58,6 +62,8 @@ function forwardResponseHeaders(upstream: Response): Headers {
     const value = upstream.headers.get(header);
     if (value) headers.set(header, value);
   }
+  // Authenticated, per-user — never let an intermediate cache hold this.
+  headers.set("cache-control", "private, no-store");
   return headers;
 }
 
