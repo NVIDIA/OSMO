@@ -107,20 +107,29 @@ def _stream_npx(cmd: list[str], stream_log_path: Path, timeout_sec: int) -> int:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 bufsize=1,
             ) as proc:
                 stdout = proc.stdout
                 if stdout is None:
-                    raise RuntimeError("subprocess.Popen returned no stdout")
+                    # Unreachable when stdout=PIPE; return a sentinel so
+                    # callers still emit diagnostics instead of crashing.
+                    logger.error("subprocess.Popen returned no stdout")
+                    return 1
 
                 # Drain stdout from a background thread so proc.wait() can
                 # actually enforce the timeout — a synchronous for-loop
                 # would block until the agent closes its pipe and would
                 # mask a hang where the agent stops writing entirely.
                 def _drain() -> None:
-                    for line in stdout:
-                        sys.stdout.write(line)
-                        logf.write(line)
+                    try:
+                        for line in stdout:
+                            sys.stdout.write(line)
+                            logf.write(line)
+                    except (ValueError, OSError):
+                        # stdout closed by teardown after a timeout; stop.
+                        pass
 
                 drain = threading.Thread(target=_drain, daemon=True)
                 drain.start()
@@ -129,10 +138,17 @@ def _stream_npx(cmd: list[str], stream_log_path: Path, timeout_sec: int) -> int:
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
+                    # Pipe is now closed by the OS; the drain loop will
+                    # see EOF and exit. Bound the join in case the
+                    # reader is wedged in some other call.
                     drain.join(timeout=2.0)
                     logger.error("Claude CLI timed out after %ds", timeout_sec)
                     return 124
-                drain.join(timeout=2.0)
+                # Process exited cleanly; the for-loop in _drain has
+                # observed EOF and is about to return. Wait for it
+                # (no timeout) so the final lines flush before we close
+                # logf in the surrounding `with`.
+                drain.join()
                 return proc.returncode
     finally:
         print("::endgroup::", flush=True)

@@ -2,9 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for select_targets_agent."""
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from src.scripts.testbot.select_targets_agent import (
+    _stream_npx,
     build_prompt,
     format_candidate,
     format_targets_markdown,
@@ -144,6 +147,29 @@ class TestFormatTargetsMarkdown(unittest.TestCase):
         # No 'reason' key on this entry
         output = format_targets_markdown([target])
         self.assertNotIn("Why this file:", output)
+
+
+class TestStreamNpxTimeout(unittest.TestCase):
+    """End-to-end test of _stream_npx's timeout enforcement.
+
+    Uses a real subprocess (sleep) — no Claude CLI dependency. The earlier
+    synchronous-drain implementation would hang here despite timeout_sec=1
+    because the for-loop blocked on the pipe; this test pins the
+    background-thread-drain fix in place.
+    """
+
+    def test_timeout_kills_process_and_returns_124(self):
+        with tempfile.NamedTemporaryFile(
+            suffix=".jsonl", delete=False, mode="w",
+        ) as tmp:
+            log_path = Path(tmp.name)
+        try:
+            exit_code = _stream_npx(
+                ["sleep", "30"], log_path, timeout_sec=1,
+            )
+            self.assertEqual(exit_code, 124)
+        finally:
+            log_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
