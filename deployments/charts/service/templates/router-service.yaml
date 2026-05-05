@@ -120,6 +120,7 @@ spec:
         - {{ . }}
         {{- end }}
         {{- end }}
+        {{- include "osmo.upstream-tls-args" (dict "context" .) | nindent 8 }}
         env:
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.targetSchema | default "public" }}
@@ -162,7 +163,7 @@ spec:
           protocol: {{ .protocol | default "TCP" }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.services.router.extraVolumeMounts }}
+        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.services.router.extraVolumeMounts .Values.gateway.tls.enabled }}
         volumeMounts:
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}
@@ -176,23 +177,24 @@ spec:
         {{- with .Values.services.router.extraVolumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" .) | nindent 8 }}
         {{- end }}
         resources:
         {{- toYaml .Values.services.router.resources | nindent 10 }}
 
         {{- with .Values.services.router.livenessProbe }}
         livenessProbe:
-          {{- toYaml . | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
         {{- with .Values.services.router.startupProbe }}
         startupProbe:
-          {{- toYaml . | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
         {{- with .Values.services.router.readinessProbe }}
         readinessProbe:
-          {{- toYaml . | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
       {{- with .Values.services.router.extraContainers }}
@@ -215,6 +217,7 @@ spec:
         {{- with .Values.services.router.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secret" "osmo-router-tls") | nindent 8 }}
 
 ---
 

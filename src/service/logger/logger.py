@@ -34,7 +34,8 @@ from src.utils.progress_check import progress
 
 class LoggerServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                           src.lib.utils.logging.LoggingConfig,
-                          static_config.StaticConfig, ConfigFileMixin):
+                          static_config.StaticConfig,
+                          static_config.SSLConfig, ConfigFileMixin):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
@@ -89,7 +90,8 @@ def main():
             await asyncio.sleep(config.progress_period)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         liveness_task = asyncio.create_task(liveness_update())
         try:

@@ -35,6 +35,31 @@ def _get_field_extras(field: FieldInfo) -> Dict[str, Any]:
     return {}
 
 
+class SSLConfig(pydantic.BaseModel):
+    """TLS/SSL configuration for the uvicorn listener.
+
+    Mixed into every service config so a single set of --ssl_keyfile / --ssl_certfile
+    flags works uniformly. When both files are set, uvicorn serves HTTPS; otherwise
+    HTTP. Used by the gateway -> upstream TLS path (gateway.tls.enabled in the chart).
+    """
+    ssl_keyfile: Optional[str] = pydantic.Field(
+        default=None,
+        description='Path to a PEM-encoded private key. If set together with '
+                    'ssl_certfile, the service serves HTTPS instead of HTTP.',
+        json_schema_extra={'command_line': 'ssl_keyfile', 'env': 'OSMO_SSL_KEYFILE'})
+    ssl_certfile: Optional[str] = pydantic.Field(
+        default=None,
+        description='Path to a PEM-encoded certificate (server leaf, optionally '
+                    'chained). Required together with ssl_keyfile.',
+        json_schema_extra={'command_line': 'ssl_certfile', 'env': 'OSMO_SSL_CERTFILE'})
+
+    def uvicorn_ssl_kwargs(self) -> Dict[str, Any]:
+        """Return uvicorn keyword args for TLS, or an empty dict if TLS is off."""
+        if self.ssl_keyfile and self.ssl_certfile:
+            return {'ssl_keyfile': self.ssl_keyfile, 'ssl_certfile': self.ssl_certfile}
+        return {}
+
+
 class StaticConfig(pydantic.BaseModel):
     """ A class for reading in config information from either command line, files,
     or environment variables """

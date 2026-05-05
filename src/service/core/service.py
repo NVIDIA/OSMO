@@ -545,7 +545,7 @@ def main():
         port = 8000
 
     try:
-        uvicorn.run(app, host=host, port=port, log_config=None)
+        uvicorn.run(app, host=host, port=port, log_config=None, **config.uvicorn_ssl_kwargs())
     except KeyboardInterrupt:
         sys.exit(0)
 

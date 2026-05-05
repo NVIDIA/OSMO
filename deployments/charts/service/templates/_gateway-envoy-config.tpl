@@ -578,6 +578,7 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.service.host }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -611,6 +612,7 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.router.host }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -638,20 +640,12 @@ data:
                 socket_address:
                   address: {{ $gw.upstreams.ui.host }}
                   port_value: {{ $gw.upstreams.ui.port }}
-      {{- if $gw.tls.enabled }}
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          common_tls_context:
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-      {{- end }}
+      {{/*
+        UI traffic stays HTTP — Next.js does not natively serve HTTPS and
+        the UI sits behind NetworkPolicy. Confidentiality of the UI HTML
+        relies on browser → gateway TLS (gateway.envoy.ssl.enabled), not on
+        Envoy → upstream TLS.
+      */}}
     {{- end }}
 
     {{- if $gw.upstreams.agent.enabled }}
@@ -675,6 +669,7 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.agent.host }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -707,6 +702,7 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.logger.host }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -805,6 +801,7 @@ data:
     {{- end }}
 
     {{- if $envoy.internalJwks.enabled }}
+    {{- $jwksHost := $envoy.internalJwks.host | default $gw.upstreams.service.host }}
     - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
       name: {{ $envoy.internalJwks.cluster }}
       connect_timeout: 3s
@@ -818,8 +815,23 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $envoy.internalJwks.host | default $gw.upstreams.service.host }}
+                  address: {{ $jwksHost }}
                   port_value: {{ $envoy.internalJwks.port | default $gw.upstreams.service.port }}
+      {{- if $gw.tls.enabled }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $jwksHost }}
+          common_tls_context:
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
+      {{- end }}
     {{- end }}
 
 {{- end }}

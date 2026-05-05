@@ -2108,10 +2108,55 @@ gateway:
       port: 8000
 
   ## -----------------------------------------------------------------------
-  ## TLS — self-signed certificates for encrypted gateway-to-upstream
-  ## communication. When enabled, Helm generates a CA and server cert;
-  ## Envoy uses the CA to verify upstream connections. The upstream
-  ## services must also be configured to serve HTTPS.
+  ## TLS — encrypted gateway-to-upstream communication.
+  ##
+  ## When enabled:
+  ##   - Cert material is generated (see two modes below)
+  ##   - Envoy validates upstreams against the CA
+  ##   - Upstream Deployments mount their per-service Secret and start uvicorn
+  ##     with --ssl_keyfile / --ssl_certfile so they serve HTTPS on :8000
+  ##   - Probes use scheme: HTTPS
+  ##
+  ## Two modes for cert material:
+  ##
+  ##   A1 (default, certManager.enabled=false):
+  ##     Helm self-signs a CA + per-service leaf certs using genCA /
+  ##     genSignedCert with `lookup` so existing certs are reused across
+  ##     `helm upgrade`. Zero external dependencies.
+  ##
+  ##   A2 (certManager.enabled=true):
+  ##     Emit cert-manager Issuer + Certificate resources. Provide your own
+  ##     issuerRef (e.g. a Vault ClusterIssuer) or omit it to let the chart
+  ##     create a self-signed Issuer + CA chain. Production-grade rotation.
+  ##
+  ## The UI is intentionally NOT served over TLS — it stays HTTP behind
+  ## NetworkPolicy. Only osmo-service, osmo-router, osmo-agent, and
+  ## osmo-logger get TLS server certs.
   ## -----------------------------------------------------------------------
   tls:
     enabled: false
+
+    ## CA cert validity (cert-manager mode). 10 years by default — long
+    ## enough that rotation is a deliberate operation.
+    caDuration: 87600h
+    caRenewBefore: 720h
+
+    ## Leaf-cert validity (cert-manager mode). 5 years by default.
+    certDuration: 43800h
+    certRenewBefore: 360h
+
+    certManager:
+      ## Use cert-manager (A2) instead of Helm-generated certs (A1).
+      ## Requires cert-manager installed in the cluster.
+      enabled: false
+
+      ## Optional: point at an existing Issuer/ClusterIssuer instead of
+      ## letting the chart create a self-signed CA chain. Set name + kind
+      ## (Issuer or ClusterIssuer) + group.
+      ##
+      ## Example:
+      ##   issuerRef:
+      ##     name: vault-issuer
+      ##     kind: ClusterIssuer
+      ##     group: cert-manager.io
+      issuerRef: {}

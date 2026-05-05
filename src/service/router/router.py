@@ -36,7 +36,7 @@ from src.utils import connectors, static_config
 
 
 class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
-                          connectors.PostgresConfig):
+                          static_config.SSLConfig, connectors.PostgresConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
@@ -423,7 +423,8 @@ def main():
     connectors.PostgresConnector(config)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         check_timeout_task = asyncio.create_task(check_webserver_timeout())
         try:

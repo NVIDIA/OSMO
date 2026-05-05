@@ -403,11 +403,28 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.networkPolicies.enabled` | Deploy NetworkPolicies restricting ingress to upstream pods | `false` |
 | `gateway.networkPolicies.upstreams` | List of upstream pods to protect (name, podSelector, port) | See values.yaml |
 
-#### TLS
+#### Gateway → Upstream TLS
+
+When `gateway.tls.enabled` is `true`, traffic between the Envoy gateway and the upstream services (`osmo-service`, `osmo-router`, `osmo-agent`, `osmo-logger`) is encrypted end-to-end. The Envoy verifies upstream certs against a CA, and each upstream serves HTTPS via uvicorn's `--ssl_keyfile` / `--ssl_certfile`. The UI intentionally stays on plain HTTP and relies on `gateway.networkPolicies` for ingress restriction (Next.js does not natively serve TLS).
+
+Cert material can be provisioned in two ways:
+
+- **A1 (default)** — the chart self-signs a CA (`<gateway.name>-ca-tls`) and per-service leaf certs (`osmo-service-tls`, `osmo-router-tls`, `osmo-agent-tls`, `osmo-logger-tls`) using Sprig's `genCA` / `genSignedCert`. The `lookup` function reuses existing secrets across `helm upgrade` so certs aren't rotated on every release. Zero external dependencies. Default validity is 10 years (CA) and 5 years (leaf).
+- **A2 (`gateway.tls.certManager.enabled: true`)** — the chart emits cert-manager `Issuer` + `Certificate` resources. By default it creates a self-signed root + a CA Issuer + per-service Certificates. To plug in an existing CA (Vault, internal PKI, ACME), set `gateway.tls.certManager.issuerRef`. Requires cert-manager installed in the cluster.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `gateway.tls.enabled` | Generate self-signed certs for upstream TLS | `false` |
+| `gateway.tls.enabled` | Encrypt gateway → upstream traffic. Generates certs (mode chosen below), wires upstream Deployments to serve HTTPS, and adds `UpstreamTlsContext` + `sni:` to each Envoy cluster. | `false` |
+| `gateway.tls.caDuration` | CA cert validity (cert-manager mode) | `87600h` (10y) |
+| `gateway.tls.caRenewBefore` | Renew CA this long before expiry (cert-manager mode) | `720h` (30d) |
+| `gateway.tls.certDuration` | Leaf cert validity (cert-manager mode) | `43800h` (5y) |
+| `gateway.tls.certRenewBefore` | Renew leaf this long before expiry (cert-manager mode) | `360h` (15d) |
+| `gateway.tls.certManager.enabled` | Use cert-manager to manage cert lifecycle (A2). Requires cert-manager. | `false` |
+| `gateway.tls.certManager.issuerRef` | Optional: point at an existing Issuer/ClusterIssuer. Map with `name`, `kind` (`Issuer` or `ClusterIssuer`), and `group` (defaults to `cert-manager.io`). When empty, the chart creates a self-signed Issuer + CA chain. | `{}` |
+
+The Helm-mode (A1) Secrets are annotated with `helm.sh/resource-policy: keep` so a `helm uninstall` won't shred the CA — protects against accidental rotation.
+
+NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect at L3/L4; TLS encrypts the bytes at L7. Run them together for defense in depth, or either alone.
 
 ### Extensibility
 

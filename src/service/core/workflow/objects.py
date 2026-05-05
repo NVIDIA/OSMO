@@ -40,6 +40,7 @@ from src.utils.metrics import metrics
 class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                             src.lib.utils.logging.LoggingConfig,
                             static_config.StaticConfig,
+                            static_config.SSLConfig,
                             metrics.MetricsCreatorConfig,
                             ConfigFileMixin):
     """ Manages configuration specific to the workflow service. """

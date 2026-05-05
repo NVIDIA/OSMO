@@ -1,0 +1,196 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+{{/*
+Gateway -> upstream TLS materials.
+
+Two modes, controlled by gateway.tls.certManager.enabled:
+
+  A1 (default, certManager.enabled=false): Helm self-signs a CA and per-service
+      server certs. We use `lookup` so existing certs are reused across
+      `helm upgrade` — otherwise every release would rotate certs and break live
+      connections. The CA validity is 10 years; leaf certs are 5 years. Long
+      enough that rotation is a deliberate operation, short enough that the
+      private keys aren't immortal.
+
+  A2 (certManager.enabled=true): emit cert-manager Issuer + Certificate
+      resources. cert-manager owns rotation. The Issuer is self-signed by
+      default; users can point at an existing ClusterIssuer (e.g. Vault, an
+      internal PKI) via gateway.tls.certManager.issuerRef.
+*/}}
+
+{{- if .Values.gateway.tls.enabled }}
+{{- $gw := .Values.gateway }}
+{{- $gwName := include "osmo.gateway-name" . }}
+{{- $ns := .Release.Namespace }}
+
+{{/*
+  Upstream service definitions. Each entry produces one server-cert Secret with
+  SANs covering the in-cluster DNS names Envoy uses to reach the service.
+*/}}
+{{- $upstreams := list
+    (dict "name" "osmo-service" "secret" "osmo-service-tls"
+          "dnsNames" (list "osmo-service" (printf "osmo-service.%s" $ns) (printf "osmo-service.%s.svc" $ns) (printf "osmo-service.%s.svc.cluster.local" $ns)))
+    (dict "name" "osmo-router" "secret" "osmo-router-tls"
+          "dnsNames" (list "osmo-router" "osmo-router-headless"
+                            (printf "osmo-router.%s" $ns) (printf "osmo-router.%s.svc" $ns) (printf "osmo-router.%s.svc.cluster.local" $ns)
+                            (printf "osmo-router-headless.%s" $ns) (printf "osmo-router-headless.%s.svc" $ns) (printf "osmo-router-headless.%s.svc.cluster.local" $ns)))
+    (dict "name" "osmo-agent" "secret" "osmo-agent-tls"
+          "dnsNames" (list "osmo-agent" (printf "osmo-agent.%s" $ns) (printf "osmo-agent.%s.svc" $ns) (printf "osmo-agent.%s.svc.cluster.local" $ns)))
+    (dict "name" "osmo-logger" "secret" "osmo-logger-tls"
+          "dnsNames" (list "osmo-logger" (printf "osmo-logger.%s" $ns) (printf "osmo-logger.%s.svc" $ns) (printf "osmo-logger.%s.svc.cluster.local" $ns)))
+}}
+
+{{- if $gw.tls.certManager.enabled }}
+
+{{/* ===================================================================== */}}
+{{/* A2 — cert-manager                                                     */}}
+{{/* ===================================================================== */}}
+
+{{- if not $gw.tls.certManager.issuerRef }}
+{{/* No external issuer — create a self-signed Issuer + a CA Certificate    */}}
+{{/* and a CA Issuer that signs the per-service certs.                      */}}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $gwName }}-selfsigned
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $gwName }}-ca
+spec:
+  isCA: true
+  commonName: {{ $gwName }}-ca
+  secretName: {{ $gwName }}-ca-tls
+  duration: {{ $gw.tls.caDuration | default "87600h" }}
+  renewBefore: {{ $gw.tls.caRenewBefore | default "720h" }}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: {{ $gwName }}-selfsigned
+    kind: Issuer
+    group: cert-manager.io
+
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $gwName }}-ca
+spec:
+  ca:
+    secretName: {{ $gwName }}-ca-tls
+{{- end }}
+
+{{- $issuerName := $gw.tls.certManager.issuerRef.name | default (printf "%s-ca" $gwName) }}
+{{- $issuerKind := $gw.tls.certManager.issuerRef.kind | default "Issuer" }}
+{{- $issuerGroup := $gw.tls.certManager.issuerRef.group | default "cert-manager.io" }}
+
+{{- range $u := $upstreams }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ $u.name }}
+spec:
+  secretName: {{ $u.secret }}
+  duration: {{ $gw.tls.certDuration | default "43800h" }}
+  renewBefore: {{ $gw.tls.certRenewBefore | default "360h" }}
+  commonName: {{ $u.name }}
+  dnsNames:
+    {{- range $u.dnsNames }}
+    - {{ . }}
+    {{- end }}
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: {{ $issuerName }}
+    kind: {{ $issuerKind }}
+    group: {{ $issuerGroup }}
+{{- end }}
+
+{{- else }}
+
+{{/* ===================================================================== */}}
+{{/* A1 — Helm self-signed                                                  */}}
+{{/* ===================================================================== */}}
+
+{{/*
+  Look up an existing CA secret. If found, reuse it so `helm upgrade` doesn't
+  rotate the CA on every release. If not, generate one. Use buildCustomCert
+  to reconstruct the sprig.certificate struct that genSignedCert requires.
+*/}}
+{{- $caSecret := lookup "v1" "Secret" $ns (printf "%s-ca-tls" $gwName) }}
+{{- $caCertB64 := "" }}
+{{- $caKeyB64 := "" }}
+{{- if and $caSecret $caSecret.data (index $caSecret.data "ca.crt") (index $caSecret.data "ca.key") }}
+  {{- $caCertB64 = index $caSecret.data "ca.crt" }}
+  {{- $caKeyB64 = index $caSecret.data "ca.key" }}
+{{- else }}
+  {{- $generated := genCA (printf "%s-ca" $gwName) 3650 }}
+  {{- $caCertB64 = $generated.Cert | b64enc }}
+  {{- $caKeyB64 = $generated.Key | b64enc }}
+{{- end }}
+{{- $ca := buildCustomCert $caCertB64 $caKeyB64 }}
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $gwName }}-ca-tls
+  annotations:
+    "helm.sh/resource-policy": keep
+type: Opaque
+data:
+  ca.crt: {{ $caCertB64 }}
+  ca.key: {{ $caKeyB64 }}
+
+{{- range $u := $upstreams }}
+---
+{{/*
+  Per-service leaf cert. Reuse on upgrade if a usable secret already exists;
+  otherwise sign a fresh one with the CA above. 5-year validity.
+*/}}
+{{- $existing := lookup "v1" "Secret" $ns $u.secret }}
+{{- $leafCrtB64 := "" }}
+{{- $leafKeyB64 := "" }}
+{{- if and $existing $existing.data (index $existing.data "tls.crt") (index $existing.data "tls.key") }}
+  {{- $leafCrtB64 = index $existing.data "tls.crt" }}
+  {{- $leafKeyB64 = index $existing.data "tls.key" }}
+{{- else }}
+  {{- $cert := genSignedCert $u.name nil $u.dnsNames 1825 $ca }}
+  {{- $leafCrtB64 = $cert.Cert | b64enc }}
+  {{- $leafKeyB64 = $cert.Key | b64enc }}
+{{- end }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $u.secret }}
+  annotations:
+    "helm.sh/resource-policy": keep
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ $leafCrtB64 }}
+  tls.key: {{ $leafKeyB64 }}
+  ca.crt: {{ $caCertB64 }}
+{{- end }}
+
+{{- end }}{{/* end A1/A2 branch */}}
+{{- end }}{{/* end gateway.tls.enabled */}}
