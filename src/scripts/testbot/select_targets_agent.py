@@ -261,6 +261,9 @@ def merge_picks_with_shortlist(
     by_path = {entry["file_path"]: entry for entry in shortlist}
     merged: list[dict] = []
     for pick in picks:
+        if not isinstance(pick, dict):
+            logger.warning("Skipping non-dict pick: %r", pick)
+            continue
         path = pick.get("file_path")
         if not path:
             logger.warning("Skipping pick with no file_path: %r", pick)
@@ -321,6 +324,12 @@ def main() -> None:
             timeout_sec=args.timeout_sec,
         )
         picks = parse_agent_output(output)
+        if len(picks) > args.max_targets:
+            logger.warning(
+                "Agent returned %d picks; truncating to --max-targets=%d",
+                len(picks), args.max_targets,
+            )
+            picks = picks[:args.max_targets]
         logger.info("Agent picked %d target(s) of %d max", len(picks), args.max_targets)
         merged = merge_picks_with_shortlist(picks, shortlist)
         markdown = format_targets_markdown(merged)

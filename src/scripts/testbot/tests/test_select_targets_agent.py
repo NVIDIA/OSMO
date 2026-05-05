@@ -114,6 +114,14 @@ class TestMergePicksWithShortlist(unittest.TestCase):
         merged = merge_picks_with_shortlist(picks, shortlist)
         self.assertEqual(merged, [])
 
+    def test_skips_non_dict_pick(self):
+        # Defensive: the agent could emit a list of strings or other
+        # non-object entries. Don't crash on `.get(...)`.
+        shortlist = [_shortlist_entry("src/lib/foo.py")]
+        picks: list = ["src/lib/foo.py", 42, None]
+        merged = merge_picks_with_shortlist(picks, shortlist)
+        self.assertEqual(merged, [])
+
 
 class TestFormatTargetsMarkdown(unittest.TestCase):
     """Tests for the final markdown rendering of selected targets."""
