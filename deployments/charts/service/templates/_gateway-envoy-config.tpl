@@ -579,8 +579,15 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.service.host }}
-          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.certManager.enabled }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -588,12 +595,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- end }}
-          {{/* Default mode: omit common_tls_context entirely. Setting it
-               to {} causes Envoy to silently degrade the transport socket
-               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
-               bytes hit uvicorn's TLS listener and the upstream RSTs the
-               connection. Mirrors what the working `idp` cluster does. */}}
+            {{- end }}
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -620,8 +622,15 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.router.host }}
-          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.certManager.enabled }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -629,12 +638,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- end }}
-          {{/* Default mode: omit common_tls_context entirely. Setting it
-               to {} causes Envoy to silently degrade the transport socket
-               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
-               bytes hit uvicorn's TLS listener and the upstream RSTs the
-               connection. Mirrors what the working `idp` cluster does. */}}
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -684,8 +688,15 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.agent.host }}
-          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.certManager.enabled }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -693,12 +704,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- end }}
-          {{/* Default mode: omit common_tls_context entirely. Setting it
-               to {} causes Envoy to silently degrade the transport socket
-               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
-               bytes hit uvicorn's TLS listener and the upstream RSTs the
-               connection. Mirrors what the working `idp` cluster does. */}}
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -724,8 +730,15 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.logger.host }}
-          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.certManager.enabled }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -733,12 +746,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- end }}
-          {{/* Default mode: omit common_tls_context entirely. Setting it
-               to {} causes Envoy to silently degrade the transport socket
-               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
-               bytes hit uvicorn's TLS listener and the upstream RSTs the
-               connection. Mirrors what the working `idp` cluster does. */}}
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -851,8 +859,15 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $jwksHost }}
-          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.certManager.enabled }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -860,12 +875,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- end }}
-          {{/* Default mode: omit common_tls_context entirely. Setting it
-               to {} causes Envoy to silently degrade the transport socket
-               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
-               bytes hit uvicorn's TLS listener and the upstream RSTs the
-               connection. Mirrors what the working `idp` cluster does. */}}
+            {{- end }}
       {{- end }}
     {{- end }}
 
