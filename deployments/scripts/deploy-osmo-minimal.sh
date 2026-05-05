@@ -117,7 +117,7 @@ General Options:
   --dry-run              Show what would be done without making changes
   --non-interactive      Fail if required parameters are missing (for CI/CD)
   --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io
-  --storage-backend X    Storage backend: auto|minio|azure-blob|byo|none (default: auto)
+  --storage-backend X    Storage backend: auto|minio|s3|azure-blob|byo|none (default: auto)
   --auth-method X        Storage auth: static|workload-identity (default: static)
                          workload-identity REQUIRES caller-provisioned cloud
                          identity (UAMI for Azure, IAM role for AWS) + RBAC.
@@ -307,6 +307,27 @@ setup_provider_env() {
             ;;
     esac
 
+    # microk8s is self-contained: the chart deploys postgres + redis in-cluster
+    # (services.{postgres,redis}.enabled=true). We just fill in the contract
+    # env vars the rest of the pipeline expects, mirroring chart defaults.
+    if [[ "$PROVIDER" == "microk8s" ]]; then
+        export OSMO_IN_CLUSTER_DB=true
+        export POSTGRES_HOST="${POSTGRES_HOST:-postgres}"
+        export POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+        export POSTGRES_USERNAME="${POSTGRES_USERNAME:-postgres}"
+        export POSTGRES_DB_NAME="${POSTGRES_DB_NAME:-osmo}"
+        if [[ -z "${POSTGRES_PASSWORD:-}" ]]; then
+            POSTGRES_PASSWORD=$(openssl rand -hex 16)
+            export POSTGRES_PASSWORD
+        fi
+        export REDIS_HOST="${REDIS_HOST:-redis}"
+        export REDIS_PORT="${REDIS_PORT:-6379}"
+        # The chart's in-cluster redis runs without --requirepass; keep empty
+        # so consumers don't send a stale AUTH command.
+        export REDIS_PASSWORD="${REDIS_PASSWORD:-}"
+        export IS_PRIVATE_CLUSTER="${IS_PRIVATE_CLUSTER:-false}"
+    fi
+
     # Optional TF resources triggered by deploy flags. Read by
     # azure_generate_tfvars / aws_generate_tfvars to flip the corresponding
     # TF variables.
@@ -335,8 +356,12 @@ setup_provider_env() {
 preflight_checks() {
     log_info "Running pre-flight checks..."
 
-    check_command "kubectl"
-    check_command "helm"
+    # microk8s/install.sh installs kubectl + helm via snap on first run, so a
+    # fresh box won't have them yet — defer the tool checks to bootstrap.
+    if [[ "$PROVIDER" != "microk8s" ]]; then
+        check_command "kubectl"
+        check_command "helm"
+    fi
     check_command "jq"
 
     # terraform is only required for cloud providers that run TF

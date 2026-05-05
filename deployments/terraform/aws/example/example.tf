@@ -420,3 +420,64 @@ resource "aws_security_group_rule" "alb_to_eks" {
 
   depends_on = [module.alb, module.eks]
 }
+
+################################################################################
+# Optional S3 bucket for OSMO workflow data (gated on var.s3_bucket_enabled)
+#
+# When enabled, configure-storage.sh --backend s3 reads outputs (s3_bucket,
+# s3_access_key_id, s3_secret_access_key) directly. Disable to BYO an existing
+# bucket; pass STORAGE_ENDPOINT + STORAGE_ACCESS_KEY_ID + STORAGE_ACCESS_KEY
+# as env vars and use --backend byo instead.
+################################################################################
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_s3_bucket" "osmo" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  # Bucket names must be globally unique. Account-id prefix keeps it scoped
+  # to this account so the same cluster_name in another account doesn't
+  # collide.
+  bucket        = "${data.aws_caller_identity.current.account_id}-${local.name}-osmo"
+  force_destroy = var.s3_force_destroy
+  tags          = local.tags
+}
+
+resource "aws_s3_bucket_public_access_block" "osmo" {
+  count                   = var.s3_bucket_enabled ? 1 : 0
+  bucket                  = aws_s3_bucket.osmo[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_iam_user" "osmo_s3" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  name  = "${local.name}-osmo-s3"
+  tags  = local.tags
+}
+
+resource "aws_iam_user_policy" "osmo_s3" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  name  = "${local.name}-osmo-s3"
+  user  = aws_iam_user.osmo_s3[0].name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+        "s3:ListBucket", "s3:GetBucketLocation",
+      ]
+      Resource = [
+        aws_s3_bucket.osmo[0].arn,
+        "${aws_s3_bucket.osmo[0].arn}/*",
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_access_key" "osmo_s3" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  user  = aws_iam_user.osmo_s3[0].name
+}

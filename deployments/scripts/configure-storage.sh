@@ -150,8 +150,8 @@ fi
 
 # Auto-detect backend by probing live signals. BYO wins if any BYO env var is
 # set (explicit opt-in). Otherwise probe MicroK8s addon → existing MinIO svc →
-# Azure Blob TF outputs. `auto` with no signal is a hard error — storage is
-# required for any non-trivial OSMO workload.
+# AWS S3 TF outputs → Azure Blob TF outputs. `auto` with no signal is a hard
+# error — storage is required for any non-trivial OSMO workload.
 if [[ "$BACKEND" == "auto" ]]; then
     if [[ -n "${STORAGE_ACCESS_KEY_ID:-}" || -n "${STORAGE_ENDPOINT:-}" ]]; then
         BACKEND="byo"
@@ -159,17 +159,26 @@ if [[ "$BACKEND" == "auto" ]]; then
         BACKEND="minio"
     elif $KUBECTL get svc minio -n minio-operator &>/dev/null; then
         BACKEND="minio"
+    elif [[ -n "${STORAGE_BUCKET:-}" ]]; then
+        BACKEND="s3"
     elif [[ -n "${STORAGE_ACCOUNT:-}" ]]; then
         BACKEND="azure-blob"
     else
-        TF_DIR="$SCRIPT_DIR/../terraform/azure/example"
-        if [[ -d "$TF_DIR" ]] && terraform -chdir="$TF_DIR" output storage_account &>/dev/null; then
+        AWS_TF_DIR="$SCRIPT_DIR/../terraform/aws/example"
+        AZURE_TF_DIR="$SCRIPT_DIR/../terraform/azure/example"
+        if [[ -d "$AWS_TF_DIR" ]] && terraform -chdir="$AWS_TF_DIR" output s3_bucket &>/dev/null \
+            && [[ -n "$(terraform -chdir="$AWS_TF_DIR" output -raw s3_bucket 2>/dev/null)" ]]; then
+            BACKEND="s3"
+        elif [[ -d "$AZURE_TF_DIR" ]] && terraform -chdir="$AZURE_TF_DIR" output storage_account &>/dev/null; then
             BACKEND="azure-blob"
         else
             cat >&2 <<'MSG'
 ERROR: no storage backend detected. Pick one explicitly with --backend:
 
   --backend minio        — in-cluster MinIO (microk8s addon or helm-installed)
+  --backend s3           — AWS S3; set STORAGE_BUCKET / STORAGE_ACCESS_KEY_ID /
+                           STORAGE_ACCESS_KEY (or use the osmo AWS TF outputs
+                           when s3_bucket_enabled = true)
   --backend azure-blob   — Azure Blob Storage; set STORAGE_ACCOUNT and STORAGE_KEY
                            (or use the osmo Azure TF Storage Account output)
   --backend byo          — bring-your-own S3-compatible; set:

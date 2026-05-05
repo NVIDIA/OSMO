@@ -36,6 +36,10 @@ source "$SCRIPT_DIR/common.sh"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-minio-operator}"
 MINIO_IMAGE="${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}"
 MINIO_STORAGE_SIZE="${MINIO_STORAGE_SIZE:-20Gi}"
+# StorageClass for the MinIO PVC. Empty = use the cluster default. Some
+# clusters (EKS bootstrap, bare clusters) have a SC available but no default
+# marked, so we detect that case below and fall back to the first SC found.
+MINIO_STORAGE_CLASS="${MINIO_STORAGE_CLASS:-}"
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-osmoadmin}"
 MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}"
 

@@ -38,7 +38,13 @@ fi
 MINIO_BUCKET="${MINIO_BUCKET:-osmo-workflows}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-minio-operator}"
 MINIO_SVC_DNS="minio.${MINIO_NAMESPACE}.svc.cluster.local"
-MINIO_ENDPOINT_URL="http://${MINIO_SVC_DNS}:9000"
+# Detect the actual Service port. The microk8s `minio` addon exposes the API on
+# Service port 80 (targetPort 9000); install-minio.sh / bitnami chart uses 9000
+# directly. Fallback to 9000 when discovery fails (Service not yet present).
+MINIO_SVC_PORT=$($KUBECTL get svc minio -n "$MINIO_NAMESPACE" \
+    -o jsonpath='{.spec.ports[0].port}' 2>/dev/null || true)
+MINIO_SVC_PORT="${MINIO_SVC_PORT:-9000}"
+MINIO_ENDPOINT_URL="http://${MINIO_SVC_DNS}:${MINIO_SVC_PORT}"
 
 read_creds_from_microk8s_addon() {
     local secret

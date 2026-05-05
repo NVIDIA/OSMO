@@ -213,6 +213,15 @@ create_namespaces() {
 ###############################################################################
 
 create_database() {
+    # In-cluster postgres (microk8s) is provisioned by the helm install with
+    # POSTGRES_DB=$db env baked in — the postgres image's entrypoint creates
+    # the database on first init. The Service doesn't exist yet at this phase
+    # so the db-ops pod can't connect; skip and let the chart handle it.
+    if [[ "${OSMO_IN_CLUSTER_DB:-false}" == "true" ]]; then
+        log_info "In-cluster DB mode — skipping pre-install database create (chart handles it)"
+        return
+    fi
+
     log_info "Creating PostgreSQL database 'osmo'..."
 
     if [[ "$DRY_RUN" == true ]]; then
@@ -527,6 +536,41 @@ service_set_flags() {
 
     sets+=" --set services.redis.serviceName=${REDIS_HOST}"
     sets+=" --set services.redis.port=${REDIS_PORT}"
+
+    # AWS without aws-load-balancer-controller: the in-tree cloud provider
+    # creates a Classic ELB for type=LoadBalancer Services, but it requires
+    # exactly one SG tagged kubernetes.io/cluster/<name>=owned on each node.
+    # The eks module attaches both the cluster-primary-sg AND its own node-sg
+    # (both tagged), so the controller refuses to provision the LB. Install
+    # aws-load-balancer-controller (uses target groups, no SG tagging) for the
+    # production path; for the minimal/test path, use ClusterIP and rely on
+    # the port-forward watchdog the deploy script already starts.
+    if [[ "${PROVIDER:-}" == "aws" ]]; then
+        sets+=" --set gateway.envoy.service.type=ClusterIP"
+    fi
+
+    # In-cluster DB mode (microk8s): chart deploys its own postgres + redis.
+    # postgres.password is read by the postgres template directly (not from a
+    # Secret); redis runs without auth so consumers must not negotiate TLS.
+    if [[ "${OSMO_IN_CLUSTER_DB:-false}" == "true" ]]; then
+        sets+=" --set services.postgres.enabled=true"
+        sets+=" --set services.postgres.password=${POSTGRES_PASSWORD}"
+        sets+=" --set services.redis.enabled=true"
+        sets+=" --set services.redis.tlsEnabled=false"
+
+        # Chart's PVC template renders `storageClassName: ""` (empty string)
+        # when the value is unset, which K8s interprets as "no dynamic
+        # provisioning" — even when a default SC exists. Auto-detect the
+        # default SC and pass it explicitly so PVCs bind on microk8s/EKS/etc.
+        # Plain `kubectl` (not $RUN_KUBECTL) — the byo wrapper word-splits its
+        # single-arg form and would re-quote the jsonpath output.
+        local default_sc
+        default_sc=$(kubectl get sc -o jsonpath="{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=='true')].metadata.name}" 2>/dev/null || echo "")
+        if [[ -n "$default_sc" ]]; then
+            sets+=" --set services.postgres.storageClassName=${default_sc}"
+            sets+=" --set services.redis.storageClassName=${default_sc}"
+        fi
+    fi
 
     # UI talks to the API through the gateway (which injects auth headers in
     # minimal mode and is the only HTTP entry point when gateway.enabled=true).

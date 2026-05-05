@@ -200,3 +200,22 @@ output "alb_security_group_id" {
   description = "The ID of the security group for ALB"
   value       = module.alb.security_group_id
 }
+
+# Optional S3 bucket for OSMO workflow data
+# Read by configure-storage.sh --backend s3 via `terraform output`
+output "s3_bucket" {
+  description = "Name of the OSMO workflow data S3 bucket (empty when disabled)"
+  value       = var.s3_bucket_enabled ? aws_s3_bucket.osmo[0].id : ""
+}
+
+output "s3_access_key_id" {
+  description = "Access key ID for the OSMO S3 IAM user"
+  value       = var.s3_bucket_enabled ? aws_iam_access_key.osmo_s3[0].id : ""
+  sensitive   = true
+}
+
+output "s3_secret_access_key" {
+  description = "Secret access key for the OSMO S3 IAM user"
+  value       = var.s3_bucket_enabled ? aws_iam_access_key.osmo_s3[0].secret : ""
+  sensitive   = true
+}

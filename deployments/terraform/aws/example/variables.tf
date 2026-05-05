@@ -304,3 +304,18 @@ variable "gpu_node_group_capacity_type" {
     error_message = "gpu_node_group_capacity_type must be ON_DEMAND or SPOT."
   }
 }
+
+# Optional S3 bucket for OSMO workflow data
+# When false, BYO an existing bucket via STORAGE_ENDPOINT/STORAGE_ACCESS_KEY_ID/
+# STORAGE_ACCESS_KEY env vars before running configure-storage.sh --backend byo.
+variable "s3_bucket_enabled" {
+  description = "Provision an S3 bucket + IAM user for OSMO workflow data"
+  type        = bool
+  default     = false
+}
+
+variable "s3_force_destroy" {
+  description = "Allow `terraform destroy` to wipe a non-empty osmo S3 bucket. Test envs only."
+  type        = bool
+  default     = false
+}
