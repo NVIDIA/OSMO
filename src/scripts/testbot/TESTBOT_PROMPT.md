@@ -39,7 +39,7 @@ The targets are appended below this prompt. For each target you receive:
      add a `go_test` rule referencing it. Without the rule the test file is
      invisible to Bazel and `bazel coverage` will not run it. Pattern (verified
      against `src/runtime/pkg/data/BUILD`):
-     ```
+     ```bzl
      load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
      go_test(
          name = "<pkg>_test",
