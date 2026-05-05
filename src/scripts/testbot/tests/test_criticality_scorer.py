@@ -130,36 +130,53 @@ class TestPythonImports(unittest.TestCase):
             f.write("import json\nimport os\n")
             path = Path(f.name)
         try:
-            self.assertEqual(_python_imports(path), {"json", "os"})
+            direct, package_use = _python_imports(path)
+            self.assertEqual(direct, {"json", "os"})
+            # `import X` binds X as a value, so package_use mirrors direct.
+            self.assertEqual(package_use, {"json", "os"})
         finally:
             path.unlink()
 
     def test_extracts_from_import(self):
-        # ``from X.Y import Z`` records both X.Y (the source) and X.Y.Z
-        # (a possible submodule). The submodule candidate is dropped later
-        # if it doesn't resolve to a file, so this is safe.
+        # `from X.Y import Z` records X.Y (source) and X.Y.Z (composed).
+        # Only the composed name goes into package_use — the source is
+        # not bound as a value in the importer.
         with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
             f.write("from src.lib.utils.client import ServiceClient\n")
             path = Path(f.name)
         try:
+            direct, package_use = _python_imports(path)
             self.assertEqual(
-                _python_imports(path),
+                direct,
                 {"src.lib.utils.client", "src.lib.utils.client.ServiceClient"},
+            )
+            self.assertEqual(
+                package_use, {"src.lib.utils.client.ServiceClient"},
             )
         finally:
             path.unlink()
 
     def test_records_each_submodule_in_multi_name_from_import(self):
-        # The OSMO-prevalent pattern: ``from src.utils.job import a, b, c``
-        # must register fan-in against a, b, and c — each of which is a file.
+        # `from src.utils.job import a, b, c` — direct must include the
+        # source plus each composed candidate so per-file lookups succeed;
+        # package_use carries only the composed names.
         with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
             f.write("from src.utils.job import jobs, workflow, task\n")
             path = Path(f.name)
         try:
+            direct, package_use = _python_imports(path)
             self.assertEqual(
-                _python_imports(path),
+                direct,
                 {
                     "src.utils.job",
+                    "src.utils.job.jobs",
+                    "src.utils.job.workflow",
+                    "src.utils.job.task",
+                },
+            )
+            self.assertEqual(
+                package_use,
+                {
                     "src.utils.job.jobs",
                     "src.utils.job.workflow",
                     "src.utils.job.task",
@@ -173,7 +190,9 @@ class TestPythonImports(unittest.TestCase):
             f.write("from src.lib.utils import *\n")
             path = Path(f.name)
         try:
-            self.assertEqual(_python_imports(path), {"src.lib.utils"})
+            direct, package_use = _python_imports(path)
+            self.assertEqual(direct, {"src.lib.utils"})
+            self.assertEqual(package_use, set())
         finally:
             path.unlink()
 
@@ -182,7 +201,7 @@ class TestPythonImports(unittest.TestCase):
             f.write("from . import sibling\nfrom ..lib import utils\n")
             path = Path(f.name)
         try:
-            self.assertEqual(_python_imports(path), set())
+            self.assertEqual(_python_imports(path), (set(), set()))
         finally:
             path.unlink()
 
@@ -191,7 +210,7 @@ class TestPythonImports(unittest.TestCase):
             f.write("def broken(:\n")
             path = Path(f.name)
         try:
-            self.assertEqual(_python_imports(path), set())
+            self.assertEqual(_python_imports(path), (set(), set()))
         finally:
             path.unlink()
 
@@ -265,6 +284,38 @@ class TestBuildPythonFanIn(unittest.TestCase):
             )
             counts = build_python_fan_in(root)
             self.assertEqual(counts.get("src/lib/data/storage/client.py"), 1)
+
+    def test_named_import_does_not_overcredit_package_siblings(self):
+        # `from src.lib.data.storage import StorageBackend` should credit
+        # ONLY backends/common.py (where StorageBackend is implemented),
+        # NOT every other file storage/__init__.py re-exports from. The
+        # importer never references storage as a value, so package
+        # expansion of storage's full re-export set would be noise.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backends = root / "src" / "lib" / "data" / "storage" / "backends"
+            backends.mkdir(parents=True)
+            (root / "src" / "service").mkdir(parents=True)
+            (root / "src" / "lib" / "data" / "storage" / "__init__.py").write_text(
+                "from .client import Client\n"
+                "from .backends.common import StorageBackend\n"
+            )
+            (root / "src" / "lib" / "data" / "storage" / "client.py").write_text(
+                "class Client: pass\n"
+            )
+            (backends / "common.py").write_text(
+                "class StorageBackend: pass\n"
+            )
+            (root / "src" / "service" / "main.py").write_text(
+                "from src.lib.data.storage import StorageBackend\n"
+            )
+            counts = build_python_fan_in(root)
+            self.assertEqual(
+                counts.get("src/lib/data/storage/backends/common.py"), 1,
+            )
+            # client.py is a sibling re-export of storage/__init__.py but
+            # the named-symbol import never used it — must stay at 0.
+            self.assertEqual(counts.get("src/lib/data/storage/client.py"), 0)
 
     def test_credits_package_import_to_full_re_export_set(self):
         # The dominant OSMO pattern is `from src.lib.data import storage`

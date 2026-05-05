@@ -202,34 +202,46 @@ def _walk_init_files(repo_root: Path) -> list[Path]:
     ]
 
 
-def _python_imports(path: Path) -> set[str]:
-    """Return the set of dotted module names imported by a Python file.
+def _python_imports(path: Path) -> tuple[set[str], set[str]]:
+    """Classify dotted module names imported by a Python file.
 
-    OSMO uses ``from src.utils.job import jobs, workflow, task`` style heavily.
-    For those, we record both the source package (``src.utils.job``) and each
-    imported name as a candidate submodule (``src.utils.job.jobs``,
-    ``src.utils.job.workflow``, etc.). The fan-in resolver only counts the
-    candidates that resolve to an actual file in the repo, so this is safe
-    even when the imported name is a symbol rather than a submodule —
-    ``from src.lib.utils.redact import redact_secrets`` records both
-    ``src.lib.utils.redact`` (which resolves to a file) and
-    ``src.lib.utils.redact.redact_secrets`` (which doesn't, so it's dropped).
+    Returns ``(direct, package_use)``:
+
+    * ``direct`` — every dotted name that *might* resolve to a single file.
+      Includes both the source of an ``ImportFrom`` (``X`` in
+      ``from X import Y``) and each composed candidate (``X.Y``), plus the
+      target of a plain ``import X.Y.Z``.
+    * ``package_use`` — names the importer binds *as a value* and may
+      access attributes of, so a change anywhere the package's
+      ``__init__.py`` re-exports from could affect the importer.
+      Populated by ``import X.Y.Z`` (top-level package binding) and the
+      composed ``X.Y`` from ``from X import Y`` (since Y could be a
+      sub-package the importer will use as ``Y.something``).
+      Crucially **not** the source ``X`` of ``from X import Y, Z``: in
+      that form the importer never references ``X`` as a value, so the
+      package-expansion fan-in credit for ``X``'s re-export set would be
+      noise.
     """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
     except SyntaxError:
-        return set()
-    modules: set[str] = set()
+        return set(), set()
+    direct: set[str] = set()
+    package_use: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                modules.add(alias.name)
+                direct.add(alias.name)
+                package_use.add(alias.name)
         elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            modules.add(node.module)
+            direct.add(node.module)
             for alias in node.names:
-                if alias.name != "*":
-                    modules.add(f"{node.module}.{alias.name}")
-    return modules
+                if alias.name == "*":
+                    continue
+                composed = f"{node.module}.{alias.name}"
+                direct.add(composed)
+                package_use.add(composed)
+    return direct, package_use
 
 
 def _re_export_targets(
@@ -317,10 +329,20 @@ def build_python_fan_in(repo_root: Path) -> dict[str, int]:
         # adds 1 to client.py, not 2 — also collapses the alias/package
         # expansion overlap.
         resolved: set[str] = set()
-        for module in _python_imports(path):
+        direct, package_use = _python_imports(path)
+        for module in direct:
             target = module_to_path.get(module)
             if target is not None and target != importer_rel:
                 resolved.add(target)
+        # Only expand package re-exports for modules the importer
+        # actually binds as a value (`import X.Y` or `from X import Y`),
+        # and only when the module isn't already a single-file hit.
+        # This avoids over-crediting siblings of a named symbol, e.g.
+        # `from src.lib.data.storage import Client` should credit only
+        # client.py — not every other file storage/__init__.py exports.
+        for module in package_use:
+            if module in module_to_path:
+                continue
             for pkg_target in package_re_exports.get(module, ()):
                 if pkg_target != importer_rel:
                     resolved.add(pkg_target)
