@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "common",
@@ -24,4 +24,10 @@ go_library(
     deps = [
         "//src/runtime/pkg/osmo_errors:osmo_errors",
     ]
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["common_test.go"],
+    embed = [":common"],
 )
