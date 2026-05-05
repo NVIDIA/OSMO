@@ -1027,7 +1027,7 @@ def get_manifest(
             f'Version {version} not found for dataset {name} in bucket {bucket}.')
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
-    client = storage.Client.create(
+    client = storage.SingleObjectClient.create(
         storage_uri=rows[0].location,
         data_credential=bucket_config.default_credential,
     )
@@ -1053,7 +1053,7 @@ def get_file_content(
             'Storage path does not belong to this dataset.')
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
-    client = storage.Client.create(
+    client = storage.SingleObjectClient.create(
         storage_uri=storage_path,
         data_credential=bucket_config.default_credential,
     )
