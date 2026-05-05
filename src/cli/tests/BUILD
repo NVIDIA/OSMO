@@ -77,3 +77,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_data",
+    srcs = [
+        "test_data.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
