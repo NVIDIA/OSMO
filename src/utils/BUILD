@@ -97,6 +97,7 @@ osmo_py_library(
     name = "ssl_init",
     srcs = ["ssl_init.py"],
     deps = [
+        requirement("kubernetes"),
         requirement("truststore"),
     ],
     visibility = ["//visibility:public"],
