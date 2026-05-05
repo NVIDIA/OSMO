@@ -135,10 +135,14 @@ The selector runs in two stages. Tunables live in `criticality_scorer.py`
 Score formula (per file):
 
 ```
-                       ┌──────────── criticality ────────────┐   ┌── coverage gap ──┐
-score   =   w_tier · (DEFAULT_TIER − tier)                       (1 − coverage_pct/100)
-          + w_fan_in · log(fan_in + 1) / log(max_fan_in + 1)   ×  · log(min(uncovered, 500) + 1)
-          + w_churn  · log(churn + 1)  / log(max_churn  + 1)
+criticality   =   w_tier   · (DEFAULT_TIER − tier)
+                + w_fan_in · log(fan_in + 1) / log(max_fan_in + 1)
+                + w_churn  · log(churn  + 1) / log(max_churn  + 1)
+
+coverage_gap  =   (1 − coverage_pct / 100)
+                × log(min(uncovered_lines, 500) + 1)
+
+score         =   criticality × coverage_gap
 ```
 
 Each term:
