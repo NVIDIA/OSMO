@@ -227,11 +227,7 @@ export const handlers = [
     const datasetName = Array.isArray(params.name) ? params.name[0] : params.name;
     const bucketName = Array.isArray(params.bucket) ? params.bucket[0] : params.bucket;
     const locationUrl = `s3://${bucketName}/datasets/${datasetName}/v${version}/`;
-    const items = datasetGenerator.generateFlatManifest(
-      datasetName ?? "",
-      bucketName ?? "",
-      locationUrl,
-    );
+    const items = datasetGenerator.generateFlatManifest(datasetName ?? "", bucketName ?? "", locationUrl);
     return HttpResponse.json(items);
   }),
 
