@@ -94,6 +94,15 @@ osmo_py_library(
 )
 
 osmo_py_library(
+    name = "ssl_init",
+    srcs = ["ssl_init.py"],
+    deps = [
+        requirement("truststore"),
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "backend_messages",
     srcs = ["backend_messages.py"],
     deps = [

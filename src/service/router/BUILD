@@ -36,6 +36,7 @@ osmo_py_library(
         "//src/lib/utils:common",
         "//src/lib/utils:logging",
         "//src/lib/utils:version",
+        "//src/utils:ssl_init",
         "//src/utils:static_config",
     ],
     visibility = ["//visibility:public"],
