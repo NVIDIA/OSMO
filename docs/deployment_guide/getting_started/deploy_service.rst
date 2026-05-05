@@ -288,7 +288,7 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 148-149, 153-154, 160, 164, 178-180, 195-197
+    :emphasize-lines: 4, 21-23, 34, 36, 42, 51, 54-59, 74, 148-149, 153-154, 160, 164, 178-180, 217-219
 
     # Global configuration shared across all OSMO services
     global:
@@ -475,9 +475,31 @@ Create ``osmo_values.yaml`` for the OSMO service with the following sample.
           # OSMO-issued JWTs (e.g. for access-token-based access)
           - issuer: osmo
             audience: osmo
-            jwks_uri: http://osmo-service/api/auth/keys
+            # https:// because the gateway -> upstream path is encrypted by
+            # default (gateway.tls.enabled). Use http:// only if you set
+            # gateway.tls.enabled: false.
+            jwks_uri: https://osmo-service/api/auth/keys
             user_claim: unique_name
             cluster: osmo-service-jwks
+
+      # Gateway -> upstream TLS. Enabled by default: each upstream service
+      # (osmo-service, osmo-router, osmo-agent, osmo-logger) mints an
+      # ephemeral self-signed cert in-process at startup, uvicorn serves
+      # HTTPS on :8000, and Envoy connects with TLS but skips cert validation
+      # (common_tls_context: {}). UI stays HTTP behind NetworkPolicy.
+      #
+      # To switch to validated TLS managed by cert-manager, set
+      # certManager.enabled=true and (optionally) point at an existing
+      # Issuer/ClusterIssuer via certManager.issuerRef. See the chart README
+      # for the full set of fields.
+      tls:
+        enabled: true
+        # certManager:
+        #   enabled: true
+        #   issuerRef:
+        #     name: vault-issuer
+        #     kind: ClusterIssuer
+        #     group: cert-manager.io
 
       # OAuth2 Proxy configuration
       # Set OIDC issuer URL and client ID from your IdP (e.g. Microsoft Entra ID, Google). See identity_provider_setup.
@@ -632,6 +654,7 @@ Troubleshooting
    * **Database connection failures**: Verify the database is running and accessible
    * **Authentication configuration issues**: Verify the authentication configuration is correct
    * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
+   * **Repeated** ``Jwks async fetching ... failed`` **in the gateway logs**: the OSMO-issued-JWT provider's ``jwks_uri`` scheme must match ``gateway.tls.enabled`` (``https://`` when on, ``http://`` when off). Verify with the Envoy admin endpoint: ``cluster.osmo-service-jwks.ssl.handshake`` should grow alongside ``upstream_cx_total``; if it stays at ``0``, the upstream wasn't restarted to pick up its TLS config.
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
    * **ConfigMap validation errors**: Pod in CrashLoopBackOff after a Helm upgrade — check ``kubectl describe configmap osmo-service-configs`` for the validation error

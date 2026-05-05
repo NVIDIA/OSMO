@@ -73,8 +73,42 @@ class SSLConfig(pydantic.BaseModel):
         json_schema_extra={'command_line': 'ssl_self_signed',
                            'env': 'OSMO_SSL_SELF_SIGNED'})
 
+    @pydantic.model_validator(mode='after')
+    def _validate_ssl_combination(self) -> 'SSLConfig':
+        """Reject incomplete or conflicting TLS settings at config-load time.
+
+        Silently falling back to HTTP when one of these is misconfigured leads
+        to confusing failures later (Envoy talks TLS to a plain-HTTP listener,
+        clients hit unexpected redirects, etc.). Fail fast instead so the
+        operator sees the problem at startup.
+        """
+        explicit_paths = bool(self.ssl_keyfile) or bool(self.ssl_certfile)
+        both_paths = bool(self.ssl_keyfile) and bool(self.ssl_certfile)
+
+        # Incomplete: exactly one of keyfile/certfile.
+        if explicit_paths and not both_paths:
+            missing = 'ssl_certfile' if self.ssl_keyfile else 'ssl_keyfile'
+            raise ValueError(
+                f'TLS misconfigured: ssl_keyfile and ssl_certfile must be set '
+                f'together; missing {missing}. Set both to enable TLS, or '
+                f'unset both to serve plain HTTP.')
+
+        # Conflicting: self-signed mode plus explicit on-disk paths.
+        if self.ssl_self_signed and explicit_paths:
+            raise ValueError(
+                'TLS misconfigured: ssl_self_signed cannot be combined with '
+                'explicit ssl_keyfile/ssl_certfile. Pick one mode — set '
+                'ssl_self_signed=true to mint an ephemeral cert in-process, '
+                'or provide ssl_keyfile + ssl_certfile to use on-disk PEMs.')
+
+        return self
+
     def uvicorn_ssl_kwargs(self) -> Dict[str, Any]:
-        """Return uvicorn keyword args for TLS, or an empty dict if TLS is off."""
+        """Return uvicorn keyword args for TLS, or an empty dict if TLS is off.
+
+        The validator above guarantees we're in exactly one of three states:
+        all-unset (HTTP), self-signed-only, or both paths set.
+        """
         if self.ssl_self_signed:
             keyfile, certfile = _mint_ephemeral_self_signed()
             return {'ssl_keyfile': keyfile, 'ssl_certfile': certfile}

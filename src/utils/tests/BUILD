@@ -30,3 +30,15 @@ osmo_py_test(
         requirement("jwcrypto"),
     ]
 )
+
+osmo_py_test(
+    name = "test_ssl_config",
+    srcs = [
+        "test_ssl_config.py"
+    ],
+    deps = [
+        "//src/utils:ssl_config",
+        requirement("cryptography"),
+        requirement("pydantic"),
+    ]
+)
