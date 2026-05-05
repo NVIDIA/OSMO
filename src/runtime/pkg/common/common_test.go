@@ -89,7 +89,8 @@ func TestSingleFileInFolder_WithSingleSubdir(t *testing.T) {
 }
 
 func TestSingleFileInFolder_NonExistentReturnsFalse(t *testing.T) {
-	if SingleFileInFolder("/does/not/exist/path/xyz") {
+	missing := filepath.Join(t.TempDir(), "missing")
+	if SingleFileInFolder(missing) {
 		t.Errorf("expected false for non-existent directory")
 	}
 }
@@ -171,7 +172,8 @@ func TestIsDirEmpty_NonEmptyDirReturnsFalse(t *testing.T) {
 }
 
 func TestIsDirEmpty_NonExistentReturnsError(t *testing.T) {
-	_, err := IsDirEmpty("/does/not/exist/path/xyz")
+	missing := filepath.Join(t.TempDir(), "missing")
+	_, err := IsDirEmpty(missing)
 	if err == nil {
 		t.Errorf("expected error for non-existent directory")
 	}
@@ -227,7 +229,8 @@ func TestCalculateFolderSize_NestedDirs(t *testing.T) {
 }
 
 func TestCalculateFolderSize_NonExistentReturnsZero(t *testing.T) {
-	size, numFiles := CalculateFolderSize("/does/not/exist/path/xyz")
+	missing := filepath.Join(t.TempDir(), "missing")
+	size, numFiles := CalculateFolderSize(missing)
 	if size != 0 {
 		t.Errorf("expected size 0, got %d", size)
 	}
