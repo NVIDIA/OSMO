@@ -70,7 +70,7 @@ data:
           filename: /etc/ssl/envoy-certs/tls.key
   {{- end }}
 
-  {{- if $gw.tls.enabled }}
+  {{- if and $gw.tls.enabled $gw.tls.certManager.enabled }}
   sds_upstream_ca.yaml: |
     resources:
     - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
@@ -579,6 +579,7 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.service.host }}
+          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -587,6 +588,9 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+          {{- else }}
+          common_tls_context: {}
+          {{- end }}
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -613,6 +617,7 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.router.host }}
+          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -621,6 +626,9 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+          {{- else }}
+          common_tls_context: {}
+          {{- end }}
       {{- end }}
     {{- end }}
 
@@ -670,6 +678,7 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.agent.host }}
+          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -678,6 +687,9 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+          {{- else }}
+          common_tls_context: {}
+          {{- end }}
       {{- end }}
     {{- end }}
 
@@ -703,6 +715,7 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $gw.upstreams.logger.host }}
+          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -711,6 +724,9 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+          {{- else }}
+          common_tls_context: {}
+          {{- end }}
       {{- end }}
     {{- end }}
 
@@ -823,6 +839,7 @@ data:
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
           sni: {{ $jwksHost }}
+          {{- if $gw.tls.certManager.enabled }}
           common_tls_context:
             validation_context_sds_secret_config:
               name: upstream_ca
@@ -831,6 +848,9 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+          {{- else }}
+          common_tls_context: {}
+          {{- end }}
       {{- end }}
     {{- end }}
 

@@ -32,27 +32,35 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{/*
-Per-upstream TLS args. Used by api-service, agent-service, logger-service,
-router-service when gateway.tls.enabled is true. Pass a dict with "context".
+Per-upstream TLS args. Pass a dict with "context".
 
-Outputs --ssl_keyfile and --ssl_certfile, indented to fit container args lists.
-The mount path is fixed at /etc/osmo/tls; the cert is provided by the
-{name}-tls Secret created by gateway-tls.yaml.
+Default mode (no cert-manager): emits --ssl_self_signed true. The Python
+service mints a fresh self-signed cert at process start and points uvicorn
+at it. No init container, no volume, no Secret on the chart side.
+
+cert-manager mode: emits --ssl_keyfile / --ssl_certfile pointing at the
+PEMs mounted from the cert-manager-managed Secret at /etc/osmo/tls.
 */}}
 {{- define "osmo.upstream-tls-args" -}}
 {{- if .context.Values.gateway.tls.enabled }}
+{{- if .context.Values.gateway.tls.certManager.enabled }}
 - --ssl_keyfile
 - /etc/osmo/tls/tls.key
 - --ssl_certfile
 - /etc/osmo/tls/tls.crt
+{{- else }}
+- --ssl_self_signed
+- "true"
+{{- end }}
 {{- end }}
 {{- end }}
 
 {{/*
-TLS volume mount for an upstream container. Use under volumeMounts.
+TLS volume mount for an upstream container. Only emitted in cert-manager
+mode — default mode keeps cert material in an in-process tempdir.
 */}}
 {{- define "osmo.upstream-tls-volume-mount" -}}
-{{- if .context.Values.gateway.tls.enabled }}
+{{- if and .context.Values.gateway.tls.enabled .context.Values.gateway.tls.certManager.enabled }}
 - name: tls
   mountPath: /etc/osmo/tls
   readOnly: true
@@ -61,10 +69,11 @@ TLS volume mount for an upstream container. Use under volumeMounts.
 
 {{/*
 TLS volume for an upstream pod. Pass dict with "context" and "secret" (the
-per-service Secret name, e.g. "osmo-service-tls"). Use under volumes.
+per-service Secret name in cert-manager mode, e.g. "osmo-service-tls").
+Only emitted in cert-manager mode.
 */}}
 {{- define "osmo.upstream-tls-volume" -}}
-{{- if .context.Values.gateway.tls.enabled }}
+{{- if and .context.Values.gateway.tls.enabled .context.Values.gateway.tls.certManager.enabled }}
 - name: tls
   secret:
     secretName: {{ .secret }}

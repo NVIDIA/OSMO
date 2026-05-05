@@ -155,7 +155,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.agent.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts .Values.gateway.tls.enabled }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.certManager.enabled) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}

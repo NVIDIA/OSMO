@@ -163,7 +163,7 @@ spec:
           protocol: {{ .protocol | default "TCP" }}
         {{- end }}
         {{- end }}
-        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.services.router.extraVolumeMounts .Values.gateway.tls.enabled }}
+        {{- if or .Values.global.logs.enabled .Values.services.configFile.enabled .Values.services.router.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.certManager.enabled) }}
         volumeMounts:
         {{- if .Values.services.configFile.enabled}}
         - mountPath: {{ .Values.services.configFile.path }}

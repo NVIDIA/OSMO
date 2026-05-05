@@ -2085,12 +2085,9 @@ gateway:
     nodeSelector: {}
     tolerations: []
 
-  ## -----------------------------------------------------------------------
-  ## Network Policies — restrict ingress to upstream service pods so that
-  ## only the gateway Envoy pods can reach them. Requires a CNI that
-  ## enforces NetworkPolicy (e.g. Calico, Cilium, or AWS VPC CNI with
+  ## Restrict upstream pod ingress to the gateway Envoy. Requires a CNI
+  ## that enforces NetworkPolicy (Calico, Cilium, AWS VPC CNI with
   ## enable-network-policy-controller=true).
-  ## -----------------------------------------------------------------------
   networkPolicies:
     enabled: false
     upstreams:
@@ -2107,56 +2104,25 @@ gateway:
         app: osmo-ui
       port: 8000
 
-  ## -----------------------------------------------------------------------
-  ## TLS — encrypted gateway-to-upstream communication.
-  ##
-  ## When enabled:
-  ##   - Cert material is generated (see two modes below)
-  ##   - Envoy validates upstreams against the CA
-  ##   - Upstream Deployments mount their per-service Secret and start uvicorn
-  ##     with --ssl_keyfile / --ssl_certfile so they serve HTTPS on :8000
-  ##   - Probes use scheme: HTTPS
-  ##
-  ## Two modes for cert material:
-  ##
-  ##   A1 (default, certManager.enabled=false):
-  ##     Helm self-signs a CA + per-service leaf certs using genCA /
-  ##     genSignedCert with `lookup` so existing certs are reused across
-  ##     `helm upgrade`. Zero external dependencies.
-  ##
-  ##   A2 (certManager.enabled=true):
-  ##     Emit cert-manager Issuer + Certificate resources. Provide your own
-  ##     issuerRef (e.g. a Vault ClusterIssuer) or omit it to let the chart
-  ##     create a self-signed Issuer + CA chain. Production-grade rotation.
-  ##
-  ## The UI is intentionally NOT served over TLS — it stays HTTP behind
-  ## NetworkPolicy. Only osmo-service, osmo-router, osmo-agent, and
-  ## osmo-logger get TLS server certs.
-  ## -----------------------------------------------------------------------
+  ## TLS for gateway -> upstream traffic. Default: each service mints an
+  ## ephemeral self-signed cert in-process; Envoy uses common_tls_context: {}
+  ## (encrypt, no validation). Set certManager.enabled to use cert-manager
+  ## for validated TLS instead. UI is excluded — stays HTTP.
   tls:
-    enabled: false
+    enabled: true
 
-    ## CA cert validity (cert-manager mode). 10 years by default — long
-    ## enough that rotation is a deliberate operation.
-    caDuration: 87600h
-    caRenewBefore: 720h
-
-    ## Leaf-cert validity (cert-manager mode). 5 years by default.
-    certDuration: 43800h
-    certRenewBefore: 360h
+    ## cert-manager mode validity periods.
+    caDuration: 87600h       # 10y
+    caRenewBefore: 720h      # 30d
+    certDuration: 43800h     # 5y
+    certRenewBefore: 360h    # 15d
 
     certManager:
-      ## Use cert-manager (A2) instead of Helm-generated certs (A1).
+      ## Switch from in-process self-signed to cert-manager-managed CA + leafs.
       ## Requires cert-manager installed in the cluster.
       enabled: false
 
-      ## Optional: point at an existing Issuer/ClusterIssuer instead of
-      ## letting the chart create a self-signed CA chain. Set name + kind
-      ## (Issuer or ClusterIssuer) + group.
-      ##
-      ## Example:
-      ##   issuerRef:
-      ##     name: vault-issuer
-      ##     kind: ClusterIssuer
-      ##     group: cert-manager.io
+      ## Optional: existing Issuer/ClusterIssuer to use instead of the
+      ## chart's self-signed CA. Example:
+      ##   issuerRef: {name: vault-issuer, kind: ClusterIssuer, group: cert-manager.io}
       issuerRef: {}

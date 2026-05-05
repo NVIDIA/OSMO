@@ -15,32 +15,33 @@
 # SPDX-License-Identifier: Apache-2.0
 
 {{/*
-Gateway -> upstream TLS materials.
+Gateway -> upstream TLS.
 
-Two modes, controlled by gateway.tls.certManager.enabled:
+Default mode (gateway.tls.enabled=true, certManager.enabled=false):
+  Each upstream pod runs an init container that generates an ephemeral
+  self-signed cert into an emptyDir. uvicorn serves HTTPS with that cert.
+  Envoy connects with TLS but does NOT validate (common_tls_context: {} on
+  the upstream cluster). The wire is encrypted; identity verification is
+  handled by NetworkPolicy + Kubernetes RBAC, not by cert pinning.
 
-  A1 (default, certManager.enabled=false): Helm self-signs a CA and per-service
-      server certs. We use `lookup` so existing certs are reused across
-      `helm upgrade` — otherwise every release would rotate certs and break live
-      connections. The CA validity is 10 years; leaf certs are 5 years. Long
-      enough that rotation is a deliberate operation, short enough that the
-      private keys aren't immortal.
+  This template emits nothing in default mode. The init containers and
+  emptyDir volumes are wired into each Deployment via helpers in
+  _gateway-helpers.tpl, and the Envoy CDS uses an empty
+  common_tls_context. Result: no Secrets, no Jobs, no CA, no rotation —
+  cert lifecycle is tied to pod lifecycle.
 
-  A2 (certManager.enabled=true): emit cert-manager Issuer + Certificate
-      resources. cert-manager owns rotation. The Issuer is self-signed by
-      default; users can point at an existing ClusterIssuer (e.g. Vault, an
-      internal PKI) via gateway.tls.certManager.issuerRef.
+cert-manager mode (gateway.tls.enabled=true, certManager.enabled=true):
+  cert-manager manages a CA and per-service leaf certs as proper Secrets.
+  Envoy validates upstreams against that CA. Use this when you need
+  validated/audited TLS or want to plug in an enterprise PKI.
 */}}
 
 {{- if .Values.gateway.tls.enabled }}
+{{- if .Values.gateway.tls.certManager.enabled }}
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- $ns := .Release.Namespace }}
 
-{{/*
-  Upstream service definitions. Each entry produces one server-cert Secret with
-  SANs covering the in-cluster DNS names Envoy uses to reach the service.
-*/}}
 {{- $upstreams := list
     (dict "name" "osmo-service" "secret" "osmo-service-tls"
           "dnsNames" (list "osmo-service" (printf "osmo-service.%s" $ns) (printf "osmo-service.%s.svc" $ns) (printf "osmo-service.%s.svc.cluster.local" $ns)))
@@ -54,15 +55,9 @@ Two modes, controlled by gateway.tls.certManager.enabled:
           "dnsNames" (list "osmo-logger" (printf "osmo-logger.%s" $ns) (printf "osmo-logger.%s.svc" $ns) (printf "osmo-logger.%s.svc.cluster.local" $ns)))
 }}
 
-{{- if $gw.tls.certManager.enabled }}
-
-{{/* ===================================================================== */}}
-{{/* A2 — cert-manager                                                     */}}
-{{/* ===================================================================== */}}
-
 {{- if not $gw.tls.certManager.issuerRef }}
-{{/* No external issuer — create a self-signed Issuer + a CA Certificate    */}}
-{{/* and a CA Issuer that signs the per-service certs.                      */}}
+{{/* No external issuer — create a self-signed Issuer + a CA Certificate
+     and a CA Issuer that signs the per-service certs. */}}
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
@@ -127,70 +122,5 @@ spec:
     group: {{ $issuerGroup }}
 {{- end }}
 
-{{- else }}
-
-{{/* ===================================================================== */}}
-{{/* A1 — Helm self-signed                                                  */}}
-{{/* ===================================================================== */}}
-
-{{/*
-  Look up an existing CA secret. If found, reuse it so `helm upgrade` doesn't
-  rotate the CA on every release. If not, generate one. Use buildCustomCert
-  to reconstruct the sprig.certificate struct that genSignedCert requires.
-*/}}
-{{- $caSecret := lookup "v1" "Secret" $ns (printf "%s-ca-tls" $gwName) }}
-{{- $caCertB64 := "" }}
-{{- $caKeyB64 := "" }}
-{{- if and $caSecret $caSecret.data (index $caSecret.data "ca.crt") (index $caSecret.data "ca.key") }}
-  {{- $caCertB64 = index $caSecret.data "ca.crt" }}
-  {{- $caKeyB64 = index $caSecret.data "ca.key" }}
-{{- else }}
-  {{- $generated := genCA (printf "%s-ca" $gwName) 3650 }}
-  {{- $caCertB64 = $generated.Cert | b64enc }}
-  {{- $caKeyB64 = $generated.Key | b64enc }}
-{{- end }}
-{{- $ca := buildCustomCert $caCertB64 $caKeyB64 }}
-
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ $gwName }}-ca-tls
-  annotations:
-    "helm.sh/resource-policy": keep
-type: Opaque
-data:
-  ca.crt: {{ $caCertB64 }}
-  ca.key: {{ $caKeyB64 }}
-
-{{- range $u := $upstreams }}
----
-{{/*
-  Per-service leaf cert. Reuse on upgrade if a usable secret already exists;
-  otherwise sign a fresh one with the CA above. 5-year validity.
-*/}}
-{{- $existing := lookup "v1" "Secret" $ns $u.secret }}
-{{- $leafCrtB64 := "" }}
-{{- $leafKeyB64 := "" }}
-{{- if and $existing $existing.data (index $existing.data "tls.crt") (index $existing.data "tls.key") }}
-  {{- $leafCrtB64 = index $existing.data "tls.crt" }}
-  {{- $leafKeyB64 = index $existing.data "tls.key" }}
-{{- else }}
-  {{- $cert := genSignedCert $u.name nil $u.dnsNames 1825 $ca }}
-  {{- $leafCrtB64 = $cert.Cert | b64enc }}
-  {{- $leafKeyB64 = $cert.Key | b64enc }}
-{{- end }}
-apiVersion: v1
-kind: Secret
-metadata:
-  name: {{ $u.secret }}
-  annotations:
-    "helm.sh/resource-policy": keep
-type: kubernetes.io/tls
-data:
-  tls.crt: {{ $leafCrtB64 }}
-  tls.key: {{ $leafKeyB64 }}
-  ca.crt: {{ $caCertB64 }}
-{{- end }}
-
-{{- end }}{{/* end A1/A2 branch */}}
+{{- end }}{{/* end certManager.enabled */}}
 {{- end }}{{/* end gateway.tls.enabled */}}
