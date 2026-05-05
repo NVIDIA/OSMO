@@ -132,15 +132,30 @@ The selector runs in two stages. Tunables live in `criticality_scorer.py`
 | `MIN_LOC` | `30` | Skip files smaller than this — too small to give useful coverage gain. |
 | `--shortlist-size` | `20` | Number of candidates handed to the Stage-2 picker. |
 
-Score formula:
+Score formula (per file):
+
 ```
-criticality = w_tier·(4 - tier) + w_fan_in·log(fan_in+1)/log(peak+1) + w_churn·log(churn+1)/log(peak+1)
-gap         = (1 - coverage) · log(min(uncovered_lines, 500) + 1)
-score       = criticality · gap
+                       ┌──────────── criticality ────────────┐   ┌── coverage gap ──┐
+score   =   w_tier · (DEFAULT_TIER − tier)                       (1 − coverage_pct/100)
+          + w_fan_in · log(fan_in + 1) / log(max_fan_in + 1)   ×  · log(min(uncovered, 500) + 1)
+          + w_churn  · log(churn + 1)  / log(max_churn  + 1)
 ```
 
-Log normalization keeps a single mega-hub from swamping the rest of the
-signals. Used together with the existing `IGNORE_PATTERNS` /
+Each term:
+
+| Term | Meaning | Range with defaults |
+|------|---------|---------------------|
+| `w_tier · (DEFAULT_TIER − tier)` | Path-prefix bonus. `DEFAULT_TIER = 4`, so `lib/`/`utils/`/`runtime/pkg/` (tier 0) get +4.0 here, fall-through paths (tier 4) get 0. | `[0, 4.0]` |
+| `w_fan_in · log_norm(fan_in)` | Log-normalized reverse-import count. `log_norm(x) = log(x+1)/log(peak+1)` lives in `[0, 1]`, so this term saturates at `w_fan_in` for the most-imported file in the corpus. | `[0, 2.5]` |
+| `w_churn · log_norm(churn)` | Log-normalized commit count over the last 6 months, same shape as `fan_in`. | `[0, 0.8]` |
+| `(1 − coverage_pct/100)` | Linear coverage gap. A 10%-covered file scales the criticality 9× more than a 90%-covered one. | `[0, 1.0]` |
+| `log(min(uncovered, 500) + 1)` | Log-scaled uncovered surface area. Cap means a 5000-line uncovered file doesn't dwarf a 500-line one infinitely. | `[0, log(501) ≈ 6.22]` |
+
+Why **multiplication**, not addition: a perfectly-covered hub scores `0` (nothing to test) and a 0%-covered trivial file scores low (criticality term is small). Both signals must be present for a file to rank high.
+
+Why **log normalization** on `fan_in` and `churn`: without it, OSMO's `lib/utils/common.py` (fan_in=222) would single-handedly drown out everything else. With it, each of those two terms is bounded at its weight.
+
+Used together with the existing `IGNORE_PATTERNS` /
 `SKIP_BASENAME_PATTERNS` from `coverage_targets.py` plus extra skips for
 generated barrels and vendored code.
 
