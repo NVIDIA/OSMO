@@ -588,9 +588,12 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- else }}
-          common_tls_context: {}
           {{- end }}
+          {{/* Default mode: omit common_tls_context entirely. Setting it
+               to {} causes Envoy to silently degrade the transport socket
+               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
+               bytes hit uvicorn's TLS listener and the upstream RSTs the
+               connection. Mirrors what the working `idp` cluster does. */}}
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -626,9 +629,12 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- else }}
-          common_tls_context: {}
           {{- end }}
+          {{/* Default mode: omit common_tls_context entirely. Setting it
+               to {} causes Envoy to silently degrade the transport socket
+               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
+               bytes hit uvicorn's TLS listener and the upstream RSTs the
+               connection. Mirrors what the working `idp` cluster does. */}}
       {{- end }}
     {{- end }}
 
@@ -687,9 +693,12 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- else }}
-          common_tls_context: {}
           {{- end }}
+          {{/* Default mode: omit common_tls_context entirely. Setting it
+               to {} causes Envoy to silently degrade the transport socket
+               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
+               bytes hit uvicorn's TLS listener and the upstream RSTs the
+               connection. Mirrors what the working `idp` cluster does. */}}
       {{- end }}
     {{- end }}
 
@@ -724,9 +733,12 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- else }}
-          common_tls_context: {}
           {{- end }}
+          {{/* Default mode: omit common_tls_context entirely. Setting it
+               to {} causes Envoy to silently degrade the transport socket
+               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
+               bytes hit uvicorn's TLS listener and the upstream RSTs the
+               connection. Mirrors what the working `idp` cluster does. */}}
       {{- end }}
     {{- end }}
 
@@ -848,9 +860,12 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
-          {{- else }}
-          common_tls_context: {}
           {{- end }}
+          {{/* Default mode: omit common_tls_context entirely. Setting it
+               to {} causes Envoy to silently degrade the transport socket
+               to raw TCP (ssl.handshake stays at 0), so plaintext HTTP
+               bytes hit uvicorn's TLS listener and the upstream RSTs the
+               connection. Mirrors what the working `idp` cluster does. */}}
       {{- end }}
     {{- end }}
 
