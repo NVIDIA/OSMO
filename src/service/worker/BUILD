@@ -36,6 +36,7 @@ osmo_py_library(
         "//src/lib/utils:common",
         "//src/lib/utils:logging",
         "//src/service/core/config:configmap_loader_lib",
+        "//src/utils:ssl_init",
         "//src/utils:static_config",
         "//src/utils/job",
         "//src/utils/progress_check:progress_check_lib",

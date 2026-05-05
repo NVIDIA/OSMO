@@ -29,6 +29,11 @@ redis==7.4.0
 # kubernetes
 kubernetes==24.2.0
 
+# Delegate Python ssl to the OS trust store. Required because Python 3.14's
+# strict X.509 path validation rejects CA certs without keyUsage (e.g. microk8s
+# self-signed CAs). See src/utils/ssl_init.py for context.
+truststore==0.10.4
+
 # OSMO2 database
 psycopg2-binary==2.9.11
 

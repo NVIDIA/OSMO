@@ -30,3 +30,15 @@ osmo_py_test(
         requirement("jwcrypto"),
     ]
 )
+
+osmo_py_test(
+    name = "test_ssl_init",
+    srcs = [
+        "test_ssl_init.py"
+    ],
+    deps = [
+        "//src/utils:ssl_init",
+        requirement("kubernetes"),
+        requirement("truststore"),
+    ]
+)

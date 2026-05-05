@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import asyncio
 import json
 import logging
