@@ -480,7 +480,7 @@ def get_bucket_info(default_only: bool = False,
         buckets=bucket_information)
 
 
-@router.post('/{bucket}/dataset/{name}', include_in_schema=False, deprecated=True)
+@router.post('/{bucket}/dataset/{name}', deprecated=True)
 def upload_dataset(bucket: objects.DatasetPattern,
                    name: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern = '',
@@ -597,7 +597,7 @@ def _download_datasets(
                                         is_collection=dataset_info.is_collection)
 
 
-@router.get('/{bucket}/dataset/{name}', include_in_schema=False, deprecated=True)
+@router.get('/{bucket}/dataset/{name}', deprecated=True)
 def download(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -615,7 +615,7 @@ def download(
     return _download_datasets(postgres, bucket, name, tag)
 
 
-@router.post('/{bucket}/dataset/{name}/migrate', include_in_schema=False, deprecated=True)
+@router.post('/{bucket}/dataset/{name}/migrate', deprecated=True)
 def migrate_dataset(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -1210,7 +1210,7 @@ def query_dataset(
                                      datasets=dataset_infos)
 
 
-@router.get('/{bucket}/location', include_in_schema=False, deprecated=True)
+@router.get('/{bucket}/location', deprecated=True)
 def get_path_information(bucket: objects.DatasetPattern):
     """ This api gets the dataset location for CLI validation. """
     postgres = connectors.PostgresConnector.get_instance()
@@ -1220,7 +1220,7 @@ def get_path_information(bucket: objects.DatasetPattern):
                                         region=bucket_config.region)
 
 
-@router.post('/{bucket}/dataset/{name}/recollect', include_in_schema=False, deprecated=True)
+@router.post('/{bucket}/dataset/{name}/recollect', deprecated=True)
 def update_collection(bucket: objects.DatasetPattern,
                       name: objects.DatasetPattern,
                       add_datasets: List[objects.DatasetStructure] = fastapi.Body(default=[]),
