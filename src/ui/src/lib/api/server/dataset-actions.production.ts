@@ -16,22 +16,24 @@
 
 "use server";
 
-import { getServerApiBaseUrl } from "@/lib/api/server/config";
+import { getServerApiBaseUrl, getServerFetchHeaders } from "@/lib/api/server/config";
 
 /**
  * Fetch a dataset manifest through the backend service.
  *
- * Runs server-side (via "use server") so it can call the backend directly
- * using the internal service URL, bypassing the API gateway auth layer.
- * This is necessary because this function is called during both SSR and
- * client hydration — during SSR there are no browser auth cookies.
+ * Runs server-side (via "use server") so the request originates from the
+ * Next.js process. We forward the incoming request's authorization + cookie
+ * headers via getServerFetchHeaders so the API gateway (oauth2-proxy) can
+ * authenticate the SSR fetch as the same user — without this, oauth2-proxy
+ * returns 401 because the SSR fetch carries no session cookie of its own.
  */
 export async function fetchManifest(bucket: string, name: string, version: string): Promise<unknown[]> {
   const baseUrl = getServerApiBaseUrl();
   const params = new URLSearchParams({ version });
   const url = `${baseUrl}/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/manifest?${params}`;
 
-  const response = await fetch(url);
+  const headers = await getServerFetchHeaders();
+  const response = await fetch(url, { headers });
 
   if (!response.ok) {
     throw new Error(`Failed to fetch manifest: ${response.status}`);
