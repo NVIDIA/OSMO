@@ -34,9 +34,11 @@ import (
 )
 
 type DataCredential struct {
-	AccessKey   string `yaml:"access_key"`
-	AccessKeyId string `yaml:"access_key_id"`
-	Region      string `yaml:"region"`
+	AccessKey       string `yaml:"access_key"`
+	AccessKeyId     string `yaml:"access_key_id"`
+	Region          string `yaml:"region"`
+	OverrideUrl     string `yaml:"override_url"`
+	AddressingStyle string `yaml:"addressing_style"`
 }
 
 type DataConfig struct {

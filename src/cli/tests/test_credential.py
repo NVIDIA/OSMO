@@ -36,6 +36,7 @@ def _make_static_data_credential(
     access_key: str = 'secret',
     region: str | None = None,
     override_url: str | None = None,
+    addressing_style: str | None = None,
 ) -> credentials.StaticDataCredential:
     return credentials.StaticDataCredential(
         endpoint=endpoint,
@@ -43,6 +44,7 @@ def _make_static_data_credential(
         access_key=pydantic.SecretStr(access_key),
         region=region,
         override_url=override_url,
+        addressing_style=addressing_style,
     )
 
 
@@ -89,6 +91,20 @@ class TestSaveConfig(unittest.TestCase):
         self.assertEqual(
             config['auth']['data']['s3://test-bucket']['override_url'],
             'http://minio:9000',
+        )
+
+    def test_save_config_with_addressing_style(self):
+        """Test that _save_config persists addressing_style when set."""
+        data_cred = _make_static_data_credential(addressing_style='virtual')
+
+        credential._save_config(data_cred)
+
+        config_path = os.path.join(self.tmp_dir, 'config.yaml')
+        with open(config_path, 'r', encoding='utf-8') as file:
+            config = yaml.safe_load(file.read())
+        self.assertEqual(
+            config['auth']['data']['s3://test-bucket']['addressing_style'],
+            'virtual',
         )
 
     def test_save_config_appends_to_existing_file(self):
