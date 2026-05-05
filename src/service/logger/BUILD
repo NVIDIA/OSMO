@@ -50,6 +50,7 @@ osmo_py_library(
         "//src/service/core/config:configmap_loader_lib",
         "//src/service/core/workflow",
         "//src/utils:ssl_config",
+        "//src/utils:ssl_init",
         "//src/utils:static_config",
         "//src/utils/job",
     ],

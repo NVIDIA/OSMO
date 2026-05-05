@@ -18,7 +18,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("//bzl:py.bzl", "osmo_py_test")
-load("@osmo_python_deps//:requirements.bzl", "requirement") 
+load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_test(
     name = "test_auth",
@@ -40,5 +40,17 @@ osmo_py_test(
         "//src/utils:ssl_config",
         requirement("cryptography"),
         requirement("pydantic"),
+    ]
+)
+
+osmo_py_test(
+    name = "test_ssl_init",
+    srcs = [
+        "test_ssl_init.py"
+    ],
+    deps = [
+        "//src/utils:ssl_init",
+        requirement("kubernetes"),
+        requirement("truststore"),
     ]
 )

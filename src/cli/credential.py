@@ -50,6 +50,8 @@ def _save_config(data_cred: credentials.StaticDataCredential):
     }
     if data_cred.override_url:
         cred_data['override_url'] = data_cred.override_url
+    if data_cred.addressing_style:
+        cred_data['addressing_style'] = data_cred.addressing_style
     config['auth']['data'][data_cred.endpoint] = cred_data
     with open(password_file, 'w', encoding='utf-8') as file:
         yaml.dump(config, file)
@@ -224,7 +226,7 @@ def setup_parser(parser: argparse._SubParsersAction):
             '+-----------------+-------------------------------------+--------------------------------------+\n'
             '| REGISTRY        | auth                                | registry, username                   |\n'
             '+-----------------+-------------------------------------+--------------------------------------+\n'
-            '| DATA            | access_key_id, access_key, endpoint | region, override_url                 |\n'
+            '| DATA            | access_key_id, access_key, endpoint | region, override_url, addressing_style |\n'
             '+-----------------+-------------------------------------+--------------------------------------+\n'
             '| GENERIC         |                                     |                                      |\n'
             '+-----------------+-------------------------------------+--------------------------------------+\n'

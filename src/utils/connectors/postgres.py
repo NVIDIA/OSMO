@@ -2742,6 +2742,7 @@ def _resolve_bucket_credential(
         access_key_id=credential.access_key_id,
         access_key=credential.access_key,
         override_url=credential.override_url,
+        addressing_style=credential.addressing_style,
     )
 
 

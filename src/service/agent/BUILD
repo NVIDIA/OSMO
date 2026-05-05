@@ -33,6 +33,7 @@ osmo_py_library(
         requirement("uvicorn"),
         "//src/utils:backend_messages",
         "//src/utils:ssl_config",
+        "//src/utils:ssl_init",
         "//src/utils/metrics",
         "//src/utils/progress_check:progress_check_lib",
         "//src/service/core/auth",

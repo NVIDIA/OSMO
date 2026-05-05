@@ -46,6 +46,7 @@ osmo_py_library(
         "//src/service/core/profile",
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",
+        "//src/utils:ssl_init",
     ],
     data = [
         "//src/lib/utils:version.yaml",

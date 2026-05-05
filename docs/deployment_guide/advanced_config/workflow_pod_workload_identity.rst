@@ -128,4 +128,4 @@ Look for:
    - Azure: ``AZURE_CLIENT_ID``, ``AZURE_FEDERATED_TOKEN_FILE``
    - GCP: projected token under ``/var/run/secrets/tokens/gcp-ksa/``
 
-If the env vars are missing, the cloud admission controller didn't match — double check the ServiceAccount annotation, namespace, and (for Azure) the federated credential subject.
+If the env vars are missing, the cloud admission controller did not match — double check the ServiceAccount annotation, namespace, and (for Azure) the federated credential subject.

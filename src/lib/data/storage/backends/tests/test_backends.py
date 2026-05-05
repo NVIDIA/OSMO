@@ -503,6 +503,173 @@ class IsAwsEndpointTest(unittest.TestCase):
             self.assertFalse(backends._is_aws_endpoint(url), url)
 
 
+class GetS3AddressingStyleTest(unittest.TestCase):
+    """Tests for _get_s3_addressing_style helper."""
+
+    # pylint: disable=protected-access
+
+    def test_no_endpoint_returns_none(self):
+        """AWS S3 (no custom endpoint): defer to boto3 default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertIsNone(s3._get_s3_addressing_style('s3', None))
+
+    def test_custom_endpoint_returns_virtual(self):
+        """Custom endpoint defaults to virtual-hosted style."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(
+                s3._get_s3_addressing_style('s3', 'https://cwobject.com'),
+                'virtual',
+            )
+
+    def test_env_override_wins(self):
+        """OSMO_S3_ADDRESSING_STYLE overrides the default for both endpoint cases."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
+            self.assertEqual(s3._get_s3_addressing_style('s3', 'https://cwobject.com'), 'path')
+            self.assertEqual(s3._get_s3_addressing_style('s3', None), 'path')
+
+    def test_aws_s3_force_path_style_returns_path(self):
+        """AWS_S3_FORCE_PATH_STYLE=true preserves localstack/MinIO chart deployments."""
+        for value in ('true', 'True', 'TRUE', '1'):
+            with mock.patch.dict('os.environ', {'AWS_S3_FORCE_PATH_STYLE': value}, clear=True):
+                self.assertEqual(
+                    s3._get_s3_addressing_style('s3', 'http://localstack-s3.osmo:4566'),
+                    'path',
+                    value,
+                )
+
+    def test_osmo_override_beats_aws_force_path(self):
+        """OSMO_S3_ADDRESSING_STYLE takes precedence over AWS_S3_FORCE_PATH_STYLE."""
+        with mock.patch.dict('os.environ', {
+            s3.OSMO_S3_ADDRESSING_STYLE: 'virtual',
+            'AWS_S3_FORCE_PATH_STYLE': 'true',
+        }):
+            self.assertEqual(
+                s3._get_s3_addressing_style('s3', 'http://localstack-s3.osmo:4566'),
+                'virtual',
+            )
+
+    def test_env_override_normalizes_case_and_whitespace(self):
+        """OSMO_S3_ADDRESSING_STYLE is trimmed and lowercased before use."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: '  Virtual  '}):
+            self.assertEqual(s3._get_s3_addressing_style('s3', None), 'virtual')
+
+    def test_env_override_invalid_raises(self):
+        """An unsupported OSMO_S3_ADDRESSING_STYLE value surfaces a clear error
+        rather than silently flowing into botocore."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'virtua'}):
+            with self.assertRaises(ValueError) as ctx:
+                s3._get_s3_addressing_style('s3', 'https://cwobject.com')
+        self.assertIn(s3.OSMO_S3_ADDRESSING_STYLE, str(ctx.exception))
+        self.assertIn("'virtua'", str(ctx.exception))
+
+
+class S3BackendRegionTest(unittest.TestCase):
+    """Tests for S3Backend.region() endpoint routing."""
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_region_inference_targets_override_url(self, mock_create_client):
+        """When the credential has override_url but no region, the precheck must
+        target that endpoint — not AWS S3 — so GetBucketLocation actually hits
+        the right backend (e.g., CAIOS, MinIO)."""
+        mock_s3_client = mock.Mock()
+        mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': 'us-east-1'}
+        mock_create_client.return_value = mock_s3_client
+
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://my-caios-bucket/data',
+        ))
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://my-caios-bucket',
+            access_key_id='ak',
+            access_key='sk',
+            override_url='https://cwobject.com',
+            # region intentionally not set: forces the GetBucketLocation path.
+        )
+
+        result = s3_backend.region(data_cred=data_cred)
+
+        self.assertEqual(result, 'us-east-1')
+        mock_create_client.assert_called_once()
+        call_kwargs = mock_create_client.call_args.kwargs
+        self.assertEqual(call_kwargs.get('endpoint_url'), 'https://cwobject.com')
+
+
+class GetBotoConfigTest(unittest.TestCase):
+    """Tests for _get_boto_config addressing_style selection."""
+
+    # pylint: disable=protected-access
+
+    @staticmethod
+    def _s3_options(config) -> dict:
+        # botocore.config.Config exposes 's3' as an instance attribute when set,
+        # but it's not in the type stubs — read defensively.
+        return getattr(config, 's3', None) or {}
+
+    def test_aws_s3_no_addressing_style(self):
+        """AWS S3 (no endpoint): no addressing_style is set, boto3 picks the default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('s3')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_custom_endpoint_uses_virtual(self):
+        """Custom endpoint sets addressing_style=virtual."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
+
+    def test_swift_endpoint_keeps_boto_default(self):
+        """Swift uses path-style S3 API paths and should not inherit S3 virtual defaults."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('swift', endpoint_url='https://swift.example.com')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_gs_endpoint_keeps_boto_default(self):
+        """GS should not inherit the S3 custom-endpoint virtual default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('gs', endpoint_url='https://storage.googleapis.com')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_credential_addressing_style_overrides_default(self):
+        """Credential-level addressing_style is passed to botocore config."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config(
+                's3',
+                endpoint_url='https://cwobject.com',
+                addressing_style='path',
+            )
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
+    def test_tos_unchanged(self):
+        """TOS still hardcodes virtual regardless of endpoint."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('tos')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
+
+    def test_env_override_to_path(self):
+        """OSMO_S3_ADDRESSING_STYLE=path reverts custom endpoints to path-style."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
+
+class CredentialAddressingStyleTest(unittest.TestCase):
+    """Tests for carrying S3 addressing style through data credentials."""
+
+    def test_static_credential_to_decrypted_dict_includes_addressing_style(self):
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket',
+            access_key_id='ak',
+            access_key='sk',
+            region='us-east-1',
+            override_url='https://cwobject.com',
+            addressing_style='virtual',
+        )
+
+        result = data_cred.to_decrypted_dict()
+
+        self.assertEqual(result['addressing_style'], 'virtual')
+
+
 class WorkflowConfigCredentialTest(unittest.TestCase):
     """Tests for WorkflowConfig credential type support."""
 
