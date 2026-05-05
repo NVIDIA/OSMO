@@ -24,7 +24,7 @@
 
 "use client";
 
-import { useRef, useEffect, useMemo, useCallback, type ReactNode, type RefObject, type CSSProperties } from "react";
+import { useRef, useEffect, useMemo, type ReactNode, type RefObject, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import { FullSnapOverlay, StripSnapIndicator } from "@/features/workflows/detail/components/snap-zone-indicator";
 import {
@@ -120,19 +120,16 @@ export function WorkflowDetailLayout({
   }, [dagVisible, widthPct, phase]);
 
   // Handle CSS transition end - signal to state machine
-  const handleTransitionEnd = useCallback(
-    (e: React.TransitionEvent) => {
-      // Only handle grid-template-columns transitions on this element
-      if (e.propertyName !== "grid-template-columns") return;
-      if (e.target !== containerRef.current) return;
+  const handleTransitionEnd = (e: React.TransitionEvent) => {
+    // Only handle grid-template-columns transitions on this element
+    if (e.propertyName !== "grid-template-columns") return;
+    if (e.target !== containerRef.current) return;
 
-      // Only signal during SNAPPING phase
-      if (phase === "SNAPPING") {
-        onTransitionComplete();
-      }
-    },
-    [phase, onTransitionComplete, containerRef],
-  );
+    // Only signal during SNAPPING phase
+    if (phase === "SNAPPING") {
+      onTransitionComplete();
+    }
+  };
 
   // Derive visual states
   const showSnapIndicators = isDragging && dagVisible;

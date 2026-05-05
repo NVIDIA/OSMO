@@ -63,7 +63,6 @@ function useElementBounds(ref: RefObject<HTMLElement | null> | undefined, isActi
 
   useEffect(() => {
     if (!isActive || !ref?.current) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronizing with DOM element position
       setBounds(null);
       return;
     }
