@@ -47,6 +47,10 @@ interface ServiceParams {
   bucket: string;
   name: string;
   storagePath: string;
+  /** Original filename used by the service for Content-Type guessing only.
+   *  storage_path is hash-keyed (no extension), so without this every file
+   *  comes back as application/octet-stream. */
+  filename?: string;
 }
 
 interface LegacyParams {
@@ -59,9 +63,10 @@ function parseParams(request: Request): ServiceParams | LegacyParams | Response 
   const bucket = searchParams.get("bucket");
   const name = searchParams.get("name");
   const storagePath = searchParams.get("storagePath");
+  const filename = searchParams.get("filename") ?? undefined;
 
   if (bucket && name && storagePath) {
-    return { bucket, name, storagePath };
+    return { bucket, name, storagePath, filename };
   }
 
   // Legacy fallback: direct URL fetch (works for public buckets only)
@@ -87,6 +92,7 @@ async function fetchUpstream(
   if (isServiceParams(params)) {
     const backendUrl = getServerApiBaseUrl();
     const query = new URLSearchParams({ storage_path: params.storagePath });
+    if (params.filename) query.set("filename", params.filename);
     const serviceUrl = `${backendUrl}/api/bucket/${encodeURIComponent(params.bucket)}/dataset/${encodeURIComponent(params.name)}/file-content?${query}`;
     const headers = forwardAuthHeaders(request);
     return fetch(serviceUrl, { method, headers });

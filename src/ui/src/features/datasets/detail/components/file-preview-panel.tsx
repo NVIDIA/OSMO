@@ -78,9 +78,17 @@ interface HeadResult {
 // HEAD preflight fetch
 // =============================================================================
 
-function toProxyUrl(bucket: string, datasetName: string, file: { url?: string; storagePath?: string }): string {
+function toProxyUrl(
+  bucket: string,
+  datasetName: string,
+  file: { url?: string; storagePath?: string; relativePath?: string; name?: string },
+): string {
   if (file.storagePath) {
     const params = new URLSearchParams({ bucket, name: datasetName, storagePath: file.storagePath });
+    // Forward original filename so the service can derive a useful Content-Type
+    // (storage_path is hash-keyed and carries no extension).
+    const filename = file.relativePath ?? file.name;
+    if (filename) params.set("filename", filename);
     return getBasePathUrl(`/proxy/dataset/file?${params}`);
   }
   // Legacy fallback for public buckets without storagePath
@@ -90,7 +98,7 @@ function toProxyUrl(bucket: string, datasetName: string, file: { url?: string; s
 async function fetchHeadResult(
   bucket: string,
   datasetName: string,
-  file: { url?: string; storagePath?: string },
+  file: { url?: string; storagePath?: string; relativePath?: string; name?: string },
 ): Promise<HeadResult> {
   const response = await fetch(toProxyUrl(bucket, datasetName, file), { method: "HEAD" });
   const contentType = response.headers.get("Content-Type") ?? "";

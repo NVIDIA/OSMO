@@ -1040,8 +1040,17 @@ def get_file_content(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
     storage_path: str = fastapi.Query(...),
+    filename: str | None = fastapi.Query(default=None),
 ) -> fastapi.responses.StreamingResponse:
-    """ This api streams file content from storage for the dataset file preview. """
+    """
+    Streams file content from storage for the dataset file preview.
+
+    storage_path is hash-keyed in the dataset layout (e.g. .../hashes/<etag>),
+    so it carries no extension that mimetypes.guess_type can use. The optional
+    filename param carries the original name (e.g. 'lipsum.txt') so we can
+    return a useful Content-Type. filename is purely for media-type guessing;
+    access control still hinges on storage_path's container check.
+    """
     postgres = connectors.PostgresConnector.get_instance()
     dataset_info = get_dataset(postgres, bucket=bucket, name=name)
 
@@ -1058,7 +1067,9 @@ def get_file_content(
         data_credential=bucket_config.default_credential,
     )
 
-    content_type = mimetypes.guess_type(storage_path)[0] or 'application/octet-stream'
+    content_type = (
+        mimetypes.guess_type(filename)[0] if filename else None
+    ) or mimetypes.guess_type(storage_path)[0] or 'application/octet-stream'
     return fastapi.responses.StreamingResponse(
         client.get_object_stream(),
         media_type=content_type,
