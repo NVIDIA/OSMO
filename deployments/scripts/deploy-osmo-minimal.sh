@@ -656,7 +656,9 @@ cleanup_all() {
     case "$PROVIDER" in
         microk8s|byo)
             log_info "Cleaning up OSMO resources (cluster itself not destroyed for $PROVIDER)"
-            for ns in osmo-minimal osmo-operator osmo-workflows; do
+            for ns in "${OSMO_NAMESPACE:-osmo-minimal}" \
+                     "${OSMO_OPERATOR_NAMESPACE:-osmo-operator}" \
+                     "${OSMO_WORKFLOWS_NAMESPACE:-osmo-workflows}"; do
                 kubectl delete namespace "$ns" --ignore-not-found --wait=false 2>/dev/null || true
             done
             return 0
