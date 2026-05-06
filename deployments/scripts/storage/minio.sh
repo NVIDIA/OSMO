@@ -38,7 +38,7 @@ MSG
     exit 2
 fi
 
-MINIO_BUCKET="${MINIO_BUCKET:-osmo-workflows}"
+MINIO_BUCKET="${MINIO_BUCKET:-${OSMO_WORKFLOW_BUCKET:-osmo-workflows}}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-minio-operator}"
 MINIO_SVC_DNS="minio.${MINIO_NAMESPACE}.svc.cluster.local"
 # Detect the actual Service port. The microk8s `minio` addon exposes the API on

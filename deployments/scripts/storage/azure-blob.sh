@@ -37,7 +37,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 TF_DIR="${TF_DIR:-$SCRIPT_DIR/../../terraform/azure/example}"
 
-CONTAINER_NAME="${AZURE_CONTAINER_NAME:-osmo-workflows}"
+CONTAINER_NAME="${AZURE_CONTAINER_NAME:-${OSMO_WORKFLOW_BUCKET:-osmo-workflows}}"
 
 if [[ "$AUTH_METHOD" == "workload-identity" ]]; then
     # ─── Azure WI path ────────────────────────────────────────────────────

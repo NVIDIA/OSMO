@@ -42,6 +42,8 @@ MINIO_STORAGE_SIZE="${MINIO_STORAGE_SIZE:-20Gi}"
 MINIO_STORAGE_CLASS="${MINIO_STORAGE_CLASS:-}"
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-osmoadmin}"
 MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}"
+MINIO_API_PORT="${MINIO_API_PORT:-9000}"
+MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-9001}"
 
 KUBECTL="${KUBECTL:-kubectl}"
 
@@ -120,23 +122,23 @@ spec:
       containers:
       - name: minio
         image: $MINIO_IMAGE
-        args: ["server", "/data", "--console-address", ":9001"]
+        args: ["server", "/data", "--console-address", ":$MINIO_CONSOLE_PORT"]
         env:
         - name: MINIO_ROOT_USER
           valueFrom: { secretKeyRef: { name: minio-root, key: root-user } }
         - name: MINIO_ROOT_PASSWORD
           valueFrom: { secretKeyRef: { name: minio-root, key: root-password } }
         ports:
-        - { name: api, containerPort: 9000 }
-        - { name: console, containerPort: 9001 }
+        - { name: api, containerPort: $MINIO_API_PORT }
+        - { name: console, containerPort: $MINIO_CONSOLE_PORT }
         volumeMounts:
         - { name: data, mountPath: /data }
         readinessProbe:
-          httpGet: { path: /minio/health/ready, port: 9000 }
+          httpGet: { path: /minio/health/ready, port: $MINIO_API_PORT }
           initialDelaySeconds: 5
           periodSeconds: 10
         livenessProbe:
-          httpGet: { path: /minio/health/live, port: 9000 }
+          httpGet: { path: /minio/health/live, port: $MINIO_API_PORT }
           initialDelaySeconds: 30
           periodSeconds: 30
         resources:
@@ -159,8 +161,8 @@ spec:
   selector:
     app.kubernetes.io/name: minio
   ports:
-  - { name: api,     port: 9000, targetPort: 9000 }
-  - { name: console, port: 9001, targetPort: 9001 }
+  - { name: api,     port: $MINIO_API_PORT,     targetPort: $MINIO_API_PORT }
+  - { name: console, port: $MINIO_CONSOLE_PORT, targetPort: $MINIO_CONSOLE_PORT }
 EOF
 
     log_info "Waiting for MinIO to become Ready..."

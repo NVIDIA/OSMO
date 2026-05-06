@@ -221,7 +221,7 @@ ${CYAN}  1. AKS cluster has OIDC issuer + Workload Identity addons enabled${NC}
 
 ${CYAN}  2. Azure Storage Account + Blob container exist and are reachable${NC}
        Account name: ${STORAGE_ACCOUNT:-<NOT SET>}
-       Container:    ${AZURE_CONTAINER_NAME:-osmo-workflows}
+       Container:    ${AZURE_CONTAINER_NAME:-${OSMO_WORKFLOW_BUCKET:-osmo-workflows}}
 
 ${CYAN}  3. User-Assigned Managed Identity (UAMI) provisioned${NC}
        client-id:    ${WORKLOAD_IDENTITY_CLIENT_ID:-<NOT SET>}
