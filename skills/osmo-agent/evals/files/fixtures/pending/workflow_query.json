@@ -1,0 +1,49 @@
+{
+  "name": "rl-train-stuck-10",
+  "uuid": "ace135bdf2468024ace135bdf2468024",
+  "submitted_by": "user@example.com",
+  "cancelled_by": null,
+  "spec": "https://osmo.example.com/api/workflow/rl-train-stuck-10/spec",
+  "template_spec": "https://osmo.example.com/api/workflow/rl-train-stuck-10/spec?use_template=true",
+  "logs": "https://osmo.example.com/api/workflow/rl-train-stuck-10/logs?last_n_lines=1000",
+  "events": "https://osmo.example.com/api/workflow/rl-train-stuck-10/events",
+  "overview": "https://osmo.example.com/workflows/rl-train-stuck-10",
+  "parent_name": null,
+  "parent_job_id": null,
+  "dashboard_url": null,
+  "grafana_url": null,
+  "tags": [],
+  "submit_time": "2026-05-05T12:00:00.000000",
+  "start_time": null,
+  "end_time": null,
+  "exec_timeout": 5184000.0,
+  "queue_timeout": 5184000.0,
+  "duration": null,
+  "queued_time": null,
+  "status": "PENDING",
+  "outputs": "",
+  "groups": [
+    {
+      "name": "rl-train-group",
+      "status": "PENDING",
+      "start_time": null,
+      "end_time": null,
+      "processing_start_time": "2026-05-05T12:00:00.500000",
+      "scheduling_start_time": null,
+      "initializing_start_time": null,
+      "remaining_upstream_groups": [],
+      "downstream_groups": [],
+      "failure_message": null,
+      "tasks": [
+        {"name": "rl-train", "retry_id": 0, "status": "PENDING", "exit_code": null, "pod_name": "ace135-rl-train-pending", "node_name": null, "lead": true, "start_time": null, "end_time": null, "processing_start_time": "2026-05-05T12:00:00.500000", "scheduling_start_time": null, "initializing_start_time": null, "input_download_start_time": null, "input_download_end_time": null, "output_upload_start_time": null, "events": "https://osmo.example.com/api/workflow/rl-train-stuck-10/events?task_name=rl-train&retry_id=0", "logs": "https://osmo.example.com/api/workflow/rl-train-stuck-10/logs?task_name=rl-train&retry_id=0", "error_logs": null, "failure_message": null, "dashboard_url": null, "pod_ip": null, "task_uuid": "uuid-rl-train"}
+      ]
+    }
+  ],
+  "pool": "gb200-shared",
+  "backend": "gb200",
+  "app_owner": null,
+  "app_name": null,
+  "app_version": null,
+  "plugins": {"rsync": false},
+  "priority": "NORMAL"
+}

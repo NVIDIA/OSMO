@@ -1,0 +1,11 @@
+[2026-05-05 18:01:30] Starting GR00T training run
+[2026-05-05 18:01:31] Loading dataset from input mount: /workflow/inputs/dataset
+[2026-05-05 18:01:34] Dataset loaded: 12,800 trajectories
+[2026-05-05 18:01:35] Initializing model: GR00T-N1.5-3B
+[2026-05-05 18:01:48] Model loaded onto 4x H100 GPUs
+[2026-05-05 18:01:48] Beginning training: 10000 steps total
+[2026-05-05 18:02:12] step=100/10000 loss=4.2317 lr=1.0e-04 throughput=22.1 samples/s
+[2026-05-05 18:03:45] step=500/10000 loss=2.8841 lr=1.0e-04 throughput=24.0 samples/s
+[2026-05-05 18:06:31] step=1000/10000 loss=1.9023 lr=9.5e-05 throughput=24.2 samples/s
+[2026-05-05 18:11:18] step=2000/10000 loss=1.2487 lr=9.0e-05 throughput=24.3 samples/s
+[2026-05-05 18:18:42] step=3500/10000 loss=0.8915 lr=8.2e-05 throughput=24.1 samples/s
