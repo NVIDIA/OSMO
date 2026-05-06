@@ -36,6 +36,7 @@ KAI_CHART_URL="https://github.com/NVIDIA/KAI-Scheduler/releases/download/v${KAI_
 
 KUBECTL="${KUBECTL:-kubectl}"
 HELM="${HELM:-helm}"
+KAI_HELM_TIMEOUT="${KAI_HELM_TIMEOUT:-5m}"
 
 main() {
     check_command "$KUBECTL"
@@ -58,7 +59,7 @@ main() {
 
     $HELM upgrade --install "$KAI_RELEASE" "$KAI_CHART_URL" \
         --namespace "$KAI_NAMESPACE" \
-        --wait --timeout 5m
+        --wait --timeout "$KAI_HELM_TIMEOUT"
 
     log_success "KAI Scheduler v${KAI_VERSION} installed"
 }

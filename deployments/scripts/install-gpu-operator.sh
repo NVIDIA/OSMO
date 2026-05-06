@@ -42,6 +42,7 @@ NO_GPU="${NO_GPU:-0}"
 
 KUBECTL="${KUBECTL:-kubectl}"
 HELM="${HELM:-helm}"
+GPU_HELM_TIMEOUT="${GPU_HELM_TIMEOUT:-10m}"
 
 for arg in "$@"; do
     [[ "$arg" == "--no-gpu" ]] && NO_GPU=1
@@ -104,7 +105,7 @@ main() {
     $HELM upgrade --install "$GPU_OPERATOR_RELEASE" nvidia/gpu-operator \
         --namespace "$GPU_OPERATOR_NAMESPACE" \
         --version "$GPU_OPERATOR_VERSION" \
-        --wait --timeout 10m
+        --wait --timeout "$GPU_HELM_TIMEOUT"
 
     log_success "GPU Operator ${GPU_OPERATOR_VERSION} installed"
 }

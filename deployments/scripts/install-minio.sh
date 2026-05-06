@@ -44,6 +44,7 @@ MINIO_ROOT_USER="${MINIO_ROOT_USER:-osmoadmin}"
 MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}"
 MINIO_API_PORT="${MINIO_API_PORT:-9000}"
 MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-9001}"
+MINIO_ROLLOUT_TIMEOUT="${MINIO_ROLLOUT_TIMEOUT:-5m}"
 
 KUBECTL="${KUBECTL:-kubectl}"
 
@@ -166,7 +167,7 @@ spec:
 EOF
 
     log_info "Waiting for MinIO to become Ready..."
-    $KUBECTL rollout status deployment/minio -n "$MINIO_NAMESPACE" --timeout=5m
+    $KUBECTL rollout status deployment/minio -n "$MINIO_NAMESPACE" --timeout="$MINIO_ROLLOUT_TIMEOUT"
 
     log_success "MinIO installed in namespace $MINIO_NAMESPACE"
     log_info "Root user: $MINIO_ROOT_USER (credentials in secret minio-root/$MINIO_NAMESPACE)"
