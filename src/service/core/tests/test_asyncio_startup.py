@@ -84,6 +84,7 @@ class AsyncioStartupTestCase(unittest.TestCase):
             progress_file='/tmp/logger-progress',
             progress_period=60,
             config_file=None,
+            uvicorn_ssl_kwargs=lambda: {},
         )
 
         with (
@@ -106,6 +107,7 @@ class AsyncioStartupTestCase(unittest.TestCase):
             host='http://127.0.0.1:8000',
             progress_file='/tmp/agent-progress',
             config_file=None,
+            uvicorn_ssl_kwargs=lambda: {},
         )
         agent_config = types.SimpleNamespace(progress_period=60)
 
@@ -156,7 +158,10 @@ class AsyncioStartupTestCase(unittest.TestCase):
             mock.patch('fastapi.applications.FastAPI.add_middleware'),
         ):
             router = importlib.import_module('src.service.router.router')
-        config = types.SimpleNamespace(host='http://127.0.0.1:8000')
+        config = types.SimpleNamespace(
+            host='http://127.0.0.1:8000',
+            uvicorn_ssl_kwargs=lambda: {},
+        )
 
         with (
             mock.patch.object(router.RouterServiceConfig, 'load', return_value=config),
