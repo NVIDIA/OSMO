@@ -198,3 +198,34 @@ install_osmo_cli_if_missing() {
     log_success "osmo CLI installed: $(osmo version 2>/dev/null | head -1 || echo 'unknown')"
 }
 
+# Detection helpers used by install-* scripts to skip on existing installs.
+# All accept overrides via $KUBECTL / $HELM env so the wrappers compose with
+# provider-specific run_kubectl / run_helm in deploy-k8s.sh.
+
+# Returns 0 if a CRD with the given name exists.
+crd_present() {
+    "${KUBECTL:-kubectl}" get crd "$1" &>/dev/null
+}
+
+# Returns 0 if any helm release in any namespace was installed from a chart
+# whose name starts with the given prefix. Use a prefix like `kai-scheduler`
+# or `gpu-operator` to match version-suffixed chart names.
+helm_chart_installed() {
+    "${HELM:-helm}" list -A -o json 2>/dev/null \
+        | grep -qE "\"chart\":\"$1[^\"]*\""
+}
+
+# Echoes the first matching `chart:"<name-version>"` string for logging.
+helm_chart_release_info() {
+    "${HELM:-helm}" list -A -o json 2>/dev/null \
+        | grep -oE "\"chart\":\"$1[^\"]*\"" \
+        | head -1 || true
+}
+
+# Returns 0 if the named microk8s addon is enabled. Safe to call where
+# microk8s isn't installed.
+microk8s_addon_enabled() {
+    command -v microk8s &>/dev/null \
+        && microk8s status --addon "$1" 2>/dev/null | grep -q "enabled"
+}
+

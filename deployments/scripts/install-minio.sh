@@ -46,7 +46,7 @@ MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-}"
 KUBECTL="${KUBECTL:-kubectl}"
 
 detect_existing_minio() {
-    if command -v microk8s &>/dev/null && microk8s status --addon minio 2>/dev/null | grep -q "enabled"; then
+    if microk8s_addon_enabled minio; then
         echo "microk8s minio addon"
         return 0
     fi

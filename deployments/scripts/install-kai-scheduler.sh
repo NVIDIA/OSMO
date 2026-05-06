@@ -37,30 +37,18 @@ KAI_CHART_URL="https://github.com/NVIDIA/KAI-Scheduler/releases/download/v${KAI_
 KUBECTL="${KUBECTL:-kubectl}"
 HELM="${HELM:-helm}"
 
-# Detect a *working* KAI install. We require BOTH the CRD AND an active helm
-# release: bare CRDs left behind after `helm uninstall kai-scheduler` are
-# orphans, not a working scheduler, and we should re-install rather than skip.
-detect_kai() {
-    $KUBECTL get crd podgroups.scheduling.run.ai &>/dev/null || return 1
-    $HELM list -A -o json 2>/dev/null \
-        | grep -qE '"chart":"kai-scheduler[^"]*"' || return 1
-    return 0
-}
-
 main() {
     check_command "$KUBECTL"
     check_command "$HELM"
 
-    if detect_kai; then
+    # A working KAI install needs BOTH the CRD AND an active helm release;
+    # bare CRDs left behind by `helm uninstall` are orphans, not a working
+    # scheduler — re-install rather than skip.
+    if crd_present podgroups.scheduling.run.ai && helm_chart_installed kai-scheduler; then
         log_warning "KAI Scheduler already installed (CRD podgroups.scheduling.run.ai present) — skipping"
-        # Best-effort version log; release may be in a different namespace
         local existing
-        existing=$($HELM list -A -o json 2>/dev/null \
-            | grep -o '"chart":"kai-scheduler[^"]*"' \
-            | head -1 || true)
-        if [[ -n "$existing" ]]; then
-            log_info "Detected existing release: $existing"
-        fi
+        existing=$(helm_chart_release_info kai-scheduler)
+        [[ -n "$existing" ]] && log_info "Detected existing release: $existing"
         return 0
     fi
 

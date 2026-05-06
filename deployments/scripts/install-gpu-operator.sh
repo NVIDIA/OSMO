@@ -49,7 +49,7 @@ done
 
 detect_existing_gpu_stack() {
     # microk8s nvidia addon — emits a clusterpolicy + the operator
-    if command -v microk8s &>/dev/null && microk8s status --addon nvidia 2>/dev/null | grep -q "enabled"; then
+    if microk8s_addon_enabled nvidia; then
         echo "microk8s nvidia addon"
         return 0
     fi
@@ -57,15 +57,13 @@ detect_existing_gpu_stack() {
     # over from a previous `helm uninstall` are orphans, not a working stack.
     if $KUBECTL get clusterpolicies.nvidia.com -A &>/dev/null \
         && [[ -n "$($KUBECTL get clusterpolicies.nvidia.com -A -o name 2>/dev/null)" ]] \
-        && $HELM list -A -o json 2>/dev/null | grep -qE '"chart":"gpu-operator[^"]*"'; then
+        && helm_chart_installed gpu-operator; then
         echo "clusterpolicies.nvidia.com present + helm release active"
         return 0
     fi
     # Existing helm release for any gpu-operator chart in any namespace
     local existing_release
-    existing_release=$($HELM list -A -o json 2>/dev/null \
-        | grep -oE '"chart":"gpu-operator[^"]*"' \
-        | head -1 || true)
+    existing_release=$(helm_chart_release_info gpu-operator)
     if [[ -n "$existing_release" ]]; then
         echo "helm release: $existing_release"
         return 0
