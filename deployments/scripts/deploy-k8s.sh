@@ -63,6 +63,14 @@ NGC_API_KEY="${NGC_API_KEY:-}"
 NGC_SECRET_NAME="${NGC_SECRET_NAME:-nvcr-secret}"
 BACKEND_OPERATOR_USER="${BACKEND_OPERATOR_USER:-backend-operator}"
 
+# DB-init pod used to issue `CREATE DATABASE` against an existing managed
+# PostgreSQL. Locked-down clusters that can't pull from Docker Hub override
+# POSTGRES_OPS_IMAGE; the rest can leave it. Pod name is parameterized so
+# multiple deploys against shared namespaces don't collide.
+OSMO_DB_OPS_POD="${OSMO_DB_OPS_POD:-$OSMO_DB_OPS_POD}"
+POSTGRES_OPS_IMAGE="${POSTGRES_OPS_IMAGE:-postgres:15}"
+DB_OPS_TIMEOUT="${DB_OPS_TIMEOUT:-120}"
+
 # Static values directory — see deployments/values/README.md
 STATIC_VALUES_DIR="${STATIC_VALUES_DIR:-$SCRIPT_DIR/../values}"
 
@@ -232,7 +240,7 @@ create_database() {
     fi
 
     # Delete any existing db-ops pod
-    $RUN_KUBECTL "delete pod osmo-db-ops --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+    $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
     sleep 3
 
     # Escape special characters in password
@@ -241,12 +249,12 @@ create_database() {
     local db_ops_manifest="apiVersion: v1
 kind: Pod
 metadata:
-  name: osmo-db-ops
+  name: $OSMO_DB_OPS_POD
   namespace: $OSMO_NAMESPACE
 spec:
   containers:
-    - name: osmo-db-ops
-      image: postgres:15
+    - name: $OSMO_DB_OPS_POD
+      image: $POSTGRES_OPS_IMAGE
       env:
         - name: PGPASSWORD
           value: '$escaped_password'
@@ -269,23 +277,23 @@ spec:
 
     # Wait for completion
     log_info "Waiting for database creation to complete..."
-    local max_wait=120
+    local max_wait=$DB_OPS_TIMEOUT
     local waited=0
     while [[ $waited -lt $max_wait ]]; do
-        local status_output=$($RUN_KUBECTL "get pod osmo-db-ops --namespace $OSMO_NAMESPACE -o jsonpath={.status.phase}" 2>/dev/null)
+        local status_output=$($RUN_KUBECTL "get pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE -o jsonpath={.status.phase}" 2>/dev/null)
         local status=$(echo "$status_output" | grep -o 'Succeeded\|Failed\|Running\|Pending' | head -1)
 
         if [[ "$status" == "Succeeded" ]]; then
             log_success "Database created successfully"
             echo "--- Database creation logs ---"
-            $RUN_KUBECTL "logs osmo-db-ops --namespace $OSMO_NAMESPACE" 2>/dev/null || true
+            $RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true
             echo "---"
-            $RUN_KUBECTL "delete pod osmo-db-ops --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+            $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
             return 0
         elif [[ "$status" == "Failed" ]]; then
             log_warning "Database creation pod failed, checking logs..."
-            $RUN_KUBECTL "logs osmo-db-ops --namespace $OSMO_NAMESPACE" 2>/dev/null || true
-            $RUN_KUBECTL "delete pod osmo-db-ops --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+            $RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true
+            $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
             return 0
         fi
 
@@ -296,7 +304,7 @@ spec:
     echo ""
 
     log_warning "Timeout waiting for database creation, continuing anyway..."
-    $RUN_KUBECTL "delete pod osmo-db-ops --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+    $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
 }
 
 ###############################################################################
