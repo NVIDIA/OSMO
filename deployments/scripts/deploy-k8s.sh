@@ -936,10 +936,10 @@ deploy_k8s_main() {
     render_gpu_pool_values
 
     deploy_osmo_service
-    wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
+    wait_for_pods "$OSMO_NAMESPACE" "${OSMO_WAIT_TIMEOUT_SERVICE:-300}" "" "$RUN_KUBECTL"
 
     setup_backend_operator
-    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "$RUN_KUBECTL"
+    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" "${OSMO_WAIT_TIMEOUT_OPERATOR:-180}" "" "$RUN_KUBECTL"
 
     verify_deployment
     print_access_instructions
