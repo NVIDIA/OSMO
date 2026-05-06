@@ -216,7 +216,7 @@ global:
 ## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
 ##
 podMonitor:
-  enabled: true
+  enabled: false
 
 ## Configuration for individual backend operators
 ##
