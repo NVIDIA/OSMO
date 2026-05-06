@@ -185,9 +185,24 @@ class StorageBackend(
         pass
 
     @abc.abstractmethod
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         """
         Returns the https link corresponding to the uri.
+
+        Args:
+            region: Region used by AWS-pattern URLs when no override is given.
+            override_url: Custom endpoint (S3-compatible providers). When set,
+                S3 backends build a URL against this host rather than AWS S3.
+                Other backends ignore it.
+            addressing_style: 'virtual' or 'path'. Used by S3 backends with a
+                custom override_url to select host-based vs path-based URLs.
+                Defaults to virtual (the form modern S3-compatibles expect).
         """
         pass
 

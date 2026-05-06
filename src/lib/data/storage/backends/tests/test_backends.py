@@ -563,6 +563,62 @@ class GetS3AddressingStyleTest(unittest.TestCase):
         self.assertIn("'virtua'", str(ctx.exception))
 
 
+class S3BackendParseUriToLinkTest(unittest.TestCase):
+    """Tests for S3Backend.parse_uri_to_link override-aware URL building."""
+
+    def _backend(self, uri: str = 's3://my-bucket/foo/bar') -> backends.S3Backend:
+        return cast(backends.S3Backend, backends.construct_storage_backend(uri))
+
+    def test_no_override_uses_aws_pattern(self):
+        """Without an override_url, fall back to the AWS-host pattern (preserved)."""
+        link = self._backend().parse_uri_to_link('us-east-1')
+        self.assertEqual(link, 'https://my-bucket.s3.us-east-1.amazonaws.com/foo/bar')
+
+    def test_override_url_uses_virtual_host(self):
+        """With an override_url, build a virtual-host URL against the custom endpoint
+        (CAIOS, R2, Wasabi, MinIO with wildcard DNS)."""
+        link = self._backend().parse_uri_to_link(
+            'US-EAST-14A',
+            override_url='https://cwobject.com',
+        )
+        self.assertEqual(link, 'https://my-bucket.cwobject.com/foo/bar')
+
+    def test_override_url_path_style(self):
+        """addressing_style='path' yields a path-style URL — needed for
+        localstack/MinIO setups without wildcard DNS."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='http://localstack-s3.osmo:4566',
+            addressing_style='path',
+        )
+        self.assertEqual(link, 'http://localstack-s3.osmo:4566/my-bucket/foo/bar')
+
+    def test_override_url_preserves_scheme(self):
+        """Scheme of the override is preserved in the link."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='http://minio.local:9000',
+        )
+        self.assertEqual(link, 'http://my-bucket.minio.local:9000/foo/bar')
+
+    def test_override_url_preserves_base_path_virtual_host(self):
+        """Reverse-proxied endpoint (gateway.example.com/s3) keeps the /s3 prefix."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='https://gateway.example.com/s3',
+        )
+        self.assertEqual(link, 'https://my-bucket.gateway.example.com/s3/foo/bar')
+
+    def test_override_url_preserves_base_path_path_style(self):
+        """Reverse-proxied endpoint with addressing_style=path preserves base path."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='https://gateway.example.com/s3',
+            addressing_style='path',
+        )
+        self.assertEqual(link, 'https://gateway.example.com/s3/my-bucket/foo/bar')
+
+
 class S3BackendRegionTest(unittest.TestCase):
     """Tests for S3Backend.region() endpoint routing."""
 

@@ -507,10 +507,15 @@ export function processManifestItems(items: RawFileItem[]): ProcessedManifest {
  *
  * @param location - The version's location URL (DatasetVersion.location)
  */
-export async function fetchDatasetFiles(location: string | null): Promise<ProcessedManifest> {
+export async function fetchDatasetFiles(
+  bucket: string,
+  name: string,
+  version: string,
+  location: string | null,
+): Promise<ProcessedManifest> {
   if (!location) return { byPath: [], byFilename: [], fileTypes: [] };
-  const { fetchManifest } = await import("@/lib/api/server/dataset-actions");
-  const items = (await fetchManifest(location)) as RawFileItem[];
+  const { fetchManifest } = await import("@/lib/api/server/dataset-actions.production");
+  const items = (await fetchManifest(bucket, name, version)) as RawFileItem[];
   return processManifestItems(items);
 }
 
@@ -643,8 +648,8 @@ export function buildDatasetLatestQueryKey(bucket: string, name: string): readon
  * Build query key for the dataset version's full file manifest.
  * Keyed by location URL only — path filtering is done client-side via buildDirectoryListing.
  */
-export function buildDatasetFilesQueryKey(location: string | null): readonly unknown[] {
-  return ["datasets", "files", location] as const;
+export function buildDatasetFilesQueryKey(bucket: string, name: string, version: string): readonly unknown[] {
+  return ["datasets", "files", bucket, name, version] as const;
 }
 
 /**

@@ -176,6 +176,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
   const {
     versions,
     location,
+    resolvedName,
+    resolvedVersion,
     files: virtualFiles,
     memberSubPath,
     segmentLabels,
@@ -184,6 +186,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       return {
         versions: [],
         location: null as string | null,
+        resolvedName: name,
+        resolvedVersion: "",
         files: null as DatasetFile[] | null,
         memberSubPath: "",
         segmentLabels: {} as Record<string, string>,
@@ -197,6 +201,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       return {
         versions: detail.versions,
         location: currentVersionData?.location ?? null,
+        resolvedName: name,
+        resolvedVersion: currentVersionData?.version ?? "",
         files: null,
         memberSubPath: path,
         segmentLabels: {},
@@ -221,6 +227,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
       return {
         versions: [],
         location: null,
+        resolvedName: name,
+        resolvedVersion: "",
         files: memberEntries,
         memberSubPath: "",
         segmentLabels: labels,
@@ -234,11 +242,13 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     return {
       versions: [],
       location: member?.location ?? null,
+      resolvedName: member?.name ?? name,
+      resolvedVersion: member?.version ?? "",
       files: null,
       memberSubPath: subPath,
       segmentLabels: labels,
     };
-  }, [detail, version, path]);
+  }, [detail, version, path, name]);
 
   // ==========================================================================
   // File listing — fetch manifest for selected version/member
@@ -249,7 +259,7 @@ export function DatasetDetailContent({ bucket, name }: Props) {
     isLoading: isFilesLoading,
     error: filesError,
     refetch: refetchFiles,
-  } = useDatasetFiles(location);
+  } = useDatasetFiles(bucket, resolvedName, resolvedVersion, location);
 
   // Normal (unfiltered) directory listing — used for FilterBar suggestions and as base view
   const normalFiles = useMemo(
@@ -573,6 +583,8 @@ export function DatasetDetailContent({ bucket, name }: Props) {
                       <FilePreviewPanel
                         file={panelFileData}
                         path={fileDirPath}
+                        bucket={bucket}
+                        datasetName={resolvedName}
                         onClose={handleClosePanel}
                       />
                     )}
