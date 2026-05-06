@@ -615,68 +615,31 @@ handle_configuration() {
 deploy_osmo() {
     log_info "Deploying OSMO..."
 
-    # Save current values before sourcing deploy-k8s.sh (which resets them)
-    local saved_provider="$PROVIDER"
-    local saved_outputs_file="$OUTPUTS_FILE"
-    local saved_values_dir="$VALUES_DIR"
-    local saved_dry_run="$DRY_RUN"
-    local saved_storage_values_file="$STORAGE_VALUES_FILE"
-
     # Resolve passwords. Priority: --postgres-password/--redis-password flags
     # (TF_*) → POSTGRES_PASSWORD/REDIS_PASSWORD env (BYO contract) → tfvars file.
     # Skip the tfvars grep when TERRAFORM_DIR is empty (microk8s/byo) — otherwise
     # `grep ... /terraform.tfvars` errors and silently leaves the password empty.
-    local postgres_password="${TF_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:-}}"
-    local redis_password="${TF_REDIS_PASSWORD:-${REDIS_PASSWORD:-}}"
-    if [[ -z "$postgres_password" && -n "$TERRAFORM_DIR" && -f "$TERRAFORM_DIR/terraform.tfvars" ]]; then
-        postgres_password=$(grep 'postgres_password\|rds_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
+    POSTGRES_PASSWORD="${TF_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:-}}"
+    REDIS_PASSWORD="${TF_REDIS_PASSWORD:-${REDIS_PASSWORD:-}}"
+    if [[ -z "$POSTGRES_PASSWORD" && -n "$TERRAFORM_DIR" && -f "$TERRAFORM_DIR/terraform.tfvars" ]]; then
+        POSTGRES_PASSWORD=$(grep 'postgres_password\|rds_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
     fi
-    if [[ -z "$redis_password" && -n "$TERRAFORM_DIR" && -f "$TERRAFORM_DIR/terraform.tfvars" ]]; then
-        redis_password=$(grep 'redis_auth_token\|redis_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
+    if [[ -z "$REDIS_PASSWORD" && -n "$TERRAFORM_DIR" && -f "$TERRAFORM_DIR/terraform.tfvars" ]]; then
+        REDIS_PASSWORD=$(grep 'redis_auth_token\|redis_password' "$TERRAFORM_DIR/terraform.tfvars" | head -1 | cut -d'"' -f2 || echo "")
     fi
+    export POSTGRES_PASSWORD REDIS_PASSWORD
 
-    # Run K8s deployment script
-    source "$SCRIPT_DIR/deploy-k8s.sh"
-
-    # Restore variables for deploy-k8s.sh
-    PROVIDER="$saved_provider"
-    OUTPUTS_FILE="$saved_outputs_file"
-    VALUES_DIR="$saved_values_dir"
-    POSTGRES_PASSWORD="$postgres_password"
-    REDIS_PASSWORD="$redis_password"
-    DRY_RUN="$saved_dry_run"
-    # configure-storage.sh writes here; deploy-k8s.sh layers it via extra_values_flags
-    STORAGE_VALUES_FILE="$saved_storage_values_file"
-
-    # Source the outputs file
-    if [[ -f "$OUTPUTS_FILE" ]]; then
+    # Source TF outputs (provider-set $OUTPUTS_FILE) so they are visible in
+    # the env when deploy-k8s.sh's setup_provider re-sources during phase setup.
+    if [[ -n "${OUTPUTS_FILE:-}" && -f "$OUTPUTS_FILE" ]]; then
         source "$OUTPUTS_FILE"
     fi
 
-    # Setup provider and run deployment
-    setup_provider
-
-    create_namespaces
-    add_helm_repos
-    create_database
-    create_secrets
-    create_image_pull_secrets
-
-    # 6.3 ConfigMap mode: no inline value templating. Values come from static
-    # YAML files in deployments/values/, layered with auto-detected fragments
-    # (PodMonitor, GPU pool) and the storage fragment from configure-storage.sh.
-    resolve_static_values
-    render_gpu_pool_values
-
-    # The 6.3 service chart bundles router + UI — single helm release.
-    deploy_osmo_service
-    wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
-
-    setup_backend_operator
-    wait_for_pods "$OSMO_OPERATOR_NAMESPACE" 180 "" "$RUN_KUBECTL"
-
-    verify_deployment
-    print_access_instructions
+    # All phases live in deploy-k8s.sh; deploy_k8s_main runs them in order.
+    # Top-level `${VAR:-}` defaults make sourcing idempotent — the env we
+    # set above flows through unchanged.
+    source "$SCRIPT_DIR/deploy-k8s.sh"
+    deploy_k8s_main
 }
 
 ###############################################################################

@@ -75,12 +75,14 @@ STORAGE_VALUES_FILE="${STORAGE_VALUES_FILE:-}"
 # re-runs. Set to "true" only on a clean cluster + clean DB.
 RESET_MEK="${RESET_MEK:-false}"
 
-# Provider-specific settings (set by loading provider script)
-PROVIDER=""
-OUTPUTS_FILE=""
-VALUES_DIR=""
-DRY_RUN=false
-POSTGRES_PASSWORD=""
+# Provider-specific settings. Idempotent under `source` — the wrapper
+# (deploy-osmo-minimal.sh) sets these before sourcing this file.
+PROVIDER="${PROVIDER:-}"
+OUTPUTS_FILE="${OUTPUTS_FILE:-}"
+VALUES_DIR="${VALUES_DIR:-}"
+DRY_RUN="${DRY_RUN:-false}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 
 # IS_PRIVATE_CLUSTER is set by azure/terraform.sh (when AKS is private) or by
 # preflight in the BYO provider. Default to false so non-azure / non-byo
