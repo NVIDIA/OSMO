@@ -144,8 +144,10 @@ MSG
     exit 1
 fi
 
-# Build the standard Azure Blob connection string.
-CONN_STR="DefaultEndpointsProtocol=https;AccountName=${STORAGE_ACCOUNT};AccountKey=${STORAGE_KEY};EndpointSuffix=core.windows.net"
+# Build the standard Azure Blob connection string. AZURE_ENDPOINT_SUFFIX is
+# `core.windows.net` for public Azure (default), `core.usgovcloudapi.net` for
+# Azure Government, `core.chinacloudapi.cn` for Azure China.
+CONN_STR="DefaultEndpointsProtocol=https;AccountName=${STORAGE_ACCOUNT};AccountKey=${STORAGE_KEY};EndpointSuffix=${AZURE_ENDPOINT_SUFFIX:-core.windows.net}"
 # OSMO storage SDK expects azure://account/container (per AZURE_REGEX in
 # src/lib/data/storage/constants/constants.py).
 ENDPOINT="azure://${STORAGE_ACCOUNT}/${CONTAINER_NAME}"
