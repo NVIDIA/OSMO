@@ -540,7 +540,7 @@ service_set_flags() {
     fi
 
     sets+=" --set services.postgres.serviceName=${POSTGRES_HOST}"
-    sets+=" --set services.postgres.port=5432"
+    sets+=" --set services.postgres.port=${POSTGRES_PORT:-5432}"
     sets+=" --set services.postgres.db=${POSTGRES_DB_NAME}"
     sets+=" --set services.postgres.user=${POSTGRES_USERNAME}"
 
