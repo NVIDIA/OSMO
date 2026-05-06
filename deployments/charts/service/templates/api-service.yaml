@@ -152,6 +152,7 @@ spec:
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
@@ -193,7 +194,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -207,12 +208,13 @@ spec:
           mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
         # Any failure to return the version api means the service is in a bad state
         livenessProbe:
-        {{- toYaml .Values.services.service.livenessProbe | nindent 10 }}
+        {{- include "osmo.upstream-probe-yaml" (dict "probe" .Values.services.service.livenessProbe "context" .) | nindent 10 }}
 
 
         # Give the container 30 seconds to startup
@@ -220,6 +222,9 @@ spec:
           httpGet:
             port: 8000
             path: /api/version
+            {{- if .Values.gateway.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
           failureThreshold: 6
           periodSeconds: 5
           timeoutSeconds: 3
@@ -230,6 +235,9 @@ spec:
           httpGet:
             port: 8000
             path: /api/workflow?limit=0&all_pools=true
+            {{- if .Values.gateway.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
             httpHeaders:
             - name: x-osmo-roles
               value: osmo-admin
@@ -240,6 +248,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}

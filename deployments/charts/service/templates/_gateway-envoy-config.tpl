@@ -70,7 +70,7 @@ data:
           filename: /etc/ssl/envoy-certs/tls.key
   {{- end }}
 
-  {{- if $gw.tls.enabled }}
+  {{- if and $gw.tls.enabled $gw.tls.caSecret }}
   sds_upstream_ca.yaml: |
     resources:
     - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
@@ -578,7 +578,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.service.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -586,6 +595,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -611,7 +621,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.router.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -619,6 +638,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -638,20 +658,12 @@ data:
                 socket_address:
                   address: {{ $gw.upstreams.ui.host }}
                   port_value: {{ $gw.upstreams.ui.port }}
-      {{- if $gw.tls.enabled }}
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          common_tls_context:
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-      {{- end }}
+      {{/*
+        UI traffic stays HTTP — Next.js does not natively serve HTTPS and
+        the UI sits behind NetworkPolicy. Confidentiality of the UI HTML
+        relies on browser → gateway TLS (gateway.envoy.ssl.enabled), not on
+        Envoy → upstream TLS.
+      */}}
     {{- end }}
 
     {{- if $gw.upstreams.agent.enabled }}
@@ -675,7 +687,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.agent.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -683,6 +704,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -707,7 +729,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.logger.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -715,6 +746,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -805,6 +837,7 @@ data:
     {{- end }}
 
     {{- if $envoy.internalJwks.enabled }}
+    {{- $jwksHost := $envoy.internalJwks.host | default $gw.upstreams.service.host }}
     - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
       name: {{ $envoy.internalJwks.cluster }}
       connect_timeout: 3s
@@ -818,8 +851,32 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $envoy.internalJwks.host | default $gw.upstreams.service.host }}
+                  address: {{ $jwksHost }}
                   port_value: {{ $envoy.internalJwks.port | default $gw.upstreams.service.port }}
+      {{- if $gw.tls.enabled }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $jwksHost }}
+          common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
+            {{- end }}
+      {{- end }}
     {{- end }}
 
 {{- end }}

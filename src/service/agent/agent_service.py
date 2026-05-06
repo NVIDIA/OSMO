@@ -34,7 +34,7 @@ from src.service.core.auth import auth_service
 from src.service.core.config import configmap_loader
 from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.service.core.workflow import objects
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 from src.utils.progress_check import progress
 
 
@@ -44,7 +44,8 @@ from src.utils.progress_check import progress
 # mixin BackendServiceConfig.load() would reject the unknown flag and crash.
 class BackendServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                            src.lib.utils.logging.LoggingConfig,
-                           static_config.StaticConfig, ConfigFileMixin):
+                           static_config.StaticConfig,
+                           ssl_config.SSLConfig, ConfigFileMixin):
     """Config settings for the backend service"""
     progress_period: int = pydantic.Field(
         default=30,
@@ -140,7 +141,8 @@ def main():
             await asyncio.sleep(agent_service_config.progress_period)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         liveness_task = asyncio.create_task(liveness_update())
         try:

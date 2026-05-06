@@ -33,13 +33,14 @@ import src.lib.utils.logging
 from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.utils.job import app, common as task_common, jobs, kb_objects, task, workflow
 from src.utils.job.task import _encode_hstore
-from src.utils import connectors, static_config, yaml as util_yaml
+from src.utils import connectors, ssl_config, static_config, yaml as util_yaml
 from src.utils.metrics import metrics
 
 
 class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                             src.lib.utils.logging.LoggingConfig,
                             static_config.StaticConfig,
+                            ssl_config.SSLConfig,
                             metrics.MetricsCreatorConfig,
                             ConfigFileMixin):
     """ Manages configuration specific to the workflow service. """

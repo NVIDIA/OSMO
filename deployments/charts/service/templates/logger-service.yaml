@@ -125,6 +125,7 @@ spec:
         {{- range $arg := .Values.services.logger.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         env:
         {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.logger | nindent 8 }}
@@ -145,7 +146,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.logger.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.logger.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.logger.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.logger) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -159,6 +160,7 @@ spec:
           mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.logger | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.logger.resources | nindent 10 }}
 
@@ -193,6 +195,9 @@ spec:
           httpGet:
             port: 8000
             path: /health
+            {{- if .Values.gateway.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
           periodSeconds: 45
           failureThreshold: 3
           timeoutSeconds: 20
@@ -201,6 +206,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.logger | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.logger | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.logger) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}

@@ -403,11 +403,24 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.networkPolicies.enabled` | Deploy NetworkPolicies restricting ingress to upstream pods | `false` |
 | `gateway.networkPolicies.upstreams` | List of upstream pods to protect (name, podSelector, port) | See values.yaml |
 
-#### TLS
+#### Gateway → Upstream TLS
+
+Traffic between the Envoy gateway and the upstream services (`osmo-service`, `osmo-router`, `osmo-agent`, `osmo-logger`) is encrypted by default. The UI intentionally stays on plain HTTP behind NetworkPolicy — Next.js does not natively serve TLS.
+
+**Default — encryption without validation.** Each upstream service mints its own ephemeral self-signed cert in-process at startup (ECDSA P-256, ~1ms) and loads it into uvicorn's SSLContext via `--ssl_self_signed true`. Envoy connects with TLS but does *not* validate the cert. The wire is encrypted; identity verification is delegated to NetworkPolicy + Kubernetes RBAC. No CA management, no Secrets, no rotation — cert lifecycle is tied to process lifecycle.
+
+**Externally-provisioned certs.** Point `gateway.tls.upstreamCerts.<service>` at an existing `kubernetes.io/tls` Secret containing `tls.crt` + `tls.key`. That Secret is mounted at `/etc/osmo/tls` and uvicorn loads it instead of self-signing. To make Envoy validate against a CA, set `gateway.tls.caSecret` to a Secret containing `ca.crt`. The chart does not create these Secrets — provision them however suits your environment (cert-manager, Vault CSI, sealed-secrets, manual `kubectl create secret tls`, etc.). The two knobs are independent: you can use external certs without validation, or validation alone (rarely useful), but typical "real" TLS sets both.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `gateway.tls.enabled` | Generate self-signed certs for upstream TLS | `false` |
+| `gateway.tls.enabled` | Encrypt gateway → upstream traffic. | `true` |
+| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`. Empty string ⇒ self-signed. | `""` |
+| `gateway.tls.upstreamCerts.router` | Same, for `osmo-router`. | `""` |
+| `gateway.tls.upstreamCerts.agent` | Same, for `osmo-agent`. | `""` |
+| `gateway.tls.upstreamCerts.logger` | Same, for `osmo-logger`. | `""` |
+| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`. When set, Envoy validates upstreams against this CA; when empty, TLS is encryption-only. | `""` |
+
+NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect at L3/L4; TLS encrypts the bytes at L7. Run them together for defense in depth.
 
 ### Extensibility
 

@@ -2085,12 +2085,9 @@ gateway:
     nodeSelector: {}
     tolerations: []
 
-  ## -----------------------------------------------------------------------
-  ## Network Policies — restrict ingress to upstream service pods so that
-  ## only the gateway Envoy pods can reach them. Requires a CNI that
-  ## enforces NetworkPolicy (e.g. Calico, Cilium, or AWS VPC CNI with
+  ## Restrict upstream pod ingress to the gateway Envoy. Requires a CNI
+  ## that enforces NetworkPolicy (Calico, Cilium, AWS VPC CNI with
   ## enable-network-policy-controller=true).
-  ## -----------------------------------------------------------------------
   networkPolicies:
     enabled: false
     upstreams:
@@ -2107,11 +2104,30 @@ gateway:
         app: osmo-ui
       port: 8000
 
-  ## -----------------------------------------------------------------------
-  ## TLS — self-signed certificates for encrypted gateway-to-upstream
-  ## communication. When enabled, Helm generates a CA and server cert;
-  ## Envoy uses the CA to verify upstream connections. The upstream
-  ## services must also be configured to serve HTTPS.
-  ## -----------------------------------------------------------------------
+  ## TLS for gateway -> upstream traffic. Default: each service mints an
+  ## ephemeral self-signed cert in-process; Envoy connects with TLS but does
+  ## not validate (encryption-only — identity is provided by NetworkPolicy /
+  ## RBAC). UI is excluded; stays HTTP.
+  ##
+  ## To use externally-provisioned certs, set upstreamCerts.<service> to the
+  ## name of an existing kubernetes.io/tls Secret containing tls.crt + tls.key.
+  ## To make Envoy validate against a CA, set caSecret to an existing Secret
+  ## containing ca.crt. How those Secrets get created (cert-manager, Vault
+  ## CSI, sealed-secrets, manual, etc.) is up to the operator — OSMO just
+  ## consumes them.
   tls:
-    enabled: false
+    enabled: true
+
+    ## Per-upstream server certs. Empty string = mint ephemeral self-signed
+    ## in-process. Otherwise the named Secret is mounted at /etc/osmo/tls
+    ## and uvicorn loads tls.crt + tls.key from it.
+    upstreamCerts:
+      service: ""
+      router: ""
+      agent: ""
+      logger: ""
+
+    ## Optional CA bundle for Envoy upstream validation. When set, Envoy
+    ## validates upstream certs against ca.crt from this Secret. When empty,
+    ## TLS is encryption-only (no validation).
+    caSecret: ""
