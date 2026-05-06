@@ -1241,6 +1241,9 @@ def query_dataset(
     postgres = connectors.PostgresConnector.get_instance()
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(str(bucket))
+    default_cred = bucket_config.default_credential
+    override_url = default_cred.override_url if default_cred else None
+    addressing_style = default_cred.addressing_style if default_cred else None
 
     query_term = query.QueryParser.get_instance().parse(' '.join(command_parsed))
 
@@ -1271,8 +1274,11 @@ def query_dataset(
                 last_used=row.last_used.replace(microsecond=0),
                 size=row.size if row.size else 0,
                 checksum=row.checksum if row.checksum else '',
-                location=storage.construct_storage_backend(row.location)\
-                    .parse_uri_to_link(bucket_config.region),
+                location=storage.construct_storage_backend(row.location).parse_uri_to_link(
+                    bucket_config.region,
+                    override_url=override_url,
+                    addressing_style=addressing_style,
+                ),
                 uri=row.location,
                 metadata=row.metadata,
                 tags=[],
