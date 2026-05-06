@@ -1,0 +1,134 @@
+{
+  "node_sets": [
+    {
+      "pools": [
+        {
+          "name": "default",
+          "description": "Default pool",
+          "status": "OFFLINE",
+          "backend": "default",
+          "default_platform": "default",
+          "resources": {
+            "gpu": {"guarantee": -1, "maximum": -1, "weight": 1}
+          },
+          "topology_keys": [],
+          "platforms": {
+            "default": {"description": ""}
+          },
+          "resource_usage": {
+            "quota_used": "0",
+            "quota_free": "0",
+            "quota_limit": "0",
+            "total_usage": "0",
+            "total_capacity": "0",
+            "total_free": "0"
+          }
+        }
+      ]
+    },
+    {
+      "pools": [
+        {
+          "name": "h100-east",
+          "description": "H100 east cluster",
+          "status": "ONLINE",
+          "backend": "h100",
+          "default_platform": "x86-h100",
+          "resources": {
+            "gpu": {"guarantee": 16, "maximum": 32, "weight": 1}
+          },
+          "topology_keys": [],
+          "platforms": {
+            "x86-h100": {"description": "H100 80GB"}
+          },
+          "resource_usage": {
+            "quota_used": "8",
+            "quota_free": "8",
+            "quota_limit": "16",
+            "total_usage": "52",
+            "total_capacity": "64",
+            "total_free": "12"
+          }
+        }
+      ]
+    },
+    {
+      "pools": [
+        {
+          "name": "h100-west",
+          "description": "H100 west cluster",
+          "status": "ONLINE",
+          "backend": "h100",
+          "default_platform": "x86-h100",
+          "resources": {
+            "gpu": {"guarantee": 8, "maximum": 16, "weight": 1}
+          },
+          "topology_keys": [],
+          "platforms": {
+            "x86-h100": {"description": "H100 80GB"}
+          },
+          "resource_usage": {
+            "quota_used": "4",
+            "quota_free": "4",
+            "quota_limit": "8",
+            "total_usage": "28",
+            "total_capacity": "32",
+            "total_free": "4"
+          }
+        }
+      ]
+    },
+    {
+      "pools": [
+        {
+          "name": "gb200-shared",
+          "description": "Shared GB200 cluster",
+          "status": "ONLINE",
+          "backend": "gb200",
+          "default_platform": "arm-gb200",
+          "resources": {
+            "gpu": {"guarantee": 32, "maximum": 64, "weight": 1}
+          },
+          "topology_keys": [],
+          "platforms": {
+            "arm-gb200": {"description": "GB200"}
+          },
+          "resource_usage": {
+            "quota_used": "16",
+            "quota_free": "16",
+            "quota_limit": "32",
+            "total_usage": "120",
+            "total_capacity": "128",
+            "total_free": "8"
+          }
+        }
+      ]
+    },
+    {
+      "pools": [
+        {
+          "name": "l40s-batch",
+          "description": "L40S batch processing",
+          "status": "ONLINE",
+          "backend": "l40s",
+          "default_platform": "x86-l40s",
+          "resources": {
+            "gpu": {"guarantee": 24, "maximum": 48, "weight": 1}
+          },
+          "topology_keys": [],
+          "platforms": {
+            "x86-l40s": {"description": "L40S"}
+          },
+          "resource_usage": {
+            "quota_used": "0",
+            "quota_free": "24",
+            "quota_limit": "24",
+            "total_usage": "24",
+            "total_capacity": "48",
+            "total_free": "24"
+          }
+        }
+      ]
+    }
+  ]
+}

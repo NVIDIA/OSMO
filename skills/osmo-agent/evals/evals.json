@@ -1,0 +1,233 @@
+{
+  "skill_name": "osmo-agent",
+  "_notes": [
+    "Most evals run against a stateless mock `osmo` binary shipped at evals/files/mock_osmo/osmo.",
+    "The mock auto-discovers fixtures by scanning every scenario subdirectory under evals/files/fixtures/. Because each eval's `files[]` only references fixtures from one scenario, only one scenario's fixtures end up in the agent's working directory at runtime — there's no scenario selector to set.",
+    "The eval harness is expected to prepend evals/files/mock_osmo/ to PATH so `osmo <subcommand>` resolves to the mock.",
+    "Negative evals omit the mock; the grader checks that no `osmo` command was invoked.",
+    "Workflow IDs in prompts are illustrative; the mock returns the same canned content regardless of the ID argument."
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "What resources are available to me right now?",
+      "expected_output": "Agent calls `osmo profile list` and `osmo pool list`, then presents pools grouped by GPU type with an Effective availability column.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/profile_list.json",
+        "evals/files/fixtures/default/pool_list.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo profile list`",
+        "Agent invokes `osmo pool list`",
+        "Final response groups pools under GPU-type section headers (e.g. 'GB200 Pools', 'H100 Pools', 'L40S Pools')",
+        "Each pool table includes columns Pool, Quota Free, Physically Free, and Effective",
+        "Effective values shown equal min(Quota Free, Total Free) for each pool",
+        "Within each GPU-type section, rows are sorted by Effective descending",
+        "The user's default pool is annotated with `(default)`"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Are there any H100s I can use right now?",
+      "expected_output": "Agent runs the resource check and focuses the response on H100 pools, calling out availability and any pools at capacity.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/profile_list.json",
+        "evals/files/fixtures/default/pool_list.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo pool list`",
+        "Final response focuses on H100 pools (other GPU types are de-emphasized or omitted)",
+        "Final response reports Effective availability for each H100 pool",
+        "If any H100 pool has Effective = 0, the response flags it as at capacity"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I want to run a workflow but I think my quota is full. Can I still submit something?",
+      "expected_output": "Agent detects that physical capacity exists despite full quota and recommends `--priority LOW`, noting preemption risk.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/quota_full/profile_list.json",
+        "evals/files/fixtures/quota_full/pool_list.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo pool list`",
+        "Agent identifies that at least one pool has Quota Free = 0 but Total Free > 0",
+        "Final response recommends submitting with `--priority LOW`",
+        "Final response notes that LOW-priority workflows may be preempted when quota-holding jobs need GPUs"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Show me my recent workflows.",
+      "expected_output": "Agent calls `osmo workflow list --format-type json` and presents results as a table with status icons.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/workflow_list.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo workflow list --format-type json`",
+        "Final response uses status emoji symbols: ✅ for COMPLETED, ❌ for FAILED variants, 🔄 for RUNNING, ⏳ for PENDING",
+        "Final response is presented as a table including workflow name, pool, status, and duration"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "What's the status of workflow gr00t-train-1?",
+      "expected_output": "Agent queries the workflow, fetches logs inline (single task), and reports status with proactive Grafana and Kubernetes dashboard links.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/workflow_query_single_task.json",
+        "evals/files/fixtures/default/workflow_logs_single_task.txt"
+      ],
+      "expectations": [
+        "Agent invokes `osmo workflow query gr00t-train-1 --format-type json`",
+        "Agent invokes `osmo workflow logs gr00t-train-1 -n 10000` directly (the workflow has 1 task, so no logs-reader subagent should be used)",
+        "Agent does NOT spawn a logs-reader subagent for this single-task workflow",
+        "Final response states the current status clearly",
+        "Final response includes the Grafana resource usage link as a markdown link",
+        "Final response includes the Kubernetes dashboard link as a markdown link"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "My workflow rl-train-stuck-10 has been pending forever — why isn't it running?",
+      "expected_output": "Agent fetches workflow events and pool resources, then explains the scheduling block in plain language without raw Kubernetes jargon.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/pending/workflow_query.json",
+        "evals/files/fixtures/pending/workflow_events.txt",
+        "evals/files/fixtures/pending/resource_list.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo workflow query rl-train-stuck-10 --format-type json`",
+        "Agent invokes `osmo workflow events rl-train-stuck-10`",
+        "Agent invokes `osmo resource list -p <pool>` for the workflow's pool",
+        "Final response explains the scheduling block in plain language",
+        "Final response does NOT include the literal Kubernetes string 'Insufficient nvidia.com/gpu' (it must be translated)"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "How much memory is workflow gr00t-train-1 using right now?",
+      "expected_output": "Agent recognizes a resource-usage question, surfaces the Grafana link from the workflow query JSON, and does not fabricate utilization numbers.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/workflow_query_single_task.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo workflow query gr00t-train-1 --format-type json` (or reuses cached query JSON if previously fetched)",
+        "Final response renders the grafana_url field from the query JSON as a markdown link",
+        "Final response does NOT fabricate specific memory utilization numbers (e.g. 'using 87% of memory') — it points the user to the Grafana dashboard for actual numbers"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Where can I see the Kubernetes dashboard for workflow gr00t-train-1?",
+      "expected_output": "Agent extracts dashboard_url from the workflow query JSON and renders it as a markdown link.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/workflow_query_single_task.json"
+      ],
+      "expectations": [
+        "Agent invokes `osmo workflow query gr00t-train-1 --format-type json` (or reuses cached JSON)",
+        "Final response renders the dashboard_url field from the query JSON as a markdown link"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "What does workflow gr00t-train-1 do?",
+      "expected_output": "Agent fetches the workflow template and produces a concise plain-language summary, not a YAML walkthrough.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/workflow_spec_template.yaml"
+      ],
+      "expectations": [
+        "Agent invokes `osmo workflow spec gr00t-train-1 --template`",
+        "Final response is a concise plain-language summary (≤5 sentences or a short bullet list)",
+        "Final response describes what the workflow does, how it runs (image and/or command), and what it produces (output dataset names if any)",
+        "Final response is NOT a line-by-line YAML walkthrough"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Submit workflow.yaml to a free GPU pool.",
+      "expected_output": "Agent reads the YAML unchanged, runs the resource check, asks for GPU type, asks the exact confirmation phrase, and submits.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/profile_list.json",
+        "evals/files/fixtures/default/pool_list.json",
+        "evals/files/fixtures/submit_ok/submit_response.txt",
+        "evals/files/fixtures/sample_workflows/simple_workflow.yaml"
+      ],
+      "expectations": [
+        "Agent reads workflow.yaml without modifying it",
+        "Agent invokes `osmo profile list` or `osmo pool list` to check resources before submitting",
+        "Agent explicitly asks the user which GPU type they want (e.g. names options like H100, L40, GB200) BEFORE selecting a pool — it must NOT auto-select a pool by picking whichever has the most free GPUs",
+        "Agent's GPU-type question is sent to the user as an actual question, not stated as an internal assumption",
+        "Agent asks the user for confirmation with the exact phrase 'Would you like me to submit this workflow to this pool?'",
+        "Agent invokes `osmo workflow submit workflow.yaml --pool <pool_name>` after confirmation",
+        "Final response reports the workflow ID returned by the submit command"
+      ]
+    },
+    {
+      "id": 11,
+      "prompt": "Submit my training job from workflow.yaml — I want to use 4 GPUs.",
+      "expected_output": "Agent preserves Jinja template variables in the YAML and passes the GPU count via `--set num_gpu=4` rather than hardcoding it in the file.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/profile_list.json",
+        "evals/files/fixtures/default/pool_list.json",
+        "evals/files/fixtures/submit_ok/submit_response.txt",
+        "evals/files/fixtures/sample_workflows/jinja_workflow.yaml"
+      ],
+      "expectations": [
+        "After the eval, the on-disk workflow.yaml still contains `{{num_gpu}}` (the agent did NOT replace the template variable)",
+        "After the eval, the on-disk workflow.yaml's resources block is unchanged from the input fixture",
+        "Agent invokes `osmo workflow submit` with a `--set num_gpu=4` argument",
+        "Final response reports the workflow ID returned by the submit command"
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "I want to run an SDG workflow on H100s to generate about 1000 images. Can you set this up?",
+      "expected_output": "Agent fetches the OSMO cookbook README, picks a relevant SDG workflow, fetches its README and YAML, calculates submission count from throughput metadata, and submits.",
+      "files": [
+        "evals/files/mock_osmo/osmo",
+        "evals/files/fixtures/default/profile_list.json",
+        "evals/files/fixtures/default/pool_list.json",
+        "evals/files/fixtures/submit_ok/submit_response.txt"
+      ],
+      "expectations": [
+        "Agent uses WebFetch to retrieve `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/README.md`",
+        "Agent fetches a per-workflow README from the cookbook (any `cookbook/<path>/README.md` URL)",
+        "Agent fetches a workflow YAML file from the cookbook",
+        "Agent's reasoning shows a calculation of how many submissions are needed based on the per-run throughput from the README and the user's target of 1000 images",
+        "Agent invokes `osmo workflow submit` at least once",
+        "Final response reports the workflow ID(s) returned by the submit command(s)"
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "What GPUs does NVIDIA make?",
+      "expected_output": "Agent answers the question without invoking the OSMO CLI — this is a general NVIDIA product question, not an OSMO task.",
+      "files": [],
+      "expectations": [
+        "Agent does NOT invoke any `osmo` command",
+        "Final response answers the NVIDIA-product question (e.g. mentions H100, GB200, L40S, etc.) without referring to OSMO pool inventory"
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "How do I install kubectl on my laptop?",
+      "expected_output": "Agent gives general kubectl install guidance without invoking OSMO — kubectl install is unrelated to OSMO workflows.",
+      "files": [],
+      "expectations": [
+        "Agent does NOT invoke any `osmo` command",
+        "Final response provides kubectl install guidance (e.g. mentions `brew install kubectl`, official docs, or platform-specific install steps)"
+      ]
+    }
+  ]
+}

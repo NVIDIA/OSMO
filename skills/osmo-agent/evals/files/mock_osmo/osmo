@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Mock `osmo` CLI for the osmo-agent skill evals.
+#
+# Dispatches by subcommand and prints canned content from a fixtures
+# directory tree. Fixtures are organized into scenario subdirectories
+# (e.g. `default/`, `quota_full/`, `pending/`); the mock auto-discovers
+# which fixture to use by scanning every scenario dir for the requested
+# filename.
+#
+# This works because each eval entry in `evals.json` only references
+# fixtures from a single scenario in its `files[]` list — the eval
+# harness copies just those files into the agent's working directory,
+# so only one scenario's fixtures are present at runtime.
+#
+# Place this directory on `PATH` ahead of any real `osmo` binary so
+# that `osmo <subcommand>` resolves to this script during eval runs.
+#
+# Environment variables:
+#   OSMO_MOCK_FIXTURES   Override the fixtures root
+#                        (default: <this dir>/../fixtures)
+
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIXTURES_ROOT="${OSMO_MOCK_FIXTURES:-$SELF_DIR/../fixtures}"
+
+# Look up a fixture by filename, scanning every scenario subdirectory
+# under FIXTURES_ROOT. Returns the first match. If multiple candidate
+# names are passed, the first one that resolves wins.
+emit_fixture() {
+  local relpath
+  for relpath in "$@"; do
+    if [[ ! -d "$FIXTURES_ROOT" ]]; then
+      continue
+    fi
+    while IFS= read -r -d '' candidate; do
+      cat "$candidate"
+      return 0
+    done < <(find "$FIXTURES_ROOT" -maxdepth 2 -type f -name "$relpath" -print0 2>/dev/null)
+  done
+  echo "mock_osmo: no fixture found for: $*" >&2
+  echo "mock_osmo: searched under: $FIXTURES_ROOT" >&2
+  exit 1
+}
+
+cmd="${1:-}"
+sub="${2:-}"
+
+case "$cmd $sub" in
+  "profile list")
+    emit_fixture "profile_list.json"
+    ;;
+  "pool list")
+    emit_fixture "pool_list.json"
+    ;;
+  "resource list")
+    emit_fixture "resource_list.json"
+    ;;
+  "workflow list")
+    emit_fixture "workflow_list.json"
+    ;;
+  "workflow query")
+    # Try the scenario-generic name first, then the single-task default.
+    emit_fixture "workflow_query.json" "workflow_query_single_task.json"
+    ;;
+  "workflow logs")
+    emit_fixture "workflow_logs.txt" "workflow_logs_single_task.txt"
+    ;;
+  "workflow events")
+    emit_fixture "workflow_events.txt"
+    ;;
+  "workflow spec")
+    emit_fixture "workflow_spec_template.yaml"
+    ;;
+  "workflow submit")
+    emit_fixture "submit_response.txt"
+    ;;
+  "app create")
+    emit_fixture "app_create_response.txt"
+    ;;
+  "version "|"version")
+    echo "mock-osmo 0.0.0"
+    ;;
+  *)
+    echo "mock_osmo: unhandled command: $cmd $sub" >&2
+    echo "mock_osmo: full args: $*" >&2
+    exit 2
+    ;;
+esac
