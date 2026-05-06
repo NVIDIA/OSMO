@@ -1565,7 +1565,7 @@ services:
 ## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
 ##
 podMonitor:
-  enabled: true
+  enabled: false
 
 ## Global configuration for extra ConfigMaps
 ## These ConfigMaps can be used for custom configurations
