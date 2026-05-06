@@ -110,14 +110,14 @@ class SSLConfig(pydantic.BaseModel):
         all-unset (HTTP), self-signed-only, or both paths set.
         """
         if self.ssl_self_signed:
-            keyfile, certfile = _mint_ephemeral_self_signed()
+            keyfile, certfile = mint_ephemeral_self_signed()
             return {'ssl_keyfile': keyfile, 'ssl_certfile': certfile}
         if self.ssl_keyfile and self.ssl_certfile:
             return {'ssl_keyfile': self.ssl_keyfile, 'ssl_certfile': self.ssl_certfile}
         return {}
 
 
-def _mint_ephemeral_self_signed() -> Tuple[str, str]:
+def mint_ephemeral_self_signed() -> Tuple[str, str]:
     """Generate an ECDSA P-256 self-signed cert and write it to a temp dir.
 
     Returns (keyfile_path, certfile_path). uvicorn opens both at startup and

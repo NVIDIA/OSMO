@@ -24,6 +24,7 @@ import stat
 import unittest
 
 from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 import pydantic
 
 from src.utils import ssl_config
@@ -76,10 +77,10 @@ class TestSSLConfigKwargs(unittest.TestCase):
 
 
 class TestEphemeralSelfSigned(unittest.TestCase):
-    """_mint_ephemeral_self_signed produces a usable cert/key pair on disk."""
+    """mint_ephemeral_self_signed produces a usable cert/key pair on disk."""
 
     def setUp(self):
-        self.keyfile, self.certfile = ssl_config._mint_ephemeral_self_signed()
+        self.keyfile, self.certfile = ssl_config.mint_ephemeral_self_signed()
 
     def test_files_exist_and_are_nonempty(self):
         self.assertTrue(os.path.isfile(self.keyfile))
@@ -134,7 +135,7 @@ class TestEphemeralSelfSigned(unittest.TestCase):
     def test_each_call_produces_a_unique_cert(self):
         # Ephemerality matters — every process start should mint a fresh cert
         # rather than reusing one across pods.
-        keyfile2, certfile2 = ssl_config._mint_ephemeral_self_signed()
+        keyfile2, certfile2 = ssl_config.mint_ephemeral_self_signed()
         self.assertNotEqual(self.keyfile, keyfile2)
         self.assertNotEqual(self.certfile, certfile2)
         with open(self.certfile, 'rb') as f:
@@ -142,8 +143,14 @@ class TestEphemeralSelfSigned(unittest.TestCase):
         with open(certfile2, 'rb') as f:
             cert2 = x509.load_pem_x509_certificate(f.read())
         self.assertNotEqual(cert1.serial_number, cert2.serial_number)
-        self.assertNotEqual(cert1.public_key().public_numbers(),
-                            cert2.public_key().public_numbers())
+        # Compare keys via their DER encoding — public_bytes() is on the base
+        # public-key protocol so this works regardless of which key type
+        # _mint_ephemeral_self_signed picks (avoids mypy union-attr errors
+        # over the seven-way PublicKeyTypes union).
+        pub_format = serialization.PublicFormat.SubjectPublicKeyInfo
+        self.assertNotEqual(
+            cert1.public_key().public_bytes(serialization.Encoding.DER, pub_format),
+            cert2.public_key().public_bytes(serialization.Encoding.DER, pub_format))
 
 
 if __name__ == '__main__':
