@@ -296,10 +296,16 @@ class SwiftBackend(Boto3Backend):
         return f'{self.profile}/{self.container}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return f'https://{self.netloc}/v1/{self.namespace}/{self.container}/{self.path}'.rstrip('/')
 
@@ -456,10 +462,41 @@ class S3Backend(Boto3Backend):
         return f'{self.profile}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
+
+        When the credential has an override_url (CAIOS, R2, Wasabi, MinIO,
+        etc.) we build a URL against that host. The default is virtual-host
+        addressing because that's what modern S3-compatibles expect; pass
+        addressing_style='path' for legacy bucket names or path-style-only
+        deployments.
         """
+        if override_url:
+            parsed = parse.urlparse(override_url)
+            scheme = parsed.scheme or 'https'
+            if parsed.netloc:
+                host = parsed.netloc
+                base_path = parsed.path.rstrip('/')
+            else:
+                # No scheme prefix on override_url: urlparse drops the whole
+                # input into 'path'. Split off the host from any base path so
+                # reverse-proxied endpoints like 'gateway.example.com/s3' keep
+                # the '/s3' prefix in the resulting link.
+                bare = parsed.path.lstrip('/')
+                host, _, rest = bare.partition('/')
+                base_path = ('/' + rest).rstrip('/') if rest else ''
+            if addressing_style == 'path':
+                return (
+                    f'{scheme}://{host}{base_path}/{self.container}/{self.path}'.rstrip('/')
+                )
+            return f'{scheme}://{self.container}.{host}{base_path}/{self.path}'.rstrip('/')
         return f'https://{self.container}.s3.{region}.amazonaws.com/{self.path}'.rstrip('/')
 
     @override
@@ -572,9 +609,12 @@ class S3Backend(Boto3Backend):
         if data_cred.region is not None:
             return data_cred.region
 
+        # Route the precheck to the credential's endpoint so it actually targets
+        # the bucket's backend (CAIOS, MinIO, etc.) rather than AWS S3.
         s3_client = s3.create_client(
             data_cred=data_cred,
             scheme=self.scheme,
+            endpoint_url=data_cred.override_url,
         )
 
         def _get_region() -> str:
@@ -655,10 +695,16 @@ class GSBackend(Boto3Backend):
         return f'{self.profile}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return (
             f'https://storage.googleapis.com/storage/v1/b/{self.container}/o/{self.path}'
@@ -775,10 +821,16 @@ class TOSBackend(Boto3Backend):
         return f'{self.profile}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return f'https://{self.container}.{self.netloc}/{self.path}'.rstrip('/')
 
@@ -890,10 +942,16 @@ class AzureBlobStorageBackend(common.StorageBackend):
         return f'{self.profile}/{self.container}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return f'{self.endpoint}/{self.container}/{self.path}'.rstrip('/')
 

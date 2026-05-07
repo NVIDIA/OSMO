@@ -58,6 +58,14 @@ const (
 )
 
 const (
+	s3AddressingStylePath    string = "path"
+	s3AddressingStyleVirtual string = "virtual"
+	s3AddressingStyleAuto    string = "auto"
+	osmoS3AddressingStyle    string = "OSMO_S3_ADDRESSING_STYLE"
+	awsS3ForcePathStyle      string = "AWS_S3_FORCE_PATH_STYLE"
+)
+
+const (
 	URLOperation     string = "Url"
 	DatasetOperation string = "Dataset"
 )
@@ -68,6 +76,84 @@ func setOrUnsetEnv(key, value string) {
 	} else {
 		os.Unsetenv(key)
 	}
+}
+
+func awsForcePathStyleEnabled() bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(awsS3ForcePathStyle)))
+	return value == "true" || value == "1"
+}
+
+func shouldForcePathStyle(storageBackend StorageBackend, dataCredential DataCredential) bool {
+	switch storageBackend.GetScheme() {
+	case TOS:
+		return false
+	case S3:
+		addressingStyle := strings.ToLower(strings.TrimSpace(dataCredential.AddressingStyle))
+		if addressingStyle == "" {
+			addressingStyle = strings.ToLower(strings.TrimSpace(os.Getenv(osmoS3AddressingStyle)))
+		}
+		switch addressingStyle {
+		case s3AddressingStyleVirtual:
+			return false
+		case s3AddressingStylePath:
+			return true
+		case s3AddressingStyleAuto:
+			// 'auto' is accepted by the credential schema for parity with
+			// boto3, but mount-s3 has no auto-detect knob. We deliberately
+			// diverge from boto3's 'auto' (which picks path-style for custom
+			// endpoints — the very behavior that breaks CAIOS) and instead
+			// fall through to OSMO's heuristic: AWS_S3_FORCE_PATH_STYLE,
+			// then OverrideUrl presence.
+		}
+		if awsForcePathStyleEnabled() {
+			return true
+		}
+		return dataCredential.OverrideUrl == ""
+	default:
+		return true
+	}
+}
+
+func buildMountCommandArgs(
+	storageBackend StorageBackend,
+	dataCredential DataCredential,
+	localPath string,
+	cachePath string,
+	cacheSize int,
+) []string {
+	commandArgs := []string{storageBackend.GetBucket(), localPath,
+		"--read-only", "--auto-unmount", "--allow-other"}
+	if shouldForcePathStyle(storageBackend, dataCredential) {
+		commandArgs = append(commandArgs, "--force-path-style")
+	}
+	// Specify cache only if the size is greater than 0
+	if cacheSize > 0 {
+		log.Printf("Path %s has cache size %dMiB", localPath, cacheSize)
+		cacheSlice := []string{
+			"--cache", cachePath,
+			"--metadata-ttl", "indefinite",
+			"--max-cache-size", strconv.Itoa(cacheSize)}
+		commandArgs = append(commandArgs, cacheSlice...)
+	} else {
+		log.Printf("Path %s has no cache", localPath)
+	}
+
+	endpointUrl := dataCredential.OverrideUrl
+	if endpointUrl == "" {
+		endpointUrl = storageBackend.GetAuthEndpoint()
+	}
+	if endpointUrl != "" {
+		commandArgs = append(commandArgs, "--endpoint-url", endpointUrl)
+	}
+	path := storageBackend.GetPath()
+	if path != "" {
+		if !strings.HasSuffix(path, "/") {
+			path += "/"
+		}
+		path = strings.Join([]string{"--prefix", path}, "=")
+		commandArgs = append(commandArgs, path)
+	}
+	return commandArgs
 }
 
 type VersionInfo struct {
@@ -434,34 +520,13 @@ func MountURL(downloadType string, credentialInfo ConfigInfo, urlPath string,
 	var commandArgs []string
 
 	if downloadType == Mountpoint {
-		commandArgs = []string{storageBackend.GetBucket(), localPath,
-			"--read-only", "--auto-unmount", "--allow-other"}
-		if storageBackend.GetScheme() != TOS {
-			commandArgs = append(commandArgs, "--force-path-style")
-		}
-		// Specify cache only if the size is greater than 0
-		if cacheSize > 0 {
-			log.Printf("Path %s has cache size %dMiB", localPath, cacheSize)
-			cacheSlice := []string{
-				"--cache", cachePath,
-				"--metadata-ttl", "indefinite",
-				"--max-cache-size", strconv.Itoa(cacheSize)}
-			commandArgs = append(commandArgs, cacheSlice...)
-		} else {
-			log.Printf("Path %s has no cache", localPath)
-		}
-
-		if storageBackend.GetAuthEndpoint() != "" {
-			commandArgs = append(commandArgs, "--endpoint-url", storageBackend.GetAuthEndpoint())
-		}
-		path := storageBackend.GetPath()
-		if path != "" {
-			if !strings.HasSuffix(path, "/") {
-				path += "/"
-			}
-			path = strings.Join([]string{"--prefix", path}, "=")
-			commandArgs = append(commandArgs, path)
-		}
+		commandArgs = buildMountCommandArgs(
+			storageBackend,
+			dataCredential,
+			localPath,
+			cachePath,
+			cacheSize,
+		)
 	} else {
 		osmoChan <- fmt.Sprintf("Mounting type %s is not supported.", downloadType)
 		return isEmpty

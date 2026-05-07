@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import base64
 import datetime
 import json
+import mimetypes
 import shlex
 from typing import Any, Dict, List, Sequence
 import uuid
@@ -121,14 +122,20 @@ def get_collection_info(postgres: connectors.PostgresConnector,
 
     dataset_rows = get_collection_datasets(postgres, bucket, name)
     bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    default_cred = bucket_config.default_credential
+    override_url = default_cred.override_url if default_cred else None
+    addressing_style = default_cred.addressing_style if default_cred else None
 
     rows: List[objects.DataInfoCollectionEntry] = []
     for row in dataset_rows:
         rows.append(objects.DataInfoCollectionEntry(
             name=row.name,
             version=row.version_id,
-            location=storage.construct_storage_backend(row.location)\
-                .parse_uri_to_link(bucket_config.region),
+            location=storage.construct_storage_backend(row.location).parse_uri_to_link(
+                bucket_config.region,
+                override_url=override_url,
+                addressing_style=addressing_style,
+            ),
             uri=row.location,
             hash_location=row.hash_location,
             size=row.size))
@@ -177,6 +184,9 @@ def get_dataset_info(postgres: connectors.PostgresConnector,
                                             f'any entry fitting the parameters in bucket {bucket}.')
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    default_cred = bucket_config.default_credential
+    override_url = default_cred.override_url if default_cred else None
+    addressing_style = default_cred.addressing_style if default_cred else None
 
     rows: List[objects.DataInfoDatasetEntry] = []
     for row in dataset_rows:
@@ -199,8 +209,11 @@ def get_dataset_info(postgres: connectors.PostgresConnector,
             last_used=row.last_used.replace(microsecond=0),
             size=row.size if row.size else 0,
             checksum=row.checksum if row.checksum else '',
-            location=storage.construct_storage_backend(row.location)\
-                .parse_uri_to_link(bucket_config.region),
+            location=storage.construct_storage_backend(row.location).parse_uri_to_link(
+                bucket_config.region,
+                override_url=override_url,
+                addressing_style=addressing_style,
+            ),
             uri=row.location,
             metadata=row.metadata,
             tags=[element.tag for element in tags],
@@ -450,7 +463,7 @@ def build_collection(postgres: connectors.PostgresConnector,
     return new_datasets
 
 
-@router.get('', response_model=objects.BucketInfoResponse)
+@router.get('', response_model=objects.BucketInfoResponse, deprecated=True)
 def get_bucket_info(default_only: bool = False,
                     username: str = fastapi.Depends(connectors.parse_username)
                     ) -> objects.BucketInfoResponse:
@@ -480,7 +493,7 @@ def get_bucket_info(default_only: bool = False,
         buckets=bucket_information)
 
 
-@router.post('/{bucket}/dataset/{name}', include_in_schema=False)
+@router.post('/{bucket}/dataset/{name}', deprecated=True)
 def upload_dataset(bucket: objects.DatasetPattern,
                    name: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern = '',
@@ -597,7 +610,7 @@ def _download_datasets(
                                         is_collection=dataset_info.is_collection)
 
 
-@router.get('/{bucket}/dataset/{name}', include_in_schema=False)
+@router.get('/{bucket}/dataset/{name}', deprecated=True)
 def download(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -615,7 +628,7 @@ def download(
     return _download_datasets(postgres, bucket, name, tag)
 
 
-@router.post('/{bucket}/dataset/{name}/migrate', include_in_schema=False)
+@router.post('/{bucket}/dataset/{name}/migrate', deprecated=True)
 def migrate_dataset(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -649,7 +662,9 @@ def clean_dataset(postgres: connectors.PostgresConnector,
                                                  dataset_info.id))
 
 
-@router.delete('/{bucket}/dataset/{name}', response_model=objects.DataDeleteResponse)
+@router.delete('/{bucket}/dataset/{name}',
+               response_model=objects.DataDeleteResponse,
+               deprecated=True)
 def delete_dataset(bucket: objects.DatasetPattern,
                    name: objects.DatasetPattern,
                    tag: objects.DatasetTagPattern | None = None,
@@ -906,7 +921,9 @@ def rename(bucket: objects.DatasetPattern, old_name: str, new_name: str):
         raise osmo_errors.OSMOUserError(f'Name {new_name} is already being used by bucket {bucket}')
 
 
-@router.post('/{bucket}/dataset/{name}/attribute', response_model=objects.DataAttributeResponse)
+@router.post('/{bucket}/dataset/{name}/attribute',
+             response_model=objects.DataAttributeResponse,
+             deprecated=True)
 def change_name_tag_label_metadata(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -953,7 +970,9 @@ def change_name_tag_label_metadata(
                                          metadata_response=metadata_response)
 
 
-@router.get('/{bucket}/dataset/{name}/info', response_model=objects.DataInfoResponse)
+@router.get('/{bucket}/dataset/{name}/info',
+            response_model=objects.DataInfoResponse,
+            deprecated=True)
 def get_info(
     bucket: objects.DatasetPattern,
     name: objects.DatasetPattern,
@@ -987,7 +1006,81 @@ def get_info(
                                     versions=rows)
 
 
-@router.get('/list_dataset', response_model=objects.DataListResponse)
+@router.get('/{bucket}/dataset/{name}/manifest')
+def get_manifest(
+    bucket: objects.DatasetPattern,
+    name: objects.DatasetPattern,
+    version: str = fastapi.Query(...),
+) -> List:
+    """ This api returns the manifest for a dataset version. """
+    postgres = connectors.PostgresConnector.get_instance()
+    dataset_info = get_dataset(postgres, bucket=bucket, name=name)
+
+    fetch_command = '''
+        SELECT location FROM dataset_version
+        WHERE dataset_id = %s AND version_id = %s AND status = %s;
+    '''
+    rows = postgres.execute_fetch_command(
+        fetch_command, (dataset_info.id, version, objects.DatasetStatus.READY.name))
+    if not rows:
+        raise osmo_errors.OSMODatabaseError(
+            f'Version {version} not found for dataset {name} in bucket {bucket}.')
+
+    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    client = storage.SingleObjectClient.create(
+        storage_uri=rows[0].location,
+        data_credential=bucket_config.default_credential,
+    )
+    manifest_content = client.get_object_stream(as_io=True).read()
+    return json.loads(manifest_content)
+
+
+@router.api_route('/{bucket}/dataset/{name}/file-content', methods=['GET', 'HEAD'])
+def get_file_content(
+    bucket: objects.DatasetPattern,
+    name: objects.DatasetPattern,
+    storage_path: str = fastapi.Query(...),
+    filename: str | None = fastapi.Query(default=None),
+) -> fastapi.responses.StreamingResponse:
+    """
+    Streams file content from storage for the dataset file preview.
+
+    storage_path is hash-keyed in the dataset layout (e.g. .../hashes/<etag>),
+    so it carries no extension that mimetypes.guess_type can use. The optional
+    filename param carries the original name (e.g. 'lipsum.txt') so we can
+    return a useful Content-Type. filename is purely for media-type guessing;
+    access control still hinges on storage_path's container check.
+    """
+    postgres = connectors.PostgresConnector.get_instance()
+    dataset_info = get_dataset(postgres, bucket=bucket, name=name)
+
+    # Validate that the storage path belongs to this dataset's hash storage
+    # prefix. Container-only matching would let a caller request any object
+    # in the same bucket (e.g. another dataset's manifest) via this endpoint.
+    requested_backend = storage.construct_storage_backend(storage_path)
+    dataset_backend = storage.construct_storage_backend(dataset_info.hash_location)
+    hash_prefix = dataset_backend.path.rstrip('/') + '/'
+    if (requested_backend.container != dataset_backend.container
+            or not requested_backend.path.startswith(hash_prefix)):
+        raise osmo_errors.OSMOUserError(
+            'Storage path does not belong to this dataset.')
+
+    bucket_config = postgres.get_dataset_configs().get_bucket_config(bucket)
+    client = storage.SingleObjectClient.create(
+        storage_uri=storage_path,
+        data_credential=bucket_config.default_credential,
+    )
+
+    content_type = (
+        mimetypes.guess_type(filename)[0] if filename else None
+    ) or mimetypes.guess_type(storage_path)[0] or 'application/octet-stream'
+    return fastapi.responses.StreamingResponse(
+        client.get_object_stream(),
+        media_type=content_type,
+    )
+
+
+@router.get('/list_dataset', response_model=objects.DataListResponse, deprecated=True)
 def list_dataset_from_bucket(name: objects.DatasetPattern | None = None,
                              user: List[str] | None = fastapi.Query(default = None),
                              buckets: List[str] = fastapi.Query(default = []),
@@ -1078,7 +1171,7 @@ def list_dataset_from_bucket(name: objects.DatasetPattern | None = None,
     return objects.DataListResponse(datasets=rows)
 
 
-@router.post('/{bucket}/dataset/{name}/collect')
+@router.post('/{bucket}/dataset/{name}/collect', deprecated=True)
 def create_collection(bucket: objects.DatasetPattern,
                       name: objects.DatasetPattern,
                       datasets: List[objects.DatasetStructure] = fastapi.Body(..., embed=True),
@@ -1125,7 +1218,7 @@ def create_collection(bucket: objects.DatasetPattern,
     postgres.execute_commit_command(insert_cmd, collection_versions)
 
 
-@router.get('/{bucket}/query', response_model=objects.DataQueryResponse)
+@router.get('/{bucket}/query', response_model=objects.DataQueryResponse, deprecated=True)
 def query_dataset(
     bucket: objects.DatasetPattern,
     command: str = fastapi.Query(default=''),
@@ -1148,6 +1241,9 @@ def query_dataset(
     postgres = connectors.PostgresConnector.get_instance()
 
     bucket_config = postgres.get_dataset_configs().get_bucket_config(str(bucket))
+    default_cred = bucket_config.default_credential
+    override_url = default_cred.override_url if default_cred else None
+    addressing_style = default_cred.addressing_style if default_cred else None
 
     query_term = query.QueryParser.get_instance().parse(' '.join(command_parsed))
 
@@ -1178,8 +1274,11 @@ def query_dataset(
                 last_used=row.last_used.replace(microsecond=0),
                 size=row.size if row.size else 0,
                 checksum=row.checksum if row.checksum else '',
-                location=storage.construct_storage_backend(row.location)\
-                    .parse_uri_to_link(bucket_config.region),
+                location=storage.construct_storage_backend(row.location).parse_uri_to_link(
+                    bucket_config.region,
+                    override_url=override_url,
+                    addressing_style=addressing_style,
+                ),
                 uri=row.location,
                 metadata=row.metadata,
                 tags=[],
@@ -1204,7 +1303,7 @@ def query_dataset(
                                      datasets=dataset_infos)
 
 
-@router.get('/{bucket}/location', include_in_schema=False)
+@router.get('/{bucket}/location', deprecated=True)
 def get_path_information(bucket: objects.DatasetPattern):
     """ This api gets the dataset location for CLI validation. """
     postgres = connectors.PostgresConnector.get_instance()
@@ -1214,7 +1313,7 @@ def get_path_information(bucket: objects.DatasetPattern):
                                         region=bucket_config.region)
 
 
-@router.post('/{bucket}/dataset/{name}/recollect', include_in_schema=False)
+@router.post('/{bucket}/dataset/{name}/recollect', deprecated=True)
 def update_collection(bucket: objects.DatasetPattern,
                       name: objects.DatasetPattern,
                       add_datasets: List[objects.DatasetStructure] = fastapi.Body(default=[]),

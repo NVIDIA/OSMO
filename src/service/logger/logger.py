@@ -15,6 +15,8 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import contextlib
 import asyncio
 from urllib.parse import urlparse
@@ -26,12 +28,16 @@ import uvicorn  # type: ignore
 import src.lib.utils.logging
 from src.service.logger import ctrl_websocket
 from src.service.core.auth import auth_service
-from src.utils import connectors, static_config
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
+from src.utils import connectors, ssl_config, static_config
 from src.utils.progress_check import progress
 
 
 class LoggerServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
-                          src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
+                          src.lib.utils.logging.LoggingConfig,
+                          static_config.StaticConfig,
+                          ssl_config.SSLConfig, ConfigFileMixin):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
@@ -68,7 +74,10 @@ async def put_workflow_logs(websocket: fastapi.WebSocket, name: str, task_name: 
 def main():
     config = LoggerServiceConfig.load()
     src.lib.utils.logging.init_logger('logger', config)
-    _ = connectors.PostgresConnector(config)
+    postgres = connectors.PostgresConnector(config)
+    # Pin the watcher on app.state so the daemon Observer thread isn't GC'd.
+    app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres)
     parsed_url = urlparse(config.host)
     host = parsed_url.hostname if parsed_url.hostname else ''
     if parsed_url.port:
@@ -83,7 +92,8 @@ def main():
             await asyncio.sleep(config.progress_period)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         liveness_task = asyncio.create_task(liveness_update())
         try:

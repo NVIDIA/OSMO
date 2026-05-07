@@ -28,16 +28,16 @@ on:
         default: '1'
       max_uncovered:
         description: 'Max uncovered lines per target (0 = no cap)'
-        default: '300'
+        default: '500'
       max_turns:
         description: 'Max Claude Code agent turns'
-        default: '50'
+        default: '100'
       timeout_minutes:
         description: 'Workflow timeout in minutes'
         default: '30'
       model:
         description: 'LLM model name on NVIDIA gateway'
-        default: 'aws/anthropic/claude-opus-4-5'
+        default: 'aws/anthropic/bedrock-claude-opus-4-7'
       dry_run:
         description: 'Generate but do not create PR'
         type: boolean
@@ -53,7 +53,7 @@ concurrency:
 
 jobs:
   generate-tests:
-    environment: testbot-generate
+    environment: nim-env
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '30') }}
     runs-on: ubuntu-latest
     steps:
@@ -83,11 +83,27 @@ jobs:
         working-directory: src/ui
         run: pnpm install --frozen-lockfile
 
+      # bazel-contrib/setup-bazel uses GitHub's listReleases API to find the
+      # bazelisk binary, but as of 2026-04-27 that endpoint returns an empty
+      # array for bazelbuild/bazelisk while /releases/tags/v<X> still works.
+      # Install bazelisk directly from the asset URL to bypass the broken path.
+      # Bazelisk doesn't publish official checksums for v1.27.0 (issue #306),
+      # so we pin the SHA256 we observed and verify before sudo-installing.
+      - name: Install Bazelisk
+        env:
+          BAZELISK_VERSION: v1.27.0
+          BAZELISK_SHA256: e1508323f347ad1465a887bc5d2bfb91cffc232d11e8e997b623227c6b32fb76
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/bazelisk" \
+            "https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-amd64"
+          echo "${BAZELISK_SHA256}  $RUNNER_TEMP/bazelisk" | sha256sum -c -
+          sudo install -m 0755 "$RUNNER_TEMP/bazelisk" /usr/local/bin/bazelisk
+          sudo ln -sf /usr/local/bin/bazelisk /usr/local/bin/bazel
+
       - name: Setup Bazel
         uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
         with:
           bazelisk-cache: true
-          bazelisk-version: 1.27.0
           disk-cache: ${{ github.workflow }}
           repository-cache: true
           external-cache: |
@@ -104,34 +120,125 @@ jobs:
           git config user.name "testbot[bot]"
           git config user.email "testbot[bot]@users.noreply.github.com"
 
-      - name: Select coverage targets
+      # Two-stage target selection: a heuristic scorer narrows the candidate
+      # pool to ~20 critical-but-undertested files (using fan-in, churn, and
+      # path-tier signals), then a small Claude subagent reads each candidate
+      # and picks the 1-3 best test targets by ROI.
+      - name: Score criticality (Stage 1)
         run: |
-          python src/scripts/testbot/coverage_targets.py \
-            --max-targets ${{ inputs.max_targets || '1' }} \
-            --max-uncovered ${{ inputs.max_uncovered || '300' }} \
-            > "$RUNNER_TEMP/targets.txt"
-          echo "::group::Selected targets"
-          cat "$RUNNER_TEMP/targets.txt"
+          # PYTHONPATH=. so the namespace-package import
+          # `from src.scripts.testbot.coverage_targets import ...` resolves.
+          # criticality_scorer logs the ranked shortlist itself; we just
+          # dump the JSON in a foldable group so reviewers can see the full
+          # per-signal breakdown when debugging a pick.
+          PYTHONPATH=. python src/scripts/testbot/criticality_scorer.py \
+            --repo-root . \
+            --shortlist-size 20 \
+            --max-uncovered ${{ inputs.max_uncovered || '500' }} \
+            --output "$RUNNER_TEMP/shortlist.json"
+          echo "::group::Shortlist JSON (full per-signal breakdown)"
+          cat "$RUNNER_TEMP/shortlist.json"
           echo "::endgroup::"
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Generate tests
+      - name: Pick targets via subagent (Stage 2)
         run: |
-          TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
-          npx @anthropic-ai/claude-code@2.1.91 --print \
-            --model "$ANTHROPIC_MODEL" \
-            --allowedTools "Read,Edit,Write,Bash(bazel test *),Bash(pnpm --dir src/ui test *),Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),Glob,Grep" \
-            --max-turns ${{ inputs.max_turns || '50' }} \
-            "$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
-
-          Coverage targets:
-          $TARGETS"
+          PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
+            --shortlist "$RUNNER_TEMP/shortlist.json" \
+            --max-targets ${{ inputs.max_targets || '1' }} \
+            --output "$RUNNER_TEMP/targets.txt"
+          echo "::group::Selected targets"
+          cat "$RUNNER_TEMP/targets.txt"
+          echo "::endgroup::"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
           ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
-          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/claude-opus-4-5' }}
+          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-4-7' }}
+          DISABLE_PROMPT_CACHING: "1"
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
+
+      - name: Generate tests
+        run: |
+          # Validate workflow_dispatch input before splicing it into the
+          # shell command (defense in depth — the input is interpolated
+          # by GitHub Actions, not the shell, so quoting alone isn't enough).
+          if ! [[ "$MAX_TURNS" =~ ^[0-9]+$ ]]; then
+            echo "max_turns must be a non-negative integer, got: $MAX_TURNS" >&2
+            exit 2
+          fi
+
+          TARGETS=$(cat "$RUNNER_TEMP/targets.txt")
+          PROMPT="$(cat src/scripts/testbot/TESTBOT_PROMPT.md)
+
+          Coverage targets:
+          $TARGETS"
+          STREAM_LOG="$RUNNER_TEMP/claude-stream.jsonl"
+
+          # Stream every turn and tool use into a foldable group so the
+          # diagnostics summary stays visible by default; the verbose
+          # stream is one click away. We disable -e so the diagnostics
+          # block runs even when Claude exits non-zero.
+          set +e
+          echo "::group::Claude Code stream (click to expand turn-by-turn log)"
+          npx @anthropic-ai/claude-code@2.1.116 --print \
+            --model "$ANTHROPIC_MODEL" \
+            --output-format stream-json --verbose \
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(cd *),Bash(mv *),Bash(rm *),Bash(bazel test *),Bash(bazel build *),Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *)" \
+            --max-turns "$MAX_TURNS" \
+            "$PROMPT" | tee "$STREAM_LOG"
+          # PIPESTATUS[0] is the npx exit code; $? would be tee's, masking
+          # Claude failures as success.
+          status=${PIPESTATUS[0]}
+          echo "::endgroup::"
+
+          # Wrap untrusted Claude result text in ::stop-commands:: so it can't
+          # inject workflow commands (::warning::, ::add-mask::, etc.).
+          STOP_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+          echo "::group::Claude Code diagnostics"
+          echo "::stop-commands::$STOP_TOKEN"
+          python3 - "$STREAM_LOG" "$status" <<'PY'
+          import json, sys
+          path, status = sys.argv[1], sys.argv[2]
+          # Result message is the final stream-json event; iterate in reverse
+          # and stop at the first match instead of parsing every assistant
+          # turn and tool-use line.
+          final = None
+          with open(path) as f:
+              for line in reversed(f.readlines()):
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      msg = json.loads(line)
+                  except json.JSONDecodeError:
+                      continue
+                  if msg.get("type") == "result":
+                      final = msg
+                      break
+          print(f"exit_status: {status}")
+          if final is None:
+              print("no final result message captured")
+              sys.exit(0)
+          for key in ("subtype", "is_error", "num_turns", "duration_ms",
+                      "duration_api_ms", "total_cost_usd"):
+              if key in final:
+                  print(f"{key}: {final[key]}")
+          result = final.get("result")
+          if isinstance(result, str) and result:
+              print("result:")
+              print(result[:2000])
+          PY
+          echo "::$STOP_TOKEN::"
+          echo "::endgroup::"
+          exit $status
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          ANTHROPIC_MODEL: ${{ inputs.model || 'aws/anthropic/bedrock-claude-opus-4-7' }}
+          MAX_TURNS: ${{ inputs.max_turns || '200' }}
           DISABLE_PROMPT_CACHING: "1"  # NVIDIA gateway rejects cache_control.ephemeral.scope
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"  # NVIDIA gateway rejects context_management
 
       - name: Create PR
         if: inputs.dry_run != true

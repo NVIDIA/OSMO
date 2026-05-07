@@ -95,9 +95,10 @@ spec:
         - --redis_db_number
         - {{ .Values.services.redis.dbNumber | quote }}
         {{- end}}
-        {{- if .Values.services.service.hostname }}
+        {{- $serviceHostname := .Values.services.service.hostname | default .Values.global.hostname }}
+        {{- if $serviceHostname }}
         - --service_hostname
-        - {{ .Values.services.service.hostname }}
+        - {{ $serviceHostname }}
         {{- end }}
         - --postgres_host
         - {{ .Values.services.postgres.serviceName }}
@@ -118,19 +119,24 @@ spec:
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
         - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.global.logs.logFormat | default "text" }}
         - --log_dir
         - /logs
         - --log_name
         - agent_service
         {{- end }}
+        {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.agent.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         env:
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}
         {{- end }}
+        {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.agent | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
@@ -149,7 +155,7 @@ spec:
         {{- end }}
         imagePullPolicy: {{ .Values.services.agent.imagePullPolicy }}
         ports:
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.agent.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.agent.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.agent) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -157,11 +163,13 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
+        {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.agent | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.agent.resources | nindent 10 }}
 
@@ -196,6 +204,9 @@ spec:
           httpGet:
             port: 8000
             path: /health
+            {{- if .Values.gateway.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
           periodSeconds: 45
           failureThreshold: 3
           timeoutSeconds: 20
@@ -204,6 +215,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.agent | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.agent | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.agent) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
@@ -217,6 +229,7 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
+        {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
 ---
 

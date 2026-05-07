@@ -50,10 +50,10 @@ function useIsMobile(): boolean {
 
   React.useEffect(() => {
     const mq = window.matchMedia(MOBILE_BREAKPOINT);
-    setIsMobile(mq.matches);
-
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    const sync = (matches: boolean) => setIsMobile(matches);
+    const handler = (e: MediaQueryListEvent) => sync(e.matches);
     mq.addEventListener("change", handler);
+    sync(mq.matches);
     return () => mq.removeEventListener("change", handler);
   }, []);
 

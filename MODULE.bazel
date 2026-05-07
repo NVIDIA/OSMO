@@ -198,6 +198,11 @@ pip.parse(
     hub_name = "osmo_python_deps",
     python_version = "3.14.2",
     requirements_lock = "//src:locked_requirements.txt",
+    target_platforms = [
+        "{os}_{arch}",
+        "linux_x86_64",
+        "linux_aarch64",
+    ],
 )
 use_repo(pip, "osmo_python_deps")
 
@@ -322,7 +327,7 @@ http_archive(
 ################
 
 bazel_dep(name = "rules_oci", version = "2.2.3")
-bazel_dep(name = "rules_distroless", version = "0.5.1")
+bazel_dep(name = "rules_distroless", version = "0.6.1")
 
 oci = use_extension("@rules_oci//oci:extensions.bzl", "oci")
 
@@ -351,8 +356,8 @@ apt.install(
 
 oci.pull(
     name = "distroless_python3_14",
-    digest = "sha256:4cf4cb9ff8d131d30b4f3d98ae003b530c819f6486247695cc79b6e3feaa5291",
-    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.3",
+    digest = "sha256:1bf34c5e5ca379a17ffa82d1a908be551a79a59a1eb385178bc6b4c2727f25ea",
+    image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.4",
     platforms = [
         "linux/arm64",
         "linux/amd64",
@@ -362,12 +367,12 @@ oci.pull(
 # Used for local debugging
 # oci.pull(
 #     name = "distroless_python3_14_dev",
-#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.3-dev",
+#     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.4-dev",
 #     platforms = [
 #          "linux/amd64",
 #          "linux/arm64/v8"
 #     ],
-#     digest = "sha256:a25a2354a367dab49bd1848debab922e85f250d3cc569a0c73bc4898f84463c4",
+#     digest = "sha256:1d4c57c77d1a8c6e78c1bfe7ed604bba2cc6e927f6b84834d64a1d95b0b9459a",
 # )
 
 oci.pull(

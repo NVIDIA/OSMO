@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -104,33 +104,29 @@ Practical Guide
 Enabling Rsync
 --------------
 
-**Step 1: Update Workflow Configuration**
+.. include:: ../_shared/configmap_banner.rst
 
-Enable the rsync plugin in your OSMO configuration:
+**Step 1: Enable Rsync in Helm Values**
 
-.. code-block:: bash
+Add the ``plugins_config.rsync`` block under ``services.configs.workflow``:
 
-  $ osmo config update WORKFLOW
+.. code-block:: yaml
 
-Edit the ``plugins_config.rsync`` section:
-
-.. code-block:: json
-
-  {
-    "plugins_config": {
-      "rsync": {
-        "enabled": true,
-        "enable_telemetry": false,
-        "read_bandwidth_limit": 2621440,
-        "write_bandwidth_limit": 2621440,
-        "allowed_paths": {},
-        "daemon_debounce_delay": 30,
-        "daemon_poll_interval": 120,
-        "daemon_reconcile_interval": 60,
-        "client_upload_rate_limit": 2097152
-      }
-    }
-  }
+  services:
+    configs:
+      enabled: true
+      workflow:
+        plugins_config:
+          rsync:
+            enabled: true
+            enable_telemetry: false
+            read_bandwidth_limit: 2621440
+            write_bandwidth_limit: 2621440
+            allowed_paths: {}
+            daemon_debounce_delay: 30
+            daemon_poll_interval: 120
+            daemon_reconcile_interval: 60
+            client_upload_rate_limit: 2097152
 
 **Step 2: Configure Settings**
 
@@ -140,13 +136,16 @@ Edit the ``plugins_config.rsync`` section:
 
     Control network usage with rate limits (bytes per second):
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "read_bandwidth_limit": 5242880,
-        "write_bandwidth_limit": 5242880,
-        "client_upload_rate_limit": 4194304
-      }
+      services:
+        configs:
+          workflow:
+            plugins_config:
+              rsync:
+                read_bandwidth_limit: 5242880
+                write_bandwidth_limit: 5242880
+                client_upload_rate_limit: 4194304
 
     **Limits:**
 
@@ -166,13 +165,16 @@ Edit the ``plugins_config.rsync`` section:
 
     Adjust sync timing for your workflow patterns:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "daemon_debounce_delay": 10,
-        "daemon_poll_interval": 60,
-        "daemon_reconcile_interval": 30
-      }
+      services:
+        configs:
+          workflow:
+            plugins_config:
+              rsync:
+                daemon_debounce_delay: 10
+                daemon_poll_interval: 60
+                daemon_reconcile_interval: 30
 
     **Timing Values:**
 
@@ -192,21 +194,20 @@ Edit the ``plugins_config.rsync`` section:
 
     Add additional sync destinations beyond ``/osmo/run/workspace``:
 
-    .. code-block:: json
-      :emphasize-lines: 4,7
+    .. code-block:: yaml
 
-      {
-        "allowed_paths": {
-          "dataset": {
-            "path": "/mnt/shared/datasets/",
-            "writable": true
-          },
-          "models": {
-            "path": "/mnt/models/",
-            "writable": false
-          }
-        }
-      }
+      services:
+        configs:
+          workflow:
+            plugins_config:
+              rsync:
+                allowed_paths:
+                  dataset:
+                    path: /mnt/shared/datasets/
+                    writable: true
+                  models:
+                    path: /mnt/models/
+                    writable: false
 
     Users can then sync to new remote paths
 
@@ -214,6 +215,12 @@ Edit the ``plugins_config.rsync`` section:
 
       $ osmo workflow rsync wf-id ~/my/path:/mnt/shared/datasets/
       $ osmo workflow rsync wf-id ~/my/path:/mnt/models/
+
+**Step 3: Apply**
+
+.. code-block:: bash
+
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
 
 Troubleshooting
 ---------------

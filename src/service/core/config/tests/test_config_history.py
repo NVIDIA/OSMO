@@ -81,7 +81,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Test first service config update
         first_service_config = {
             'cli_config': {
-                'latest_version': 'test-cli',
+                'latest_version': '1.0.0',
                 'min_supported_version': '1.0.0',
             }
         }
@@ -98,7 +98,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Test second service config update
         second_service_config = {
             'cli_config': {
-                'latest_version': 'updated-cli',
+                'latest_version': '2.0.0',
                 'min_supported_version': '2.0.0',
             }
         }
@@ -122,7 +122,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=first_tags,
         )
         config = history['configs'][-2]['data']
-        self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
+        self.assertEqual(config['cli_config']['latest_version'], '1.0.0')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '1.0.0')
         self._verify_history_entry(
@@ -133,7 +133,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=second_tags,
         )
         config = history['configs'][-1]['data']
-        self.assertEqual(config['cli_config']['latest_version'], 'updated-cli')
+        self.assertEqual(config['cli_config']['latest_version'], '2.0.0')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '2.0.0')
 
@@ -159,7 +159,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=rollback_tags,
         )
         config = history['configs'][-1]['data']
-        self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
+        self.assertEqual(config['cli_config']['latest_version'], '1.0.0')
         self.assertEqual(config['cli_config']['min_supported_version'], '1.0.0')
 
     def test_workflow_config_history(self):
@@ -1004,7 +1004,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Create multiple service config updates to have multiple revisions
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v1'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.1'}},
                 description='First service update',
                 tags=['first-update']
             ),
@@ -1013,7 +1013,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v2'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.2'}},
                 description='Second service update',
                 tags=['second-update']
             ),
@@ -1022,7 +1022,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v3'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.3'}},
                 description='Third service update',
                 tags=['third-update']
             ),
@@ -1137,7 +1137,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         initial_tags = ['initial-tag', 'service-tag']
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v1'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.1'}},
                 description='Initial service update',
                 tags=initial_tags
             ),

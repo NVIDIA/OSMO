@@ -15,6 +15,8 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import contextlib
 import asyncio
 from urllib.parse import urlparse
@@ -29,13 +31,21 @@ import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers
 from src.service.core.auth import auth_service
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.service.core.workflow import objects
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 from src.utils.progress_check import progress
 
 
+# ConfigFileMixin is required even though we read config.config_file from
+# WorkflowServiceConfig: the chart adds --config_file to argv, and
+# StaticConfig.load() does a strict parse_args() per class — without the
+# mixin BackendServiceConfig.load() would reject the unknown flag and crash.
 class BackendServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
-                           src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
+                           src.lib.utils.logging.LoggingConfig,
+                           static_config.StaticConfig,
+                           ssl_config.SSLConfig, ConfigFileMixin):
     """Config settings for the backend service"""
     progress_period: int = pydantic.Field(
         default=30,
@@ -112,6 +122,9 @@ def main():
     connectors.RedisConnector(config)
     agent_metrics = metrics.MetricCreator(config=config).get_meter_instance()
     agent_metrics.start_server()
+    # Pin the watcher on app.state so the daemon Observer thread isn't GC'd.
+    app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres)
     objects.WorkflowServiceContext.set(
         objects.WorkflowServiceContext(config=config, database=postgres))
     parsed_url = urlparse(config.host)
@@ -128,7 +141,8 @@ def main():
             await asyncio.sleep(agent_service_config.progress_period)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         liveness_task = asyncio.create_task(liveness_update())
         try:

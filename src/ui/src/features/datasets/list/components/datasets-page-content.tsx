@@ -113,6 +113,14 @@ export function DatasetsPageContent({ initialUsername }: DatasetsPageContentProp
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
+      <div
+        role="status"
+        className="shrink-0 rounded-md border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-900 dark:border-yellow-900/50 dark:bg-yellow-950/60 dark:text-yellow-200"
+      >
+        <strong>Heads up:</strong> OSMO datasets are deprecated as of version 6.4 and will be removed in a future
+        release.
+      </div>
+
       {/* Toolbar with search and controls */}
       <div className="shrink-0">
         <InlineErrorBoundary

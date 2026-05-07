@@ -464,23 +464,21 @@ export async function fetchDatasetDetailLatest(bucket: string, name: string): Pr
 }
 
 /**
- * Fetch all files for a dataset version from the version's location URL.
+ * Process raw manifest items into sorted/indexed structures for O(log n) lookups.
  *
- * Fetches the raw flat manifest, then builds a ProcessedManifest with three
- * sorted/indexed structures for O(log n) directory listing and file search.
- * The result is cached by React Query — the O(n log n) sort happens once.
- *
- * Returns an empty ProcessedManifest if no location URL is provided.
- *
- * @param location - The version's location URL (DatasetVersion.location)
+ * Exported so tests can exercise the full sort + binary-search + listing pipeline
+ * without stubbing the server action — see datasets.test.ts.
  */
-export async function fetchDatasetFiles(location: string | null): Promise<ProcessedManifest> {
-  if (!location) return { byPath: [], byFilename: [], fileTypes: [] };
-  const { fetchManifest } = await import("@/lib/api/server/dataset-actions");
-  const items = (await fetchManifest(location)) as RawFileItem[];
-
-  // Sort by full relative_path — enables binary-search directory listing
-  const byPath = [...items].sort((a, b) => a.relative_path.localeCompare(b.relative_path));
+export function processManifestItems(items: RawFileItem[]): ProcessedManifest {
+  // Sort by full relative_path — enables binary-search directory listing.
+  // Use codepoint comparison (matches `<` in binarySearchByPath), NOT localeCompare:
+  // Unicode collation treats "/" and "_" as equivalent punctuation, which places
+  // "foo_bar/..." before "foo/..." — the opposite of `<` order. If the sort here
+  // disagreed with the binary-search comparator, buildDirectoryListing would
+  // start at the wrong index and emit an empty listing for "foo".
+  const byPath = [...items].sort((a, b) =>
+    a.relative_path < b.relative_path ? -1 : a.relative_path > b.relative_path ? 1 : 0,
+  );
 
   // Build filename index sorted by lowercase last-segment name — enables binary-search filename filter
   const byFilename = byPath
@@ -496,6 +494,29 @@ export async function fetchDatasetFiles(location: string | null): Promise<Proces
   const fileTypes = [...extSet].sort();
 
   return { byPath, byFilename, fileTypes };
+}
+
+/**
+ * Fetch all files for a dataset version from the version's location URL.
+ *
+ * Fetches the raw flat manifest, then builds a ProcessedManifest with three
+ * sorted/indexed structures for O(log n) directory listing and file search.
+ * The result is cached by React Query — the O(n log n) sort happens once.
+ *
+ * Returns an empty ProcessedManifest if no location URL is provided.
+ *
+ * @param location - The version's location URL (DatasetVersion.location)
+ */
+export async function fetchDatasetFiles(
+  bucket: string,
+  name: string,
+  version: string,
+  location: string | null,
+): Promise<ProcessedManifest> {
+  if (!location) return { byPath: [], byFilename: [], fileTypes: [] };
+  const { fetchManifest } = await import("@/lib/api/server/dataset-actions.production");
+  const items = (await fetchManifest(bucket, name, version)) as RawFileItem[];
+  return processManifestItems(items);
 }
 
 /**
@@ -627,8 +648,8 @@ export function buildDatasetLatestQueryKey(bucket: string, name: string): readon
  * Build query key for the dataset version's full file manifest.
  * Keyed by location URL only — path filtering is done client-side via buildDirectoryListing.
  */
-export function buildDatasetFilesQueryKey(location: string | null): readonly unknown[] {
-  return ["datasets", "files", location] as const;
+export function buildDatasetFilesQueryKey(bucket: string, name: string, version: string): readonly unknown[] {
+  return ["datasets", "files", bucket, name, version] as const;
 }
 
 /**

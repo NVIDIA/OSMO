@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRef, useCallback, useEffect, startTransition } from "react";
+import { useRef, useCallback, useEffect, useLayoutEffect, startTransition } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -753,7 +753,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
 
   // Register reconnect callback for external triggers (use ref to avoid infinite loops)
   const connectRef = useRef(connect);
-  connectRef.current = connect;
+  useLayoutEffect(() => {
+    connectRef.current = connect;
+  });
 
   useEffect(() => {
     const stableReconnect = () => connectRef.current();

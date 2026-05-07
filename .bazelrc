@@ -93,3 +93,4 @@ build:ci --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker
 # Coverage: use with `bazel coverage`
 coverage --combined_report=lcov
 coverage --test_tag_filters=-nocoverage
+coverage --build_tests_only

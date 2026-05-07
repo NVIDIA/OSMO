@@ -46,7 +46,7 @@ from src.utils import configmap_state
 from src.lib.data import storage
 from src.lib.data.storage import constants
 from src.lib.utils import (common, credentials, jinja_sandbox, login,
-                           osmo_errors, role)
+                           osmo_errors, role, version)
 from src.utils import auth, notify
 from src.utils.secret_manager import Encrypted, SecretManager
 
@@ -1978,8 +1978,12 @@ class ResourceSpec(pydantic.BaseModel):
                      self.storage, self.memory, str(self.gpu)))
 
 class ResourceLimitationsField(ExtraArgBaseModel):
-    cpu: str
-    memory: str
+    # Defaults of '0' let pod templates omit individual fields without
+    # failing strict validation in pool-quota accounting. The math in
+    # check_osmo_data_resource subtracts requests as ctrl-pod overhead,
+    # so '0' is the right neutral value when fields are omitted.
+    cpu: str = '0'
+    memory: str = '0'
     ephemeral_storage: str = pydantic.Field('1Gi', alias='ephemeral-storage')
 
 
@@ -2188,8 +2192,15 @@ class BackendResource(pydantic.BaseModel):
                     if platform not in curr_pool_config.platforms:
                         continue
                     curr_platform_config = curr_pool_config.platforms[platform]
+                    # Prefer the accounting copy where osmo-ctrl resource
+                    # templates have been Jinja-rendered with default
+                    # variables; fall back to parsed_pod_template when
+                    # the loader didn't populate it (e.g. DB mode).
+                    accounting_template = (
+                        curr_platform_config.parsed_pod_template_for_accounting
+                        or curr_platform_config.parsed_pod_template)
                     resource_limits = \
-                        check_osmo_data_resource(curr_platform_config.parsed_pod_template)
+                        check_osmo_data_resource(accounting_template)
                     updated_allocatable_fields = copy.deepcopy(allocatable_fields)
                     if 'cpu' in updated_allocatable_fields:
                         updated_allocatable_fields['cpu'] = max(0,
@@ -2459,7 +2470,7 @@ class BackendResource(pydantic.BaseModel):
                     updated_workflow_allocatable_fields=updated_workflow_allocatable_fields,
                     available_fields=available_fields,
                     backend=resource['backend'],
-                    resource_type=resource['resource_type']))
+                    resource_type=BackendResourceType(resource['resource_type'])))
 
         return all_resources
 
@@ -2731,6 +2742,7 @@ def _resolve_bucket_credential(
         access_key_id=credential.access_key_id,
         access_key=credential.access_key,
         override_url=credential.override_url,
+        addressing_style=credential.addressing_style,
     )
 
 
@@ -2928,6 +2940,24 @@ class CliConfig(ExtraArgBaseModel):
     latest_version: str | None = None
     min_supported_version: str | None = None
     client_install_url: str | None = None
+
+    @pydantic.field_validator('latest_version', 'min_supported_version')
+    @classmethod
+    def validate_version_format(
+            cls, v: str | None, info: pydantic.ValidationInfo) -> str | None:
+        """ Reject malformed version strings at write time so the version-check
+        middleware can trust the persisted value. None and empty pass through
+        unchanged (treated as "not configured" by callers). """
+        if not v:
+            return v
+        try:
+            version.Version.from_string(v)
+        except osmo_errors.OSMOError as exc:
+            raise osmo_errors.OSMOUserError(
+                f'Invalid {info.field_name} "{v}": '
+                'must be of the format major.minor.revision'
+            ) from exc
+        return v
 
 
 class ServiceConfig(DynamicConfig):
@@ -3442,6 +3472,10 @@ class Platform(PlatformMinimal):
     parsed_resource_validations: List[ResourceAssertion] = []
     override_pod_template: List[str] = []
     parsed_pod_template: Dict = {}
+    # Pod template with Jinja in osmo-ctrl resources pre-rendered using
+    # pool/platform default variables. Populated by the ConfigMap loader;
+    # falls back to parsed_pod_template when absent (DB mode).
+    parsed_pod_template_for_accounting: Dict = {}
 
     def insert_into_db(self, database: PostgresConnector, pool_name: str, platform_name: str):
         """ Create/update an entry in the pools table """
@@ -3520,6 +3554,9 @@ class Pool(PoolBase, extra='ignore'):
     parsed_resource_validations: List[ResourceAssertion] = []
     common_pod_template: List[str] = []
     parsed_pod_template: Dict = {}
+    # Pod template with Jinja in osmo-ctrl resources pre-rendered using
+    # the pool's common_default_variables. See Platform for rationale.
+    parsed_pod_template_for_accounting: Dict = {}
     common_group_templates: List[str] = []
     parsed_group_templates: List[Dict] = []
     platforms: Dict[str, Platform] = {}

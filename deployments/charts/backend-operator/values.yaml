@@ -103,6 +103,14 @@ global:
     ##
     k8sLogLevel: WARNING
 
+    ## Log output format for backend-operator services (uses Python utils/logging).
+    ## - "text" (default): legacy ServiceFormatter format used historically.
+    ## - "json": one JSON object per record, suitable for direct ingestion by
+    ##   Loki/Elastic without a parser stage.
+    ## Consumed by: backend-listener, backend-worker.
+    ##
+    logFormat: text
+
   ## Comma-separated list of namespaces to include in usage monitoring
   ##
   includeNamespaceUsage: 'osmo-staging,osmo-prod'
@@ -208,7 +216,7 @@ global:
 ## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
 ##
 podMonitor:
-  enabled: true
+  enabled: false
 
 ## Configuration for individual backend operators
 ##

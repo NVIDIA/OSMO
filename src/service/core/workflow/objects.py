@@ -30,15 +30,19 @@ from src.lib.data.storage.credentials import credentials as data_credentials
 from src.lib.utils import credentials, common, osmo_errors, priority as wf_priority
 from src.lib.utils.redact import redact_secrets
 import src.lib.utils.logging
+from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.utils.job import app, common as task_common, jobs, kb_objects, task, workflow
 from src.utils.job.task import _encode_hstore
-from src.utils import connectors, static_config, yaml as util_yaml
+from src.utils import connectors, ssl_config, static_config, yaml as util_yaml
 from src.utils.metrics import metrics
 
 
 class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
                             src.lib.utils.logging.LoggingConfig,
-                            static_config.StaticConfig, metrics.MetricsCreatorConfig):
+                            static_config.StaticConfig,
+                            ssl_config.SSLConfig,
+                            metrics.MetricsCreatorConfig,
+                            ConfigFileMixin):
     """ Manages configuration specific to the workflow service. """
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
@@ -102,14 +106,6 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
             'command_line': 'default_admin_password',
             'env': 'OSMO_DEFAULT_ADMIN_PASSWORD'
         })
-    config_file: str | None = pydantic.Field(
-        default=None,
-        description='Path to ConfigMap YAML file to load configs from.',
-        json_schema_extra={
-            'command_line': 'config_file',
-            'env': 'OSMO_CONFIG_FILE'
-        })
-
     @pydantic.model_validator(mode='before')
     @classmethod
     def validate_default_admin(cls, values):
@@ -676,6 +672,9 @@ class UserDataCredential(
         if self.override_url:
             payload['override_url'] = self.override_url
 
+        if self.addressing_style:
+            payload['addressing_style'] = self.addressing_style
+
         payload = postgres.encrypt_dict(payload, user)
 
         return CredentialRecord(
@@ -695,6 +694,7 @@ class UserDataCredential(
             access_key=pydantic.SecretStr(self.access_key),
             region=self.region,
             override_url=self.override_url,
+            addressing_style=self.addressing_style,
         )
 
         storage_info.data_auth(data_cred)

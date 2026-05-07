@@ -92,19 +92,19 @@ Top-Level Configuration
      - ``30``
    * - ``default_exec_timeout``
      - String
-     - Default timeout for task execution. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Default per-group execution timeout, applied independently to each group's RUNNING phase. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
      - ``60d``
    * - ``default_queue_timeout``
      - String
-     - Default timeout for tasks in queue. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Default per-group queue timeout, measured from when each group enters ``SCHEDULING`` until it is assigned a node (enters ``INITIALIZING``). Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
      - ``60d``
    * - ``max_exec_timeout``
      - String
-     - Maximum allowed execution timeout. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Maximum allowed per-group execution timeout. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
      - ``60d``
    * - ``max_queue_timeout``
      - String
-     - Maximum allowed queue timeout. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
+     - Maximum allowed per-group queue timeout. Must be in the format of <integer><unit> (for example, 10m, 1h, 1d).
      - ``60d``
    * - ``force_cleanup_delay``
      - String

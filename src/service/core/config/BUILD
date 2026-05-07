@@ -21,20 +21,36 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 
 osmo_py_library(
+    name = "configmap_loader_lib",
+    srcs = [
+        "configmap_events.py",
+        "configmap_guard.py",
+        "configmap_loader.py",
+    ],
+    deps = [
+        requirement("kubernetes"),
+        requirement("pydantic"),
+        requirement("pyyaml"),
+        requirement("watchdog"),
+        "//src/lib/utils:common",
+        "//src/utils:configmap_state",
+        "//src/utils/connectors",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "config",
     srcs = [
         "config_history_helpers.py",
         "config_service.py",
-        "configmap_guard.py",
-        "configmap_loader.py",
         "helpers.py",
         "objects.py",
     ],
     deps = [
+        ":configmap_loader_lib",
         requirement("fastapi"),
         requirement("pydantic"),
-        requirement("pyyaml"),
-        requirement("watchdog"),
         "//src/lib/utils:common",
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:config_history",

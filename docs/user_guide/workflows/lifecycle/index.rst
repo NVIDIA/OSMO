@@ -340,9 +340,9 @@ Status Reference
       * - :bdg-failed:`FAILED`
         - Workflow failed to complete. One or more tasks have failed
       * - :bdg-failed:`FAILED_EXEC_TIMEOUT`
-        - Workflow was running longer than the set execution timeout (see :ref:`workflow_spec_timeouts`)
+        - At least one group ran longer than its per-group execution timeout, and all groups have finished (see :ref:`workflow_spec_timeouts`)
       * - :bdg-failed:`FAILED_QUEUE_TIMEOUT`
-        - Workflow was queued longer than the set queue timeout (see :ref:`workflow_spec_timeouts`)
+        - At least one group sat in ``SCHEDULING`` (waiting for a node assignment) longer than the per-group queue timeout, and all groups have finished (see :ref:`workflow_spec_timeouts`)
       * - :bdg-failed:`FAILED_SUBMISSION`
         - Workflow failed to submit due to resource or credential validation failure
       * - :bdg-failed:`FAILED_SERVER_ERROR`
@@ -386,9 +386,9 @@ Status Reference
       * - :bdg-failed:`FAILED_BACKEND_ERROR`
         - Task has failed due to some backend error like the node entering a Not Ready state
       * - :bdg-failed:`FAILED_EXEC_TIMEOUT`
-        - Workflow ran longer than the set execution timeout (see :ref:`workflow_spec_timeouts`)
+        - The group containing this task ran longer than the execution timeout (see :ref:`workflow_spec_timeouts`)
       * - :bdg-failed:`FAILED_QUEUE_TIMEOUT`
-        - Workflow was queued longer than the set queue timeout (see :ref:`workflow_spec_timeouts`)
+        - The group containing this task sat in ``SCHEDULING`` longer than the queue timeout while waiting for a node assignment (see :ref:`workflow_spec_timeouts`)
       * - :bdg-failed:`FAILED_IMAGE_PULL`
         - Task has failed to pull Docker image
       * - :bdg-failed:`FAILED_UPSTREAM`

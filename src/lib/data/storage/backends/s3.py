@@ -70,6 +70,12 @@ OSMO_S3_PAGINATOR_SIZE = 'OSMO_S3_PAGINATOR_SIZE'
 # Delete objects batch size for S3 delete objects.
 OSMO_S3_DELETE_OBJECTS_BATCH_SIZE = 'OSMO_S3_DELETE_OBJECTS_BATCH_SIZE'
 
+# Override for the S3 addressing style. One of: 'virtual', 'path', 'auto'.
+# When unset, defaults to 'virtual' for custom (non-AWS) endpoints and defers to
+# boto3's resolver for AWS S3. Set to 'path' for legacy buckets whose names are
+# not DNS-compliant under virtual-hosted style.
+OSMO_S3_ADDRESSING_STYLE = 'OSMO_S3_ADDRESSING_STYLE'
+
 
 ##################################
 
@@ -88,35 +94,103 @@ def _get_s3_timeout() -> datetime.timedelta:
     return utils_common.to_timedelta(os.getenv(OSMO_S3_TIMEOUT, '24h'))
 
 
-def _get_boto_config(scheme: str) -> botocore.config.Config:
+_VALID_S3_ADDRESSING_STYLES = ('virtual', 'path', 'auto')
+
+
+def _normalize_env_addressing_style(raw: str) -> str:
     """
-    Returns the boto3 configuration for the given scheme.
+    Normalizes and validates an OSMO_S3_ADDRESSING_STYLE env var value.
+
+    Trims whitespace and lowercases the value, then verifies it's one of the
+    supported addressing styles. Raises ValueError with the offending raw
+    value on miss, so a typo surfaces immediately instead of silently flowing
+    into botocore's Config.
+    """
+    normalized = raw.strip().lower()
+    if normalized not in _VALID_S3_ADDRESSING_STYLES:
+        supported = ', '.join(_VALID_S3_ADDRESSING_STYLES)
+        raise ValueError(
+            f'Invalid {OSMO_S3_ADDRESSING_STYLE} value {raw!r}; '
+            f'expected one of: {supported}'
+        )
+    return normalized
+
+
+def _get_s3_addressing_style(
+    scheme: str,
+    endpoint_url: str | None,
+    addressing_style: str | None = None,
+) -> str | None:
+    """
+    Returns the S3 addressing style to pass to boto3, or None to defer to its
+    default resolver.
+
+    For S3 custom (non-AWS) endpoints we default to 'virtual' because several
+    S3-compatible providers (CAIOS, Cloudflare R2 strict, Wasabi strict) reject
+    path-style requests on operations like HeadBucket and GetBucketLocation.
+    Boto3's 'auto' default picks path-style whenever endpoint_url is set, which
+    breaks those backends.
+
+    Resolution order:
+      1. Credential addressing_style (explicit per-endpoint override).
+      2. OSMO_S3_ADDRESSING_STYLE env var (explicit operator override).
+      3. AWS_S3_FORCE_PATH_STYLE env var (the convention chart deployments and
+         localstack/MinIO setups already use to signal "path-style required";
+         boto3 does not honor it natively, so we honor it here).
+      4. 'virtual' for S3 custom endpoints, None (boto3 default) for AWS and
+         other S3-API backends.
+    """
+    if addressing_style:
+        return addressing_style
+    if scheme != common.StorageBackendType.S3.value:
+        return None
+    osmo_override = os.getenv(OSMO_S3_ADDRESSING_STYLE)
+    if osmo_override:
+        return _normalize_env_addressing_style(osmo_override)
+    if os.getenv('AWS_S3_FORCE_PATH_STYLE', '').lower() in ('true', '1'):
+        return 'path'
+    if endpoint_url is None:
+        return None
+    return 'virtual'
+
+
+def _get_boto_config(
+    scheme: str,
+    endpoint_url: str | None = None,
+    addressing_style: str | None = None,
+) -> botocore.config.Config:
+    """
+    Returns the boto3 configuration for the given scheme and endpoint.
     """
     max_attempts = _get_s3_max_retry_count()
     max_pool_connections = max(10, int(os.getenv(OSMO_S3_MAX_POOL_CONNECTIONS, '160')))
 
+    s3_config: Dict[str, Any] = {}
     if scheme == common.StorageBackendType.TOS.value:
-        # TOS requires additional configurations.
-        return botocore.config.Config(
-            retries={
-                'max_attempts': max_attempts,
-                'mode': 'standard',
-            },
-            max_pool_connections=max_pool_connections,
-            s3={'addressing_style': 'virtual'},
-            request_checksum_calculation='when_required',
-            response_checksum_validation='when_required',
+        # TOS only supports virtual-hosted style.
+        s3_config['addressing_style'] = 'virtual'
+    else:
+        addressing_style = _get_s3_addressing_style(
+            scheme,
+            endpoint_url,
+            addressing_style=addressing_style,
         )
+        if addressing_style is not None:
+            s3_config['addressing_style'] = addressing_style
 
-    return botocore.config.Config(
-        retries={
+    config_kwargs: Dict[str, Any] = {
+        'retries': {
             'max_attempts': max_attempts,
             'mode': 'standard',
         },
-        max_pool_connections=max_pool_connections,
-        request_checksum_calculation='when_required',
-        response_checksum_validation='when_required',
-    )
+        'max_pool_connections': max_pool_connections,
+        'request_checksum_calculation': 'when_required',
+        'response_checksum_validation': 'when_required',
+    }
+    if s3_config:
+        config_kwargs['s3'] = s3_config
+
+    return botocore.config.Config(**config_kwargs)
 
 
 def _get_s3_transfer_config() -> boto3.s3.transfer.TransferConfig:
@@ -540,7 +614,11 @@ def create_client(
         mypy_boto3_s3.S3Client
     """
     def _get_client() -> mypy_boto3_s3.S3Client:
-        config = _get_boto_config(scheme)
+        config = _get_boto_config(
+            scheme,
+            endpoint_url=endpoint_url,
+            addressing_style=data_cred.addressing_style,
+        )
 
         session = boto3.Session()
         _add_request_headers(session, extra_headers)

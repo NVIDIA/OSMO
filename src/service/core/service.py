@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import base64
 import datetime
 import logging
@@ -37,7 +39,8 @@ from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
 from src.service.core.auth import auth_service, objects as auth_objects
 from src.service.core.config import (
-    config_service, configmap_loader, helpers as config_helpers, objects as config_objects
+    config_service, configmap_loader,
+    helpers as config_helpers, objects as config_objects,
 )
 from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
@@ -468,23 +471,24 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
             username='',
         )
 
-    create_default_pool(postgres)
-    set_default_backend_images(postgres)
-    set_default_service_url(postgres)
-    set_client_install_url(postgres, config)
+    # In ConfigMap mode, the YAML snapshot is authoritative for these fields,
+    # so DB writes here are invisible to readers (the snapshot wins in
+    # get_configs) and just bloat the configs/pools tables on every restart.
+    # service_base_url in particular must come from the ConfigMap only —
+    # the Helm template auto-derives it from services.service.hostname, and
+    # falling back to a stale DB value would mask misconfiguration.
+    # setup_default_admin writes a user record (not a config row), so it
+    # stays unconditional.
+    if not config.config_file:
+        create_default_pool(postgres)
+        set_default_backend_images(postgres)
+        set_client_install_url(postgres, config)
+        set_default_service_url(postgres)
     setup_default_admin(postgres, config)
 
-    if config.config_file:
-        try:
-            watcher = configmap_loader.ConfigMapWatcher(
-                config.config_file, postgres)
-            watcher.start()
-            # Store on app state to prevent GC from killing the watcher
-            target_app.state.config_watcher = watcher
-        except Exception:  # pylint: disable=broad-exception-caught
-            logging.exception(
-                'Failed to start config watcher — '
-                'service will continue without ConfigMap management')
+    # Store on app state to prevent GC from killing the watcher thread.
+    target_app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres, is_api_service=True)
 
     # Instantiate QueryParser
     query.QueryParser()
@@ -543,7 +547,7 @@ def main():
         port = 8000
 
     try:
-        uvicorn.run(app, host=host, port=port)
+        uvicorn.run(app, host=host, port=port, log_config=None, **config.uvicorn_ssl_kwargs())
     except KeyboardInterrupt:
         sys.exit(0)
 

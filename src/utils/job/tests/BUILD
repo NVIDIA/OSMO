@@ -85,6 +85,16 @@ py_test(
 )
 
 py_test(
+    name = "test_backend_jobs",
+    srcs = [
+        "test_backend_jobs.py"
+    ],
+    deps = [
+        "//src/utils/job:backend_job",
+    ]
+)
+
+py_test(
     name = "test_topology",
     srcs = [
         "test_topology.py"

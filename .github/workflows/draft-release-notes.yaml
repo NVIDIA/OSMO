@@ -1,0 +1,316 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Generates release notes for an OSMO version using Claude Code, then opens
+# (or updates) a PR adding releases/X.Y.Z.md on main.
+#
+# Inputs come from git history between the previous release tag and the
+# current X.Y.Z tag (or main HEAD if the tag does not yet exist). The system
+# prompt is .github/release-notes-template.md.
+
+name: Draft release notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 6.3.0)'
+        required: true
+      model:
+        description: 'LLM model name on NVIDIA gateway'
+        default: 'aws/anthropic/bedrock-claude-opus-4-7'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # Serialize per-version so re-running for the same version replaces the
+  # in-flight PR rather than racing.
+  group: draft-release-notes-${{ inputs.version }}
+  cancel-in-progress: true
+
+jobs:
+  draft:
+    environment: nim-env
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "svc-osmo-ci"
+          git config user.email "svc-osmo-ci@users.noreply.github.com"
+
+      - name: Resolve tag range
+        id: tags
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must be MAJOR.MINOR.PATCH (got: $VERSION)"
+            exit 1
+          fi
+
+          # Largest semver tag strictly less than VERSION wins. sort -V handles
+          # the ordering; awk filters out the requested version and any non-
+          # semver tags.
+          prev_tag=$(git tag --list '[0-9]*.[0-9]*.[0-9]*' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | awk -v v="$VERSION" '$0 != v' \
+            | sort -V \
+            | awk -v v="$VERSION" '
+                {
+                  split($0, a, ".");
+                  split(v, b, ".");
+                  if (a[1] < b[1] ||
+                      (a[1] == b[1] && a[2] < b[2]) ||
+                      (a[1] == b[1] && a[2] == b[2] && a[3] < b[3])) {
+                    print $0;
+                  }
+                }
+              ' \
+            | tail -n1)
+          if [[ -z "$prev_tag" ]]; then
+            echo "::error::no previous semver tag less than $VERSION"
+            exit 1
+          fi
+          echo "prev_tag=$prev_tag"
+
+          # Upper bound: prefer the X.Y.Z tag if it exists (set by the GitLab
+          # nominate pipeline). Otherwise use main HEAD, but only if main's
+          # version.yaml matches the requested version.
+          if git rev-parse --verify --quiet "refs/tags/$VERSION" >/dev/null; then
+            current_ref="refs/tags/$VERSION"
+            echo "Using tag $VERSION as upper bound"
+          else
+            file_version=$(yq -r '"\(.major).\(.minor).\(.revision)"' \
+              src/lib/utils/version.yaml 2>/dev/null || echo "")
+            if [[ "$file_version" != "$VERSION" ]]; then
+              echo "::error::tag $VERSION does not exist and version.yaml on main is '$file_version' (need '$VERSION'). Bump version on main first or wait for nominate."
+              exit 1
+            fi
+            current_ref="HEAD"
+            echo "Tag $VERSION not found; using main HEAD (version.yaml matches)"
+          fi
+
+          {
+            echo "prev_tag=$prev_tag"
+            echo "current_ref=$current_ref"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build input bundle
+        id: bundle
+        env:
+          PREV_TAG: ${{ steps.tags.outputs.prev_tag }}
+          CURRENT_REF: ${{ steps.tags.outputs.current_ref }}
+        run: |
+          set -euo pipefail
+          bundle="$RUNNER_TEMP/release-notes-input.md"
+          # Bundle is intentionally lean: commit log + diff stat only. Full
+          # per-file diffs are dropped because a feature-heavy release blows
+          # past the model context window. The model is instructed below to
+          # pull diffs on-demand for commits it judges important.
+          {
+            echo "## Range"
+            echo
+            echo "From: \`$PREV_TAG\`  →  To: \`$CURRENT_REF\`"
+            echo
+            echo "## git log --no-merges (with bodies)"
+            echo
+            echo '```'
+            git log --no-merges --pretty=format:'%h %s%n%b' "$PREV_TAG..$CURRENT_REF"
+            echo
+            echo '```'
+            echo
+            echo "## git diff --stat"
+            echo
+            echo '```'
+            git diff --stat "$PREV_TAG..$CURRENT_REF"
+            echo '```'
+          } > "$bundle"
+          echo "bundle_path=$bundle" >> "$GITHUB_OUTPUT"
+          echo "::group::Input bundle (first 200 lines)"
+          head -200 "$bundle"
+          echo "::endgroup::"
+
+      - name: Generate release notes
+        id: generate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.NVIDIA_NIM_KEY }}
+          ANTHROPIC_BASE_URL: https://inference-api.nvidia.com
+          ANTHROPIC_MODEL: ${{ inputs.model }}
+          DISABLE_PROMPT_CACHING: "1"
+          CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1"
+          VERSION: ${{ inputs.version }}
+          BUNDLE: ${{ steps.bundle.outputs.bundle_path }}
+          PREV_TAG: ${{ steps.tags.outputs.prev_tag }}
+          CURRENT_REF: ${{ steps.tags.outputs.current_ref }}
+        run: |
+          set -euo pipefail
+          system_prompt=".github/release-notes-prompt.md"
+          if [[ ! -f "$system_prompt" ]]; then
+            echo "::error::missing $system_prompt"
+            exit 1
+          fi
+          out="$RUNNER_TEMP/release-notes.md"
+          prompt_file="$RUNNER_TEMP/release-notes-prompt-with-bundle.md"
+
+          # Concatenate the system prompt with a per-run context block + the
+          # commit-log bundle. The system prompt has the goal, format rules,
+          # and humanization guidance; the context block grounds it in the
+          # specific version/range; the bundle is the source signal.
+          {
+            cat "$system_prompt"
+            echo
+            echo
+            echo "## Context for this run"
+            echo
+            echo "- VERSION: \`$VERSION\`"
+            echo "- PREV_TAG: \`$PREV_TAG\`"
+            echo "- CURRENT_REF: \`$CURRENT_REF\`"
+            echo
+            echo "## Commit log bundle"
+            echo
+            cat "$BUNDLE"
+          } > "$prompt_file"
+          echo "prompt size: $(wc -c < "$prompt_file") bytes"
+
+          stream_log="$RUNNER_TEMP/claude-stream.jsonl"
+          stderr_log="$RUNNER_TEMP/claude-stderr.log"
+          set +e
+          npx @anthropic-ai/claude-code@2.1.116 --print --verbose \
+            --output-format stream-json \
+            --model "$ANTHROPIC_MODEL" \
+            --allowedTools "Read,Glob,Grep,WebFetch(domain:raw.githubusercontent.com),WebFetch(domain:nvidia.github.io),Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(git tag:*),Bash(git rev-parse:*)" \
+            --max-turns 40 \
+            < "$prompt_file" > "$stream_log" 2> "$stderr_log"
+          claude_rc=$?
+          set -e
+
+          echo "::group::claude-code stderr"
+          cat "$stderr_log" || true
+          echo "::endgroup::"
+          echo "::group::claude-code stream (JSONL)"
+          cat "$stream_log" || true
+          echo "::endgroup::"
+          echo "claude-code exit code: ${claude_rc}"
+          echo "stream size: $(wc -c < "$stream_log") bytes"
+
+          if [[ "$claude_rc" -ne 0 ]]; then
+            echo "::error::claude-code exited with code ${claude_rc}"
+            exit "$claude_rc"
+          fi
+
+          # Extract final result text from the stream.
+          raw_out="$RUNNER_TEMP/release-notes-raw.md"
+          jq -r 'select(.type == "result") | .result // empty' < "$stream_log" > "$raw_out"
+
+          if [[ ! -s "$raw_out" ]]; then
+            echo "::error::Claude stream produced no result text. Inspect the stream above for max_turns or other stop reasons."
+            exit 1
+          fi
+
+          # Sanitize: strip any chatter before the first heading. Models
+          # occasionally ignore "no preamble" instructions and emit
+          # "Now I have enough context. Let me generate..." before the
+          # actual notes.
+          awk '
+            !found && /^## / { found=1 }
+            found { print }
+          ' "$raw_out" > "$out"
+
+          if [[ ! -s "$out" ]]; then
+            echo "::error::Sanitized output is empty — no heading found in raw output"
+            echo "::group::raw output"
+            cat "$raw_out"
+            echo "::endgroup::"
+            exit 1
+          fi
+
+          stripped_bytes=$(($(wc -c < "$raw_out") - $(wc -c < "$out")))
+          if [[ "$stripped_bytes" -gt 0 ]]; then
+            echo "Sanitizer stripped ${stripped_bytes} bytes of preamble"
+          fi
+
+          # Keep the sanitized file in $RUNNER_TEMP only. The PR step copies
+          # it into releases/ AFTER the branch checkout, so we don't risk a
+          # checkout overwriting our generated content if releases/X.Y.Z.md
+          # already exists on main.
+          echo "wrote ${out} ($(wc -c < "$out") bytes)"
+          echo "::group::Generated release notes"
+          cat "$out"
+          echo "::endgroup::"
+
+      - name: Open or update PR
+        env:
+          GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          branch="release-notes/${VERSION}"
+          title="release notes: ${VERSION}"
+
+          # Branch from origin/main rather than the workflow's trigger ref so
+          # the PR contains only the generated release notes file. When the
+          # workflow is dispatched against a feature branch (e.g. for testing),
+          # we don't want that branch's other changes to leak into the PR.
+          git fetch origin main
+          git checkout -B "$branch" origin/main
+
+          # The generated file is in $RUNNER_TEMP — copy it in AFTER the
+          # checkout so the checkout can't overwrite our content (e.g. if
+          # main already has a tracked releases/${VERSION}.md from a prior
+          # release).
+          mkdir -p releases
+          cp "$RUNNER_TEMP/release-notes.md" "releases/${VERSION}.md"
+          git add "releases/${VERSION}.md"
+          if git diff --cached --quiet; then
+            echo "no changes to commit; release notes already up to date"
+            exit 0
+          fi
+          git commit -m "$title"
+          git push --force-with-lease origin "$branch"
+
+          if existing=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null) && [[ -n "$existing" ]]; then
+            echo "Updated existing PR #$existing on branch $branch"
+            gh pr comment "$existing" --body "Refreshed by workflow run ${{ github.run_id }}."
+          else
+            body=$(cat <<EOF
+          ## Description
+
+          Release notes for OSMO ${VERSION}, generated by the \`draft-release-notes\` workflow. Review the content for accuracy before merging.
+
+          Issue #None
+
+          ## Checklist
+          - [x] I am familiar with the [Contributing Guidelines](https://github.com/NVIDIA/OSMO/blob/main/CONTRIBUTING.md).
+          - [x] New or existing tests cover these changes.
+          - [x] The documentation is up to date with these changes.
+          EOF
+          )
+            gh pr create \
+              --title "$title" \
+              --body "$body" \
+              --base main \
+              --head "$branch"
+          fi

@@ -389,6 +389,11 @@ services:
     ingress:
       enabled: false
 
+  router:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
   agent:
     scaling:
       minReplicas: 1
@@ -404,69 +409,16 @@ services:
       minReplicas: 1
       maxReplicas: 1
 
+  ui:
+    enabled: true
+    replicas: 1
+    hostname: "osmo-minimal.local"
+    apiHostname: "osmo-service.${OSMO_NAMESPACE}.svc.cluster.local:80"
+
 sidecars:
   otel:
     enabled: false
   rateLimit:
-    enabled: false
-  envoy:
-    enabled: false
-  oauth2Proxy:
-    enabled: false
-EOF
-
-    # UI values
-    cat > "$VALUES_DIR/ui_values.yaml" <<EOF
-# OSMO Web UI Values - Auto-generated
-global:
-  osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
-  osmoImageTag: ${OSMO_IMAGE_TAG}
-${ngc_pull_secret_yaml}
-
-services:
-  ui:
-    replicas: 1
-    hostname: "osmo-minimal.local"
-    apiHostname: "osmo-service.${OSMO_NAMESPACE}.svc.cluster.local:80"
-    ingress:
-      enabled: false
-
-sidecars:
-  envoy:
-    enabled: false
-  oauth2Proxy:
-    enabled: false
-EOF
-
-    # Router values
-    cat > "$VALUES_DIR/router_values.yaml" <<EOF
-# OSMO Router Values - Auto-generated
-global:
-  osmoImageLocation: ${OSMO_IMAGE_REGISTRY}
-  osmoImageTag: ${OSMO_IMAGE_TAG}
-${ngc_pull_secret_yaml}
-
-services:
-  configFile:
-    enabled: true
-
-  service:
-    scaling:
-      minReplicas: 1
-      maxReplicas: 1
-    ingress:
-      enabled: false
-
-  postgres:
-    serviceName: ${POSTGRES_HOST}
-    port: 5432
-    db: ${POSTGRES_DB_NAME}
-    user: ${POSTGRES_USERNAME}
-    passwordSecretName: db-secret
-    passwordSecretKey: db-password
-
-sidecars:
-  otel:
     enabled: false
   envoy:
     enabled: false
@@ -526,34 +478,6 @@ deploy_osmo_service() {
         "upgrade --install osmo-minimal osmo/service --namespace $OSMO_NAMESPACE --wait --timeout 10m"
 
     log_success "OSMO service deployed"
-}
-
-deploy_osmo_ui() {
-    log_info "Deploying OSMO UI..."
-
-    if [[ "$DRY_RUN" == true ]]; then
-        log_info "[DRY-RUN] Would deploy OSMO UI"
-        return
-    fi
-
-    $RUN_HELM_WITH_VALUES "$VALUES_DIR/ui_values.yaml" \
-        "upgrade --install ui-minimal osmo/web-ui --namespace $OSMO_NAMESPACE --wait --timeout 5m"
-
-    log_success "OSMO UI deployed"
-}
-
-deploy_osmo_router() {
-    log_info "Deploying OSMO Router..."
-
-    if [[ "$DRY_RUN" == true ]]; then
-        log_info "[DRY-RUN] Would deploy OSMO Router"
-        return
-    fi
-
-    $RUN_HELM_WITH_VALUES "$VALUES_DIR/router_values.yaml" \
-        "upgrade --install router-minimal osmo/router --namespace $OSMO_NAMESPACE --wait --timeout 5m"
-
-    log_success "OSMO Router deployed"
 }
 
 setup_backend_operator() {
@@ -631,8 +555,6 @@ cleanup_osmo() {
     fi
 
     $RUN_HELM "uninstall osmo-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
-    $RUN_HELM "uninstall ui-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
-    $RUN_HELM "uninstall router-minimal --namespace $OSMO_NAMESPACE" 2>/dev/null || true
     $RUN_HELM "uninstall osmo-operator --namespace $OSMO_OPERATOR_NAMESPACE" 2>/dev/null || true
 
     for namespace in "$OSMO_NAMESPACE" "$OSMO_OPERATOR_NAMESPACE" "$OSMO_WORKFLOWS_NAMESPACE"; do
@@ -725,9 +647,6 @@ deploy_k8s_main() {
     create_helm_values
 
     deploy_osmo_service
-    deploy_osmo_ui
-    deploy_osmo_router
-
     wait_for_pods "$OSMO_NAMESPACE" 300 "" "$RUN_KUBECTL"
 
     setup_backend_operator
@@ -741,4 +660,3 @@ deploy_k8s_main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     deploy_k8s_main "$@"
 fi
-

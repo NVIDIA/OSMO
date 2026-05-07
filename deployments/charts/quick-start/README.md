@@ -48,7 +48,7 @@ This chart installs and configures:
 2. **Data infrastructure** - PostgreSQL, Redis, Localstack S3
 3. **OSMO Core Services**:
    - OSMO service (API server, worker, logger, agent)
-   - Web UI service
+   - UI service
    - Router service
 4. **Backend Operator** - For managing compute workloads
 5. **Configuration Setup** - Automatic configuration of OSMO for local development
@@ -125,16 +125,21 @@ This chart installs and configures:
 | `service.services.agent.initContainers`                 | Init containers for agent service                                | Wait for postgres, redis, and localstack-s3 |
 | `service.services.delayedJobMonitor.imagePullPolicy`    | Kubernetes image pull policy for the delayed job monitor service | `IfNotPresent`                              |
 | `service.services.delayedJobMonitor.initContainers`     | Init containers for delayed job monitor service                  | Wait for postgres, redis, and localstack-s3 |
+| `service.services.ui.enabled`                           | Enable the UI service                                            | `true`                                      |
+| `service.services.ui.initContainers`                   | Init containers for UI service                                   | Wait for osmo-service                       |
+| `service.services.ui.skipAuth`                          | Skip authentication for UI service                               | `true`                                      |
+| `service.services.ui.hostname`                         | Hostname for UI service                                          | `quick-start.osmo`                          |
+| `service.services.ui.apiHostname`                      | API hostname for server-side rendering                           | `quick-start.osmo.svc.cluster.local:80`     |
 | `service.podMonitor.enabled`                            | Enable PodMonitor for Prometheus scraping (requires `monitoring.coreos.com` CRD) | `false`         |
 
-### Web UI Configuration
+### UI Service Configuration
 
-| Parameter                               | Description                          | Default                                    |
-| --------------------------------------- | ------------------------------------ | ------------------------------------------ |
-| `web-ui.services.ui.initContainers`     | Init containers for UI service       | Wait for osmo-service                      |
-| `web-ui.services.ui.skipAuth`           | Skip authentication for UI service   | `true`                                     |
-| `web-ui.services.ui.hostname`           | Hostname for UI service              | `quick-start.osmo`                         |
-| `web-ui.services.ui.apiHostname`        | API hostname for server-side rendering | `osmo-gateway.osmo.svc.cluster.local:80` |
+| Parameter                               | Description                           | Default                                     |
+| --------------------------------------- | ------------------------------------- | ------------------------------------------- |
+| `service.services.ui.initContainers`    | Init containers for UI service        | Wait for osmo-service                       |
+| `service.services.ui.skipAuth`          | Skip authentication for UI service    | `true`                                      |
+| `service.services.ui.hostname`          | Hostname for UI service               | `quick-start.osmo`                          |
+| `service.services.ui.apiHostname`       | API hostname for server-side rendering | `quick-start.osmo.svc.cluster.local:80`     |
 
 ### Router Service Configuration
 

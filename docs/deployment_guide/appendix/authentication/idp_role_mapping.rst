@@ -56,31 +56,31 @@ On login, OSMO resolves the IdP groups through the mapping and assigns ``ml-team
 Configuring external mappings
 -----------------------------
 
-External mappings are configured via the ``external_roles`` field on each role. Use the ``osmo config`` CLI to update a role's mappings:
+External mappings are configured via the ``external_roles`` field on each role. Add the role with its ``external_roles`` mapping under ``services.configs.roles`` in your Helm values, then apply with ``helm upgrade`` (or let ArgoCD sync):
+
+.. code-block:: yaml
+
+   services:
+     configs:
+       enabled: true
+       roles:
+         ml-team:
+           description: ML team role
+           external_roles:
+             - LDAP_ML_TEAM
+             - ml-engineering
+           policies:
+             - actions:
+                 - workflow:*
+                 - pool:List
+               resources:
+                 - pool/ml-training
+
+To inspect the effective role definition at runtime:
 
 .. code-block:: bash
 
-   # View current role definition including external_roles
    $ osmo config show ROLE ml-team
-
-   # Update the role to map from specific IdP group names
-   $ cat > ml-team-role.json <<EOF
-   [
-     {
-       "name": "ml-team",
-       "description": "ML team role",
-       "external_roles": ["LDAP_ML_TEAM", "ml-engineering"],
-       "policies": [
-         {
-           "actions": ["workflow:*", "pool:List"],
-           "resources": ["pool/ml-training"]
-         }
-       ]
-     }
-   ]
-   EOF
-
-   $ osmo config update ROLE -f ml-team-role.json
 
 The ``external_roles`` field accepts:
 
@@ -143,7 +143,7 @@ Role ``team-lead`` has ``sync_mode = 'force'``. User ``alice@example.com`` has t
 Where sync mode is set
 ----------------------
 
-Sync mode is a property of the **role** in the OSMO database (e.g. ``roles.sync_mode``). Default is ``import``. You can view or update role definitions via the ``osmo config show ROLE`` and ``osmo config update ROLE`` CLI commands.
+Sync mode is a property of the **role** under ``services.configs.roles.<name>.sync_mode`` in your Helm values. Default is ``import``. Update the values file and re-apply with ``helm upgrade`` to change it. You can inspect the effective role with ``osmo config show ROLE``.
 
 .. seealso::
 

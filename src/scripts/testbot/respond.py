@@ -29,11 +29,21 @@ logger = logging.getLogger(__name__)
 MAX_PUSH_RETRIES = 3
 SELF_AUTHORS = frozenset({"github-actions[bot]", "svc-osmo-ci"})
 ALLOWED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
-# Shared with testbot.yaml — update both when changing the tool allowlist.
+# Hidden trailer appended to every failure reply (max-turns, timeout, generic
+# error). filter_actionable treats bot replies bearing this marker as
+# non-terminal so the user's /testbot is still eligible for retry on the next
+# event without having to repost the comment.
+ERROR_REPLY_MARKER = "<!-- testbot-status: error -->"
+# Mostly mirrored in testbot.yaml's `--allowedTools` — keep the shared
+# entries (Read/Edit/Write/Glob/Grep, cd/mv/rm, bazel/pnpm/npx/vitest/tsc)
+# in sync. The `gh pr view/diff/checks` entries are respond-only because
+# generate runs before any PR exists.
 ALLOWED_TOOLS = (
     "Read,Edit,Write,Glob,Grep,"
-    "Bash(bazel test *),Bash(pnpm --dir src/ui test *),"
-    "Bash(pnpm --dir src/ui validate),Bash(pnpm --dir src/ui format),"
+    "Bash(cd *),Bash(mv *),Bash(rm *),"
+    "Bash(bazel test *),Bash(bazel build *),"
+    "Bash(pnpm *),Bash(npx vitest *),Bash(npx tsc *),"
+    "Bash(./node_modules/.bin/vitest *),Bash(./node_modules/.bin/tsc *),"
     "Bash(gh pr view *),Bash(gh pr diff *),Bash(gh pr checks *)"
 )
 
@@ -220,13 +230,17 @@ def filter_actionable(
             continue
 
         # Find the latest authorized /testbot comment that hasn't been
-        # replied to by the bot. Walk backwards: stop at bot replies (prior
-        # triggers already handled), skip unauthorized triggers so an earlier
-        # authorized one can still be found.
+        # replied to (successfully) by the bot. Walk backwards: stop at a
+        # successful bot reply (prior triggers handled), but skip past
+        # error replies so the user's /testbot is still actionable on
+        # retry. Skip unauthorized triggers so an earlier authorized one
+        # can still be found.
         trigger_comment = None
         for comment in reversed(comments):
             if comment["author"] in SELF_AUTHORS:
-                break  # Bot already replied — all prior triggers handled
+                if ERROR_REPLY_MARKER in comment.get("body", ""):
+                    continue  # Failure reply — keep walking, retry is allowed
+                break  # Successful reply — prior triggers handled
             if not _has_trigger(comment["body"], trigger_phrase):
                 continue
             if comment.get("association", "NONE") not in ALLOWED_ASSOCIATIONS:
@@ -297,7 +311,7 @@ def build_prompt(threads: list[dict], pr_number: int) -> str:
 
 def run_claude(
     prompt: str,
-    model: str = "aws/anthropic/claude-opus-4-5",
+    model: str = "aws/anthropic/bedrock-claude-opus-4-7",
     max_turns: int = 50,
     timeout: int = 720,
 ) -> dict:
@@ -306,7 +320,7 @@ def run_claude(
     Returns a dict with 'structured_output' and/or 'result' fields.
     Returns empty dict on failure.
     """
-    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.91")
+    claude_bin = os.environ.get("CLAUDE_CODE_BIN", "npx @anthropic-ai/claude-code@2.1.116")
     cmd = [
         *shlex.split(claude_bin), "--print",
         "--model", model,
@@ -474,8 +488,8 @@ def main() -> None:
                         help="Max Claude Code agent turns (default: 50)")
     parser.add_argument("--timeout", type=int, default=720,
                         help="Claude Code CLI timeout in seconds (default: 720)")
-    parser.add_argument("--model", default="aws/anthropic/claude-opus-4-5",
-                        help="LLM model name (default: aws/anthropic/claude-opus-4-5)")
+    parser.add_argument("--model", default="aws/anthropic/bedrock-claude-opus-4-7",
+                        help="LLM model name (default: aws/anthropic/bedrock-claude-opus-4-7)")
     args = parser.parse_args()
 
     github_repository = os.environ.get("GITHUB_REPOSITORY", "NVIDIA/OSMO")
@@ -514,12 +528,15 @@ def main() -> None:
         for comment in actionable:
             reply_to_comment(
                 owner, repo, args.pr_number, comment,
-                "I encountered an error processing this request. Please retry or handle manually.",
+                "I encountered an error processing this request. "
+                "Please retry or handle manually.\n\n"
+                + ERROR_REPLY_MARKER,
             )
         return
 
     # On timeout or max-turns, discard partial file changes (may be incomplete)
-    # and post an informative reply.
+    # and post an informative reply with the error marker so the user can
+    # retry without having to repost the /testbot comment.
     subtype = claude_output.get("subtype")
     if subtype in ("timeout", "error_max_turns"):
         reason = "timed out" if subtype == "timeout" else "hit the max-turns limit"
@@ -528,7 +545,8 @@ def main() -> None:
         discard_changes()
         status_msg = (
             f"I {reason} after {turns_used} turns. "
-            f"Try breaking this into smaller requests, or handle manually."
+            f"Try breaking this into smaller requests, or handle manually.\n\n"
+            + ERROR_REPLY_MARKER
         )
         for comment in actionable:
             reply_to_comment(owner, repo, args.pr_number, comment, status_msg)
@@ -573,7 +591,8 @@ def main() -> None:
         per_thread_replies = {}
         fallback_message = (
             "I prepared a fix but could not push it. "
-            "Please retry or push manually."
+            "Please retry or push manually.\n\n"
+            + ERROR_REPLY_MARKER
         )
     elif not modified_files:
         fallback_message = (

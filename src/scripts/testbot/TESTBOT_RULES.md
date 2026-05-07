@@ -43,6 +43,15 @@ When a test fails:
 
 ## Verification
 
+> **Allowed shell forms**: a single program with arguments (e.g. `pnpm --dir
+> src/ui test ...`), or `cd <dir> && <single-allowed-cmd>`. **Not allowed**:
+> pipes (`|`), `||`, `;`, output redirects (`>`, `>>`).
+>
+> You don't need `2>&1`, `| head`, or `|| true` — the Bash tool already
+> returns stdout and stderr separately, auto-truncates very long output
+> before handing it to you, and reports the exit code separately so you
+> see both the failure and the output. Just run the command directly.
+
 1. **Run the test**:
    - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file)
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`

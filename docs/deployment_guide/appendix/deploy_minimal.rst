@@ -24,7 +24,7 @@ Minimal Deployment
 This guide provides instructions for deploying OSMO in a minimal configuration suitable for testing, development, and evaluation purposes. This setup of OSMO creates the service and backend operator in the same kubernetes cluster, is suitable for single-tenant, has no authentication, and is designed for quick setup and experimentation.
 
 .. warning::
-   Minimal deployment is **not** recommended for production use as it lacks authentication and has limited features.
+   Minimal deployment is **not** recommended for production use as it lacks authentication and has limited features. With ``oauth2Proxy`` and ``authz`` both disabled, the gateway trusts client-supplied ``x-osmo-{user,roles,allowed-pools}`` headers — any caller with network access can claim any user, role, or pool. Only deploy on clusters whose gateway is not reachable from untrusted networks (e.g. local development clusters, ephemeral demo environments behind a VPN).
 
 Overview
 ========
@@ -248,6 +248,11 @@ Create the following values files for the minimal deployment:
           minReplicas: 1
           maxReplicas: 1
 
+      router:
+        scaling:
+          minReplicas: 1
+          maxReplicas: 1
+
       agent:
         scaling:
           minReplicas: 1
@@ -274,51 +279,31 @@ Create the following values files for the minimal deployment:
         enabled: false
       authz:
         enabled: false
+      envoy:
+        # With oauth2Proxy + authz both off, no upstream sets the
+        # x-osmo-{user,roles,allowed-pools} headers, so every UI request
+        # would land on the API as anonymous (empty roles/pools, blank UI).
+        # In minimal mode, inject default identity headers at the gateway
+        # so the UI is usable. Production deployments leave defaultIdentity
+        # empty — authz sets these headers from validated JWTs.
+        defaultIdentity:
+          user: admin
+          roles: osmo-admin
+          allowedPools: default
 
-**UI Service Values** (``ui_values.yaml``):
+**UI Configuration** (add to ``osmo_values.yaml``):
 
-.. dropdown:: ``ui_values.yaml``
+.. dropdown:: ``osmo_values.yaml`` UI block
   :color: info
   :icon: file
 
   .. code-block:: yaml
-    :emphasize-lines: 2,3,7
-
-    global:
-      osmoImageLocation: <insert-osmo-image-registry>
-      osmoImageTag: <insert-osmo-image-tag>
+    :emphasize-lines: 2-4
 
     services:
       ui:
-        apiHostname: osmo-gateway.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
-
-**Router Service Values** (``router_values.yaml``):
-
-.. dropdown:: ``router_values.yaml``
-  :color: info
-  :icon: file
-
-  .. code-block:: yaml
-    :emphasize-lines: 2,3,10,13
-
-    global:
-      osmoImageLocation: <insert-osmo-image-registry>
-      osmoImageTag: <insert-osmo-image-tag>
-
-    services:
-      configFile:
         enabled: true
-
-      postgres:
-        serviceName: <your-postgres-host>
-
-        # This should match the database name in the prior configuration step
-        db: osmo_db
-
-      service:
-        scaling:
-          minReplicas: 1
-          maxReplicas: 1
+        apiHostname: osmo-gateway.osmo-minimal.svc.cluster.local:80 # update to your namespace if not using osmo-minimal namespace
 
 .. important::
 
@@ -328,30 +313,12 @@ Create the following values files for the minimal deployment:
 Step 6: Helm Deploy
 ===============================
 
-Deploy the OSMO components using the minimal configuration:
-
-1. **Deploy OSMO Service**:
+**Deploy OSMO Service** (includes the UI and router):
 
    .. code-block:: bash
 
       $ helm upgrade --install osmo-minimal osmo/service \
         -f ./osmo_values.yaml \
-        --namespace osmo-minimal
-
-2. **Deploy OSMO UI**:
-
-   .. code-block:: bash
-
-      $ helm upgrade --install ui-minimal osmo/web-ui \
-        -f ./ui_values.yaml \
-        --namespace osmo-minimal
-
-3. **Deploy OSMO Router**:
-
-   .. code-block:: bash
-
-      $ helm upgrade --install router-minimal osmo/router \
-        -f ./router_values.yaml \
         --namespace osmo-minimal
 
 Step 7: Verify Deployment
@@ -512,17 +479,15 @@ After deployment, you need to configure a central storage for workflow spec, wor
 
 2. Follow the :ref:`installing_required_dependencies` guide to install the KAI scheduler for running workflows.
 
-3. Set the service base URL so that workflow pods can reach the gateway:
+3. Set the service base URL so that workflow pods can reach the gateway. Add this to your values file under ``services.configs.service`` and re-apply with ``helm upgrade``:
 
-   .. code-block:: bash
+   .. code-block:: yaml
 
-      $ cat << EOF > /tmp/osmo_service_config.json
-      {
-        "service_base_url": "http://osmo-gateway.osmo-minimal.svc.cluster.local"
-      }
-      EOF
-
-      $ osmo config update SERVICE --file /tmp/osmo_service_config.json
+      services:
+        configs:
+          enabled: true
+          service:
+            service_base_url: http://osmo-gateway.osmo-minimal.svc.cluster.local
 
 Testing Your Deployment
 ========================
@@ -548,8 +513,6 @@ To remove the minimal deployment:
 
    # Uninstall all helm releases
    $ helm uninstall osmo-minimal --namespace osmo-minimal
-   $ helm uninstall ui-minimal --namespace osmo-minimal
-   $ helm uninstall router-minimal --namespace osmo-minimal
    $ helm uninstall osmo-operator --namespace osmo-operator
 
    # Delete the namespace

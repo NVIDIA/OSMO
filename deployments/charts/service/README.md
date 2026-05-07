@@ -22,6 +22,8 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 
 ## Values
 
+> **Hostname configuration.** Three template fields read the external hostname for this deployment: `services.service.hostname` (API service `--service_hostname`), `services.router.hostname` (router `--hostname` for session-key extraction from `Host:` headers), and `gateway.envoy.hostname` (Ingress / TLS / OAuth2 redirect). Each one falls back to `global.hostname` when empty, so the recommended pattern is **set `global.hostname` once** at the top level and leave the per-component fields blank. Per-component fields still take precedence on the (rare) deployments that need a different value.
+
 ### Global Settings
 
 | Parameter | Description | Default |
@@ -30,6 +32,7 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 | `global.osmoImageTag` | Tag of the OSMO images | `latest` |
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
+| `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
 
 ### Global Logging Settings
 
@@ -149,7 +152,7 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.service.imageName` | Service image name | `service` |
 | `services.service.serviceName` | Service name | `osmo-service` |
 | `services.service.initContainers` | Init containers for API service | `[]` |
-| `services.service.hostname` | Service hostname | `""` |
+| `services.service.hostname` | External DNS hostname for the API service (passed as `--service_hostname`, used to set `service_base_url` in the DB-backed configs). When empty, falls back to `global.hostname`. | `""` |
 | `services.service.extraArgs` | Additional command line arguments | `[]` |
 | `services.service.hostAliases` | Host aliases for custom DNS resolution | `[]` |
 | `services.service.disableTaskMetrics` | Disable task metrics collection | `false` |
@@ -192,6 +195,81 @@ To add new migrations for future releases, drop JSON files into the chart's `mig
 | `services.agent.tolerations` | Pod tolerations | `[]` |
 | `services.agent.resources` | Resource limits and requests | See values.yaml |
 | `services.agent.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+
+#### UI Service
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.ui.enabled` | Render the UI Deployment/Service/HPA | `true` |
+| `services.ui.replicas` | Number of UI replicas | `1` |
+| `services.ui.imageName` | UI image name | `web-ui` |
+| `services.ui.imagePullPolicy` | Image pull policy | `Always` |
+| `services.ui.serviceName` | Service name | `osmo-ui` |
+| `services.ui.apiHostname` | Hostname used for server-side rendering | `osmo-gateway:80` |
+| `services.ui.portForwardEnabled` | Enable port-forwarding through the UI | `false` |
+| `services.ui.nextjsSslEnabled` | Enable SSL for UI-to-API server-side requests | `false` |
+| `services.ui.containerPort` | Container port | `8000` |
+| `services.ui.serviceAccountName` | Service account name | `""` |
+| `services.ui.maxHttpHeaderSizeKb` | Maximum Node.js header size in KB | `128` |
+| `services.ui.docsBaseUrl` | Documentation URL shown in the UI | `https://nvidia.github.io/OSMO/main/user_guide/` |
+| `services.ui.cliInstallScriptUrl` | CLI install script URL shown in the UI | See values.yaml |
+| `services.ui.scaling.enabled` | Enable HorizontalPodAutoscaler | `false` |
+| `services.ui.scaling.minReplicas` | Minimum replicas | `1` |
+| `services.ui.scaling.maxReplicas` | Maximum replicas | `3` |
+| `services.ui.scaling.hpaTarget` | Target memory utilization percentage | `85` |
+| `services.ui.extraPodAnnotations` | Extra pod annotations | `{}` |
+| `services.ui.extraEnvs` | Extra environment variables | `[]` |
+| `services.ui.extraVolumeMounts` | Extra volume mounts | `[]` |
+| `services.ui.extraVolumes` | Extra volumes | `[]` |
+| `services.ui.extraContainers` | Extra sidecar containers | `[]` |
+| `services.ui.service.type` | Service type | `""` |
+| `services.ui.service.port` | Service port | `80` |
+| `services.ui.service.extraPorts` | Additional service ports | `[]` |
+| `services.ui.nodeSelector` | Node selector constraints | `{}` |
+| `services.ui.hostAliases` | Host aliases for custom DNS resolution | `[]` |
+| `services.ui.tolerations` | Pod tolerations | `[]` |
+| `services.ui.resources` | Resource limits and requests | `{}` |
+| `services.ui.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.ui.startupProbe` | Startup probe configuration | See values.yaml |
+| `services.ui.readinessProbe` | Readiness probe configuration | See values.yaml |
+
+#### Router Service
+
+The router was its own Helm chart prior to v6.3 and is now deployed as part of the service chart. The gateway routes `/api/router/*` to the `osmo-router` Kubernetes Service.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `services.router.scaling.minReplicas` | Minimum replicas | `3` |
+| `services.router.scaling.maxReplicas` | Maximum replicas | `5` |
+| `services.router.scaling.memoryTarget` | Target memory utilization percentage for HPA scaling | `80` |
+| `services.router.scaling.hpaCpuTarget` | Target CPU utilization percentage for HPA scaling | `80` |
+| `services.router.scaling.customMetrics` | Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs) | `[]` |
+| `services.router.imageName` | Router image name | `router` |
+| `services.router.imageTag` | Per-router image tag override; falls back to `global.osmoImageTag` when empty. Useful for canary-deploying a new router image without bumping the rest of the chart. | `""` |
+| `services.router.imagePullPolicy` | Image pull policy | `Always` |
+| `services.router.serviceName` | Service name | `osmo-router` |
+| `services.router.initContainers` | Init containers for router service | `[]` |
+| `services.router.hostname` | External hostname (e.g. `staging.osmo.nvidia.com`) used by the router to extract a session key from `Host` / `X-Forwarded-Host` headers — requests to `<key>.<hostname>` resolve to session `<key>`. Required for subdomain-based session routing. When empty, falls back to `global.hostname`; if both are empty the chart omits `--hostname` and the binary's default of `localhost` applies (only matches `*.localhost`). | `""` |
+| `services.router.webserverEnabled` | Enable webserver functionality for wildcard subdomain support | `false` |
+| `services.router.serviceAccountName` | Per-router ServiceAccount name. When empty, falls back to `global.serviceAccountName`. | `""` |
+| `services.router.extraArgs` | Additional command line arguments | `[]` |
+| `services.router.extraPodLabels` | Extra labels applied to the router pod | `{}` |
+| `services.router.extraPodAnnotations` | Extra annotations applied to the router pod (e.g. vault-injector annotations) | `{}` |
+| `services.router.extraEnvs` | Extra container env vars (list of `{name, value}` or `{name, valueFrom}`) | `[]` |
+| `services.router.extraPorts` | Extra named container ports | `[]` |
+| `services.router.extraVolumes` | Extra pod volumes | `[]` |
+| `services.router.extraVolumeMounts` | Extra container volume mounts | `[]` |
+| `services.router.extraContainers` | Extra sidecar containers | `[]` |
+| `services.router.hostAliases` | Host aliases for custom DNS resolution within router pods | `[]` |
+| `services.router.nodeSelector` | Node selector constraints (merged with `global.nodeSelector`; per-router keys take precedence on collision) | `{}` |
+| `services.router.tolerations` | Pod tolerations | See values.yaml |
+| `services.router.resources` | Resource limits and requests | `{}` |
+| `services.router.topologySpreadConstraints` | Topology spread constraints | See values.yaml |
+| `services.router.livenessProbe` | Liveness probe configuration | See values.yaml |
+| `services.router.startupProbe` | Startup probe configuration | See values.yaml |
+| `services.router.readinessProbe` | Readiness probe configuration | See values.yaml |
+
+The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
 
 ### Ingress Settings
 
@@ -243,7 +321,7 @@ Benefits of the separate gateway model:
 | `gateway.envoy.logLevel` | Envoy log level | `info` |
 | `gateway.envoy.listenerPort` | Listener port | `8080` |
 | `gateway.envoy.maxHeadersSizeKb` | Max header size in KB | `128` |
-| `gateway.envoy.hostname` | External hostname (used in OAuth2 redirect) | `""` |
+| `gateway.envoy.hostname` | External hostname (used in the Ingress `host:` rule, TLS hosts list, and the OAuth2 redirect URL). When empty, falls back to `global.hostname`. | `""` |
 | `gateway.envoy.maxRequests` | Circuit breaker max concurrent requests | `100` |
 | `gateway.envoy.idp.host` | IDP host for JWKS (e.g. `login.microsoftonline.com`) | `""` |
 | `gateway.envoy.jwt.providers` | JWT provider configurations | `[]` |
@@ -252,8 +330,20 @@ Benefits of the separate gateway model:
 | `gateway.envoy.routerRoute.cookie.name` | Cookie name for router session affinity | `_osmo_router_affinity` |
 | `gateway.envoy.routerRoute.cookie.ttl` | Cookie TTL for router affinity | `60s` |
 | `gateway.envoy.ingress.enabled` | Enable Ingress for the gateway | `false` |
+| `gateway.envoy.defaultIdentity.user` | Default `x-osmo-user` for unauthenticated requests (minimal/demo deployments only) — leave empty in production | `""` |
+| `gateway.envoy.defaultIdentity.roles` | Default `x-osmo-roles` (comma-separated) — only applied when `defaultIdentity.user` is set | `""` |
+| `gateway.envoy.defaultIdentity.allowedPools` | Default `x-osmo-allowed-pools` (comma-separated) — only applied when `defaultIdentity.user` is set | `""` |
 
 Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap is updated, Envoy automatically reloads listeners and clusters without a pod restart.
+
+**Identity header trust by mode.** The gateway either trusts or strips client-supplied `x-osmo-{user,roles,allowed-pools}` headers based on whether `gateway.oauth2Proxy.enabled` or `gateway.authz.enabled` is `true`:
+
+| `oauth2Proxy.enabled` | `authz.enabled` | Identity headers from clients |
+|---|---|---|
+| `true` (default) | `true` (default) | Stripped at the HCM `internal_only_headers` layer **and** by the Lua filter. ext_authz (the authz sidecar) is the only source. Production posture. |
+| `true` | `false` | Same — both strip mechanisms still run. |
+| `false` | `true` | Same — both strip mechanisms still run. |
+| `false` | `false` (minimal mode) | **Trusted.** Both strip mechanisms are skipped so dev-mode CLI's `x-osmo-user: <name>` flows through. `defaultIdentity` is only injected via `ADD_IF_ABSENT` when the client did not set its own. **Any caller with network access to the gateway can claim any user, role, or pool — only safe on clusters whose gateway is not exposed to untrusted networks.** |
 
 #### Gateway Upstreams
 
@@ -290,6 +380,7 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.oauth2Proxy.clientId` | OAuth2 client ID | `""` |
 | `gateway.oauth2Proxy.cookieName` | Session cookie name | `_osmo_session` |
 | `gateway.oauth2Proxy.redisSessionStore` | Use Redis for session store | `true` |
+| `gateway.oauth2Proxy.extraEnv` | Extra environment variables for the oauth2-proxy container (e.g. `OAUTH2_PROXY_REDIS_PASSWORD` from a Secret ref when Redis requires AUTH) | `[]` |
 
 #### Gateway Authz
 
@@ -312,11 +403,24 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 | `gateway.networkPolicies.enabled` | Deploy NetworkPolicies restricting ingress to upstream pods | `false` |
 | `gateway.networkPolicies.upstreams` | List of upstream pods to protect (name, podSelector, port) | See values.yaml |
 
-#### TLS
+#### Gateway → Upstream TLS
+
+Traffic between the Envoy gateway and the upstream services (`osmo-service`, `osmo-router`, `osmo-agent`, `osmo-logger`) is encrypted by default. The UI intentionally stays on plain HTTP behind NetworkPolicy — Next.js does not natively serve TLS.
+
+**Default — encryption without validation.** Each upstream service mints its own ephemeral self-signed cert in-process at startup (ECDSA P-256, ~1ms) and loads it into uvicorn's SSLContext via `--ssl_self_signed true`. Envoy connects with TLS but does *not* validate the cert. The wire is encrypted; identity verification is delegated to NetworkPolicy + Kubernetes RBAC. No CA management, no Secrets, no rotation — cert lifecycle is tied to process lifecycle.
+
+**Externally-provisioned certs.** Point `gateway.tls.upstreamCerts.<service>` at an existing `kubernetes.io/tls` Secret containing `tls.crt` + `tls.key`. That Secret is mounted at `/etc/osmo/tls` and uvicorn loads it instead of self-signing. To make Envoy validate against a CA, set `gateway.tls.caSecret` to a Secret containing `ca.crt`. The chart does not create these Secrets — provision them however suits your environment (cert-manager, Vault CSI, sealed-secrets, manual `kubectl create secret tls`, etc.). The two knobs are independent: you can use external certs without validation, or validation alone (rarely useful), but typical "real" TLS sets both.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `gateway.tls.enabled` | Generate self-signed certs for upstream TLS | `false` |
+| `gateway.tls.enabled` | Encrypt gateway → upstream traffic. | `true` |
+| `gateway.tls.upstreamCerts.service` | Existing `kubernetes.io/tls` Secret for `osmo-service`. Empty string ⇒ self-signed. | `""` |
+| `gateway.tls.upstreamCerts.router` | Same, for `osmo-router`. | `""` |
+| `gateway.tls.upstreamCerts.agent` | Same, for `osmo-agent`. | `""` |
+| `gateway.tls.upstreamCerts.logger` | Same, for `osmo-logger`. | `""` |
+| `gateway.tls.caSecret` | Existing Secret containing `ca.crt`. When set, Envoy validates upstreams against this CA; when empty, TLS is encryption-only. | `""` |
+
+NetworkPolicy and TLS are independent: NetworkPolicy controls *who* can connect at L3/L4; TLS encrypts the bytes at L7. Run them together for defense in depth.
 
 ### Extensibility
 
@@ -349,6 +453,7 @@ The OSMO platform consists of:
 
 ### Core Services
 - **API Service**: Main REST API with ingress, scaling, and authentication
+- **Router Service**: Routes per-workflow client traffic; the gateway routes `/api/router/*` here. Was its own Helm chart prior to v6.3 and is now deployed by this chart.
 - **Worker Service**: Background job processing with queue-based scaling
 - **Logger Service**: Log collection and processing with connection-based scaling
 - **Agent Service**: Client communication and management
@@ -367,7 +472,7 @@ The OSMO platform consists of:
 
 ## Notes
 
-- The chart consists of multiple services: API, Worker, Logger, Agent, and Delayed Job Monitor
+- The chart consists of multiple services: API, Router, Worker, Logger, Agent, and Delayed Job Monitor
 - Each service can be scaled independently using HPA
 - Authentication is handled through the gateway's OAuth2 Proxy and JWT validation
 - The gateway Envoy provides cookie-based session affinity for the router service

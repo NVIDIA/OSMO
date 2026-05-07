@@ -444,6 +444,34 @@ class LabelNode(BackendWorkflowJob):
         return JobResult()
 
 
+def _immutable_target_already_current(target: Dict, existing: Dict) -> bool:
+    """Return True iff `existing`'s meaningful content already matches `target`.
+
+    Used by BackendSynchronizeQueues to skip the delete+recreate cycle on
+    immutable CRDs (e.g. KAI Topology) when the spec hasn't changed.
+
+    Compared: `apiVersion` + `kind` + `spec` (deep equal) plus
+    `metadata.labels` (each target label must be present and equal in
+    existing). Server-managed metadata (resourceVersion, uid, generation,
+    managedFields, creationTimestamp, selfLink) and `status` are ignored.
+    `apiVersion` is included as a hedge against API version bumps (e.g.
+    scheduling.run.ai/v2 -> v3): without it the helper would say "current"
+    even though the resource needs to be migrated.
+    """
+    if target.get('apiVersion') != existing.get('apiVersion'):
+        return False
+    if target.get('kind') != existing.get('kind'):
+        return False
+    if target.get('spec') != existing.get('spec'):
+        return False
+    target_labels = (target.get('metadata') or {}).get('labels') or {}
+    existing_labels = (existing.get('metadata') or {}).get('labels') or {}
+    for key, value in target_labels.items():
+        if existing_labels.get(key) != value:
+            return False
+    return True
+
+
 class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, BackendJob):
     """Synchronizes scheduler K8s objects (queues, topologies, etc.)
     in the backend to match configuration"""
@@ -528,10 +556,28 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
             if obj_name in all_objects:
                 # Object exists - check if it needs to be recreated (immutable) or updated
                 if obj_kind in self.immutable_kinds:
-                    # Delete and recreate for immutable kinds
-                    logging.info('Recreating immutable %s object: %s', obj_kind, obj_name)
-                    self._delete_object(context, cleanup_spec, obj_name)
-                    self._apply_object(context, cleanup_spec, obj, resource_version=None)
+                    # Skip the delete+recreate when the existing object's spec
+                    # already matches the target. Without this guard, every
+                    # backend re-registration churned every immutable CRD
+                    # (e.g. KAI Topology) — the brief gap between delete and
+                    # recreate makes pods that reference the CRD error with
+                    # "topology not found" while the new resource is being
+                    # written. Idempotent re-syncs (same spec) should no-op.
+                    existing = all_objects[obj_name]
+                    if _immutable_target_already_current(obj, existing):
+                        # Info-level (not debug): the no-op path is now the
+                        # steady-state on reconnects, and visibility into
+                        # "did the sync run, did it find the spec current?"
+                        # matters for triaging "are queues up-to-date?"
+                        # without redeploying with --log-level=debug.
+                        logging.info(
+                            'Immutable %s %s already current — skipping recreate',
+                            obj_kind, obj_name)
+                    else:
+                        logging.info(
+                            'Recreating immutable %s object: %s', obj_kind, obj_name)
+                        self._delete_object(context, cleanup_spec, obj_name)
+                        self._apply_object(context, cleanup_spec, obj, resource_version=None)
                 else:
                     # Update existing object
                     original = all_objects[obj_name]

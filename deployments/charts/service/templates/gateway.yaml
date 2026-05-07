@@ -16,6 +16,7 @@
 
 {{- $gw := .Values.gateway }}
 {{- $gwName := include "osmo.gateway-name" . }}
+{{- $envoyHostname := $gw.envoy.hostname | default .Values.global.hostname }}
 
 {{/* ================================================================ */}}
 {{/* Envoy ConfigMap (dynamic LDS/CDS)                                */}}
@@ -83,7 +84,7 @@ spec:
           - mountPath: /var/config
             name: envoy-config
             readOnly: true
-          {{- if $gw.tls.enabled }}
+          {{- if and $gw.tls.enabled $gw.tls.caSecret }}
           - name: gateway-tls-ca
             mountPath: /etc/gateway-tls
             readOnly: true
@@ -111,10 +112,10 @@ spec:
         - name: envoy-config
           configMap:
             name: {{ $gwName }}-envoy-config
-        {{- if $gw.tls.enabled }}
+        {{- if and $gw.tls.enabled $gw.tls.caSecret }}
         - name: gateway-tls-ca
           secret:
-            secretName: {{ $gwName }}-ca-tls
+            secretName: {{ $gw.tls.caSecret }}
             items:
             - key: ca.crt
               path: ca.crt
@@ -186,7 +187,7 @@ metadata:
 spec:
   ingressClassName: {{ $gw.envoy.ingress.ingressClass }}
   rules:
-  - host: {{ $gw.envoy.hostname }}
+  - host: {{ $envoyHostname }}
     http:
       paths:
       - path: /
@@ -199,7 +200,7 @@ spec:
   {{- if $gw.envoy.ingress.sslEnabled }}
   tls:
   - hosts:
-    - {{ $gw.envoy.hostname }}
+    - {{ $envoyHostname }}
     secretName: {{ $gw.envoy.ingress.sslSecret | default "osmo-tls" }}
   {{- end }}
 {{- end }}
@@ -310,13 +311,17 @@ spec:
           - --redis-connection-url={{ if $gw.oauth2Proxy.redis.tlsEnabled }}rediss{{ else }}redis{{ end }}://{{ $redisHost }}:{{ $gw.oauth2Proxy.redis.port | default 6379 }}/{{ $gw.oauth2Proxy.redis.dbNumber | default 0 }}
           {{- end }}
           - --upstream=static://200
-          - --redirect-url=https://{{ $gw.envoy.hostname }}/oauth2/callback
+          - --redirect-url=https://{{ $envoyHostname }}/oauth2/callback
           - --silence-ping-logging=true
           - --skip-provider-button=true
           - --api-route=/api/.+
           {{- range $gw.oauth2Proxy.extraArgs }}
-          - {{ . }}
+          - {{ . | quote }}
           {{- end }}
+        {{- with (include "osmo.extra-env" $gw.oauth2Proxy) }}
+        env:
+          {{- . | nindent 10 }}
+        {{- end }}
         ports:
         - name: http
           containerPort: {{ $gw.oauth2Proxy.httpPort }}
@@ -470,6 +475,9 @@ spec:
           {{- if .Values.global.logs.enabled }}
           - "--log-dir=/logs"
           - "--log-name=authz_sidecar"
+          {{- end }}
+          {{- with .Values.global.logs.logFormat }}
+          - "--log-format={{ . }}"
           {{- end }}
         env:
           {{- if .Values.services.migration.enabled }}

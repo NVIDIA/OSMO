@@ -31,9 +31,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       annotations:
-        {{- if .Values.services.configs.enabled }}
-        checksum/configs: {{ .Values.services.configs | toYaml | sha256sum }}
-        {{- end }}
         {{- include "osmo.extra-annotations" .Values.services.service | nindent 8 }}
     spec:
       {{- with .Values.services.service.hostAliases }}
@@ -118,9 +115,10 @@ spec:
         - --logout_endpoint
         - {{ .Values.services.service.auth.logout_endpoint }}
         {{- end }}
-        {{- if .Values.services.service.hostname }}
+        {{- $serviceHostname := .Values.services.service.hostname | default .Values.global.hostname }}
+        {{- if $serviceHostname }}
         - --service_hostname
-        - {{ .Values.services.service.hostname }}
+        - {{ $serviceHostname }}
         {{- end }}
         {{- if .Values.services.service.clientInstallUrl }}
         - --client_install_url
@@ -139,6 +137,8 @@ spec:
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
         - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.global.logs.logFormat | default "text" }}
         - --log_dir
         - /logs
         - --log_name
@@ -148,16 +148,15 @@ spec:
         - --default_admin_username
         - {{ .Values.services.defaultAdmin.username | quote }}
         {{- end }}
-        {{- if .Values.services.configs.enabled }}
-        - --config_file
-        - /etc/osmo/configs/config.yaml
-        {{- end }}
+        {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.service.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
+        {{- include "osmo.upstream-tls-args" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
+        {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}
@@ -195,7 +194,7 @@ spec:
         ports:
         - name: metrics
           containerPort: 9464
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.service.extraVolumeMounts (and .Values.gateway.tls.enabled .Values.gateway.tls.upstreamCerts.service) }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -203,27 +202,19 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
-        {{- if .Values.services.configs.enabled }}
-        - name: configs
-          mountPath: /etc/osmo/configs
-          readOnly: true
-        {{- range .Values.services.configs.secretRefs }}
-        - name: secret-{{ .secretName }}
-          mountPath: /etc/osmo/secrets/{{ .secretName }}
-          readOnly: true
-        {{- end }}
-        {{- end }}
+        {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           mountPath: /logs
         {{- end }}
         {{- include "osmo.extra-volume-mounts" .Values.services.service | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume-mount" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         resources:
         {{- toYaml .Values.services.service.resources | nindent 10 }}
 
         # Any failure to return the version api means the service is in a bad state
         livenessProbe:
-        {{- toYaml .Values.services.service.livenessProbe | nindent 10 }}
+        {{- include "osmo.upstream-probe-yaml" (dict "probe" .Values.services.service.livenessProbe "context" .) | nindent 10 }}
 
 
         # Give the container 30 seconds to startup
@@ -231,6 +222,9 @@ spec:
           httpGet:
             port: 8000
             path: /api/version
+            {{- if .Values.gateway.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
           failureThreshold: 6
           periodSeconds: 5
           timeoutSeconds: 3
@@ -241,6 +235,9 @@ spec:
           httpGet:
             port: 8000
             path: /api/workflow?limit=0&all_pools=true
+            {{- if .Values.gateway.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
             httpHeaders:
             - name: x-osmo-roles
               value: osmo-admin
@@ -251,6 +248,7 @@ spec:
       {{- include "osmo.extra-sidecars" .Values.services.service | nindent 6 }}
       volumes:
         {{- include "osmo.extra-volumes" .Values.services.service | nindent 8 }}
+        {{- include "osmo.upstream-tls-volume" (dict "context" . "secretName" .Values.gateway.tls.upstreamCerts.service) | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           emptyDir: {}
@@ -264,16 +262,7 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
-        {{- if .Values.services.configs.enabled }}
-        - name: configs
-          configMap:
-            name: {{ .Values.services.service.serviceName }}-configs
-        {{- range .Values.services.configs.secretRefs }}
-        - name: secret-{{ .secretName }}
-          secret:
-            secretName: {{ .secretName }}
-        {{- end }}
-        {{- end }}
+        {{- include "osmo.configmap-volumes" . | nindent 8 }}
 ---
 
 apiVersion: v1

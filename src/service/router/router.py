@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import contextlib
 import asyncio
 import datetime
@@ -32,11 +34,11 @@ import uvicorn  # type: ignore
 from src.lib.utils import common, version
 import src.lib.utils.logging
 from src.service.router import helper
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 
 
 class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
-                          connectors.PostgresConfig):
+                          ssl_config.SSLConfig, connectors.PostgresConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
         default='http://0.0.0.0:8000',
@@ -423,7 +425,8 @@ def main():
     connectors.PostgresConnector(config)
 
     async def run_server():
-        uvicorn_config = uvicorn.Config(app, host=host, port=port)
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
         uvicorn_server = uvicorn.Server(config=uvicorn_config)
         check_timeout_task = asyncio.create_task(check_webserver_timeout())
         try:

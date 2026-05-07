@@ -124,9 +124,8 @@ An OSMO deployment consists of two main components:
   :caption: Getting Started
 
   getting_started/infrastructure_setup
-  getting_started/deploy_service
   getting_started/create_storage/index
-  getting_started/configure_data
+  getting_started/deploy_service
 
 .. toctree::
   :hidden:
@@ -135,7 +134,6 @@ An OSMO deployment consists of two main components:
   install_backend/create_backend/index
   install_backend/dependencies/dependencies
   install_backend/deploy_backend
-  install_backend/configure_pool
   install_backend/validate_osmo
   install_backend/observability
 
@@ -150,7 +148,7 @@ An OSMO deployment consists of two main components:
   advanced_config/group_template
   advanced_config/scheduler
   advanced_config/rsync
-  advanced_config/dataset_buckets
+  advanced_config/workflow_pod_workload_identity
 
 .. toctree::
   :hidden:

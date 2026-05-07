@@ -70,7 +70,7 @@ data:
           filename: /etc/ssl/envoy-certs/tls.key
   {{- end }}
 
-  {{- if $gw.tls.enabled }}
+  {{- if and $gw.tls.enabled $gw.tls.caSecret }}
   sds_upstream_ca.yaml: |
     resources:
     - "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
@@ -139,16 +139,53 @@ data:
             route_config:
               name: gateway_routes
 
+              # Headers Envoy auto-strips from external requests at the HCM
+              # layer (before any HTTP filter runs). The identity headers
+              # (x-osmo-user, x-osmo-roles, x-osmo-allowed-pools) are only
+              # listed when an upstream auth component owns them. In
+              # minimal mode (oauth2Proxy and authz both off) the CLI and
+              # gateway-injected defaults are the only sources, so we
+              # leave them off and let client values flow.
               internal_only_headers:
               - x-osmo-auth-skip
+              {{- if or $gw.oauth2Proxy.enabled $gw.authz.enabled }}
               - x-osmo-user
+              - x-osmo-roles
+              - x-osmo-allowed-pools
+              {{- end }}
               - x-osmo-token-name
               - x-osmo-workflow-id
-              - x-osmo-allowed-pools
 
               virtual_hosts:
               - name: gateway
                 domains: ["*"]
+                {{- /* Default identity for minimal/demo deployments without
+                       oauth2Proxy + authz. Uses Envoy's built-in
+                       request_headers_to_add with ADD_IF_ABSENT so that when
+                       authz IS enabled and sets these headers via ext_authz
+                       response, the real values win.
+                */ -}}
+                {{- with $envoy.defaultIdentity }}
+                {{- if .user }}
+                request_headers_to_add:
+                - header:
+                    key: x-osmo-user
+                    value: {{ .user | quote }}
+                  append_action: ADD_IF_ABSENT
+                {{- if .roles }}
+                - header:
+                    key: x-osmo-roles
+                    value: {{ .roles | quote }}
+                  append_action: ADD_IF_ABSENT
+                {{- end }}
+                {{- if .allowedPools }}
+                - header:
+                    key: x-osmo-allowed-pools
+                    value: {{ .allowedPools | quote }}
+                  append_action: ADD_IF_ABSENT
+                {{- end }}
+                {{- end }}
+                {{- end }}
                 routes:
                 {{- if $gw.oauth2Proxy.enabled }}
                 - match:
@@ -260,11 +297,21 @@ data:
                   inline_string: |
                     function envoy_on_request(request_handle)
                       request_handle:headers():remove("x-osmo-auth-skip")
+                      {{- /* In minimal mode (no oauth2Proxy, no authz),
+                             trust the client-supplied identity headers so
+                             dev-mode CLI multi-user works (workflows get
+                             attributed to the right user). When either auth
+                             component is on, ext_authz is the canonical
+                             source and any client claim must be stripped to
+                             prevent impersonation.
+                          */ -}}
+                      {{- if or $gw.oauth2Proxy.enabled $gw.authz.enabled }}
                       request_handle:headers():remove("x-osmo-user")
                       request_handle:headers():remove("x-osmo-roles")
+                      request_handle:headers():remove("x-osmo-allowed-pools")
+                      {{- end }}
                       request_handle:headers():remove("x-osmo-token-name")
                       request_handle:headers():remove("x-osmo-workflow-id")
-                      request_handle:headers():remove("x-osmo-allowed-pools")
                       request_handle:headers():remove("x-envoy-internal")
                       request_handle:headers():remove("x-forwarded-host")
                     end
@@ -531,7 +578,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.service.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -539,6 +595,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
 
     {{- if $gw.upstreams.router.enabled }}
@@ -564,7 +621,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.router.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -572,6 +638,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -591,20 +658,12 @@ data:
                 socket_address:
                   address: {{ $gw.upstreams.ui.host }}
                   port_value: {{ $gw.upstreams.ui.port }}
-      {{- if $gw.tls.enabled }}
-      transport_socket:
-        name: envoy.transport_sockets.tls
-        typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          common_tls_context:
-            validation_context_sds_secret_config:
-              name: upstream_ca
-              sds_config:
-                path_config_source:
-                  path: /var/config/sds_upstream_ca.yaml
-                  watched_directory:
-                    path: /var/config
-      {{- end }}
+      {{/*
+        UI traffic stays HTTP — Next.js does not natively serve HTTPS and
+        the UI sits behind NetworkPolicy. Confidentiality of the UI HTML
+        relies on browser → gateway TLS (gateway.envoy.ssl.enabled), not on
+        Envoy → upstream TLS.
+      */}}
     {{- end }}
 
     {{- if $gw.upstreams.agent.enabled }}
@@ -628,7 +687,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.agent.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -636,6 +704,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -660,7 +729,16 @@ data:
         name: envoy.transport_sockets.tls
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $gw.upstreams.logger.host }}
           common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
             validation_context_sds_secret_config:
               name: upstream_ca
               sds_config:
@@ -668,6 +746,7 @@ data:
                   path: /var/config/sds_upstream_ca.yaml
                   watched_directory:
                     path: /var/config
+            {{- end }}
       {{- end }}
     {{- end }}
 
@@ -758,6 +837,7 @@ data:
     {{- end }}
 
     {{- if $envoy.internalJwks.enabled }}
+    {{- $jwksHost := $envoy.internalJwks.host | default $gw.upstreams.service.host }}
     - "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
       name: {{ $envoy.internalJwks.cluster }}
       connect_timeout: 3s
@@ -771,8 +851,32 @@ data:
           - endpoint:
               address:
                 socket_address:
-                  address: {{ $envoy.internalJwks.host | default $gw.upstreams.service.host }}
+                  address: {{ $jwksHost }}
                   port_value: {{ $envoy.internalJwks.port | default $gw.upstreams.service.port }}
+      {{- if $gw.tls.enabled }}
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          sni: {{ $jwksHost }}
+          common_tls_context:
+            {{/* Envoy 1.29 upstream defaults to TLS 1.2 max. uvicorn's
+                 SSLContext uses Python defaults (TLS 1.2 floor, 1.3 if
+                 the openssl version supports it). Allow up to 1.3 so
+                 negotiation can pick the most compatible option. */}}
+            tls_params:
+              tls_minimum_protocol_version: TLSv1_2
+              tls_maximum_protocol_version: TLSv1_3
+            {{- if $gw.tls.caSecret }}
+            validation_context_sds_secret_config:
+              name: upstream_ca
+              sds_config:
+                path_config_source:
+                  path: /var/config/sds_upstream_ca.yaml
+                  watched_directory:
+                    path: /var/config
+            {{- end }}
+      {{- end }}
     {{- end }}
 
 {{- end }}

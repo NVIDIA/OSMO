@@ -17,11 +17,14 @@ SPDX-License-Identifier: Apache-2.0
 """
 import datetime
 import json
+from typing import Any, List
+from unittest import mock
 
 from src.lib.utils import common, osmo_errors
 from src.tests.common import fixtures
+from src.utils import connectors
 from src.utils.connectors import postgres
-from src.utils.job import task
+from src.utils.job import jobs, task, workflow
 from src.tests.common import runner
 
 
@@ -640,6 +643,371 @@ class PreloadedTasksDbTest(TaskDbFixture):
             group_rows[0], self._get_db(), load_tasks=True, preloaded_tasks=[])
 
         self.assertEqual(group.tasks, [])
+
+
+class CheckRunTimeoutDbTest(TaskDbFixture):
+    """DB-backed integration tests for CheckRunTimeout per-group exec_timeout enforcement.
+
+    Redis is mocked: these tests exercise the real Postgres queries used to fetch
+    Workflow/TaskGroup state, but capture the jobs CheckRunTimeout dispatches in
+    memory rather than enqueuing them.
+    """
+
+    EXEC_TIMEOUT_SECONDS = 100
+
+    def setUp(self):
+        super().setUp()
+        self.dispatched: list = []
+        self.delayed: list = []
+
+        def _capture_send(captured_self):
+            self.dispatched.append(captured_self)
+
+        def _capture_delayed(captured_self, delay):
+            self.delayed.append((captured_self, delay))
+
+        self._patches: List[Any] = [
+            mock.patch.object(jobs.UpdateGroup, 'send_job_to_queue', _capture_send),
+            mock.patch.object(jobs.CancelWorkflow, 'send_job_to_queue', _capture_send),
+            mock.patch.object(
+                jobs.CheckRunTimeout, 'send_delayed_job_to_queue', _capture_delayed),
+        ]
+        for patcher in self._patches:
+            patcher.start()
+        self.addCleanup(self._stop_patches)
+
+    def _stop_patches(self):
+        for patcher in self._patches:
+            patcher.stop()
+
+    def _insert_workflow_running(self, exec_timeout_seconds: int = EXEC_TIMEOUT_SECONDS,
+                                 start_time: datetime.datetime | None = None,
+                                 status: str = 'RUNNING') -> None:
+        submit_time = start_time or datetime.datetime.now()
+        self._get_db().execute_commit_command(
+            '''INSERT INTO workflows
+               (workflow_id, workflow_name, workflow_uuid, submitted_by,
+                backend, logs, exec_timeout, queue_timeout, plugins, status,
+                start_time, submit_time, outputs, priority)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+            (WORKFLOW_ID, 'test-wf', WORKFLOW_UUID, 'user@nvidia.com',
+             'default', '', exec_timeout_seconds, 100, '{}', status,
+             start_time, submit_time, '', 'NORMAL'))
+
+    def _insert_group_running(self, group_name: str,
+                              start_time: datetime.datetime,
+                              status: str = 'RUNNING') -> None:
+        group_uuid = common.generate_unique_id()
+        self._insert_group(group_name=group_name, group_uuid=group_uuid, status=status)
+        # TaskGroup.fetch_from_db loads tasks by group name and raises if none exist.
+        self._insert_task(f'{group_name}-lead', group_name=group_name, lead=True, status=status)
+        self._get_db().execute_commit_command(
+            'UPDATE groups SET start_time = %s WHERE workflow_id = %s AND name = %s',
+            (start_time, WORKFLOW_ID, group_name))
+
+    def _make_context(self) -> jobs.JobExecutionContext:
+        return jobs.JobExecutionContext(
+            postgres=self._get_db(), redis=connectors.RedisConfig())
+
+    def _run_check(self, group_name: str | None = None) -> None:
+        check = jobs.CheckRunTimeout(
+            workflow_id=WORKFLOW_ID, workflow_uuid=WORKFLOW_UUID, group_name=group_name)
+        check.execute(self._make_context(), mock.Mock())
+
+    def test_per_group_expiry_marks_only_that_group(self):
+        """A group whose elapsed time exceeds exec_timeout enqueues an UpdateGroup
+        with FAILED_EXEC_TIMEOUT for that group only — sibling groups are untouched.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow_running(start_time=now - datetime.timedelta(seconds=400))
+        self._insert_group_running('group1', start_time=now - datetime.timedelta(seconds=300))
+        self._insert_group_running('group2', start_time=now - datetime.timedelta(seconds=10))
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(len(self.dispatched), 1)
+        update = self.dispatched[0]
+        self.assertIsInstance(update, jobs.UpdateGroup)
+        self.assertEqual(update.group_name, 'group1')
+        self.assertEqual(update.status, task.TaskGroupStatus.FAILED_EXEC_TIMEOUT)
+        self.assertIn(
+            common.readable_timedelta(
+                datetime.timedelta(seconds=self.EXEC_TIMEOUT_SECONDS)),
+            update.message)
+        self.assertEqual(self.delayed, [])
+
+    def test_per_group_within_window_reschedules(self):
+        """A group within the timeout window reschedules a fresh CheckRunTimeout
+        with the remaining delta and does not enqueue any UpdateGroup.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow_running(start_time=now - datetime.timedelta(seconds=20))
+        self._insert_group_running('group1', start_time=now - datetime.timedelta(seconds=10))
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(len(self.delayed), 1)
+        rescheduled, delta = self.delayed[0]
+        self.assertIsInstance(rescheduled, jobs.CheckRunTimeout)
+        self.assertEqual(rescheduled.group_name, 'group1')
+        self.assertGreater(delta.total_seconds(), 0)
+        self.assertLess(delta.total_seconds(), self.EXEC_TIMEOUT_SECONDS)
+
+    def test_per_group_skips_already_finished_group(self):
+        """If the target group has already reached a terminal status (e.g. COMPLETED),
+        CheckRunTimeout is a no-op even if start_time would otherwise be expired.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow_running(start_time=now - datetime.timedelta(seconds=400))
+        self._insert_group_running(
+            'group1', start_time=now - datetime.timedelta(seconds=300), status='COMPLETED')
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(self.delayed, [])
+
+    def test_per_group_skips_group_without_start_time(self):
+        """If the group has no start_time yet (still in queue), CheckRunTimeout is a no-op.
+        Belt-and-suspenders against scheduling timing.
+        """
+        self._insert_workflow_running()
+        self._insert_group(group_name='group1', status='SCHEDULING')
+        self._insert_task('group1-lead', group_name='group1', lead=True, status='SCHEDULING')
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(self.delayed, [])
+
+    def test_legacy_payload_without_group_name_falls_back_to_workflow_cancel(self):
+        """Delayed jobs serialized before group_name was added deserialize with
+        group_name=None; they must still trigger workflow-level cancellation when expired.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow_running(start_time=now - datetime.timedelta(seconds=400))
+        self._insert_group_running('group1', start_time=now - datetime.timedelta(seconds=300))
+
+        self._run_check(group_name=None)
+
+        self.assertEqual(len(self.dispatched), 1)
+        cancel = self.dispatched[0]
+        self.assertIsInstance(cancel, jobs.CancelWorkflow)
+        self.assertEqual(cancel.workflow_status, workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT)
+        self.assertEqual(cancel.task_status, task.TaskGroupStatus.FAILED_EXEC_TIMEOUT)
+        self.assertEqual(self.delayed, [])
+
+    def test_legacy_payload_within_window_reschedules_workflow_level(self):
+        """Legacy payload (no group_name) within the window reschedules itself without
+        a group_name, preserving the legacy enforcement path until the queue drains.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow_running(start_time=now - datetime.timedelta(seconds=20))
+        self._insert_group_running('group1', start_time=now - datetime.timedelta(seconds=10))
+
+        self._run_check(group_name=None)
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(len(self.delayed), 1)
+        rescheduled, _ = self.delayed[0]
+        self.assertIsInstance(rescheduled, jobs.CheckRunTimeout)
+        self.assertIsNone(rescheduled.group_name)
+
+
+class CheckQueueTimeoutDbTest(TaskDbFixture):
+    """DB-backed integration tests for CheckQueueTimeout per-group queue_timeout enforcement.
+
+    Per-group semantics: the clock starts when a group enters SCHEDULING and stops when the
+    group is assigned a node and enters INITIALIZING. If the group is still in SCHEDULING
+    after queue_timeout, just that group is marked FAILED_QUEUE_TIMEOUT. Once the group has
+    progressed to INITIALIZING (or beyond) the queue clock has stopped — image-pull and
+    preflight time is governed separately by the start timeout.
+    """
+
+    QUEUE_TIMEOUT_SECONDS = 100
+
+    def setUp(self):
+        super().setUp()
+        self.dispatched: list = []
+        self.delayed: list = []
+
+        def _capture_send(captured_self):
+            self.dispatched.append(captured_self)
+
+        def _capture_delayed(captured_self, delay):
+            self.delayed.append((captured_self, delay))
+
+        self._patches: List[Any] = [
+            mock.patch.object(jobs.UpdateGroup, 'send_job_to_queue', _capture_send),
+            mock.patch.object(jobs.CancelWorkflow, 'send_job_to_queue', _capture_send),
+            mock.patch.object(
+                jobs.CheckQueueTimeout, 'send_delayed_job_to_queue', _capture_delayed),
+        ]
+        for patcher in self._patches:
+            patcher.start()
+        self.addCleanup(self._stop_patches)
+
+    def _stop_patches(self):
+        for patcher in self._patches:
+            patcher.stop()
+
+    def _insert_workflow(self, queue_timeout_seconds: int = QUEUE_TIMEOUT_SECONDS,
+                         submit_time: datetime.datetime | None = None,
+                         status: str = 'PENDING') -> None:
+        # Override TaskDbFixture's helper so we control queue_timeout, status, submit_time.
+        if submit_time is None:
+            submit_time = datetime.datetime.now()
+        self._get_db().execute_commit_command(
+            '''INSERT INTO workflows
+               (workflow_id, workflow_name, workflow_uuid, submitted_by,
+                backend, logs, exec_timeout, queue_timeout, plugins, status,
+                submit_time, outputs, priority)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+            (WORKFLOW_ID, 'test-wf', WORKFLOW_UUID, 'user@nvidia.com',
+             'default', '', 100, queue_timeout_seconds, '{}', status, submit_time,
+             '', 'NORMAL'))
+
+    def _insert_group_scheduling(self, group_name: str,
+                                 scheduling_start_time: datetime.datetime,
+                                 status: str = 'SCHEDULING') -> None:
+        group_uuid = common.generate_unique_id()
+        self._insert_group(group_name=group_name, group_uuid=group_uuid, status=status)
+        # TaskGroup.fetch_from_db loads tasks by group name and raises if none exist.
+        self._insert_task(f'{group_name}-lead', group_name=group_name, lead=True, status=status)
+        self._get_db().execute_commit_command(
+            'UPDATE groups SET scheduling_start_time = %s '
+            'WHERE workflow_id = %s AND name = %s',
+            (scheduling_start_time, WORKFLOW_ID, group_name))
+
+    def _make_context(self) -> jobs.JobExecutionContext:
+        return jobs.JobExecutionContext(
+            postgres=self._get_db(), redis=connectors.RedisConfig())
+
+    def _run_check(self, group_name: str | None = None) -> None:
+        check = jobs.CheckQueueTimeout(
+            workflow_id=WORKFLOW_ID, workflow_uuid=WORKFLOW_UUID, group_name=group_name)
+        check.execute(self._make_context(), mock.Mock())
+
+    def test_per_group_queue_expiry_marks_only_that_group(self):
+        """When a group has been queueing longer than queue_timeout, an UpdateGroup
+        with FAILED_QUEUE_TIMEOUT is enqueued for just that group.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow()
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=300))
+        self._insert_group_scheduling(
+            'group2', scheduling_start_time=now - datetime.timedelta(seconds=10))
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(len(self.dispatched), 1)
+        update = self.dispatched[0]
+        self.assertIsInstance(update, jobs.UpdateGroup)
+        self.assertEqual(update.group_name, 'group1')
+        self.assertEqual(update.status, task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT)
+        self.assertIn(
+            common.readable_timedelta(
+                datetime.timedelta(seconds=self.QUEUE_TIMEOUT_SECONDS)),
+            update.message)
+        self.assertEqual(self.delayed, [])
+
+    def test_per_group_queue_within_window_reschedules(self):
+        """A group within the queue_timeout window reschedules a fresh CheckQueueTimeout
+        with the remaining delta, preserving dynamic-timeout-update support.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow()
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=10))
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(len(self.delayed), 1)
+        rescheduled, delta = self.delayed[0]
+        self.assertIsInstance(rescheduled, jobs.CheckQueueTimeout)
+        self.assertEqual(rescheduled.group_name, 'group1')
+        self.assertGreater(delta.total_seconds(), 0)
+        self.assertLess(delta.total_seconds(), self.QUEUE_TIMEOUT_SECONDS)
+
+    def test_per_group_queue_skips_running_group(self):
+        """If the group has reached RUNNING, the queue clock has already stopped — no-op."""
+        now = datetime.datetime.now()
+        self._insert_workflow()
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=300),
+            status='RUNNING')
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(self.delayed, [])
+
+    def test_per_group_queue_skips_finished_group(self):
+        """If the group is already finished, CheckQueueTimeout is a no-op."""
+        now = datetime.datetime.now()
+        self._insert_workflow()
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=300),
+            status='COMPLETED')
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(self.delayed, [])
+
+    def test_per_group_queue_skips_initializing_group(self):
+        """The queue_timeout window stops once the group is assigned a node and enters
+        INITIALIZING. Even if the group sat in SCHEDULING + INITIALIZING longer than
+        queue_timeout, the queue clock has stopped and CheckQueueTimeout is a no-op.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow()
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=300),
+            status='INITIALIZING')
+
+        self._run_check(group_name='group1')
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(self.delayed, [])
+
+    def test_legacy_queue_payload_falls_back_to_workflow_cancel(self):
+        """A legacy CheckQueueTimeout (no group_name) on a workflow stuck in PENDING
+        beyond queue_timeout still triggers CancelWorkflow with FAILED_QUEUE_TIMEOUT.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow(submit_time=now - datetime.timedelta(seconds=300))
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=10))
+
+        self._run_check(group_name=None)
+
+        self.assertEqual(len(self.dispatched), 1)
+        cancel = self.dispatched[0]
+        self.assertIsInstance(cancel, jobs.CancelWorkflow)
+        self.assertEqual(cancel.workflow_status, workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT)
+        self.assertEqual(cancel.task_status, task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT)
+        self.assertEqual(self.delayed, [])
+
+    def test_legacy_queue_payload_no_op_when_workflow_no_longer_pending(self):
+        """A legacy CheckQueueTimeout fires only if the workflow is still PENDING; once
+        any group has reached RUNNING the workflow is past PENDING and the legacy path
+        is a no-op.
+        """
+        now = datetime.datetime.now()
+        self._insert_workflow(submit_time=now - datetime.timedelta(seconds=300),
+                              status='RUNNING')
+        self._insert_group_scheduling(
+            'group1', scheduling_start_time=now - datetime.timedelta(seconds=10),
+            status='RUNNING')
+
+        self._run_check(group_name=None)
+
+        self.assertEqual(self.dispatched, [])
+        self.assertEqual(self.delayed, [])
 
 
 if __name__ == '__main__':

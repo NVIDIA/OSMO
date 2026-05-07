@@ -308,13 +308,24 @@
 					"version": "12-20220319-1ubuntu1"
 				}
 			],
-			"key": "docker-ce-cli_5-28.4.0-1_ubuntu.22.04_jammy_amd64",
+			"key": "docker-ce-cli_5-29.4.1-1_ubuntu.22.04_jammy_amd64",
 			"name": "docker-ce-cli",
-			"sha256": "7dad219d0e2f25912621f73b8a03b4af321f293961d0e5c1ddc321f408571ca8",
+			"sha256": "a64ebead73cd139fe7f6a98d1c19816b49ecd12d9af35199ef5aeecd0d39d87d",
 			"urls": [
-				"https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-ce-cli_28.4.0-1~ubuntu.22.04~jammy_amd64.deb"
+				"https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-ce-cli_29.4.1-1~ubuntu.22.04~jammy_amd64.deb"
 			],
-			"version": "5:28.4.0-1~ubuntu.22.04~jammy"
+			"version": "5:29.4.1-1~ubuntu.22.04~jammy"
+		},
+		{
+			"arch": "amd64",
+			"dependencies": [],
+			"key": "docker-buildx-plugin_0.33.0-1_ubuntu.22.04_jammy_amd64",
+			"name": "docker-buildx-plugin",
+			"sha256": "608bb1e6403fd056727be03bbc5a0be429263012ec2f6b0c8b1850341fdae2bd",
+			"urls": [
+				"https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-buildx-plugin_0.33.0-1~ubuntu.22.04~jammy_amd64.deb"
+			],
+			"version": "0.33.0-1~ubuntu.22.04~jammy"
 		},
 		{
 			"arch": "amd64",

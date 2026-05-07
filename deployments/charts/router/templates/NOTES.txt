@@ -1,5 +1,0 @@
-1. The router service is available at:
-  kubectl get service {{ .Values.services.service.serviceName }}
-
-2. Check the deployment status:
-  kubectl get deployment {{ .Values.services.service.serviceName }}
