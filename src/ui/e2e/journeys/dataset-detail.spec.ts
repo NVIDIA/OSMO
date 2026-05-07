@@ -44,7 +44,9 @@ function createDatasetInfoResponse(
 ) {
   const now = new Date().toISOString();
   const type = overrides.type ?? "DATASET";
-  const locationPlaceholder = `s3://${bucket}/datasets/${name}/v1/`;
+  // Must be an http(s) URL: server-side manifest fetch uses fetch(url) in production
+  // path, and tests do not assume NEXT_PUBLIC_MOCK_API is enabled.
+  const manifestUrl = `http://127.0.0.1:9999/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/manifest?version=1`;
 
   if (type === "DATASET") {
     const defaultVersion = {
@@ -56,8 +58,8 @@ function createDatasetInfoResponse(
       last_used: now,
       size: 1024 * 1024,
       checksum: "abc123",
-      location: locationPlaceholder,
-      uri: locationPlaceholder,
+      location: manifestUrl,
+      uri: manifestUrl,
       metadata: {},
       tags: [] as string[],
       collections: [] as string[],
@@ -73,7 +75,7 @@ function createDatasetInfoResponse(
     };
   }
 
-  const subLoc = `s3://${bucket}/datasets/sub-dataset-1/v1/`;
+  const subLoc = `http://127.0.0.1:9999/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent("sub-dataset-1")}/manifest?version=1`;
   return {
     name,
     id: `${bucket}/${name}`,
