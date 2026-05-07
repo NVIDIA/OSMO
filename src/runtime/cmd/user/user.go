@@ -417,6 +417,7 @@ func main() {
 		}
 
 		if response.Type == messages.CtrlFailed {
+			log.Println("Received CtrlFailed from osmo-ctrl — task cannot proceed")
 			return
 		} else if response.Type == messages.ExecStart {
 			break

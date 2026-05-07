@@ -369,7 +369,9 @@ def check_running_pod_containers(pod: kubernetes.client.models.v1_pod.V1Pod) -> 
     # Add more reasons here for cases when one container terminated and we want the service
     # to clean up the pod
     reasons = ['StartError']
-    container_statuses = pod.status.container_statuses if pod.status.container_statuses else []
+    container_statuses = list(itertools.chain(
+        pod.status.init_container_statuses or [],
+        pod.status.container_statuses or []))
     for container_status in container_statuses:
         state = container_status.state
         if state.terminated:
