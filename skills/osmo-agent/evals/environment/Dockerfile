@@ -1,27 +1,27 @@
 # Eval environment for the osmo-agent skill.
 #
-# Build context: the skill root (skills/osmo-agent/).
-# Used by ACES to build the runtime image the agent executes in
-# during eval runs.
+# ACES runs the eval inside a container built from this Dockerfile.
+# At runtime, ACES stages everything under `evals/files/` to
+# `/workspace/input/`, so the mock `osmo` dispatcher script lands at
+# `/workspace/input/mock_osmo/osmo` and its fixtures at
+# `/workspace/input/fixtures/<scenario>/...`.
 #
-# We pre-install a stateless mock `osmo` CLI on PATH so the skill's
-# prescribed commands resolve end-to-end without needing a live OSMO
-# backend. The mock dispatches to canned JSON fixtures discovered
-# from evals/files/fixtures/<scenario>/ at runtime — see
-# evals/files/mock_osmo/osmo for the dispatcher source.
+# We install a tiny shell wrapper at `/usr/local/bin/osmo` that
+# exec's the staged dispatcher, so the skill's prescribed commands
+# (`osmo profile list`, `osmo workflow query …`, etc.) resolve
+# end-to-end without needing a live OSMO backend.
 
-FROM python:3.11-slim
+FROM ubuntu:24.04
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends bash jq curl ca-certificates && \
+    apt-get install -y --no-install-recommends bash jq curl ca-certificates findutils && \
     rm -rf /var/lib/apt/lists/*
 
-# Install the mock `osmo` CLI on PATH so `osmo <subcommand>` resolves
-# to the dispatcher script. The dispatcher walks `evals/files/fixtures/`
-# under the agent's working directory at runtime, so this Dockerfile
-# only needs to put it on PATH; the per-scenario fixtures stage
-# automatically through ACES.
-COPY evals/files/mock_osmo/osmo /usr/local/bin/osmo
-RUN chmod +x /usr/local/bin/osmo
+# Install the `osmo` shim on PATH. It defers to the dispatcher that
+# ACES mounts at runtime — the dispatcher's fixture-discovery walks
+# `/workspace/input/fixtures/<scenario>/...` from its own location.
+RUN printf '#!/usr/bin/env bash\nexec bash /workspace/input/mock_osmo/osmo "$@"\n' \
+        > /usr/local/bin/osmo && \
+    chmod +x /usr/local/bin/osmo
 
 WORKDIR /workspace

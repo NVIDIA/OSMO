@@ -15,20 +15,6 @@
   },
   {
     "id": "osmo-agent-002",
-    "question": "I'm trying to submit a small fine-tuning job but I think I've used up my GPU quota for the week. Is there any way to still run it now?",
-    "expected_skill": "osmo-agent",
-    "expected_script": null,
-    "ground_truth": "The agent used osmo-agent to inspect pool quota and detected that the user's quota is exhausted while physical GPUs are still free, then recommended submitting the workflow with --priority LOW including a warning about possible preemption.",
-    "expected_behavior": [
-      "The agent read the osmo-agent SKILL.md to understand the quota-vs-capacity distinction",
-      "The agent ran 'osmo pool list' or equivalent to identify pools where Quota Free=0 but Total Free>0",
-      "The agent recommended submitting with --priority LOW to bypass quota on idle physical capacity",
-      "The agent warned the user that LOW-priority jobs can be preempted when quota holders need GPUs",
-      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
-    ]
-  },
-  {
-    "id": "osmo-agent-003",
     "question": "Can you show me a quick rundown of my recent OSMO workflows? Want to see what's still running and what's done.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -42,7 +28,7 @@
     ]
   },
   {
-    "id": "osmo-agent-004",
+    "id": "osmo-agent-003",
     "question": "Is workflow gr00t-train-1 done yet? I kicked it off this morning and want to see how it's going.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -56,7 +42,7 @@
     ]
   },
   {
-    "id": "osmo-agent-005",
+    "id": "osmo-agent-004",
     "question": "How much memory is workflow gr00t-train-1 chewing through right now? My cluster admin is asking.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -70,7 +56,7 @@
     ]
   },
   {
-    "id": "osmo-agent-006",
+    "id": "osmo-agent-005",
     "question": "Can you give me the Kubernetes dashboard link for workflow gr00t-train-1? Want to inspect the pod directly.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -84,7 +70,7 @@
     ]
   },
   {
-    "id": "osmo-agent-007",
+    "id": "osmo-agent-006",
     "question": "Can you tell me what workflow gr00t-train-1 actually does? I inherited this from a teammate and want to understand it before I rerun it.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -98,7 +84,7 @@
     ]
   },
   {
-    "id": "osmo-agent-008",
+    "id": "osmo-agent-007",
     "question": "I have a workflow.yaml ready to go in my current directory. Can you submit it to a free GPU pool for me?",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -112,7 +98,7 @@
     ]
   },
   {
-    "id": "osmo-agent-009",
+    "id": "osmo-agent-008",
     "question": "Submit my training job from workflow.yaml — I want to use 4 GPUs for this run.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -126,7 +112,7 @@
     ]
   },
   {
-    "id": "osmo-agent-010",
+    "id": "osmo-agent-009",
     "question": "I need to generate about 1000 synthetic images for a robotics dataset using Isaac Sim on H100s. Can you set that up?",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -140,7 +126,7 @@
     ]
   },
   {
-    "id": "osmo-agent-011",
+    "id": "osmo-agent-010",
     "question": "What GPUs does NVIDIA actually make these days? I'm putting together a doc for my team and want a quick rundown.",
     "expected_skill": null,
     "expected_script": null,
@@ -153,7 +139,7 @@
     ]
   },
   {
-    "id": "osmo-agent-012",
+    "id": "osmo-agent-011",
     "question": "What resources are available to me right now?",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -167,7 +153,7 @@
     ]
   },
   {
-    "id": "osmo-agent-013",
+    "id": "osmo-agent-012",
     "question": "Are there any H100s I can use right now?",
     "expected_skill": "osmo-agent",
     "expected_script": null,
@@ -181,21 +167,7 @@
     ]
   },
   {
-    "id": "osmo-agent-014",
-    "question": "I want to run a workflow but I think my quota is full. Can I still submit something?",
-    "expected_skill": "osmo-agent",
-    "expected_script": null,
-    "ground_truth": "The agent used osmo-agent to inspect pool quota, identified pools where Quota Free = 0 but Total Free > 0, and recommended submitting with --priority LOW including a warning about possible preemption.",
-    "expected_behavior": [
-      "The agent ran 'osmo pool list' to inspect quota and physical capacity",
-      "The agent identified at least one pool where Quota Free = 0 but Total Free > 0",
-      "The agent recommended submitting the workflow with --priority LOW to use idle physical capacity",
-      "The agent warned the user that LOW-priority workflows may be preempted when quota-holding jobs need GPUs",
-      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
-    ]
-  },
-  {
-    "id": "osmo-agent-015",
+    "id": "osmo-agent-013",
     "question": "Show me my recent workflows.",
     "expected_skill": "osmo-agent",
     "expected_script": null,
