@@ -160,13 +160,10 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 15
 
-        # Give the container 60 seconds to startup
         {{- with .Values.services.delayedJobMonitor.startupProbe }}
         startupProbe:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
 
       {{- include "osmo.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:

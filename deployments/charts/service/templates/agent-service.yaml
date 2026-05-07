@@ -186,12 +186,10 @@ spec:
           failureThreshold: 3
           periodSeconds: 45
 
-        # Give the container 30 seconds to startup
         {{- with .Values.services.agent.startupProbe }}
         startupProbe:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-          initialDelaySeconds: 10
 
         readinessProbe:
           httpGet:

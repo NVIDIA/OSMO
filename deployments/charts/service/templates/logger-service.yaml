@@ -182,7 +182,6 @@ spec:
         startupProbe:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-          initialDelaySeconds: 10
 
         readinessProbe:
           httpGet:

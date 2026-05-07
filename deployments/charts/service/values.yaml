@@ -788,6 +788,8 @@ services:
         - "30"
       failureThreshold: 24
       periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for delayed job monitor pod scheduling
     ##
@@ -1426,6 +1428,7 @@ services:
       failureThreshold: 24
       periodSeconds: 5
       timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for logger service pod scheduling
     ##
@@ -1561,6 +1564,7 @@ services:
       failureThreshold: 24
       periodSeconds: 5
       timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for agent service pod scheduling
     ##
