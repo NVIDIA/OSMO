@@ -25,9 +25,13 @@ RUN printf '#!/usr/bin/env bash\nexec bash /workspace/input/mock_osmo/osmo "$@"\
     chmod +x /usr/local/bin/osmo
 
 # Stage sample workflow YAMLs at the agent's cwd so eval prompts that
-# reference `workflow.yaml` or `jinja_workflow.yaml` resolve there.
+# reference `workflow.yaml` or `jinja_workflow.yaml` resolve there. The
+# YAMLs sit under a subdirectory because ACES only copies subdirectories
+# (and `Dockerfile`/`docker-compose.yaml`) from `evals/environment/`
+# into the Docker build context — loose files alongside the Dockerfile
+# don't get staged.
 RUN mkdir -p /workspace
-COPY simple_workflow.yaml /workspace/workflow.yaml
-COPY jinja_workflow.yaml  /workspace/jinja_workflow.yaml
+COPY workflows/simple_workflow.yaml /workspace/workflow.yaml
+COPY workflows/jinja_workflow.yaml  /workspace/jinja_workflow.yaml
 
 WORKDIR /workspace
