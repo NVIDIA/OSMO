@@ -310,6 +310,26 @@ class TestBuildRationaleSection(unittest.TestCase):
         )
         self.assertEqual(section.count("**`src/lib/foo.py`**"), 1)
 
+    def test_coerces_unexpected_field_types(self):
+        # Defensive: a malformed sidecar (string coverage, list uncovered,
+        # numeric reason) must not crash the rendering. Numbers fall back
+        # to 0 / 0.0 and reason becomes empty (no blockquote).
+        meta = {
+            "src/lib/foo.py": {
+                "file_path": "src/lib/foo.py",
+                "coverage_pct": "not a number",
+                "uncovered_lines": ["wrong", "type"],
+                "reason": 42,
+            },
+        }
+        section = _build_rationale_section(
+            ["src/lib/tests/test_foo.py"], meta,
+        )
+        self.assertIn("**`src/lib/foo.py`**", section)
+        self.assertIn("0.0% coverage", section)
+        self.assertIn("0 uncovered lines", section)
+        self.assertNotIn("> ", section)
+
     def test_omits_blockquote_when_reason_empty(self):
         meta = {
             "src/lib/foo.py": {

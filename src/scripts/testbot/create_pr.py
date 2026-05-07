@@ -131,9 +131,16 @@ def _build_rationale_section(
     blocks: list[str] = [heading, ""]
     for source in seen_sources:
         entry = meta[source]
-        coverage = entry.get("coverage_pct", 0.0)
-        uncovered = entry.get("uncovered_lines", 0)
-        reason = (entry.get("reason") or "").strip()
+        try:
+            coverage = float(entry.get("coverage_pct", 0.0))
+        except (TypeError, ValueError):
+            coverage = 0.0
+        try:
+            uncovered = int(entry.get("uncovered_lines", 0))
+        except (TypeError, ValueError):
+            uncovered = 0
+        raw_reason = entry.get("reason")
+        reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
         blocks.append(
             f"**`{source}`** — {coverage:.1f}% coverage, "
             f"{uncovered} uncovered lines."
