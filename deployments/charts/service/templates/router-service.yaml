@@ -188,9 +188,8 @@ spec:
         {{- end }}
 
         {{- with .Values.services.router.startupProbe }}
-        {{- $probe := mustMergeOverwrite (deepCopy .) (dict "failureThreshold" (int $.Values.global.startupProbeFailureThreshold)) }}
         startupProbe:
-          {{- include "osmo.upstream-probe-yaml" (dict "probe" $probe "context" $) | nindent 10 }}
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" . "context" $) | nindent 10 }}
         {{- end }}
 
         {{- with .Values.services.router.readinessProbe }}

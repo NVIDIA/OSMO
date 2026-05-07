@@ -178,17 +178,10 @@ spec:
           periodSeconds: 45
 
         # Give the container 30 seconds to startup
+        {{- with .Values.services.logger.startupProbe }}
         startupProbe:
-          exec:
-            command:
-            - progress_check
-            - --progress_interval
-            - "60"
-            - --progress_file
-            - /var/run/osmo/last_progress
-          failureThreshold: {{ .Values.global.startupProbeFailureThreshold }}
-          periodSeconds: 5
-          timeoutSeconds: 15
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
           initialDelaySeconds: 10
 
         readinessProbe:

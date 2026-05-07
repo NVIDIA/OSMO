@@ -164,9 +164,6 @@ spec:
         {{- end }}
 
         {{- with .Values.services.ui.startupProbe }}
-        # failureThreshold comes from global.startupProbeFailureThreshold so
-        # all services share the same startup tolerance; everything else is
-        # taken from .Values.services.ui.startupProbe.
         startupProbe:
           {{- if .httpGet }}
           httpGet:
@@ -186,7 +183,9 @@ spec:
           exec:
             {{- toYaml .exec | nindent 12 }}
           {{- end }}
-          failureThreshold: {{ $.Values.global.startupProbeFailureThreshold }}
+          {{- with .failureThreshold }}
+          failureThreshold: {{ . }}
+          {{- end }}
           {{- with .periodSeconds }}
           periodSeconds: {{ . }}
           {{- end }}

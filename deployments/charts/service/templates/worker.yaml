@@ -174,16 +174,10 @@ spec:
           timeoutSeconds: 15
 
         # Give the container 60 seconds to startup
+        {{- with .Values.services.worker.startupProbe }}
         startupProbe:
-          exec:
-            command:
-            - progress_check
-            - --progress_interval
-            - "300"
-          failureThreshold: {{ .Values.global.startupProbeFailureThreshold }}
-          periodSeconds: 5
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
 
       {{- include "osmo.extra-sidecars" .Values.services.worker | nindent 6 }}
       volumes:
