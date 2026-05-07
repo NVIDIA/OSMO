@@ -72,7 +72,7 @@ Add short callouts for any of these conditions present in the result set:
 
 ## Example skeleton
 
-```
+```text
 You have access to 5 pools, 4 ONLINE. Here are the highlights by GPU type:
 
 H100 Pools

@@ -40,9 +40,9 @@ After fetching the README and YAML, look for throughput / constraint metadata
 (e.g. "produces 60 images per run", "trains 1 epoch in 4 hours"). Use it to
 decide whether to submit once or many times.
 
-- **Throughput figure + user has a target quantity (and optional time budget):**
+- **Throughput figure + user has a target quantity:**
   ```
-  num_submissions = ceil(target / (throughput_per_run * time_budget))
+  num_submissions = ceil(target / throughput_per_run)
   ```
   Submit the same YAML that many times — do not duplicate the YAML file.
 - **Resource spec uses Jinja variables:** scale by passing larger `--set`
