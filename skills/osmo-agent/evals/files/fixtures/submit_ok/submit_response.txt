@@ -1,4 +1,0 @@
-Workflow submit successful.
-Workflow ID        - gr00t-train-1
-Workflow Overview  - https://osmo.example.com/workflows/gr00t-train-1
-Workflow Dashboard - https://k8s.example.com/dashboard/gr00t-train-1
