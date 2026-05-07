@@ -622,7 +622,11 @@ backend_operator_set_flags() {
         sets+=" --set global.imagePullSecret=${NGC_SECRET_NAME}"
     fi
 
-    sets+=" --set global.serviceUrl=http://osmo-agent.${OSMO_NAMESPACE}.svc.cluster.local"
+    # Backend-operator hits OSMO via the Envoy gateway (single entry that fronts
+    # service/router/agent/logger). Direct osmo-agent.svc was the 6.2 path; the
+    # 6.3 chart's auth filters live at the gateway, so worker login fails on the
+    # agent service ClusterIP with "Connection aborted / Remote disconnected".
+    sets+=" --set global.serviceUrl=http://osmo-gateway.${OSMO_NAMESPACE}.svc.cluster.local"
     sets+=" --set global.agentNamespace=${OSMO_OPERATOR_NAMESPACE}"
     sets+=" --set global.backendNamespace=${OSMO_WORKFLOWS_NAMESPACE}"
 
