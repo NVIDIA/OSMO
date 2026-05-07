@@ -10,8 +10,8 @@
   "overview": "https://osmo.example.com/workflows/gr00t-train-1",
   "parent_name": null,
   "parent_job_id": null,
-  "dashboard_url": "https://k8s.example.com/dashboard/gr00t-train-1",
-  "grafana_url": "https://grafana.example.com/d/workflow/gr00t-train-1",
+  "dashboard_url": "https://k8s.example.com/#/pod/osmo-default/gr00t-train-1-eb3a7f9c-0/details?cluster=h100-east",
+  "grafana_url": "https://grafana.example.com/d/wf-abc123def4567/gr00t-train-1?orgId=1&from=now-1h&to=now",
   "tags": [],
   "submit_time": "2026-05-05T18:00:00.000000",
   "start_time": "2026-05-05T18:01:30.000000",
@@ -53,10 +53,10 @@
           "input_download_end_time": "2026-05-05T18:01:29.500000",
           "output_upload_start_time": null,
           "dashboard_url": null,
-          "pod_name": "abc123def-train-pod-0",
+          "pod_name": "gr00t-train-1-eb3a7f9c-0",
           "pod_ip": "10.244.10.42",
           "task_uuid": "ef894882623247068cdf0019a454ac24",
-          "node_name": "osmo-h100-node-01",
+          "node_name": "osmo-iad1-h100-7e3a2",
           "lead": true
         }
       ]
