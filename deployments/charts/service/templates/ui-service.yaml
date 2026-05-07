@@ -164,7 +164,6 @@ spec:
         {{- end }}
 
         {{- with .Values.services.ui.startupProbe }}
-        # Give the container 30 seconds to startup
         startupProbe:
           {{- if .httpGet }}
           httpGet:
