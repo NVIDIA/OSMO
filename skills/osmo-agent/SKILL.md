@@ -1,26 +1,51 @@
 ---
 name: osmo-agent
 description: >
-  How to use the OSMO CLI to manage cloud compute resources for robotics development.
-  Use this skill whenever the user asks about available resources, nodes, pools, GPUs,
-  or compute capacity on OSMO — even if they don't say "OSMO" explicitly. Also use it
-  when they ask what they can run, whether they have quota, want to check their profile
-  or pool access, want to submit a workflow (SDG, RL training, or custom), want to
-  check the status or logs of a running/completed workflow, list or browse recent
-  workflow submissions, want to understand what a specific workflow does or is
-  configured to do, or want to create an OSMO app from a workflow.
+  Operate the OSMO CLI to discover GPU resources, submit and monitor workflows,
+  debug PENDING/FAILED/stuck workflows, interpret OSMO errors, and publish workflows
+  as OSMO apps. Trigger when the user asks about OSMO pools, quota, GPUs, workflow
+  status/logs/submission, OSMO errors, or OSMO apps — even if they don't say "OSMO"
+  explicitly. Do NOT use for kubectl, Kubernetes, NVIDIA hardware, or non-OSMO
+  platforms.
+version: "1.0.0"
+author: nvidia
+tags: [osmo, cli, workflows, gpu-compute, debugging]
+tools: [Bash, Read, Write, Edit, WebFetch, Task]
 license: Apache-2.0
 compatibility: >
   Requires osmo CLI installed and authenticated (osmo login).
-metadata:
-  author: nvidia
-  version: "1.0.0"
 ---
 
-# OSMO CLI Use Cases
+# osmo-agent
 
-OSMO is a cloud platform for robotics compute and data storage. This skill covers
-common OSMO CLI use cases.
+## Purpose
+
+Run, monitor, and debug OSMO workflows from natural-language requests. OSMO is
+NVIDIA's cloud platform for robotics compute and data storage; this skill maps
+user requests to the right `osmo` CLI commands and walks the user through failure
+diagnosis when workflows go wrong.
+
+## Prerequisites
+
+- `osmo` CLI installed and on `PATH` (verify: `osmo --version`).
+- Authenticated session (`osmo login`). If commands return auth errors, the user must
+  re-run `osmo login` themselves.
+- Profile has access to at least one ONLINE pool (verify: `osmo profile list` and
+  `osmo pool list`).
+
+## Limitations
+
+- No live GPU/CPU/memory utilization via the CLI — point the user to the
+  workflow's Grafana dashboard for live metrics.
+- Workflows cannot be edited after submission. Cancel and resubmit a corrected
+  version instead.
+- Only OSMO-managed clusters are supported. For other Kubernetes platforms, the
+  user needs `kubectl` or that platform's own tooling.
+- `grafana_url` and `dashboard_url` can be `null` for workflows that haven't
+  started yet or completed long enough ago that metrics were retired. Surface as
+  "not available" — never silently omit.
+- The skill does not edit cluster config, node taints, or quota policies — those
+  are admin-side operations.
 
 ## Reference Files
 
@@ -33,28 +58,35 @@ The `references/` directory has additional documentation:
 
 - `references/workflow-patterns.md` — Multi-task, parallel execution, data dependencies, Jinja templating
 - `references/advanced-patterns.md` — Checkpointing, retry/exit behavior, node exclusion
+- `references/cookbook-fetching.md` — How to fetch a cookbook example and decide submission count
+- `references/resource-check-format.md` — Output format spec for resource availability responses
+- `references/troubleshooting.md` — Catalog of common failure modes, exit codes, and fixes
+- `references/validation-error-recovery.md` — Resource sizing rules when submission fails capacity assertions
+- `references/workflow-status-handling.md` — Link rendering, PENDING diagnosis, post-completion follow-ups
 
----
+## Instructions
 
-## Intent Routing
+Pick the matching use case below by the user's intent (see Intent Routing), follow
+its steps in order, and consult the linked reference file when the steps say so.
+For diagnosing failures, jump straight to "Debug a Failed or Stuck Workflow" or
+the Troubleshooting section near the bottom.
+
+### Intent Routing
 
 - Asks about resources, pools, GPUs, or quota → Check Available Resources
 - Wants to submit a job (simple, no monitoring) → Generate and Submit a Workflow
 - Wants to submit + monitor + handle failures → Orchestrate a Workflow End-to-End
 - Asks about a workflow's status or logs → Check Workflow Status
 - Lists recent workflows → List Workflows
+- Asks why a workflow failed, is stuck, or how to fix an OSMO error → Debug a Failed or Stuck Workflow
 - Asks what a workflow does → Explain What a Workflow Does
 - Wants to publish a workflow as an app → Create an App
-
----
 
 ## Use Case: Check Available Resources
 
 **When to use:** The user asks what resources, nodes, GPUs, or pools are available
 (e.g. "what resources are available?", "what nodes can I use?", "do I have GPU quota?",
 "what pools do I have access to?").
-
-### Steps
 
 1. **Check accessible pools** — run to see which pools the user's profile has access to:
    ```
@@ -71,61 +103,16 @@ The `references/` directory has additional documentation:
    osmo pool list --mode free
    ```
 
-### Reading the output
+### Reading the output and formatting the response
 
-The `osmo pool list` table columns mean:
+Effective availability = `min(Quota Free, Total Free)` — both quota and physical
+limits apply. Always highlight any **LOW-priority opportunity**: when a pool has
+`Quota Free = 0` but `Total Free > 0`, the user can still submit with
+`--priority LOW` to run on idle capacity (with preemption risk).
 
-| Column | Meaning |
-|---|---|
-| Quota Limit | Max GPUs for HIGH/NORMAL priority workflows |
-| Quota Used | GPUs currently consumed by your workflows |
-| Quota Free | GPUs you can still allocate |
-| Total Capacity | All GPUs on nodes in the pool |
-| Total Usage | GPUs used by everyone in the pool |
-| Total Free | GPUs physically free on nodes |
-
-When summarizing results for the user, highlight:
-- Which pools they have access to
-- Effective availability = min(Quota Free, Total Free) — this is the true number of
-  GPUs a workflow can actually use, since both limits apply
-- Any pools that appear at capacity
-- **LOW priority opportunity:** if a pool has Quota Free = 0 but Total Free > 0, the
-  user's quota is exhausted but physical GPUs are physically idle. They can still submit
-  with `--priority LOW`, which bypasses quota limits and runs on available capacity.
-  Mention this as an option whenever you see this condition.
-
-### Output format (required for resource availability responses)
-
-Use a grouped, table-first format similar to:
-"You have access to <N> pools, <M> ONLINE. Here are the highlights by GPU type:"
-
-Formatting requirements:
-- Group results by GPU type with section headers like `GB200 Pools`, `H100 Pools`,
-  `L40S Pools`, `L40 Pools` (and `Other Pools` when needed). Do not enforce a fixed
-  ordering; use whatever order is most readable for the current result set.
-- Render one fixed-width table per GPU type (box-drawing style preferred; markdown
-  table is acceptable fallback).
-- Include these columns in each table:
-  - `Pool`
-  - `Quota Free`
-  - `Physically Free` (from `Total Free`; keep markers like `(shared)` when present)
-  - `Effective` (computed as `min(Quota Free, Total Free)`)
-- Sort rows within each GPU-type section by `Effective` descending.
-- Add useful inline annotations in cells when relevant:
-  - Append `(default)` to the user's default pool name.
-  - Optionally mark the top pool in a section as `✅ Most available`.
-- After the grouped tables, add a short callout for:
-  - Pools at capacity (`Effective = 0`)
-  - LOW-priority opportunities (`Quota Free = 0` and `Total Free > 0`)
-
-Derive GPU type from pool names when possible:
-- contains `gb200` -> `GB200`
-- contains `h100` -> `H100`
-- contains `l40s` -> `L40S`
-- contains `l40` -> `L40`
-- otherwise -> `Other`
-
----
+`references/resource-check-format.md` is required reading before generating the
+response — it defines column meanings, the grouped-table layout, sorting,
+callouts, and GPU-type derivation rules.
 
 ## Use Case: Generate and Submit a Workflow
 
@@ -135,81 +122,24 @@ to run SDG", "run RL training for me", "submit this yaml to OSMO").
 If the user also wants monitoring, debugging, or reporting results, use the
 "Orchestrate a Workflow End-to-End" use case instead.
 
-### Steps
-
 1. **Get or generate a workflow spec.**
 
    If the user provides a workflow YAML, use it as-is. Otherwise, generate one based on
    what they want to run. Write the spec to `workflow.yaml` in the current directory.
 
    **When generating a workflow spec:**
-   - Fetch the cookbook README via WebFetch to browse available examples:
-     `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/README.md`
-     Pick the closest match to the user's request. The cookbook README links to each
-     workflow's per-workflow README. To fetch the workflow YAML:
-     1. Fetch the per-workflow README at the linked path (e.g.
-        `https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/<path>/README.md`).
-     2. Read that README to find the workflow YAML filename (do not assume it is
-        `workflow.yaml` — look for the actual filename referenced in the README).
-     3. Construct the workflow YAML URL as `<per-workflow README directory URL>/<filename>`
-        and fetch it.
-     Use the YAML as a starting point — adapt it rather than generating from scratch.
-     Summarize the per-workflow README and add it as a comment in the generated workflow spec.
-   - **Preserve Jinja template variables.** If the cookbook YAML uses `{{variable}}`
-     placeholders (e.g. `{{num_gpu}}`), do NOT replace or hardcode them in the YAML.
-     Keep the template variables as-is and pass the user's values via `--set` at submit
-     time. Multiple variables are space-separated after a single `--set`:
-     ```
-     osmo workflow submit workflow.yaml --pool <pool_name> --set num_gpu=4 other_var=value
-     ```
-     Do not manually scale `resources` values to match the user's requested GPU count —
-     the template handles this.
-   - **Use workflow README and YAML to decide submission count.** After fetching those
-     two files, find the throughput and constraint metadata
-     (e.g. "60 images"). Before deciding whether to submit one or multiple
-     workflows, read those annotations:
-     - If a throughput figure is present and the user has a target quantity + time
-       budget, calculate: `num_submissions = ceil(target / (throughput_per_run * time_budget))`
-       and submit the same YAML that many times.
-     - For scaling workflows, if a workflow's resource spec uses variables, then you can pass
-       a new value in the submit call. If a resource spec uses constants, scale by submitting
-       more workflows instead of requesting more GPUs, CPUs, etc. for a workflow.
-     - If no metadata is present, submit a single workflow unless the user says otherwise.
+   - Prefer adapting an existing example from the OSMO cookbook over writing from
+     scratch. The procedure for fetching a cookbook example, preserving Jinja
+     template variables, and computing submission count from throughput metadata is
+     in `references/cookbook-fetching.md`. Read it before generating.
    - If the workflow involves **multiple tasks, parallel execution, data dependencies
      between tasks, or Jinja templating**, read `references/workflow-patterns.md` for
-     the correct spec patterns before writing anything.
+     the correct spec patterns.
    - If the user asks for **checkpointing, retry/exit behavior, or node exclusion**,
      read `references/advanced-patterns.md`.
-   - If no cookbook example closely matches, fall back to the scaffold template below.
-
-   The simple OSMO workflow spec format follows this structure:
-   ```yaml
-   workflow:
-     name: <workflow-name>
-     tasks:
-     - name: <task-name>
-       image: <container-image>
-       command: ["bash"]
-       args: ["/tmp/entry.sh"]
-       environment:
-         <ENV VARIABLE>: <VALUE>
-       files:
-       - contents: |
-           <shell script to run>
-         path: /tmp/entry.sh
-       outputs:
-       - dataset:
-           name: <output-dataset-name>
-     resources:
-       default:
-         cpu: <N>
-         gpu: <N>
-         memory: <NGi>
-         storage: <NGi>
-   ```
-
-   Use `{{output}}` as a placeholder in the script wherever the task should write its
-   output data — OSMO replaces this at runtime with the output dataset path.
+   - If no cookbook example matches, fall back to the scaffold template at the
+     bottom of `references/cookbook-fetching.md`. Use `{{output}}` as the
+     placeholder for the output mount path — OSMO substitutes it at runtime.
 
 2. **Ask the user what GPU type they want** (e.g. H100, L40, GB200), then check
    availability using the steps in the "Check Available Resources" use case to confirm
@@ -236,26 +166,16 @@ If the user also wants monitoring, debugging, or reporting results, use the
    ```
 
    **Validation errors:** If submission fails with a validation error indicating that
-   resources failed assertions, read the node capacity values from the error table and
-   adjust the hard-coded values in the `resources` section of `workflow.yaml` using these
-   rules, then resubmit. (Do not touch Jinja template variables like `{{num_gpu}}` —
-   those are resolved at runtime via `--set`.)
-
-   - **Storage / Memory:** use `floor(capacity * 0.9)` if capacity ≥ 50, otherwise `capacity - 2`
-   - **CPU:** use `floor(capacity * 0.9)` if capacity ≥ 30, otherwise `capacity - 2`
-   - **GPU:** always use a multiple of 2; do not adjust based on node capacity
-   - **Proportionality:** after setting GPU, scale memory and CPU proportionally to the
-     ratio of requested GPUs to total allocatable GPUs on the node
-     (e.g. requesting 2 of 8 GPUs → use 25% of the adjusted memory/CPU values)
-
----
+   resources failed assertions, read the node capacity values from the error table,
+   adjust the hard-coded values in the `resources` section of `workflow.yaml`, and
+   resubmit. The exact sizing rules (storage/memory/CPU caps, GPU pairing, proportional
+   scaling) are in `references/validation-error-recovery.md`. Do not touch Jinja
+   template variables like `{{num_gpu}}` — those are resolved at runtime via `--set`.
 
 ## Use Case: List Workflows
 
 **When to use:** The user wants to see all their workflows or recent submissions (e.g.
 "what are my workflows?", "show me my recent jobs", "what's the status of my workflows?").
-
-### Steps
 
 1. **List all workflows:**
    ```
@@ -269,90 +189,42 @@ If the user also wants monitoring, debugging, or reporting results, use the
    - 🔄 RUNNING
    - ⏳ PENDING
 
----
-
 ## Use Case: Check Workflow Status
 
-**When to use:** The user asks about the status or logs of a workflow (e.g. "what's the
-status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz",
+**When to use:** The user asks about the status or logs of a workflow (e.g. "what's
+the status of workflow abc-123?", "is my workflow done?", "show me the logs for xyz",
 "show me the resource usage for my workflow", "give me the Kubernetes dashboard link").
-Also used as the polling step when monitoring a workflow during end-to-end orchestration.
+Also used as the polling step during end-to-end orchestration.
 
-### Steps
-
-1. **Get the workflow status:**
+1. **Query the workflow:**
    ```
    osmo workflow query <workflow name> --format-type json
    ```
-   **Cache the JSON result for the rest of the conversation.** If you have already queried
-   this workflow with `osmo workflow query` earlier in the conversation, reuse that JSON
-   — do not query again just to extract a field.
+   Cache the JSON for the rest of the conversation — do not re-query just to extract
+   a field.
 
-2. **Get recent logs** — Choose the log-fetching method based on task count
-   (this rule applies everywhere logs are needed — monitoring, failure diagnosis, etc.):
-   - **1 task:** fetch logs inline with `osmo workflow logs <workflow_id> -n 10000`.
-   - **2+ tasks:** you MUST delegate to `/agents/logs-reader.md` subagents — do NOT
-     fetch logs inline yourself. Spawn one logs-reader subagent per 5 tasks
-     (e.g. 3 tasks → 1 subagent, 7 tasks → 2 subagents).
+2. **Fetch logs** based on task count:
+   - **1 task:** inline with `osmo workflow logs <workflow_id> -n 10000`.
+   - **2+ tasks:** delegate to `agents/logs-reader.md` subagents (one per 5 tasks).
+     Do not fetch logs inline yourself in the main conversation.
 
-3. **Report to the user:**
-   - State the current status clearly (e.g. RUNNING, COMPLETED, FAILED, PENDING)
-   - Concisely summarize what the logs show — what stage the job is at, any errors,
-     or what it completed successfully
-   - If the workflow failed, highlight the error and suggest next steps if possible
-   - **Resource usage / Grafana link:** If the user asks about resource usage, GPU
-     utilization, or metrics for this workflow, extract `grafana_url` from the query
-     JSON. If present, render it as a clickable link:
-     `[View resource usage in Grafana](<grafana_url>)`
-     If the field is empty or null, tell the user: "The Grafana resource usage link is
-     not available for this workflow."
-   - **Kubernetes dashboard link:** If the user asks for the Kubernetes dashboard,
-     pod details, or a k8s link, extract `kubernetes_dashboard` from the query JSON.
-     If present, render it as a clickable link:
-     `[Open Kubernetes dashboard](<kubernetes_dashboard>)`
-     If the field is empty or null, tell the user: "The Kubernetes dashboard link is
-     not available for this workflow."
-   - Proactively include both links in any detailed status report (e.g. when the
-     workflow is RUNNING or has just COMPLETED) — users often want them without
-     explicitly asking. If a field is empty or null, note it as not available rather
-     than silently omitting it.
-   - **If PENDING** (or the user asks why it isn't scheduling), run:
-     ```
-     osmo workflow events <workflow name>
-     ```
-     Translate Kubernetes events into plain language (e.g. "there aren't enough free
-     GPUs in the pool" rather than "Insufficient nvidia.com/gpu"). Also check:
-     ```
-     osmo resource list -p <pool>
-     ```
-   - If COMPLETED, proceed to Step 4.
+3. **Report to the user.** State the current status, summarize logs concisely, and
+   include the Grafana and Kubernetes dashboard links by default for detailed
+   reports. Exact phrasing for link rendering, null handling, and resource-usage
+   triggers is in `references/workflow-status-handling.md`. If the status is
+   `PENDING`, follow that reference's pending-diagnosis steps (events + resource
+   list, translated to plain language).
 
-4. **Handle completed workflows:**
-
-   Offer the output dataset for download:
-   `Would you like me to download the output dataset now?`
-   Ask whether they want a specific output folder (default to `~/`). Then run:
-   ```
-   osmo dataset download <dataset_name> <path>
-   ```
-
-   Also offer to create an OSMO app. Suggest a name derived from the workflow name
-   (e.g. `sdg-run-42` → app name `sdg-run-42`) and generate a one-sentence description.
-   If the user agrees, follow the "Create an App" use case.
-
-   When monitoring multiple workflows from the same spec, offer app creation once
-   (not per workflow) after all reach a terminal state. Do not skip this offer
-   just because you were in a batch monitoring loop.
-
----
+4. **For COMPLETED workflows**, offer the output dataset download and proactively
+   suggest creating an OSMO app from the workflow. Exact prompts, name suggestion
+   rules, and batch-monitoring behavior are in
+   `references/workflow-status-handling.md`.
 
 ## Use Case: Orchestrate a Workflow End-to-End
 
 **When to use:** The user wants to create a workflow, submit it, and monitor it to
 completion (e.g. "train GR00T on my data", "submit and monitor my workflow",
 "run end-to-end training", "submit this and tell me when it's done").
-
-### Steps
 
 The lifecycle is split between the `workflow-expert` subagent (workflow generation,
 resource check, submission, failure diagnosis) and **you** (live monitoring so the
@@ -393,15 +265,61 @@ user sees real-time updates).
    the logs summary: <summary>. Diagnose and fix." It returns a new workflow ID.
    Resume monitoring from Step 2. Max 3 retries before asking the user for guidance.
 
----
+## Use Case: Debug a Failed or Stuck Workflow
+
+**When to use:** The user asks why a workflow failed, why it's stuck, or how to fix
+an OSMO error (e.g. "my workflow keeps failing", "what does this OSMO error mean?",
+"my pod won't start", "training crashed with exit 137", "image pull keeps failing").
+This is the manual debugging path. If the user wants you to also fix and resubmit
+automatically, use "Orchestrate a Workflow End-to-End" instead.
+
+1. **Establish current state.** Run the steps from "Check Workflow Status" to get
+   the workflow's status, recent logs, and (for PENDING workflows) events. Cache the
+   query JSON so you don't re-fetch.
+
+2. **Match the symptom.** Open `references/troubleshooting.md` and look up the
+   matching pattern by symptom — exit code, error keyword, status, or behavior.
+   Common patterns covered there:
+   - `PENDING` for an unusually long time (scheduling block, quota exhausted)
+   - Exit code `137` (OOM kill), `139` (segfault), `143` (SIGTERM / preempted), `127`
+     (command not found)
+   - `ImagePullBackOff` / `ErrImagePull`
+   - `Init:CrashLoopBackOff` (init container failure)
+   - NCCL / multi-GPU communication timeouts
+   - Output dataset empty or missing after COMPLETED
+   - Validation rejection at submit time (see also
+     `references/validation-error-recovery.md`)
+
+3. **Explain the diagnosis in plain language.** State the root cause without raw
+   Kubernetes jargon. Say "the container ran out of memory and was killed" rather
+   than "exit 137 / OOMKilled". If multiple causes are plausible from the logs, list
+   them in order of likelihood and explain how to confirm each.
+
+4. **Recommend a concrete fix.** Pull the fix recipe from the matched troubleshooting
+   pattern. If the fix involves editing `workflow.yaml`, show the user the exact diff
+   you would apply. Do not edit the YAML without confirmation unless the user
+   pre-authorized you to fix-and-resubmit.
+
+5. **Offer to apply the fix and resubmit.** Ask the user whether to apply the fix
+   yourself. If they agree, edit `workflow.yaml` per the troubleshooting recipe and
+   submit using the steps in "Generate and Submit a Workflow".
+
+### When to escalate
+
+- If the symptom doesn't match any pattern in the troubleshooting reference, gather
+  the workflow query JSON, full logs (or per-task logs via `logs-reader` subagent for
+  multi-task workflows), and recent events, then ask the user how they want to
+  proceed. Do not invent fixes.
+- If the same workflow has failed and been resubmitted with fixes 3+ times in this
+  conversation, stop auto-retrying and ask the user — repeated failure with patches
+  usually indicates a deeper issue (bad image, broken dataset, capacity outage)
+  that needs human judgment.
 
 ## Use Case: Explain What a Workflow Does
 
 **When to use:** The user asks what a workflow does, what it's configured to run, or
 wants to understand its purpose (e.g. "what does workflow abc-123 do?", "explain this
 workflow", "what is workflow xyz running?").
-
-### Steps
 
 1. **Fetch the workflow template:**
    ```
@@ -422,15 +340,11 @@ workflow", "what is workflow xyz running?").
    Keep the summary short — a few sentences or a brief bullet list. The user asked
    what it does, not for a line-by-line YAML walkthrough.
 
----
-
 ## Use Case: Create an App
 
 **When to use:** The user wants to publish a workflow as an OSMO app (e.g. "create an
 app for this workflow", "make an app from my workflow", "publish this as an app"), or
 you are proactively offering app creation after a workflow completes.
-
-### Steps
 
 1. **Determine the workflow file path.** If the user already has a workflow YAML (e.g.
    `workflow.yaml` in the current directory), use that path. If they're coming from a
@@ -458,3 +372,13 @@ you are proactively offering app creation after a workflow completes.
 
 4. **Report the result** — confirm the app was created and share any URL or identifier
    returned by the CLI.
+
+## Troubleshooting
+
+When the user reports a failed, stuck, or misbehaving workflow, follow "Use Case:
+Debug a Failed or Stuck Workflow" above. The detailed catalog of failure
+signatures, diagnoses, and fixes — including exit-code lookups (137/139/143/127),
+image pull errors, init container failures, NCCL timeouts, missing-output
+patterns, and PENDING capacity vs quota distinction — is in
+`references/troubleshooting.md`. For submission-time validation errors, the
+resource-sizing recipe is in `references/validation-error-recovery.md`.
