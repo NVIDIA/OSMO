@@ -27,11 +27,13 @@ diagnosis when workflows go wrong.
 
 ## Prerequisites
 
-- `osmo` CLI installed and on `PATH` (verify: `osmo --version`).
-- Authenticated session (`osmo login`). If commands return auth errors, the user must
-  re-run `osmo login` themselves.
-- Profile has access to at least one ONLINE pool (verify: `osmo profile list` and
-  `osmo pool list`).
+- `osmo` CLI installed and on `PATH` (verify: `osmo --version`). If `osmo` is
+  not found, tell the user to install it from the OSMO public repository and
+  stop — never fabricate command output to fill the gap.
+- Authenticated session (`osmo login`). If commands return auth errors, ask
+  the user to re-run `osmo login` and stop until they confirm.
+- Profile has access to at least one ONLINE pool (verify: `osmo profile list`
+  and `osmo pool list`).
 
 ## Limitations
 
@@ -66,10 +68,15 @@ The `references/` directory has additional documentation:
 
 ## Instructions
 
-Pick the matching use case below by the user's intent (see Intent Routing), follow
-its steps in order, and consult the linked reference file when the steps say so.
-For diagnosing failures, jump straight to "Debug a Failed or Stuck Workflow" or
-the Troubleshooting section near the bottom.
+Always consult this file (SKILL.md) and the relevant reference file(s) before
+running any `osmo` command — the use cases below specify the right command
+sequence, the expected output format, and which reference holds the detail. Do
+not guess at command names or flags from memory; follow the use case's steps.
+
+Pick the matching use case below by the user's intent (see Intent Routing),
+follow its steps in order, and consult the linked reference file when the
+steps say so. For diagnosing failures, jump straight to "Debug a Failed or
+Stuck Workflow" or the Troubleshooting section near the bottom.
 
 ### Intent Routing
 
