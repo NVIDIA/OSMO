@@ -67,7 +67,7 @@ BACKEND_OPERATOR_USER="${BACKEND_OPERATOR_USER:-backend-operator}"
 # PostgreSQL. Locked-down clusters that can't pull from Docker Hub override
 # POSTGRES_OPS_IMAGE; the rest can leave it. Pod name is parameterized so
 # multiple deploys against shared namespaces don't collide.
-OSMO_DB_OPS_POD="${OSMO_DB_OPS_POD:-$OSMO_DB_OPS_POD}"
+OSMO_DB_OPS_POD="${OSMO_DB_OPS_POD:-osmo-db-ops}"
 POSTGRES_OPS_IMAGE="${POSTGRES_OPS_IMAGE:-postgres:15}"
 DB_OPS_TIMEOUT="${DB_OPS_TIMEOUT:-120}"
 
