@@ -16,10 +16,7 @@
 
 import { test, expect } from "@playwright/test";
 import { DatasetStatus } from "@/lib/api/generated";
-import {
-  setupDefaultMocks,
-  setupProfile,
-} from "@/e2e/utils/mock-setup";
+import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
 /**
  * Dataset Detail Page Journey Tests
@@ -27,42 +24,29 @@ import {
  * Architecture notes:
  * - Dataset detail lives at /datasets/{bucket}/{name}
  * - Uses Streaming SSR: DatasetDetailSkeleton → DatasetDetailWithData → DatasetDetailContent
- * - Fetches dataset info via GET /api/bucket/{bucket}/dataset/{name}/info
- * - Fetches file manifest via the version's location URL
- * - Shows file browser (table of folders/files), breadcrumbs, version picker
- * - Clicking a file opens a side preview panel
- * - URL state: ?path= (current dir), ?version= (dataset version), ?file= (selected file)
- * - Error state: "Error Loading Dataset" with retry button
+ * - Fetches dataset info via GET /api/bucket/{bucket}/dataset/{name}/info (mocked with page.route)
+ * - Fetches manifest via server action → GET http://127.0.0.1:9999/.../manifest (mock-api-backend.mjs)
  *
- * Manifest loading uses a server action (`fetchManifest`). Playwright `page.route`
- * only sees browser traffic, so with PLAYWRIGHT_E2E=1 manifests resolve via
- * `/api/e2e/dataset-manifest` (same-origin) instead of MSW on :9999.
+ * Manifest fixtures are keyed by bucket + dataset name in e2e/mock-api-backend.mjs (no app src changes).
  */
 
 const CT_JSON = "application/json";
 
-type ManifestCase = "default" | "grid" | "title" | "empty";
-
 // ── Dataset Detail Mock Helpers ──────────────────────────────────────────────
 
 function createDatasetInfoResponse(
-  baseURL: string,
   bucket: string,
   name: string,
   overrides: {
     versions?: Array<Record<string, unknown>>;
     type?: "DATASET" | "COLLECTION";
-    manifestCase?: ManifestCase;
   } = {},
 ) {
   const now = new Date().toISOString();
   const type = overrides.type ?? "DATASET";
-  const manifestCase = overrides.manifestCase ?? "default";
-  const manifestLocation = `${baseURL.replace(/\/$/, "")}/api/e2e/dataset-manifest?case=${manifestCase}`;
+  const locationPlaceholder = `s3://${bucket}/datasets/${name}/v1/`;
 
   if (type === "DATASET") {
-    // Must satisfy `isDatasetEntry` in datasets.ts (status, created_by, created_date).
-    // Version strings should be numeric for parseInt() in transformDatasetDetail.
     const defaultVersion = {
       name,
       version: "1",
@@ -72,8 +56,8 @@ function createDatasetInfoResponse(
       last_used: now,
       size: 1024 * 1024,
       checksum: "abc123",
-      location: manifestLocation,
-      uri: manifestLocation,
+      location: locationPlaceholder,
+      uri: locationPlaceholder,
       metadata: {},
       tags: [] as string[],
       collections: [] as string[],
@@ -89,7 +73,7 @@ function createDatasetInfoResponse(
     };
   }
 
-  // COLLECTION — DataInfoResponse uses `versions` with DataInfoCollectionEntry shape
+  const subLoc = `s3://${bucket}/datasets/sub-dataset-1/v1/`;
   return {
     name,
     id: `${bucket}/${name}`,
@@ -100,8 +84,8 @@ function createDatasetInfoResponse(
       {
         name: "sub-dataset-1",
         version: "1",
-        location: `${baseURL.replace(/\/$/, "")}/api/e2e/dataset-manifest?case=default`,
-        uri: `${baseURL.replace(/\/$/, "")}/api/e2e/dataset-manifest?case=default`,
+        location: subLoc,
+        uri: subLoc,
         size: 512 * 1024,
       },
     ],
@@ -125,7 +109,6 @@ async function setupDatasetInfo(
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 test.describe("Dataset Detail Page", () => {
-  // Global test timeout is 10s; manifest + grid can exceed that with networkidle.
   test.describe.configure({ timeout: 30_000 });
 
   test.beforeEach(async ({ page }) => {
@@ -134,103 +117,65 @@ test.describe("Dataset Detail Page", () => {
     await setupProfile(page);
   });
 
-  test("page title includes dataset name", async ({ page, baseURL }) => {
-    // ARRANGE
-    const origin = baseURL ?? "http://localhost:3000";
+  test("page title includes dataset name", async ({ page }) => {
     const bucket = "my-bucket";
     const name = "my-dataset";
-    await setupDatasetInfo(
-      page,
-      bucket,
-      name,
-      createDatasetInfoResponse(origin, bucket, name, { manifestCase: "title" }),
-    );
+    await setupDatasetInfo(page, bucket, name, createDatasetInfoResponse(bucket, name));
 
-    // ACT
     await page.goto(`/datasets/${bucket}/${name}`);
     await page.waitForLoadState("networkidle");
 
-    // ASSERT
     await expect(page).toHaveTitle(new RegExp(name));
   });
 
-  test("shows breadcrumb with Datasets link and bucket", async ({ page, baseURL }) => {
-    // ARRANGE
-    const origin = baseURL ?? "http://localhost:3000";
+  test("shows breadcrumb with Datasets link and bucket", async ({ page }) => {
     const bucket = "test-bucket";
     const name = "breadcrumb-dataset";
-    await setupDatasetInfo(page, bucket, name, createDatasetInfoResponse(origin, bucket, name));
+    await setupDatasetInfo(page, bucket, name, createDatasetInfoResponse(bucket, name));
 
-    // ACT
     await page.goto(`/datasets/${bucket}/${name}`);
     await page.waitForLoadState("networkidle");
 
-    // ASSERT — breadcrumb shows Datasets > bucket > name
     const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
     await expect(breadcrumb.getByText("Datasets").first()).toBeVisible();
     await expect(breadcrumb.getByText(bucket).first()).toBeVisible();
   });
 
   test("handles dataset API error without crashing", async ({ page }) => {
-    // ARRANGE — use 400 to avoid TanStack Query retries on 5xx
-    // NOTE: SSR prefetch via MSW may succeed independently of Playwright route mocks,
-    // providing hydrated data to the client. In that case, the client component renders
-    // normally using the SSR-prefetched data. This test verifies the page handles
-    // the error gracefully — either showing an error state or rendering with SSR data.
     const bucket = "err-bucket";
     const name = "err-dataset";
     await setupDatasetInfo(page, bucket, name, { status: 400, detail: "Not found" });
 
-    // ACT
     await page.goto(`/datasets/${bucket}/${name}`);
     await page.waitForLoadState("networkidle");
 
-    // ASSERT — page must not crash and should not be completely empty
     await expect(page.locator("body")).not.toBeEmpty();
-    // The page should show either the dataset content (SSR prefetch succeeded)
-    // or an error state — either way, the page should have meaningful content
     await expect(page.locator("main, [role='main'], .flex").first()).toBeVisible();
   });
 
-  test("shows file browser with files from manifest", async ({ page, baseURL }) => {
-    // ARRANGE
-    const origin = baseURL ?? "http://localhost:3000";
+  test("shows file browser with files from manifest", async ({ page }) => {
     const bucket = "data-bucket";
     const name = "file-dataset";
-    await setupDatasetInfo(
-      page,
-      bucket,
-      name,
-      createDatasetInfoResponse(origin, bucket, name, { manifestCase: "grid" }),
-    );
+    await setupDatasetInfo(page, bucket, name, createDatasetInfoResponse(bucket, name));
 
-    // ACT
     await page.goto(`/datasets/${bucket}/${name}`);
     await page.waitForLoadState("networkidle");
 
-    // ASSERT — file browser renders (grid with rows)
-    // Files at root level should show: readme.md, data/ folder, models/ folder
     const grid = page.getByRole("grid");
     await expect(grid).toBeVisible({ timeout: 15_000 });
   });
 
-  test("Datasets breadcrumb link navigates back to datasets list", async ({ page, baseURL }) => {
-    // ARRANGE
-    const origin = baseURL ?? "http://localhost:3000";
+  test("Datasets breadcrumb link navigates back to datasets list", async ({ page }) => {
     const bucket = "nav-bucket";
     const name = "nav-dataset";
-    await setupDatasetInfo(page, bucket, name, createDatasetInfoResponse(origin, bucket, name));
+    await setupDatasetInfo(page, bucket, name, createDatasetInfoResponse(bucket, name));
 
-    // ACT
     await page.goto(`/datasets/${bucket}/${name}`);
     await page.waitForLoadState("networkidle");
 
-    // Click the Datasets breadcrumb link
     const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
-    const datasetsLink = breadcrumb.getByText("Datasets").first();
-    await datasetsLink.click();
+    await breadcrumb.getByText("Datasets").first().click();
 
-    // ASSERT — navigates to datasets list
     await expect(page).toHaveURL(/\/datasets\b/);
   });
 });
