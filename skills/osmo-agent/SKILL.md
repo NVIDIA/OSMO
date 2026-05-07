@@ -73,12 +73,10 @@ running any `osmo` command — the use cases below specify the right command
 sequence, the expected output format, and which reference holds the detail. Do
 not guess at command names or flags from memory; follow the use case's steps.
 
-Pick the matching use case below by the user's intent (see Intent Routing),
-follow its steps in order, and consult the linked reference file when the
-steps say so. For diagnosing failures, jump straight to "Debug a Failed or
-Stuck Workflow" or the Troubleshooting section near the bottom.
-
-### Intent Routing
+Match the user's intent to a use case below, follow its steps in order, and
+read the linked reference when the steps say so. For diagnosing failures,
+jump straight to "Debug a Failed or Stuck Workflow" or the Troubleshooting
+section near the bottom.
 
 - Asks about resources, pools, GPUs, or quota → Check Available Resources
 - Wants to submit a job (simple, no monitoring) → Generate and Submit a Workflow

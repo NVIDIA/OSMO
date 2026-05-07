@@ -1,8 +1,8 @@
 # osmo-agent evals
 
-Evaluation set for the `osmo-agent` skill, written against the NVIDIA
-internal eval schema (`question` / `expected_skill` / `expected_script` /
-`ground_truth` / `expected_behavior`) and run by ACES.
+Evaluation set for the `osmo-agent` skill, written against the NVIDIA eval
+schema (`question` / `expected_skill` / `expected_script` / `ground_truth` /
+`expected_behavior`) and run by ACES.
 
 ## Files
 
