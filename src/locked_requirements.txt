@@ -336,6 +336,10 @@ diskcache==5.6.3 \
     --hash=sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc \
     --hash=sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19
     # via -r requirements.txt
+durationpy==0.10 \
+    --hash=sha256:1fa6893409a6e739c9c72334fc65cca1f355dbdd93405d30f726deb5bde42fba \
+    --hash=sha256:3b41e1b601234296b4fb368338fdcd3e13e0b4fb5b67345948f4f2bf9868b286
+    # via kubernetes
 fastapi==0.125.0 \
     --hash=sha256:16b532691a33e2c5dee1dac32feb31dc6eb41a3dd4ff29a95f9487cb21c054c0 \
     --hash=sha256:2570ec4f3aecf5cca8f0428aed2398b774fcdfee6c2116f86e80513f2f86a7a1
@@ -514,9 +518,9 @@ kombu==5.6.2 \
     --hash=sha256:8060497058066c6f5aed7c26d7cd0d3b574990b09de842a8c5aaed0b92cc5a55 \
     --hash=sha256:efcfc559da324d41d61ca311b0c64965ea35b4c55cc04ee36e55386145dace93
     # via -r requirements.txt
-kubernetes==24.2.0 \
-    --hash=sha256:9900f12ae92007533247167d14cdee949cd8c7721f88b4a7da5f5351da3834cd \
-    --hash=sha256:da19d58865cf903a8c7b9c3691a2e6315d583a98f0659964656dfdf645bf7e49
+kubernetes==32.0.1 \
+    --hash=sha256:35282ab8493b938b08ab5526c7ce66588232df00ef5e1dbe88a419107dc10998 \
+    --hash=sha256:42f43d49abd437ada79a79a16bd48a604d3471a117a8347e87db693f2ba0ba28
     # via -r requirements.txt
 lark==1.1.5 \
     --hash=sha256:4b534eae1f9af5b4ea000bea95776350befe1981658eea3820a01c37e504bb4d \
@@ -525,7 +529,9 @@ lark==1.1.5 \
 macholib==1.16.3 \
     --hash=sha256:07ae9e15e8e4cd9a788013d81f5908b3609aa76f9b1421bae9c4d7606ec86a30 \
     --hash=sha256:0e315d7583d38b8c77e815b1ecbdbf504a8258d8b3e17b61165c6feb60d18f2c
-    # via -r requirements.txt
+    # via
+    #   -r requirements.txt
+    #   pyinstaller
 markupsafe==3.0.3 \
     --hash=sha256:0303439a41979d9e74d18ff5e2dd8c43ed6c6001fd40e5bf2e43f7bd9bbc523f \
     --hash=sha256:068f375c472b3e7acbe2d5318dea141359e6900156b5b2ba06a30b169086b91a \
@@ -642,7 +648,9 @@ mypy-boto3-sts==1.38.38 \
 oauthlib==3.3.1 \
     --hash=sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9 \
     --hash=sha256:88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1
-    # via requests-oauthlib
+    # via
+    #   kubernetes
+    #   requests-oauthlib
 opentelemetry-api==1.39.1 \
     --hash=sha256:2edd8463432a7f8443edce90972169b195e7d6a05500cd29e6d13898187c9950 \
     --hash=sha256:fbde8c80e1b937a2c61f20347e91c0c18a1940cecf012d62e65a7caf08967c9c
@@ -772,9 +780,9 @@ psycopg2-binary==2.9.11 \
     --hash=sha256:fa0f693d3c68ae925966f0b14b8edda71696608039f4ed61b1fe9ffa468d16db \
     --hash=sha256:fcf21be3ce5f5659daefd2b3b3b6e4727b028221ddc94e6c1523425579664747
     # via -r requirements.txt
-pyasn1==0.6.2 \
-    --hash=sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf \
-    --hash=sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b
+pyasn1==0.6.3 \
+    --hash=sha256:697a8ecd6d98891189184ca1fa05d1bb00e2f84b5977c481452050549c8a72cf \
+    --hash=sha256:a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde
     # via
     #   pyasn1-modules
     #   rsa
@@ -1502,6 +1510,5 @@ setuptools==82.0.0 \
     --hash=sha256:22e0a2d69474c6ae4feb01951cb69d515ed23728cf96d05513d36e42b62b37cb \
     --hash=sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0
     # via
-    #   kubernetes
     #   pyinstaller
     #   pyinstaller-hooks-contrib
