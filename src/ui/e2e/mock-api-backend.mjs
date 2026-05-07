@@ -5,8 +5,8 @@
 /**
  * Minimal HTTP stub on port 9999 for Playwright E2E.
  *
- * With PLAYWRIGHT_E2E=1, Node MSW is disabled but dev:mock still sets the server
- * API base URL to localhost:9999. Server actions therefore hit this process.
+ * With PLAYWRIGHT_E2E=1, Node MSW is disabled. Playwright sets NEXT_PUBLIC_MOCK_API=true
+ * so server-side `getServerApiBaseUrl()` uses localhost:9999; manifest fetches hit this process.
  * Keep all logic here (test-only); do not add E2E branches to application src.
  */
 

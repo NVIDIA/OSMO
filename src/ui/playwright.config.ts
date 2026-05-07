@@ -82,6 +82,10 @@ export default defineConfig({
       // Skip Node MSW during E2E so SSR does not seed React Query with MSW data;
       // browser `page.route` mocks can then drive pool/resource journey tests.
       PLAYWRIGHT_E2E: "1",
+      // Server-side manifest fetch uses `getServerApiBaseUrl()` (see dataset-actions.production).
+      // In dev + mock mode it targets localhost:9999 where `e2e/global-setup.ts` starts
+      // `mock-api-backend.mjs`. CI does not run `dev:mock`; set this here so manifest works.
+      NEXT_PUBLIC_MOCK_API: "true",
       // Override .env.local admin roles so E2E tests run as a regular user.
       // Tests that need admin can override via Playwright fixtures.
       DEV_USER_ROLES: "osmo-user",

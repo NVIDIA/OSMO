@@ -25,9 +25,9 @@ import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
  * - Dataset detail lives at /datasets/{bucket}/{name}
  * - Uses Streaming SSR: DatasetDetailSkeleton → DatasetDetailWithData → DatasetDetailContent
  * - Fetches dataset info via GET /api/bucket/{bucket}/dataset/{name}/info (mocked with page.route)
- * - Fetches manifest via server action → GET http://127.0.0.1:9999/.../manifest (mock-api-backend.mjs)
- *
- * Manifest fixtures are keyed by bucket + dataset name in e2e/mock-api-backend.mjs (no app src changes).
+ * - Fetches manifest via server action → GET {getServerApiBaseUrl()}/api/bucket/.../manifest
+ *   In E2E, NEXT_PUBLIC_MOCK_API=true (playwright webServer.env) so base URL is localhost:9999
+ *   where `e2e/mock-api-backend.mjs` serves fixtures keyed by bucket + dataset name.
  */
 
 const CT_JSON = "application/json";
@@ -44,9 +44,8 @@ function createDatasetInfoResponse(
 ) {
   const now = new Date().toISOString();
   const type = overrides.type ?? "DATASET";
-  // Must be an http(s) URL: server-side manifest fetch uses fetch(url) in production
-  // path, and tests do not assume NEXT_PUBLIC_MOCK_API is enabled.
-  const manifestUrl = `http://127.0.0.1:9999/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent(name)}/manifest?version=1`;
+  // Non-null location enables the files query; manifest rows come from bucket/name via server action.
+  const locationPlaceholder = `s3://${bucket}/datasets/${name}/v1/`;
 
   if (type === "DATASET") {
     const defaultVersion = {
@@ -58,8 +57,8 @@ function createDatasetInfoResponse(
       last_used: now,
       size: 1024 * 1024,
       checksum: "abc123",
-      location: manifestUrl,
-      uri: manifestUrl,
+      location: locationPlaceholder,
+      uri: locationPlaceholder,
       metadata: {},
       tags: [] as string[],
       collections: [] as string[],
@@ -75,7 +74,7 @@ function createDatasetInfoResponse(
     };
   }
 
-  const subLoc = `http://127.0.0.1:9999/api/bucket/${encodeURIComponent(bucket)}/dataset/${encodeURIComponent("sub-dataset-1")}/manifest?version=1`;
+  const subLoc = `s3://${bucket}/datasets/sub-dataset-1/v1/`;
   return {
     name,
     id: `${bucket}/${name}`,
@@ -127,7 +126,7 @@ test.describe("Dataset Detail Page", () => {
     await page.goto(`/datasets/${bucket}/${name}`);
     await page.waitForLoadState("networkidle");
 
-    await expect(page).toHaveTitle(new RegExp(name));
+    await expect.poll(async () => page.title()).toContain(name);
   });
 
   test("shows breadcrumb with Datasets link and bucket", async ({ page }) => {

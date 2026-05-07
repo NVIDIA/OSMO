@@ -67,12 +67,24 @@ export default async function globalSetup() {
   });
   child.unref();
   const pid = child.pid;
-  await waitForPort(MOCK_API_PORT);
 
-  const baseURL = `http://localhost:${process.env.PORT ?? "3000"}`;
-  const ctx = await request.newContext({ baseURL });
-  await Promise.allSettled(ROUTES.map((route) => ctx.get(route)));
-  await ctx.dispose();
+  try {
+    await waitForPort(MOCK_API_PORT);
+
+    const baseURL = `http://localhost:${process.env.PORT ?? "3000"}`;
+    const ctx = await request.newContext({ baseURL });
+    await Promise.allSettled(ROUTES.map((route) => ctx.get(route)));
+    await ctx.dispose();
+  } catch (err) {
+    if (typeof pid === "number" && pid > 0) {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // Already exited.
+      }
+    }
+    throw err;
+  }
 
   return async () => {
     if (typeof pid === "number" && pid > 0) {
