@@ -246,3 +246,5 @@ jobs:
           PYTHONPATH=src/scripts python -m testbot.create_pr
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
+          TESTBOT_SLACK_BOT_TOKEN: ${{ secrets.TESTBOT_SLACK_BOT_TOKEN || secrets.SLACK_RELEASE_BOT_TOKEN }}
+          TESTBOT_SLACK_CHANNEL: ${{ vars.TESTBOT_SLACK_CHANNEL || '#osmo-slack-test' }}

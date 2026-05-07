@@ -19,7 +19,7 @@ filesystem ───┘                                                         
 | **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate, rejects hard-to-test infra glue, and picks the 1-3 files where unit tests would have the highest ROI. Can return zero picks if nothing meets the bar. |
 | **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures |
 | **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
-| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label |
+| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, and sends a brief Slack review request when Slack credentials are configured |
 
 Claude Code is sandboxed: it can only read files, edit test files, and run test commands (`bazel test`, `pnpm test`). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
 
@@ -107,6 +107,14 @@ Then post a new `/testbot` comment with clearer instructions.
 | `timeout_minutes` | `30` | Workflow timeout |
 | `model` | `aws/anthropic/bedrock-claude-opus-4-7` | LLM model on API gateway |
 | `dry_run` | `false` | Generate without creating PR |
+
+### Slack review requests
+
+After `create_pr.py` opens a PR, it posts a short review request to Slack when
+`TESTBOT_SLACK_BOT_TOKEN` is set. The workflow also accepts
+`SLACK_RELEASE_BOT_TOKEN` as a fallback token to match release automation.
+`TESTBOT_SLACK_CHANNEL` defaults to `#osmo-slack-test`; direct channel IDs are
+also accepted.
 
 ### Review response (CLI args in `testbot-respond.yaml`)
 
