@@ -53,7 +53,10 @@ When a test fails:
 > see both the failure and the output. Just run the command directly.
 
 1. **Run the test**:
-   - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file)
+   - Python/Go: `bazel test <target>` (derive the Bazel target from the BUILD file).
+     If `bazel test` reports `ERROR: No test targets were found, yet testing
+     was requested`, the test file isn't wired into BUILD — see "BUILD wiring"
+     below before retrying.
    - TypeScript: `pnpm --dir src/ui test -- --run <test_file_path>`
 2. If the test fails, read the error and fix. Retry up to 3 times.
 3. **Verify code style** (same checks as PR CI). Fix and re-verify until clean:
@@ -62,6 +65,19 @@ When a test fails:
      format:check, tests, and build). If formatting fails, run
      `pnpm --dir src/ui format` to auto-fix.
    - Go: no additional checks beyond step 1.
+
+### BUILD wiring (Python + Go)
+
+A test file that isn't registered as a Bazel target is invisible to CI —
+`bazel coverage //...` won't run it and Codecov won't see the new coverage,
+defeating the whole point of the testbot run.
+
+- **Python** (`test_<name>.py`): the `BUILD` file in the test directory must
+  have a `py_test()` rule whose `srcs` includes the new file.
+- **Go** (`<name>_test.go`): the source package's `BUILD` file must load
+  `go_test` and declare a `go_test()` rule pointing at the new file. A
+  `go_library`-only BUILD file silently drops adjacent `_test.go` files
+  on the floor.
 
 ## Language Conventions
 
