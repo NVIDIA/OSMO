@@ -33,6 +33,7 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 | `global.imagePullSecret` | Name of the Kubernetes secret containing Docker registry credentials | `null` |
 | `global.nodeSelector` | Global node selector | `{}` |
 | `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
+| `global.startupProbeFailureThreshold` | Single knob that drives every OSMO service's startup-probe `failureThreshold` (api, agent, logger, router, ui, worker, delayed-job-monitor). With `periodSeconds: 5`, the value × 5 is roughly the seconds of init slack the kubelet tolerates before declaring CrashLoopBackOff. Default tolerates ~2 minutes; bump it on slow-I/O clusters. Doesn't affect healthy startups — the first successful probe ends the startup phase. | `24` |
 
 ### Global Logging Settings
 

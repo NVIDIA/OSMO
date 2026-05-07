@@ -180,7 +180,7 @@ spec:
             - progress_check
             - --progress_interval
             - "300"
-          failureThreshold: 12
+          failureThreshold: {{ .Values.global.startupProbeFailureThreshold }}
           periodSeconds: 5
           timeoutSeconds: 15
           initialDelaySeconds: 10

@@ -164,7 +164,9 @@ spec:
         {{- end }}
 
         {{- with .Values.services.ui.startupProbe }}
-        # Give the container 30 seconds to startup
+        # failureThreshold comes from global.startupProbeFailureThreshold so
+        # all services share the same startup tolerance; everything else is
+        # taken from .Values.services.ui.startupProbe.
         startupProbe:
           {{- if .httpGet }}
           httpGet:
@@ -184,9 +186,7 @@ spec:
           exec:
             {{- toYaml .exec | nindent 12 }}
           {{- end }}
-          {{- with .failureThreshold }}
-          failureThreshold: {{ . }}
-          {{- end }}
+          failureThreshold: {{ $.Values.global.startupProbeFailureThreshold }}
           {{- with .periodSeconds }}
           periodSeconds: {{ . }}
           {{- end }}

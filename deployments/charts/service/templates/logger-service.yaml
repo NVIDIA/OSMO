@@ -186,7 +186,7 @@ spec:
             - "60"
             - --progress_file
             - /var/run/osmo/last_progress
-          failureThreshold: 12
+          failureThreshold: {{ .Values.global.startupProbeFailureThreshold }}
           periodSeconds: 5
           timeoutSeconds: 15
           initialDelaySeconds: 10

@@ -217,7 +217,10 @@ spec:
         {{- include "osmo.upstream-probe-yaml" (dict "probe" .Values.services.service.livenessProbe "context" .) | nindent 10 }}
 
 
-        # Give the container 120 seconds to startup
+        # Startup tolerance is governed by global.startupProbeFailureThreshold
+        # (period=5s, so the value ≈ seconds of init slack the kubelet will
+        # wait). Centralized so all services share the same tolerance and a
+        # slow-I/O cluster can bump it once.
         startupProbe:
           httpGet:
             port: 8000
@@ -225,7 +228,7 @@ spec:
             {{- if .Values.gateway.tls.enabled }}
             scheme: HTTPS
             {{- end }}
-          failureThreshold: 24
+          failureThreshold: {{ .Values.global.startupProbeFailureThreshold }}
           periodSeconds: 5
           timeoutSeconds: 3
           initialDelaySeconds: 5
