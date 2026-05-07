@@ -49,5 +49,12 @@ services:
       workflow_app:
         credential:
           secretName: osmo-workflow-app-cred
+    dataset:
+      buckets:
+        osmo-workflows:
+          dataset_path: $base_url
+          default_credential:
+            secretName: osmo-workflow-data-cred
+      default_bucket: osmo-workflows
 EOF
 }
