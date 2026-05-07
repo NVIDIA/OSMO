@@ -46,6 +46,19 @@ emit_fixture() {
 cmd="${1:-}"
 sub="${2:-}"
 
+# Treat top-level flags (--version, --help) the same as their subcommand
+# equivalents so prerequisite checks like `osmo --version` succeed.
+case "$cmd" in
+  --version|-V)
+    echo "mock-osmo 0.0.0"
+    exit 0
+    ;;
+  --help|-h)
+    echo "mock-osmo — stub used for osmo-agent eval runs"
+    exit 0
+    ;;
+esac
+
 case "$cmd $sub" in
   "profile list")
     emit_fixture "profile_list.json"

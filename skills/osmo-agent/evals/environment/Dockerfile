@@ -24,4 +24,10 @@ RUN printf '#!/usr/bin/env bash\nexec bash /workspace/input/mock_osmo/osmo "$@"\
         > /usr/local/bin/osmo && \
     chmod +x /usr/local/bin/osmo
 
+# Stage sample workflow YAMLs at the agent's cwd so eval prompts that
+# reference `workflow.yaml` or `jinja_workflow.yaml` resolve there.
+RUN mkdir -p /workspace
+COPY simple_workflow.yaml /workspace/workflow.yaml
+COPY jinja_workflow.yaml  /workspace/jinja_workflow.yaml
+
 WORKDIR /workspace

@@ -2,11 +2,14 @@
 name: osmo-agent
 description: >
   Operate the OSMO CLI to discover GPU resources, submit and monitor workflows,
-  debug PENDING/FAILED/stuck workflows, interpret OSMO errors, and publish workflows
-  as OSMO apps. Trigger when the user asks about OSMO pools, quota, GPUs, workflow
-  status/logs/submission, OSMO errors, or OSMO apps — even if they don't say "OSMO"
-  explicitly. Do NOT use for kubectl, Kubernetes, NVIDIA hardware, or non-OSMO
-  platforms.
+  debug PENDING/FAILED/stuck workflows, interpret OSMO errors, surface OSMO
+  workflow Grafana and Kubernetes dashboard links, and publish workflows as OSMO
+  apps. Trigger when the user asks about OSMO pools, quota, GPUs, workflow
+  status/logs/submission, OSMO errors, OSMO apps, or about the Grafana or
+  Kubernetes dashboard for an OSMO workflow — even if they don't say "OSMO"
+  explicitly. Do NOT use for general kubectl install/configuration, raw
+  Kubernetes setup unrelated to an OSMO workflow, NVIDIA hardware/product
+  questions unrelated to OSMO, or non-OSMO compute platforms.
 version: "1.0.0"
 author: nvidia
 tags: [osmo, cli, workflows, gpu-compute, debugging]

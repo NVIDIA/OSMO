@@ -17,9 +17,13 @@ evals/
     │   └── osmo                 # bash dispatcher used as a fake `osmo` CLI
     └── fixtures/
         ├── default/             # canned data for pool/profile/workflow queries
-        ├── submit_ok/           # canned `osmo workflow submit` response
-        └── sample_workflows/    # workflow.yaml fixtures for submit evals
+        └── submit_ok/           # canned `osmo workflow submit` response
 ```
+
+The Dockerfile additionally copies `simple_workflow.yaml` to
+`/workspace/workflow.yaml` and `jinja_workflow.yaml` to
+`/workspace/jinja_workflow.yaml` at build time so submit-flow evals find
+them at the agent's cwd.
 
 ## Eval set
 
