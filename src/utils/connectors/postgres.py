@@ -2478,6 +2478,11 @@ class BackendResource(pydantic.BaseModel):
 class BackendSchedulerType(enum.Enum):
     """ Defines the type of scheduler used by the backend """
     KAI = 'kai'
+    # No gang-scheduler integration — pods are scheduled by `scheduler_name`
+    # (typically the K8s default scheduler). Skips PodGroup CR creation, which
+    # removes the kai-scheduler dependency for workflows that don't need
+    # gang scheduling. See NVIDIA/OSMO#936.
+    NONE = 'none'
 
 
 class BackendSchedulerSettings(pydantic.BaseModel):
