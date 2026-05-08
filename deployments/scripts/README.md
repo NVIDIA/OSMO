@@ -71,7 +71,7 @@ Notes:
 | `azure`    | `azure-blob` / static  | ✅     |
 | `microk8s` | `minio` / static       | ✅     |
 | `byo`      | `minio` / static       | ✅     |
-| `aws`      | `s3` / static          | ⏳     |
+| `aws`      | `s3` / static          | ✅     |
 | `azure`    | `azure-blob` / WI      | ⏳     |
 | `byo`      | `byo` / WI (IRSA)      | ⏳     |
 
