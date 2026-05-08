@@ -66,24 +66,16 @@ Notes:
 
 ## Tested Configurations
 
-What "tested" means here: the listed combination ran `deploy-osmo-minimal.sh` end-to-end, all OSMO pods reached `Running 1/1`, the bundled `verify.sh` smoke workflow (`workflows/verify-hello.yaml` + optionally `verify-gpu.yaml`) reached `COMPLETED`, and (where called out) a real workload pipeline succeeded.
+| Provider   | Storage / Auth         | Tested |
+|------------|------------------------|--------|
+| `azure`    | `azure-blob` / static  | ✅     |
+| `microk8s` | `minio` / static       | ✅     |
+| `byo`      | `minio` / static       | ✅     |
+| `aws`      | `s3` / static          | ⏳     |
+| `azure`    | `azure-blob` / WI      | ⏳     |
+| `byo`      | `byo` / WI (IRSA)      | ⏳     |
 
-| Provider | Storage / Auth     | Last green | Workload verified | Notes |
-|----------|-------------------|------------|-------------------|-------|
-| `azure` (BYO mode against orion-cluster-azure) | `azure-blob` / static | 2026-05-07 | SDG NIM pipeline E2E (4 tasks: config_generation, pseudo_labeling_original, cosmos_augmentation, pseudo_labeling_augmented) on `Standard_NC40ads_H100_v5` | KAI + GPU Operator detect-and-skip (orion installed them); used 6.3 prerelease tags `OSMO_IMAGE_TAG=6.3.0-prerelease-rc6`, `OSMO_CHART_VERSION=1.3.0-prerelease-rc6`, `OSMO_HELM_REPO_URL=https://helm.ngc.nvidia.com/nvstaging/osmo`. Required PR #961 (configurable `startupProbe.timeoutSeconds`). |
-| `azure` (TF-managed AKS + PG + Redis + Blob)   | `azure-blob` / static | Earlier in branch | `verify-hello.yaml` | Fresh-cluster fixes captured in commits `667dde95`, `5247b44f`, `2b6f0b88`, `0c64efae`. |
-| `microk8s` (single-node)                       | `minio` / static      | Earlier in branch | `verify-hello.yaml` | Uses microk8s `minio` addon when present, otherwise `install-minio.sh` deploys bitnami chart. |
-| `byo` (any K8s)                                | `minio` / static      | Earlier in branch | `verify-hello.yaml` | In-cluster MinIO via `install-minio.sh`. |
-
-**Implemented but not yet E2E-verified end-to-end:**
-
-| Combination | Status |
-|-------------|--------|
-| `aws` (TF-managed EKS) + `s3` / static          | Code paths complete, dry-run + plan tested. Full bring-up pending. |
-| `azure-blob` / `workload-identity` (UAMI)       | Code paths complete (`storage/azure-blob.sh` workload-identity branch). Caller must pre-create UAMI + federated credential. |
-| `byo` / `workload-identity` (AWS IRSA)          | Code paths complete (`storage/byo.sh` workload-identity branch). Caller must pre-create IAM role + service account annotation. |
-
-If you hit any of the unverified combinations, please report results so the table can be updated.
+✅ = end-to-end green. ⏳ = code paths complete, full E2E pending.
 
 ## Prerelease / Staging Channel
 
