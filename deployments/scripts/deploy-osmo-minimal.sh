@@ -150,6 +150,13 @@ AWS-specific Options:
 Environment Variables:
   OSMO_IMAGE_REGISTRY    OSMO image registry (default: nvcr.io/nvidia/osmo)
   OSMO_IMAGE_TAG         OSMO image tag (default: latest)
+  OSMO_CHART_VERSION     Pin OSMO Helm chart version (default: latest in repo)
+                         Required for prerelease channels — chart RCs are not
+                         tagged "latest" and helm install will fail without it.
+  OSMO_HELM_REPO_URL     OSMO Helm chart repo URL
+                         (default: https://helm.ngc.nvidia.com/nvidia/osmo)
+                         Override to https://helm.ngc.nvidia.com/nvstaging/osmo
+                         for prerelease testing.
   BACKEND_TOKEN_EXPIRY   Backend token expiry date (default: 2027-01-01)
   NGC_API_KEY            NGC API key (alternative to --ngc-api-key flag)
 
