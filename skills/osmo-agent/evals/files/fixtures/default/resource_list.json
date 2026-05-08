@@ -1,0 +1,63 @@
+{
+  "pools": [
+    {
+      "name": "h100-east",
+      "nodes": [
+        {
+          "name": "osmo-iad1-h100-7e3a2",
+          "status": "ONLINE",
+          "resources": {
+            "gpu": {"capacity": 8, "used": 6, "free": 2},
+            "cpu": {"capacity": 96, "used": 48, "free": 48},
+            "memory": {"capacity": "1Ti", "used": "512Gi", "free": "512Gi"}
+          }
+        },
+        {
+          "name": "osmo-iad1-h100-9b1c4",
+          "status": "ONLINE",
+          "resources": {
+            "gpu": {"capacity": 8, "used": 8, "free": 0},
+            "cpu": {"capacity": 96, "used": 80, "free": 16},
+            "memory": {"capacity": "1Ti", "used": "768Gi", "free": "256Gi"}
+          }
+        },
+        {
+          "name": "osmo-iad1-h100-2f8d5",
+          "status": "ONLINE",
+          "resources": {
+            "gpu": {"capacity": 8, "used": 5, "free": 3},
+            "cpu": {"capacity": 96, "used": 40, "free": 56},
+            "memory": {"capacity": "1Ti", "used": "384Gi", "free": "640Gi"}
+          }
+        },
+        {
+          "name": "osmo-iad1-h100-4a6e8",
+          "status": "ONLINE",
+          "resources": {
+            "gpu": {"capacity": 8, "used": 7, "free": 1},
+            "cpu": {"capacity": 96, "used": 64, "free": 32},
+            "memory": {"capacity": "1Ti", "used": "640Gi", "free": "384Gi"}
+          }
+        },
+        {
+          "name": "osmo-iad1-h100-1c9f3",
+          "status": "ONLINE",
+          "resources": {
+            "gpu": {"capacity": 8, "used": 8, "free": 0},
+            "cpu": {"capacity": 96, "used": 88, "free": 8},
+            "memory": {"capacity": "1Ti", "used": "896Gi", "free": "128Gi"}
+          }
+        },
+        {
+          "name": "osmo-iad1-h100-8d2b7",
+          "status": "ONLINE",
+          "resources": {
+            "gpu": {"capacity": 8, "used": 4, "free": 4},
+            "cpu": {"capacity": 96, "used": 32, "free": 64},
+            "memory": {"capacity": "1Ti", "used": "256Gi", "free": "768Gi"}
+          }
+        }
+      ]
+    }
+  ]
+}

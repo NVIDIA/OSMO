@@ -25,18 +25,37 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES_ROOT="${OSMO_MOCK_FIXTURES:-$SELF_DIR/../fixtures}"
 
 # Look up a fixture by filename, scanning every scenario subdirectory
-# under FIXTURES_ROOT. Returns the first match. If multiple candidate
-# names are passed, the first one that resolves wins.
+# under FIXTURES_ROOT. Tries each candidate name in order and uses the
+# first one that resolves. If a candidate name matches multiple files
+# across scenarios, we fail loudly rather than silently picking one —
+# that's a fixture-layout bug the eval author should fix.
 emit_fixture() {
   local relpath
   for relpath in "$@"; do
     if [[ ! -d "$FIXTURES_ROOT" ]]; then
       continue
     fi
+    local matches=()
     while IFS= read -r -d '' candidate; do
-      cat "$candidate"
-      return 0
-    done < <(find "$FIXTURES_ROOT" -maxdepth 2 -type f -name "$relpath" -print0 2>/dev/null)
+      matches+=("$candidate")
+    done < <(find "$FIXTURES_ROOT" -maxdepth 2 -type f -name "$relpath" -print0 2>/dev/null | sort -z)
+    case "${#matches[@]}" in
+      0)
+        continue
+        ;;
+      1)
+        cat "${matches[0]}"
+        return 0
+        ;;
+      *)
+        echo "mock_osmo: ambiguous fixture '$relpath' (${#matches[@]} matches)" >&2
+        local m
+        for m in "${matches[@]}"; do
+          echo "  $m" >&2
+        done
+        exit 1
+        ;;
+    esac
   done
   echo "mock_osmo: no fixture found for: $*" >&2
   echo "mock_osmo: searched under: $FIXTURES_ROOT" >&2
@@ -73,20 +92,49 @@ case "$cmd $sub" in
     emit_fixture "workflow_list.json"
     ;;
   "workflow query")
-    # Try the scenario-generic name first, then the single-task default.
-    emit_fixture "workflow_query.json" "workflow_query_single_task.json"
+    # Route by workflow name so name-keyed fixtures (e.g. the PENDING
+    # `stuck-train-1` scenario) take precedence over the generic default.
+    case "$3" in
+      stuck-train-1)
+        emit_fixture "workflow_query_pending.json"
+        ;;
+      *)
+        emit_fixture "workflow_query.json" "workflow_query_single_task.json"
+        ;;
+    esac
     ;;
   "workflow logs")
     emit_fixture "workflow_logs.txt" "workflow_logs_single_task.txt"
     ;;
   "workflow events")
-    emit_fixture "workflow_events.txt"
+    case "$3" in
+      stuck-train-1)
+        emit_fixture "workflow_events_pending.txt"
+        ;;
+      *)
+        emit_fixture "workflow_events.txt"
+        ;;
+    esac
     ;;
   "workflow spec")
-    emit_fixture "workflow_spec_template.yaml"
+    case "$3" in
+      stuck-train-1)
+        emit_fixture "workflow_spec_pending.yaml"
+        ;;
+      *)
+        emit_fixture "workflow_spec_template.yaml"
+        ;;
+    esac
     ;;
   "workflow submit")
-    emit_fixture "submit_response.txt"
+    # Fresh ID per call so multi-submit evals (e.g. eval-009) can verify
+    # N distinct submissions. The fixture template uses the literal
+    # "gr00t-train-1" — substitute it inline with a unique-per-invocation
+    # ID derived from $RANDOM and the current epoch seconds.
+    fresh_id="gr00t-train-${RANDOM}-$(date +%s)"
+    # Read the fixture into a variable using emit_fixture's lookup, then
+    # rewrite the workflow ID in both the "Workflow ID" line and any URLs.
+    emit_fixture "submit_response.txt" | sed "s/gr00t-train-1/${fresh_id}/g"
     ;;
   "app create")
     emit_fixture "app_create_response.txt"

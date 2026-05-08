@@ -6,7 +6,7 @@ schema (`question` / `expected_skill` / `expected_script` / `ground_truth` /
 
 ## Files
 
-```
+```text
 evals/
 ├── README.md                    # this file
 ├── evals.json                   # 13 eval definitions (NVIDIA schema)

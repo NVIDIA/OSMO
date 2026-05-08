@@ -68,12 +68,12 @@
             "x86-h100": {"description": "H100 80GB"}
           },
           "resource_usage": {
-            "quota_used": "4",
-            "quota_free": "4",
+            "quota_used": "8",
+            "quota_free": "0",
             "quota_limit": "8",
-            "total_usage": "28",
+            "total_usage": "32",
             "total_capacity": "32",
-            "total_free": "4"
+            "total_free": "0"
           }
         }
       ]

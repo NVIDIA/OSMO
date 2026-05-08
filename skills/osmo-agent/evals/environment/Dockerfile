@@ -34,4 +34,8 @@ RUN mkdir -p /workspace
 COPY workflows/simple_workflow.yaml /workspace/workflow.yaml
 COPY workflows/jinja_workflow.yaml  /workspace/jinja_workflow.yaml
 
+RUN useradd --uid 10001 --create-home --shell /bin/bash agent && \
+    chown -R agent:agent /workspace /usr/local/bin/osmo
+USER agent
+
 WORKDIR /workspace

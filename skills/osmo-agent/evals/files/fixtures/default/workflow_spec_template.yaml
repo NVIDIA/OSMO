@@ -2,7 +2,7 @@ workflow:
   name: gr00t-train-1
   tasks:
   - name: train
-    image: nvcr.io/nvidia/gr00t:latest
+    image: nvcr.io/nvidia/gr00t:1.5.0
     command: ["bash"]
     args: ["/tmp/entry.sh"]
     environment:

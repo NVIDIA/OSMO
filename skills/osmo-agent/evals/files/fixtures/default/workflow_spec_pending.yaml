@@ -1,24 +1,23 @@
 workflow:
-  name: gr00t-train
+  name: stuck-train-1
   tasks:
   - name: train
     image: nvcr.io/nvidia/gr00t:1.5.0
     command: ["bash"]
     args: ["/tmp/entry.sh"]
     environment:
-      EPOCHS: "{{epochs}}"
-      BATCH_SIZE: "{{batch_size}}"
+      DATASET_NAME: gr00t-pick-and-place
+      EPOCHS: "20"
+      BATCH_SIZE: "64"
     files:
     - contents: |
         #!/bin/bash
         set -e
-        echo "Starting GR00T fine-tuning with {{num_gpu}} GPUs"
+        echo "Starting GR00T fine-tuning"
         python -m gr00t.train \
           --dataset /workflow/inputs/dataset \
           --output {{output}}/model \
-          --num-gpus {{num_gpu}} \
-          --epochs ${EPOCHS} \
-          --batch-size ${BATCH_SIZE}
+          --num-gpus 32
         echo "Training complete"
       path: /tmp/entry.sh
     inputs:
@@ -26,14 +25,10 @@ workflow:
         name: gr00t-pick-and-place
     outputs:
     - dataset:
-        name: gr00t-train-output
+        name: stuck-train-1-output
   resources:
     default:
-      cpu: 32
-      gpu: "{{num_gpu}}"
-      memory: 256Gi
-      storage: 500Gi
-  default-values:
-    num_gpu: 4
-    epochs: 10
-    batch_size: 32
+      cpu: 64
+      gpu: 32
+      memory: 512Gi
+      storage: 1Ti
