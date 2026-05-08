@@ -176,10 +176,10 @@ setup_provider() {
             # No cloud-specific kubectl/helm wrappers — use plain commands.
             # The functions defined here mirror the azure/aws wrapper signatures
             # so callers don't need to know which provider they're on.
-            byo_run_kubectl() { kubectl $*; }
+            byo_run_kubectl() { kubectl "$@"; }
             byo_run_kubectl_apply_stdin() { echo "$1" | kubectl apply -f -; }
-            byo_run_helm() { helm $*; }
-            byo_run_helm_with_values() { local vf="$1"; shift; helm $* -f "$vf"; }
+            byo_run_helm() { helm "$@"; }
+            byo_run_helm_with_values() { local vf="$1"; shift; helm "$@" -f "$vf"; }
             export -f byo_run_kubectl byo_run_kubectl_apply_stdin byo_run_helm byo_run_helm_with_values 2>/dev/null || true
             RUN_KUBECTL="byo_run_kubectl"
             RUN_KUBECTL_APPLY_STDIN="byo_run_kubectl_apply_stdin"

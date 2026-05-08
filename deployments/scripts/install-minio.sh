@@ -73,8 +73,29 @@ main() {
     fi
 
     if [[ -z "$MINIO_ROOT_PASSWORD" ]]; then
+        check_command openssl
         MINIO_ROOT_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
         log_info "Generated MinIO root password (set MINIO_ROOT_PASSWORD to override)"
+    fi
+
+    # Resolve PVC StorageClass: explicit override → cluster default → first SC.
+    # Bare clusters often have an SC available but no default-class annotation;
+    # without this, the PVC stays Pending and the rollout times out.
+    if [[ -z "$MINIO_STORAGE_CLASS" ]]; then
+        MINIO_STORAGE_CLASS="$($KUBECTL get storageclass \
+            -o jsonpath='{range .items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")]}{.metadata.name}{"\n"}{end}' \
+            2>/dev/null | head -n1)"
+    fi
+    if [[ -z "$MINIO_STORAGE_CLASS" ]]; then
+        MINIO_STORAGE_CLASS="$($KUBECTL get storageclass \
+            -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+    fi
+    local pvc_sc_line=""
+    if [[ -n "$MINIO_STORAGE_CLASS" ]]; then
+        pvc_sc_line="  storageClassName: $MINIO_STORAGE_CLASS"
+        log_info "Using StorageClass: $MINIO_STORAGE_CLASS"
+    else
+        log_warning "No StorageClass found; PVC will rely on cluster behavior and may stay Pending"
     fi
 
     log_info "Installing MinIO into namespace $MINIO_NAMESPACE"
@@ -97,6 +118,7 @@ metadata:
   namespace: $MINIO_NAMESPACE
 spec:
   accessModes: [ReadWriteOnce]
+${pvc_sc_line}
   resources:
     requests:
       storage: $MINIO_STORAGE_SIZE

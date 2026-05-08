@@ -59,9 +59,14 @@ PGREP_ONESHOT="${KUBECTL} port-forward svc/${SVC} ${PORT}:.* -n ${NS}"
 # Watchdog mode — spawn a detached respawn loop and exit
 ###############################################################################
 if [[ "$WATCHDOG" == "1" ]]; then
-    # Replace any existing watchdog for this svc so re-runs are idempotent
+    # Replace any existing watchdog for this svc so re-runs are idempotent.
+    # Kill the bash loop AND any kubectl child it may have spawned — the
+    # WATCHDOG_TAG only appears in the bash loop's argv, so the child kubectl
+    # port-forward survives a naive `pkill -f WATCHDOG_TAG` and keeps the
+    # local port bound, leaving the next watchdog pointed at a stale tunnel.
     if pgrep -f "$WATCHDOG_TAG" >/dev/null; then
         pkill -f "$WATCHDOG_TAG" || true
+        pkill -f "${KUBECTL} port-forward svc/${SVC} ${PORT}:.* -n ${NS}" || true
         sleep 1
     fi
 
@@ -73,10 +78,19 @@ if [[ "$WATCHDOG" == "1" ]]; then
     # `&` + `disown` pair detaches the child from the parent's job table so it
     # survives this script's exit. `setsid` would also work but isn't installed
     # by default on macOS.
+    #
+    # The loop traps TERM/INT and forwards the signal to the active kubectl
+    # child via $! — without this, killing the loop leaves a stranded kubectl.
     nohup bash -c "
         export OSMO_PF_WATCHDOG_TAG=${WATCHDOG_TAG}
+        PF_PID=
+        cleanup() { [[ -n \"\$PF_PID\" ]] && kill \"\$PF_PID\" 2>/dev/null || true; exit 0; }
+        trap cleanup TERM INT
         while true; do
-            ${KUBECTL} port-forward svc/${SVC} ${PORT}:${TARGET_PORT} -n ${NS} >/dev/null 2>&1 || true
+            ${KUBECTL} port-forward svc/${SVC} ${PORT}:${TARGET_PORT} -n ${NS} >/dev/null 2>&1 &
+            PF_PID=\$!
+            wait \"\$PF_PID\" 2>/dev/null || true
+            PF_PID=
             sleep 2
         done
     " </dev/null >/dev/null 2>&1 &
