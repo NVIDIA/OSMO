@@ -19,7 +19,7 @@ filesystem ───┘                                                         
 | **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate, rejects hard-to-test infra glue, and picks the 1-3 files where unit tests would have the highest ROI. Can return zero picks if nothing meets the bar. |
 | **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures |
 | **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
-| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label |
+| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label. Reads the picker's `targets_meta.json` sidecar and renders a "Why this file was targeted" section so reviewers see the rationale alongside the test diff. |
 
 Claude Code is sandboxed: it can only read files, edit test files, and run test commands (`bazel test`, `pnpm test`). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
 

@@ -313,6 +313,23 @@ SKIP_MESSAGE = (
 )
 
 
+def _build_meta(merged: list[dict]) -> list[dict]:
+    """Project the merged picks down to the fields create_pr.py uses.
+
+    Strips score breakdowns and uncovered_ranges — those belong in the
+    workflow log, not in the PR description.
+    """
+    return [
+        {
+            "file_path": entry["file_path"],
+            "coverage_pct": entry["coverage_pct"],
+            "uncovered_lines": entry["uncovered_lines"],
+            "reason": entry.get("reason", ""),
+        }
+        for entry in merged
+    ]
+
+
 def format_targets_markdown(picks: list[dict]) -> str:
     """Thin wrapper around ``coverage_targets.format_targets``.
 
@@ -337,12 +354,17 @@ def main() -> None:
                         ))
     parser.add_argument("--output", default="-",
                         help="Output path; '-' (default) writes to stdout")
+    parser.add_argument("--meta-output", default="",
+                        help="Optional path to dump structured target metadata "
+                             "(JSON list with file_path, coverage_pct, "
+                             "uncovered_lines, reason) for downstream "
+                             "consumers like create_pr.py")
     args = parser.parse_args()
 
     shortlist = json.loads(Path(args.shortlist).read_text(encoding="utf-8"))
     if not shortlist:
         logger.warning("Empty shortlist; nothing to pick")
-        markdown = format_targets_markdown([])
+        merged: list[dict] = []
     else:
         prompt = build_prompt(shortlist, args.max_targets)
         output = invoke_claude(
@@ -360,12 +382,17 @@ def main() -> None:
             picks = picks[:args.max_targets]
         logger.info("Agent picked %d target(s) of %d max", len(picks), args.max_targets)
         merged = merge_picks_with_shortlist(picks, shortlist)
-        markdown = format_targets_markdown(merged)
 
+    markdown = format_targets_markdown(merged)
     if args.output == "-":
         print(markdown)
     else:
         Path(args.output).write_text(markdown, encoding="utf-8")
+
+    if args.meta_output:
+        Path(args.meta_output).write_text(
+            json.dumps(_build_meta(merged), indent=2), encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":

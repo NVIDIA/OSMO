@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from src.scripts.testbot.select_targets_agent import (
+    _build_meta,
     _stream_npx,
     build_prompt,
     format_candidate,
@@ -147,6 +148,43 @@ class TestFormatTargetsMarkdown(unittest.TestCase):
         # No 'reason' key on this entry
         output = format_targets_markdown([target])
         self.assertNotIn("Why this file:", output)
+
+
+class TestBuildMeta(unittest.TestCase):
+    """Tests for the picker's PR-description sidecar shape."""
+
+    def test_projects_only_pr_relevant_fields(self):
+        merged = [{
+            "file_path": "src/lib/foo.py",
+            "coverage_pct": 25.0,
+            "uncovered_lines": 50,
+            "uncovered_ranges": [(10, 20), (30, 40)],
+            "tier": 0,
+            "fan_in": 30,
+            "churn": 12,
+            "loc": 200,
+            "score": 8.5,
+            "score_breakdown": {"tier": 4.0},
+            "reason": "central API",
+        }]
+        meta = _build_meta(merged)
+        self.assertEqual(meta, [{
+            "file_path": "src/lib/foo.py",
+            "coverage_pct": 25.0,
+            "uncovered_lines": 50,
+            "reason": "central API",
+        }])
+
+    def test_empty_merged_produces_empty_list(self):
+        self.assertEqual(_build_meta([]), [])
+
+    def test_missing_reason_defaults_to_empty_string(self):
+        merged = [{
+            "file_path": "src/lib/foo.py",
+            "coverage_pct": 10.0,
+            "uncovered_lines": 5,
+        }]
+        self.assertEqual(_build_meta(merged)[0]["reason"], "")
 
 
 class TestStreamNpxTimeout(unittest.TestCase):

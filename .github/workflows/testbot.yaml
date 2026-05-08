@@ -147,7 +147,8 @@ jobs:
           PYTHONPATH=. python src/scripts/testbot/select_targets_agent.py \
             --shortlist "$RUNNER_TEMP/shortlist.json" \
             --max-targets ${{ inputs.max_targets || '1' }} \
-            --output "$RUNNER_TEMP/targets.txt"
+            --output "$RUNNER_TEMP/targets.txt" \
+            --meta-output "$RUNNER_TEMP/targets_meta.json"
           echo "::group::Selected targets"
           cat "$RUNNER_TEMP/targets.txt"
           echo "::endgroup::"
@@ -243,6 +244,7 @@ jobs:
       - name: Create PR
         if: inputs.dry_run != true
         run: |
-          PYTHONPATH=src/scripts python -m testbot.create_pr
+          PYTHONPATH=src/scripts python -m testbot.create_pr \
+            --targets-meta "$RUNNER_TEMP/targets_meta.json"
         env:
           GH_TOKEN: ${{ secrets.SVC_OSMO_CI_TOKEN }}
