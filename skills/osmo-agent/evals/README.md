@@ -58,12 +58,29 @@ everything under `evals/files/` automatically.
   subagents. The mechanism is therefore unverifiable from inside an eval
   run.
 
-- **Stateful behaviors** (orchestration retry, validation-error recovery,
-  app-creation flow) are not covered here. The orchestration test remains
-  in `tests/orchestrator-runtime-failure.md` as a manual scenario.
+- **Stateful behaviors** (validation-error recovery, app-creation flow)
+  are not covered here.
 
 ## Coverage notes
 
-- The cookbook-fetch eval (`osmo-agent-010`) performs a real `WebFetch`
+- The cookbook-fetch eval (`osmo-agent-009`) performs a real `WebFetch`
   against `raw.githubusercontent.com/NVIDIA/OSMO`. That's the public OSMO
   cookbook and is part of the skill's documented behavior.
+
+## Keeping fixtures in sync with the live OSMO CLI
+
+The fixtures under `files/fixtures/default/` mirror the JSON shapes that
+`osmo <cmd> --format-type json` returns today. They will drift as the CLI
+evolves. To refresh:
+
+1. Run the relevant `osmo` commands against a live profile, e.g.
+   `osmo resource list --pool <pool> --format-type json`,
+   `osmo workflow query <name>`, etc.
+2. Redact any user-identifiable fields (`submitted_by`, internal hostnames)
+   to placeholder values that match the existing fixtures.
+3. Replace the fixture file and re-run the eval suite to confirm all 13
+   cases still pass.
+
+Longer-term we should validate fixtures in CI against the OSMO OpenAPI
+schema (exported via `bazel run //src/scripts:export_openapi`) so structural
+drift fails the build instead of silently passing the eval.
