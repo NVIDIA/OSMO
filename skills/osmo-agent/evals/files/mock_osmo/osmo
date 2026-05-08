@@ -127,14 +127,16 @@ case "$cmd $sub" in
     esac
     ;;
   "workflow submit")
-    # Fresh ID per call so multi-submit evals (e.g. eval-009) can verify
-    # N distinct submissions. The fixture template uses the literal
-    # "gr00t-train-1" — substitute it inline with a unique-per-invocation
-    # ID derived from $RANDOM and the current epoch seconds.
-    fresh_id="gr00t-train-${RANDOM}-$(date +%s)"
-    # Read the fixture into a variable using emit_fixture's lookup, then
-    # rewrite the workflow ID in both the "Workflow ID" line and any URLs.
-    emit_fixture "submit_response.txt" | sed "s/gr00t-train-1/${fresh_id}/g"
+    # Mirror real OSMO's per-name suffix counter: each submit of a base
+    # workflow name produces `<name>-1`, `<name>-2`, ... so multi-submit
+    # evals (e.g. eval-009) see realistic monotonic IDs. State lives in a
+    # /tmp counter file that persists across calls within a single eval
+    # container but resets between containers.
+    counter_file="${OSMO_MOCK_SUBMIT_COUNTER:-/tmp/osmo_mock_submit_counter}"
+    counter=$(cat "$counter_file" 2>/dev/null || echo 0)
+    counter=$((counter + 1))
+    echo "$counter" > "$counter_file"
+    emit_fixture "submit_response.txt" | sed "s/gr00t-train-1/gr00t-train-${counter}/g"
     ;;
   "app create")
     emit_fixture "app_create_response.txt"
