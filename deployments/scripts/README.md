@@ -73,7 +73,6 @@ Notes:
 | `byo`      | `minio` / static       | ✅     |
 | `aws`      | `s3` / static          | ✅     |
 | `azure`    | `azure-blob` / WI      | ⏳     |
-| `byo`      | `byo` / WI (IRSA)      | ⏳     |
 
 ✅ = end-to-end green. ⏳ = code paths complete, full E2E pending.
 
