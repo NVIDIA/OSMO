@@ -6,7 +6,12 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from src.scripts.testbot.guardrails import get_changed_files, get_changed_test_files, is_test_file
+from src.scripts.testbot.guardrails import (
+    get_changed_files,
+    get_changed_test_files,
+    is_allowed_change,
+    is_test_file,
+)
 
 
 class TestIsTestFile(unittest.TestCase):
@@ -50,6 +55,55 @@ class TestIsTestFile(unittest.TestCase):
 
     def test_case_sensitive_no_match(self):
         self.assertFalse(is_test_file("src/foo/test_bar.PY"))
+
+
+class TestIsAllowedChange(unittest.TestCase):
+    """Contextual filter — Go tests live next to source, so a paired
+    BUILD edit must travel with the *_test.go file."""
+
+    def test_test_file_alone_is_allowed(self):
+        self.assertTrue(
+            is_allowed_change("src/utils/tests/test_task.py", set()),
+        )
+
+    def test_python_tests_dir_build_is_allowed(self):
+        self.assertTrue(
+            is_allowed_change("src/utils/tests/BUILD", set()),
+        )
+
+    def test_source_package_build_with_sibling_go_test_is_allowed(self):
+        change_set = {
+            "src/runtime/pkg/data/BUILD",
+            "src/runtime/pkg/data/data_test.go",
+        }
+        self.assertTrue(
+            is_allowed_change("src/runtime/pkg/data/BUILD", change_set),
+        )
+
+    def test_source_package_build_without_sibling_go_test_is_blocked(self):
+        change_set = {"src/runtime/pkg/data/BUILD"}
+        self.assertFalse(
+            is_allowed_change("src/runtime/pkg/data/BUILD", change_set),
+        )
+
+    def test_go_test_in_subdir_does_not_authorize_parent_build(self):
+        # _test.go must be a *direct* sibling, not nested deeper.
+        change_set = {
+            "src/runtime/pkg/data/BUILD",
+            "src/runtime/pkg/data/sub/sub_test.go",
+        }
+        self.assertFalse(
+            is_allowed_change("src/runtime/pkg/data/BUILD", change_set),
+        )
+
+    def test_source_file_remains_blocked_even_with_test_sibling(self):
+        change_set = {
+            "src/runtime/pkg/data/data.go",
+            "src/runtime/pkg/data/data_test.go",
+        }
+        self.assertFalse(
+            is_allowed_change("src/runtime/pkg/data/data.go", change_set),
+        )
 
 
 class TestGetChangedTestFiles(unittest.TestCase):
@@ -134,6 +188,40 @@ class TestGetChangedTestFiles(unittest.TestCase):
         result = get_changed_test_files()
         self.assertEqual(result, ["src/utils/tests/test_new.py"])
         mock_remove.assert_called_once_with("src/malicious.py")
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_keeps_go_build_edit_paired_with_test_file(self, mock_run):
+        # Go's go_test rule must be added to the source-package BUILD,
+        # which has no /tests/ segment. Pair it with the _test.go file
+        # in the change set and the BUILD edit is allowed through.
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, stdout="src/runtime/pkg/data/BUILD\n",
+            ),
+            subprocess.CompletedProcess(
+                [], 0, stdout="src/runtime/pkg/data/data_test.go\n",
+            ),
+        ]
+        result = get_changed_test_files()
+        self.assertEqual(
+            result,
+            [
+                "src/runtime/pkg/data/BUILD",
+                "src/runtime/pkg/data/data_test.go",
+            ],
+        )
+
+    @patch("src.scripts.testbot.guardrails.subprocess.run")
+    def test_reverts_orphan_go_build_edit_without_test_sibling(self, mock_run):
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                [], 0, stdout="src/runtime/pkg/data/BUILD\n",
+            ),
+            subprocess.CompletedProcess([], 0, stdout=""),
+            subprocess.CompletedProcess([], 0, stdout=""),  # git checkout
+        ]
+        result = get_changed_test_files()
+        self.assertEqual(result, [])
 
     @patch("src.scripts.testbot.guardrails.os.remove")
     @patch("src.scripts.testbot.guardrails.subprocess.run")
