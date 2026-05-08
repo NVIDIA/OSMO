@@ -19,6 +19,19 @@ available for diagnosis.
   with phrases like `Insufficient nvidia.com/gpu`, `didn't have enough resources:
   GPUs`, or `didn't match Pod's node affinity/selector`.
 
+### Diagnosis flow
+Run these in order so you have the full picture before explaining:
+
+1. `osmo workflow query <name>` — confirm status is PENDING and grab the pool.
+2. `osmo workflow events <name>` — surface the scheduler's reason
+   (`FailedScheduling`, `Unschedulable`, etc.).
+3. `osmo workflow spec <name>` — read the resource request (GPUs / CPU / memory
+   per task, replica count).
+4. `osmo resource list` (or `osmo resource list -p <pool>`) — inspect per-node
+   available capacity in the target pool.
+5. Synthesize a plain-language explanation by comparing the spec's ask to what's
+   actually free on a single node.
+
 ### Diagnosis
 The Kubernetes scheduler can't find a node that satisfies the workflow's resource
 request. Two distinct causes look similar in events:
@@ -26,11 +39,14 @@ request. Two distinct causes look similar in events:
 - **Quota exhausted, capacity available** — the user's quota in this pool is fully
   used, but other users' quota or the physical pool still has free GPUs.
 - **Capacity exhausted** — every node in the pool has its GPUs/CPU/memory consumed
-  by other workloads.
+  by other workloads, or the per-task ask exceeds any single node's free capacity.
 
-Distinguish by running `osmo pool list`:
+Distinguish by combining `osmo pool list` and `osmo resource list`:
 - If `Quota Free = 0` but `Total Free > 0` → quota issue.
-- If `Total Free = 0` (or close) → capacity issue.
+- If `Total Free = 0` (or close) across the pool → pool-level capacity issue.
+- If pool has free GPUs but no single node has enough free for the per-task ask
+  → per-node capacity mismatch (e.g. workflow asks for 8 GPUs/node but every node
+  only has 4 free).
 
 ### Fix
 - **Quota issue**: resubmit with `--priority LOW` to bypass quota and run on idle

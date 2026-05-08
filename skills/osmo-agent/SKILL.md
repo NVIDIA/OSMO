@@ -2,11 +2,14 @@
 name: osmo-agent
 description: >
   Operate the OSMO CLI to discover GPU resources, submit and monitor workflows,
-  debug PENDING/FAILED/stuck workflows, interpret OSMO errors, and publish workflows
-  as OSMO apps. Trigger when the user asks about OSMO pools, quota, GPUs, workflow
-  status/logs/submission, OSMO errors, or OSMO apps — even if they don't say "OSMO"
-  explicitly. Do NOT use for kubectl, Kubernetes, NVIDIA hardware, or non-OSMO
-  platforms.
+  debug PENDING/FAILED/stuck workflows, interpret OSMO errors, surface OSMO
+  workflow Grafana and Kubernetes dashboard links, and publish workflows as OSMO
+  apps. Trigger when the user asks about OSMO pools, quota, GPUs, workflow
+  status/logs/submission, OSMO errors, OSMO apps, or about the Grafana or
+  Kubernetes dashboard for an OSMO workflow — even if they don't say "OSMO"
+  explicitly. Do NOT use for general kubectl install/configuration, raw
+  Kubernetes setup unrelated to an OSMO workflow, NVIDIA hardware/product
+  questions unrelated to OSMO, or non-OSMO compute platforms.
 version: "1.0.0"
 author: nvidia
 tags: [osmo, cli, workflows, gpu-compute, debugging]
@@ -27,11 +30,13 @@ diagnosis when workflows go wrong.
 
 ## Prerequisites
 
-- `osmo` CLI installed and on `PATH` (verify: `osmo --version`).
-- Authenticated session (`osmo login`). If commands return auth errors, the user must
-  re-run `osmo login` themselves.
-- Profile has access to at least one ONLINE pool (verify: `osmo profile list` and
-  `osmo pool list`).
+- `osmo` CLI installed and on `PATH` (verify: `osmo --version`). If `osmo` is
+  not found, tell the user to install it from the OSMO public repository and
+  stop — never fabricate command output to fill the gap.
+- Authenticated session (`osmo login`). If commands return auth errors, ask
+  the user to re-run `osmo login` and stop until they confirm.
+- Profile has access to at least one ONLINE pool (verify: `osmo profile list`
+  and `osmo pool list`).
 
 ## Limitations
 
@@ -66,12 +71,15 @@ The `references/` directory has additional documentation:
 
 ## Instructions
 
-Pick the matching use case below by the user's intent (see Intent Routing), follow
-its steps in order, and consult the linked reference file when the steps say so.
-For diagnosing failures, jump straight to "Debug a Failed or Stuck Workflow" or
-the Troubleshooting section near the bottom.
+Always consult this file (SKILL.md) and the relevant reference file(s) before
+running any `osmo` command — the use cases below specify the right command
+sequence, the expected output format, and which reference holds the detail. Do
+not guess at command names or flags from memory; follow the use case's steps.
 
-### Intent Routing
+Match the user's intent to a use case below, follow its steps in order, and
+read the linked reference when the steps say so. For diagnosing failures,
+jump straight to "Debug a Failed or Stuck Workflow" or the Troubleshooting
+section near the bottom.
 
 - Asks about resources, pools, GPUs, or quota → Check Available Resources
 - Wants to submit a job (simple, no monitoring) → Generate and Submit a Workflow
