@@ -1,63 +1,484 @@
 {
-  "pools": [
-    {
-      "name": "h100-east",
-      "nodes": [
+    "resources": [
         {
-          "name": "osmo-iad1-h100-7e3a2",
-          "status": "ONLINE",
-          "resources": {
-            "gpu": {"capacity": 8, "used": 6, "free": 2},
-            "cpu": {"capacity": 96, "used": 48, "free": 48},
-            "memory": {"capacity": "1Ti", "used": "512Gi", "free": "512Gi"}
-          }
+            "hostname": "osmo-iad1-h100-7e3a2",
+            "exposed_fields": {
+                "node": "osmo-iad1-h100-7e3a2",
+                "pool/platform": [
+                    "h100-east/x86-h100"
+                ],
+                "storage": "8000",
+                "cpu": "96",
+                "memory": "1024",
+                "gpu": "8"
+            },
+            "taints": [],
+            "usage_fields": {
+                "storage": "1024Gi",
+                "cpu": "48",
+                "memory": "512Gi",
+                "gpu": "6"
+            },
+            "conditions": null,
+            "non_workflow_usage_fields": {
+                "cpu": "2",
+                "memory": "32Gi",
+                "nvidia.com/gpu": "0",
+                "ephemeral-storage": "0Ki"
+            },
+            "allocatable_fields": {
+                "storage": "8589934592000",
+                "cpu": "96",
+                "memory": "1073741824Ki"
+            },
+            "platform_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8589934592000,
+                        "cpu": 94,
+                        "memory": "1041285120Ki",
+                        "gpu": 8
+                    }
+                }
+            },
+            "platform_available_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7516192768000,
+                        "cpu": 46,
+                        "memory": "504029184Ki",
+                        "gpu": 2
+                    }
+                }
+            },
+            "platform_workflow_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7516192768000,
+                        "cpu": 46,
+                        "memory": "504029184Ki",
+                        "gpu": 2
+                    }
+                }
+            },
+            "config_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "host_network": false,
+                        "privileged": false,
+                        "default_mounts": [],
+                        "allowed_mounts": []
+                    }
+                }
+            },
+            "backend": "h100",
+            "label_fields": null,
+            "pool_platform_labels": {
+                "h100-east": [
+                    "x86-h100"
+                ]
+            },
+            "resource_type": "SHARED"
         },
         {
-          "name": "osmo-iad1-h100-9b1c4",
-          "status": "ONLINE",
-          "resources": {
-            "gpu": {"capacity": 8, "used": 8, "free": 0},
-            "cpu": {"capacity": 96, "used": 80, "free": 16},
-            "memory": {"capacity": "1Ti", "used": "768Gi", "free": "256Gi"}
-          }
+            "hostname": "osmo-iad1-h100-9b1c4",
+            "exposed_fields": {
+                "node": "osmo-iad1-h100-9b1c4",
+                "pool/platform": [
+                    "h100-east/x86-h100"
+                ],
+                "storage": "8000",
+                "cpu": "96",
+                "memory": "1024",
+                "gpu": "8"
+            },
+            "taints": [],
+            "usage_fields": {
+                "storage": "1280Gi",
+                "cpu": "80",
+                "memory": "768Gi",
+                "gpu": "8"
+            },
+            "conditions": null,
+            "non_workflow_usage_fields": {
+                "cpu": "2",
+                "memory": "32Gi",
+                "nvidia.com/gpu": "0",
+                "ephemeral-storage": "0Ki"
+            },
+            "allocatable_fields": {
+                "storage": "8589934592000",
+                "cpu": "96",
+                "memory": "1073741824Ki"
+            },
+            "platform_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8589934592000,
+                        "cpu": 94,
+                        "memory": "1041285120Ki",
+                        "gpu": 8
+                    }
+                }
+            },
+            "platform_available_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7240335982592,
+                        "cpu": 14,
+                        "memory": "239833088Ki",
+                        "gpu": 0
+                    }
+                }
+            },
+            "platform_workflow_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7240335982592,
+                        "cpu": 14,
+                        "memory": "239833088Ki",
+                        "gpu": 0
+                    }
+                }
+            },
+            "config_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "host_network": false,
+                        "privileged": false,
+                        "default_mounts": [],
+                        "allowed_mounts": []
+                    }
+                }
+            },
+            "backend": "h100",
+            "label_fields": null,
+            "pool_platform_labels": {
+                "h100-east": [
+                    "x86-h100"
+                ]
+            },
+            "resource_type": "SHARED"
         },
         {
-          "name": "osmo-iad1-h100-2f8d5",
-          "status": "ONLINE",
-          "resources": {
-            "gpu": {"capacity": 8, "used": 5, "free": 3},
-            "cpu": {"capacity": 96, "used": 40, "free": 56},
-            "memory": {"capacity": "1Ti", "used": "384Gi", "free": "640Gi"}
-          }
+            "hostname": "osmo-iad1-h100-2f8d5",
+            "exposed_fields": {
+                "node": "osmo-iad1-h100-2f8d5",
+                "pool/platform": [
+                    "h100-east/x86-h100"
+                ],
+                "storage": "8000",
+                "cpu": "96",
+                "memory": "1024",
+                "gpu": "8"
+            },
+            "taints": [],
+            "usage_fields": {
+                "storage": "768Gi",
+                "cpu": "40",
+                "memory": "384Gi",
+                "gpu": "5"
+            },
+            "conditions": null,
+            "non_workflow_usage_fields": {
+                "cpu": "2",
+                "memory": "32Gi",
+                "nvidia.com/gpu": "0",
+                "ephemeral-storage": "0Ki"
+            },
+            "allocatable_fields": {
+                "storage": "8589934592000",
+                "cpu": "96",
+                "memory": "1073741824Ki"
+            },
+            "platform_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8589934592000,
+                        "cpu": 94,
+                        "memory": "1041285120Ki",
+                        "gpu": 8
+                    }
+                }
+            },
+            "platform_available_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7791353954304,
+                        "cpu": 54,
+                        "memory": "638058496Ki",
+                        "gpu": 3
+                    }
+                }
+            },
+            "platform_workflow_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7791353954304,
+                        "cpu": 54,
+                        "memory": "638058496Ki",
+                        "gpu": 3
+                    }
+                }
+            },
+            "config_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "host_network": false,
+                        "privileged": false,
+                        "default_mounts": [],
+                        "allowed_mounts": []
+                    }
+                }
+            },
+            "backend": "h100",
+            "label_fields": null,
+            "pool_platform_labels": {
+                "h100-east": [
+                    "x86-h100"
+                ]
+            },
+            "resource_type": "SHARED"
         },
         {
-          "name": "osmo-iad1-h100-4a6e8",
-          "status": "ONLINE",
-          "resources": {
-            "gpu": {"capacity": 8, "used": 7, "free": 1},
-            "cpu": {"capacity": 96, "used": 64, "free": 32},
-            "memory": {"capacity": "1Ti", "used": "640Gi", "free": "384Gi"}
-          }
+            "hostname": "osmo-iad1-h100-4a6e8",
+            "exposed_fields": {
+                "node": "osmo-iad1-h100-4a6e8",
+                "pool/platform": [
+                    "h100-east/x86-h100"
+                ],
+                "storage": "8000",
+                "cpu": "96",
+                "memory": "1024",
+                "gpu": "8"
+            },
+            "taints": [],
+            "usage_fields": {
+                "storage": "1152Gi",
+                "cpu": "64",
+                "memory": "640Gi",
+                "gpu": "7"
+            },
+            "conditions": null,
+            "non_workflow_usage_fields": {
+                "cpu": "2",
+                "memory": "32Gi",
+                "nvidia.com/gpu": "0",
+                "ephemeral-storage": "0Ki"
+            },
+            "allocatable_fields": {
+                "storage": "8589934592000",
+                "cpu": "96",
+                "memory": "1073741824Ki"
+            },
+            "platform_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8589934592000,
+                        "cpu": 94,
+                        "memory": "1041285120Ki",
+                        "gpu": 8
+                    }
+                }
+            },
+            "platform_available_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7352189546496,
+                        "cpu": 30,
+                        "memory": "370810880Ki",
+                        "gpu": 1
+                    }
+                }
+            },
+            "platform_workflow_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7352189546496,
+                        "cpu": 30,
+                        "memory": "370810880Ki",
+                        "gpu": 1
+                    }
+                }
+            },
+            "config_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "host_network": false,
+                        "privileged": false,
+                        "default_mounts": [],
+                        "allowed_mounts": []
+                    }
+                }
+            },
+            "backend": "h100",
+            "label_fields": null,
+            "pool_platform_labels": {
+                "h100-east": [
+                    "x86-h100"
+                ]
+            },
+            "resource_type": "SHARED"
         },
         {
-          "name": "osmo-iad1-h100-1c9f3",
-          "status": "ONLINE",
-          "resources": {
-            "gpu": {"capacity": 8, "used": 8, "free": 0},
-            "cpu": {"capacity": 96, "used": 88, "free": 8},
-            "memory": {"capacity": "1Ti", "used": "896Gi", "free": "128Gi"}
-          }
+            "hostname": "osmo-iad1-h100-1c9f3",
+            "exposed_fields": {
+                "node": "osmo-iad1-h100-1c9f3",
+                "pool/platform": [
+                    "h100-east/x86-h100"
+                ],
+                "storage": "8000",
+                "cpu": "96",
+                "memory": "1024",
+                "gpu": "8"
+            },
+            "taints": [],
+            "usage_fields": {
+                "storage": "1408Gi",
+                "cpu": "88",
+                "memory": "896Gi",
+                "gpu": "8"
+            },
+            "conditions": null,
+            "non_workflow_usage_fields": {
+                "cpu": "2",
+                "memory": "32Gi",
+                "nvidia.com/gpu": "0",
+                "ephemeral-storage": "0Ki"
+            },
+            "allocatable_fields": {
+                "storage": "8589934592000",
+                "cpu": "96",
+                "memory": "1073741824Ki"
+            },
+            "platform_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8589934592000,
+                        "cpu": 94,
+                        "memory": "1041285120Ki",
+                        "gpu": 8
+                    }
+                }
+            },
+            "platform_available_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7077017090048,
+                        "cpu": 6,
+                        "memory": "104726528Ki",
+                        "gpu": 0
+                    }
+                }
+            },
+            "platform_workflow_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 7077017090048,
+                        "cpu": 6,
+                        "memory": "104726528Ki",
+                        "gpu": 0
+                    }
+                }
+            },
+            "config_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "host_network": false,
+                        "privileged": false,
+                        "default_mounts": [],
+                        "allowed_mounts": []
+                    }
+                }
+            },
+            "backend": "h100",
+            "label_fields": null,
+            "pool_platform_labels": {
+                "h100-east": [
+                    "x86-h100"
+                ]
+            },
+            "resource_type": "SHARED"
         },
         {
-          "name": "osmo-iad1-h100-8d2b7",
-          "status": "ONLINE",
-          "resources": {
-            "gpu": {"capacity": 8, "used": 4, "free": 4},
-            "cpu": {"capacity": 96, "used": 32, "free": 64},
-            "memory": {"capacity": "1Ti", "used": "256Gi", "free": "768Gi"}
-          }
+            "hostname": "osmo-iad1-h100-8d2b7",
+            "exposed_fields": {
+                "node": "osmo-iad1-h100-8d2b7",
+                "pool/platform": [
+                    "h100-east/x86-h100"
+                ],
+                "storage": "8000",
+                "cpu": "96",
+                "memory": "1024",
+                "gpu": "8"
+            },
+            "taints": [],
+            "usage_fields": {
+                "storage": "512Gi",
+                "cpu": "32",
+                "memory": "256Gi",
+                "gpu": "4"
+            },
+            "conditions": null,
+            "non_workflow_usage_fields": {
+                "cpu": "2",
+                "memory": "32Gi",
+                "nvidia.com/gpu": "0",
+                "ephemeral-storage": "0Ki"
+            },
+            "allocatable_fields": {
+                "storage": "8589934592000",
+                "cpu": "96",
+                "memory": "1073741824Ki"
+            },
+            "platform_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8589934592000,
+                        "cpu": 94,
+                        "memory": "1041285120Ki",
+                        "gpu": 8
+                    }
+                }
+            },
+            "platform_available_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8042518118400,
+                        "cpu": 62,
+                        "memory": "771538944Ki",
+                        "gpu": 4
+                    }
+                }
+            },
+            "platform_workflow_allocatable_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "storage": 8042518118400,
+                        "cpu": 62,
+                        "memory": "771538944Ki",
+                        "gpu": 4
+                    }
+                }
+            },
+            "config_fields": {
+                "h100-east": {
+                    "x86-h100": {
+                        "host_network": false,
+                        "privileged": false,
+                        "default_mounts": [],
+                        "allowed_mounts": []
+                    }
+                }
+            },
+            "backend": "h100",
+            "label_fields": null,
+            "pool_platform_labels": {
+                "h100-east": [
+                    "x86-h100"
+                ]
+            },
+            "resource_type": "SHARED"
         }
-      ]
-    }
-  ]
+    ]
 }
