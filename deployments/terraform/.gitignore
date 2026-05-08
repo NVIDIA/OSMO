@@ -8,8 +8,8 @@
 *.tfstate
 *.tfstate.*
 
-# Lock file is intentionally NOT ignored — should be committed for reproducibility.
-# .terraform.lock.hcl is checked in.
+# Provider dependency lock file — local to each `terraform init`
+.terraform.lock.hcl
 
 # Auto-generated tfvars from deploy-osmo-minimal.sh
 # (real users supply their own terraform.tfvars; the deploy script regenerates
