@@ -176,6 +176,15 @@ setup_provider() {
             # No cloud-specific kubectl/helm wrappers — use plain commands.
             # The functions defined here mirror the azure/aws wrapper signatures
             # so callers don't need to know which provider they're on.
+            #
+            # Calling convention (used throughout deploy-k8s.sh): a single
+            # space-separated command string, e.g.
+            #   $RUN_KUBECTL "create namespace osmo-minimal"
+            # The unquoted `$*` here intentionally word-splits that string into
+            # argv. ShellCheck flags this (SC2048/SC2086) but switching to
+            # "$@" would break every existing call site, since the args arrive
+            # as a single quoted string. Refactoring call sites to pass arrays
+            # would be a larger change tracked separately.
             byo_run_kubectl() { kubectl $*; }
             byo_run_kubectl_apply_stdin() { echo "$1" | kubectl apply -f -; }
             byo_run_helm() { helm $*; }

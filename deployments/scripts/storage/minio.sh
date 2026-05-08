@@ -91,9 +91,19 @@ else
 fi
 
 # 2. Create the bucket via `mc` running as a one-shot pod inside the cluster.
-# --ignore-existing makes this idempotent.
-echo "[INFO] Ensuring MinIO bucket $MINIO_BUCKET exists"
-$KUBECTL run minio-bucket-setup --rm -i --restart=Never \
+#    `mc mb --ignore-existing` makes the bucket-creation idempotent, but the
+#    pod itself isn't. A unique per-invocation pod name sidesteps the case
+#    where a prior run left a pod stuck Terminating (e.g. CNI plugin errors
+#    blocking sandbox teardown) — the fixed name approach + delete-first
+#    still hangs there because force-delete-on-stuck isn't a path we can
+#    silently take from inside an automation. `--rm` reaps the new pod after
+#    `mc` exits. `timeout` guards against stuck image pull / Pending-forever
+#    scheduling.
+BUCKET_SETUP_TIMEOUT="${BUCKET_SETUP_TIMEOUT:-300}"
+BUCKET_SETUP_POD="minio-bucket-setup-$RANDOM-$RANDOM"
+echo "[INFO] Ensuring MinIO bucket $MINIO_BUCKET exists (helper pod: $BUCKET_SETUP_POD)"
+timeout "$BUCKET_SETUP_TIMEOUT" \
+  $KUBECTL run "$BUCKET_SETUP_POD" --rm -i --restart=Never \
     --namespace="$MINIO_NAMESPACE" \
     --image=minio/mc:latest --command -- \
     /bin/sh -c "

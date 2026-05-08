@@ -239,6 +239,10 @@ variable "redis_auth_token" {
   description = "Auth token for Redis (password) — required, no default. Must be at least 16 characters. Pass via --redis-password to deploy-osmo-minimal.sh or set TF_VAR_redis_auth_token."
   type        = string
   sensitive   = true
+  validation {
+    condition     = length(var.redis_auth_token) >= 16
+    error_message = "redis_auth_token must be at least 16 characters (AWS ElastiCache AUTH minimum)."
+  }
 }
 
 # ALB Variables

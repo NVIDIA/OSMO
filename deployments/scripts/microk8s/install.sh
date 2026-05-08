@@ -92,14 +92,18 @@ if [[ -f "$DOCKER_CONFIG" ]]; then
     if [[ -n "$DOCKER_AUTH" ]]; then
         DOCKER_USER="${DOCKER_AUTH%%:*}"
         DOCKER_PASS="${DOCKER_AUTH#*:}"
+        # Escape backslashes and double quotes for valid TOML basic strings.
+        # Backslash must be escaped first to avoid double-escaping.
+        DOCKER_USER_ESC="${DOCKER_USER//\\/\\\\}"; DOCKER_USER_ESC="${DOCKER_USER_ESC//\"/\\\"}"
+        DOCKER_PASS_ESC="${DOCKER_PASS//\\/\\\\}"; DOCKER_PASS_ESC="${DOCKER_PASS_ESC//\"/\\\"}"
         SNAP_DATA=$(readlink -f /var/snap/microk8s/current)
         TEMPLATE="$SNAP_DATA/args/containerd-template.toml"
         if ! grep -q 'registry.configs."registry-1.docker.io".auth' "$TEMPLATE" 2>/dev/null; then
             echo "==> Patching containerd template with Docker Hub credentials"
             sed -i '/\[plugins."io.containerd.grpc.v1.cri".registry\]/a\
 \    [plugins."io.containerd.grpc.v1.cri".registry.configs."registry-1.docker.io".auth]\
-\      username = "'"$DOCKER_USER"'"\
-\      password = "'"$DOCKER_PASS"'"' "$TEMPLATE"
+\      username = "'"$DOCKER_USER_ESC"'"\
+\      password = "'"$DOCKER_PASS_ESC"'"' "$TEMPLATE"
             microk8s stop
             microk8s start
         fi

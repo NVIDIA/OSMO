@@ -69,11 +69,22 @@ detect_existing_gpu_stack() {
         echo "helm release: $existing_release"
         return 0
     fi
-    # nvidia-device-plugin DaemonSet (covers manual installs and some distros)
-    if $KUBECTL get daemonset -A 2>/dev/null \
-        | grep -qE "nvidia-device-plugin"; then
-        echo "nvidia-device-plugin DaemonSet"
-        return 0
+    # nvidia-device-plugin DaemonSet — only sufficient when the DaemonSet has
+    # actually advertised GPUs to the scheduler. The DaemonSet existing alone
+    # doesn't prove drivers + Container Toolkit are installed; a partially-
+    # configured cluster (DS deployed but driver missing) would otherwise
+    # auto-skip and leave GPU workloads broken at runtime. Require at least
+    # one node with allocatable nvidia.com/gpu before declaring the stack
+    # functional.
+    if $KUBECTL get daemonset -A 2>/dev/null | grep -qE "nvidia-device-plugin"; then
+        local gpu_nodes
+        gpu_nodes=$($KUBECTL get nodes -o jsonpath='{range .items[*]}{.status.allocatable.nvidia\.com/gpu}{"\n"}{end}' 2>/dev/null \
+            | grep -E '^[1-9][0-9]*$' | wc -l | tr -d ' ')
+        if [[ "${gpu_nodes:-0}" -ge 1 ]]; then
+            echo "nvidia-device-plugin DaemonSet ($gpu_nodes node(s) advertising nvidia.com/gpu)"
+            return 0
+        fi
+        log_warning "nvidia-device-plugin DaemonSet present but no node advertises allocatable nvidia.com/gpu — driver/toolkit likely missing; not skipping install"
     fi
     return 1
 }

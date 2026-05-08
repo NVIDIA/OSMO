@@ -60,11 +60,12 @@ The script orchestrates these phases:
 
 ## Storage backends
 
-Use `--storage-backend {auto|minio|azure-blob|byo|none}`:
+Use `--storage-backend {auto|minio|azure-blob|s3|byo|none}`:
 
-- **auto** (default): probes BYO env vars → microk8s minio addon → existing minio service → osmo Azure TF storage_account output
+- **auto** (default): probes BYO env vars → microk8s minio addon → existing minio service → osmo AWS TF `s3_bucket` output → osmo Azure TF `storage_account` output
 - **minio**: in-cluster S3. On microk8s, uses the `minio` addon; otherwise installs the bitnami MinIO chart
 - **azure-blob**: Azure Blob Storage Account. Reads `STORAGE_ACCOUNT`/`STORAGE_KEY` env vars first, falls back to osmo Azure TF outputs
+- **s3**: AWS S3 with static credentials. Reads `STORAGE_BUCKET`/`STORAGE_ACCESS_KEY_ID`/`STORAGE_ACCESS_KEY` env vars first, falls back to osmo AWS TF outputs (when `s3_bucket_enabled=true`). For IAM-role-based auth (IRSA), use `--backend byo --auth-method workload-identity` instead.
 - **byo**: caller provides credentials via env (`STORAGE_ACCESS_KEY_ID`, `STORAGE_ACCESS_KEY`, `STORAGE_ENDPOINT`, optional `STORAGE_REGION`, `STORAGE_OVERRIDE_URL`). No resources created.
 - **none**: skip storage entirely (manual configuration later)
 
@@ -175,7 +176,7 @@ Every cluster-agnostic install is safe to no-op when its target is already prese
 
 - Helpers under [scripts/](../../deployments/scripts/):
   `install-kai-scheduler.sh`, `install-gpu-operator.sh`, `install-minio.sh`,
-  `configure-storage.sh` (+ `storage/{minio,azure-blob,byo}.sh`),
+  `configure-storage.sh` (+ `storage/{minio,azure-blob,s3,byo}.sh`),
   `port-forward.sh`, `verify.sh`, `microk8s/install.sh`
 - Workflows under [workflows/](../../deployments/workflows/):
   `verify-hello.yaml`, `verify-gpu.yaml`

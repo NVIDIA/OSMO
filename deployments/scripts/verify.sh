@@ -73,19 +73,41 @@ run_workflow() {
 
     # OSMO 6.3 returns the workflow identifier in `.name` (legacy 6.2 used
     # `.id` / `.workflow_id`). Fall back across all three for compatibility.
-    local wf_id
-    wf_id=$(osmo workflow submit "$spec" --pool "$POOL" -t json 2>/dev/null \
+    # Capture submit output explicitly so a CLI error (auth blip, server 5xx)
+    # surfaces in the log instead of silently producing an empty wf_id and
+    # the unhelpful "Failed to parse workflow id" message.
+    #
+    # Some OSMO CLI versions print non-JSON banner lines to stdout
+    # (e.g. "WARNING: New client X available") before the JSON body — pipe
+    # through `sed -n '/^{/,/^}/p'` to extract just the JSON object before
+    # handing to jq.
+    local wf_id submit_out
+    if ! submit_out=$(osmo workflow submit "$spec" --pool "$POOL" -t json 2>&1); then
+        log_error "Failed to submit $label"
+        printf '%s\n' "$submit_out" >&2
+        return 1
+    fi
+    wf_id=$(printf '%s\n' "$submit_out" | sed -n '/^{/,/^}/p' \
         | jq -r '.name // .id // .workflow_id // empty')
     if [[ -z "$wf_id" ]]; then
         log_error "Failed to parse workflow id from submit output"
+        printf '%s\n' "$submit_out" >&2
         return 1
     fi
     log_info "  workflow id: $wf_id"
 
     local status=""
     local iterations=$(( timeout / POLL_INTERVAL ))
+    local query_out
     for _ in $(seq 1 "$iterations"); do
-        status=$(osmo workflow query "$wf_id" -t json 2>/dev/null \
+        # Tolerate transient query failures — server may be momentarily 5xx
+        # mid-deploy. Log a warning, sleep, retry — don't abort the verify.
+        if ! query_out=$(osmo workflow query "$wf_id" -t json 2>&1); then
+            log_warning "Query failed for $wf_id; retrying"
+            sleep "$POLL_INTERVAL"
+            continue
+        fi
+        status=$(printf '%s\n' "$query_out" | sed -n '/^{/,/^}/p' \
             | jq -r '.status // .state // "UNKNOWN"')
         case "$status" in
             COMPLETED)

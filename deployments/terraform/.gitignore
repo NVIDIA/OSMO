@@ -15,6 +15,12 @@
 # (real users supply their own terraform.tfvars; the deploy script regenerates
 # this file from --flag inputs, so tracking it would create churn)
 **/terraform.tfvars
+# Belt-and-suspenders: ignore any tfvars file (incl. dev.tfvars, prod.tfvars,
+# *.tfvars.json) since they typically hold credentials. Templates in the
+# `*.tfvars.example` form stay tracked so users have a starting point.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
 
 # Plan output files
 *.tfplan

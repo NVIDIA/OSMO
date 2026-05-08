@@ -189,7 +189,13 @@ install_osmo_cli_if_missing() {
         log_error "curl is required to install the osmo CLI"
         return 1
     fi
-    curl -sL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh | bash
+    # Override OSMO_CLI_REF (env var) to pin to a release tag or commit SHA in
+    # CI / production — the default `main` ref is mutable and a supply-chain
+    # risk if you pipe-curl-bash without verifying. Local interactive runs
+    # accept this tradeoff for convenience.
+    local osmo_cli_ref="${OSMO_CLI_REF:-main}"
+    log_info "  using install.sh from ref: $osmo_cli_ref"
+    curl -sL "https://raw.githubusercontent.com/NVIDIA/OSMO/${osmo_cli_ref}/install.sh" | bash
     if ! command -v osmo &>/dev/null; then
         log_error "osmo CLI installer ran but 'osmo' is still not on PATH"
         log_error "Check ~/.local/bin or the installer's install location and update PATH"

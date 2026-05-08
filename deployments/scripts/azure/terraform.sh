@@ -452,11 +452,12 @@ azure_preflight_checks() {
     # vs. what was pre-existing. This unblocks the "create new RG" flow without
     # requiring TF restructuring.
     if [[ -n "${TF_RESOURCE_GROUP:-}" ]]; then
-        if ! az group show -n "$TF_RESOURCE_GROUP" &>/dev/null; then
+        if ! az group show -n "$TF_RESOURCE_GROUP" --subscription "$TF_SUBSCRIPTION_ID" &>/dev/null; then
             log_info "Resource group '$TF_RESOURCE_GROUP' does not exist — creating in '$TF_REGION'"
             az group create \
                 --name "$TF_RESOURCE_GROUP" \
                 --location "$TF_REGION" \
+                --subscription "$TF_SUBSCRIPTION_ID" \
                 --tags 'osmo-deploy-managed=true' \
                 --output none
             log_success "Resource group created (tagged osmo-deploy-managed=true)"
@@ -511,12 +512,12 @@ azure_terraform_destroy() {
     # Resource group cleanup: TF uses a `data` block so it doesn't own the RG.
     # Delete it here if azure_preflight_checks created it (marked with tag
     # `osmo-deploy-managed=true`). Pre-existing RGs are left intact.
-    if [[ -n "${TF_RESOURCE_GROUP:-}" ]] && az group show -n "$TF_RESOURCE_GROUP" &>/dev/null; then
+    if [[ -n "${TF_RESOURCE_GROUP:-}" ]] && az group show -n "$TF_RESOURCE_GROUP" --subscription "$TF_SUBSCRIPTION_ID" &>/dev/null; then
         local managed_tag
-        managed_tag=$(az group show -n "$TF_RESOURCE_GROUP" --query "tags.\"osmo-deploy-managed\"" -o tsv 2>/dev/null)
+        managed_tag=$(az group show -n "$TF_RESOURCE_GROUP" --subscription "$TF_SUBSCRIPTION_ID" --query "tags.\"osmo-deploy-managed\"" -o tsv 2>/dev/null)
         if [[ "$managed_tag" == "true" ]]; then
             log_info "Resource group '$TF_RESOURCE_GROUP' was created by deploy (tag osmo-deploy-managed=true) — deleting"
-            az group delete --name "$TF_RESOURCE_GROUP" --yes --no-wait
+            az group delete --name "$TF_RESOURCE_GROUP" --subscription "$TF_SUBSCRIPTION_ID" --yes --no-wait
             log_success "Resource group deletion initiated (running in background)"
         else
             log_info "Resource group '$TF_RESOURCE_GROUP' is not deploy-managed — preserving"

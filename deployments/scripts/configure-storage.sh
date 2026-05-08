@@ -136,6 +136,10 @@ export KUBECTL NAMESPACE OUTPUT_VALUES AUTH_METHOD
 [[ -n "${WORKLOAD_IDENTITY_ROLE_ARN:-}" ]] && export WORKLOAD_IDENTITY_ROLE_ARN
 
 if [[ "$BACKEND" == "none" ]]; then
+    # Truncate the values file even on the no-op path so callers always have
+    # a deterministic file to merge — but ensure the parent dir exists, since
+    # callers may pass `--output-values` under a directory we haven't created.
+    mkdir -p "$(dirname "$OUTPUT_VALUES")"
     log_info "Storage backend = none — skipping storage configuration"
     : > "$OUTPUT_VALUES"
     exit 0
@@ -169,7 +173,8 @@ if [[ "$BACKEND" == "auto" ]]; then
         if [[ -d "$AWS_TF_DIR" ]] && terraform -chdir="$AWS_TF_DIR" output s3_bucket &>/dev/null \
             && [[ -n "$(terraform -chdir="$AWS_TF_DIR" output -raw s3_bucket 2>/dev/null)" ]]; then
             BACKEND="s3"
-        elif [[ -d "$AZURE_TF_DIR" ]] && terraform -chdir="$AZURE_TF_DIR" output storage_account &>/dev/null; then
+        elif [[ -d "$AZURE_TF_DIR" ]] && terraform -chdir="$AZURE_TF_DIR" output storage_account &>/dev/null \
+            && [[ -n "$(terraform -chdir="$AZURE_TF_DIR" output -raw storage_account 2>/dev/null)" ]]; then
             BACKEND="azure-blob"
         else
             cat >&2 <<'MSG'

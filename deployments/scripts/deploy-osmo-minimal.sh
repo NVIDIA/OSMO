@@ -543,11 +543,17 @@ configure_storage_phase() {
     fi
     [[ "$NON_INTERACTIVE" == "true" ]] && extra_args+=(--non-interactive)
 
-    OSMO_NAMESPACE="${OSMO_NAMESPACE:-osmo-minimal}" \
-    NAMESPACE="${OSMO_NAMESPACE:-osmo-minimal}" \
+    # Resolve once and export — `${OSMO_NAMESPACE:-osmo-minimal}` on the inline
+    # `OSMO_NAMESPACE=... NAMESPACE=... bash …` line expanded in the parent
+    # shell BEFORE the inline assignment took effect, so `--namespace` always
+    # got the literal default. Resolving + exporting first makes both the
+    # child env and the flag agree.
+    local osmo_ns="${OSMO_NAMESPACE:-osmo-minimal}"
+    export OSMO_NAMESPACE="$osmo_ns"
+    export NAMESPACE="$osmo_ns"
     bash "$SCRIPT_DIR/configure-storage.sh" \
         --backend "$STORAGE_BACKEND" \
-        --namespace "${OSMO_NAMESPACE:-osmo-minimal}" \
+        --namespace "$osmo_ns" \
         --output-values "$STORAGE_VALUES_FILE" \
         "${extra_args[@]}"
 }
