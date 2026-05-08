@@ -77,21 +77,6 @@ Notes:
 
 ✅ = end-to-end green. ⏳ = code paths complete, full E2E pending.
 
-## Prerelease / Staging Channel
-
-For testing OSMO release candidates before they're tagged `latest` on the production NGC channel, set all three of:
-
-```bash
-export OSMO_IMAGE_TAG="6.3.0-prerelease-rc6"          # image tag (rc number changes per build)
-export OSMO_CHART_VERSION="1.3.0-prerelease-rc6"      # chart version (rc number matches)
-export OSMO_HELM_REPO_URL="https://helm.ngc.nvidia.com/nvstaging/osmo"
-./deploy-osmo-minimal.sh --provider azure
-```
-
-Without `OSMO_CHART_VERSION`, helm picks the highest stable version in the repo and ignores RC tags — the install then fails when image pull tries the prerelease tag the chart wasn't built for.
-
-The `nvstaging` repo requires the same NGC credentials as production; `--ngc-api-key`/`NGC_API_KEY` works for both.
-
 ## Directory Structure
 
 ```
@@ -401,7 +386,7 @@ az aks command invoke \
 
 ### Helm install fails: "no chart matching constraint"
 
-Likely cause: testing against a prerelease tag without setting `OSMO_CHART_VERSION`. See [Prerelease / Staging Channel](#prerelease--staging-channel).
+Likely cause: testing against a prerelease tag without setting `OSMO_CHART_VERSION` (chart RCs aren't tagged `latest`). Set both `OSMO_IMAGE_TAG` and `OSMO_CHART_VERSION` to the matching RC and point `OSMO_HELM_REPO_URL` at the staging repo.
 
 ## Documentation
 
