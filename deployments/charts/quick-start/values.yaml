@@ -66,6 +66,14 @@ global:
     ## Object storage access key for authentication
     ##
     accessKey: "test"
+    ## Existing Kubernetes Secret for object storage credentials.
+    ## When name is set, config-setup reads accessKeyId/accessKey from this Secret
+    ## instead of rendering the plain values above into the Job manifest.
+    ##
+    existingSecret:
+      name: ""
+      accessKeyIdKey: "access_key_id"
+      accessKeyKey: "access_key"
     ## Object storage region where the bucket is located
     ##
     region: "us-east-1"

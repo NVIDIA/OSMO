@@ -70,6 +70,9 @@ This chart installs and configures:
 | `global.objectStorage.overrideUrl`      | Object storage override URL (changed for localstack-s3)                 | `"http://localstack-s3.osmo:4566"` |
 | `global.objectStorage.accessKeyId`      | Object storage access key ID for authentication                         | `"test"`                           |
 | `global.objectStorage.accessKey`        | Object storage access key for authentication                            | `"test"`                           |
+| `global.objectStorage.existingSecret.name` | Existing Secret containing object storage credentials                 | `""`                               |
+| `global.objectStorage.existingSecret.accessKeyIdKey` | Secret key for the object storage access key ID              | `"access_key_id"`                  |
+| `global.objectStorage.existingSecret.accessKeyKey` | Secret key for the object storage access key                    | `"access_key"`                     |
 | `global.objectStorage.region`           | Object storage region where the bucket is located                       | `"us-east-1"`                      |
 
 ### Gateway Configuration
