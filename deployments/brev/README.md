@@ -164,9 +164,9 @@ Delete your Brev instance through the Brev console or CLI:
 brev delete [your instance name]
 ```
 
-# Deploying Custom OSMO Chart
+# Deploying Custom OSMO Charts
 
-1. Build and push your quick-start chart to the registry.
+1. Build and push your `service` and `backend-operator` charts to the registry.
 
 2. Go to [brev.nvidia.com](https://brev.nvidia.com) and create a new environment.
    - **L40S 1xGPU** on MassedCompute works well, but any L40 or L40S instance should work.

@@ -20,6 +20,18 @@
 
 This Helm chart deploys the OSMO platform with its core services and an optional standalone API gateway.
 
+For a local deployment that previously used quick-start values, install this chart first with `quick-start-values.yaml`, then install the `backend-operator` chart with its matching values file:
+
+```bash
+helm upgrade --install osmo osmo/service \
+  --namespace osmo \
+  --create-namespace \
+  -f quick-start-values.yaml \
+  --wait
+```
+
+See [../README.md](../README.md) for the full two-chart flow.
+
 ## Values
 
 > **Hostname configuration.** Three template fields read the external hostname for this deployment: `services.service.hostname` (API service `--service_hostname`), `services.router.hostname` (router `--hostname` for session-key extraction from `Host:` headers), and `gateway.envoy.hostname` (Ingress / TLS / OAuth2 redirect). Each one falls back to `global.hostname` when empty, so the recommended pattern is **set `global.hostname` once** at the top level and leave the per-component fields blank. Per-component fields still take precedence on the (rare) deployments that need a different value.

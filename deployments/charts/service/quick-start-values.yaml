@@ -1,0 +1,212 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Local-development values preserved from the former quick-start install path.
+# Use with:
+#   helm upgrade --install osmo osmo/service -f quick-start-values.yaml
+
+global:
+  osmoImageLocation: nvcr.io/nvidia/osmo
+  osmoImageTag: latest
+  imagePullSecret: null
+  hostname: quick-start.osmo
+  nodeSelector:
+    node_group: service
+
+services:
+  postgres:
+    enabled: true
+    imagePullPolicy: IfNotPresent
+    storageClassName: standard
+    password: "osmo"
+    nodeSelector:
+      node_group: data
+
+  redis:
+    enabled: true
+    imagePullPolicy: IfNotPresent
+    storageClassName: standard
+    tlsEnabled: false
+    nodeSelector:
+      node_group: data
+
+  localstackS3:
+    enabled: true
+    imagePullPolicy: IfNotPresent
+    buckets: ["osmo"]
+    persistence:
+      enabled: true
+      hostPath: /var/lib/localstack
+    nodeSelector:
+      node_group: data
+
+  defaultAdmin:
+    enabled: true
+    username: backend-operator
+    passwordSecretName: backend-operator-password
+    passwordSecretKey: password
+
+  configs:
+    enabled: true
+    service:
+      service_base_url: http://quick-start.osmo
+    workflow:
+      workflow_data:
+        credential:
+          endpoint: s3://osmo/workflows
+          override_url: http://localstack-s3.osmo:4566
+          access_key_id: test
+          access_key: test
+          region: us-east-1
+      workflow_log:
+        credential:
+          endpoint: s3://osmo/workflows
+          override_url: http://localstack-s3.osmo:4566
+          access_key_id: test
+          access_key: test
+          region: us-east-1
+      workflow_app:
+        credential:
+          endpoint: s3://osmo/apps
+          override_url: http://localstack-s3.osmo:4566
+          access_key_id: test
+          access_key: test
+          region: us-east-1
+      backend_images:
+        init: nvcr.io/nvidia/osmo/init-container:latest
+        client: nvcr.io/nvidia/osmo/client:latest
+      credential_config:
+        disable_data_validation: ["s3"]
+    dataset:
+      buckets:
+        osmo:
+          dataset_path: s3://osmo/datasets
+      default_bucket: osmo
+    podTemplates:
+      default_compute:
+        spec:
+          containers:
+          - name: "{{USER_CONTAINER_NAME}}"
+            env:
+            - name: OSMO_LOGIN_DEV
+              value: "true"
+          - name: osmo-ctrl
+            env:
+            - name: OSMO_LOGIN_DEV
+              value: "true"
+          nodeSelector:
+            node_group: compute
+    pools:
+      default:
+        description: "Default pool"
+        backend: default
+        common_pod_template:
+        - default_ctrl
+        - default_user
+        - default_compute
+        platforms:
+          default: {}
+
+  service:
+    imagePullPolicy: IfNotPresent
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    extraEnv:
+    - name: AWS_ENDPOINT_URL_S3
+      value: http://localstack-s3.osmo:4566
+    - name: AWS_S3_FORCE_PATH_STYLE
+      value: "true"
+    - name: AWS_DEFAULT_REGION
+      value: us-east-1
+
+  worker:
+    imagePullPolicy: IfNotPresent
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    extraEnv:
+    - name: AWS_ENDPOINT_URL_S3
+      value: http://localstack-s3.osmo:4566
+    - name: AWS_S3_FORCE_PATH_STYLE
+      value: "true"
+    - name: AWS_DEFAULT_REGION
+      value: us-east-1
+
+  logger:
+    imagePullPolicy: IfNotPresent
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    extraEnv:
+    - name: AWS_ENDPOINT_URL_S3
+      value: http://localstack-s3.osmo:4566
+    - name: AWS_S3_FORCE_PATH_STYLE
+      value: "true"
+    - name: AWS_DEFAULT_REGION
+      value: us-east-1
+
+  agent:
+    imagePullPolicy: IfNotPresent
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    extraEnv:
+    - name: AWS_ENDPOINT_URL_S3
+      value: http://localstack-s3.osmo:4566
+    - name: AWS_S3_FORCE_PATH_STYLE
+      value: "true"
+    - name: AWS_DEFAULT_REGION
+      value: us-east-1
+
+  delayedJobMonitor:
+    imagePullPolicy: IfNotPresent
+
+  ui:
+    enabled: true
+    imagePullPolicy: IfNotPresent
+    apiHostname: quick-start.osmo.svc.cluster.local:80
+    nextjsSslEnabled: false
+
+  router:
+    imagePullPolicy: IfNotPresent
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+
+podMonitor:
+  enabled: false
+
+gateway:
+  name: quick-start
+  envoy:
+    scaling:
+      minReplicas: 1
+      maxReplicas: 1
+    nodeSelector:
+      node_group: service
+    service:
+      type: NodePort
+      nodePort: 30080
+      httpsPort: null
+    defaultIdentity:
+      user: testuser
+      roles: osmo-admin
+      allowedPools: default
+  oauth2Proxy:
+    enabled: false
+  authz:
+    enabled: false
