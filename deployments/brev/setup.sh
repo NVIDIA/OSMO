@@ -509,7 +509,7 @@ helm upgrade --install osmo osmo/service \
   --namespace osmo \
   -f /tmp/osmo-service-values.yaml \
   --wait \
-  --timeout 10m
+  --timeout 25m
 
 helm upgrade --install osmo-backend-operator osmo/backend-operator \
   --namespace osmo \
