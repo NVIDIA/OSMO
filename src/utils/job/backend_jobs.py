@@ -101,7 +101,11 @@ class BackendWorkflowJob(BackendJob):
     workflow_uuid: str
 
     def log_labels(self) -> Dict[str, str]:
-        return {'workflow_uuid': self.workflow_uuid}
+        labels = {'workflow_uuid': self.workflow_uuid}
+        user_id = getattr(self, 'user', '')
+        if user_id:
+            labels['user_id'] = user_id
+        return labels
 
 
 class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkflowJob):

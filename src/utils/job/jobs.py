@@ -147,10 +147,14 @@ class WorkflowJob(FrontendJob):
 
     def log_submission(self):
         logging.info('Submitted new job %s to the job queue', self,
-                     extra={'workflow_uuid': self.workflow_uuid})
+                     extra=self.log_labels())
 
     def log_labels(self) -> Dict[str, str]:
-        return {'workflow_uuid': self.workflow_uuid}
+        labels = {'workflow_uuid': self.workflow_uuid}
+        user_id = getattr(self, 'user', '')
+        if user_id:
+            labels['user_id'] = user_id
+        return labels
 
 
 class BackendJob(Job):

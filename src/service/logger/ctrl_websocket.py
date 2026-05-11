@@ -127,7 +127,9 @@ async def run_websocket(websocket: fastapi.WebSocket, name: str, task_name: str,
         workflow_obj = workflow.Workflow.fetch_from_db(database, name)
         group_name = task.Task.fetch_group_name(database, workflow_obj.workflow_id, task_name)
 
-        with src.lib.utils.logging.WorkflowLogContext(workflow_obj.workflow_uuid):
+        with src.lib.utils.logging.WorkflowLogContext(
+            workflow_obj.workflow_uuid, user_id=workflow_obj.user
+        ):
 
             task_cred_values = task.TaskGroup.fetch_task_secrets(database,
                                                                 workflow_obj.workflow_id,

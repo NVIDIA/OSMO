@@ -49,6 +49,28 @@ import pydantic
 
 logger = logging.getLogger(__name__)
 
+_user_id_context = contextvars.ContextVar('user_id', default='')
+
+
+class UserLogContext:
+    """
+    Log context for adding user_id to JSON log records.
+    """
+
+    def __init__(self, user_id: str = ''):
+        self.user_id = user_id
+        self._token: contextvars.Token[str] | None = None
+
+    def __enter__(self):
+        if self.user_id:
+            self._token = _user_id_context.set(self.user_id)
+        return self
+
+    def __exit__(self, ex_type, ex_value, ex_traceback):
+        # pylint: disable=unused-argument
+        if self._token is not None:
+            _user_id_context.reset(self._token)
+
 
 class LoggingLevel(enum.IntEnum):
     """
@@ -111,22 +133,25 @@ class WorkflowLogContext:
     All logging, even within subfunctions, inside this context will have the workflow ID
     attribute included with the log. Users should only use this for single threaded instances.
     If 'extra' parameter is used when using logging inside the context, the workflow_uuid attribute
-    will not be overridden.
+    will not be overridden. user_id is emitted only by JsonServiceFormatter.
     """
 
-    def __init__(self, workflow_uuid: str):
+    def __init__(self, workflow_uuid: str, user_id: str = ''):
         self.workflow_uuid = workflow_uuid
         self._filter = WorkflowLogFilter(workflow_uuid)
+        self._user_context = UserLogContext(user_id)
 
     def __enter__(self):
         if self.workflow_uuid:
             logging.getLogger().addFilter(self._filter)
+        self._user_context.__enter__()
         return self
 
     def __exit__(self, ex_type, ex_value, ex_traceback):
         # pylint: disable=unused-argument
         if self.workflow_uuid:
             logging.getLogger().removeFilter(self._filter)
+        self._user_context.__exit__(ex_type, ex_value, ex_traceback)
 
 
 class LogFormat(str, enum.Enum):
@@ -235,6 +260,7 @@ class JsonServiceFormatter(logging.Formatter):
       message:       formatted message body
       backend:       set only for backend loggers (get_backend_logger)
       workflow_uuid: set only when the WorkflowLogFilter or extra= adds it
+      user_id:       set only in JSON logs when UserLogContext or extra= adds it
       exception:     set only when exc_info is provided (formatted traceback)
       stack:         set only when stack_info is provided
     """
@@ -263,6 +289,11 @@ class JsonServiceFormatter(logging.Formatter):
         workflow_uuid = getattr(record, 'workflow_uuid', None)
         if workflow_uuid:
             payload['workflow_uuid'] = workflow_uuid
+        user_id = getattr(record, 'user_id', None)
+        if user_id is None:
+            user_id = _user_id_context.get()
+        if user_id:
+            payload['user_id'] = user_id
         if record.exc_info:
             payload['exception'] = self.formatException(record.exc_info)
         if record.stack_info:
