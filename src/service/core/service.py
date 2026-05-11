@@ -59,6 +59,12 @@ curr_cli_config = connectors.CliConfig()
 
 @app.middleware('http')
 async def check_client_version(request: fastapi.Request, call_next):
+    user_id = request.headers.get(login.OSMO_USER_HEADER, '')
+    with src.lib.utils.logging.UserLogContext(user_id):
+        return await _check_client_version(request, call_next)
+
+
+async def _check_client_version(request: fastapi.Request, call_next):
     client_version_str = request.headers.get(version.VERSION_HEADER)
     token_name = request.headers.get(login.OSMO_TOKEN_NAME_HEADER)
     if client_version_str is None:

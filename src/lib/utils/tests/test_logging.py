@@ -28,6 +28,7 @@ def _make_record(
     level: int = logging.INFO,
     message: str = 'hello world',
     workflow_uuid: str | None = None,
+    user_id: str | None = None,
     exc_info=None,
 ) -> logging.LogRecord:
     record = logging.LogRecord(
@@ -42,6 +43,8 @@ def _make_record(
     record.module = 'test_logging'
     if workflow_uuid is not None:
         record.workflow_uuid = workflow_uuid
+    if user_id is not None:
+        record.user_id = user_id
     return record
 
 
@@ -92,6 +95,7 @@ class TestJsonServiceFormatter(unittest.TestCase):
         self.assertIn('timestamp', payload)
         self.assertNotIn('backend', payload)
         self.assertNotIn('workflow_uuid', payload)
+        self.assertNotIn('user_id', payload)
         self.assertNotIn('exception', payload)
 
     def test_backend_field_emitted_for_backend_loggers(self):
@@ -105,6 +109,17 @@ class TestJsonServiceFormatter(unittest.TestCase):
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
         payload = json.loads(formatter.format(_make_record(workflow_uuid='wf-123')))
         self.assertEqual(payload['workflow_uuid'], 'wf-123')
+
+    def test_user_id_propagated_when_present(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        payload = json.loads(formatter.format(_make_record(user_id='alice@example.com')))
+        self.assertEqual(payload['user_id'], 'alice@example.com')
+
+    def test_user_id_context_propagated_to_json(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.UserLogContext('alice@example.com'):
+            payload = json.loads(formatter.format(_make_record()))
+        self.assertEqual(payload['user_id'], 'alice@example.com')
 
     def test_exception_traceback_included(self):
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
