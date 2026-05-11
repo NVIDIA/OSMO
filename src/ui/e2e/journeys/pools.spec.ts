@@ -238,3 +238,57 @@ test.describe("Pool Edge Cases", () => {
     await expect(page.getByText(/unable to load/i)).toBeVisible();
   });
 });
+
+test.describe("Pool Toolbar", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupProfile(page);
+  });
+
+  test("has toolbar with search and column controls", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "toolbar-pool", status: PoolStatus.ONLINE },
+    ]));
+
+    await page.goto("/pools?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — toolbar controls are present
+    await expect(page.getByRole("combobox").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /toggle columns/i })).toBeVisible();
+  });
+
+  test("shows results count", async ({ page }) => {
+    await setupPools(page, createPoolResponse([
+      { name: "pool-1", status: PoolStatus.ONLINE },
+      { name: "pool-2", status: PoolStatus.OFFLINE },
+    ]));
+
+    await page.goto("/pools?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — results count is displayed
+    await expect(page.getByText(/\d+ results/).first()).toBeVisible();
+  });
+
+  test("shows breadcrumb with Pools", async ({ page }) => {
+    await setupPools(page, createPoolResponse([]));
+
+    await page.goto("/pools?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb.getByText("Pools").first()).toBeVisible();
+  });
+
+  test("page title is set to Pools", async ({ page }) => {
+    await setupPools(page, createPoolResponse([]));
+
+    await page.goto("/pools?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT
+    await expect(page).toHaveTitle(/Pools/);
+  });
+});

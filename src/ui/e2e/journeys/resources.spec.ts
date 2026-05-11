@@ -279,3 +279,67 @@ test.describe("Resource Edge Cases", () => {
     await expect(page.getByText("cpu-only-node").first()).toBeVisible();
   });
 });
+
+test.describe("Resource Toolbar", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+  });
+
+  test("has toolbar with search controls", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "toolbar-node.cluster",
+        exposed_fields: { node: "toolbar-node", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+    ]));
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — search combobox is present
+    await expect(page.getByRole("combobox").first()).toBeVisible();
+  });
+
+  test("shows results count", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([
+      {
+        hostname: "count-node-1.cluster",
+        exposed_fields: { node: "count-node-1", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+      {
+        hostname: "count-node-2.cluster",
+        exposed_fields: { node: "count-node-2", "pool/platform": ["prod/base"] },
+        pool_platform_labels: { prod: ["base"] },
+      },
+    ]));
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — results count is displayed
+    await expect(page.getByText(/\d+ results/).first()).toBeVisible();
+  });
+
+  test("shows breadcrumb with Resources", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([]));
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb.getByText("Resources").first()).toBeVisible();
+  });
+
+  test("page title is set to Resources", async ({ page }) => {
+    await setupResources(page, createResourcesResponse([]));
+
+    await page.goto("/resources");
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT
+    await expect(page).toHaveTitle(/Resources/);
+  });
+});

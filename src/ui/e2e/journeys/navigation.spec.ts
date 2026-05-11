@@ -15,8 +15,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from "@playwright/test";
-import { createPoolResponse, createResourcesResponse } from "@/mocks/factories";
-import { setupDefaultMocks, setupPools, setupProfile, setupResources } from "@/e2e/utils/mock-setup";
+import { createPoolResponse, createResourcesResponse, createDatasetsResponse, DatasetType } from "@/mocks/factories";
+import { setupDefaultMocks, setupPools, setupProfile, setupResources, setupDatasets } from "@/e2e/utils/mock-setup";
 
 /**
  * Navigation Journey Tests
@@ -175,5 +175,116 @@ test.describe("Invalid Routes", () => {
   test("unknown route shows a not-found page without crashing", async ({ page }) => {
     await page.goto("/this-route-does-not-exist");
     await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
+  });
+
+  test("deeply nested unknown route shows 404", async ({ page }) => {
+    await page.goto("/pools/this/does/not/exist");
+    await expect(page.getByRole("heading", { name: "404" })).toBeVisible();
+  });
+});
+
+test.describe("Sidebar Active State", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupPools(page, createPoolResponse());
+    await setupProfile(page);
+    await page.goto("/pools");
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("Pools link is active on /pools route", async ({ page }) => {
+    // The active link has data-active="true" attribute from shadcn sidebar
+    const poolsLink = sidebarLink(page, "Pools");
+    await expect(poolsLink).toBeVisible();
+    await expect(poolsLink).toHaveAttribute("data-active", "true");
+  });
+
+  test("navigating changes the active sidebar link", async ({ page }) => {
+    // Start on /pools - Pools should be active
+    await expect(sidebarLink(page, "Pools")).toHaveAttribute("data-active", "true");
+
+    // Navigate to Resources
+    await sidebarLink(page, "Resources").click();
+    await expect(page).toHaveURL(/\/resources/);
+    await page.waitForLoadState("networkidle");
+
+    // Now Resources should be active
+    await expect(sidebarLink(page, "Resources")).toHaveAttribute("data-active", "true");
+  });
+});
+
+test.describe("Profile Navigation", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupPools(page, createPoolResponse());
+    await setupProfile(page);
+  });
+
+  test("profile route has sidebar with Dashboard link", async ({ page }) => {
+    await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expect(sidebarLink(page, "Dashboard")).toBeVisible();
+  });
+
+  test("log-viewer route has sidebar with Dashboard link", async ({ page }) => {
+    await page.goto("/log-viewer", { waitUntil: "domcontentloaded" });
+    await expect(sidebarLink(page, "Dashboard")).toBeVisible();
+  });
+});
+
+test.describe("Cross-Page Navigation", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupDefaultMocks(page);
+    await setupPools(page, createPoolResponse());
+    await setupProfile(page);
+  });
+
+  test("navigating from datasets list to dataset detail and back", async ({ page }) => {
+    // ARRANGE — mock datasets for the list page
+    await setupDatasets(
+      page,
+      createDatasetsResponse([
+        { name: "nav-test-dataset", bucket: "nav-bucket", type: DatasetType.DATASET },
+      ]),
+    );
+
+    // ACT — start at datasets list
+    await page.goto("/datasets?all=true");
+    await page.waitForLoadState("networkidle");
+
+    // Click the dataset row to navigate to detail
+    const grid = page.getByRole("grid");
+    const firstDataRow = grid.getByRole("row").nth(1);
+    await expect(firstDataRow).toBeVisible();
+    await firstDataRow.click();
+
+    // ASSERT — navigated to a dataset detail page
+    await expect(page).toHaveURL(/\/datasets\/[^/]+\/[^/]+/);
+
+    // Navigate back via breadcrumb
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await breadcrumb.getByText("Datasets").first().click();
+
+    // ASSERT — back at datasets list
+    await expect(page).toHaveURL(/\/datasets\b/);
+  });
+
+  test("sidebar links work across multiple page navigations", async ({ page }) => {
+    // ACT — start at pools
+    await page.goto("/pools");
+    await page.waitForLoadState("networkidle");
+
+    // Navigate using sidebar to Datasets
+    await sidebarLink(page, "Datasets").click();
+    await expect(page).toHaveURL(/\/datasets/);
+    await page.waitForLoadState("networkidle");
+
+    // Navigate back to Pools via sidebar
+    await sidebarLink(page, "Pools").click();
+    await expect(page).toHaveURL(/\/pools/);
+    await page.waitForLoadState("networkidle");
+
+    // ASSERT — page content renders after multiple navigations
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb.getByText("Pools").first()).toBeVisible();
   });
 });
