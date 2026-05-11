@@ -2929,7 +2929,8 @@
               "description": "Filter by config types",
               "title": "Config Types"
             },
-            "description": "Filter by config types"
+            "description": "Filter by config types",
+            "explode": true
           },
           {
             "name": "name",
@@ -2987,7 +2988,8 @@
               "description": "Filter by tags",
               "title": "Tags"
             },
-            "description": "Filter by tags"
+            "description": "Filter by tags",
+            "explode": true
           },
           {
             "name": "created_before",
@@ -3631,7 +3633,8 @@
                 }
               ],
               "title": "Roles"
-            }
+            },
+            "explode": true
           },
           {
             "name": "x-osmo-user",
@@ -3906,7 +3909,8 @@
                 }
               ],
               "title": "Roles"
-            }
+            },
+            "explode": true
           },
           {
             "name": "x-osmo-user",
@@ -4107,7 +4111,8 @@
                 }
               ],
               "title": "Roles"
-            }
+            },
+            "explode": true
           }
         ],
         "responses": {
@@ -4585,7 +4590,8 @@
                 }
               ],
               "title": "Users"
-            }
+            },
+            "explode": true
           },
           {
             "name": "all_users",
@@ -5211,7 +5217,8 @@
                 }
               ],
               "title": "Users"
-            }
+            },
+            "explode": true
           },
           {
             "name": "name",
@@ -5246,7 +5253,8 @@
                 }
               ],
               "title": "Statuses"
-            }
+            },
+            "explode": true
           },
           {
             "name": "offset",
@@ -5304,7 +5312,8 @@
                 }
               ],
               "title": "Pools"
-            }
+            },
+            "explode": true
           },
           {
             "name": "all_pools",
@@ -5367,7 +5376,8 @@
                 }
               ],
               "title": "Tags"
-            }
+            },
+            "explode": true
           },
           {
             "name": "app",
@@ -5402,7 +5412,8 @@
                 }
               ],
               "title": "Priority"
-            }
+            },
+            "explode": true
           },
           {
             "name": "x-osmo-user",
@@ -5538,7 +5549,8 @@
                 }
               ],
               "title": "Statuses"
-            }
+            },
+            "explode": true
           },
           {
             "name": "users",
@@ -5557,7 +5569,8 @@
                 }
               ],
               "title": "Users"
-            }
+            },
+            "explode": true
           },
           {
             "name": "all_users",
@@ -5586,7 +5599,8 @@
                 }
               ],
               "title": "Pools"
-            }
+            },
+            "explode": true
           },
           {
             "name": "all_pools",
@@ -5615,7 +5629,8 @@
                 }
               ],
               "title": "Nodes"
-            }
+            },
+            "explode": true
           },
           {
             "name": "started_after",
@@ -5717,7 +5732,8 @@
                 }
               ],
               "title": "Priority"
-            }
+            },
+            "explode": true
           },
           {
             "name": "x-osmo-user",
@@ -6211,7 +6227,8 @@
                 }
               ],
               "title": "Add"
-            }
+            },
+            "explode": true
           },
           {
             "name": "remove",
@@ -6230,7 +6247,8 @@
                 }
               ],
               "title": "Remove"
-            }
+            },
+            "explode": true
           }
         ],
         "responses": {
@@ -6425,7 +6443,8 @@
                 }
               ],
               "title": "Task Ports"
-            }
+            },
+            "explode": true
           },
           {
             "name": "use_udp",
@@ -6786,7 +6805,8 @@
                 }
               ],
               "title": "Pools"
-            }
+            },
+            "explode": true
           },
           {
             "name": "platforms",
@@ -6805,7 +6825,8 @@
                 }
               ],
               "title": "Platforms"
-            }
+            },
+            "explode": true
           },
           {
             "name": "all_pools",
@@ -6955,7 +6976,8 @@
                 }
               ],
               "title": "Pools"
-            }
+            },
+            "explode": true
           }
         ],
         "responses": {
@@ -7017,7 +7039,8 @@
                 }
               ],
               "title": "Pools"
-            }
+            },
+            "explode": true
           }
         ],
         "responses": {
@@ -7319,6 +7342,7 @@
         "summary": "Get Bucket Info",
         "description": "This api allows users to fetch the default bucket and the list of available buckets.",
         "operationId": "get_bucket_info_api_bucket_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "default_only",
@@ -7372,6 +7396,235 @@
       }
     },
     "/api/bucket/{bucket}/dataset/{name}": {
+      "post": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Upload Dataset",
+        "description": "This api creates the dataset in the table. If finish is false, it creates the pending\nversion. Otherwise, it will set the corresponding version to READY.",
+        "operationId": "upload_dataset_api_bucket__bucket__dataset__name__post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^([a-zA-Z0-9_-]*)$",
+              "default": "",
+              "title": "Tag"
+            }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Description"
+            }
+          },
+          {
+            "name": "resume",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Resume"
+            }
+          },
+          {
+            "name": "finish",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Finish"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "checksum",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Checksum"
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Size"
+            }
+          },
+          {
+            "name": "update_dataset_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Update Dataset Size"
+            }
+          },
+          {
+            "name": "x-osmo-user",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Osmo-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_dataset_api_bucket__bucket__dataset__name__post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataUploadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Download",
+        "description": "This api returns the dataset download response.",
+        "operationId": "download_api_bucket__bucket__dataset__name__get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^([a-zA-Z0-9_-]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDownloadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "Dataset API"
@@ -7379,6 +7632,7 @@
         "summary": "Delete Dataset",
         "description": "This api deletes a Dataset.",
         "operationId": "delete_dataset_api_bucket__bucket__dataset__name__delete",
+        "deprecated": true,
         "parameters": [
           {
             "name": "bucket",
@@ -7462,6 +7716,78 @@
         }
       }
     },
+    "/api/bucket/{bucket}/dataset/{name}/migrate": {
+      "post": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Migrate Dataset",
+        "description": "This api migrates the dataset to a manifest based dataset.",
+        "operationId": "migrate_dataset_api_bucket__bucket__dataset__name__migrate_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^([a-zA-Z0-9_-]*)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tag"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataDownloadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bucket/{bucket}/dataset/{name}/attribute": {
       "post": {
         "tags": [
@@ -7470,6 +7796,7 @@
         "summary": "Change Name Tag Label Metadata",
         "description": "This api can rename a dataset/collection or set/remove tags/labels/metadata.\nIf tag is not given, latest tag is selected",
         "operationId": "change_name_tag_label_metadata_api_bucket__bucket__dataset__name__attribute_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "bucket",
@@ -7623,6 +7950,7 @@
         "summary": "Get Info",
         "description": "This api gives info about the Dataset or Dataset Version.",
         "operationId": "get_info_api_bucket__bucket__dataset__name__info_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "bucket",
@@ -7715,6 +8043,223 @@
         }
       }
     },
+    "/api/bucket/{bucket}/dataset/{name}/manifest": {
+      "get": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Get Manifest",
+        "description": "This api returns the manifest for a dataset version.",
+        "operationId": "get_manifest_api_bucket__bucket__dataset__name__manifest_get",
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {},
+                  "title": "Response Get Manifest Api Bucket  Bucket  Dataset  Name  Manifest Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bucket/{bucket}/dataset/{name}/file-content": {
+      "get": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Get File Content",
+        "description": "Streams file content from storage for the dataset file preview.\n\nstorage_path is hash-keyed in the dataset layout (e.g. .../hashes/<etag>),\nso it carries no extension that mimetypes.guess_type can use. The optional\nfilename param carries the original name (e.g. 'lipsum.txt') so we can\nreturn a useful Content-Type. filename is purely for media-type guessing;\naccess control still hinges on storage_path's container check.",
+        "operationId": "get_file_content_api_bucket__bucket__dataset__name__file_content_get",
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "storage_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Storage Path"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "head": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Get File Content",
+        "description": "Streams file content from storage for the dataset file preview.\n\nstorage_path is hash-keyed in the dataset layout (e.g. .../hashes/<etag>),\nso it carries no extension that mimetypes.guess_type can use. The optional\nfilename param carries the original name (e.g. 'lipsum.txt') so we can\nreturn a useful Content-Type. filename is purely for media-type guessing;\naccess control still hinges on storage_path's container check.",
+        "operationId": "get_file_content_api_bucket__bucket__dataset__name__file_content_get_head",
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "storage_path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Storage Path"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/bucket/list_dataset": {
       "get": {
         "tags": [
@@ -7723,6 +8268,7 @@
         "summary": "List Dataset From Bucket",
         "description": "This api returns the list of datasets/colections.",
         "operationId": "list_dataset_from_bucket_api_bucket_list_dataset_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "name",
@@ -7758,7 +8304,8 @@
                 }
               ],
               "title": "User"
-            }
+            },
+            "explode": true
           },
           {
             "name": "buckets",
@@ -7902,6 +8449,7 @@
         "summary": "Create Collection",
         "description": "This api creates a collection from datasets.",
         "operationId": "create_collection_api_bucket__bucket__dataset__name__collect_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "bucket",
@@ -7980,6 +8528,7 @@
         "summary": "Query Dataset",
         "description": "This api queries dataset.",
         "operationId": "query_dataset_api_bucket__bucket__query_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "bucket",
@@ -8009,6 +8558,113 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DataQueryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bucket/{bucket}/location": {
+      "get": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Get Path Information",
+        "description": "This api gets the dataset location for CLI validation.",
+        "operationId": "get_path_information_api_bucket__bucket__location_get",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bucket/{bucket}/dataset/{name}/recollect": {
+      "post": {
+        "tags": [
+          "Dataset API"
+        ],
+        "summary": "Update Collection",
+        "description": "This api updates a dataset version's checksum and size or collection's datasets.",
+        "operationId": "update_collection_api_bucket__bucket__dataset__name__recollect_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Bucket"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]+$",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_update_collection_api_bucket__bucket__dataset__name__recollect_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataUpdateResponse"
                 }
               }
             }
@@ -8853,6 +9509,46 @@
         ],
         "title": "Body_create_collection_api_bucket__bucket__dataset__name__collect_post"
       },
+      "Body_update_collection_api_bucket__bucket__dataset__name__recollect_post": {
+        "properties": {
+          "add_datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetStructure"
+            },
+            "type": "array",
+            "title": "Add Datasets",
+            "default": []
+          },
+          "remove_datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetStructure"
+            },
+            "type": "array",
+            "title": "Remove Datasets",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "Body_update_collection_api_bucket__bucket__dataset__name__recollect_post"
+      },
+      "Body_upload_dataset_api_bucket__bucket__dataset__name__post": {
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata",
+            "default": {}
+          },
+          "labels": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Labels",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "title": "Body_upload_dataset_api_bucket__bucket__dataset__name__post"
+      },
       "BucketConfig": {
         "properties": {
           "dataset_path": {
@@ -9330,9 +10026,13 @@
                 "$ref": "#/components/schemas/StaticDataCredential"
               },
               {
+                "$ref": "#/components/schemas/DefaultDataCredential"
+              },
+              {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Credential"
           },
           "base_url": {
             "type": "string",
@@ -9386,6 +10086,53 @@
         "additionalProperties": false,
         "type": "object",
         "title": "DataDeleteResponse",
+        "description": "Object storing Download Response. "
+      },
+      "DataDownloadResponse": {
+        "properties": {
+          "dataset_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dataset Names"
+          },
+          "dataset_versions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Dataset Versions"
+          },
+          "locations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Locations"
+          },
+          "new_locations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "New Locations"
+          },
+          "is_collection": {
+            "type": "boolean",
+            "title": "Is Collection"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dataset_names",
+          "dataset_versions",
+          "locations",
+          "new_locations",
+          "is_collection"
+        ],
+        "title": "DataDownloadResponse",
         "description": "Object storing Download Response. "
       },
       "DataInfoCollectionEntry": {
@@ -9778,6 +10525,74 @@
         "title": "DataTagResponse",
         "description": "Object storing Tag Response. "
       },
+      "DataUpdateEntry": {
+        "properties": {
+          "dataset_name": {
+            "type": "string",
+            "title": "Dataset Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dataset_name",
+          "version"
+        ],
+        "title": "DataUpdateEntry",
+        "description": "Object storing Info Element. "
+      },
+      "DataUpdateResponse": {
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/DataUpdateEntry"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "versions"
+        ],
+        "title": "DataUpdateResponse",
+        "description": "Object storing Info Element. "
+      },
+      "DataUploadResponse": {
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region",
+            "default": ""
+          },
+          "storage_path": {
+            "type": "string",
+            "title": "Storage Path",
+            "default": ""
+          },
+          "manifest_path": {
+            "type": "string",
+            "title": "Manifest Path",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version_id"
+        ],
+        "title": "DataUploadResponse",
+        "description": "Object storing Upload Response. "
+      },
       "DatasetConfig-Input": {
         "properties": {
           "buckets": {
@@ -9868,6 +10683,63 @@
           "DATASET"
         ],
         "title": "DatasetType"
+      },
+      "DefaultDataCredential": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "title": "Endpoint",
+            "description": "The OSMO storage URI for the data service (e.g., s3://bucket). For S3-compatible services with HTTP endpoints, set 'override_url' separately rather than pasting the full HTTPS URL here."
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region",
+            "description": "The region for the data service"
+          },
+          "override_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Override Url",
+            "description": "HTTP service URL for S3-compatible providers (e.g., http://minio:9000, https://s3-compat.example.com). Leave unset for native AWS S3, GCS, Azure, etc."
+          },
+          "addressing_style": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "virtual",
+                  "path",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addressing Style",
+            "description": "S3 request addressing style for S3-compatible providers. Use 'virtual' for providers such as CoreWeave CAIOS that reject path-style requests, or 'path' for localstack/MinIO-style endpoints."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "endpoint"
+        ],
+        "title": "DefaultDataCredential",
+        "description": "Data credential that delegates resolution to the underlying SDK.\n\nUses the SDK's default credential chain (e.g., Azure's DefaultAzureCredential,\nboto3's credential resolution) which may include environment variables,\nworkload identity, instance metadata, and other provider-specific methods.\n\nIntentionally left empty as all credential resolution is handled by the SDK."
       },
       "DeleteBackendRequest": {
         "properties": {
@@ -10591,9 +11463,13 @@
                 "$ref": "#/components/schemas/StaticDataCredential"
               },
               {
+                "$ref": "#/components/schemas/DefaultDataCredential"
+              },
+              {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Credential"
           }
         },
         "additionalProperties": false,
@@ -10991,6 +11867,12 @@
             "type": "object",
             "title": "Parsed Pod Template",
             "default": {}
+          },
+          "parsed_pod_template_for_accounting": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parsed Pod Template For Accounting",
+            "default": {}
           }
         },
         "type": "object",
@@ -11080,6 +11962,12 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Parsed Pod Template",
+            "default": {}
+          },
+          "parsed_pod_template_for_accounting": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parsed Pod Template For Accounting",
             "default": {}
           }
         },
@@ -11358,6 +12246,12 @@
             "title": "Parsed Pod Template",
             "default": {}
           },
+          "parsed_pod_template_for_accounting": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parsed Pod Template For Accounting",
+            "default": {}
+          },
           "common_group_templates": {
             "items": {
               "type": "string"
@@ -11529,6 +12423,12 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Parsed Pod Template",
+            "default": {}
+          },
+          "parsed_pod_template_for_accounting": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Parsed Pod Template For Accounting",
             "default": {}
           },
           "common_group_templates": {
@@ -12824,7 +13724,7 @@
             "type": "string",
             "format": "password",
             "title": "Auth",
-            "description": "The authentication token for the Docker registry",
+            "description": "The authentication token (raw password) for the Docker registry",
             "default": "",
             "writeOnly": true
           }
@@ -13536,7 +14436,7 @@
           "endpoint": {
             "type": "string",
             "title": "Endpoint",
-            "description": "The OSMO storage URI for the data service (e.g., s3://bucket)"
+            "description": "The OSMO storage URI for the data service (e.g., s3://bucket). For S3-compatible services with HTTP endpoints, set 'override_url' separately rather than pasting the full HTTPS URL here."
           },
           "region": {
             "anyOf": [
@@ -13560,7 +14460,24 @@
               }
             ],
             "title": "Override Url",
-            "description": "HTTP endpoint URL override the storage URI (e.g., http://minio:9000)"
+            "description": "HTTP service URL for S3-compatible providers (e.g., http://minio:9000, https://s3-compat.example.com). Leave unset for native AWS S3, GCS, Azure, etc."
+          },
+          "addressing_style": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "virtual",
+                  "path",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addressing Style",
+            "description": "S3 request addressing style for S3-compatible providers. Use 'virtual' for providers such as CoreWeave CAIOS that reject path-style requests, or 'path' for localstack/MinIO-style endpoints."
           },
           "access_key_id": {
             "type": "string",
@@ -14211,7 +15128,7 @@
           "endpoint": {
             "type": "string",
             "title": "Endpoint",
-            "description": "The OSMO storage URI for the data service (e.g., s3://bucket)"
+            "description": "The OSMO storage URI for the data service (e.g., s3://bucket). For S3-compatible services with HTTP endpoints, set 'override_url' separately rather than pasting the full HTTPS URL here."
           },
           "region": {
             "anyOf": [
@@ -14235,7 +15152,24 @@
               }
             ],
             "title": "Override Url",
-            "description": "HTTP endpoint URL override the storage URI (e.g., http://minio:9000)"
+            "description": "HTTP service URL for S3-compatible providers (e.g., http://minio:9000, https://s3-compat.example.com). Leave unset for native AWS S3, GCS, Azure, etc."
+          },
+          "addressing_style": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "virtual",
+                  "path",
+                  "auto"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Addressing Style",
+            "description": "S3 request addressing style for S3-compatible providers. Use 'virtual' for providers such as CoreWeave CAIOS that reject path-style requests, or 'path' for localstack/MinIO-style endpoints."
           },
           "access_key_id": {
             "type": "string",
