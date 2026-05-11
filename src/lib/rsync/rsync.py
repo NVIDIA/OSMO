@@ -571,11 +571,7 @@ class RsyncClient:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Do not close self._sock here — asyncio.start_server takes ownership of the
-        # socket when run_tcp_with_sock registers it with the event loop. Closing it
-        # before the server's _stop_serving() runs causes sock.fileno() to return -1,
-        # which raises ValueError inside the selector cleanup.  The socket is closed
-        # either by asyncio's Server.close() path or by _port_forward()'s finally block.
+        # Socket cleanup is owned by run_tcp_with_sock via asyncio.start_server.
 
     async def upload(self) -> None:
         """
