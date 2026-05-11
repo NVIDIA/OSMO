@@ -569,7 +569,12 @@ class RsyncClient:
             task.cancel()
 
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception) and not isinstance(
+                    result, asyncio.CancelledError
+                ):
+                    logger.error('Unexpected error during task shutdown: %s', result)
 
         # Socket cleanup is owned by run_tcp_with_sock via asyncio.start_server.
 
