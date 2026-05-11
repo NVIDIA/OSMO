@@ -559,17 +559,17 @@ class RsyncClient:
         self._stop_event.set()
         self._tcp_close.set()
 
-        if self._port_forward_task is not None:
-            try:
-                self._port_forward_task.cancel()
-            except Exception:  # pylint: disable=broad-except
-                pass
+        current_task = asyncio.current_task()
+        tasks = [
+            task for task in (self._port_forward_task, self._reconcile_upload_task)
+            if task is not None and task is not current_task and not task.done()
+        ]
 
-        if self._reconcile_upload_task is not None:
-            try:
-                self._reconcile_upload_task.cancel()
-            except Exception:  # pylint: disable=broad-except
-                pass
+        for task in tasks:
+            task.cancel()
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         # Do not close self._sock here — asyncio.start_server takes ownership of the
         # socket when run_tcp_with_sock registers it with the event loop. Closing it

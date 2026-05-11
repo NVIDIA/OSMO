@@ -210,24 +210,22 @@ async def run_tcp_with_sock(
         if ready_event:
             ready_event.set()
 
-        async with server:
-            # Do not include server.serve_forever() here — first_completed cancels
-            # it without awaiting, leaking the task until asyncio.run() shutdown.
-            # The server is already active inside `async with server`; waiting on
-            # the close/ws signals is sufficient.
+        try:
+            # start_server() is already serving; wait for close signals.
             await common.first_completed([
                 close.wait(),
                 ctrl_ws.wait_closed(),
             ])
+        finally:
+            try:
+                server.close()
+                await server.wait_closed()
+            except ValueError as err:
+                if sock.fileno() != -1:
+                    raise
+                logger.debug('Server socket already closed on shutdown: %s', err)
     except (ConnectionRefusedError, websockets.exceptions.ConnectionClosedError) as err:
         logger.error(err)
-    except ValueError as err:
-        # "Invalid file descriptor: -1": raised by server.close() → _stop_serving()
-        # when the socket was closed externally before the server's own cleanup ran
-        # (e.g. the caller cancelled this coroutine without awaiting it and then
-        # closed the socket, leaving asyncio.run() shutdown to process the task).
-        # The transfer already completed; suppress the noisy shutdown artifact.
-        logger.debug('Server socket already closed on shutdown: %s', err)
     finally:
         if ctrl_ws:
             try:
