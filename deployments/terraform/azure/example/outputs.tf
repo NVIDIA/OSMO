@@ -132,41 +132,38 @@ output "postgres_admin_username" {
   sensitive   = true
 }
 
-# Redis Outputs
+# Azure Managed Redis Outputs (single resource with nested default_database
+# block; access keys + port surface as default_database[0] computed attrs).
+# `redis_cache_*` names preserved for backwards-compat with consumer scripts.
 output "redis_cache_id" {
-  description = "The ID of the Redis Cache"
-  value       = azurerm_redis_cache.main.id
+  description = "The ID of the Azure Managed Redis instance"
+  value       = azurerm_managed_redis.main.id
 }
 
 output "redis_cache_name" {
-  description = "The name of the Redis Cache"
-  value       = azurerm_redis_cache.main.name
+  description = "The name of the Azure Managed Redis instance"
+  value       = azurerm_managed_redis.main.name
 }
 
 output "redis_cache_hostname" {
-  description = "The hostname of the Redis Cache"
-  value       = azurerm_redis_cache.main.hostname
+  description = "The hostname of the Azure Managed Redis instance"
+  value       = azurerm_managed_redis.main.hostname
 }
 
 output "redis_cache_ssl_port" {
-  description = "The SSL port of the Redis Cache"
-  value       = azurerm_redis_cache.main.ssl_port
-}
-
-output "redis_cache_port" {
-  description = "The non-SSL port of the Redis Cache"
-  value       = azurerm_redis_cache.main.port
+  description = "The TLS-enabled port (default_database computed attribute)"
+  value       = azurerm_managed_redis.main.default_database[0].port
 }
 
 output "redis_cache_primary_access_key" {
-  description = "The primary access key for the Redis Cache"
-  value       = azurerm_redis_cache.main.primary_access_key
+  description = "The primary access key for the default database"
+  value       = azurerm_managed_redis.main.default_database[0].primary_access_key
   sensitive   = true
 }
 
 output "redis_cache_secondary_access_key" {
-  description = "The secondary access key for the Redis Cache"
-  value       = azurerm_redis_cache.main.secondary_access_key
+  description = "The secondary access key for the default database"
+  value       = azurerm_managed_redis.main.default_database[0].secondary_access_key
   sensitive   = true
 }
 
@@ -217,4 +214,28 @@ output "log_analytics_workspace_workspace_id" {
 output "container_insights_solution_id" {
   description = "The ID of the Container Insights solution"
   value       = azurerm_log_analytics_solution.container_insights.id
+}
+
+# Optional GPU node pool
+output "gpu_node_pool_name" {
+  description = "Name of the GPU node pool (empty when disabled)"
+  value       = var.gpu_node_pool_enabled ? azurerm_kubernetes_cluster_node_pool.gpu[0].name : ""
+}
+
+# Optional Storage Account for OSMO workflow data
+# Read by configure-storage.sh --backend azure-blob via `terraform output`
+output "storage_account" {
+  description = "Name of the OSMO workflow data Storage Account (empty when disabled)"
+  value       = var.storage_account_enabled ? azurerm_storage_account.osmo[0].name : ""
+}
+
+output "storage_account_key" {
+  description = "Primary access key of the OSMO Storage Account"
+  value       = var.storage_account_enabled ? azurerm_storage_account.osmo[0].primary_access_key : ""
+  sensitive   = true
+}
+
+output "storage_container_name" {
+  description = "Name of the OSMO workflow Blob container"
+  value       = var.storage_account_enabled ? azurerm_storage_container.osmo_workflows[0].name : ""
 }

@@ -151,3 +151,87 @@ export_outputs() {
     fi
 }
 
+# Local-port defaults for the watchdog port-forwards. Override via env when
+# something else is already on the standard port.
+export OSMO_API_PORT="${OSMO_API_PORT:-9000}"
+export OSMO_UI_PORT="${OSMO_UI_PORT:-3000}"
+
+# Resolve the OSMO API Service name to port-forward against. When the chart's
+# Envoy gateway (services.gateway.enabled) is rendered, an `osmo-gateway`
+# Service exists and is the correct entry point — it injects auth headers and
+# routes to osmo-service/router/ui. When the gateway is disabled, fall back to
+# osmo-service directly.
+#
+# Args: <namespace> [kubectl-binary]
+# Output: service name on stdout
+resolve_osmo_api_service() {
+    local ns="${1:-osmo-minimal}"
+    local kubectl_bin="${2:-kubectl}"
+    # 6.3 chart names the gateway Service `osmo-gateway`. Older / partial
+    # builds may have called it `osmo-gateway-envoy`; check both, fall back to
+    # the direct service.
+    if $kubectl_bin get svc osmo-gateway -n "$ns" &>/dev/null; then
+        echo "osmo-gateway"
+    elif $kubectl_bin get svc osmo-gateway-envoy -n "$ns" &>/dev/null; then
+        echo "osmo-gateway-envoy"
+    else
+        echo "osmo-service"
+    fi
+}
+
+# Install the osmo CLI from GitHub if missing. Idempotent.
+install_osmo_cli_if_missing() {
+    if command -v osmo &>/dev/null; then
+        return 0
+    fi
+    log_info "Installing osmo CLI from GitHub"
+    if ! command -v curl &>/dev/null; then
+        log_error "curl is required to install the osmo CLI"
+        return 1
+    fi
+    # Override OSMO_CLI_REF (env var) to pin to a release tag or commit SHA in
+    # CI / production — the default `main` ref is mutable and a supply-chain
+    # risk if you pipe-curl-bash without verifying. Local interactive runs
+    # accept this tradeoff for convenience.
+    local osmo_cli_ref="${OSMO_CLI_REF:-main}"
+    log_info "  using install.sh from ref: $osmo_cli_ref"
+    curl -sL "https://raw.githubusercontent.com/NVIDIA/OSMO/${osmo_cli_ref}/install.sh" | bash
+    if ! command -v osmo &>/dev/null; then
+        log_error "osmo CLI installer ran but 'osmo' is still not on PATH"
+        log_error "Check ~/.local/bin or the installer's install location and update PATH"
+        return 1
+    fi
+    log_success "osmo CLI installed: $(osmo version 2>/dev/null | head -1 || echo 'unknown')"
+}
+
+# Detection helpers used by install-* scripts to skip on existing installs.
+# All accept overrides via $KUBECTL / $HELM env so the wrappers compose with
+# provider-specific run_kubectl / run_helm in deploy-k8s.sh.
+
+# Returns 0 if a CRD with the given name exists.
+crd_present() {
+    "${KUBECTL:-kubectl}" get crd "$1" &>/dev/null
+}
+
+# Returns 0 if any helm release in any namespace was installed from a chart
+# whose name starts with the given prefix. Use a prefix like `kai-scheduler`
+# or `gpu-operator` to match version-suffixed chart names.
+helm_chart_installed() {
+    "${HELM:-helm}" list -A -o json 2>/dev/null \
+        | grep -qE "\"chart\":\"$1[^\"]*\""
+}
+
+# Echoes the first matching `chart:"<name-version>"` string for logging.
+helm_chart_release_info() {
+    "${HELM:-helm}" list -A -o json 2>/dev/null \
+        | grep -oE "\"chart\":\"$1[^\"]*\"" \
+        | head -1 || true
+}
+
+# Returns 0 if the named microk8s addon is enabled. Safe to call where
+# microk8s isn't installed.
+microk8s_addon_enabled() {
+    command -v microk8s &>/dev/null \
+        && microk8s status --addon "$1" 2>/dev/null | grep -q "enabled"
+}
+
