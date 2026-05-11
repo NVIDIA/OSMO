@@ -269,16 +269,38 @@ KAI scheduler provides co-scheduling, priority, and preemption for workflows:
 Step 3: Install OSMO
 ====================
 
-Deploy the complete OSMO platform with a single Helm command:
+Deploy the OSMO service chart first, then the backend operator chart. The
+values files below preserve the former local quick-start settings while keeping
+the charts independently managed.
 
 .. code-block:: bash
 
-   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
-   $ helm repo update
-   $ helm upgrade --install osmo osmo/quick-start \
+   $ mkdir -p osmo-values
+   $ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/service/quick-start-values.yaml \
+     -o osmo-values/service.yaml
+   $ curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/backend-operator/quick-start-values.yaml \
+     -o osmo-values/backend-operator.yaml
+
+   $ kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
+   $ kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
+   $ kubectl create secret generic backend-operator-password \
      --namespace osmo \
-     --create-namespace \
-     --wait
+     --from-literal=password=osmo \
+     --dry-run=client -o yaml | kubectl apply -f -
+
+   $ helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+   $ helm repo update osmo
+   $ helm upgrade --install osmo osmo/service \
+     --namespace osmo \
+     -f osmo-values/service.yaml \
+     --wait \
+     --timeout 25m
+
+   $ helm upgrade --install osmo-backend-operator osmo/backend-operator \
+     --namespace osmo \
+     -f osmo-values/backend-operator.yaml \
+     --wait \
+     --timeout 10m
 
 .. tip::
    Installation takes about 5 minutes. Monitor progress with:
@@ -295,6 +317,7 @@ Add an entry to /etc/hosts so your browser and CLI can reach OSMO by hostname:
 .. code-block:: bash
 
    $ echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
+   $ echo "127.0.0.1 localstack-s3.osmo" | sudo tee -a /etc/hosts
 
 The KIND cluster maps host port 80 to the gateway's NodePort, so OSMO is accessible at ``http://quick-start.osmo`` with no port-forward needed.
 
@@ -388,4 +411,3 @@ Check resource availability and logs:
    $ kubectl get pods --namespace osmo
    $ kubectl describe pod <pod-name> --namespace osmo
    $ kubectl logs <pod-name> --namespace osmo
-
