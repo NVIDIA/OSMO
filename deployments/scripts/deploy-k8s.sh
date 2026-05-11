@@ -812,14 +812,39 @@ mint_backend_operator_token() {
         log_info "Service-account user '$sa_user' already exists"
     fi
 
+    # `osmo token set` is create-only — if a `backend-token` already exists
+    # for this user (from a previous deploy run, partial failure, or PVC
+    # carryover on in-cluster postgres), the next `set` call returns 400
+    # "Token name already exists" and the deploy stalls. Delete first so
+    # re-runs always reconcile to a fresh secret.
+    #
+    # Use the JSON output + the same pre-JSON banner strip we apply on
+    # `osmo token set` below — text-format parsing was brittle (row indexing
+    # changes when the CLI prints a "New client X.Y.Z available" banner on
+    # version skew, and the preamble line count depends on whether --user
+    # is passed). The JSON `token_name` field name is stable.
+    local token_name="backend-token"
+    if osmo token list --user "$sa_user" -t json 2>/dev/null \
+        | sed -n '/^\[/,/^\]/p' \
+        | jq -e --arg n "$token_name" 'any(.[]; .token_name == $n)' >/dev/null; then
+        log_info "  $token_name already exists for $sa_user — deleting before re-mint"
+        osmo token delete "$token_name" --user "$sa_user" >/dev/null 2>&1 || true
+    fi
+
     log_info "Generating backend operator token for $sa_user..."
     local backend_token
-    backend_token=$(osmo token set backend-token \
+    # Strip pre-JSON banner lines before piping to jq. OSMO CLI versions
+    # older than the server emit `WARNING: New client X.Y.Z available` to
+    # stdout above the JSON body; without the sed filter, `jq -r '.token'`
+    # errors with "parse error: Invalid numeric literal" and the script
+    # treats the mint as failed.
+    backend_token=$(osmo token set "$token_name" \
         --expires-at "$BACKEND_TOKEN_EXPIRY" \
         --description "Backend Operator Token" \
         --user "$sa_user" \
         --roles osmo-backend \
-        -t json 2>/tmp/osmo-token-set.log | jq -r '.token' || echo "")
+        -t json 2>/tmp/osmo-token-set.log | sed -n '/^{/,/^}/p' \
+        | jq -r '.token' || echo "")
 
     if [[ -z "$backend_token" || "$backend_token" == "null" ]]; then
         log_error "Failed to mint backend-operator token (osmo CLI returned empty)"

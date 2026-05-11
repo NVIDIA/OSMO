@@ -214,6 +214,12 @@ rds_password       = "$TF_POSTGRES_PASSWORD"
 redis_node_type       = "cache.t3.micro"
 redis_num_cache_nodes = 1
 redis_auth_token      = "$TF_REDIS_PASSWORD"
+
+# Optional S3 bucket for OSMO workflow data
+# Triggered by --storage-backend s3 on deploy-osmo-minimal.sh
+# (the storage backend script reads s3_bucket / s3_access_key_id /
+# s3_secret_access_key TF outputs)
+s3_bucket_enabled = ${TF_S3_BUCKET_ENABLED:-false}
 EOF
 
     log_success "terraform.tfvars generated for AWS"
