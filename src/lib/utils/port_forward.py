@@ -210,12 +210,20 @@ async def run_tcp_with_sock(
         if ready_event:
             ready_event.set()
 
-        async with server:
+        try:
+            # start_server() is already serving; wait for close signals.
             await common.first_completed([
-                server.serve_forever(),
                 close.wait(),
                 ctrl_ws.wait_closed(),
             ])
+        finally:
+            try:
+                server.close()
+                await server.wait_closed()
+            except ValueError as err:
+                if sock.fileno() != -1:
+                    raise
+                logger.debug('Server socket already closed on shutdown: %s', err)
     except (ConnectionRefusedError, websockets.exceptions.ConnectionClosedError) as err:
         logger.error(err)
     finally:
