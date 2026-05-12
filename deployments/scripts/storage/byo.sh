@@ -9,7 +9,7 @@
 #     User has access keys. Script registers them as K8s Secrets and emits a
 #     values fragment with `secretName` references. Required env:
 #       STORAGE_ACCESS_KEY_ID, STORAGE_ACCESS_KEY, STORAGE_ENDPOINT
-#     Optional: STORAGE_REGION, STORAGE_OVERRIDE_URL
+#     Optional: STORAGE_REGION, STORAGE_OVERRIDE_URL, STORAGE_ADDRESSING_STYLE
 #
 #   --auth-method workload-identity (AWS IRSA)
 #     User has provisioned an IAM role with S3 access + an EKS OIDC trust
@@ -18,7 +18,7 @@
 #     DefaultDataCredential shape (just `endpoint`) and the
 #     `eks.amazonaws.com/role-arn` SA annotation. Required env:
 #       WORKLOAD_IDENTITY_ROLE_ARN, STORAGE_ENDPOINT
-#     Optional: STORAGE_REGION, STORAGE_OVERRIDE_URL
+#     Optional: STORAGE_REGION, STORAGE_OVERRIDE_URL, STORAGE_ADDRESSING_STYLE
 #
 # In both modes the user pre-provisions the bucket — this script never creates
 # storage resources.
@@ -36,6 +36,8 @@ NGC_SECRET_NAME="${NGC_SECRET_NAME:-nvcr-secret}"
 
 REGION="${STORAGE_REGION:-us-east-1}"
 OVERRIDE_URL="${STORAGE_OVERRIDE_URL:-}"
+ADDRESSING_STYLE="${STORAGE_ADDRESSING_STYLE:-}"
+validate_addressing_style "$ADDRESSING_STYLE"
 
 if [[ "$AUTH_METHOD" == "workload-identity" ]]; then
     # IRSA path — only need the bucket endpoint + the role ARN.
@@ -48,6 +50,7 @@ if [[ "$AUTH_METHOD" == "workload-identity" ]]; then
 Optional:
   STORAGE_REGION              (default: us-east-1)
   STORAGE_OVERRIDE_URL        (e.g. for non-AWS S3-compatible endpoints)
+  STORAGE_ADDRESSING_STYLE    (virtual|path|auto)
 MSG
         exit 1
     fi
@@ -78,23 +81,27 @@ services:
           endpoint: "$STORAGE_ENDPOINT"
           region: "$REGION"
 $([[ -n "$OVERRIDE_URL" ]] && echo "          override_url: \"$OVERRIDE_URL\"")
+$([[ -n "$ADDRESSING_STYLE" ]] && echo "          addressing_style: \"$ADDRESSING_STYLE\"")
         base_url: "$STORAGE_ENDPOINT"
       workflow_log:
         credential:
           endpoint: "$STORAGE_ENDPOINT"
           region: "$REGION"
 $([[ -n "$OVERRIDE_URL" ]] && echo "          override_url: \"$OVERRIDE_URL\"")
+$([[ -n "$ADDRESSING_STYLE" ]] && echo "          addressing_style: \"$ADDRESSING_STYLE\"")
       workflow_app:
         credential:
           endpoint: "$STORAGE_ENDPOINT"
           region: "$REGION"
 $([[ -n "$OVERRIDE_URL" ]] && echo "          override_url: \"$OVERRIDE_URL\"")
+$([[ -n "$ADDRESSING_STYLE" ]] && echo "          addressing_style: \"$ADDRESSING_STYLE\"")
 EOF
 
     echo "[INFO] BYO storage configured (AWS IRSA / workload-identity):"
     echo "       role ARN:    $WORKLOAD_IDENTITY_ROLE_ARN"
     echo "       endpoint:    $STORAGE_ENDPOINT"
     echo "       region:      $REGION"
+    echo "       addressing:  ${ADDRESSING_STYLE:-<default>}"
     echo "       SA mode:     chart creates SA with eks.amazonaws.com/role-arn annotation"
     echo "       values:      $OUTPUT_VALUES"
     exit 0
@@ -111,6 +118,7 @@ if [[ -z "${STORAGE_ACCESS_KEY_ID:-}" || -z "${STORAGE_ACCESS_KEY:-}" || -z "${S
 Optional:
   STORAGE_REGION       (default: us-east-1)
   STORAGE_OVERRIDE_URL (e.g. https://s3.us-east-1.amazonaws.com)
+  STORAGE_ADDRESSING_STYLE (virtual|path|auto)
 
 For workload-identity / IRSA mode, set --auth-method workload-identity and
 provide WORKLOAD_IDENTITY_ROLE_ARN instead of access keys.
@@ -119,7 +127,8 @@ MSG
 fi
 
 create_workflow_cred_secrets \
-    "$STORAGE_ACCESS_KEY_ID" "$STORAGE_ACCESS_KEY" "$STORAGE_ENDPOINT" "$REGION" "$OVERRIDE_URL"
+    "$STORAGE_ACCESS_KEY_ID" "$STORAGE_ACCESS_KEY" "$STORAGE_ENDPOINT" "$REGION" "$OVERRIDE_URL" \
+    "$ADDRESSING_STYLE"
 
 emit_static_values_fragment byo "$STORAGE_ENDPOINT"
 
@@ -127,5 +136,6 @@ echo "[INFO] BYO storage configured (static auth):"
 echo "       endpoint:    $STORAGE_ENDPOINT"
 echo "       region:      $REGION"
 echo "       override:    ${OVERRIDE_URL:-<none>}"
+echo "       addressing:  ${ADDRESSING_STYLE:-<default>}"
 echo "       secrets:     osmo-workflow-{data,log,app}-cred in $NAMESPACE"
 echo "       values:      $OUTPUT_VALUES"

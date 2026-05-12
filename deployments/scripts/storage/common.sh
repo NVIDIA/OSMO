@@ -8,9 +8,26 @@
 
 # Create the three K8s Secrets the OSMO storage SDK reads via
 # services.configs.workflow.workflow_*.credential.secretName.
-# Args: access_key_id access_key endpoint region override_url
+# Args: access_key_id access_key endpoint region override_url [addressing_style]
+validate_addressing_style() {
+    local addressing_style="${1:-}"
+    case "$addressing_style" in
+        ""|virtual|path|auto) ;;
+        *)
+            echo "[ERROR] Invalid addressing style '$addressing_style' (expected: virtual, path, or auto)" >&2
+            exit 1
+            ;;
+    esac
+}
+
 create_workflow_cred_secrets() {
     local access_key_id="$1" access_key="$2" endpoint="$3" region="$4" override_url="$5"
+    local addressing_style="${6:-}"
+    validate_addressing_style "$addressing_style"
+    local addressing_style_arg=()
+    if [[ -n "$addressing_style" ]]; then
+        addressing_style_arg=(--from-literal=addressing_style="$addressing_style")
+    fi
     local name
     for name in osmo-workflow-data-cred osmo-workflow-log-cred osmo-workflow-app-cred; do
         $KUBECTL create secret generic "$name" -n "$NAMESPACE" \
@@ -19,6 +36,7 @@ create_workflow_cred_secrets() {
             --from-literal=endpoint="$endpoint" \
             --from-literal=region="$region" \
             --from-literal=override_url="$override_url" \
+            "${addressing_style_arg[@]}" \
             --dry-run=client -o yaml | $KUBECTL apply -f -
     done
 }

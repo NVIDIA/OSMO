@@ -166,7 +166,7 @@ else
 fi
 
 create_workflow_cred_secrets \
-    "$STORAGE_ACCOUNT" "$CONN_STR" "$ENDPOINT" "${STORAGE_LOCATION:-eastus2}" ""
+    "$STORAGE_ACCOUNT" "$CONN_STR" "$ENDPOINT" "${STORAGE_LOCATION:-eastus2}" "" ""
 
 emit_static_values_fragment azure-blob "$ENDPOINT"
 

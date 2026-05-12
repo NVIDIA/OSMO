@@ -74,6 +74,7 @@ else
 
 Optional:
   STORAGE_REGION       (default: $AWS_REGION or us-west-2)
+  STORAGE_ADDRESSING_STYLE (virtual|path|auto)
 
 or run osmo AWS terraform with `s3_bucket_enabled = true` and let the script
 read its outputs from terraform/aws/example/.
@@ -84,6 +85,8 @@ MSG
 fi
 
 ENDPOINT="s3://${BUCKET}"
+ADDRESSING_STYLE="${STORAGE_ADDRESSING_STYLE:-}"
+validate_addressing_style "$ADDRESSING_STYLE"
 
 # 2. Best-effort bucket reachability check via aws CLI when available.
 #    Skip silently if the IAM user's keys haven't propagated yet (eventually
@@ -102,7 +105,7 @@ fi
 
 # 3. Create 3 K8s Secrets, one per workflow_* credential reference.
 create_workflow_cred_secrets \
-    "$ACCESS_KEY_ID" "$SECRET_ACCESS_KEY" "$ENDPOINT" "$REGION" ""
+    "$ACCESS_KEY_ID" "$SECRET_ACCESS_KEY" "$ENDPOINT" "$REGION" "" "$ADDRESSING_STYLE"
 
 # 4. Emit Helm values fragment.
 emit_static_values_fragment s3 "$ENDPOINT"
@@ -111,5 +114,6 @@ echo "[INFO] S3 storage configured (static auth):"
 echo "       bucket:     $BUCKET"
 echo "       endpoint:   $ENDPOINT"
 echo "       region:     $REGION"
+echo "       addressing: ${ADDRESSING_STYLE:-<default>}"
 echo "       secrets:    osmo-workflow-{data,log,app}-cred in $NAMESPACE"
 echo "       values:     $OUTPUT_VALUES"
