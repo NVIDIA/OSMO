@@ -15,12 +15,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Testbot: analyzes coverage gaps, generates tests via Claude Code,
-# validates them, and opens a PR for human review. Runs daily on weekdays.
+# validates them, and opens a PR for human review. Runs hourly on weekdays.
 name: Testbot
 
 on:
   schedule:
-    - cron: '0 6 * * 1-5'  # Weekdays 6 AM UTC
+    - cron: '0 * * * 1-5'  # Weekdays hourly
   workflow_dispatch:
     inputs:
       max_targets:
@@ -52,7 +52,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.open-testbot-prs.outputs.should_run }}
+    steps:
+      - name: Check open testbot PRs
+        id: open-testbot-prs
+        run: |
+          set -euo pipefail
+          unapproved_prs="$(
+            gh pr list \
+              --repo "$REPOSITORY" \
+              --label ai-generated \
+              --state open \
+              --author svc-osmo-ci \
+              --json number,reviewDecision,url \
+              --jq '.[] | select(.reviewDecision != "APPROVED") | "#\(.number) \(.reviewDecision // "UNKNOWN") \(.url)"'
+          )"
+          if [[ -n "$unapproved_prs" ]]; then
+            echo "Open unapproved testbot PR(s) exist; skipping generation:"
+            echo "$unapproved_prs"
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "No open unapproved testbot PRs; continuing."
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+
   generate-tests:
+    needs: preflight
+    if: needs.preflight.outputs.should_run == 'true'
     environment: nim-env
     timeout-minutes: ${{ fromJSON(inputs.timeout_minutes || '30') }}
     runs-on: ubuntu-latest
