@@ -198,7 +198,7 @@ class TestPrCreationHelpers(unittest.TestCase):
             with self.assertRaises(SystemExit) as exit_ctx:
                 main()
 
-        self.assertNotEqual(exit_ctx.exception.code, 0)
+        self.assertNotIn(exit_ctx.exception.code, (0, None))
         enable_auto_merge_mock.assert_called_once_with(
             "https://github.com/NVIDIA/OSMO/pull/123",
         )
