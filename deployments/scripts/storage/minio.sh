@@ -40,6 +40,8 @@ fi
 
 MINIO_BUCKET="${MINIO_BUCKET:-${OSMO_WORKFLOW_BUCKET:-osmo-workflows}}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-minio-operator}"
+MINIO_ADDRESSING_STYLE="${MINIO_ADDRESSING_STYLE:-${STORAGE_ADDRESSING_STYLE:-path}}"
+validate_addressing_style "$MINIO_ADDRESSING_STYLE"
 MINIO_SVC_DNS="minio.${MINIO_NAMESPACE}.svc.cluster.local"
 # Detect the actual Service port. The microk8s `minio` addon exposes the API on
 # Service port 80 (targetPort 9000); install-minio.sh / bitnami chart uses 9000
@@ -114,7 +116,8 @@ timeout "$BUCKET_SETUP_TIMEOUT" \
 
 # 3. Create 3 K8s Secrets, one per workflow_* credential reference.
 create_workflow_cred_secrets \
-    "$MINIO_USER" "$MINIO_PASS" "s3://$MINIO_BUCKET" "us-east-1" "$MINIO_ENDPOINT_URL"
+    "$MINIO_USER" "$MINIO_PASS" "s3://$MINIO_BUCKET" "us-east-1" "$MINIO_ENDPOINT_URL" \
+    "$MINIO_ADDRESSING_STYLE"
 
 # 4. Emit Helm values fragment.
 emit_static_values_fragment minio "s3://$MINIO_BUCKET"
@@ -122,5 +125,6 @@ emit_static_values_fragment minio "s3://$MINIO_BUCKET"
 echo "[INFO] MinIO storage configured:"
 echo "       bucket:      s3://$MINIO_BUCKET"
 echo "       endpoint:    $MINIO_ENDPOINT_URL"
+echo "       addressing:  $MINIO_ADDRESSING_STYLE"
 echo "       secrets:     osmo-workflow-{data,log,app}-cred in $NAMESPACE"
 echo "       values:      $OUTPUT_VALUES"

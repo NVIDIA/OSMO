@@ -37,6 +37,7 @@
 #                                                     (default: $SCRIPT_DIR/values/.storage-values.yaml)
 #   --workload-identity-client-id ID                  Azure UAMI client ID (WI + azure-blob)
 #   --workload-identity-role-arn ARN                  AWS IAM role ARN (WI + byo)
+#   --storage-addressing-style {virtual|path|auto}    S3-compatible addressing style
 #   -h, --help                                        Show this help
 #
 # Backend selection:
@@ -65,12 +66,18 @@
 #   STORAGE_ENDPOINT        — required, e.g. s3://my-bucket
 #   STORAGE_REGION          — optional (default us-east-1)
 #   STORAGE_OVERRIDE_URL    — optional (e.g. https://s3.us-east-1.amazonaws.com)
+#   STORAGE_ADDRESSING_STYLE — optional (virtual|path|auto)
 #
 # BYO env vars (--auth-method workload-identity, AWS IRSA):
 #   WORKLOAD_IDENTITY_ROLE_ARN — required, e.g. arn:aws:iam::123:role/osmo-data-access
 #   STORAGE_ENDPOINT           — required, e.g. s3://my-bucket
 #   STORAGE_REGION             — optional (default us-east-1)
 #   STORAGE_OVERRIDE_URL       — optional
+#   STORAGE_ADDRESSING_STYLE   — optional (virtual|path|auto)
+#
+# MinIO env vars:
+#   MINIO_ADDRESSING_STYLE   — optional (default path; virtual|path|auto)
+#                              STORAGE_ADDRESSING_STYLE is also honored.
 #
 # Azure-blob env vars (--auth-method static):
 #   STORAGE_ACCOUNT         — Azure Storage Account name
@@ -109,6 +116,8 @@ while [[ $# -gt 0 ]]; do
             WORKLOAD_IDENTITY_CLIENT_ID="$2"; shift 2 ;;
         --workload-identity-role-arn)
             WORKLOAD_IDENTITY_ROLE_ARN="$2"; shift 2 ;;
+        --storage-addressing-style)
+            STORAGE_ADDRESSING_STYLE="$2"; shift 2 ;;
         --non-interactive)
             NON_INTERACTIVE=true; shift ;;
         -h|--help)
@@ -132,6 +141,8 @@ esac
 
 KUBECTL="${KUBECTL:-kubectl}"
 export KUBECTL NAMESPACE OUTPUT_VALUES AUTH_METHOD
+[[ -n "${STORAGE_ADDRESSING_STYLE:-}" ]] && export STORAGE_ADDRESSING_STYLE
+[[ -n "${MINIO_ADDRESSING_STYLE:-}" ]] && export MINIO_ADDRESSING_STYLE
 [[ -n "${WORKLOAD_IDENTITY_CLIENT_ID:-}" ]] && export WORKLOAD_IDENTITY_CLIENT_ID
 [[ -n "${WORKLOAD_IDENTITY_ROLE_ARN:-}" ]] && export WORKLOAD_IDENTITY_ROLE_ARN
 
