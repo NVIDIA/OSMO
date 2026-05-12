@@ -46,7 +46,7 @@ export default async function Page() {
 
 ## Logout
 
-Redirect to `/oauth2/sign_out` which clears the session and redirects to IDP logout.
+Redirect to `/signout`. The gateway redirects that path to OAuth2 Proxy sign out and, when configured, the IDP logout endpoint.
 
 ## Local Development
 
