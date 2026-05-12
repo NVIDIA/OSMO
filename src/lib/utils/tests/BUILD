@@ -75,3 +75,13 @@ osmo_py_test(
         "//src/lib/utils:logging",
     ]
 )
+
+osmo_py_test(
+    name = "test_client",
+    srcs = ["test_client.py"],
+    deps = [
+        "//src/lib/utils:client",
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:version",
+    ]
+)
