@@ -348,6 +348,13 @@ setup_provider_env() {
           && -z "${STORAGE_ACCOUNT:-}" ]]; then
         export TF_STORAGE_ACCOUNT_ENABLED=true
     fi
+    # Symmetric to the Azure block above: the S3 storage backend reads bucket
+    # creds from AWS TF outputs when STORAGE_BUCKET isn't set, so flip the
+    # AWS-side toggle when the caller picks --storage-backend s3.
+    if [[ "$PROVIDER" == "aws" && "$STORAGE_BACKEND" == "s3" \
+          && -z "${STORAGE_BUCKET:-}" ]]; then
+        export TF_S3_BUCKET_ENABLED=true
+    fi
 
     # Set output file paths
     OUTPUTS_FILE="$SCRIPT_DIR/.${PROVIDER}_outputs.env"
