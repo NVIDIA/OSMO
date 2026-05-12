@@ -116,6 +116,9 @@ class TestSlackReviewRequest(unittest.TestCase):
             "https://github.com/NVIDIA/OSMO/pull/123",
         )
 
+    def test_extract_pr_url_returns_empty_without_url(self):
+        self.assertEqual(_extract_pr_url("Creating pull request\nno url\n"), "")
+
     def test_build_slack_review_payload(self):
         payload = _build_slack_review_payload(
             channel="#osmo-slack-test",

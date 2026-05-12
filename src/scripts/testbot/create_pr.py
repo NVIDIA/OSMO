@@ -197,7 +197,7 @@ def _extract_pr_url(gh_output: str) -> str:
     for line in reversed(lines):
         if line.startswith(("http://", "https://")):
             return line
-    return lines[-1] if lines else ""
+    return ""
 
 
 def _build_slack_review_text(pr_url: str, pr_title: str) -> str:
