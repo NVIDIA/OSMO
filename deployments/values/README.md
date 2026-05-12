@@ -36,7 +36,13 @@ In addition, the storage backend script ([`scripts/configure-storage.sh`](../scr
 --set services.postgres.serviceName=...
 --set services.redis.serviceName=...
 ... etc
+[-f user-provided-values.yaml]                 # --helm-values / --service-helm-values
+[--set user.provided=value]                    # --helm-set / --service-helm-set
 ```
+
+The backend-operator chart uses the same pattern: `values/backend-operator.yaml`,
+then generated per-cluster `--set` overrides, then `--helm-values` /
+`--backend-operator-helm-values`.
 
 ## Security note: minimal mode auth
 

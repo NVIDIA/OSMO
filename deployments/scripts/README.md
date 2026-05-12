@@ -121,6 +121,7 @@ When invoked, the entry-point runs these phases in order. Each is idempotent and
 4. **OSMO Helm install** (`deploy-k8s.sh`)
    - Creates namespaces, MEK ConfigMap, NGC pull secret
    - `helm upgrade --install` with chart + storage-values fragment + `--set global.osmoImageTag=$OSMO_IMAGE_TAG` + `--version $OSMO_CHART_VERSION` (when set)
+   - Optional user values files and simple `--set` overrides are layered last
    - Idempotent backend-operator token mint (re-uses existing if valid)
    - Waits for pods Running 1/1
 5. **Smoke test** (`verify.sh`) — submits `verify-hello.yaml`, polls until COMPLETED, dumps logs on failure. With GPU nodes, also runs `verify-gpu.yaml`.
@@ -146,10 +147,46 @@ Main entry point — see `--help` for the full flag list. Orchestrates all phase
 | `--skip-osmo` | Provision infrastructure only. |
 | `--destroy` | TF destroy (azure/aws) + cluster cleanup. |
 | `--ngc-api-key KEY` | Auth for `nvcr.io` images and `helm.ngc.nvidia.com` charts. Also `NGC_API_KEY` env var. |
+| `--helm-values FILE` | Repeatable values file layered into both the service and backend-operator Helm releases. |
+| `--service-helm-values FILE` | Repeatable values file layered only into the service Helm release. |
+| `--backend-operator-helm-values FILE` | Repeatable values file layered only into the backend-operator Helm release. |
+| `--helm-set KEY=VALUE` | Repeatable simple `--set` override for both Helm releases. Use a values file for nested or complex values. |
+| `--service-helm-set KEY=VALUE` | Repeatable simple `--set` override only for the service Helm release. |
+| `--backend-operator-helm-set KEY=VALUE` | Repeatable simple `--set` override only for the backend-operator Helm release. |
 | `--non-interactive` | Fail if required values are missing (CI mode). |
 | `--dry-run` | Print phases without making changes. |
 
 Full help: `./deploy-osmo-minimal.sh --help`.
+
+Extra values are applied after the built-in static, PodMonitor, GPU pool, storage values, and generated per-cluster overrides. That means an explicit caller value always wins, including image pull policy, resources, node selectors, tolerations, probes, image settings, database host, Redis host, and namespaces.
+
+For broad overrides, prefer a values file:
+
+```yaml
+# /tmp/osmo-overrides.yaml
+services:
+  ui:
+    imagePullPolicy: IfNotPresent
+  service:
+    imagePullPolicy: IfNotPresent
+
+gateway:
+  envoy:
+    imagePullPolicy: IfNotPresent
+
+backendTestRunner:
+  podTemplate:
+    image:
+      pullPolicy: IfNotPresent
+    initContainer:
+      imagePullPolicy: IfNotPresent
+```
+
+Then pass it to both OSMO charts:
+
+```bash
+./deploy-osmo-minimal.sh --provider azure --helm-values /tmp/osmo-overrides.yaml
+```
 
 ### `deploy-k8s.sh`
 
