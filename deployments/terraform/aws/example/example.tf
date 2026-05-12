@@ -115,28 +115,65 @@ module "eks" {
     attach_cluster_primary_security_group = true
   }
 
-  eks_managed_node_groups = {
-    main = {
-      name = "${local.name}-nodes"
+  eks_managed_node_groups = merge(
+    {
+      main = {
+        name = "${local.name}-nodes"
 
-      min_size     = var.node_group_min_size
-      max_size     = var.node_group_max_size
-      desired_size = var.node_group_desired_size
+        min_size     = var.node_group_min_size
+        max_size     = var.node_group_max_size
+        desired_size = var.node_group_desired_size
 
-      instance_types = var.node_instance_types
-      capacity_type  = "ON_DEMAND"
+        instance_types = var.node_instance_types
+        capacity_type  = "ON_DEMAND"
 
-      k8s_labels = {
-        NodeGroup   = "${local.name}-nodes"
+        k8s_labels = {
+          NodeGroup = "${local.name}-nodes"
+        }
+
+        update_config = {
+          max_unavailable_percentage = 33
+        }
+
+        tags = local.tags
       }
+    },
+    # Optional GPU node group (gated on var.gpu_node_pool_enabled).
+    # Tainted with sku=gpu:NoSchedule so non-GPU pods don't schedule here;
+    # deploy-k8s.sh detects GPU nodes and renders a matching toleration.
+    var.gpu_node_pool_enabled ? {
+      gpu = {
+        name = "${local.name}-gpu"
 
-      update_config = {
-        max_unavailable_percentage = 33
+        min_size     = var.gpu_node_group_min_size
+        max_size     = var.gpu_node_group_max_size
+        desired_size = var.gpu_node_group_min_size
+
+        instance_types = [var.gpu_instance_type]
+        capacity_type  = var.gpu_node_group_capacity_type
+        ami_type       = "AL2_x86_64_GPU"
+
+        labels = {
+          "nvidia.com/gpu" = "present"
+          "sku"            = "gpu"
+        }
+
+        taints = {
+          gpu = {
+            key    = "sku"
+            value  = "gpu"
+            effect = "NO_SCHEDULE"
+          }
+        }
+
+        update_config = {
+          max_unavailable_percentage = 33
+        }
+
+        tags = local.tags
       }
-
-      tags = local.tags
-    }
-  }
+    } : {}
+  )
 
   # EKS Access Entries (replaces aws-auth ConfigMap in module v20+)
   # This is the new AWS-native way to manage cluster access
@@ -382,4 +419,65 @@ resource "aws_security_group_rule" "alb_to_eks" {
   description              = "Allow ALB to communicate with EKS nodes"
 
   depends_on = [module.alb, module.eks]
+}
+
+################################################################################
+# Optional S3 bucket for OSMO workflow data (gated on var.s3_bucket_enabled)
+#
+# When enabled, configure-storage.sh --backend s3 reads outputs (s3_bucket,
+# s3_access_key_id, s3_secret_access_key) directly. Disable to BYO an existing
+# bucket; pass STORAGE_ENDPOINT + STORAGE_ACCESS_KEY_ID + STORAGE_ACCESS_KEY
+# as env vars and use --backend byo instead.
+################################################################################
+
+data "aws_caller_identity" "current" {}
+
+resource "aws_s3_bucket" "osmo" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  # Bucket names must be globally unique. Account-id prefix keeps it scoped
+  # to this account so the same cluster_name in another account doesn't
+  # collide.
+  bucket        = "${data.aws_caller_identity.current.account_id}-${local.name}-osmo"
+  force_destroy = var.s3_force_destroy
+  tags          = local.tags
+}
+
+resource "aws_s3_bucket_public_access_block" "osmo" {
+  count                   = var.s3_bucket_enabled ? 1 : 0
+  bucket                  = aws_s3_bucket.osmo[0].id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_iam_user" "osmo_s3" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  name  = "${local.name}-osmo-s3"
+  tags  = local.tags
+}
+
+resource "aws_iam_user_policy" "osmo_s3" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  name  = "${local.name}-osmo-s3"
+  user  = aws_iam_user.osmo_s3[0].name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "s3:GetObject", "s3:PutObject", "s3:DeleteObject",
+        "s3:ListBucket", "s3:GetBucketLocation",
+      ]
+      Resource = [
+        aws_s3_bucket.osmo[0].arn,
+        "${aws_s3_bucket.osmo[0].arn}/*",
+      ]
+    }]
+  })
+}
+
+resource "aws_iam_access_key" "osmo_s3" {
+  count = var.s3_bucket_enabled ? 1 : 0
+  user  = aws_iam_user.osmo_s3[0].name
 }

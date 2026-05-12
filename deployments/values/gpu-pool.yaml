@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Opt-in fragment that registers a GPU platform on the default OSMO pool.
+# Layered by deploy-osmo-minimal.sh when GPU nodes are detected
+# (`kubectl get nodes -l nvidia.com/gpu.present`).
+#
+# Replaces the 6.2-era `osmo config update POD_TEMPLATE` + `osmo config update
+# POOL` CLI dance — in 6.3 ConfigMap mode the pool definition lives in values.
+#
+# The taint key/value here matches the GPU node pool TF resources in
+# terraform/{azure,aws}/example/. If you customize the taint, override here.
+
+services:
+  configs:
+    enabled: true
+    podTemplates:
+      gpu_toleration:
+        spec:
+          tolerations:
+            - key: sku
+              operator: Equal
+              value: gpu
+              effect: NoSchedule
+          nodeSelector:
+            nvidia.com/gpu.present: "true"
+    pools:
+      default:
+        platforms:
+          system: {}
+          gpu:
+            override_pod_template: gpu_toleration

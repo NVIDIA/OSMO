@@ -27,7 +27,7 @@ kombu==5.6.2
 redis==7.4.0
 
 # kubernetes
-kubernetes==24.2.0
+kubernetes==35.0.0
 
 # Delegate Python ssl to the OS trust store. Required because Python 3.14's
 # strict X.509 path validation rejects CA certs without keyUsage (e.g. microk8s

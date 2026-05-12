@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# GPU smoke test — runs nvidia-smi inside a CUDA container. Succeeds iff:
+#   1. The pool advertises gpu>=1 to OSMO.
+#   2. OSMO/KAI can place a task on a GPU node.
+#   3. The node's NVIDIA driver + container toolkit are wired up correctly.
+# A failure here means the cluster isn't GPU-ready — fix GPU Operator /
+# DISABLE_DEV_CHAR_SYMLINK_CREATION / driver install BEFORE running any real
+# GPU workload.
+workflow:
+  name: verify-gpu
+  timeout:
+    exec_timeout: 10m
+    queue_timeout: 10m
+  resources:
+    one_gpu:
+      cpu: 2
+      gpu: 1
+      memory: 4Gi
+      storage: 5Gi
+  tasks:
+  - name: nvidia-smi
+    image: nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
+    resource: one_gpu
+    command: ["bash", "-c"]
+    args:
+    - |
+      set -e
+      echo "=== nvidia-smi ==="
+      nvidia-smi
+      echo ""
+      echo "=== CUDA runtime visible ==="
+      nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv

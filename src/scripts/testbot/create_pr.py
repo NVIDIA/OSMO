@@ -13,10 +13,12 @@ Usage:
 
 import argparse
 import datetime
+import json
 import logging
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 from src.scripts.testbot.guardrails import get_changed_test_files
 
@@ -64,6 +66,91 @@ def has_open_testbot_pr() -> bool:
 
 _SUSPECTED_BUG_RE = re.compile(r"(?:#|//)\s*SUSPECTED BUG:\s*(.+)")
 
+# Map a generated test file back to the source file it covers, so the
+# Stage-2 picker rationale (keyed on source path) can be attached to the
+# right test in the PR body. Mirrors the conventions enforced by
+# TESTBOT_RULES.md and the basename-stripping in the title generator.
+_TEST_TO_SOURCE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"(.*?)/tests/test_([^/]+\.py)$"), r"\1/\2"),
+    (re.compile(r"(.+)_test(\.go)$"), r"\1\2"),
+    (re.compile(r"(.+)\.test(\.tsx?)$"), r"\1\2"),
+)
+
+
+def _test_to_source_path(test_path: str) -> str | None:
+    """Return the source path a test file covers, or None if unknown."""
+    for pattern, replacement in _TEST_TO_SOURCE_PATTERNS:
+        match = pattern.fullmatch(test_path)
+        if match:
+            return pattern.sub(replacement, test_path)
+    return None
+
+
+def _load_targets_meta(path: str) -> dict[str, dict]:
+    """Read the picker sidecar JSON into a {source_path: meta} dict.
+
+    Missing or malformed files yield an empty map so the PR-creation
+    flow never blocks on a stale or absent meta file.
+    """
+    if not path:
+        return {}
+    try:
+        entries = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Could not read targets meta %s: %s", path, exc)
+        return {}
+    if not isinstance(entries, list):
+        logger.warning("targets meta is not a list: %r", entries)
+        return {}
+    return {
+        entry["file_path"]: entry
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("file_path")
+    }
+
+
+def _build_rationale_section(
+    changed_files: list[str],
+    meta: dict[str, dict],
+) -> str:
+    """Render the 'Why ... was targeted' section, or '' when no rationale."""
+    seen_sources: list[str] = []
+    seen_set: set[str] = set()
+    for test_path in changed_files:
+        source = _test_to_source_path(test_path)
+        if source and source in meta and source not in seen_set:
+            seen_set.add(source)
+            seen_sources.append(source)
+    if not seen_sources:
+        return ""
+    heading = (
+        "## Why this file was targeted"
+        if len(seen_sources) == 1
+        else "## Why these files were targeted"
+    )
+    blocks: list[str] = [heading, ""]
+    for source in seen_sources:
+        entry = meta[source]
+        try:
+            coverage = float(entry.get("coverage_pct", 0.0))
+        except (TypeError, ValueError):
+            coverage = 0.0
+        try:
+            uncovered = int(entry.get("uncovered_lines", 0))
+        except (TypeError, ValueError):
+            uncovered = 0
+        raw_reason = entry.get("reason")
+        reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
+        blocks.append(
+            f"**`{source}`** — {coverage:.1f}% coverage, "
+            f"{uncovered} uncovered lines."
+        )
+        if reason:
+            blocks.append("")
+            blocks.extend(f"> {line}" for line in reason.splitlines())
+        blocks.append("")
+    return "\n".join(blocks).rstrip() + "\n"
+
 
 def _scan_suspected_bugs(files: list[str]) -> list[str]:
     """Scan test files for SUSPECTED BUG markers left by Claude."""
@@ -92,6 +179,11 @@ def main() -> None:
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be done without creating a PR",
+    )
+    parser.add_argument(
+        "--targets-meta", default="",
+        help="Optional path to the picker's JSON metadata; when provided, "
+             "the PR body includes the 'Why this file was targeted' section",
     )
     args = parser.parse_args()
 
@@ -140,6 +232,11 @@ def main() -> None:
         bugs_list = "\n".join(f"- {bug}" for bug in suspected_bugs)
         bugs_section = f"\n## Suspected bugs\n{bugs_list}\n"
 
+    targets_meta = _load_targets_meta(args.targets_meta)
+    rationale_section = _build_rationale_section(changed_files, targets_meta)
+    if rationale_section:
+        rationale_section = "\n" + rationale_section
+
     pr_body = f"""## Summary
 AI-generated tests targeting file(s) with low coverage.
 
@@ -147,7 +244,7 @@ Issue - None
 
 ## Files tested
 {files_list}
-{bugs_section}
+{rationale_section}{bugs_section}
 ## Checklist
 - [x] I am familiar with the Contributing Guidelines
 - [x] New or existing tests cover these changes

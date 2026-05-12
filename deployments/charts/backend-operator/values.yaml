@@ -335,6 +335,17 @@ services:
     ##
     apiBurst: 30
 
+    ## Startup probe tuning. Defaults sized for managed K8s (AKS/EKS) where
+    ## progress_check (PyInstaller-bundled Python) cold-starts past 15s on
+    ## small system-pool nodes. 60s timeout × 30 attempts = 150s tolerance.
+    ## Harmless on fast clusters (probe stops at first success).
+    ##
+    startupProbe:
+      failureThreshold: 30
+      periodSeconds: 5
+      timeoutSeconds: 60
+      initialDelaySeconds: 10
+
   ## Backend worker configuration
   ## Executes jobs received from the backend listener
   ##
@@ -445,6 +456,17 @@ services:
         memory: "1Gi"
       limits:
         memory: "1Gi"
+
+    ## Startup probe tuning. Defaults sized for managed K8s (AKS/EKS) where
+    ## progress_check (PyInstaller-bundled Python) cold-starts past 15s on
+    ## small system-pool nodes. 60s timeout × 30 attempts = 150s tolerance.
+    ## Harmless on fast clusters (probe stops at first success).
+    ##
+    startupProbe:
+      failureThreshold: 30
+      periodSeconds: 5
+      timeoutSeconds: 60
+      initialDelaySeconds: 10
 
 
 ## Backend Test Runner CronJob Configuration

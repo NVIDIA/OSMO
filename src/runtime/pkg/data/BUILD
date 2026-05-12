@@ -34,6 +34,12 @@ go_library(
 
 go_test(
     name = "data_test",
-    srcs = ["data_test.go"],
+    srcs = [
+        "data_test.go",
+        "input_output_test.go",
+    ],
     embed = [":data"],
+    deps = [
+        "//src/runtime/pkg/common:common",
+    ],
 )

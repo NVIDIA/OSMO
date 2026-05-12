@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+# Mock `osmo` CLI for the osmo-agent skill evals.
+#
+# Dispatches by subcommand and prints canned content from a fixtures
+# directory tree. Fixtures are organized into scenario subdirectories
+# (e.g. `default/`, `quota_full/`, `pending/`); the mock auto-discovers
+# which fixture to use by scanning every scenario dir for the requested
+# filename.
+#
+# This works because each eval entry in `evals.json` only references
+# fixtures from a single scenario in its `files[]` list — the eval
+# harness copies just those files into the agent's working directory,
+# so only one scenario's fixtures are present at runtime.
+#
+# Place this directory on `PATH` ahead of any real `osmo` binary so
+# that `osmo <subcommand>` resolves to this script during eval runs.
+#
+# Environment variables:
+#   OSMO_MOCK_FIXTURES   Override the fixtures root
+#                        (default: <this dir>/../fixtures)
+
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FIXTURES_ROOT="${OSMO_MOCK_FIXTURES:-$SELF_DIR/../fixtures}"
+
+# Look up a fixture by filename, scanning every scenario subdirectory
+# under FIXTURES_ROOT. Tries each candidate name in order and uses the
+# first one that resolves. If a candidate name matches multiple files
+# across scenarios, we fail loudly rather than silently picking one —
+# that's a fixture-layout bug the eval author should fix.
+emit_fixture() {
+  local relpath
+  for relpath in "$@"; do
+    if [[ ! -d "$FIXTURES_ROOT" ]]; then
+      continue
+    fi
+    local matches=()
+    while IFS= read -r -d '' candidate; do
+      matches+=("$candidate")
+    done < <(find "$FIXTURES_ROOT" -maxdepth 2 -type f -name "$relpath" -print0 2>/dev/null | sort -z)
+    case "${#matches[@]}" in
+      0)
+        continue
+        ;;
+      1)
+        cat "${matches[0]}"
+        return 0
+        ;;
+      *)
+        echo "mock_osmo: ambiguous fixture '$relpath' (${#matches[@]} matches)" >&2
+        local m
+        for m in "${matches[@]}"; do
+          echo "  $m" >&2
+        done
+        exit 1
+        ;;
+    esac
+  done
+  echo "mock_osmo: no fixture found for: $*" >&2
+  echo "mock_osmo: searched under: $FIXTURES_ROOT" >&2
+  exit 1
+}
+
+cmd="${1:-}"
+sub="${2:-}"
+
+# Treat top-level flags (--version, --help) the same as their subcommand
+# equivalents so prerequisite checks like `osmo --version` succeed.
+case "$cmd" in
+  --version|-V)
+    echo "mock-osmo 0.0.0"
+    exit 0
+    ;;
+  --help|-h)
+    echo "mock-osmo — stub used for osmo-agent eval runs"
+    exit 0
+    ;;
+esac
+
+case "$cmd $sub" in
+  "profile list")
+    emit_fixture "profile_list.json"
+    ;;
+  "pool list")
+    emit_fixture "pool_list.json"
+    ;;
+  "resource list")
+    emit_fixture "resource_list.json"
+    ;;
+  "workflow list")
+    emit_fixture "workflow_list.json"
+    ;;
+  "workflow query")
+    # Route by workflow name so name-keyed fixtures (e.g. the PENDING
+    # `stuck-train-1` scenario) take precedence over the generic default.
+    case "$3" in
+      stuck-train-1)
+        emit_fixture "workflow_query_pending.json"
+        ;;
+      *)
+        emit_fixture "workflow_query.json" "workflow_query_single_task.json"
+        ;;
+    esac
+    ;;
+  "workflow logs")
+    emit_fixture "workflow_logs.txt" "workflow_logs_single_task.txt"
+    ;;
+  "workflow events")
+    case "$3" in
+      stuck-train-1)
+        emit_fixture "workflow_events_pending.txt"
+        ;;
+      *)
+        emit_fixture "workflow_events.txt"
+        ;;
+    esac
+    ;;
+  "workflow spec")
+    case "$3" in
+      stuck-train-1)
+        emit_fixture "workflow_spec_pending.yaml"
+        ;;
+      *)
+        emit_fixture "workflow_spec_template.yaml"
+        ;;
+    esac
+    ;;
+  "workflow submit")
+    # Mirror real OSMO's per-name suffix counter: each submit of a base
+    # workflow name produces `<name>-1`, `<name>-2`, ... so multi-submit
+    # evals (e.g. eval-009) see realistic monotonic IDs. State lives in a
+    # /tmp counter file that persists across calls within a single eval
+    # container but resets between containers.
+    counter_file="${OSMO_MOCK_SUBMIT_COUNTER:-/tmp/osmo_mock_submit_counter}"
+    counter=$(cat "$counter_file" 2>/dev/null || echo 0)
+    counter=$((counter + 1))
+    echo "$counter" > "$counter_file"
+    emit_fixture "submit_response.txt" | sed "s/gr00t-train-1/gr00t-train-${counter}/g"
+    ;;
+  "app create")
+    emit_fixture "app_create_response.txt"
+    ;;
+  "version "|"version")
+    echo "mock-osmo 0.0.0"
+    ;;
+  *)
+    echo "mock_osmo: unhandled command: $cmd $sub" >&2
+    echo "mock_osmo: full args: $*" >&2
+    exit 2
+    ;;
+esac

@@ -559,21 +559,24 @@ class RsyncClient:
         self._stop_event.set()
         self._tcp_close.set()
 
-        if self._port_forward_task is not None:
-            try:
-                self._port_forward_task.cancel()
-            except Exception:  # pylint: disable=broad-except
-                pass
+        current_task = asyncio.current_task()
+        tasks = [
+            task for task in (self._port_forward_task, self._reconcile_upload_task)
+            if task is not None and task is not current_task and not task.done()
+        ]
 
-        if self._reconcile_upload_task is not None:
-            try:
-                self._reconcile_upload_task.cancel()
-            except Exception:  # pylint: disable=broad-except
-                pass
+        for task in tasks:
+            task.cancel()
 
-        if self._sock is not None:
-            self._sock.close()
-            self._sock = None
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, Exception) and not isinstance(
+                    result, asyncio.CancelledError
+                ):
+                    logger.error('Unexpected error during task shutdown: %s', result)
+
+        # Socket cleanup is owned by run_tcp_with_sock via asyncio.start_server.
 
     async def upload(self) -> None:
         """

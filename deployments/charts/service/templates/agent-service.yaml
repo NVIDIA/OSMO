@@ -186,19 +186,10 @@ spec:
           failureThreshold: 3
           periodSeconds: 45
 
-        # Give the container 30 seconds to startup
+        {{- with .Values.services.agent.startupProbe }}
         startupProbe:
-          exec:
-            command:
-            - progress_check
-            - --progress_interval
-            - "60"
-            - --progress_file
-            - /var/run/osmo/last_progress
-          failureThreshold: 12
-          periodSeconds: 5
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
 
         readinessProbe:
           httpGet:

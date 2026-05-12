@@ -34,6 +34,8 @@ This Helm chart deploys the OSMO platform with its core services and an optional
 | `global.nodeSelector` | Global node selector | `{}` |
 | `global.hostname` | External DNS hostname this OSMO deployment serves on (e.g. `staging.osmo.nvidia.com`). Canonical fallback for `services.service.hostname`, `services.router.hostname`, and `gateway.envoy.hostname` — set this once at the top level instead of three times. | `""` |
 
+> **Startup probe tuning.** Each service has its own `services.<svc>.startupProbe` block in `values.yaml` (api/agent/logger/router/ui/worker/delayedJobMonitor). To loosen tolerance on slow-I/O clusters, bump `failureThreshold` (with `periodSeconds: 5`, the value × 5 is roughly the seconds of init slack before CrashLoopBackOff). Defaults are 24 across the board — about 2 minutes — and don't affect healthy startups since the first successful probe ends the startup phase.
+
 ### Global Logging Settings
 
 | Parameter | Description | Default |

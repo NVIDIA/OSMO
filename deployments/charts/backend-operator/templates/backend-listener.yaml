@@ -167,10 +167,10 @@ spec:
             - "300:300:300:300"
             - --progress_file
             - /var/run/osmo/last_progress_websocket:/var/run/osmo/last_progress_pod:/var/run/osmo/last_progress_node:/var/run/osmo/last_progress_event
-          failureThreshold: 12
-          periodSeconds: 5
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
+          failureThreshold: {{ .Values.services.backendListener.startupProbe.failureThreshold }}
+          periodSeconds: {{ .Values.services.backendListener.startupProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.services.backendListener.startupProbe.timeoutSeconds }}
+          initialDelaySeconds: {{ .Values.services.backendListener.startupProbe.initialDelaySeconds }}
 
       {{- with .Values.services.backendListener.extraSidecarContainers }}
       {{- toYaml . | nindent 6 }}

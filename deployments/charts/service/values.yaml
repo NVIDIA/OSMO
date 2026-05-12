@@ -278,7 +278,7 @@ services:
       httpGet:
         path: /health
         port: 8000
-      failureThreshold: 6
+      failureThreshold: 24
       periodSeconds: 5
       timeoutSeconds: 3
       initialDelaySeconds: 5
@@ -775,6 +775,22 @@ services:
     ##
     initContainers: []
 
+    ## Startup probe — runs progress_check until the delayed job monitor
+    ## has reported progress at least once. failureThreshold * periodSeconds
+    ## (default 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "30"
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
+
     ## Node selector constraints for delayed job monitor pod scheduling
     ##
     nodeSelector: {}
@@ -886,6 +902,22 @@ services:
     ## Init containers for worker
     ##
     initContainers: []
+
+    ## Startup probe — runs progress_check until the worker has reported
+    ## progress at least once. failureThreshold * periodSeconds (default
+    ## 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "300"
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for worker pod scheduling
     ##
@@ -1089,6 +1121,20 @@ services:
       ## How often to perform the probe
       ##
       periodSeconds: 45
+
+    ## Startup probe — kubelet waits up to failureThreshold * periodSeconds
+    ## (default 24 * 5 = 120s) for the API service to bind its TLS listener
+    ## after configmap/secret loads + task-metric registration. Once the
+    ## first probe succeeds, the startup phase ends and liveness takes over.
+    ##
+    startupProbe:
+      httpGet:
+        port: 8000
+        path: /api/version
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
 
     ## Node selector constraints for API service pod scheduling
     ##
@@ -1311,7 +1357,7 @@ services:
       httpGet:
         port: 8000
         path: /api/router/version
-      failureThreshold: 6
+      failureThreshold: 24
       periodSeconds: 5
       timeoutSeconds: 3
       initialDelaySeconds: 30
@@ -1365,6 +1411,24 @@ services:
     ## Init containers for logger service
     ##
     initContainers: []
+
+    ## Startup probe — runs progress_check until the logger has reported
+    ## progress at least once. failureThreshold * periodSeconds (default
+    ## 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "60"
+        - --progress_file
+        - /var/run/osmo/last_progress
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for logger service pod scheduling
     ##
@@ -1483,6 +1547,24 @@ services:
     ## Init containers for agent service
     ##
     initContainers: []
+
+    ## Startup probe — runs progress_check until the agent has reported
+    ## progress at least once. failureThreshold * periodSeconds (default
+    ## 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "60"
+        - --progress_file
+        - /var/run/osmo/last_progress
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for agent service pod scheduling
     ##

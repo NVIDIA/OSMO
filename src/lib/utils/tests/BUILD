@@ -34,6 +34,14 @@ osmo_py_test(
     ]
 )
 
+osmo_py_test(
+    name = "test_port_forward",
+    srcs = ["test_port_forward.py"],
+    deps = [
+        "//src/lib/utils:port_forward",
+    ]
+)
+
 
 osmo_py_test(
     name = "test_jinja_sandbox",

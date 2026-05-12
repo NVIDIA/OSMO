@@ -217,18 +217,10 @@ spec:
         {{- include "osmo.upstream-probe-yaml" (dict "probe" .Values.services.service.livenessProbe "context" .) | nindent 10 }}
 
 
-        # Give the container 30 seconds to startup
+        # Probe spec comes from values.yaml; the helper overlays
+        # `scheme: HTTPS` when gateway.tls.enabled is true.
         startupProbe:
-          httpGet:
-            port: 8000
-            path: /api/version
-            {{- if .Values.gateway.tls.enabled }}
-            scheme: HTTPS
-            {{- end }}
-          failureThreshold: 6
-          periodSeconds: 5
-          timeoutSeconds: 3
-          initialDelaySeconds: 5
+          {{- include "osmo.upstream-probe-yaml" (dict "probe" .Values.services.service.startupProbe "context" .) | nindent 10 }}
 
         # Do a basic database read operation to ensure the service is able to serve traffic
         readinessProbe:

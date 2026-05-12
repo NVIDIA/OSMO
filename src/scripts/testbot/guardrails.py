@@ -24,12 +24,44 @@ def is_test_file(file_path: str) -> bool:
     """Check if a file path matches known test file patterns.
 
     BUILD files are only allowed inside /tests/ directories to prevent
-    modifications to source-package BUILD files.
+    modifications to source-package BUILD files. Use ``is_allowed_change``
+    when contextual signals (e.g. a sibling ``*_test.go`` in the same
+    change set) should also let a source-package ``BUILD`` through —
+    that's the Go convention because Go tests live next to their source.
     """
     basename = file_path.rsplit("/", maxsplit=1)[-1]
     if basename == "BUILD" and "/tests/" in file_path:
         return True
     return any(fnmatch.fnmatch(basename, pattern) for pattern in TEST_FILE_PATTERNS)
+
+
+def _has_sibling_go_test(build_path: str, change_set: set[str]) -> bool:
+    """Return True when ``build_path``'s directory contains a Go test in change_set."""
+    if "/" not in build_path:
+        return False
+    package_dir = build_path.rsplit("/", maxsplit=1)[0] + "/"
+    return any(
+        path.startswith(package_dir)
+        and "/" not in path[len(package_dir):]
+        and path.endswith("_test.go")
+        for path in change_set
+    )
+
+
+def is_allowed_change(file_path: str, change_set: set[str]) -> bool:
+    """Like ``is_test_file`` but also allows source-package BUILD edits paired with a Go test.
+
+    Go tests live next to their source (no ``/tests/`` segment), so adding
+    ``*_test.go`` requires editing the source package's ``BUILD`` to declare
+    a ``go_test`` rule. We let that BUILD edit through when a sibling
+    ``_test.go`` is part of the same change set.
+    """
+    if is_test_file(file_path):
+        return True
+    basename = file_path.rsplit("/", maxsplit=1)[-1]
+    if basename == "BUILD" and _has_sibling_go_test(file_path, change_set):
+        return True
+    return False
 
 
 def _detect_changes() -> tuple[set[str], set[str]]:
@@ -96,7 +128,7 @@ def get_changed_test_files() -> list[str]:
     non_test_tracked = []
     non_test_untracked = []
     for file_path in sorted(all_files):
-        if is_test_file(file_path):
+        if is_allowed_change(file_path, all_files):
             test_files.append(file_path)
         elif file_path in untracked:
             non_test_untracked.append(file_path)

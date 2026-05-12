@@ -171,10 +171,10 @@ spec:
             - "300:300"
             - --progress_file
             - /var/run/osmo/last_progress_worker_job:/var/run/osmo/last_progress_worker_heartbeat
-          failureThreshold: 12
-          periodSeconds: 5
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
+          failureThreshold: {{ .Values.services.backendWorker.startupProbe.failureThreshold }}
+          periodSeconds: {{ .Values.services.backendWorker.startupProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.services.backendWorker.startupProbe.timeoutSeconds }}
+          initialDelaySeconds: {{ .Values.services.backendWorker.startupProbe.initialDelaySeconds }}
 
       {{- with .Values.services.backendWorker.extraSidecarContainers }}
       {{- toYaml . | nindent 6 }}
