@@ -61,7 +61,7 @@ jobs:
         id: open-testbot-prs
         run: |
           set -euo pipefail
-          unapproved_prs="$(
+          if ! unapproved_prs="$(
             gh pr list \
               --repo "$REPOSITORY" \
               --label ai-generated \
@@ -69,7 +69,11 @@ jobs:
               --author svc-osmo-ci \
               --json number,reviewDecision,url \
               --jq '.[] | select(.reviewDecision != "APPROVED") | "#\(.number) \(.reviewDecision // "UNKNOWN") \(.url)"'
-          )"
+          )"; then
+            echo "Failed to list open testbot PRs; skipping generation."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ -n "$unapproved_prs" ]]; then
             echo "Open unapproved testbot PR(s) exist; skipping generation:"
             echo "$unapproved_prs"
