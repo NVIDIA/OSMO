@@ -92,6 +92,28 @@ DRY_RUN="${DRY_RUN:-false}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 
+# Optional user Helm overrides. deploy-osmo-minimal.sh sets these arrays before
+# sourcing this file; direct deploy-k8s.sh invocations can populate them through
+# parse_k8s_args below.
+if ! declare -p OSMO_HELM_VALUES_FILES >/dev/null 2>&1; then
+    declare -a OSMO_HELM_VALUES_FILES=()
+fi
+if ! declare -p OSMO_SERVICE_HELM_VALUES_FILES >/dev/null 2>&1; then
+    declare -a OSMO_SERVICE_HELM_VALUES_FILES=()
+fi
+if ! declare -p OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES >/dev/null 2>&1; then
+    declare -a OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES=()
+fi
+if ! declare -p OSMO_HELM_SET_VALUES >/dev/null 2>&1; then
+    declare -a OSMO_HELM_SET_VALUES=()
+fi
+if ! declare -p OSMO_SERVICE_HELM_SET_VALUES >/dev/null 2>&1; then
+    declare -a OSMO_SERVICE_HELM_SET_VALUES=()
+fi
+if ! declare -p OSMO_BACKEND_OPERATOR_HELM_SET_VALUES >/dev/null 2>&1; then
+    declare -a OSMO_BACKEND_OPERATOR_HELM_SET_VALUES=()
+fi
+
 # IS_PRIVATE_CLUSTER is set by azure/terraform.sh (when AKS is private) or by
 # preflight in the BYO provider. Default to false so non-azure / non-byo
 # providers (microk8s, aws) don't trip `set -u` later.
@@ -132,6 +154,30 @@ parse_k8s_args() {
                 ;;
             --ngc-api-key)
                 NGC_API_KEY="$2"
+                shift 2
+                ;;
+            --helm-values)
+                OSMO_HELM_VALUES_FILES+=("$2")
+                shift 2
+                ;;
+            --service-helm-values)
+                OSMO_SERVICE_HELM_VALUES_FILES+=("$2")
+                shift 2
+                ;;
+            --backend-operator-helm-values|--operator-helm-values)
+                OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES+=("$2")
+                shift 2
+                ;;
+            --helm-set)
+                OSMO_HELM_SET_VALUES+=("$2")
+                shift 2
+                ;;
+            --service-helm-set)
+                OSMO_SERVICE_HELM_SET_VALUES+=("$2")
+                shift 2
+                ;;
+            --backend-operator-helm-set|--operator-helm-set)
+                OSMO_BACKEND_OPERATOR_HELM_SET_VALUES+=("$2")
                 shift 2
                 ;;
             *)
@@ -651,9 +697,95 @@ chart_version_flag() {
     fi
 }
 
+validate_user_helm_overrides() {
+    local value_file
+    for value_file in "${OSMO_HELM_VALUES_FILES[@]+"${OSMO_HELM_VALUES_FILES[@]}"}" \
+                      "${OSMO_SERVICE_HELM_VALUES_FILES[@]+"${OSMO_SERVICE_HELM_VALUES_FILES[@]}"}" \
+                      "${OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES[@]+"${OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES[@]}"}"; do
+        if [[ -z "$value_file" ]]; then
+            continue
+        fi
+        if [[ ! -f "$value_file" ]]; then
+            log_error "Helm values file not found: $value_file"
+            return 1
+        fi
+    done
+
+    local set_value
+    for set_value in "${OSMO_HELM_SET_VALUES[@]+"${OSMO_HELM_SET_VALUES[@]}"}" \
+                     "${OSMO_SERVICE_HELM_SET_VALUES[@]+"${OSMO_SERVICE_HELM_SET_VALUES[@]}"}" \
+                     "${OSMO_BACKEND_OPERATOR_HELM_SET_VALUES[@]+"${OSMO_BACKEND_OPERATOR_HELM_SET_VALUES[@]}"}"; do
+        if [[ -z "$set_value" ]]; then
+            continue
+        fi
+        if [[ "$set_value" != *=* ]]; then
+            log_error "Helm --set override must use KEY=VALUE form: $set_value"
+            return 1
+        fi
+    done
+}
+
+helm_user_values_flags() {
+    local chart_scope="$1"
+    local flags=""
+    local value_file
+
+    for value_file in "${OSMO_HELM_VALUES_FILES[@]+"${OSMO_HELM_VALUES_FILES[@]}"}"; do
+        [[ -n "$value_file" ]] && flags+=" -f $value_file"
+    done
+
+    case "$chart_scope" in
+        service)
+            for value_file in "${OSMO_SERVICE_HELM_VALUES_FILES[@]+"${OSMO_SERVICE_HELM_VALUES_FILES[@]}"}"; do
+                [[ -n "$value_file" ]] && flags+=" -f $value_file"
+            done
+            ;;
+        backend-operator)
+            for value_file in "${OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES[@]+"${OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES[@]}"}"; do
+                [[ -n "$value_file" ]] && flags+=" -f $value_file"
+            done
+            ;;
+        *)
+            log_error "Unknown Helm chart scope: $chart_scope"
+            return 1
+            ;;
+    esac
+
+    echo "$flags"
+}
+
+helm_user_set_flags() {
+    local chart_scope="$1"
+    local flags=""
+    local set_value
+
+    for set_value in "${OSMO_HELM_SET_VALUES[@]+"${OSMO_HELM_SET_VALUES[@]}"}"; do
+        [[ -n "$set_value" ]] && flags+=" --set $set_value"
+    done
+
+    case "$chart_scope" in
+        service)
+            for set_value in "${OSMO_SERVICE_HELM_SET_VALUES[@]+"${OSMO_SERVICE_HELM_SET_VALUES[@]}"}"; do
+                [[ -n "$set_value" ]] && flags+=" --set $set_value"
+            done
+            ;;
+        backend-operator)
+            for set_value in "${OSMO_BACKEND_OPERATOR_HELM_SET_VALUES[@]+"${OSMO_BACKEND_OPERATOR_HELM_SET_VALUES[@]}"}"; do
+                [[ -n "$set_value" ]] && flags+=" --set $set_value"
+            done
+            ;;
+        *)
+            log_error "Unknown Helm chart scope: $chart_scope"
+            return 1
+            ;;
+    esac
+
+    echo "$flags"
+}
+
 # Build extra helm `-f` flags for the service release. Layering order matters:
-# later files override earlier ones. The static service.yaml is passed as the
-# RUN_HELM_WITH_VALUES primary file (always first); these are appended after.
+# later files override earlier ones. The static service.yaml is passed first;
+# these are appended after.
 #
 #  1. PodMonitor on/off fragment (auto-detected via prometheus-operator CRDs)
 #  2. GPU pool fragment (when GPU nodes are detected)
@@ -727,12 +859,13 @@ deploy_osmo_service() {
     #   3. values/gpu-pool.yaml                    (if GPU nodes detected)
     #   4. .storage-values.yaml                    (from configure-storage.sh — overrides as needed)
     #   5. --set per-cluster overrides             (PG/Redis hosts, image tag, etc.)
+    #   6. user values files / --set overrides     (from deploy-osmo-minimal flags)
     # In 6.3 the service chart bundles router + UI, so this is the only release.
     # --timeout 15m by default — Azure Managed Redis cold start (~10-15 min)
     # + AKS image pulls (~3-5 min) + Postgres + service init can push past 10m
     # on a fresh cluster. Override via HELM_TIMEOUT_SERVICE for slower envs.
     $RUN_HELM \
-        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout ${HELM_TIMEOUT_SERVICE:-15m}$(chart_version_flag) -f $STATIC_VALUES_DIR/service.yaml$(extra_values_flags)$(service_set_flags)"
+        "upgrade --install osmo-minimal $OSMO_HELM_REPO_NAME/service --namespace $OSMO_NAMESPACE --wait --timeout ${HELM_TIMEOUT_SERVICE:-15m}$(chart_version_flag) -f $STATIC_VALUES_DIR/service.yaml$(extra_values_flags)$(service_set_flags)$(helm_user_values_flags service)$(helm_user_set_flags service)"
 
     log_success "OSMO service deployed"
 }
@@ -764,10 +897,10 @@ setup_backend_operator() {
 
     # Phase 2: install/upgrade backend-operator chart unconditionally.
     log_info "Deploying Backend Operator..."
-    # backend-operator.yaml first, then --set overrides last (no per-cluster
-    # values fragment for backend-operator, so order is straightforward).
+    # backend-operator.yaml first, generated per-cluster overrides next, then
+    # user overrides last so an explicit caller value always wins.
     $RUN_HELM \
-        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)"
+        "upgrade --install osmo-operator $OSMO_HELM_REPO_NAME/backend-operator --namespace $OSMO_OPERATOR_NAMESPACE --wait --timeout ${HELM_TIMEOUT_OPERATOR:-10m}$(chart_version_flag) -f $STATIC_VALUES_DIR/backend-operator.yaml$(backend_operator_set_flags)$(helm_user_values_flags backend-operator)$(helm_user_set_flags backend-operator)"
 
     log_success "Backend Operator deployed"
 }
@@ -972,6 +1105,7 @@ deploy_k8s_main() {
     # Layer values/gpu-pool.yaml when GPU nodes are detected.
     # 6.3 ConfigMap mode: pod template + pool defs go into Helm values, not CLI.
     render_gpu_pool_values
+    validate_user_helm_overrides
 
     deploy_osmo_service
     wait_for_pods "$OSMO_NAMESPACE" "${OSMO_WAIT_TIMEOUT_SERVICE:-300}" "" "$RUN_KUBECTL"

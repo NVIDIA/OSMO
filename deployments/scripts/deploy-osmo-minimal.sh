@@ -80,6 +80,14 @@ NGC_API_KEY="${NGC_API_KEY:-}"
 TF_POSTGRES_PASSWORD="${TF_POSTGRES_PASSWORD:-}"
 TF_REDIS_PASSWORD="${TF_REDIS_PASSWORD:-}"
 
+# User-supplied Helm overrides for the OSMO service and backend-operator charts.
+declare -a OSMO_HELM_VALUES_FILES=()
+declare -a OSMO_SERVICE_HELM_VALUES_FILES=()
+declare -a OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES=()
+declare -a OSMO_HELM_SET_VALUES=()
+declare -a OSMO_SERVICE_HELM_SET_VALUES=()
+declare -a OSMO_BACKEND_OPERATOR_HELM_SET_VALUES=()
+
 # New flags (cluster-agnostic OSMO deploy)
 GPU_NODE_POOL=false
 STORAGE_BACKEND="${STORAGE_BACKEND:-auto}"
@@ -129,6 +137,20 @@ General Options:
   --gpu-node-pool        Provision a GPU node pool (azure/aws only; requires TF variables)
   --no-gpu               Skip GPU Operator install + GPU smoke test
   --gpu                  microk8s only: enable the nvidia addon during bootstrap
+  --helm-values FILE     Extra Helm values file for both OSMO charts (repeatable)
+  --service-helm-values FILE
+                         Extra Helm values file for the service chart (repeatable)
+  --backend-operator-helm-values FILE
+                         Extra Helm values file for the backend-operator chart
+                         (repeatable)
+  --helm-set KEY=VALUE   Extra Helm --set override for both OSMO charts
+                         (repeatable; use values files for complex values)
+  --service-helm-set KEY=VALUE
+                         Extra Helm --set override for the service chart
+                         (repeatable)
+  --backend-operator-helm-set KEY=VALUE
+                         Extra Helm --set override for the backend-operator chart
+                         (repeatable)
   -h, --help             Show this help message
 
 Azure-specific Options:
@@ -181,6 +203,10 @@ Examples:
   # Only deploy OSMO (infrastructure exists)
   ./deploy-osmo-minimal.sh --provider azure --skip-terraform
 
+  # Deploy with extra Helm values, for example imagePullPolicy overrides
+  ./deploy-osmo-minimal.sh --provider azure \
+    --helm-values /path/to/osmo-overrides.yaml
+
   # Destroy everything
   ./deploy-osmo-minimal.sh --provider azure --destroy
 EOF
@@ -221,6 +247,18 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ngc-api-key)
             NGC_API_KEY="$2"; shift 2 ;;
+        --helm-values)
+            OSMO_HELM_VALUES_FILES+=("$2"); shift 2 ;;
+        --service-helm-values)
+            OSMO_SERVICE_HELM_VALUES_FILES+=("$2"); shift 2 ;;
+        --backend-operator-helm-values|--operator-helm-values)
+            OSMO_BACKEND_OPERATOR_HELM_VALUES_FILES+=("$2"); shift 2 ;;
+        --helm-set)
+            OSMO_HELM_SET_VALUES+=("$2"); shift 2 ;;
+        --service-helm-set)
+            OSMO_SERVICE_HELM_SET_VALUES+=("$2"); shift 2 ;;
+        --backend-operator-helm-set|--operator-helm-set)
+            OSMO_BACKEND_OPERATOR_HELM_SET_VALUES+=("$2"); shift 2 ;;
         -h|--help)
             show_help
             exit 0
@@ -809,4 +847,3 @@ main() {
 
 # Run main function
 main
-
