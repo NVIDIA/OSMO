@@ -368,6 +368,8 @@ Envoy uses filesystem-based dynamic configuration (LDS/CDS). When the ConfigMap 
 
 #### Gateway OAuth2 Proxy
 
+When enabled, the gateway exposes `/signout` and redirects it to `/oauth2/sign_out`. If `services.service.auth.logout_endpoint` is set, the gateway includes it as OAuth2 Proxy's `rd` target so logout clears both the local session cookie and the IDP SSO session. The IDP logout host must be allowed by `gateway.oauth2Proxy.extraArgs`, for example with `--whitelist-domain=<idp-domain>`.
+
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `gateway.oauth2Proxy.enabled` | Enable OAuth2 Proxy deployment | `true` |

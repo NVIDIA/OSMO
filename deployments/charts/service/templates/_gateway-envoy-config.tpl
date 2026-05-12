@@ -189,6 +189,14 @@ data:
                 routes:
                 {{- if $gw.oauth2Proxy.enabled }}
                 - match:
+                    path: /signout
+                  redirect:
+                    {{- if .Values.services.service.auth.logout_endpoint }}
+                    path_redirect: "/oauth2/sign_out?rd={{ .Values.services.service.auth.logout_endpoint | urlquery }}"
+                    {{- else }}
+                    path_redirect: "/oauth2/sign_out"
+                    {{- end }}
+                - match:
                     prefix: /oauth2/
                   route:
                     cluster: oauth2-proxy
