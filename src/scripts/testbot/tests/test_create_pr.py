@@ -97,21 +97,17 @@ class TestSlackReviewRequest(unittest.TestCase):
     def test_resolve_unknown_slack_channel_passthrough(self):
         self.assertEqual(_resolve_slack_channel("C123"), "C123")
 
-    def test_get_slack_bot_token_prefers_testbot_token(self):
-        env = {
-            "TESTBOT_SLACK_BOT_TOKEN": "testbot-token",
-            "SLACK_RELEASE_BOT_TOKEN": "release-token",
-        }
-        with patch.dict(os.environ, env, clear=True):
-            self.assertEqual(_get_slack_bot_token(), "testbot-token")
-
-    def test_get_slack_bot_token_falls_back_to_release_token(self):
+    def test_get_slack_bot_token_reads_testbot_token(self):
         with patch.dict(
             os.environ,
-            {"SLACK_RELEASE_BOT_TOKEN": "release-token"},
+            {"TESTBOT_SLACK_BOT_TOKEN": "testbot-token"},
             clear=True,
         ):
-            self.assertEqual(_get_slack_bot_token(), "release-token")
+            self.assertEqual(_get_slack_bot_token(), "testbot-token")
+
+    def test_get_slack_bot_token_returns_empty_when_unset(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(_get_slack_bot_token(), "")
 
     def test_extract_pr_url_prefers_last_url_line(self):
         output = "Creating pull request\nhttps://github.com/NVIDIA/OSMO/pull/123\n"

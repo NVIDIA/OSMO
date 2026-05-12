@@ -188,11 +188,7 @@ def _resolve_slack_channel(channel: str) -> str:
 
 def _get_slack_bot_token() -> str:
     """Return the configured Slack bot token, if any."""
-    return (
-        os.environ.get("TESTBOT_SLACK_BOT_TOKEN")
-        or os.environ.get("SLACK_RELEASE_BOT_TOKEN")
-        or ""
-    )
+    return os.environ.get("TESTBOT_SLACK_BOT_TOKEN") or ""
 
 
 def _extract_pr_url(gh_output: str) -> str:
@@ -244,8 +240,7 @@ def _post_slack_review_request(
     """Post a fail-soft Slack review request after a PR is created."""
     if not bot_token:
         logger.warning(
-            "TESTBOT_SLACK_BOT_TOKEN/SLACK_RELEASE_BOT_TOKEN not set; "
-            "skipping Slack review request",
+            "TESTBOT_SLACK_BOT_TOKEN not set; skipping Slack review request",
         )
         return False
     if not pr_url:
