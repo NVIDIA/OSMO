@@ -94,7 +94,11 @@ class TestPrCreationHelpers(unittest.TestCase):
     """Tests for PR creation helper functions."""
 
     def test_extract_pr_url_prefers_last_url_line(self):
-        output = "Creating pull request\nhttps://github.com/NVIDIA/OSMO/pull/123\n"
+        output = (
+            "Creating pull request\n"
+            "https://github.com/NVIDIA/OSMO/pull/122\n"
+            "https://github.com/NVIDIA/OSMO/pull/123\n"
+        )
         self.assertEqual(
             _extract_pr_url(output),
             "https://github.com/NVIDIA/OSMO/pull/123",
@@ -163,6 +167,42 @@ class TestPrCreationHelpers(unittest.TestCase):
         enable_auto_merge_mock.assert_called_once_with(
             "https://github.com/NVIDIA/OSMO/pull/123",
         )
+
+    def test_main_exits_when_auto_merge_enable_fails(self):
+        gh_create_result = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                   return_value=False), \
+                patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                      return_value=["src/lib/tests/test_foo.py"]), \
+                patch("src.scripts.testbot.create_pr.run",
+                      return_value=subprocess.CompletedProcess([], 0)), \
+                patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                      return_value=[]), \
+                patch("src.scripts.testbot.create_pr._enable_auto_merge") \
+                as enable_auto_merge_mock, \
+                patch("src.scripts.testbot.create_pr._post_slack_review_request") \
+                as post_slack_mock, \
+                patch.object(sys, "argv", ["create_pr.py"]):
+            run_mock.side_effect = [
+                subprocess.CompletedProcess([], 0),
+                gh_create_result,
+            ]
+            enable_auto_merge_mock.return_value = False
+
+            with self.assertRaises(SystemExit) as exit_ctx:
+                main()
+
+        self.assertNotEqual(exit_ctx.exception.code, 0)
+        enable_auto_merge_mock.assert_called_once_with(
+            "https://github.com/NVIDIA/OSMO/pull/123",
+        )
+        post_slack_mock.assert_not_called()
 
 
 class TestSlackReviewRequest(unittest.TestCase):
