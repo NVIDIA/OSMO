@@ -232,6 +232,10 @@ data:
                     timeout: 0s
                 {{- end }}
 
+                {{- with $envoy.extraRoutes }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+
                 {{- if $envoy.serviceRoutes }}
                 {{- toYaml $envoy.serviceRoutes | nindent 16 }}
                 {{- else }}
@@ -885,6 +889,10 @@ data:
                     path: /var/config
             {{- end }}
       {{- end }}
+    {{- end }}
+
+    {{- with $envoy.extraClusters }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
 
 {{- end }}

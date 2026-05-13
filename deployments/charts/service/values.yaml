@@ -1891,6 +1891,16 @@ gateway:
     ##
     tolerations: []
 
+    ## Extra volume mounts for the Envoy container.
+    ## Use this for namespace-local Secrets or ConfigMaps required by custom
+    ## gateway routes.
+    ##
+    extraVolumeMounts: []
+
+    ## Extra volumes for the Envoy pod.
+    ##
+    extraVolumes: []
+
     ## Identity Provider for JWKS discovery (e.g. login.microsoftonline.com)
     ##
     idp:
@@ -1938,6 +1948,17 @@ gateway:
     ## When empty, default routes for /api/ and /client/ are used.
     ##
     serviceRoutes: []
+
+    ## Extra routes inserted before the default osmo-service and osmo-ui routes.
+    ## Each item is rendered as an Envoy route. Use this for narrow external
+    ## upstream paths such as artifact download routes.
+    ##
+    extraRoutes: []
+
+    ## Extra clusters appended to Envoy CDS. Each item is rendered as an Envoy
+    ## Cluster resource and can be targeted by extraRoutes.
+    ##
+    extraClusters: []
 
     ## Circuit breaker — max concurrent requests to the osmo-service upstream
     ##
