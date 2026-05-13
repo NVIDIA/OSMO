@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCookie, updateALBCookies } from "@/lib/auth/cookies";
 
@@ -43,5 +43,15 @@ describe("updateALBCookies", () => {
 
     expect(getCookie("AWSALB")).toBe("primary");
     expect(getCookie("AWSALBCORS")).toBe("cors");
+  });
+
+  it("does not add a second leading dot to an explicit cookie domain", () => {
+    const cookieSetter = vi.spyOn(Document.prototype, "cookie", "set");
+
+    updateALBCookies("_osmo_router_affinity=abc123; Path=/", ".example.com");
+
+    expect(cookieSetter).toHaveBeenCalledWith(
+      "_osmo_router_affinity=abc123; Path=/; domain=.example.com; max-age=10",
+    );
   });
 });

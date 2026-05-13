@@ -85,7 +85,9 @@ export function updateALBCookies(cookie: string, domain?: string): void {
 
   if (typeof document === "undefined") return;
 
+  const cookieDomain = domain ? `; domain=${domain.startsWith(".") ? domain : `.${domain}`}` : "";
+
   for (const part of parts) {
-    document.cookie = `${part}${domain ? `; domain=.${domain}` : ""}; max-age=10`;
+    document.cookie = `${part}${cookieDomain}; max-age=10`;
   }
 }

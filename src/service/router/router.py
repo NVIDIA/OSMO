@@ -63,7 +63,7 @@ class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.Sta
         description='Timeout for non-activewebserver connections.',
         json_schema_extra={'command_line': 'webserver_nonactive_timeout'})
     sticky_cookies: List[str] = pydantic.Field(
-        default=['AWSALB', 'AWSALBCORS'],
+        default=['AWSALB', 'AWSALBCORS', '_osmo_router_affinity'],
         description='List of sticky cookies to send to the webserver.',
         json_schema_extra={'command_line': 'sticky_cookies'})
 
