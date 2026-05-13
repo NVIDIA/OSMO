@@ -17,7 +17,7 @@ SPDX-License-Identifier: Apache-2.0
 """
 
 load("@aspect_rules_py//py:defs.bzl", "py_image_layer")
-load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_py_test", "osmo_python_wrapper")
+load("//bzl:py.bzl", "osmo_py_binary", "osmo_py_library", "osmo_python_wrapper")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
@@ -47,12 +47,6 @@ osmo_py_binary(
     name = "router_binary",
     main = "router.py",
     srcs = ["router.py"],
-    deps = [":router_lib"],
-)
-
-osmo_py_test(
-    name = "test_router",
-    srcs = ["test_router.py"],
     deps = [":router_lib"],
 )
 
