@@ -601,6 +601,9 @@ services:
       default:
         description: "Default pool"
         backend: default
+        common_pod_template:
+          - default_user
+          - default_ctrl
         default_platform: default
         platforms:
           default: {}
