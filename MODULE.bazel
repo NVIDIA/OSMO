@@ -356,10 +356,10 @@ apt.install(
 
 oci.pull(
     name = "distroless_python3_14",
-    digest = "sha256:fb2b71e7a05688113e12607dc8ae127c3e00bf8af8c28a6a9a2626ad673c789e",
+    digest = "sha256:ec7cb9d99f7aca022f228c1be9740ec77441e9235c92840a05bc9dc0a3fe1fe3",
     image = BASE_DISTROLESS_IMAGE_URL + "python:3.14-v4.0.5",
     platforms = [
-        "linux/arm64",
+        "linux/arm64/v8",
         "linux/amd64",
     ],
 )
@@ -388,7 +388,7 @@ use_repo(
     oci,
     "distroless_python3_14",
     "distroless_python3_14_linux_amd64",
-    "distroless_python3_14_linux_arm64",
+    "distroless_python3_14_linux_arm64_v8",
     # "distroless_python3_14_dev",
     # "distroless_python3_14_dev_linux_amd64",
     # "distroless_python3_14_dev_linux_arm64_v8",
