@@ -45,11 +45,11 @@ export function getCookie(name: string): string | null {
 }
 
 // =============================================================================
-// ALB Sticky Session Cookie Management
+// Router Sticky Session Cookie Management
 // =============================================================================
 
 /**
- * AWS Application Load Balancer (ALB) uses sticky session cookies to ensure
+ * The router gateway uses sticky session cookies to ensure
  * WebSocket connections route to the same backend node that created the session.
  *
  * The exec/portforward API returns these cookies in the response, and they must
@@ -57,17 +57,13 @@ export function getCookie(name: string): string | null {
  */
 
 /**
- * Set ALB sticky session cookies from exec/portforward API response.
+ * Set router sticky session cookies from exec/portforward API response.
  *
- * The backend returns two comma-separated cookies:
- * - AWSALB: Primary ALB sticky cookie
- * - AWSALBCORS: CORS-compatible ALB sticky cookie
+ * These cookies ensure the WebSocket connects to the same router replica that
+ * holds the exec/portforward session. Without them, the connection may route
+ * to a different replica, causing a 60-second timeout.
  *
- * These cookies ensure the WebSocket connects to the same ALB backend node
- * that holds the exec/portforward session. Without them, the connection may
- * route to a different node, causing a 60-second timeout.
- *
- * @param cookie - Comma-separated cookie strings from API response (e.g., "AWSALB=..., AWSALBCORS=...")
+ * @param cookie - Comma-separated cookie strings from API response
  * @param domain - Optional domain for cookie scope (e.g., ".example.com")
  *
  * @example
@@ -82,14 +78,16 @@ export function getCookie(name: string): string | null {
  * established and sticky session is maintained by the connection itself.
  */
 export function updateALBCookies(cookie: string, domain?: string): void {
-  // Cookie string format: "AWSALB=..., AWSALBCORS=..."
-  const parts = cookie.split(", ");
+  const parts = cookie
+    .split(/,\s*(?=[^;,=\s]+=)/)
+    .map((part) => part.trim())
+    .filter(Boolean);
 
-  if (parts.length === 2 && typeof document !== "undefined") {
-    // Set AWSALB cookie
-    document.cookie = `${parts[0]}${domain ? `; domain=.${domain}` : ""}; max-age=10`;
+  if (typeof document === "undefined") return;
 
-    // Set AWSALBCORS cookie
-    document.cookie = `${parts[1]}${domain ? `; domain=.${domain}` : ""}; max-age=10`;
+  const cookieDomain = domain ? `; domain=${domain.startsWith(".") ? domain : `.${domain}`}` : "";
+
+  for (const part of parts) {
+    document.cookie = `${part}${cookieDomain}; max-age=10`;
   }
 }
