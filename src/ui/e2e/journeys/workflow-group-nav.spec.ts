@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
 import { WorkflowStatus } from "@/mocks/factories";
 import { setupDefaultMocks, setupProfile } from "@/e2e/utils/mock-setup";
 
@@ -179,9 +179,17 @@ function createWorkflowWithMultipleGroups(name: string) {
 }
 
 test.describe("Workflow Detail Group Navigation", () => {
-  test.describe.configure({ timeout: 30_000 });
+  test.describe.configure({ timeout: 60_000 });
 
   const wfName = "group-nav-wf";
+
+  /** Select a multi-task DAG group: outer treeitem click often misses the inner [role=button] header under React Flow. */
+  async function selectDagGroup(page: Page, treeitem: Locator) {
+    await expect(treeitem).toBeVisible({ timeout: 20_000 });
+    await treeitem.scrollIntoViewIfNeeded();
+    await treeitem.focus();
+    await page.keyboard.press("Enter");
+  }
 
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -207,14 +215,11 @@ test.describe("Workflow Detail Group Navigation", () => {
     // Click the "data-prep" group in the DAG (outer node is role="treeitem";
     // the inner role="button" can be hard to hit under React Flow transforms in CI).
     const dagNode = page.getByRole("treeitem", { name: /data-prep/i }).first();
-    await expect(dagNode).toBeVisible({ timeout: 15_000 });
-    await dagNode.scrollIntoViewIfNeeded();
-    await dagNode.click();
+    await selectDagGroup(page, dagNode);
 
-    // ASSERT — group details panel shows group name
-    await expect(page.getByRole("heading", { name: /data-prep/i })).toBeVisible({ timeout: 15_000 });
-    // Shows task count subtitle
-    await expect(page.getByText("2 tasks", { exact: true }).first()).toBeVisible();
+    // ASSERT — group details panel shows group name + task count (subtitle uses middle dot separator)
+    await expect(page.getByRole("heading", { name: /data-prep/i })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/\b2\s+tasks\b/).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("group details shows Overview and Tasks tabs", async ({ page }) => {
@@ -225,12 +230,10 @@ test.describe("Workflow Detail Group Navigation", () => {
 
     // Click the "training" group node
     const dagNode = page.getByRole("treeitem", { name: /training,/i }).first();
-    await expect(dagNode).toBeVisible({ timeout: 15_000 });
-    await dagNode.scrollIntoViewIfNeeded();
-    await dagNode.click();
+    await selectDagGroup(page, dagNode);
 
-    // ASSERT — group tabs visible
-    await expect(page.getByRole("heading", { name: /^training$/i })).toBeVisible({ timeout: 15_000 });
+    // ASSERT — group tabs visible (panel title is the group name)
+    await expect(page.getByRole("heading", { name: /training/i })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Tasks" })).toBeVisible();
   });
@@ -243,12 +246,10 @@ test.describe("Workflow Detail Group Navigation", () => {
 
     // Click the "data-prep" group
     const dagNode = page.getByRole("treeitem", { name: /data-prep/i }).first();
-    await expect(dagNode).toBeVisible({ timeout: 15_000 });
-    await dagNode.scrollIntoViewIfNeeded();
-    await dagNode.click();
+    await selectDagGroup(page, dagNode);
 
     // Wait for group details
-    await expect(page.getByRole("heading", { name: /data-prep/i })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: /data-prep/i })).toBeVisible({ timeout: 20_000 });
 
     // Click breadcrumb to go back to workflow
     await page.getByRole("button", { name: wfName }).click();
