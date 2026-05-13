@@ -523,6 +523,15 @@ services:
         left_operand: "{{USER_MEMORY}}"
         right_operand: "0"
         assert_message: "Value {{USER_MEMORY}} needs to be greater than 0 for memory"
+      default_gpu:
+      - operator: LE
+        left_operand: "{{USER_GPU}}"
+        right_operand: "{{K8_GPU}}"
+        assert_message: "GPU value {{USER_GPU}} too high for GPU"
+      - operator: GE
+        left_operand: "{{USER_GPU}}"
+        right_operand: "0"
+        assert_message: "GPU value {{USER_GPU}} cannot be negative"
       default_storage:
       - operator: LT
         left_operand: "{{USER_STORAGE}}"
