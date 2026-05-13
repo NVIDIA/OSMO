@@ -152,16 +152,19 @@ class TestValidPath(unittest.TestCase):
             self.assertEqual(validation.valid_path(tmp_dir), os.path.abspath(tmp_dir))
 
     def test_valid_path_rejects_missing(self):
-        with self.assertRaises(osmo_errors.OSMOUserError):
-            validation.valid_path('/nonexistent/path/to/nothing')
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            missing_path = os.path.join(tmp_dir, 'does-not-exist')
+            with self.assertRaises(osmo_errors.OSMOUserError):
+                validation.valid_path(missing_path)
 
 
 class TestValidFilePath(unittest.TestCase):
     """Tests for validation.valid_file_path."""
 
     def test_valid_file_path_accepts_nonexistent(self):
-        path = '/tmp/this-file-should-not-exist-osmo-test'
-        self.assertEqual(validation.valid_file_path(path), path)
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = os.path.join(tmp_dir, 'new-file.txt')
+            self.assertEqual(validation.valid_file_path(path), path)
 
     def test_valid_file_path_rejects_directory(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
