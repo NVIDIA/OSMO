@@ -1045,6 +1045,9 @@ func TestRoleActions_UnmarshalJSON_MidArrayError(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for mid-array invalid element, got nil")
 	}
+	if len(actions) != 0 {
+		t.Errorf("actions should remain empty on unmarshal error, got len=%d", len(actions))
+	}
 }
 
 // TestRoleActions_UnmarshalJSON_ValidStringElements verifies the '"' switch
