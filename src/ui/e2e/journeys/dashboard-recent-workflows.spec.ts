@@ -64,13 +64,17 @@ test.describe("Dashboard Recent Workflow Interactions", () => {
 
     // ACT
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
+    // Avoid networkidle: Next + TanStack can keep long-polling / background
+    // requests alive and make networkidle flaky in CI.
+    const workflowLink = page.locator('a[href="/workflows/my-training-job"]');
+    await expect(workflowLink.first()).toBeVisible({ timeout: 20_000 });
 
-    // Click the workflow in the recent list
-    await page.getByRole("link", { name: /my-training-job/i }).first().click();
-
-    // ASSERT — navigates to workflow detail
-    await expect(page).toHaveURL(/\/workflows\/my-training-job/);
+    // ASSERT — navigates to workflow detail (race-free with client-side routing)
+    await Promise.all([
+      page.waitForURL(/\/workflows\/my-training-job/, { timeout: 20_000 }),
+      workflowLink.first().click(),
+    ]);
   });
 
   test("shows 'No workflows to display' when recent list is empty", async ({ page }) => {

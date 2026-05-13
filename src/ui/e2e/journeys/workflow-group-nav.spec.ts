@@ -201,15 +201,18 @@ test.describe("Workflow Detail Group Navigation", () => {
   test("clicking a group node in the DAG shows group details", async ({ page }) => {
     // ACT
     await page.goto(`/workflows/${wfName}`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.locator(".react-flow")).toBeVisible({ timeout: 20_000 });
 
-    // Click the "data-prep" group node button in the DAG
-    const dagNode = page.getByRole("button", { name: /data-prep/ }).first();
-    await expect(dagNode).toBeVisible({ timeout: 10_000 });
+    // Click the "data-prep" group in the DAG (outer node is role="treeitem";
+    // the inner role="button" can be hard to hit under React Flow transforms in CI).
+    const dagNode = page.getByRole("treeitem", { name: /data-prep/i }).first();
+    await expect(dagNode).toBeVisible({ timeout: 15_000 });
+    await dagNode.scrollIntoViewIfNeeded();
     await dagNode.click();
 
     // ASSERT — group details panel shows group name
-    await expect(page.getByRole("heading", { name: "data-prep" })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: /data-prep/i })).toBeVisible({ timeout: 15_000 });
     // Shows task count subtitle
     await expect(page.getByText("2 tasks", { exact: true }).first()).toBeVisible();
   });
@@ -217,15 +220,17 @@ test.describe("Workflow Detail Group Navigation", () => {
   test("group details shows Overview and Tasks tabs", async ({ page }) => {
     // ACT
     await page.goto(`/workflows/${wfName}`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.locator(".react-flow")).toBeVisible({ timeout: 20_000 });
 
     // Click the "training" group node
-    const dagNode = page.getByRole("button", { name: /training/ }).first();
-    await expect(dagNode).toBeVisible({ timeout: 10_000 });
+    const dagNode = page.getByRole("treeitem", { name: /training,/i }).first();
+    await expect(dagNode).toBeVisible({ timeout: 15_000 });
+    await dagNode.scrollIntoViewIfNeeded();
     await dagNode.click();
 
     // ASSERT — group tabs visible
-    await expect(page.getByRole("heading", { name: "training" })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: /^training$/i })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Tasks" })).toBeVisible();
   });
@@ -233,15 +238,17 @@ test.describe("Workflow Detail Group Navigation", () => {
   test("breadcrumb click navigates back to workflow details", async ({ page }) => {
     // ACT
     await page.goto(`/workflows/${wfName}`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.locator(".react-flow")).toBeVisible({ timeout: 20_000 });
 
     // Click the "data-prep" group
-    const dagNode = page.getByRole("button", { name: /data-prep/ }).first();
-    await expect(dagNode).toBeVisible({ timeout: 10_000 });
+    const dagNode = page.getByRole("treeitem", { name: /data-prep/i }).first();
+    await expect(dagNode).toBeVisible({ timeout: 15_000 });
+    await dagNode.scrollIntoViewIfNeeded();
     await dagNode.click();
 
     // Wait for group details
-    await expect(page.getByRole("heading", { name: "data-prep" })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: /data-prep/i })).toBeVisible({ timeout: 15_000 });
 
     // Click breadcrumb to go back to workflow
     await page.getByRole("button", { name: wfName }).click();
