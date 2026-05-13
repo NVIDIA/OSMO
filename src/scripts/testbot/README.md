@@ -19,7 +19,7 @@ filesystem ───┘                                                         
 | **Stage 2: LLM picker** | `select_targets_agent.py` + `SELECT_TARGETS_PROMPT.md` | A read-only Claude Code subagent (`Read,Glob,Grep` only) reads each candidate, rejects hard-to-test infra glue, and picks the 1-3 files where unit tests would have the highest ROI. Can return zero picks if nothing meets the bar. |
 | **Test generation** | Claude Code CLI | Reads source, writes test files and BUILD entries, runs tests, iterates on failures |
 | **Guardrails** | `guardrails.py` | Filters out any non-test file changes made by Claude |
-| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, renders the picker's target rationale, and sends a brief Slack review request when Slack credentials are configured |
+| **PR creation** | `create_pr.py` | Creates branch, commits test files, pushes, opens PR with `ai-generated` label, enables auto-merge, renders the picker's target rationale, and sends a brief Slack review request when Slack credentials are configured |
 
 Claude Code is sandboxed: it can only read files, edit test files, and run test commands (`bazel test`, `pnpm test`). It cannot run `git`, `gh`, or modify source code. All git and GitHub operations are in deterministic harness scripts.
 
@@ -70,7 +70,10 @@ gh workflow run testbot.yaml --ref <branch> \
 
 ### Schedule
 
-Runs automatically on weekdays at 6 AM UTC.
+Runs automatically every hour on weekdays. A cheap preflight job lists open
+testbot PRs first; generation is skipped while any open testbot PR is still
+unapproved, and proceeds when there are no open testbot PRs or all open testbot
+PRs are approved.
 
 ### Review response
 

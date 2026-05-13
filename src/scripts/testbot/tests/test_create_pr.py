@@ -13,8 +13,9 @@ from unittest.mock import patch
 from src.scripts.testbot.create_pr import (
     SLACK_API_URL,
     TESTBOT_SLACK_CHANNEL_DEFAULT,
-    _build_slack_review_payload,
     _build_rationale_section,
+    _build_slack_review_payload,
+    _enable_auto_merge,
     _extract_pr_url,
     _get_slack_bot_token,
     _load_targets_meta,
@@ -22,7 +23,7 @@ from src.scripts.testbot.create_pr import (
     _resolve_slack_channel,
     _scan_suspected_bugs,
     _test_to_source_path,
-    has_open_testbot_pr,
+    has_unapproved_testbot_pr,
     main,
 )
 
@@ -43,46 +44,165 @@ class _FakeSlackResponse:
         return self._body
 
 
-class TestHasOpenTestbotPr(unittest.TestCase):
-    """Tests for has_open_testbot_pr duplicate detection."""
+class TestHasUnapprovedTestbotPr(unittest.TestCase):
+    """Tests for unapproved testbot PR duplicate detection."""
 
     @patch("src.scripts.testbot.create_pr.run")
     def test_no_open_prs_returns_false(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="0\n")
-        self.assertFalse(has_open_testbot_pr())
+        self.assertFalse(has_unapproved_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
-    def test_one_open_pr_returns_true(self, mock_run):
+    def test_one_unapproved_pr_returns_true(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="1\n")
-        self.assertTrue(has_open_testbot_pr())
+        self.assertTrue(has_unapproved_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
-    def test_multiple_open_prs_returns_true(self, mock_run):
+    def test_multiple_unapproved_prs_returns_true(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="3\n")
-        self.assertTrue(has_open_testbot_pr())
+        self.assertTrue(has_unapproved_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
     def test_gh_command_fails_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 1, stdout="", stderr="error")
-        self.assertTrue(has_open_testbot_pr())
+        self.assertTrue(has_unapproved_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
     def test_non_numeric_output_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="unexpected\n")
-        self.assertTrue(has_open_testbot_pr())
+        self.assertTrue(has_unapproved_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
     def test_empty_output_returns_true_fail_closed(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="")
-        self.assertTrue(has_open_testbot_pr())
+        self.assertTrue(has_unapproved_testbot_pr())
 
     @patch("src.scripts.testbot.create_pr.run")
-    def test_filters_by_author(self, mock_run):
+    def test_filters_by_author_and_review_decision(self, mock_run):
         mock_run.return_value = subprocess.CompletedProcess([], 0, stdout="0\n")
-        has_open_testbot_pr()
+        has_unapproved_testbot_pr()
         cmd = mock_run.call_args[0][0]
         self.assertIn("--author", cmd)
         self.assertIn("svc-osmo-ci", cmd)
+        self.assertIn("number,reviewDecision", cmd)
+        self.assertTrue(
+            any('select(.reviewDecision != "APPROVED")' in arg for arg in cmd),
+        )
+
+
+class TestPrCreationHelpers(unittest.TestCase):
+    """Tests for PR creation helper functions."""
+
+    def test_extract_pr_url_prefers_last_url_line(self):
+        output = (
+            "Creating pull request\n"
+            "https://github.com/NVIDIA/OSMO/pull/122\n"
+            "https://github.com/NVIDIA/OSMO/pull/123\n"
+        )
+        self.assertEqual(
+            _extract_pr_url(output),
+            "https://github.com/NVIDIA/OSMO/pull/123",
+        )
+
+    def test_extract_pr_url_returns_empty_without_url(self):
+        self.assertEqual(_extract_pr_url("Creating pull request\nno url\n"), "")
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_enable_auto_merge_runs_gh_pr_merge_auto(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 0)
+
+        self.assertTrue(
+            _enable_auto_merge("https://github.com/NVIDIA/OSMO/pull/123"),
+        )
+
+        self.assertEqual(
+            mock_run.call_args[0][0],
+            [
+                "gh", "pr", "merge", "--auto", "--squash",
+                "https://github.com/NVIDIA/OSMO/pull/123",
+            ],
+        )
+        self.assertFalse(mock_run.call_args.kwargs["check"])
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_enable_auto_merge_skips_empty_url(self, mock_run):
+        self.assertFalse(_enable_auto_merge(""))
+        mock_run.assert_not_called()
+
+    @patch("src.scripts.testbot.create_pr.run")
+    def test_enable_auto_merge_returns_false_on_failure(self, mock_run):
+        mock_run.return_value = subprocess.CompletedProcess([], 1, stderr="error")
+
+        self.assertFalse(
+            _enable_auto_merge("https://github.com/NVIDIA/OSMO/pull/123"),
+        )
+
+    def test_main_enables_auto_merge_after_pr_create(self):
+        gh_create_result = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                   return_value=False), \
+                patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                      return_value=["src/lib/tests/test_foo.py"]), \
+                patch("src.scripts.testbot.create_pr.run",
+                      return_value=subprocess.CompletedProcess([], 0)), \
+                patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                      return_value=[]), \
+                patch("src.scripts.testbot.create_pr._enable_auto_merge") \
+                as enable_auto_merge_mock, \
+                patch.object(sys, "argv", ["create_pr.py"]):
+            run_mock.side_effect = [
+                subprocess.CompletedProcess([], 0),
+                gh_create_result,
+            ]
+            enable_auto_merge_mock.return_value = True
+
+            main()
+
+        enable_auto_merge_mock.assert_called_once_with(
+            "https://github.com/NVIDIA/OSMO/pull/123",
+        )
+
+    def test_main_exits_when_auto_merge_enable_fails(self):
+        gh_create_result = subprocess.CompletedProcess(
+            [],
+            0,
+            stdout="https://github.com/NVIDIA/OSMO/pull/123\n",
+        )
+
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
+                   return_value=False), \
+                patch("src.scripts.testbot.create_pr.get_changed_test_files",
+                      return_value=["src/lib/tests/test_foo.py"]), \
+                patch("src.scripts.testbot.create_pr.run",
+                      return_value=subprocess.CompletedProcess([], 0)), \
+                patch("src.scripts.testbot.create_pr.subprocess.run") as run_mock, \
+                patch("src.scripts.testbot.create_pr._scan_suspected_bugs",
+                      return_value=[]), \
+                patch("src.scripts.testbot.create_pr._enable_auto_merge") \
+                as enable_auto_merge_mock, \
+                patch("src.scripts.testbot.create_pr._post_slack_review_request") \
+                as post_slack_mock, \
+                patch.object(sys, "argv", ["create_pr.py"]):
+            run_mock.side_effect = [
+                subprocess.CompletedProcess([], 0),
+                gh_create_result,
+            ]
+            enable_auto_merge_mock.return_value = False
+
+            with self.assertRaises(SystemExit) as exit_ctx:
+                main()
+
+        self.assertNotIn(exit_ctx.exception.code, (0, None))
+        enable_auto_merge_mock.assert_called_once_with(
+            "https://github.com/NVIDIA/OSMO/pull/123",
+        )
+        post_slack_mock.assert_not_called()
 
 
 class TestSlackReviewRequest(unittest.TestCase):
@@ -204,7 +324,7 @@ class TestSlackReviewRequest(unittest.TestCase):
             "TESTBOT_SLACK_CHANNEL": "#osmo-slack-test",
         }
 
-        with patch("src.scripts.testbot.create_pr.has_open_testbot_pr",
+        with patch("src.scripts.testbot.create_pr.has_unapproved_testbot_pr",
                    return_value=False), \
                 patch("src.scripts.testbot.create_pr.get_changed_test_files",
                       return_value=["src/lib/tests/test_foo.py"]), \
