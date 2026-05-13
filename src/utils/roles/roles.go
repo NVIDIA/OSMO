@@ -84,10 +84,10 @@ func (ra *RoleActions) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*ra = make(RoleActions, 0, len(raw))
+	result := make(RoleActions, 0, len(raw))
 	for _, elem := range raw {
 		if len(elem) == 0 {
-			*ra = append(*ra, RoleAction{})
+			result = append(result, RoleAction{})
 			continue
 		}
 		switch elem[0] {
@@ -96,17 +96,18 @@ func (ra *RoleActions) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(elem, &s); err != nil {
 				return err
 			}
-			*ra = append(*ra, RoleAction{Action: s})
+			result = append(result, RoleAction{Action: s})
 		case '{':
 			var action RoleAction
 			if err := json.Unmarshal(elem, &action); err != nil {
 				return err
 			}
-			*ra = append(*ra, action)
+			result = append(result, action)
 		default:
 			return fmt.Errorf("invalid action element: expected string or object, got %s", elem)
 		}
 	}
+	*ra = result
 	return nil
 }
 

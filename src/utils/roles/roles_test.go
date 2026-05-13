@@ -936,3 +936,292 @@ func TestRolePolicy_MultipleActions(t *testing.T) {
 		}
 	}
 }
+
+// TestRoleActions_UnmarshalJSON_NotAnArray covers the error path when the
+// top-level JSON value isn't an array (line 85: return err from json.Unmarshal).
+func TestRoleActions_UnmarshalJSON_NotAnArray(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`{"foo": "bar"}`), &actions)
+	if err == nil {
+		t.Errorf("expected error when input is an object, got nil")
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_InvalidJSON covers an outright malformed JSON
+// blob hitting the same top-level error path.
+func TestRoleActions_UnmarshalJSON_InvalidJSON(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`not json`), &actions)
+	if err == nil {
+		t.Errorf("expected error when input is invalid JSON, got nil")
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_NumberElement covers the default branch in the
+// element switch (line 107: invalid action element error).
+func TestRoleActions_UnmarshalJSON_NumberElement(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[123]`), &actions)
+	if err == nil {
+		t.Fatalf("expected error for numeric element, got nil")
+	}
+	if !contains(err.Error(), "invalid action element") {
+		t.Errorf("error %q should mention 'invalid action element'", err.Error())
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_BoolElement covers the default branch with a
+// boolean element.
+func TestRoleActions_UnmarshalJSON_BoolElement(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[true]`), &actions)
+	if err == nil {
+		t.Fatalf("expected error for boolean element, got nil")
+	}
+	if !contains(err.Error(), "invalid action element") {
+		t.Errorf("error %q should mention 'invalid action element'", err.Error())
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_NullElement covers the default branch with a
+// null element (first byte 'n' falls through to default).
+func TestRoleActions_UnmarshalJSON_NullElement(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[null]`), &actions)
+	if err == nil {
+		t.Fatalf("expected error for null element, got nil")
+	}
+	if !contains(err.Error(), "invalid action element") {
+		t.Errorf("error %q should mention 'invalid action element'", err.Error())
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_ArrayElement covers the default branch with a
+// nested-array element.
+func TestRoleActions_UnmarshalJSON_ArrayElement(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[["nested"]]`), &actions)
+	if err == nil {
+		t.Fatalf("expected error for array element, got nil")
+	}
+	if !contains(err.Error(), "invalid action element") {
+		t.Errorf("error %q should mention 'invalid action element'", err.Error())
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_BadObjectElement covers the error path inside
+// the '{' switch case (line 103: object element fails to parse as RoleAction).
+// Action is a string field, so passing a number triggers a json.Unmarshal error.
+func TestRoleActions_UnmarshalJSON_BadObjectElement(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[{"action": 123}]`), &actions)
+	if err == nil {
+		t.Errorf("expected error when object element has wrong-typed field, got nil")
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_EmptyArray covers the empty-array case where
+// the loop never runs and the result is an empty slice (not nil).
+func TestRoleActions_UnmarshalJSON_EmptyArray(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[]`), &actions)
+	if err != nil {
+		t.Fatalf("unexpected error for empty array: %v", err)
+	}
+	if len(actions) != 0 {
+		t.Errorf("len(actions) = %d, want 0", len(actions))
+	}
+	if actions == nil {
+		t.Errorf("actions should be a non-nil empty slice")
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_MixedStringAndObjectAndError covers the case
+// where the array contains valid leading elements before an invalid one;
+// elements before the failure should not leak (function returns early on err).
+func TestRoleActions_UnmarshalJSON_MidArrayError(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`["workflow:Create", 42, "workflow:Read"]`), &actions)
+	if err == nil {
+		t.Fatalf("expected error for mid-array invalid element, got nil")
+	}
+	if len(actions) != 0 {
+		t.Errorf("actions should remain empty on unmarshal error, got len=%d", len(actions))
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_ValidStringElements verifies the '"' switch
+// branch correctly produces a RoleAction with Action populated.
+func TestRoleActions_UnmarshalJSON_ValidStringElements(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`["workflow:Create", "pool:List"]`), &actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(actions) != 2 {
+		t.Fatalf("len(actions) = %d, want 2", len(actions))
+	}
+	if actions[0].Action != "workflow:Create" {
+		t.Errorf("actions[0].Action = %q, want %q", actions[0].Action, "workflow:Create")
+	}
+	if actions[1].Action != "pool:List" {
+		t.Errorf("actions[1].Action = %q, want %q", actions[1].Action, "pool:List")
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_ValidObjectElements verifies the '{' switch
+// branch correctly populates legacy fields.
+func TestRoleActions_UnmarshalJSON_ValidObjectElements(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal(
+		[]byte(`[{"base":"http","path":"/api/x","method":"GET"}]`), &actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("len(actions) = %d, want 1", len(actions))
+	}
+	if actions[0].Base != "http" || actions[0].Path != "/api/x" || actions[0].Method != "GET" {
+		t.Errorf("actions[0] = %+v, want {http /api/x GET}", actions[0])
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_WhitespacePadding ensures leading whitespace
+// inside elements doesn't change the dispatch (json.RawMessage preserves them
+// but encoding/json strips leading whitespace before assigning the bytes).
+func TestRoleActions_UnmarshalJSON_WhitespacePadding(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal(
+		[]byte(`[ "workflow:Create" , {"action":"pool:List"} ]`), &actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(actions) != 2 {
+		t.Fatalf("len(actions) = %d, want 2", len(actions))
+	}
+	if actions[0].Action != "workflow:Create" {
+		t.Errorf("actions[0].Action = %q, want %q", actions[0].Action, "workflow:Create")
+	}
+	if actions[1].Action != "pool:List" {
+		t.Errorf("actions[1].Action = %q, want %q", actions[1].Action, "pool:List")
+	}
+}
+
+// TestRoleActions_MarshalJSON_StringForSemantic verifies the marshaller emits
+// a bare JSON string for semantic actions.
+func TestRoleActions_MarshalJSON_StringForSemantic(t *testing.T) {
+	actions := RoleActions{
+		{Action: "workflow:Create"},
+	}
+	data, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(data) != `["workflow:Create"]` {
+		t.Errorf("data = %s, want [\"workflow:Create\"]", string(data))
+	}
+}
+
+// TestRoleActions_MarshalJSON_ObjectForLegacy verifies the marshaller emits
+// a JSON object for legacy actions.
+func TestRoleActions_MarshalJSON_ObjectForLegacy(t *testing.T) {
+	actions := RoleActions{
+		{Base: "http", Path: "/api/x", Method: "GET"},
+	}
+	data, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := `[{"base":"http","path":"/api/x","method":"GET"}]`
+	if string(data) != expected {
+		t.Errorf("data = %s, want %s", string(data), expected)
+	}
+}
+
+// TestRoleActions_MarshalJSON_MixedSemanticAndLegacy verifies a heterogeneous
+// slice is serialised with the correct element shape per action.
+func TestRoleActions_MarshalJSON_MixedSemanticAndLegacy(t *testing.T) {
+	actions := RoleActions{
+		{Action: "workflow:Create"},
+		{Base: "http", Path: "/api/x", Method: "GET"},
+		{Action: "pool:List"},
+	}
+	data, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	expected := `["workflow:Create",{"base":"http","path":"/api/x","method":"GET"},"pool:List"]`
+	if string(data) != expected {
+		t.Errorf("data = %s, want %s", string(data), expected)
+	}
+}
+
+// TestRoleActions_MarshalJSON_EmptyActionFallsThroughToObject confirms an
+// entirely empty RoleAction is emitted as `{}` (the legacy branch in
+// MarshalJSON), since IsSemanticAction is false.
+func TestRoleActions_MarshalJSON_EmptyActionFallsThroughToObject(t *testing.T) {
+	actions := RoleActions{
+		{},
+	}
+	data, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(data) != `[{}]` {
+		t.Errorf("data = %s, want [{}]", string(data))
+	}
+}
+
+// TestRoleActions_MarshalJSON_EmptySlice verifies marshaling an empty slice
+// produces an empty JSON array.
+func TestRoleActions_MarshalJSON_EmptySlice(t *testing.T) {
+	actions := RoleActions{}
+	data, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(data) != `[]` {
+		t.Errorf("data = %s, want []", string(data))
+	}
+}
+
+// TestRoleActions_RoundTrip verifies marshal then unmarshal is the identity
+// for a heterogeneous slice — protects all four branches of both methods at
+// once.
+func TestRoleActions_RoundTrip(t *testing.T) {
+	original := RoleActions{
+		{Action: "workflow:Create"},
+		{Base: "http", Path: "/api/legacy", Method: "POST"},
+		{Action: "*:*"},
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var roundTripped RoleActions
+	if err := json.Unmarshal(data, &roundTripped); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if len(roundTripped) != len(original) {
+		t.Fatalf("len = %d, want %d", len(roundTripped), len(original))
+	}
+	for i := range original {
+		if roundTripped[i] != original[i] {
+			t.Errorf("roundTripped[%d] = %+v, want %+v", i, roundTripped[i], original[i])
+		}
+	}
+}
+
+// contains is a tiny substring helper to avoid pulling in strings just for
+// error message assertions.
+func contains(haystack, needle string) bool {
+	if len(needle) == 0 {
+		return true
+	}
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}
