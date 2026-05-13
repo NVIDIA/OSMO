@@ -80,7 +80,10 @@ osmo_py_test(
     name = "test_client",
     srcs = ["test_client.py"],
     deps = [
+        requirement("pyyaml"),
         "//src/lib/utils:client",
+        "//src/lib/utils:common",
+        "//src/lib/utils:login",
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:version",
     ]
