@@ -56,3 +56,13 @@ py_test(
     ],
 )
 
+py_test(
+    name = "test_helpers",
+    srcs = ["test_helpers.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/workflow",
+        "//src/utils/job",
+    ],
+)
+
