@@ -50,8 +50,6 @@ describe("updateALBCookies", () => {
 
     updateALBCookies("_osmo_router_affinity=abc123; Path=/", ".example.com");
 
-    expect(cookieSetter).toHaveBeenCalledWith(
-      "_osmo_router_affinity=abc123; Path=/; domain=.example.com; max-age=10",
-    );
+    expect(cookieSetter).toHaveBeenCalledWith("_osmo_router_affinity=abc123; Path=/; domain=.example.com; max-age=10");
   });
 });
