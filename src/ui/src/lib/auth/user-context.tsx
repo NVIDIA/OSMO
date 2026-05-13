@@ -17,7 +17,6 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { getBasePathUrl } from "@/lib/config";
 
 export interface User {
   id: string;
@@ -36,6 +35,10 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+export function getLogoutUrl(): string {
+  return "/signout";
+}
+
 interface UserProviderProps {
   children: ReactNode;
   initialUser: User | null;
@@ -50,7 +53,7 @@ interface UserProviderProps {
  */
 export function UserProvider({ children, initialUser }: UserProviderProps) {
   const logout = () => {
-    window.location.href = getBasePathUrl("/signout");
+    window.location.href = getLogoutUrl();
   };
 
   return (
