@@ -28,6 +28,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- define "osmo.gateway-envoy-config" -}}
 {{- $gw := .Values.gateway }}
 {{- $envoy := $gw.envoy }}
+{{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- if $envoy.enabled }}
 apiVersion: v1
@@ -338,7 +339,7 @@ data:
 
                     function envoy_on_request(request_handle)
                       skip = false
-                      {{- range $envoy.skipAuthPaths }}
+                      {{- range $skipAuthPaths }}
                       if (starts_with(request_handle:headers():get(':path'), '{{.}}')) then
                         skip = true
                       end

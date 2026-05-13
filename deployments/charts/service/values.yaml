@@ -1933,6 +1933,10 @@ gateway:
     - /api/router/version
     - /client/version
 
+    ## Additional paths that bypass authentication, appended to skipAuthPaths.
+    ##
+    extraSkipAuthPaths: []
+
     ## Route configuration for the osmo-router upstream.
     ## Uses RING_HASH lb_policy with a cookie for session affinity.
     ##
