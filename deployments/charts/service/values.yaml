@@ -478,22 +478,26 @@ services:
           containers:
           - name: osmo-ctrl
             resources:
+              limits:
+                cpu: "{{USER_CPU}}"
+                memory: "{{USER_MEMORY}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
               requests:
                 cpu: "1"
                 memory: "1Gi"
-              limits:
-                memory: "1Gi"
+                ephemeral-storage: "1Gi"
       default_user:
         spec:
           containers:
           - name: "{{USER_CONTAINER_NAME}}"
             resources:
-              requests:
+              limits:
                 cpu: "{{USER_CPU}}"
                 memory: "{{USER_MEMORY}}"
                 nvidia.com/gpu: "{{USER_GPU}}"
                 ephemeral-storage: "{{USER_STORAGE}}"
-              limits:
+              requests:
+                cpu: "{{USER_CPU}}"
                 memory: "{{USER_MEMORY}}"
                 nvidia.com/gpu: "{{USER_GPU}}"
                 ephemeral-storage: "{{USER_STORAGE}}"
@@ -502,23 +506,32 @@ services:
     ##
     resourceValidations:
       default_cpu:
-      - left_operand: cpu
-        operator: LE
-        right_operand: node_cpu
-        assert_message: "cpu must be <= node_cpu"
-      - left_operand: cpu
-        operator: GT
+      - operator: LE
+        left_operand: "{{USER_CPU}}"
+        right_operand: "{{K8_CPU}}"
+        assert_message: "Value {{USER_CPU}} too high for CPU"
+      - operator: GT
+        left_operand: "{{USER_CPU}}"
         right_operand: "0"
-        assert_message: "cpu must be > 0"
+        assert_message: "Value {{USER_CPU}} needs to be greater than 0 for CPU"
       default_memory:
-      - left_operand: memory
-        operator: LE
-        right_operand: node_memory
-        assert_message: "memory must be <= node_memory"
-      - left_operand: memory
-        operator: GT
+      - operator: LE
+        left_operand: "{{USER_MEMORY}}"
+        right_operand: "{{K8_MEMORY}}"
+        assert_message: "Value {{USER_MEMORY}} too high for memory"
+      - operator: GT
+        left_operand: "{{USER_MEMORY}}"
         right_operand: "0"
-        assert_message: "memory must be > 0"
+        assert_message: "Value {{USER_MEMORY}} needs to be greater than 0 for memory"
+      default_storage:
+      - operator: LT
+        left_operand: "{{USER_STORAGE}}"
+        right_operand: "{{K8_STORAGE}}"
+        assert_message: "Value {{USER_STORAGE}} too high for storage"
+      - operator: GT
+        left_operand: "{{USER_STORAGE}}"
+        right_operand: "0"
+        assert_message: "Value {{USER_STORAGE}} needs to be greater than 0 for storage"
 
     ## RBAC role definitions. Policies are product defaults.
     ## Override external_roles per deployment to map IDP groups.
@@ -601,10 +614,20 @@ services:
       default:
         description: "Default pool"
         backend: default
-        common_pod_template:
-          - default_user
-          - default_ctrl
         default_platform: default
+        common_pod_template:
+          - default_ctrl
+          - default_user
+        common_resource_validations:
+          - default_cpu
+          - default_memory
+          - default_storage
+          - default_gpu
+        common_default_variables:
+          USER_CPU: 1
+          USER_GPU: 0
+          USER_MEMORY: "1Gi"
+          USER_STORAGE: "1Gi"
         platforms:
           default: {}
 
