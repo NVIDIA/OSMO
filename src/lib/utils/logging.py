@@ -62,8 +62,10 @@ class UserLogContext:
         self._token: contextvars.Token[str] | None = None
 
     def __enter__(self):
-        if self.user_id:
-            self._token = _user_id_context.set(self.user_id)
+        # Always set the ContextVar — including to '' — so a nested context
+        # without a user_id masks any value from an outer scope rather than
+        # leaking it into logs emitted inside this block.
+        self._token = _user_id_context.set(self.user_id)
         return self
 
     def __exit__(self, ex_type, ex_value, ex_traceback):

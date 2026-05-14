@@ -121,6 +121,16 @@ class TestJsonServiceFormatter(unittest.TestCase):
             payload = json.loads(formatter.format(_make_record()))
         self.assertEqual(payload['user_id'], 'alice@example.com')
 
+    def test_empty_user_id_context_masks_outer_user_id(self):
+        formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
+        with logging_utils.UserLogContext('alice@example.com'):
+            with logging_utils.UserLogContext(''):
+                payload = json.loads(formatter.format(_make_record()))
+                self.assertNotIn('user_id', payload)
+            # Outer user_id is restored after the inner context exits.
+            payload = json.loads(formatter.format(_make_record()))
+            self.assertEqual(payload['user_id'], 'alice@example.com')
+
     def test_exception_traceback_included(self):
         formatter = logging_utils.JsonServiceFormatter(service='osmo-test')
         try:
