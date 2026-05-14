@@ -72,6 +72,7 @@ osmo_py_library(
         "common.py",
         "jobs.py",
         "kb_objects.py",
+        "rendering.py",
         "task.py",
         "task_io.py",
         "topology.py",

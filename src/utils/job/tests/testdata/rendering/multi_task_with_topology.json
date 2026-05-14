@@ -1,0 +1,163 @@
+{
+  "pod_group": {
+    "apiVersion": "scheduling.run.ai/v2alpha2",
+    "kind": "PodGroup",
+    "metadata": {
+      "labels": {
+        "kai.scheduler/queue": "osmo-pool-osmo-test-gpus",
+        "osmo.group_uuid": "group-xyz",
+        "osmo.workflow_id": "wf-abc",
+        "runai/queue": "osmo-pool-osmo-test-gpus"
+      },
+      "name": "group-xyz"
+    },
+    "spec": {
+      "priorityClassName": "osmo-high",
+      "queue": "osmo-pool-osmo-test-gpus",
+      "subGroups": [
+        {
+          "minMember": 2,
+          "name": "z1-r1",
+          "topologyConstraint": {
+            "requiredTopologyLevel": "topology.kubernetes.io/rack",
+            "topology": "osmo-pool-osmo-test-gpus-topology"
+          }
+        },
+        {
+          "minMember": 1,
+          "name": "z1-r2",
+          "topologyConstraint": {
+            "requiredTopologyLevel": "topology.kubernetes.io/rack",
+            "topology": "osmo-pool-osmo-test-gpus-topology"
+          }
+        }
+      ],
+      "topologyConstraint": {
+        "requiredTopologyLevel": "topology.kubernetes.io/zone",
+        "topology": "osmo-pool-osmo-test-gpus-topology"
+      }
+    }
+  },
+  "pods": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "pod-group-name": "group-xyz"
+        },
+        "labels": {
+          "kai.scheduler/queue": "osmo-pool-osmo-test-gpus",
+          "kai.scheduler/subgroup-name": "z1-r1",
+          "osmo.group_uuid": "group-xyz",
+          "osmo.task_name": "worker_0",
+          "osmo.workflow_id": "wf-abc",
+          "runai/queue": "osmo-pool-osmo-test-gpus"
+        },
+        "name": "wf-abc-task-0"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "nvcr.io/example/user:1.0",
+            "name": "user",
+            "resources": {
+              "limits": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              },
+              "requests": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              }
+            }
+          }
+        ],
+        "restartPolicy": "Never",
+        "schedulerName": "kai-scheduler"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "pod-group-name": "group-xyz"
+        },
+        "labels": {
+          "kai.scheduler/queue": "osmo-pool-osmo-test-gpus",
+          "kai.scheduler/subgroup-name": "z1-r1",
+          "osmo.group_uuid": "group-xyz",
+          "osmo.task_name": "worker_1",
+          "osmo.workflow_id": "wf-abc",
+          "runai/queue": "osmo-pool-osmo-test-gpus"
+        },
+        "name": "wf-abc-task-1"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "nvcr.io/example/user:1.0",
+            "name": "user",
+            "resources": {
+              "limits": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              },
+              "requests": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              }
+            }
+          }
+        ],
+        "restartPolicy": "Never",
+        "schedulerName": "kai-scheduler"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "pod-group-name": "group-xyz"
+        },
+        "labels": {
+          "kai.scheduler/queue": "osmo-pool-osmo-test-gpus",
+          "kai.scheduler/subgroup-name": "z1-r2",
+          "osmo.group_uuid": "group-xyz",
+          "osmo.task_name": "worker_2",
+          "osmo.workflow_id": "wf-abc",
+          "runai/queue": "osmo-pool-osmo-test-gpus"
+        },
+        "name": "wf-abc-task-2"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "nvcr.io/example/user:1.0",
+            "name": "user",
+            "resources": {
+              "limits": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              },
+              "requests": {
+                "cpu": "4",
+                "memory": "16Gi",
+                "nvidia.com/gpu": "1"
+              }
+            }
+          }
+        ],
+        "restartPolicy": "Never",
+        "schedulerName": "kai-scheduler"
+      }
+    }
+  ]
+}

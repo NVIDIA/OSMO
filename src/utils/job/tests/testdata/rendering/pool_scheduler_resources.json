@@ -1,0 +1,114 @@
+{
+  "resources": [
+    {
+      "apiVersion": "scheduling.run.ai/v2",
+      "kind": "Queue",
+      "metadata": {
+        "labels": {
+          "osmo.namespace": "osmo-test"
+        },
+        "name": "osmo-default-osmo-test"
+      },
+      "spec": {
+        "resources": {
+          "cpu": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          },
+          "gpu": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          },
+          "memory": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "scheduling.run.ai/v2",
+      "kind": "Queue",
+      "metadata": {
+        "labels": {
+          "osmo.namespace": "osmo-test"
+        },
+        "name": "osmo-pool-osmo-test-default"
+      },
+      "spec": {
+        "parentQueue": "osmo-default-osmo-test",
+        "resources": {
+          "cpu": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          },
+          "gpu": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          },
+          "memory": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "scheduling.run.ai/v2",
+      "kind": "Queue",
+      "metadata": {
+        "labels": {
+          "osmo.namespace": "osmo-test"
+        },
+        "name": "osmo-pool-osmo-test-gpus"
+      },
+      "spec": {
+        "parentQueue": "osmo-default-osmo-test",
+        "resources": {
+          "cpu": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          },
+          "gpu": {
+            "limit": 16,
+            "overQuotaWeight": 2,
+            "quota": 8
+          },
+          "memory": {
+            "limit": -1,
+            "overQuotaWeight": 1,
+            "quota": -1
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "kai.scheduler/v1alpha1",
+      "kind": "Topology",
+      "metadata": {
+        "labels": {
+          "osmo.namespace": "osmo-test",
+          "osmo.pool": "gpus"
+        },
+        "name": "osmo-pool-osmo-test-gpus-topology"
+      },
+      "spec": {
+        "levels": [
+          {
+            "nodeLabel": "topology.kubernetes.io/zone"
+          },
+          {
+            "nodeLabel": "topology.kubernetes.io/rack"
+          }
+        ]
+      }
+    }
+  ]
+}

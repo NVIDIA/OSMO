@@ -92,3 +92,18 @@ py_test(
         "//src/utils/job",
     ]
 )
+
+py_test(
+    name = "test_rendering",
+    srcs = [
+        "test_rendering.py"
+    ],
+    data = glob(
+        ["testdata/rendering/*.json"],
+        allow_empty = True,
+    ),
+    deps = [
+        "//src/lib/utils:priority",
+        "//src/utils/job",
+    ]
+)
