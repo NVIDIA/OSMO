@@ -53,12 +53,12 @@ class TestDownloadLanded(unittest.TestCase):
                 f.write('hello')
 
             client = _make_client('/osmo/run/workspace/foo.txt')
-            self.assertTrue(client._download_landed(dst, set()))
+            self.assertTrue(client._download_landed(dst, None))
 
     def test_file_missing_when_basename_not_present(self):
         with tempfile.TemporaryDirectory() as dst:
             client = _make_client('/osmo/run/workspace/no_such_file.txt')
-            self.assertFalse(client._download_landed(dst, set()))
+            self.assertFalse(client._download_landed(dst, None))
 
     def test_redownload_with_preexisting_file_succeeds(self):
         # In-sync re-download: no new entries, but basename still exists.
@@ -67,7 +67,7 @@ class TestDownloadLanded(unittest.TestCase):
                 f.write('previous run')
 
             client = _make_client('/osmo/run/workspace/foo.txt')
-            self.assertTrue(client._download_landed(dst, {'foo.txt'}))
+            self.assertTrue(client._download_landed(dst, None))
 
     def test_trailing_slash_directory_with_new_entries_succeeds(self):
         with tempfile.TemporaryDirectory() as dst:
@@ -86,12 +86,12 @@ class TestDownloadLanded(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dst:
             os.makedirs(os.path.join(dst, 'some_dir'))
             client = _make_client('/osmo/run/workspace/some_dir')
-            self.assertTrue(client._download_landed(dst, set()))
+            self.assertTrue(client._download_landed(dst, None))
 
     def test_named_directory_missing_when_subdir_absent(self):
         with tempfile.TemporaryDirectory() as dst:
             client = _make_client('/osmo/run/workspace/no_such_dir')
-            self.assertFalse(client._download_landed(dst, set()))
+            self.assertFalse(client._download_landed(dst, None))
 
 
 class TestStreamProgressTail(unittest.IsolatedAsyncioTestCase):
