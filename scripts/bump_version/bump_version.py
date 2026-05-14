@@ -29,14 +29,6 @@ import yaml
 CHART_NAMES: tuple[str, ...] = (
     "service",
     "backend-operator",
-    "quick-start",
-)
-# quick-start/Chart.yaml pins the internal charts managed by this script via its
-# `dependencies:` block. bump_version only touches these entries; any other
-# dependency (including the standalone UI chart during the transition) is left alone.
-QUICK_START_DEP_NAMES: tuple[str, ...] = (
-    "service",
-    "backend-operator",
 )
 VERSION_YAML_RELPATH = "src/lib/utils/version.yaml"
 CHARTS_RELDIR = "deployments/charts"
@@ -102,7 +94,6 @@ def _validate_invariants(
     osmo_version: Semver,
     chart_versions: dict[str, Semver],
     app_versions: dict[str, Semver],
-    quick_start_deps: dict[str, Semver],
 ) -> None:
     distinct_chart_versions = set(chart_versions.values())
     if len(distinct_chart_versions) != 1:
@@ -113,30 +104,6 @@ def _validate_invariants(
     (app_version,) = distinct_app_versions
     if app_version != osmo_version:
         raise SystemExit(f"appVersion {app_version} != version.yaml {osmo_version}")
-    (chart_version,) = distinct_chart_versions
-    for name in QUICK_START_DEP_NAMES:
-        if name not in quick_start_deps:
-            raise SystemExit(f"quick-start dep {name!r} is missing")
-        dep_version = quick_start_deps[name]
-        if dep_version != chart_version:
-            raise SystemExit(
-                f"quick-start dep {name}={dep_version} != chart {chart_version}"
-            )
-
-
-def _read_quick_start_deps(path: pathlib.Path) -> dict[str, Semver]:
-    """Return {name: version} for the internal OSMO charts in quick-start's deps.
-
-    External dependencies (if any) are ignored — bump_version is only responsible
-    for keeping the four internal entries in lockstep with the chart version.
-    """
-    data = yaml.safe_load(path.read_text())
-    deps = data.get("dependencies") or []
-    return {
-        dep["name"]: _parse_semver(str(dep["version"]))
-        for dep in deps
-        if dep["name"] in QUICK_START_DEP_NAMES
-    }
 
 
 def _sub_exactly_once(
@@ -185,30 +152,6 @@ def _rewrite_chart(path: pathlib.Path, new_chart: Semver, new_app: Semver) -> No
     path.write_text(text)
 
 
-def _rewrite_quick_start_deps(path: pathlib.Path, new_chart: Semver) -> None:
-    """Bump the four internal OSMO dep versions in quick-start/Chart.yaml.
-
-    Each dep entry in the file has the structure:
-
-        - name: <name>
-          version: <X.Y.Z>
-          repository: <...>
-
-    The replacement anchors on the `- name: <exact-name>` line, so only the four
-    internal chart names listed in QUICK_START_DEP_NAMES are touched. Any other
-    dependency (e.g. an external chart) is left untouched.
-    """
-    text = path.read_text()
-    for name in QUICK_START_DEP_NAMES:
-        pattern = rf"(- name: {re.escape(name)}\n  version: )\d+\.\d+\.\d+"
-
-        def _replace(match: re.Match[str]) -> str:
-            return f"{match.group(1)}{new_chart}"
-
-        text = _sub_exactly_once(pattern, _replace, text, str(path))
-    path.write_text(text)
-
-
 def main(argv: list[str] | None = None, root: pathlib.Path | None = None) -> int:
     mode = _parse_args(argv)
     if root is None:
@@ -243,9 +186,8 @@ def main(argv: list[str] | None = None, root: pathlib.Path | None = None) -> int
         chart_v, app_v = _read_chart(path)
         chart_versions[name] = chart_v
         app_versions[name] = app_v
-    quick_start_deps = _read_quick_start_deps(chart_paths["quick-start"])
 
-    _validate_invariants(osmo_version, chart_versions, app_versions, quick_start_deps)
+    _validate_invariants(osmo_version, chart_versions, app_versions)
 
     new_osmo = osmo_version.bump(mode)
     (old_chart,) = set(chart_versions.values())
@@ -254,7 +196,6 @@ def main(argv: list[str] | None = None, root: pathlib.Path | None = None) -> int
     _rewrite_version_yaml(version_path, new_osmo)
     for path in chart_paths.values():
         _rewrite_chart(path, new_chart, new_osmo)
-    _rewrite_quick_start_deps(chart_paths["quick-start"], new_chart)
 
     # Validate by reload.
     reloaded = _read_version_yaml(version_path)
@@ -271,11 +212,6 @@ def main(argv: list[str] | None = None, root: pathlib.Path | None = None) -> int
                 f"post-write check failed: {name} appVersion={app_v}", file=sys.stderr
             )
             return 1
-    for dep_name, dep_v in _read_quick_start_deps(chart_paths["quick-start"]).items():
-        if dep_v != new_chart:
-            print(f"post-write check failed: dep {dep_name}={dep_v}", file=sys.stderr)
-            return 1
-
     return 0
 
 

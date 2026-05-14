@@ -21,6 +21,15 @@
 
 This Helm chart deploys the OSMO Backend-Operator for managing compute backend resources and monitoring.
 
+Install this chart after the `service` chart. For a local deployment that previously used quick-start values, use `quick-start-values.yaml` after creating the `backend-operator-password` secret documented in [../README.md](../README.md):
+
+```bash
+helm upgrade --install osmo-backend-operator osmo/backend-operator \
+  --namespace osmo \
+  -f quick-start-values.yaml \
+  --wait
+```
+
 ## Values
 
 ### Global Settings

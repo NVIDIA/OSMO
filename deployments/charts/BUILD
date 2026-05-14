@@ -26,9 +26,3 @@ filegroup(
     srcs = glob(["backend-operator/**"]),
     visibility = ["//visibility:public"],
 )
-
-filegroup(
-    name = "quick-start",
-    srcs = glob(["quick-start/**"]),
-    visibility = ["//visibility:public"],
-)

@@ -493,17 +493,27 @@ print_status "Installing OSMO (this may take 5-10 minutes)..."
 helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
 helm repo update
 
-helm upgrade --install osmo osmo/quick-start \
+curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/service/quick-start-values.yaml \
+  -o /tmp/osmo-service-values.yaml
+curl -fsSL https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/deployments/charts/backend-operator/quick-start-values.yaml \
+  -o /tmp/osmo-backend-operator-values.yaml
+
+kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic backend-operator-password \
   --namespace osmo \
-  --create-namespace \
-  --set global.objectStorage.endpoint="${LOCALSTACK_S3_ENDPOINT}" \
-  --set global.objectStorage.overrideUrl="${LOCALSTACK_S3_OVERRIDE_URL}" \
-  --set global.objectStorage.accessKeyId="${LOCALSTACK_S3_ACCESS_KEY_ID}" \
-  --set global.objectStorage.accessKey="${LOCALSTACK_S3_ACCESS_KEY}" \
-  --set global.objectStorage.region="${LOCALSTACK_S3_REGION}" \
-  --set web-ui.services.ui.hostname="" \
-  --set service.services.service.hostname="" \
-  --set router.services.service.hostname="" \
+  --from-literal=password=osmo \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+helm upgrade --install osmo osmo/service \
+  --namespace osmo \
+  -f /tmp/osmo-service-values.yaml \
+  --wait \
+  --timeout 25m
+
+helm upgrade --install osmo-backend-operator osmo/backend-operator \
+  --namespace osmo \
+  -f /tmp/osmo-backend-operator-values.yaml \
   --wait \
   --timeout 10m
 

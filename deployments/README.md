@@ -95,7 +95,7 @@ terraform apply
 
 For users who already have Kubernetes infrastructure and want to deploy OSMO directly.
 
-📖 **[charts/](charts/)** - Helm charts
+📖 **[charts/](charts/)** - Helm chart install guide
 
 > **Note:** Before installing Helm charts manually, you must create:
 > - Kubernetes namespaces (`osmo-minimal`, `osmo-operator`, `osmo-workflows`)
@@ -119,6 +119,32 @@ export REDIS_PASSWORD="your-redis-password"
 
 ./deploy-osmo-minimal.sh --provider azure --skip-terraform
 ```
+
+For a direct Helm install, deploy the charts in this order:
+
+```bash
+kubectl create namespace osmo --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace osmo-test --dry-run=client -o yaml | kubectl apply -f -
+kubectl create secret generic backend-operator-password \
+  --namespace osmo \
+  --from-literal=password=osmo \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+helm repo add osmo https://helm.ngc.nvidia.com/nvidia/osmo
+helm repo update osmo
+
+helm upgrade --install osmo osmo/service \
+  --namespace osmo \
+  -f charts/service/quick-start-values.yaml \
+  --wait
+
+helm upgrade --install osmo-backend-operator osmo/backend-operator \
+  --namespace osmo \
+  -f charts/backend-operator/quick-start-values.yaml \
+  --wait
+```
+
+The `quick-start-values.yaml` files preserve the local-development settings from the former umbrella chart. For production, replace them with environment-specific values for your hostname, identity provider, databases, Redis, object storage, and backend credentials.
 
 ## Supported Platforms
 
@@ -153,4 +179,3 @@ kubectl port-forward svc/osmo-service 9000:80 -n osmo-minimal
 - [OSMO Deployment Guide](https://nvidia.github.io/OSMO/main/deployment_guide/appendix/deploy_minimal.html)
 - [Configure Data Storage](https://nvidia.github.io/OSMO/main/deployment_guide/getting_started/configure_data_storage.html)
 - [Install KAI Scheduler](https://nvidia.github.io/OSMO/main/deployment_guide/byoc/install_dependencies.html)
-

@@ -240,9 +240,9 @@ Remove from your GitOps repo:
 
 For per-dev ArgoCD branches (`argocd/<dev>`), the Jenkins `setupGitEnv.groovy` helper has a one-time cleanup that removes the stale `charts/router/` directory on the next pipeline run. No manual cleanup needed after that runs once.
 
-### Quick-start chart
+### Legacy local values
 
-Users of the `osmo/quick-start` chart: the top-level `router:` values key is gone. Move overrides under `service.services.router.*`:
+If you carried forward local umbrella-chart values from an older release, the top-level `router:` values key is gone. Move overrides under `service.services.router.*`:
 
 ```yaml
 # Before
