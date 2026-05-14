@@ -1,0 +1,149 @@
+//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+//Licensed under the Apache License, Version 2.0 (the "License");
+//you may not use this file except in compliance with the License.
+//You may obtain a copy of the License at
+
+//http://www.apache.org/licenses/LICENSE-2.0
+
+//Unless required by applicable law or agreed to in writing, software
+//distributed under the License is distributed on an "AS IS" BASIS,
+//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//See the License for the specific language governing permissions and
+//limitations under the License.
+
+//SPDX-License-Identifier: Apache-2.0
+
+// TaskGroup-related operations for the OSMOTaskGroup CRD project
+// (projects/PROJ-taskgroup-crd/PROJ-taskgroup-crd.md).
+//
+// The API server uses these RPCs to write CRs into a backend cluster
+// (CreateOTG / DeleteOTG) and to fetch normalized status back from the
+// per-cluster Controller (GetOTGStatus / StreamOTGStatus). The Operator
+// Service brokers between Python API server (mTLS gRPC) and Kubernetes API
+// (kubeconfig per cluster) so the API server doesn't need cluster credentials.
+
+syntax = "proto3";
+
+package operator;
+
+option go_package = "go.corp.nvidia.com/osmo/proto/operator;operator";
+
+import "google/protobuf/timestamp.proto";
+
+// OTGPhase mirrors v1alpha1.Phase as a wire-format enum. The Controller
+// produces these from runtime-specific status signals; the API server
+// interprets them with no further runtime knowledge required.
+enum OTGPhase {
+  OTG_PHASE_UNKNOWN = 0;
+  OTG_PHASE_PENDING = 1;
+  OTG_PHASE_RUNNING = 2;
+  OTG_PHASE_SUCCEEDED = 3;
+  OTG_PHASE_FAILED = 4;
+  OTG_PHASE_TERMINATING = 5;
+}
+
+// CreateOTGRequest sends a fully-serialized OSMOTaskGroup CR to the
+// Operator Service, which writes it into the target cluster's K8s API.
+//
+// The CR is sent as the raw YAML/JSON the API server already produced so
+// the Operator Service does not need to know the CR schema. cluster_id
+// is used to look up the right kubeconfig (multi-cluster, Phase 2+).
+message CreateOTGRequest {
+  // cluster_id identifies the target backend cluster. Phase 1 deployments
+  // have one cluster so this field's value is fixed; Phase 2 starts using
+  // it for routing.
+  string cluster_id = 1;
+
+  // otg_yaml is the serialized OSMOTaskGroup CR. JSON is acceptable since
+  // K8s accepts both formats over its API; YAML is the documented form in
+  // the design doc.
+  bytes otg_yaml = 2;
+}
+
+// CreateOTGResponse reports whether the CR write succeeded.
+//
+// "Already exists" is a successful response — CR names are deterministic
+// per workflow group, so a retry hitting AlreadyExists means the previous
+// call succeeded and the API server should treat the operation as done.
+message CreateOTGResponse {
+  // success is true when the CR exists in the target cluster after the
+  // RPC returns (either it was just created, or it already existed).
+  bool success = 1;
+  string message = 2;
+}
+
+// DeleteOTGRequest tears down an OSMOTaskGroup by name. Cascade delete in
+// the controller cleans up Pods + PodGroup automatically; the
+// log-collection finalizer holds delete open until logs are uploaded.
+message DeleteOTGRequest {
+  string cluster_id = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+message DeleteOTGResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// GetOTGStatusRequest fetches the current normalized status of one
+// OSMOTaskGroup. Used by the API server's periodic reconciliation loop
+// (PROJ-taskgroup-crd.md "Periodic PostgreSQL reconciliation").
+message GetOTGStatusRequest {
+  string cluster_id = 1;
+  string namespace = 2;
+  string name = 3;
+}
+
+// OTGStatus is the normalized status, mirroring v1alpha1.OSMOTaskGroupStatus
+// without the runtime-specific RuntimeStatus payload (which the API server
+// doesn't need; runtime-specific UIs decode it from the CR directly).
+message OTGStatus {
+  OTGPhase phase = 1;
+  int64 observed_generation = 2;
+  int32 retries = 3;
+  string message = 4;
+  google.protobuf.Timestamp last_transition_time = 5;
+}
+
+message OTGStatusResponse {
+  OTGStatus status = 1;
+}
+
+// StreamOTGStatusRequest opens a push channel from the Controller back to
+// the Operator Service. Each event is a status delta for one CR.
+//
+// In Phase 1 the Controller pushes on every reconciliation; the periodic
+// loop (60s) also re-pushes every CR so missed events recover within one
+// interval.
+message StreamOTGStatusRequest {
+  string cluster_id = 1;
+}
+
+// OTGStatusEvent is one push from the Controller.
+message OTGStatusEvent {
+  string namespace = 1;
+  string name = 2;
+  OTGStatus status = 3;
+}
+
+// TaskGroupService is the API server's view of the per-cluster CR space.
+// Hosted by the Operator Service (PROJ-147), backed by client-go calls into
+// each registered backend cluster's K8s API.
+service TaskGroupService {
+  rpc CreateOTG(CreateOTGRequest) returns (CreateOTGResponse);
+  rpc DeleteOTG(DeleteOTGRequest) returns (DeleteOTGResponse);
+  rpc GetOTGStatus(GetOTGStatusRequest) returns (OTGStatusResponse);
+
+  // StreamOTGStatus carries push events from the Controller. The client
+  // (Controller) holds the stream open and sends one event per status
+  // update; the server (Operator Service) writes to Postgres.
+  rpc StreamOTGStatus(stream OTGStatusEvent) returns (StreamOTGStatusAck);
+}
+
+// StreamOTGStatusAck closes the streaming RPC when the Controller signals
+// half-close (or the stream is torn down due to an error).
+message StreamOTGStatusAck {
+  int32 events_received = 1;
+}

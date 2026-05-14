@@ -24,6 +24,10 @@ proto_library(
     srcs = [
         "messages.proto",
         "services.proto",
+        "taskgroup.proto",
+    ],
+    deps = [
+        "@protobuf//:timestamp_proto",
     ],
 )
 
