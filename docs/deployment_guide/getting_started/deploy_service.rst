@@ -654,7 +654,7 @@ Troubleshooting
    * **Database connection failures**: Verify the database is running and accessible
    * **Authentication configuration issues**: Verify the authentication configuration is correct
    * **Gateway routing problems**: Verify the gateway pods are running and the ``osmo-gateway`` service has an external IP (``kubectl get svc osmo-gateway -n osmo``)
-   * **Repeated** ``Jwks async fetching ... failed`` **in the gateway logs**: the OSMO-issued-JWT provider's ``jwks_uri`` scheme must match ``gateway.tls.enabled`` (``https://`` when on, ``http://`` when off). Verify with the Envoy admin endpoint: ``cluster.osmo-service-jwks.ssl.handshake`` should grow alongside ``upstream_cx_total``; if it stays at ``0``, the upstream wasn't restarted to pick up its TLS config.
+   * **Repeated** ``Jwks async fetching ... failed`` **in the gateway logs**: the OSMO-issued-JWT provider's ``jwks_uri`` scheme must match ``gateway.tls.enabled`` (``https://`` when on, ``http://`` when off). Verify with the Envoy admin endpoint: ``cluster.osmo-service-jwks.ssl.handshake`` should grow alongside ``upstream_cx_total``; if it stays at ``0``, the upstream was not restarted to pick up its TLS config.
    * **Resource constraints**: Verify the resource limits are set correctly
    * **Missing secrets or incorrect configurations**: Verify the secrets are created correctly and the configurations are correct
    * **ConfigMap validation errors**: Pod in CrashLoopBackOff after a Helm upgrade — check ``kubectl describe configmap osmo-service-configs`` for the validation error
