@@ -28,6 +28,7 @@ setting detects this rotation and triggers Envoy to reload.
 {{- define "osmo.gateway-envoy-config" -}}
 {{- $gw := .Values.gateway }}
 {{- $envoy := $gw.envoy }}
+{{- $skipAuthPaths := concat (default (list) $envoy.skipAuthPaths) (default (list) $envoy.extraSkipAuthPaths) }}
 {{- $gwName := include "osmo.gateway-name" . }}
 {{- if $envoy.enabled }}
 apiVersion: v1
@@ -232,6 +233,10 @@ data:
                     timeout: 0s
                 {{- end }}
 
+                {{- with $envoy.extraRoutes }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
+
                 {{- if $envoy.serviceRoutes }}
                 {{- toYaml $envoy.serviceRoutes | nindent 16 }}
                 {{- else }}
@@ -334,7 +339,7 @@ data:
 
                     function envoy_on_request(request_handle)
                       skip = false
-                      {{- range $envoy.skipAuthPaths }}
+                      {{- range $skipAuthPaths }}
                       if (starts_with(request_handle:headers():get(':path'), '{{.}}')) then
                         skip = true
                       end
@@ -512,20 +517,41 @@ data:
                     end
 
             {{- if $gw.authz.enabled }}
-            - name: envoy.filters.http.ext_authz
+            - name: authz-with-matcher
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
-                transport_api_version: V3
-                with_request_body:
-                  max_request_bytes: 8192
-                  allow_partial_message: true
-                failure_mode_allow: false
-                grpc_service:
-                  envoy_grpc:
-                    cluster_name: authz
-                  timeout: 1s
-                metadata_context_namespaces:
-                  - envoy.filters.http.jwt_authn
+                "@type": type.googleapis.com/envoy.extensions.common.matching.v3.ExtensionWithMatcher
+                xds_matcher:
+                  matcher_list:
+                    matchers:
+                    - predicate:
+                        single_predicate:
+                          input:
+                            name: request-headers
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+                              header_name: x-osmo-auth-skip
+                          value_match:
+                            exact: "true"
+                      on_match:
+                        action:
+                          name: skip
+                          typed_config:
+                            "@type": type.googleapis.com/envoy.extensions.filters.common.matcher.action.v3.SkipFilter
+                extension_config:
+                  name: envoy.filters.http.ext_authz
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                    transport_api_version: V3
+                    with_request_body:
+                      max_request_bytes: 8192
+                      allow_partial_message: true
+                    failure_mode_allow: false
+                    grpc_service:
+                      envoy_grpc:
+                        cluster_name: authz
+                      timeout: 1s
+                    metadata_context_namespaces:
+                      - envoy.filters.http.jwt_authn
             {{- end }}
 
             {{- if $gw.rateLimit.enabled }}
@@ -885,6 +911,10 @@ data:
                     path: /var/config
             {{- end }}
       {{- end }}
+    {{- end }}
+
+    {{- with $envoy.extraClusters }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
 
 {{- end }}

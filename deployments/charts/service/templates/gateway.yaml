@@ -94,6 +94,9 @@ spec:
             mountPath: /etc/ssl/envoy-certs
             readOnly: true
           {{- end }}
+          {{- with $gw.envoy.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
         resources:
           {{- toYaml $gw.envoy.resources | nindent 10 }}
         {{- with $gw.envoy.livenessProbe }}
@@ -124,6 +127,9 @@ spec:
         - name: ssl-cert
           secret:
             secretName: {{ $gw.envoy.ssl.secretName | default "envoy-ssl-cert" }}
+        {{- end }}
+        {{- with $gw.envoy.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
 
 ---
@@ -729,4 +735,3 @@ spec:
       protocol: TCP
 {{- end }}
 {{- end }}
-

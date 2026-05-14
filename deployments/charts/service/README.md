@@ -310,7 +310,12 @@ Benefits of the separate gateway model:
 | `gateway.envoy.idp.host` | IDP host for JWKS (e.g. `login.microsoftonline.com`) | `""` |
 | `gateway.envoy.jwt.providers` | JWT provider configurations | `[]` |
 | `gateway.envoy.skipAuthPaths` | Paths that bypass authentication | See values.yaml |
+| `gateway.envoy.extraSkipAuthPaths` | Additional paths that bypass authentication, appended to `skipAuthPaths` | `[]` |
 | `gateway.envoy.serviceRoutes` | Custom Envoy routes for osmo-service upstream | `[]` |
+| `gateway.envoy.extraRoutes` | Extra Envoy routes inserted before default service/UI routes | `[]` |
+| `gateway.envoy.extraClusters` | Extra Envoy clusters appended to CDS | `[]` |
+| `gateway.envoy.extraVolumeMounts` | Extra Envoy container volume mounts | `[]` |
+| `gateway.envoy.extraVolumes` | Extra Envoy pod volumes | `[]` |
 | `gateway.envoy.routerRoute.cookie.name` | Cookie name for router session affinity | `_osmo_router_affinity` |
 | `gateway.envoy.routerRoute.cookie.ttl` | Cookie TTL for router affinity | `60s` |
 | `gateway.envoy.ingress.enabled` | Enable Ingress for the gateway | `false` |
