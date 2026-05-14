@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OSMOTaskGroup v1alpha1 CRD manifest. The schema mirrors the Go types in
+# src/apis/workflow/v1alpha1/types.go. Apply this once per backend cluster
+# at controller install time. Normally produced by controller-gen; hand-written
+# for Phase 1 to avoid adding the codegen toolchain to the Bazel build.
+#
+# Phase 1 ships v1alpha1 only. Future versions go through a conversion webhook
+# (PROJ-taskgroup-crd.md "CR schema is stable" requirement).
+
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmotaskgroups.workflow.osmo.nvidia.com
+spec:
+  group: workflow.osmo.nvidia.com
+  scope: Namespaced
+  names:
+    plural: osmotaskgroups
+    singular: osmotaskgroup
+    kind: OSMOTaskGroup
+    shortNames:
+      - otg
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Runtime
+          type: string
+          jsonPath: .spec.runtimeType
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [workflowId, groupIndex, groupName, runtimeType]
+              properties:
+                workflowId:
+                  type: string
+                groupIndex:
+                  type: integer
+                  format: int32
+                groupName:
+                  type: string
+                runtimeType:
+                  type: string
+                  enum: [kai, nim, ray, dynamo, grove]
+                runtimeConfig:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                timeout:
+                  type: string
+                maxRetries:
+                  type: integer
+                  format: int32
+                priority:
+                  type: string
+                poolName:
+                  type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Running, Succeeded, Failed, Terminating]
+                conditions:
+                  type: array
+                  items:
+                    # Matches metav1.Condition's validation surface: type and
+                    # status are required; reason / message are conventional
+                    # and frequently omitted by status mappers that don't have
+                    # a meaningful value yet.
+                    type: object
+                    required: [type, status, lastTransitionTime]
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                        enum: ["True", "False", "Unknown"]
+                      observedGeneration:
+                        type: integer
+                        format: int64
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                runtimeStatus:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                observedGeneration:
+                  type: integer
+                  format: int64
+                retries:
+                  type: integer
+                  format: int32
+                message:
+                  type: string

@@ -21,6 +21,14 @@
 
 This Helm chart deploys the OSMO Backend-Operator for managing compute backend resources and monitoring.
 
+Starting with chart version 1.3.0 this chart also installs the
+`workflow.osmo.nvidia.com/v1alpha1 OSMOTaskGroup` CustomResourceDefinition that
+the OSMOTaskGroup controller (PROJ-taskgroup-crd) reconciles. The CRD lives
+under `templates/` (not `crds/`) so chart upgrades apply schema changes; this
+matters during Phase 1 while the v1alpha1 schema is still evolving. The
+controller Deployment itself ships in a later chart bump once the reconcile
+loop is fully wired.
+
 ## Values
 
 ### Global Settings
