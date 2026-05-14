@@ -115,12 +115,12 @@ async def _stream_progress(stdout: asyncio.StreamReader) -> None:
         cli/workflow.py  ████████████████████ 100%  71.8KB  199.31MB/s  0:00:00
     """
     current_file = ''
-    file_count = 0
     try:
         terminal_width = os.get_terminal_size().columns
     except OSError:
         terminal_width = 80
     bar_width = 20
+    rendered = False
 
     while True:
         line_bytes = await stdout.readline()
@@ -148,14 +148,13 @@ async def _stream_progress(stdout: asyncio.StreamReader) -> None:
             padding = max(0, terminal_width - len(display))
             sys.stdout.write(f'\r{display}{' ' * padding}')
             sys.stdout.flush()
+            rendered = True
         else:
-            file_count += 1
             current_file = line
 
-    # Final newline to move past the in-place line
-    if file_count > 0:
-        sys.stdout.write(f'\rSynced {file_count} file{'s' if file_count != 1 else ''}'
-                         f'{' ' * (terminal_width - 20)}\n')
+    # Clear the in-place line so subsequent output starts fresh.
+    if rendered:
+        sys.stdout.write(f'\r{' ' * terminal_width}\r')
         sys.stdout.flush()
 
 
@@ -659,6 +658,16 @@ class RsyncClient:
                 logger.error('Error running rsync upload: %s', err)
                 raise
 
+    def _download_landed(self, resolved_dst: str, dst_before: Set[str] | None) -> bool:
+        """Returns True if the remote source appears to have landed in dst."""
+        # Trailing-slash sources copy contents (no predictable basename); fall
+        # back to "did anything new appear" for that case only.
+        remote_path = self._rsync_request.original_remote_path
+        if remote_path.endswith('/'):
+            return bool(set(os.listdir(resolved_dst)) - (dst_before or set()))
+        basename = os.path.basename(remote_path)
+        return os.path.exists(os.path.join(resolved_dst, basename))
+
     async def download(self) -> None:
         """
         Downloads from the remote workflow task to the local path.
@@ -694,6 +703,13 @@ class RsyncClient:
                     f'{self._rsync_request.local_path}')
             os.makedirs(resolved_dst, exist_ok=True)
 
+            # gokrazy/rsync silently exits 0 when the source is missing; snapshot
+            # only for trailing-slash sources where we have no basename to check.
+            remote_path = self._rsync_request.original_remote_path
+            dst_before: Set[str] | None = (
+                set(os.listdir(resolved_dst)) if remote_path.endswith('/') else None
+            )
+
             rsync_args = [self._rsync_bin_path, RSYNC_FLAGS]
             if self._show_progress:
                 rsync_args.append('--progress')
@@ -714,12 +730,19 @@ class RsyncClient:
             _, stderr = await process.communicate()
             if process.returncode != 0:
                 raise osmo_errors.OSMOError(f'Rsync failed: {stderr.decode()}')
-            else:
-                logger.info(
-                    'Rsync download completed successfully for %s/%s',
-                    self._rsync_request.workflow_id,
-                    self._rsync_request.task_name,
+
+            if not self._download_landed(resolved_dst, dst_before):
+                raise osmo_errors.OSMOError(
+                    f'Source path does not exist on remote task: '
+                    f'{self._rsync_request.original_remote_path}',
+                    workflow_id=self._rsync_request.workflow_id,
                 )
+
+            logger.info(
+                'Rsync download completed successfully for %s/%s',
+                self._rsync_request.workflow_id,
+                self._rsync_request.task_name,
+            )
         except (asyncio.CancelledError, InterruptedError, KeyboardInterrupt):
             if process is not None and process.returncode is None:
                 process.terminate()
