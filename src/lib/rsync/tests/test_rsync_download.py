@@ -31,7 +31,7 @@ def _make_request(remote_path: str) -> rsync.RsyncRequest:
         workflow_id='wf-1',
         task_name='task-main',
         direction=rsync.RsyncDirection.DOWNLOAD,
-        local_path='/tmp/dst',
+        local_path='/local/dst',
         remote_module='osmo',
         remote_path='ignored',
         original_remote_path=remote_path,
