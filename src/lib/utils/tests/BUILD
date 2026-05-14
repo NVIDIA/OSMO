@@ -38,6 +38,7 @@ osmo_py_test(
     name = "test_port_forward",
     srcs = ["test_port_forward.py"],
     deps = [
+        "//src/lib/utils:osmo_errors",
         "//src/lib/utils:port_forward",
     ]
 )
