@@ -959,6 +959,7 @@ class WorkflowSubmitInfo(pydantic.BaseModel):
         upload_spec_job = jobs.UploadWorkflowFiles(
             workflow_id=workflow_id,
             workflow_uuid=self.base32_id,
+            user=self.user,
             files=files)
         upload_spec_job.send_job_to_queue()
 
