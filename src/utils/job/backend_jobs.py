@@ -99,12 +99,12 @@ class BackendWorkflowJob(BackendJob):
     Represents some workflow task that needs to be executed by a backend worker.
     """
     workflow_uuid: str
+    user: str = ''
 
     def log_labels(self) -> Dict[str, str]:
         labels = {'workflow_uuid': self.workflow_uuid}
-        user_id = getattr(self, 'user', '')
-        if user_id:
-            labels['user_id'] = user_id
+        if self.user:
+            labels['user_id'] = self.user
         return labels
 
 
