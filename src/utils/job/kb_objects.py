@@ -608,8 +608,12 @@ def get_k8s_object_factory(backend: connectors.Backend) -> K8sObjectFactory:
     scheduler_type = scheduler_settings.scheduler_type
     if scheduler_type == connectors.BackendSchedulerType.KAI:
         return KaiK8sObjectFactory(backend)
-    else:
-        raise osmo_errors.OSMOServerError(f'Unsupported scheduler type: {scheduler_type}')
+    if scheduler_type == connectors.BackendSchedulerType.NONE:
+        # Base K8sObjectFactory does exactly what 'none' needs: no PodGroup CR,
+        # `scheduler_name` written to pod.spec.schedulerName, no scheduler
+        # CRDs (queues/topologies), no priority/topology features. See #936.
+        return K8sObjectFactory(scheduler_settings.scheduler_name)
+    raise osmo_errors.OSMOServerError(f'Unsupported scheduler type: {scheduler_type}')
 
 
 class FileMount(pydantic.BaseModel):

@@ -9415,7 +9415,8 @@
       "BackendSchedulerType": {
         "type": "string",
         "enum": [
-          "kai"
+          "kai",
+          "none"
         ],
         "title": "BackendSchedulerType",
         "description": "Defines the type of scheduler used by the backend "
