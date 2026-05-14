@@ -273,24 +273,6 @@ The router was its own Helm chart prior to v6.3 and is now deployed as part of t
 
 The router reads the same `services.configFile.path` as the API service. When `services.configFile.enabled: false` (default), the router gets `--config <path>` as a CLI arg. The API service ignores `services.configFile.path` unless `services.configFile.enabled: true`, so setting just the path lets you point the router at a vault-injected config without affecting the API service.
 
-### Ingress Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `services.service.ingress.enabled` | Enable ingress for external access | `true`|
-| `services.service.ingress.prefix` | URL path prefix | `/` |
-| `services.service.ingress.ingressClass` | Ingress controller class | `nginx` |
-| `services.service.ingress.sslEnabled` | Enable SSL | `true` |
-| `services.service.ingress.sslSecret` | Name of SSL secret | `osmo-tls` |
-| `services.service.ingress.annotations` | Additional custom annotations | `{}` |
-
-#### ALB Annotations Settings
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `services.service.ingress.albAnnotations.enabled` | Enable ALB annotations | `false` |
-| `services.service.ingress.albAnnotations.sslCertArn` | ARN of SSL certificate | `""` |
-
 ### Prometheus Metrics Settings
 
 | Parameter | Description | Default |
