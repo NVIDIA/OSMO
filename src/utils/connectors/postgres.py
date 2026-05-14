@@ -2478,10 +2478,15 @@ class BackendResource(pydantic.BaseModel):
 class BackendSchedulerType(enum.Enum):
     """ Defines the type of scheduler used by the backend """
     KAI = 'kai'
+    NONE = 'none'
 
 
 class BackendSchedulerSettings(pydantic.BaseModel):
-    """Settings that control the how pods are scheduled in a backend"""
+    """Settings that control the how pods are scheduled in a backend.
+
+    When scheduler_type is NONE, scheduler_name is unused: pods are scheduled
+    by the cluster's default scheduler and no PodGroup CR is created.
+    """
     scheduler_type: BackendSchedulerType = BackendSchedulerType.KAI
     scheduler_name: str = 'kai-scheduler'
     scheduler_timeout: int = 30

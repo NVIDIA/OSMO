@@ -603,11 +603,33 @@ class KaiK8sObjectFactory(K8sObjectFactory):
         return True
 
 
+class NoneK8sObjectFactory(K8sObjectFactory):
+    """k8s object factory for clusters with no batch scheduler.
+
+    Pods are submitted directly to the cluster's default scheduler. No PodGroup
+    CR is created, no scheduler-specific labels or annotations are added, and
+    schedulerName is left unset so Kubernetes assigns the default. This mode
+    sacrifices gang scheduling and priority/topology constraints but removes
+    the kai-scheduler dependency.
+    """
+
+    def __init__(self, backend: connectors.Backend):
+        # pylint: disable=unused-argument
+        super().__init__(scheduler_name='')
+
+    def update_pod_k8s_resource(self, pod: Dict, group_uuid: str, pool_name: str,
+                                priority: wf_priority.WorkflowPriority):
+        # No-op: leave schedulerName unset so the default scheduler picks it up.
+        pass
+
+
 def get_k8s_object_factory(backend: connectors.Backend) -> K8sObjectFactory:
     scheduler_settings = backend.scheduler_settings
     scheduler_type = scheduler_settings.scheduler_type
     if scheduler_type == connectors.BackendSchedulerType.KAI:
         return KaiK8sObjectFactory(backend)
+    elif scheduler_type == connectors.BackendSchedulerType.NONE:
+        return NoneK8sObjectFactory(backend)
     else:
         raise osmo_errors.OSMOServerError(f'Unsupported scheduler type: {scheduler_type}')
 
