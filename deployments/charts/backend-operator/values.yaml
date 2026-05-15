@@ -468,6 +468,82 @@ services:
       timeoutSeconds: 60
       initialDelaySeconds: 10
 
+  ## OSMOTaskGroup controller configuration
+  ## Watches OSMOTaskGroup CRs in the backend cluster and creates KAI Pods/PodGroups.
+  ##
+  taskGroupController:
+    ## Enable OSMOTaskGroup controller deployment in the backend cluster.
+    ##
+    enabled: false
+
+    ## Docker image name for the controller.
+    ##
+    imageName: taskgroup-controller
+
+    ## Kubernetes image pull policy for the controller.
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes deployment name for the controller.
+    ##
+    serviceName: osmo-taskgroup-controller
+
+    ## Kubernetes service account name suffix/override.
+    ##
+    serviceAccount: taskgroup-controller
+
+    ## gRPC address for sending status back to the API-side status receiver.
+    ## Leave empty to update only the OSMOTaskGroup status subresource.
+    ##
+    statusReportAddress: ""
+
+    ## Secret containing the shared status token when statusReportAddress is set.
+    ##
+    statusTokenSecretName: ""
+    statusTokenSecretKey: token
+
+    ## Controller leader election.
+    ##
+    leaderElection: false
+
+    ## Additional command line arguments to pass to the controller.
+    ##
+    extraArgs: []
+
+    ## Additional environment variables for the controller container.
+    ##
+    extraEnvs: []
+
+    ## Additional pod annotations for the controller.
+    ##
+    extraPodAnnotations: {}
+
+    ## Additional pod labels for the controller.
+    ##
+    extraPodLabels: {}
+
+    ## Additional sidecar containers for the controller.
+    ##
+    extraSidecarContainers: []
+
+    ## Node selector constraints for controller pod scheduling.
+    ##
+    nodeSelector: {}
+
+    ## Volumes and mounts for the controller.
+    ##
+    volumes: []
+    volumeMounts: []
+
+    ## Resource limits and requests for the controller container.
+    ##
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        memory: "512Mi"
+
 
 ## Backend Test Runner CronJob Configuration
 ## This is used to setup backend tests

@@ -91,6 +91,14 @@ Create the name of the service account to use for backend-operator worker
 {{- define "backend-operator.worker.serviceAccountName" -}}
 {{- include "backend-operator.serviceAccountName" (dict "root" . "serviceConfig" .Values.services.backendWorker "component" "backend-worker") -}}
 {{- end }}
+
+{{/*
+Create the name of the service account to use for taskgroup controller.
+*/}}
+{{- define "backend-operator.taskGroupController.serviceAccountName" -}}
+{{- include "backend-operator.serviceAccountName" (dict "root" . "serviceConfig" .Values.services.taskGroupController "component" "taskgroup-controller") -}}
+{{- end }}
+
 {{/*
 Create the name of the service account to use for test-runner pods.
 */}}
