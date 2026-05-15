@@ -22,6 +22,16 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 load("@rules_oci//oci:defs.bzl", "oci_image", "oci_push", "oci_load")
 load("@osmo_constants//:constants.bzl", "BASE_IMAGE_URL", "IMAGE_TAG")
 
+py_test(
+    name = "helpers_test",
+    srcs = ["helpers_test.py"],
+    deps = [
+        ":helpers",
+        "//src/utils:backend_messages",
+        "//src/utils/job",
+    ],
+)
+
 osmo_py_library(
     name = "agent_service_lib",
     srcs = [

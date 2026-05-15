@@ -25,6 +25,7 @@ class BackendOTGSpec(pydantic.BaseModel):
     """Namespaced OSMOTaskGroup operation carried over the backend worker channel."""
     namespace: str
     name: str
+    manifest: Dict[str, Any] = pydantic.Field(default_factory=dict)
     yaml_text: str = ''
     mode: str = ''
 

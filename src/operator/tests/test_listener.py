@@ -188,6 +188,37 @@ class TestBackendListener(unittest.TestCase):
         status, _, _ = backend_listener.calculate_pod_status(pod_event)
         self.assertEqual(status, task.TaskGroupStatus.RUNNING)
 
+    def test_otg_status_message(self):
+        message = backend_listener.otg_status_message({
+            'metadata': {'name': 'otg-a', 'namespace': 'osmo-vpan'},
+            'spec': {
+                'workflowID': 'workflow-a',
+                'workflowUUID': 'workflow-uuid',
+                'groupName': 'group-a',
+                'groupUUID': 'group-uuid',
+            },
+            'status': {
+                'phase': 'Running',
+                'runtimeStatus': {
+                    'task_status_updates': [{
+                        'workflow_uuid': 'workflow-uuid',
+                        'task_uuid': 'task-uuid',
+                        'retry_id': 0,
+                        'container': 'user',
+                        'status': 'RUNNING',
+                    }],
+                },
+            },
+        })
+
+        if message is None:
+            self.fail('otg_status_message returned None')
+        if not isinstance(message.body, dict):
+            self.fail('otg_status_message body is not a dict')
+        self.assertEqual(message.type.value, 'otg_status')
+        self.assertEqual(message.body['workflow_uuid'], 'workflow-uuid')
+        self.assertEqual(message.body['task_status_updates'][0]['task_uuid'], 'task-uuid')
+
 
 class TestNodeAvailability(unittest.TestCase):
     def setUp(self):

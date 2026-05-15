@@ -59,6 +59,17 @@ func (r *KAIReconciler) ReconcileRuntime(
 	}
 	for index := range objects {
 		object := objects[index]
+		scope, err := kaiResourceScope(config, object)
+		if err != nil {
+			return err
+		}
+		if scope == ResourceScopeCluster {
+			object.SetNamespace("")
+			if err := r.validateClusterResource(ctx, object); err != nil {
+				return err
+			}
+			continue
+		}
 		object.SetNamespace(defaultNamespace(object.GetNamespace(), otg.Namespace))
 		if err := setControllerLabels(otg, &object); err != nil {
 			return err
@@ -67,6 +78,23 @@ func (r *KAIReconciler) ReconcileRuntime(
 		if err := r.client.Create(ctx, &object); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
+	}
+	return nil
+}
+
+func (r *KAIReconciler) validateClusterResource(
+	ctx context.Context,
+	object unstructured.Unstructured,
+) error {
+	existing := &unstructured.Unstructured{}
+	existing.SetAPIVersion(object.GetAPIVersion())
+	existing.SetKind(object.GetKind())
+	if err := r.client.Get(ctx, client.ObjectKey{Name: object.GetName()}, existing); err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("%s/%s %q must already exist in the cluster",
+				object.GetAPIVersion(), object.GetKind(), object.GetName())
+		}
+		return err
 	}
 	return nil
 }

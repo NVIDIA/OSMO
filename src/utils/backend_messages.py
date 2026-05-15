@@ -59,6 +59,7 @@ class MessageType(enum.Enum):
     POD_EVENT = 'pod_event'
     ACK = 'ack'
     NODE_CONDITIONS = 'node_conditions'
+    OTG_STATUS = 'otg_status'
 
 class LoggingBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the container log body. """
@@ -206,6 +207,34 @@ class NodeConditionsBody(pydantic.BaseModel, extra='forbid'):
     rules: Dict[str, str]|None = None
 
 
+class OTGTaskStatusUpdateBody(pydantic.BaseModel, extra='forbid'):
+    """Task-level status update derived from an OSMOTaskGroup runtime status."""
+    workflow_uuid: str
+    task_uuid: str
+    retry_id: int = 0
+    container: str = ''
+    node: str | None = None
+    pod_ip: str | None = None
+    message: str = ''
+    status: str
+    exit_code: int | None = None
+    backend: str = ''
+    conditions: List[ConditionMessage] = []
+
+
+class OTGStatusBody(pydantic.BaseModel, extra='forbid'):
+    """Normalized OSMOTaskGroup status sent over the backend listener channel."""
+    workflow_id: str = ''
+    workflow_uuid: str
+    group_name: str
+    group_uuid: str = ''
+    namespace: str
+    name: str
+    phase: str
+    message: str = ''
+    task_status_updates: List[OTGTaskStatusUpdateBody] = []
+
+
 class AckBody(pydantic.BaseModel, extra='forbid'):
     """
     Body for acknowledgment messages from service back to backend listener.
@@ -250,6 +279,8 @@ class MessageOptions(pydantic.BaseModel):
         default=None, description='Message for acknowledgment')
     node_conditions: Optional[NodeConditionsBody] = pydantic.Field(
         default=None, description='Message for node conditions')
+    otg_status: Optional[OTGStatusBody] = pydantic.Field(
+        default=None, description='Message for OSMOTaskGroup status')
 
     @pydantic.model_validator(mode='before')
     @classmethod

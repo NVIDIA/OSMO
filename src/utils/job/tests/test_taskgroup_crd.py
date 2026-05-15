@@ -41,6 +41,8 @@ class TaskGroupCRDTest(unittest.TestCase):
         self.assertEqual(document['metadata']['annotations'], {
             'workflow.osmo.nvidia.com/mode': 'shadow',
         })
+        self.assertEqual(document['spec']['mode'], 'shadow')
+        self.assertEqual(payload.manifest['spec']['mode'], 'shadow')
         runtime_config = document['spec']['runtimeConfig']
         self.assertEqual(runtime_config['kai']['resources'][0]['kind'], 'Secret')
         self.assertEqual(runtime_config['expectedResources'][0]['kind'], 'Secret')

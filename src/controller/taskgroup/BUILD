@@ -32,6 +32,7 @@ go_library(
     deps = [
         "//src/apis/taskgroup/v1alpha1",
         "@io_k8s_api//core/v1:go_default_library",
+        "@io_k8s_api//scheduling/v1:go_default_library",
         "@io_k8s_apimachinery//pkg/api/errors:go_default_library",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:go_default_library",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured:go_default_library",

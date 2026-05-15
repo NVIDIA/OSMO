@@ -31,6 +31,7 @@ import re
 import signal
 import sys
 import threading
+import time
 import traceback
 from functools import partial
 from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
@@ -1095,6 +1096,92 @@ def send_pod_status(pod_send_queue: helpers.EnqueueCallback,
     send_backend_message_count(event_type='pod')
 
 
+def otg_status_message(otg: Dict[str, Any]) -> backend_messages.MessageBody | None:
+    metadata = otg.get('metadata') or {}
+    spec = otg.get('spec') or {}
+    status = otg.get('status') or {}
+    workflow_uuid = spec.get('workflowUUID') or (metadata.get('labels') or {}).get(
+        'osmo.workflow_uuid')
+    group_name = spec.get('groupName') or (metadata.get('labels') or {}).get('osmo.group_name')
+    phase = status.get('phase')
+    if not workflow_uuid or not group_name or not phase:
+        return None
+
+    runtime_status = status.get('runtimeStatus') or {}
+    task_status_updates = runtime_status.get('task_status_updates') or []
+    return backend_messages.MessageBody(
+        type=backend_messages.MessageType.OTG_STATUS,
+        body=backend_messages.OTGStatusBody(
+            workflow_id=spec.get('workflowID', ''),
+            workflow_uuid=workflow_uuid,
+            group_name=group_name,
+            group_uuid=spec.get('groupUUID', ''),
+            namespace=metadata.get('namespace', ''),
+            name=metadata.get('name', ''),
+            phase=phase,
+            message=status.get('message', ''),
+            task_status_updates=task_status_updates,
+        ))
+
+
+def watch_otg_events(progress_writer: progress.ProgressWriter,
+                     event_send_queue: helpers.EnqueueCallback,
+                     config: objects.BackendListenerConfig):
+    """Watch OSMOTaskGroup status and forward it through the backend listener channel."""
+    api = kubernetes.client.CustomObjectsApi(get_thread_local_api(config))
+    otg_status_cache = LRUCacheTTL(config.pod_event_cache_size, config.pod_event_cache_ttl)
+    resource_version = ''
+    while True:
+        try:
+            watcher = kubernetes.watch.Watch()
+            for event in watcher.stream(
+                    api.list_namespaced_custom_object,
+                    group='workflow.osmo.nvidia.com',
+                    version='v1alpha1',
+                    namespace=config.namespace,
+                    plural='osmotaskgroups',
+                    timeout_seconds=TIMEOUT_SEC,
+                    resource_version=resource_version or None):
+                progress_writer.report_progress()
+                otg = event['object']
+                resource_version = (otg.get('metadata') or {}).get(
+                    'resourceVersion', resource_version)
+                message = otg_status_message(otg)
+                if message is None:
+                    continue
+                if not isinstance(message.body, dict):
+                    continue
+                body = backend_messages.OTGStatusBody(**message.body)
+                cache_key = (
+                    body.namespace,
+                    body.name,
+                    body.phase,
+                    body.message,
+                    json.dumps([update.model_dump() for update in body.task_status_updates],
+                               sort_keys=True, default=str),
+                )
+                if check_ttl_cache(otg_status_cache, cache_key):
+                    continue
+                otg_status_cache.cache.set(cache_key, datetime.datetime.now())
+                event_send_queue(message)
+                send_backend_message_count(event_type='event')
+        except kubernetes.client.exceptions.ApiException as error:
+            if error.status == 410:
+                resource_version = ''
+                continue
+            helpers.send_log_through_queue(
+                backend_messages.LoggingType.WARNING,
+                f'Unable to watch OSMOTaskGroups: {error}',
+                event_send_queue)
+            time.sleep(10)
+        except Exception as error:  # pylint: disable=broad-except
+            helpers.send_log_through_queue(
+                backend_messages.LoggingType.EXCEPTION,
+                f'Unexpected OSMOTaskGroup watch error: {type(error).__name__}: {error}',
+                event_send_queue)
+            time.sleep(10)
+
+
 def send_pod_monitor(pod_send_queue: helpers.EnqueueCallback,
                      event_send_queue: helpers.EnqueueCallback, pod: Any, message: str):
     """ Send pod to be monitored. This happens when a pod is failing to start """
@@ -1878,7 +1965,13 @@ async def main():
                   threadsafe_send(event_send_queue),
                   config],
             daemon=True)
-        threads = [control_read_thread, pod_thread, node_thread, cluster_event_thread]
+        otg_thread = threading.Thread(
+            target=watch_otg_events,
+            args=[event_progress_writer,
+                  threadsafe_send(event_send_queue),
+                  config],
+            daemon=True)
+        threads = [control_read_thread, pod_thread, node_thread, cluster_event_thread, otg_thread]
 
         for thread in threads:
             thread.start()

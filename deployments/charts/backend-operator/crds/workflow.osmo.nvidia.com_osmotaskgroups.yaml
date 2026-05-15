@@ -66,6 +66,12 @@ spec:
                   type: string
                 groupUUID:
                   type: string
+                mode:
+                  type: string
+                  default: shadow
+                  enum:
+                    - shadow
+                    - active
                 runtimeType:
                   type: string
                   default: kai

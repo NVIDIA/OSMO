@@ -61,7 +61,22 @@ type KAIResourceOrder struct {
 	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 	Name       string `json:"name"`
+	Scope      string `json:"scope,omitempty"`
 	Source     string `json:"source"`
+}
+
+const (
+	ResourceScopeNamespaced = "Namespaced"
+	ResourceScopeCluster    = "Cluster"
+)
+
+var allowedKAIResourceScopes = map[string]string{
+	resourceKey("v1", "ConfigMap", ""):                        ResourceScopeNamespaced,
+	resourceKey("v1", "Secret", ""):                           ResourceScopeNamespaced,
+	resourceKey("v1", "Service", ""):                          ResourceScopeNamespaced,
+	resourceKey("v1", "Pod", ""):                              ResourceScopeNamespaced,
+	resourceKey("scheduling.run.ai/v2alpha2", "PodGroup", ""): ResourceScopeNamespaced,
+	resourceKey("scheduling.k8s.io/v1", "PriorityClass", ""):  ResourceScopeCluster,
 }
 
 func DecodeRuntimeConfig(otg *taskgroupv1alpha1.OSMOTaskGroup) ([]unstructured.Unstructured, error) {
@@ -86,7 +101,10 @@ func decodeRuntimeConfig(otg *taskgroupv1alpha1.OSMOTaskGroup) (RuntimeConfig, e
 func renderKAIObjects(config RuntimeConfig) ([]unstructured.Unstructured, error) {
 	if len(config.KAI.Resources) == 0 && len(config.KAI.PodTemplates) == 0 &&
 		config.KAI.Group.Name == "" && len(config.KAI.Pods) == 0 && len(config.KAI.PodGroup) == 0 {
-		return runtimeObjects(config.Resources)
+		if len(config.Resources) > 0 {
+			return nil, fmt.Errorf("top-level runtimeConfig.resources is not supported for KAI")
+		}
+		return []unstructured.Unstructured{}, nil
 	}
 
 	objectsByKey := map[string]unstructured.Unstructured{}
@@ -137,6 +155,9 @@ func renderKAIObjects(config RuntimeConfig) ([]unstructured.Unstructured, error)
 	if len(config.KAI.ResourceOrder) == 0 {
 		objects := make([]unstructured.Unstructured, 0, len(objectsByKey))
 		for _, object := range objectsByKey {
+			if _, err := kaiResourceScope(config, object); err != nil {
+				return nil, err
+			}
 			objects = append(objects, object)
 		}
 		return objects, nil
@@ -148,6 +169,9 @@ func renderKAIObjects(config RuntimeConfig) ([]unstructured.Unstructured, error)
 		if !ok {
 			return nil, fmt.Errorf("rendered KAI resource missing from order: %s/%s %s",
 				entry.APIVersion, entry.Kind, entry.Name)
+		}
+		if _, err := kaiResourceScope(config, object); err != nil {
+			return nil, err
 		}
 		objects = append(objects, object)
 	}
@@ -278,6 +302,36 @@ func objectKey(object unstructured.Unstructured) string {
 
 func resourceKey(apiVersion string, kind string, name string) string {
 	return apiVersion + "|" + kind + "|" + name
+}
+
+func kaiResourceScope(config RuntimeConfig, object unstructured.Unstructured) (string, error) {
+	key := resourceKey(object.GetAPIVersion(), object.GetKind(), "")
+	allowedScope, ok := allowedKAIResourceScopes[key]
+	if !ok {
+		return "", fmt.Errorf("unsupported KAI resource %s/%s",
+			object.GetAPIVersion(), object.GetKind())
+	}
+	configScope := ""
+	for _, entry := range config.KAI.ResourceOrder {
+		if entry.APIVersion == object.GetAPIVersion() &&
+			entry.Kind == object.GetKind() &&
+			entry.Name == object.GetName() {
+			configScope = entry.Scope
+			break
+		}
+	}
+	if configScope == "" {
+		return allowedScope, nil
+	}
+	if configScope != ResourceScopeNamespaced && configScope != ResourceScopeCluster {
+		return "", fmt.Errorf("unsupported KAI resource scope %q for %s/%s %s",
+			configScope, object.GetAPIVersion(), object.GetKind(), object.GetName())
+	}
+	if configScope != allowedScope {
+		return "", fmt.Errorf("KAI resource scope %q does not match allowed scope %q for %s/%s %s",
+			configScope, allowedScope, object.GetAPIVersion(), object.GetKind(), object.GetName())
+	}
+	return configScope, nil
 }
 
 func runtimeObjects(resources []map[string]any) ([]unstructured.Unstructured, error) {

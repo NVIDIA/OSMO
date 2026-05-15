@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -106,6 +107,97 @@ func TestKAIReconcilerShadowModeDoesNotCreateWorkloads(t *testing.T) {
 	err := kubernetesClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: "pod-a"}, pod)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("Get(Pod) error = %v, want NotFound", err)
+	}
+}
+
+func TestKAIReconcilerDoesNotNamespaceOrOwnClusterScopedResources(t *testing.T) {
+	ctx := context.Background()
+	existingPriorityClass := &schedulingv1.PriorityClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "priority-a"},
+	}
+	kubernetesClient := newFakeClient(t, existingPriorityClass)
+	reconciler := NewKAIReconciler(kubernetesClient)
+	otg := testOTG(taskgroupv1alpha1.ModeActive)
+	otg.Spec.RuntimeConfig = runtime.RawExtension{Raw: []byte(`{
+		"kai": {
+			"resources": [
+				{
+					"apiVersion": "scheduling.k8s.io/v1",
+					"kind": "PriorityClass",
+					"metadata": {"name": "priority-a", "namespace": "must-be-cleared"},
+					"value": 1000,
+					"globalDefault": false
+				}
+			],
+			"resourceOrder": [
+				{"apiVersion": "scheduling.k8s.io/v1", "kind": "PriorityClass", "name": "priority-a", "scope": "Cluster", "source": "resource"}
+			]
+		}
+	}`)}
+
+	if err := reconciler.ReconcileRuntime(ctx, otg); err != nil {
+		t.Fatalf("ReconcileRuntime() error = %v", err)
+	}
+
+	priorityClass := &schedulingv1.PriorityClass{}
+	if err := kubernetesClient.Get(ctx, client.ObjectKey{Name: "priority-a"}, priorityClass); err != nil {
+		t.Fatalf("Get(PriorityClass) error = %v", err)
+	}
+	if priorityClass.Namespace != "" {
+		t.Fatalf("priority class namespace = %q, want empty", priorityClass.Namespace)
+	}
+	if len(priorityClass.OwnerReferences) != 0 {
+		t.Fatalf("priority class owner references = %d, want 0", len(priorityClass.OwnerReferences))
+	}
+}
+
+func TestKAIReconcilerRequiresClusterScopedResourcesToExist(t *testing.T) {
+	ctx := context.Background()
+	reconciler := NewKAIReconciler(newFakeClient(t))
+	otg := testOTG(taskgroupv1alpha1.ModeActive)
+	otg.Spec.RuntimeConfig = runtime.RawExtension{Raw: []byte(`{
+		"kai": {
+			"resources": [
+				{
+					"apiVersion": "scheduling.k8s.io/v1",
+					"kind": "PriorityClass",
+					"metadata": {"name": "missing-priority"},
+					"value": 1000,
+					"globalDefault": false
+				}
+			],
+			"resourceOrder": [
+				{"apiVersion": "scheduling.k8s.io/v1", "kind": "PriorityClass", "name": "missing-priority", "scope": "Cluster", "source": "resource"}
+			]
+		}
+	}`)}
+
+	if err := reconciler.ReconcileRuntime(ctx, otg); err == nil {
+		t.Fatal("ReconcileRuntime() succeeded, want missing cluster resource error")
+	}
+}
+
+func TestKAIReconcilerRejectsUnsupportedResources(t *testing.T) {
+	ctx := context.Background()
+	reconciler := NewKAIReconciler(newFakeClient(t))
+	otg := testOTG(taskgroupv1alpha1.ModeActive)
+	otg.Spec.RuntimeConfig = runtime.RawExtension{Raw: []byte(`{
+		"kai": {
+			"resources": [
+				{
+					"apiVersion": "rbac.authorization.k8s.io/v1",
+					"kind": "ClusterRole",
+					"metadata": {"name": "not-allowed"}
+				}
+			],
+			"resourceOrder": [
+				{"apiVersion": "rbac.authorization.k8s.io/v1", "kind": "ClusterRole", "name": "not-allowed", "scope": "Cluster", "source": "resource"}
+			]
+		}
+	}`)}
+
+	if err := reconciler.ReconcileRuntime(ctx, otg); err == nil {
+		t.Fatal("ReconcileRuntime() succeeded, want unsupported resource error")
 	}
 }
 
@@ -262,6 +354,9 @@ func newFakeClient(t *testing.T, objects ...client.Object) client.Client {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("AddToScheme() error = %v", err)
+	}
+	if err := schedulingv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("AddToScheme() error = %v", err)
 	}
 	if err := taskgroupv1alpha1.AddToScheme(scheme); err != nil {

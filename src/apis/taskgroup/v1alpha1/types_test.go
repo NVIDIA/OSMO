@@ -49,6 +49,16 @@ func TestModeHelpers(t *testing.T) {
 	if otg.ActiveMode() {
 		t.Fatal("ActiveMode() = true, want false")
 	}
+	otg.Spec.Mode = RuntimeModeActive
+	if !otg.ActiveMode() {
+		t.Fatal("ActiveMode() = false, want true")
+	}
+	if otg.ShadowMode() {
+		t.Fatal("ShadowMode() = true, want false")
+	}
+	if got := (&OSMOTaskGroup{}).EffectiveMode(); got != RuntimeModeShadow {
+		t.Fatalf("EffectiveMode() = %q, want %q", got, RuntimeModeShadow)
+	}
 }
 
 func TestDeepCopyObjectCopiesRuntimeConfig(t *testing.T) {

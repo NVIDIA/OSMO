@@ -359,7 +359,7 @@ def create_otg(
         dyn_client: kb_dynamic.DynamicClient,
         otg: backend_job_defs.BackendOTGSpec) -> JobResult:
     """Create an OSMOTaskGroup in the backend cluster."""
-    resource = yaml.safe_load(otg.yaml_text)
+    resource = otg.manifest or yaml.safe_load(otg.yaml_text)
     resource.setdefault('metadata', {})
     resource['metadata']['namespace'] = otg.namespace
     resource['metadata']['name'] = otg.name

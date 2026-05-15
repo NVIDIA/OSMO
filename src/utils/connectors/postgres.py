@@ -3076,7 +3076,6 @@ class TaskGroupCRDMode(str, enum.Enum):
 class TaskGroupCRDConfig(ExtraArgBaseModel):
     """Stores OSMOTaskGroup CRD rollout configuration."""
     mode: TaskGroupCRDMode = TaskGroupCRDMode.DISABLED
-    operator_endpoint: str = 'http://osmo-operator:8002'
     namespace: str = ''
 
 

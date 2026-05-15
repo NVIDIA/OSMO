@@ -23,6 +23,7 @@ docs/**/domain_config.js
 !docs/**/*.tgz
 
 .cursor
+.claude/
 
 .pnpm-store
 

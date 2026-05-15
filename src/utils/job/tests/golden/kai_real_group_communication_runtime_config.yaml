@@ -159,18 +159,22 @@ kai:
   - apiVersion: scheduling.run.ai/v2alpha2
     kind: PodGroup
     name: parallel-processing-group
+    scope: Namespaced
     source: group
   - apiVersion: v1
     kind: Service
     name: parallel-processing-group
+    scope: Namespaced
     source: resource
   - apiVersion: v1
     kind: Pod
     name: server-pod
+    scope: Namespaced
     source: podTemplate
   - apiVersion: v1
     kind: Pod
     name: client-pod
+    scope: Namespaced
     source: podTemplate
   resources:
   - apiVersion: v1

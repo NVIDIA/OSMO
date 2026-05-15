@@ -533,7 +533,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                 self.otg_create = backend_job_defs.BackendOTGSpec(
                     namespace=payload.namespace,
                     name=payload.name,
-                    yaml_text=payload.yaml_text,
+                    manifest=payload.manifest,
                     mode=crd_config.mode.value,
                 )
                 if crd_config.mode == connectors.TaskGroupCRDMode.ACTIVE:

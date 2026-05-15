@@ -103,7 +103,6 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `service/agent/` | Backend cluster integration via WebSocket. Receives node/pod/event/heartbeat streams from K8s clusters. |
 | `service/logger/` | Receives structured logs from osmo-ctrl containers. Persists task metrics to PostgreSQL. Distributed barriers via Redis. |
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
-| `service/operator/` | Go gRPC/HTTP service for single-cluster `OSMOTaskGroup` CRD create/delete/status reads. |
 
 ### Python Libraries (`lib/`)
 

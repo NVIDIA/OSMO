@@ -214,6 +214,66 @@ def queue_update_group_job(postgres: connectors.PostgresConnector,
     update_task.send_job_to_queue()
 
 
+def queue_otg_status_update_job(postgres: connectors.PostgresConnector,
+                                message: backend_messages.OTGStatusBody):
+    """Queue API-side status updates from an OSMOTaskGroup status event."""
+    for task_update in message.task_status_updates:
+        update_body = backend_messages.UpdatePodBody(
+            workflow_uuid=task_update.workflow_uuid or message.workflow_uuid,
+            task_uuid=task_update.task_uuid,
+            retry_id=task_update.retry_id,
+            container=task_update.container,
+            node=task_update.node,
+            pod_ip=task_update.pod_ip,
+            message=task_update.message,
+            status=task_update.status,
+            exit_code=task_update.exit_code,
+            backend=task_update.backend,
+            conditions=task_update.conditions,
+        )
+        queue_update_group_job(postgres, update_body)
+
+    if message.task_status_updates:
+        return
+
+    status = otg_phase_to_group_status(message.phase)
+    if status is None:
+        return
+
+    fetch_cmd = '''
+        SELECT groups.workflow_id, workflows.workflow_uuid, workflows.submitted_by
+        FROM groups
+        INNER JOIN workflows ON groups.workflow_id = workflows.workflow_id
+        WHERE workflows.workflow_uuid = %s AND groups.name = %s;
+    '''
+    group_rows = postgres.execute_fetch_command(
+        fetch_cmd, (message.workflow_uuid, message.group_name), True)
+    if not group_rows:
+        raise osmo_errors.OSMODatabaseError(
+            f'No group {message.group_name} was found for workflow {message.workflow_uuid}.')
+
+    update_job = jobs.UpdateGroup(
+        workflow_id=group_rows[0]['workflow_id'],
+        workflow_uuid=group_rows[0]['workflow_uuid'],
+        group_name=message.group_name,
+        status=status,
+        message=message.message,
+        user=group_rows[0]['submitted_by'])
+    update_job.send_job_to_queue()
+
+
+def otg_phase_to_group_status(phase: str) -> task.TaskGroupStatus | None:
+    if phase == 'Pending':
+        return task.TaskGroupStatus.SCHEDULING
+    if phase == 'Running':
+        return task.TaskGroupStatus.RUNNING
+    if phase == 'Succeeded':
+        return task.TaskGroupStatus.COMPLETED
+    if phase == 'Failed':
+        return task.TaskGroupStatus.FAILED_SERVER_ERROR
+    return None
+
+
 def update_resource(postgres: connectors.PostgresConnector,
                     backend: str, message: backend_messages.ResourceBody):
 
@@ -637,6 +697,8 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     send_pod_event(
                         postgres, message_body.pod_event,
                         workflow_config.max_event_log_lines)
+                elif message_body.otg_status:
+                    queue_otg_status_update_job(postgres, message_body.otg_status)
                 else:
                     logging.error('Ignoring invalid backend listener message type %s',
                         message.type.value)

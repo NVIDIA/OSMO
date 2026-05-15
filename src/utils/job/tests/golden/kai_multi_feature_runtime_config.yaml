@@ -135,26 +135,32 @@ kai:
   - apiVersion: v1
     kind: Secret
     name: registry-secret
+    scope: Namespaced
     source: resource
   - apiVersion: v1
     kind: Service
     name: headless-service
+    scope: Namespaced
     source: resource
   - apiVersion: scheduling.k8s.io/v1
     kind: PriorityClass
     name: osmo-high
+    scope: Cluster
     source: resource
   - apiVersion: scheduling.run.ai/v2alpha2
     kind: PodGroup
     name: group-uuid
+    scope: Namespaced
     source: group
   - apiVersion: v1
     kind: Pod
     name: worker-0
+    scope: Namespaced
     source: podTemplate
   - apiVersion: v1
     kind: Pod
     name: server-0
+    scope: Namespaced
     source: podTemplate
   resources:
   - apiVersion: v1

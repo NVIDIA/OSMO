@@ -36,6 +36,13 @@ const (
 	ModeActive = "active"
 )
 
+type RuntimeMode string
+
+const (
+	RuntimeModeShadow RuntimeMode = ModeShadow
+	RuntimeModeActive RuntimeMode = ModeActive
+)
+
 type RuntimeType string
 
 const (
@@ -65,6 +72,7 @@ type OSMOTaskGroupSpec struct {
 	WorkflowUUID  string               `json:"workflowUUID,omitempty"`
 	GroupName     string               `json:"groupName,omitempty"`
 	GroupUUID     string               `json:"groupUUID,omitempty"`
+	Mode          RuntimeMode          `json:"mode,omitempty"`
 	RuntimeType   RuntimeType          `json:"runtimeType,omitempty"`
 	RuntimeConfig runtime.RawExtension `json:"runtimeConfig,omitempty"`
 }
@@ -133,20 +141,35 @@ func (in *OSMOTaskGroup) EffectiveRuntimeType() RuntimeType {
 	return in.Spec.RuntimeType
 }
 
+func (in *OSMOTaskGroup) EffectiveMode() RuntimeMode {
+	if in.Spec.Mode != "" {
+		return in.Spec.Mode
+	}
+	if in.Annotations[AnnotationMode] == ModeActive {
+		return RuntimeModeActive
+	}
+	if in.Annotations[AnnotationMode] == ModeShadow || in.Annotations[AnnotationShadow] == "true" {
+		return RuntimeModeShadow
+	}
+	return RuntimeModeShadow
+}
+
 func (in *OSMOTaskGroup) ActiveMode() bool {
-	return in.Annotations[AnnotationMode] == ModeActive
+	return in.EffectiveMode() == RuntimeModeActive
 }
 
 func (in *OSMOTaskGroup) ShadowMode() bool {
-	if in.Annotations[AnnotationMode] == ModeShadow {
-		return true
-	}
-	return in.Annotations[AnnotationShadow] == "true"
+	return in.EffectiveMode() == RuntimeModeShadow
 }
 
 func (in *OSMOTaskGroup) Validate() error {
 	if in.EffectiveRuntimeType() != RuntimeTypeKAI {
 		return fmt.Errorf("unsupported runtimeType %q", in.EffectiveRuntimeType())
+	}
+	switch in.EffectiveMode() {
+	case RuntimeModeActive, RuntimeModeShadow:
+	default:
+		return fmt.Errorf("unsupported mode %q", in.EffectiveMode())
 	}
 	if len(in.Spec.RuntimeConfig.Raw) == 0 {
 		return fmt.Errorf("runtimeConfig is required")

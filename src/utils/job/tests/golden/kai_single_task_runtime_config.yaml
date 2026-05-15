@@ -51,9 +51,11 @@ kai:
   - apiVersion: scheduling.run.ai/v2alpha2
     kind: PodGroup
     name: group-single
+    scope: Namespaced
     source: group
   - apiVersion: v1
     kind: Pod
     name: pod-single
+    scope: Namespaced
     source: podTemplate
   resources: []

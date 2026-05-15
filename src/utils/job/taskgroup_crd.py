@@ -26,12 +26,23 @@ import yaml
 OTG_API_VERSION = 'workflow.osmo.nvidia.com/v1alpha1'
 OTG_KIND = 'OSMOTaskGroup'
 OTG_MODE_ANNOTATION = 'workflow.osmo.nvidia.com/mode'
+SCOPE_CLUSTER = 'Cluster'
+SCOPE_NAMESPACED = 'Namespaced'
+ALLOWED_KAI_RESOURCE_SCOPES = {
+    ('v1', 'ConfigMap'): SCOPE_NAMESPACED,
+    ('v1', 'Secret'): SCOPE_NAMESPACED,
+    ('v1', 'Service'): SCOPE_NAMESPACED,
+    ('v1', 'Pod'): SCOPE_NAMESPACED,
+    ('scheduling.run.ai/v2alpha2', 'PodGroup'): SCOPE_NAMESPACED,
+    ('scheduling.k8s.io/v1', 'PriorityClass'): SCOPE_CLUSTER,
+}
 
 
 @dataclasses.dataclass(frozen=True)
 class OSMOTaskGroupPayload:
     namespace: str
     name: str
+    manifest: Dict[str, Any]
     yaml_text: str
 
 
@@ -76,6 +87,7 @@ def build_otg_payload(
             'workflowUUID': workflow_uuid,
             'groupName': group_name,
             'groupUUID': group_uuid,
+            'mode': mode_value(mode),
             'runtimeType': 'kai',
             'runtimeConfig': runtime_config,
         },
@@ -83,6 +95,7 @@ def build_otg_payload(
     return OSMOTaskGroupPayload(
         namespace=namespace,
         name=name,
+        manifest=copy.deepcopy(document),
         yaml_text=yaml.safe_dump(document, sort_keys=False),
     )
 
@@ -102,7 +115,12 @@ def build_kai_runtime_config(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
         kind = resource.get('kind', '')
         metadata = resource.get('metadata', {})
         name = metadata.get('name', '')
-        order_entry = {'apiVersion': api_version, 'kind': kind, 'name': name}
+        order_entry = {
+            'apiVersion': api_version,
+            'kind': kind,
+            'name': name,
+            'scope': kai_resource_scope(api_version, kind),
+        }
         if api_version == 'v1' and kind == 'Pod':
             pod_templates.append({
                 'name': name,
@@ -137,3 +155,10 @@ def build_kai_runtime_config(resources: List[Dict[str, Any]]) -> Dict[str, Any]:
         },
         'expectedResources': copy.deepcopy(resources),
     }
+
+
+def kai_resource_scope(api_version: str, kind: str) -> str:
+    try:
+        return ALLOWED_KAI_RESOURCE_SCOPES[(api_version, kind)]
+    except KeyError as error:
+        raise ValueError(f'Unsupported KAI resource {api_version}/{kind}') from error

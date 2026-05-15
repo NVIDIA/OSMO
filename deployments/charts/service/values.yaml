@@ -1239,63 +1239,6 @@ services:
     ##
     serviceAccountName: ""
 
-  ## Operator Service for OSMOTaskGroup CRD submission
-  ##
-  operator:
-    ## Enable the OSMOTaskGroup Operator Service
-    ##
-    enabled: false
-
-    ## Number of operator service replicas
-    ##
-    replicas: 1
-
-    ## Docker image name for the operator service
-    ##
-    imageName: operator-service
-
-    ## Optional operator service image tag override
-    ## Leave empty to use global.osmoImageTag
-    ##
-    imageTag: ""
-
-    ## Kubernetes image pull policy
-    ##
-    imagePullPolicy: Always
-
-    ## Kubernetes service name
-    ##
-    serviceName: osmo-operator
-
-    ## gRPC and HTTP ports exposed by the service
-    ##
-    grpcPort: 8001
-    httpPort: 8002
-
-    ## Enable gRPC reflection for debugging
-    ##
-    enableReflection: false
-
-    ## Service account name override
-    ##
-    serviceAccountName: ""
-
-    ## Scheduling and resource controls
-    ##
-    nodeSelector: {}
-    tolerations: []
-    resources: {}
-
-    ## Extra extensibility hooks
-    ##
-    extraArgs: []
-    extraEnv: []
-    extraPodAnnotations: {}
-    extraPodLabels: {}
-    extraVolumeMounts: []
-    extraVolumes: []
-    extraSidecars: []
-
   ## Router service configuration
   ##
   router:

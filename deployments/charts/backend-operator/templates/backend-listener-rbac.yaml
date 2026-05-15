@@ -34,6 +34,9 @@ rules:
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["list", "watch", "get"]
+- apiGroups: ["workflow.osmo.nvidia.com"]
+  resources: ["osmotaskgroups"]
+  verbs: ["list", "watch", "get"]
 ---
 # ClusterRole for Backend Listener (Cluster-scoped resources)
 kind: ClusterRole
