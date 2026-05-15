@@ -61,7 +61,13 @@ curr_cli_config = connectors.CliConfig()
 async def check_client_version(request: fastapi.Request, call_next):
     user_id = request.headers.get(login.OSMO_USER_HEADER, '')
     with src.lib.utils.logging.UserLogContext(user_id):
-        return await _check_client_version(request, call_next)
+        response = await _check_client_version(request, call_next)
+        logging.info(
+            '%s %s -> %d',
+            request.method, request.url.path, response.status_code,
+            extra={'status_code': response.status_code},
+        )
+        return response
 
 
 async def _check_client_version(request: fastapi.Request, call_next):

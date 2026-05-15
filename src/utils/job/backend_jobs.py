@@ -105,6 +105,8 @@ class BackendWorkflowJob(BackendJob):
         labels = {'workflow_uuid': self.workflow_uuid}
         if self.user:
             labels['user_id'] = self.user
+        if self.job_id:
+            labels['job_id'] = self.job_id
         return labels
 
 
