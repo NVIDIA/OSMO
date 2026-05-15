@@ -20,6 +20,15 @@ from typing import Any, Dict, List, Optional, Union
 
 import pydantic
 
+
+class BackendOTGSpec(pydantic.BaseModel):
+    """Namespaced OSMOTaskGroup operation carried over the backend worker channel."""
+    namespace: str
+    name: str
+    yaml_text: str = ''
+    mode: str = ''
+
+
 class BackendCreateGroupMixin(pydantic.BaseModel):
     """
     Submit task job contains the id of a task that is to be submitted.
@@ -31,6 +40,7 @@ class BackendCreateGroupMixin(pydantic.BaseModel):
     k8s_resources: List[Dict]
     backend_k8s_timeout: int = 60
     scheduler_settings: Dict[str, Any] = {}
+    otg_create: Optional[BackendOTGSpec] = None
 
 
 class BackendCustomApi(pydantic.BaseModel):
@@ -92,6 +102,7 @@ class BackendCleanupGroupMixin(pydantic.BaseModel):
     force_delete: bool = False
     # Max error logs per container
     max_log_lines: int
+    otg_delete: Optional[BackendOTGSpec] = None
 
 
 class BackendSynchronizeQueuesMixin(pydantic.BaseModel):

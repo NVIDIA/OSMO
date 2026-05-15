@@ -34,7 +34,6 @@ import urllib.parse
 import redis  # type: ignore
 import redis.asyncio  # type: ignore
 import pydantic
-import requests
 import yaml
 
 from src.lib.data import storage
@@ -531,24 +530,12 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                     mode=crd_config.mode,
                     resources=resources,
                 )
-                fail_open = crd_config.mode == connectors.TaskGroupCRDMode.SHADOW
-                try:
-                    created = taskgroup_crd.submit_otg(crd_config, payload, fail_open)
-                    logging.info(
-                        'Submitted OSMOTaskGroup %s/%s in %s mode',
-                        payload.namespace,
-                        payload.name,
-                        crd_config.mode.value,
-                        extra={'workflow_uuid': self.workflow_uuid})
-                    if not created and fail_open:
-                        logging.warning(
-                            'Continuing legacy group submission after shadow OTG failure',
-                            extra={'workflow_uuid': self.workflow_uuid})
-                except requests.RequestException as error:
-                    error_message = f'Create OSMOTaskGroup failed: {error}'
-                    self.handle_failure(context, error_message)
-                    return False, error_message
-
+                self.otg_create = backend_job_defs.BackendOTGSpec(
+                    namespace=payload.namespace,
+                    name=payload.name,
+                    yaml_text=payload.yaml_text,
+                    mode=crd_config.mode.value,
+                )
                 if crd_config.mode == connectors.TaskGroupCRDMode.ACTIVE:
                     self.k8s_resources = []
 
@@ -593,7 +580,6 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
-        delete_taskgroup_crd(context, self.workflow_id, self.group_name)
         cleanup_workflow_group(context, self.workflow_id, self.workflow_uuid, self.group_name)
         return JobResult()
 
@@ -614,14 +600,18 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
         for task_obj in group_obj.tasks:
             redis_client.delete(
                 f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs')
+        self.otg_delete = build_delete_otg_spec(context, self.workflow_id, self.group_name)
         return True, ''
 
 
-def delete_taskgroup_crd(context: JobExecutionContext, workflow_id: str, group_name: str) -> None:
+def build_delete_otg_spec(
+        context: JobExecutionContext,
+        workflow_id: str,
+        group_name: str) -> backend_job_defs.BackendOTGSpec | None:
     workflow_config = context.postgres.get_workflow_configs()
     crd_config = workflow_config.task_group_crd
     if crd_config.mode == connectors.TaskGroupCRDMode.DISABLED:
-        return
+        return None
     group_obj = task.TaskGroup.fetch_from_db(context.postgres, workflow_id, group_name)
     namespace = crd_config.namespace
     if not namespace:
@@ -637,14 +627,13 @@ def delete_taskgroup_crd(context: JobExecutionContext, workflow_id: str, group_n
                 error,
                 extra={'workflow_id': workflow_id, 'group_name': group_name},
             )
-            return
+            return None
 
     otg_name = taskgroup_crd.otg_name(group_obj.group_uuid)
-    taskgroup_crd.delete_otg(
-        crd_config,
+    return backend_job_defs.BackendOTGSpec(
         namespace=namespace,
         name=otg_name,
-        fail_open=True,
+        mode=crd_config.mode.value,
     )
 
 

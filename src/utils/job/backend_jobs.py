@@ -128,6 +128,17 @@ class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkfl
         api.configuration.timeout = self.backend_k8s_timeout
 
         result = JobResult()
+        if self.otg_create:
+            otg_result = create_otg(dyn_client, self.otg_create)
+            if otg_result.status != JobStatus.SUCCESS:
+                if self.otg_create.mode == connectors.TaskGroupCRDMode.SHADOW.value:
+                    logging.warning(
+                        'Continuing legacy group creation after shadow OSMOTaskGroup failure: %s',
+                        otg_result.message,
+                        extra={'workflow_uuid': self.workflow_uuid},
+                    )
+                else:
+                    return otg_result
 
         for resource in self.k8s_resources:
             resource['metadata']['namespace'] = namespace
@@ -252,6 +263,9 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
         need_retry = False
         err_message = None
 
+        if self.otg_delete:
+            delete_otg(kb_dynamic.DynamicClient(api), self.otg_delete, self.workflow_uuid)
+
         # cleanup_specs is already a List[BackendCleanupSpec]
         cleanup_specs_list = self.cleanup_specs
 
@@ -339,6 +353,77 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
         if need_retry:
             return JobResult(status=JobStatus.FAILED_RETRY, message=err_message)
         return JobResult()
+
+
+def create_otg(
+        dyn_client: kb_dynamic.DynamicClient,
+        otg: backend_job_defs.BackendOTGSpec) -> JobResult:
+    """Create an OSMOTaskGroup in the backend cluster."""
+    resource = yaml.safe_load(otg.yaml_text)
+    resource.setdefault('metadata', {})
+    resource['metadata']['namespace'] = otg.namespace
+    resource['metadata']['name'] = otg.name
+    try:
+        resource_api = dyn_client.resources.get(
+            api_version='workflow.osmo.nvidia.com/v1alpha1',
+            kind='OSMOTaskGroup')
+        resource_api.create(namespace=otg.namespace, body=resource)
+        return JobResult()
+    except kb_exceptions.ApiException as api_exception:
+        code, reason = api_exception_code_reason(api_exception)
+        if code == 409 or reason == 'AlreadyExists':
+            return JobResult(message='AlreadyExists')
+        if code >= 500:
+            return JobResult(status=JobStatus.FAILED_RETRY, message=str(api_exception))
+        return JobResult(status=JobStatus.FAILED_NO_RETRY, message=str(api_exception))
+    except urllib3.exceptions.ProtocolError as error:
+        return JobResult(status=JobStatus.FAILED_RETRY, message=str(error))
+
+
+def delete_otg(
+        dyn_client: kb_dynamic.DynamicClient,
+        otg: backend_job_defs.BackendOTGSpec,
+        workflow_uuid: str) -> None:
+    """Delete an OSMOTaskGroup in the backend cluster, fail-open for cleanup."""
+    try:
+        resource_api = dyn_client.resources.get(
+            api_version='workflow.osmo.nvidia.com/v1alpha1',
+            kind='OSMOTaskGroup')
+        resource_api.delete(name=otg.name, namespace=otg.namespace)
+    except kb_exceptions.ApiException as api_exception:
+        code, _ = api_exception_code_reason(api_exception)
+        if code == 404:
+            logging.info(
+                'Skipping deletion of OSMOTaskGroup %s/%s because it does not exist',
+                otg.namespace,
+                otg.name,
+                extra={'workflow_uuid': workflow_uuid},
+            )
+            return
+        logging.warning(
+            'Failed to delete OSMOTaskGroup %s/%s during cleanup: %s',
+            otg.namespace,
+            otg.name,
+            api_exception,
+            extra={'workflow_uuid': workflow_uuid},
+        )
+    except urllib3.exceptions.ProtocolError as error:
+        logging.warning(
+            'Connection error deleting OSMOTaskGroup %s/%s during cleanup: %s',
+            otg.namespace,
+            otg.name,
+            error,
+            extra={'workflow_uuid': workflow_uuid},
+        )
+
+
+def api_exception_code_reason(api_exception: kb_exceptions.ApiException) -> tuple[int, str]:
+    try:
+        body = json.loads(api_exception.body or '{}')
+    except json.JSONDecodeError:
+        return api_exception.status or 0, str(api_exception)
+    return body.get('code', api_exception.status or 0), body.get(
+        'reason', body.get('message', str(api_exception.body)))
 
 
 class BackendRescheduleTask(BackendWorkflowJob):

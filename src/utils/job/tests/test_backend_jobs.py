@@ -19,7 +19,214 @@ SPDX-License-Identifier: Apache-2.0
 import unittest
 from unittest import mock
 
+import kubernetes.client.exceptions as kb_exceptions  # type: ignore
+
 from src.utils.job import backend_job_defs, backend_jobs
+
+
+class FakeResourceApi:
+    def __init__(self):
+        self.created = []
+        self.deleted = []
+        self.create_error = None
+        self.delete_error = None
+
+    def create(self, namespace, body):
+        if self.create_error:
+            raise self.create_error
+        self.created.append((namespace, body))
+
+    def delete(self, name, namespace):
+        if self.delete_error:
+            raise self.delete_error
+        self.deleted.append((namespace, name))
+
+
+class FakeDynamicClient:
+    def __init__(self, resource_api):
+        self.resource_api = resource_api
+        self.resources = self
+        self.get_calls = []
+
+    def get(self, api_version, kind):
+        self.get_calls.append((api_version, kind))
+        return self.resource_api
+
+
+class RoutingDynamicClient:
+    def __init__(self, resources):
+        self._resources = resources
+        self.resources = self
+
+    def get(self, api_version, kind):
+        return self._resources[kind]
+
+
+class FakeApiClient:
+    def __init__(self):
+        self.configuration = mock.Mock()
+
+
+class FakeBackendContext(backend_jobs.BackendJobExecutionContext):
+    def __init__(self):
+        self.api_client = FakeApiClient()
+
+    def get_kb_client(self):
+        return self.api_client
+
+    def get_kb_namespace(self):
+        return 'osmo-vpan'
+
+    def get_test_runner_namespace(self):
+        return None
+
+    def get_test_runner_cronjob_spec_file(self):
+        return None
+
+    def send_message(self, message):
+        pass
+
+
+def api_error(status, reason):
+    error = kb_exceptions.ApiException(status=status)
+    error.body = f'{{"code": {status}, "reason": "{reason}"}}'
+    return error
+
+
+class OSMOTaskGroupBackendJobTest(unittest.TestCase):
+    def test_create_otg_creates_namespaced_resource(self):
+        resource_api = FakeResourceApi()
+        dyn_client = FakeDynamicClient(resource_api)
+
+        result = backend_jobs.create_otg(
+            dyn_client,
+            backend_job_defs.BackendOTGSpec(
+                namespace='osmo-vpan',
+                name='otg-a',
+                yaml_text='apiVersion: workflow.osmo.nvidia.com/v1alpha1\n'
+                          'kind: OSMOTaskGroup\n'
+                          'metadata:\n'
+                          '  name: stale\n',
+                mode='active',
+            ),
+        )
+
+        self.assertEqual(result.status, backend_jobs.JobStatus.SUCCESS)
+        self.assertEqual(dyn_client.get_calls, [
+            ('workflow.osmo.nvidia.com/v1alpha1', 'OSMOTaskGroup'),
+        ])
+        namespace, body = resource_api.created[0]
+        self.assertEqual(namespace, 'osmo-vpan')
+        self.assertEqual(body['metadata']['namespace'], 'osmo-vpan')
+        self.assertEqual(body['metadata']['name'], 'otg-a')
+
+    def test_create_otg_already_exists_is_success(self):
+        resource_api = FakeResourceApi()
+        resource_api.create_error = api_error(409, 'AlreadyExists')
+
+        result = backend_jobs.create_otg(
+            FakeDynamicClient(resource_api),
+            backend_job_defs.BackendOTGSpec(
+                namespace='osmo-vpan',
+                name='otg-a',
+                yaml_text='kind: OSMOTaskGroup\nmetadata: {}\n',
+                mode='active',
+            ),
+        )
+
+        self.assertEqual(result.status, backend_jobs.JobStatus.SUCCESS)
+        self.assertEqual(result.message, 'AlreadyExists')
+
+    def test_create_otg_server_error_retries(self):
+        resource_api = FakeResourceApi()
+        resource_api.create_error = api_error(500, 'InternalError')
+
+        result = backend_jobs.create_otg(
+            FakeDynamicClient(resource_api),
+            backend_job_defs.BackendOTGSpec(
+                namespace='osmo-vpan',
+                name='otg-a',
+                yaml_text='kind: OSMOTaskGroup\nmetadata: {}\n',
+                mode='active',
+            ),
+        )
+
+        self.assertEqual(result.status, backend_jobs.JobStatus.FAILED_RETRY)
+
+    def test_delete_otg_deletes_namespaced_resource(self):
+        resource_api = FakeResourceApi()
+
+        backend_jobs.delete_otg(
+            FakeDynamicClient(resource_api),
+            backend_job_defs.BackendOTGSpec(namespace='osmo-vpan', name='otg-a'),
+            workflow_uuid='workflow-uuid',
+        )
+
+        self.assertEqual(resource_api.deleted, [('osmo-vpan', 'otg-a')])
+
+    def test_shadow_otg_failure_continues_legacy_resource_creation(self):
+        otg_api = FakeResourceApi()
+        otg_api.create_error = api_error(400, 'BadRequest')
+        pod_api = FakeResourceApi()
+        dyn_client = RoutingDynamicClient({
+            'OSMOTaskGroup': otg_api,
+            'Pod': pod_api,
+        })
+        job = backend_jobs.BackendCreateGroup(
+            backend='backend-a',
+            job_id='workflow-uuid-group-a-submit',
+            workflow_uuid='workflow-uuid',
+            group_name='group-a',
+            k8s_resources=[{
+                'apiVersion': 'v1',
+                'kind': 'Pod',
+                'metadata': {'name': 'pod-a'},
+            }],
+            otg_create=backend_job_defs.BackendOTGSpec(
+                namespace='osmo-vpan',
+                name='otg-a',
+                yaml_text='kind: OSMOTaskGroup\nmetadata: {}\n',
+                mode='shadow',
+            ),
+        )
+
+        with mock.patch.object(backend_jobs.kb_dynamic, 'DynamicClient', return_value=dyn_client):
+            result = job.execute(FakeBackendContext(), mock.Mock())
+
+        self.assertEqual(result.status, backend_jobs.JobStatus.SUCCESS)
+        self.assertEqual(pod_api.created[0][0], 'osmo-vpan')
+
+    def test_active_otg_failure_fails_without_legacy_resource_creation(self):
+        otg_api = FakeResourceApi()
+        otg_api.create_error = api_error(400, 'BadRequest')
+        pod_api = FakeResourceApi()
+        dyn_client = RoutingDynamicClient({
+            'OSMOTaskGroup': otg_api,
+            'Pod': pod_api,
+        })
+        job = backend_jobs.BackendCreateGroup(
+            backend='backend-a',
+            job_id='workflow-uuid-group-a-submit',
+            workflow_uuid='workflow-uuid',
+            group_name='group-a',
+            k8s_resources=[{
+                'apiVersion': 'v1',
+                'kind': 'Pod',
+                'metadata': {'name': 'pod-a'},
+            }],
+            otg_create=backend_job_defs.BackendOTGSpec(
+                namespace='osmo-vpan',
+                name='otg-a',
+                yaml_text='kind: OSMOTaskGroup\nmetadata: {}\n',
+                mode='active',
+            ),
+        )
+
+        with mock.patch.object(backend_jobs.kb_dynamic, 'DynamicClient', return_value=dyn_client):
+            result = job.execute(FakeBackendContext(), mock.Mock())
+
+        self.assertEqual(result.status, backend_jobs.JobStatus.FAILED_NO_RETRY)
+        self.assertEqual(pod_api.created, [])
 
 
 class ImmutableTargetAlreadyCurrentTest(unittest.TestCase):

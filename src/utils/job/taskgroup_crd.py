@@ -18,13 +18,9 @@ SPDX-License-Identifier: Apache-2.0
 
 import copy
 import dataclasses
-import json
-import logging
 import re
 from typing import Any, Dict, List
-from urllib.parse import urljoin
 
-import requests
 import yaml
 
 OTG_API_VERSION = 'workflow.osmo.nvidia.com/v1alpha1'
@@ -89,81 +85,6 @@ def build_otg_payload(
         name=name,
         yaml_text=yaml.safe_dump(document, sort_keys=False),
     )
-
-
-class OperatorServiceClient:
-    """Small HTTP client for the Operator Service's OTG endpoints."""
-
-    def __init__(self, endpoint: str, timeout_seconds: float = 10.0):
-        self.endpoint = endpoint.rstrip('/') + '/'
-        self.timeout_seconds = timeout_seconds
-
-    def create_otg(self, payload: OSMOTaskGroupPayload) -> None:
-        url = urljoin(self.endpoint, 'v1/otg/create')
-        response = requests.post(
-            url,
-            data=json.dumps({
-                'namespace': payload.namespace,
-                'name': payload.name,
-                'otg_yaml': payload.yaml_text,
-            }),
-            headers={'Content-Type': 'application/json'},
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-
-    def delete_otg(self, namespace: str, name: str) -> None:
-        url = urljoin(self.endpoint, 'v1/otg/delete')
-        response = requests.post(
-            url,
-            data=json.dumps({
-                'namespace': namespace,
-                'name': name,
-            }),
-            headers={'Content-Type': 'application/json'},
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-
-
-def submit_otg(
-    config: Any,
-    payload: OSMOTaskGroupPayload,
-    fail_open: bool,
-) -> bool:
-    try:
-        OperatorServiceClient(config.operator_endpoint).create_otg(payload)
-        return True
-    except requests.RequestException as error:
-        log_extra = {
-            'workflow_uuid': payload.name,
-            'otg_namespace': payload.namespace,
-            'otg_name': payload.name,
-        }
-        if fail_open:
-            logging.warning('Failed to create shadow OSMOTaskGroup: %s', error, extra=log_extra)
-            return False
-        raise
-
-
-def delete_otg(
-    config: Any,
-    namespace: str,
-    name: str,
-    fail_open: bool,
-) -> bool:
-    try:
-        OperatorServiceClient(config.operator_endpoint).delete_otg(namespace, name)
-        return True
-    except requests.RequestException as error:
-        log_extra = {
-            'otg_namespace': namespace,
-            'otg_name': name,
-        }
-        if fail_open:
-            logging.warning('Failed to delete OSMOTaskGroup: %s', error, extra=log_extra)
-            return False
-        raise
 
 
 def mode_value(mode: Any) -> str:

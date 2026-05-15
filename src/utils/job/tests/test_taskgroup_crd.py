@@ -16,15 +16,10 @@
 
 import pathlib
 import unittest
-from unittest import mock
 
 import yaml
 
 from src.utils.job import taskgroup_crd
-
-
-class FakeConfig:
-    operator_endpoint = 'http://operator'
 
 
 class TaskGroupCRDTest(unittest.TestCase):
@@ -49,37 +44,6 @@ class TaskGroupCRDTest(unittest.TestCase):
         runtime_config = document['spec']['runtimeConfig']
         self.assertEqual(runtime_config['kai']['resources'][0]['kind'], 'Secret')
         self.assertEqual(runtime_config['expectedResources'][0]['kind'], 'Secret')
-
-    @mock.patch('src.utils.job.taskgroup_crd.requests.post')
-    def test_submit_otg_shadow_fail_open(self, post_mock):
-        post_mock.side_effect = taskgroup_crd.requests.ConnectionError('down')
-        payload = taskgroup_crd.OSMOTaskGroupPayload(
-            namespace='ns',
-            name='otg-a',
-            yaml_text='kind: OSMOTaskGroup',
-        )
-
-        result = taskgroup_crd.submit_otg(
-            FakeConfig(),
-            payload,
-            fail_open=True,
-        )
-
-        self.assertFalse(result)
-
-    @mock.patch('src.utils.job.taskgroup_crd.requests.post')
-    def test_delete_otg_uses_operator_endpoint(self, post_mock):
-        post_mock.return_value.raise_for_status.return_value = None
-
-        result = taskgroup_crd.delete_otg(
-            FakeConfig(),
-            namespace='ns',
-            name='otg-a',
-            fail_open=False,
-        )
-
-        self.assertTrue(result)
-        self.assertEqual(post_mock.call_args.args[0], 'http://operator/v1/otg/delete')
 
     def test_synthetic_single_task_runtime_config_matches_golden(self):
         self.assert_runtime_config_matches_golden(
