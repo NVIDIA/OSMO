@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit cosmos_reason.yaml
+# osmo workflow submit cosmos_reason.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: cosmos-reason
@@ -52,8 +52,7 @@ workflow:
               --timestamp -v -o {{output}}/temporal_caption_text
 
       outputs:
-        - dataset:
-            name: cosmos-reason-sample
+        - url: {{ storage_url }}/cosmos-reason-sample/{{workflow_id}}/
   resources:
     default:
       cpu: 16

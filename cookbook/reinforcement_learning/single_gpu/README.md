@@ -32,7 +32,7 @@ This workflow example contains:
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/reinforcement_learning/single_gpu/train_policy.yaml
-osmo workflow submit train_policy.yaml
+osmo workflow submit train_policy.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ## Open Tensorboard

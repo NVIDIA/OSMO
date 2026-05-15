@@ -15,10 +15,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit groot_mimic.yaml
+# osmo workflow submit groot_mimic.yaml --set storage_url=s3://my-bucket/datasets
 #
 # To use more demonstrations:
-# osmo workflow submit groot_mimic.yaml --set num_envs=10 num_trials=1000
+# osmo workflow submit groot_mimic.yaml --set storage_url=s3://my-bucket/datasets num_envs=10 num_trials=1000
 
 workflow:
   groups:
@@ -62,9 +62,7 @@ workflow:
       image: nvcr.io/nvidia/isaac-lab:2.3.0
       name: mimic
       outputs:
-      - dataset:
-          name: mimic-dataset
-          path: output/mimic
+      - url: {{ storage_url }}/mimic-dataset/{{workflow_id}}/
   name: groot-mimic
   resources:
     default:

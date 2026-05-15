@@ -42,7 +42,7 @@ osmo credential set wandb --type GENERIC --payload wandb_api_key=<YOUR_API_KEY>
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/wandb/train.yaml
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/integration_and_tools/wandb/train.py
-osmo workflow submit train.yaml
+osmo workflow submit train.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ## Monitoring Training

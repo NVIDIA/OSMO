@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit isaac_sim_sdg.yaml
+# osmo workflow submit isaac_sim_sdg.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: isaac-sim-sdg
@@ -41,8 +41,7 @@ workflow:
         }
       path: /tmp/config.json
     outputs:
-    - dataset:
-        name: isaac-sim-sdg-sample
+    - url: {{ storage_url }}/isaac-sim-sdg-sample/{{workflow_id}}/
   resources:
     default:
       cpu: 4

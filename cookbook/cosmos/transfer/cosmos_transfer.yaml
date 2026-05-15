@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # To submit:
-# osmo workflow submit cosmos_transfer.yaml
+# osmo workflow submit cosmos_transfer.yaml --set storage_url=s3://my-bucket/datasets
 
 workflow:
   name: isaac-sim-cosmos-transfer
@@ -42,8 +42,7 @@ workflow:
         }
       path: /tmp/config.json
     outputs:
-    - dataset:
-        name: isaac-sim-cosmos-warehouse-sample
+    - url: {{ storage_url }}/isaac-sim-cosmos-warehouse-sample/{{workflow_id}}/
   - name: cosmos-transfer
     image: nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
     command: ["bash"]
@@ -54,8 +53,6 @@ workflow:
     resource: cosmos
     inputs:
     - task: isaac-sim-sdg
-    - dataset:
-        name: isaac-sim-cosmos-warehouse-sample
     files:
       - path: /tmp/entry.sh
         contents: |
@@ -81,21 +78,20 @@ workflow:
           {
               "name": "cosmos-transfer-sample",
               "prompt": "High-quality warehouse simulation...",
-              "video_path": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/rgb.mp4",
+              "video_path": "{{input:0}}/clip_0000/rgb.mp4",
               "vis": {"control_weight": 0.25},
               "edge": {"control_weight": 0.25},
               "depth": {
-                  "input_control": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/depth.mp4",
+                  "input_control": "{{input:0}}/clip_0000/depth.mp4",
                   "control_weight": 0.25
               },
               "seg": {
-                  "input_control": "{{input:1}}/isaac-sim-cosmos-warehouse-sample/clip_0000/segmentation.mp4",
+                  "input_control": "{{input:0}}/clip_0000/segmentation.mp4",
                   "control_weight": 0.25
               }
           }
     outputs:
-      - dataset:
-          name: cosmos-transfer-sample
+      - url: {{ storage_url }}/cosmos-transfer-sample/{{workflow_id}}/
   resources:
     cosmos:
       cpu: 16

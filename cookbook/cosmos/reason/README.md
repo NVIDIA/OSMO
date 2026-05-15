@@ -47,7 +47,7 @@ In order for your workflow to pull the Cosmos model from HuggingFace, you will *
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/cosmos/reason/cosmos_reason.yaml
-osmo workflow submit cosmos_reason.yaml
+osmo workflow submit cosmos_reason.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ## Output
@@ -98,10 +98,10 @@ The workflow will also answer the question asked in the workflow:
 [reason]   </answer>
 ```
 
-After the workflow completes successfully, you can access the generated temporal caption results and extracted frames through the `cosmos-reason-sample` dataset:
+After the workflow completes successfully, you can download the generated temporal caption results and extracted frames from the URL the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ```bash
-$ osmo dataset download cosmos-reason-sample ~/
+osmo data download s3://my-bucket/datasets/cosmos-reason-sample/<workflow-id>/ ~/
 ```
 
 

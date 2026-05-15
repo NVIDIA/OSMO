@@ -50,7 +50,7 @@ You must agree to the terms and conditions for the Cosmos model on Hugging Face:
 
 ```bash
 curl -O https://raw.githubusercontent.com/NVIDIA/OSMO/main/cookbook/cosmos/transfer/cosmos_transfer.yaml
-osmo workflow submit cosmos_transfer.yaml
+osmo workflow submit cosmos_transfer.yaml --set storage_url=s3://my-bucket/datasets
 ```
 
 ## What the workflow does
@@ -79,16 +79,16 @@ The workflow uses multiple control modalities with balanced weights:
 
 ## Output
 
-After successful completion, you can access the results through two datasets:
+After successful completion, you can download the results from the URLs the workflow wrote to (replace `<workflow-id>` with the value printed at submit time):
 
 ### Isaac Sim Synthetic Data
 ```bash
-osmo dataset download isaac-sim-cosmos-warehouse-sample
+osmo data download s3://my-bucket/datasets/isaac-sim-cosmos-warehouse-sample/<workflow-id>/ ./
 ```
 
 ### Cosmos Transfer Augmented Data
 ```bash
-osmo dataset download cosmos-transfer-sample
+osmo data download s3://my-bucket/datasets/cosmos-transfer-sample/<workflow-id>/ ./
 ```
 
 The final output includes:
