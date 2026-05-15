@@ -1,0 +1,59 @@
+expectedResources:
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    name: group-single
+  spec:
+    minMember: 1
+    queue: queue-a
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations: {}
+    labels:
+      app: osmo
+    name: pod-single
+  spec:
+    containers:
+    - command:
+      - sleep
+      - '60'
+      image: busybox
+      name: user
+    priorityClassName: high
+    restartPolicy: Never
+    schedulerName: kai-scheduler
+kai:
+  group:
+    annotations: {}
+    labels: {}
+    minMember: 1
+    name: group-single
+    priorityClassName: ''
+    queue: queue-a
+    subGroups: []
+  podTemplates:
+  - annotations: {}
+    labels:
+      app: osmo
+    name: pod-single
+    spec:
+      containers:
+      - command:
+        - sleep
+        - '60'
+        image: busybox
+        name: user
+      priorityClassName: high
+      restartPolicy: Never
+      schedulerName: kai-scheduler
+  resourceOrder:
+  - apiVersion: scheduling.run.ai/v2alpha2
+    kind: PodGroup
+    name: group-single
+    source: group
+  - apiVersion: v1
+    kind: Pod
+    name: pod-single
+    source: podTemplate
+  resources: []

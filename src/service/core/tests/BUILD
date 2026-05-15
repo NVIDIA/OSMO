@@ -60,6 +60,15 @@ osmo_py_test(
 )
 
 osmo_py_test(
+    name = "test_taskgroup_status",
+    srcs = ["test_taskgroup_status.py"],
+    deps = [
+        "//src/service/core:service_lib",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
     name = "test_asyncio_startup",
     srcs = ["test_asyncio_startup.py"],
     deps = [

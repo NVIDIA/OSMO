@@ -44,6 +44,7 @@ from src.service.core.config import (
 )
 from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
+from src.service.core import taskgroup_status
 from src.service.core.workflow import (
     helpers, objects, workflow_service, workflow_metrics
 )
@@ -206,6 +207,30 @@ def get_workflow_plugins_configs() -> connectors.PluginsConfig:
     context = objects.WorkflowServiceContext.get()
     workflow_configs = context.database.get_workflow_configs()
     return workflow_configs.plugins_config
+
+
+@misc_router.post(
+    '/api/internal/taskgroup/status',
+    response_model=taskgroup_status.ReportOTGStatusResponse,
+)
+def report_taskgroup_status(
+        report: taskgroup_status.ReportOTGStatusRequest,
+        x_osmo_taskgroup_status_token: str | None = fastapi.Header(
+            default=None,
+            alias='x-osmo-taskgroup-status-token',
+        )) \
+        -> taskgroup_status.ReportOTGStatusResponse:
+    """Accept OSMOTaskGroup status from the API-side gRPC receiver."""
+    if not taskgroup_status.is_valid_status_token(x_osmo_taskgroup_status_token):
+        raise fastapi.HTTPException(status_code=403, detail='Invalid status token.')
+    context = objects.WorkflowServiceContext.get()
+    updates = taskgroup_status.backend_updates_from_report(report)
+    for update in updates:
+        backend_helpers.queue_update_group_job(context.database, update)
+    return taskgroup_status.ReportOTGStatusResponse(
+        accepted=True,
+        updates=len(updates),
+    )
 
 
 app.include_router(misc_router)

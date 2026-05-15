@@ -1239,6 +1239,186 @@ services:
     ##
     serviceAccountName: ""
 
+  ## Operator Service for OSMOTaskGroup CRD submission
+  ##
+  operator:
+    ## Enable the OSMOTaskGroup Operator Service
+    ##
+    enabled: false
+
+    ## Number of operator service replicas
+    ##
+    replicas: 1
+
+    ## Docker image name for the operator service
+    ##
+    imageName: operator-service
+
+    ## Optional operator service image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
+    ## Kubernetes image pull policy
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name
+    ##
+    serviceName: osmo-operator
+
+    ## gRPC and HTTP ports exposed by the service
+    ##
+    grpcPort: 8001
+    httpPort: 8002
+
+    ## Enable gRPC reflection for debugging
+    ##
+    enableReflection: false
+
+    ## Service account name override
+    ##
+    serviceAccountName: ""
+
+    ## Scheduling and resource controls
+    ##
+    nodeSelector: {}
+    tolerations: []
+    resources: {}
+
+    ## Extra extensibility hooks
+    ##
+    extraArgs: []
+    extraEnv: []
+    extraPodAnnotations: {}
+    extraPodLabels: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    extraSidecars: []
+
+  ## API-side gRPC receiver for OSMOTaskGroup controller status updates
+  ##
+  taskGroupStatusReceiver:
+    ## Enable the TaskGroupStatusService receiver
+    ##
+    enabled: false
+
+    ## Number of receiver replicas
+    ##
+    replicas: 1
+
+    ## Docker image name for the receiver
+    ##
+    imageName: taskgroup-status-receiver
+
+    ## Optional receiver image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
+    ## Kubernetes image pull policy
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name
+    ##
+    serviceName: osmo-taskgroup-status-receiver
+
+    ## gRPC port exposed by the service
+    ##
+    grpcPort: 8003
+
+    ## Internal API endpoint that enqueues existing UpdateGroup jobs
+    ## Leave empty to use http://<services.service.serviceName>/api/internal/taskgroup/status
+    ##
+    apiEndpoint: ""
+
+    ## Shared secret used by the controller, receiver, and API service for the
+    ## internal status path. Required when taskGroupStatusReceiver.enabled=true.
+    ##
+    sharedTokenSecretName: ""
+    sharedTokenSecretKey: "token"
+
+    ## Enable gRPC reflection for debugging
+    ##
+    enableReflection: false
+
+    ## Service account name override
+    ##
+    serviceAccountName: ""
+
+    ## Scheduling and resource controls
+    ##
+    nodeSelector: {}
+    tolerations: []
+    resources: {}
+
+    ## Extra extensibility hooks
+    ##
+    extraArgs: []
+    extraEnv: []
+    extraPodAnnotations: {}
+    extraPodLabels: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    extraSidecars: []
+
+  ## OSMOTaskGroup controller for CRD-backed task groups
+  ##
+  taskGroupController:
+    ## Enable the OSMOTaskGroup controller
+    ##
+    enabled: false
+
+    ## Number of controller replicas
+    ##
+    replicas: 1
+
+    ## Docker image name for the controller
+    ##
+    imageName: taskgroup-controller
+
+    ## Optional controller image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
+    ## Kubernetes image pull policy
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name
+    ##
+    serviceName: osmo-taskgroup-controller
+
+    ## gRPC address for sending status back to the API server.
+    ## Leave empty until the API server status service is deployed.
+    ##
+    statusReportAddress: ""
+
+    ## Controller leader election
+    ##
+    leaderElection: false
+
+    ## Service account name override
+    ##
+    serviceAccountName: ""
+
+    ## Scheduling and resource controls
+    ##
+    nodeSelector: {}
+    tolerations: []
+    resources: {}
+
+    ## Extra extensibility hooks
+    ##
+    extraArgs: []
+    extraEnv: []
+    extraPodAnnotations: {}
+    extraPodLabels: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    extraSidecars: []
 
   ## Router service configuration
   ##

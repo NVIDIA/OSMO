@@ -1,0 +1,187 @@
+expectedResources:
+- apiVersion: v1
+  data:
+    .dockerconfigjson: redacted
+  kind: Secret
+  metadata:
+    name: registry-secret
+  type: kubernetes.io/dockerconfigjson
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      osmo.group_uuid: group-uuid
+    name: headless-service
+  spec:
+    clusterIP: None
+    ports:
+    - name: control
+      port: 9000
+      targetPort: 9000
+    selector:
+      osmo.group_uuid: group-uuid
+- apiVersion: scheduling.k8s.io/v1
+  description: synthetic priority
+  globalDefault: false
+  kind: PriorityClass
+  metadata:
+    name: osmo-high
+  value: 1000
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    labels:
+      kai.scheduler/queue: queue-a
+      runai/queue: queue-a
+    name: group-uuid
+  spec:
+    minMember: 2
+    priorityClassName: osmo-high
+    queue: queue-a
+    subGroups:
+    - minMember: 1
+      name: worker
+    - minMember: 1
+      name: server
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      osmo/template: worker
+    labels:
+      kai.scheduler/pod-group-sub-group: worker
+    name: worker-0
+  spec:
+    containers:
+    - image: nvcr.io/synthetic/worker:latest
+      name: user
+    imagePullSecrets:
+    - name: registry-secret
+    priorityClassName: osmo-high
+    restartPolicy: Never
+    schedulerName: kai-scheduler
+    topologySpreadConstraints:
+    - labelSelector:
+        matchLabels:
+          kai.scheduler/pod-group-sub-group: worker
+      maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations:
+      osmo/template: server
+    labels:
+      kai.scheduler/pod-group-sub-group: server
+    name: server-0
+  spec:
+    containers:
+    - image: nvcr.io/synthetic/server:latest
+      name: user
+    priorityClassName: osmo-high
+    restartPolicy: Never
+    schedulerName: kai-scheduler
+kai:
+  group:
+    annotations: {}
+    labels:
+      kai.scheduler/queue: queue-a
+      runai/queue: queue-a
+    minMember: 2
+    name: group-uuid
+    priorityClassName: osmo-high
+    queue: queue-a
+    subGroups:
+    - minMember: 1
+      name: worker
+    - minMember: 1
+      name: server
+  podTemplates:
+  - annotations:
+      osmo/template: worker
+    labels:
+      kai.scheduler/pod-group-sub-group: worker
+    name: worker-0
+    spec:
+      containers:
+      - image: nvcr.io/synthetic/worker:latest
+        name: user
+      imagePullSecrets:
+      - name: registry-secret
+      priorityClassName: osmo-high
+      restartPolicy: Never
+      schedulerName: kai-scheduler
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            kai.scheduler/pod-group-sub-group: worker
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+  - annotations:
+      osmo/template: server
+    labels:
+      kai.scheduler/pod-group-sub-group: server
+    name: server-0
+    spec:
+      containers:
+      - image: nvcr.io/synthetic/server:latest
+        name: user
+      priorityClassName: osmo-high
+      restartPolicy: Never
+      schedulerName: kai-scheduler
+  resourceOrder:
+  - apiVersion: v1
+    kind: Secret
+    name: registry-secret
+    source: resource
+  - apiVersion: v1
+    kind: Service
+    name: headless-service
+    source: resource
+  - apiVersion: scheduling.k8s.io/v1
+    kind: PriorityClass
+    name: osmo-high
+    source: resource
+  - apiVersion: scheduling.run.ai/v2alpha2
+    kind: PodGroup
+    name: group-uuid
+    source: group
+  - apiVersion: v1
+    kind: Pod
+    name: worker-0
+    source: podTemplate
+  - apiVersion: v1
+    kind: Pod
+    name: server-0
+    source: podTemplate
+  resources:
+  - apiVersion: v1
+    data:
+      .dockerconfigjson: redacted
+    kind: Secret
+    metadata:
+      name: registry-secret
+    type: kubernetes.io/dockerconfigjson
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        osmo.group_uuid: group-uuid
+      name: headless-service
+    spec:
+      clusterIP: None
+      ports:
+      - name: control
+        port: 9000
+        targetPort: 9000
+      selector:
+        osmo.group_uuid: group-uuid
+  - apiVersion: scheduling.k8s.io/v1
+    description: synthetic priority
+    globalDefault: false
+    kind: PriorityClass
+    metadata:
+      name: osmo-high
+    value: 1000

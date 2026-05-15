@@ -1,0 +1,189 @@
+expectedResources:
+- apiVersion: scheduling.run.ai/v2alpha2
+  kind: PodGroup
+  metadata:
+    labels:
+      kai.scheduler/queue: default
+      runai/queue: default
+    name: parallel-processing-group
+  spec:
+    minMember: 2
+    queue: default
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      osmo.group_name: parallel-processing
+    name: parallel-processing-group
+  spec:
+    clusterIP: None
+    ports:
+    - name: task-link
+      port: 24831
+      targetPort: 24831
+    selector:
+      osmo.group_name: parallel-processing
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations: {}
+    labels:
+      osmo.group_name: parallel-processing
+      osmo.lead_container: 'true'
+      osmo.retry_id: '0'
+      osmo.task_name: server
+      osmo.task_uuid: server-uuid
+    name: server-pod
+  spec:
+    containers:
+    - args:
+      - 'echo "Server: Starting..."
+
+        echo "hello" > /tmp/hello.txt
+
+        nc -w 50 -l -p 24831 < /tmp/hello.txt
+
+        sleep 10
+
+        echo "Server: Complete"
+
+        '
+      command:
+      - sh
+      - -c
+      image: alpine:3.18
+      name: user
+    restartPolicy: Never
+    schedulerName: kai-scheduler
+- apiVersion: v1
+  kind: Pod
+  metadata:
+    annotations: {}
+    labels:
+      osmo.group_name: parallel-processing
+      osmo.retry_id: '0'
+      osmo.task_name: client
+      osmo.task_uuid: client-uuid
+    name: client-pod
+  spec:
+    containers:
+    - args:
+      - 'echo "Client: Starting..."
+
+        echo "Calling server at {{host:server}}..."
+
+        nc -w 30 {{host:server}} 24831 > /tmp/hello.txt
+
+        echo "Received from server: $(cat /tmp/hello.txt)"
+
+        echo "Client: Complete"
+
+        '
+      command:
+      - sh
+      - -c
+      image: alpine:3.18
+      name: user
+    restartPolicy: Never
+    schedulerName: kai-scheduler
+kai:
+  group:
+    annotations: {}
+    labels:
+      kai.scheduler/queue: default
+      runai/queue: default
+    minMember: 2
+    name: parallel-processing-group
+    priorityClassName: ''
+    queue: default
+    subGroups: []
+  podTemplates:
+  - annotations: {}
+    labels:
+      osmo.group_name: parallel-processing
+      osmo.lead_container: 'true'
+      osmo.retry_id: '0'
+      osmo.task_name: server
+      osmo.task_uuid: server-uuid
+    name: server-pod
+    spec:
+      containers:
+      - args:
+        - 'echo "Server: Starting..."
+
+          echo "hello" > /tmp/hello.txt
+
+          nc -w 50 -l -p 24831 < /tmp/hello.txt
+
+          sleep 10
+
+          echo "Server: Complete"
+
+          '
+        command:
+        - sh
+        - -c
+        image: alpine:3.18
+        name: user
+      restartPolicy: Never
+      schedulerName: kai-scheduler
+  - annotations: {}
+    labels:
+      osmo.group_name: parallel-processing
+      osmo.retry_id: '0'
+      osmo.task_name: client
+      osmo.task_uuid: client-uuid
+    name: client-pod
+    spec:
+      containers:
+      - args:
+        - 'echo "Client: Starting..."
+
+          echo "Calling server at {{host:server}}..."
+
+          nc -w 30 {{host:server}} 24831 > /tmp/hello.txt
+
+          echo "Received from server: $(cat /tmp/hello.txt)"
+
+          echo "Client: Complete"
+
+          '
+        command:
+        - sh
+        - -c
+        image: alpine:3.18
+        name: user
+      restartPolicy: Never
+      schedulerName: kai-scheduler
+  resourceOrder:
+  - apiVersion: scheduling.run.ai/v2alpha2
+    kind: PodGroup
+    name: parallel-processing-group
+    source: group
+  - apiVersion: v1
+    kind: Service
+    name: parallel-processing-group
+    source: resource
+  - apiVersion: v1
+    kind: Pod
+    name: server-pod
+    source: podTemplate
+  - apiVersion: v1
+    kind: Pod
+    name: client-pod
+    source: podTemplate
+  resources:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        osmo.group_name: parallel-processing
+      name: parallel-processing-group
+    spec:
+      clusterIP: None
+      ports:
+      - name: task-link
+        port: 24831
+        targetPort: 24831
+      selector:
+        osmo.group_name: parallel-processing

@@ -3066,6 +3066,20 @@ class PluginsConfig(ExtraArgBaseModel):
     rsync: RsyncConfig = RsyncConfig()
 
 
+class TaskGroupCRDMode(str, enum.Enum):
+    """Controls whether workflow groups are submitted through the OSMOTaskGroup CRD path."""
+    DISABLED = 'disabled'
+    SHADOW = 'shadow'
+    ACTIVE = 'active'
+
+
+class TaskGroupCRDConfig(ExtraArgBaseModel):
+    """Stores OSMOTaskGroup CRD rollout configuration."""
+    mode: TaskGroupCRDMode = TaskGroupCRDMode.DISABLED
+    operator_endpoint: str = 'http://osmo-operator:8002'
+    namespace: str = ''
+
+
 class WorkflowConfig(DynamicConfig):
     """ Stores any workflow configs External Admins control """
     workflow_data: DataConfig = DataConfig()
@@ -3086,6 +3100,8 @@ class WorkflowConfig(DynamicConfig):
     user_workflow_limits: UserWorkflowLimitConfig = UserWorkflowLimitConfig()
 
     plugins_config: PluginsConfig = PluginsConfig()
+
+    task_group_crd: TaskGroupCRDConfig = TaskGroupCRDConfig()
 
     max_num_tasks: int = 20
     max_num_ports_per_task: int = 30  # Isaac Sim Streaming Client needs 27 ports

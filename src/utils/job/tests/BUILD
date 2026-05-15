@@ -104,6 +104,31 @@ py_test(
     ]
 )
 
+py_test(
+    name = "test_rendering",
+    srcs = [
+        "test_rendering.py",
+    ],
+    deps = [
+        "//src/utils/job",
+    ],
+)
+
+py_test(
+    name = "test_taskgroup_crd",
+    srcs = [
+        "test_taskgroup_crd.py",
+    ],
+    data = glob([
+        "fixtures/*.yaml",
+        "golden/*.yaml",
+    ]),
+    deps = [
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+)
+
 osmo_py_test(
     name = "test_task_db",
     srcs = ["test_task_db.py"],

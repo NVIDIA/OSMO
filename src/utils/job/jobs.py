@@ -34,13 +34,16 @@ import urllib.parse
 import redis  # type: ignore
 import redis.asyncio  # type: ignore
 import pydantic
+import requests
 import yaml
 
 from src.lib.data import storage
 from src.lib.utils import common, osmo_errors, priority as wf_priority
 from src.lib.utils.redact import redact_pod_spec_env
 from src.utils import connectors
-from src.utils.job import app, backend_job_defs, common as task_common, kb_objects, task, workflow
+from src.utils.job import (
+    app, backend_job_defs, common as task_common, kb_objects, task, taskgroup_crd, workflow
+)
 from src.utils.job.task import _encode_hstore
 from src.utils.job.jobs_base import Job, JobResult, JobStatus, update_progress_writer
 from src.utils.progress_check import progress
@@ -515,6 +518,40 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                         for task_name, pod_spec in pod_specs.items()])
             upload_task.send_job_to_queue()
 
+            crd_config = workflow_config.task_group_crd
+            if crd_config.mode != connectors.TaskGroupCRDMode.DISABLED:
+                backend = backend_config_cache.get(group_obj.spec.tasks[0].backend)
+                namespace = crd_config.namespace or backend.k8s_namespace
+                payload = taskgroup_crd.build_otg_payload(
+                    workflow_id=workflow_obj.workflow_id,
+                    workflow_uuid=self.workflow_uuid,
+                    group_name=group_obj.name,
+                    group_uuid=group_obj.group_uuid,
+                    namespace=namespace,
+                    mode=crd_config.mode,
+                    resources=resources,
+                )
+                fail_open = crd_config.mode == connectors.TaskGroupCRDMode.SHADOW
+                try:
+                    created = taskgroup_crd.submit_otg(crd_config, payload, fail_open)
+                    logging.info(
+                        'Submitted OSMOTaskGroup %s/%s in %s mode',
+                        payload.namespace,
+                        payload.name,
+                        crd_config.mode.value,
+                        extra={'workflow_uuid': self.workflow_uuid})
+                    if not created and fail_open:
+                        logging.warning(
+                            'Continuing legacy group submission after shadow OTG failure',
+                            extra={'workflow_uuid': self.workflow_uuid})
+                except requests.RequestException as error:
+                    error_message = f'Create OSMOTaskGroup failed: {error}'
+                    self.handle_failure(context, error_message)
+                    return False, error_message
+
+                if crd_config.mode == connectors.TaskGroupCRDMode.ACTIVE:
+                    self.k8s_resources = []
+
         return True, ''
 
     def handle_failure(self, context: JobExecutionContext, error: str):
@@ -556,6 +593,7 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
+        delete_taskgroup_crd(context, self.workflow_id, self.group_name)
         cleanup_workflow_group(context, self.workflow_id, self.workflow_uuid, self.group_name)
         return JobResult()
 
@@ -577,6 +615,37 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
             redis_client.delete(
                 f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs')
         return True, ''
+
+
+def delete_taskgroup_crd(context: JobExecutionContext, workflow_id: str, group_name: str) -> None:
+    workflow_config = context.postgres.get_workflow_configs()
+    crd_config = workflow_config.task_group_crd
+    if crd_config.mode == connectors.TaskGroupCRDMode.DISABLED:
+        return
+    group_obj = task.TaskGroup.fetch_from_db(context.postgres, workflow_id, group_name)
+    namespace = crd_config.namespace
+    if not namespace:
+        try:
+            backend = connectors.Backend.fetch_from_db(
+                context.postgres,
+                group_obj.spec.tasks[0].backend,
+            )
+            namespace = backend.k8s_namespace
+        except Exception as error:  # pylint: disable=broad-except
+            logging.warning(
+                'Unable to resolve OSMOTaskGroup namespace for cleanup: %s',
+                error,
+                extra={'workflow_id': workflow_id, 'group_name': group_name},
+            )
+            return
+
+    otg_name = taskgroup_crd.otg_name(group_obj.group_uuid)
+    taskgroup_crd.delete_otg(
+        crd_config,
+        namespace=namespace,
+        name=otg_name,
+        fail_open=True,
+    )
 
 
 class UpdateGroup(WorkflowJob):

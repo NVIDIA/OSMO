@@ -103,6 +103,8 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `service/agent/` | Backend cluster integration via WebSocket. Receives node/pod/event/heartbeat streams from K8s clusters. |
 | `service/logger/` | Receives structured logs from osmo-ctrl containers. Persists task metrics to PostgreSQL. Distributed barriers via Redis. |
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
+| `service/operator/` | Go gRPC/HTTP service for single-cluster `OSMOTaskGroup` CRD create/delete/status reads. |
+| `service/core/taskgroup_status_receiver/` | API-side Go gRPC receiver for `OSMOTaskGroup` controller status reports; forwards to the Core Service internal status endpoint. |
 
 ### Python Libraries (`lib/`)
 
@@ -248,4 +250,3 @@ Workflow Execution:
 - **Tests**: Bazel test rules, pytest + testcontainers (Python), testcontainers-go (Go), Vitest + Playwright (frontend)
 - **Container images**: Built via `rules_oci` (amd64, arm64), distroless base from NVIDIA NGC
 - **API spec**: OpenAPI auto-generated from FastAPI via `bazel run //src/scripts:export_openapi`
-
