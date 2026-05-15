@@ -13,42 +13,26 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-{{- if or .Values.services.operator.enabled .Values.services.taskGroupController.enabled }}
+{{- if .Values.services.operator.enabled }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Values.services.taskGroupController.serviceName }}-runtime
+  name: {{ .Values.services.operator.serviceName }}-otg
 rules:
 - apiGroups: ["workflow.osmo.nvidia.com"]
   resources: ["osmotaskgroups", "osmotaskgroups/status", "osmotaskgroups/finalizers"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: [""]
-  resources: ["pods", "pods/log", "services", "secrets", "configmaps", "events"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["scheduling.run.ai"]
-  resources: ["podgroups"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["scheduling.k8s.io"]
-  resources: ["priorityclasses"]
   verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ .Values.services.taskGroupController.serviceName }}-runtime
+  name: {{ .Values.services.operator.serviceName }}-otg
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ .Values.services.taskGroupController.serviceName }}-runtime
+  name: {{ .Values.services.operator.serviceName }}-otg
 subjects:
-{{- if .Values.services.operator.enabled }}
 - kind: ServiceAccount
   name: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.operator.serviceAccountName "Values" .Values) }}
   namespace: {{ .Release.Namespace }}
-{{- end }}
-{{- if .Values.services.taskGroupController.enabled }}
-- kind: ServiceAccount
-  name: {{ include "osmo.service-account-name" (dict "serviceAccountName" .Values.services.taskGroupController.serviceAccountName "Values" .Values) }}
-  namespace: {{ .Release.Namespace }}
-{{- end }}
 {{- end }}

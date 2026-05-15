@@ -1363,63 +1363,6 @@ services:
     extraVolumes: []
     extraSidecars: []
 
-  ## OSMOTaskGroup controller for CRD-backed task groups
-  ##
-  taskGroupController:
-    ## Enable the OSMOTaskGroup controller
-    ##
-    enabled: false
-
-    ## Number of controller replicas
-    ##
-    replicas: 1
-
-    ## Docker image name for the controller
-    ##
-    imageName: taskgroup-controller
-
-    ## Optional controller image tag override
-    ## Leave empty to use global.osmoImageTag
-    ##
-    imageTag: ""
-
-    ## Kubernetes image pull policy
-    ##
-    imagePullPolicy: Always
-
-    ## Kubernetes service name
-    ##
-    serviceName: osmo-taskgroup-controller
-
-    ## gRPC address for sending status back to the API server.
-    ## Leave empty until the API server status service is deployed.
-    ##
-    statusReportAddress: ""
-
-    ## Controller leader election
-    ##
-    leaderElection: false
-
-    ## Service account name override
-    ##
-    serviceAccountName: ""
-
-    ## Scheduling and resource controls
-    ##
-    nodeSelector: {}
-    tolerations: []
-    resources: {}
-
-    ## Extra extensibility hooks
-    ##
-    extraArgs: []
-    extraEnv: []
-    extraPodAnnotations: {}
-    extraPodLabels: {}
-    extraVolumeMounts: []
-    extraVolumes: []
-    extraSidecars: []
-
   ## Router service configuration
   ##
   router:
