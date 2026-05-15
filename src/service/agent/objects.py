@@ -121,9 +121,11 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
         extra = {}
         if 'workflow_uuid' in job_spec:
             extra['workflow_uuid'] = job_spec['workflow_uuid']
+        if 'user' in job_spec:
+            extra['user_id'] = job_spec['user']
         logging.info('Completed job (type=%s, id=%s) with status %s',
                      job_spec['job_type'], job_spec['job_id'],
-                     result,extra=extra)
+                     result, extra=extra)
 
     async def run_jobs(self, backend_name: str):
         worker_thread = threading.Thread(target=self.run, daemon=True)

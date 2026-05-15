@@ -295,6 +295,12 @@ func buildHandler(serviceName string, config Config, writer io.Writer) slog.Hand
 	case FormatJSON:
 		h := slog.NewJSONHandler(writer, &slog.HandlerOptions{
 			Level: config.Level,
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if len(groups) == 0 && a.Key == specialAttrKey {
+					a.Key = "user_id"
+				}
+				return a
+			},
 		})
 		return h.WithAttrs([]slog.Attr{slog.String("service", serviceName)})
 	default:
