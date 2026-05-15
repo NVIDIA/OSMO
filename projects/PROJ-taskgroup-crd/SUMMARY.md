@@ -27,16 +27,16 @@ For a single resource on a single cluster, **yes — and the CRD design intentio
 |---|---|
 | **Workflow DAG** — group A finishes → group B starts → group C starts | Write a shell script. Hope it handles failures correctly. Lose state on script crash. |
 | **Multi-cluster routing** — pick which cluster runs which group, dispatch CRs across cluster boundaries | One kubeconfig context = one cluster. Build your own dispatcher. |
-| **Multi-tenant quotas + pools** — "this user has 100 GPU-hours in this pool, this dataset is restricted to this team" | K8s RBAC handles "can verb resource", not "has budget X in pool Y". |
+| **Multi-tenant quotas** — "this user has 100 GPU-hours of budget across these clusters" | K8s RBAC handles "can verb resource", not "has budget X". |
 | **Credential management** — NGC keys, HF tokens, Swift creds injected per cluster, rotated centrally | Create Secrets in every cluster manually. Rotate manually. |
 | **Data plane** — inputs and outputs as Swift/S3 URLs, downloaded into pods automatically by osmo_ctrl, uploaded back at end of task | Bake `aws s3 cp` / `swift download` into every pod's command. Re-implement retry, partial-failure, checkpointing each time. |
 | **Workflow history + lineage** — "show me every run by this user last week, what they cost, what they output" | Lost as soon as the CRs are garbage collected. Build your own audit log. |
-| **Cost attribution** — GPU-hours per user / per pool / per project | Not in K8s primitives at all. Build a separate accounting service. |
+| **Cost attribution** — GPU-hours per user / per project | Not in K8s primitives at all. Build a separate accounting service. |
 | **Workflow-level cancel / timeout / retry** — kill a whole workflow with all its CRs and clean up everything | Per-resource semantics; cancellation across N CRs is your problem. |
 | **Cross-task barriers** — "stage 2 starts when all 4 workers in stage 1 finish" | Write your own coordinator. |
 | **CLI / SDK / UI** — `osmo workflow submit`, exec into a running task, tail logs across a 12-task workflow, web UI for researchers who shouldn't have to kubectl | The CLI is `kubectl`. There is no workflow-level UX. |
 | **Federated status across clusters** — one place to see "this workflow has 3 groups, 1 on AKS, 1 on CoreWeave, 1 on a Jetson, and here's the rolled-up state" | `kubectl get` in N clusters separately. |
-| **Backend cluster onboarding** — register a cluster once, OSMO knows pools, quotas, GPU types, credentials | Configure kubeconfig context manually, provision Secrets manually, document GPU SKUs in a wiki. |
+| **Backend cluster onboarding** — register a cluster once, OSMO knows its quotas, GPU types, credentials | Configure kubeconfig context manually, provision Secrets manually, document GPU SKUs in a wiki. |
 
 ### What the CRD design actually changes
 
@@ -78,7 +78,7 @@ By keeping TaskGroup as the unit, each cluster's controller manages only what's 
 
 ### Workflow concerns are cross-cutting; controllers manage local state
 
-The things a workflow contains — RBAC for the submitter, pool quotas, credential bindings, dataset lineage, cost attribution, audit log, multi-step DAG orchestration — are inherently shared, cross-team, and cross-cluster concerns. They belong in a central service with a relational database. They don't belong in 17 Kubernetes clusters each holding their own opinions.
+The things a workflow contains — RBAC for the submitter, quotas, credential bindings, cost attribution, audit log, multi-step DAG orchestration — are inherently shared, cross-team, and cross-cluster concerns. They belong in a central service with a relational database. They don't belong in 17 Kubernetes clusters each holding their own opinions.
 
 Kubernetes controllers are designed for *single-cluster, single-resource* reconciliation. Forcing workflow-level logic into them either (a) duplicates it across every cluster, (b) requires cluster-to-cluster RPCs to stay consistent, or (c) makes one cluster a federation hub. None of these are improvements over what the API server does today.
 
@@ -86,7 +86,7 @@ Kubernetes controllers are designed for *single-cluster, single-resource* reconc
 
 A "group of pods that runs together" — gang-scheduled batch, an inference service, a Ray cluster, a NIMService — maps cleanly onto Kubernetes primitives. Each runtime already has its own CRD or pod-grouping pattern. The TaskGroup CR is a thin wrapper that picks one and parameterizes it.
 
-A "workflow" is not a Kubernetes thing. There's no standard K8s pattern for "DAG of resources with credential injection, pool quotas, multi-cluster dispatch, and cost attribution." Building it from scratch would mean reinventing what the OSMO API server already does well, just in CRD form.
+A "workflow" is not a Kubernetes thing. There's no standard K8s pattern for "DAG of resources with credential injection, quotas, multi-cluster dispatch, and cost attribution." Building it from scratch would mean reinventing what the OSMO API server already does well, just in CRD form.
 
 ### What we give up — and what we don't
 
@@ -104,7 +104,7 @@ A "workflow" is not a Kubernetes thing. There's no standard K8s pattern for "DAG
 | Status of those resources | ✅ TaskGroup status | (mirrored to Postgres) |
 | Workflow DAG (group A → group B) | | ✅ API server orchestration |
 | Multi-cluster routing | | ✅ API server dispatch |
-| Pool quotas, RBAC, credential bindings | | ✅ API server + authz |
+| Quotas, RBAC, credential bindings | | ✅ API server + authz |
 | Cost / audit / history | | ✅ Postgres |
 | UI / CLI / SDK | | ✅ API server |
 
