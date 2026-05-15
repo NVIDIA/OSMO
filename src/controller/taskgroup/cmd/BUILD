@@ -27,6 +27,7 @@ go_library(
     deps = [
         "//src/apis/taskgroup/v1alpha1",
         "//src/controller/taskgroup",
+        "@com_github_go_logr_logr//:go_default_library",
         "@io_k8s_api//core/v1:go_default_library",
         "@io_k8s_apimachinery//pkg/runtime:go_default_library",
         "@io_k8s_apimachinery//pkg/util/runtime:go_default_library",

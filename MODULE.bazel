@@ -291,6 +291,7 @@ use_repo(
     "com_github_conduitio_bwlimit",
     "com_github_creack_pty",
     "com_github_gokrazy_rsync",
+    "com_github_go_logr_logr",
     "com_github_google_shlex",
     "com_github_gorilla_websocket",
     "com_github_hashicorp_golang_lru_v2",
