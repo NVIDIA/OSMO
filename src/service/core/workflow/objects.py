@@ -123,8 +123,16 @@ class WorkflowServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
 
 
 class WorkflowServiceContext(pydantic.BaseModel):
-    """ Shared context that needs to be access from all api methods. """
-    config: WorkflowServiceConfig
+    """ Shared context that needs to be access from all api methods.
+
+    The config field is typed as the common StaticConfig base rather than
+    WorkflowServiceConfig because some callers (e.g. message_worker.py) pass
+    a MessageWorkerConfig that shares only the Redis/Postgres/Logging mixin
+    fields. Pydantic v2 rejects subclass-of-mixin without an explicit base.
+    Only `redis_url` is actually read off this field in this module, and that
+    lives on RedisConfig (shared by both).
+    """
+    config: static_config.StaticConfig
     database: connectors.PostgresConnector
     _instance: ClassVar[Optional['WorkflowServiceContext']] = None
 
