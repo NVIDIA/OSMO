@@ -134,7 +134,8 @@ class BackendWorker():
 
         workflow_uuid = job.workflow_uuid if \
             isinstance(job, backend_jobs.BackendWorkflowJob) else ''
-        with src.lib.utils.logging.UserLogContext(job_spec.get('user', '')):
+        with src.lib.utils.logging.UserLogContext(job_spec.get('user', '')), \
+                src.lib.utils.logging.JobLogContext(job.job_id or ''):
             logging.info(
                 'Starting job %s from the queue', job, extra={'workflow_uuid': workflow_uuid})
             job_start_time = time.time()
