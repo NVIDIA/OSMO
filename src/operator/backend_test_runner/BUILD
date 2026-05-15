@@ -33,6 +33,7 @@ osmo_py_library(
         "//src/lib/utils:logging",
         "//src/operator/utils:login",
         "//src/operator/utils/node_validation_test:test_base",
+        "//src/utils:ssl_init",
         "//src/utils/metrics",
     ],
     visibility = ["//visibility:public"],

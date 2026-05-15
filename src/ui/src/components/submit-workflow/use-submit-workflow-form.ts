@@ -121,17 +121,15 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
   const { mutate: submitMutate, isPending } = useSubmitWorkflowApiPoolPoolNameWorkflowPost({
     mutation: {
       onSuccess: (response) => {
-        if (response.status === 200) {
-          const newName = response.data.name;
-          toast.success(`Workflow submitted as ${newName}`, {
-            action: {
-              label: "View Workflow",
-              onClick: () => router.push(`/workflows/${newName}`),
-            },
-          });
-          announcer.announce(`Workflow ${newName} submitted successfully`, "polite");
-          close();
-        }
+        const newName = response.name;
+        toast.success(`Workflow submitted as ${newName}`, {
+          action: {
+            label: "View Workflow",
+            onClick: () => router.push(`/workflows/${newName}`),
+          },
+        });
+        announcer.announce(`Workflow ${newName} submitted successfully`, "polite");
+        close();
       },
       onError: (err) => {
         const msg = extractErrorMessage(err);
@@ -178,9 +176,7 @@ export function useSubmitWorkflowForm(initialSpec = ""): UseSubmitWorkflowFormRe
       },
       {
         onSuccess: (response) => {
-          if (response.status === 200) {
-            setDryRunSpec(response.data.spec ?? null);
-          }
+          setDryRunSpec(response.spec ?? null);
         },
         onError: (err) => {
           const msg = extractErrorMessage(err);

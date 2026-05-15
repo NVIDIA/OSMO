@@ -30,6 +30,7 @@ import pydantic
 import requests  # type: ignore
 
 from src.lib.data import storage
+from src.lib.data.storage import credentials
 from src.lib.utils import (common, jinja_sandbox, osmo_errors, priority as wf_priority,
                         workflow as workflow_utils)
 from src.utils import connectors, notify
@@ -100,28 +101,28 @@ class WorkflowStatus(str, enum.Enum):
         return not self.alive() and self.name != 'COMPLETED'
 
 
-class ResourcesEntry(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ResourcesEntry(pydantic.BaseModel, extra='forbid'):
     """ Entry for resources API results. """
     hostname: str
     exposed_fields: Dict
     taints: List[Dict]
     usage_fields: Dict
-    conditions: List[str] | None
+    conditions: List[str] | None = None
     non_workflow_usage_fields: Dict
     allocatable_fields: Dict
-    platform_allocatable_fields: Dict | None
-    platform_available_fields: Dict | None
-    platform_workflow_allocatable_fields: Dict | None
-    config_fields: Dict | None
+    platform_allocatable_fields: Dict | None = None
+    platform_available_fields: Dict | None = None
+    platform_workflow_allocatable_fields: Dict | None = None
+    config_fields: Dict | None = None
     backend: str
-    label_fields: Dict | None
+    label_fields: Dict | None = None
     pool_platform_labels: Dict[str, List[str]]
     resource_type: connectors.BackendResourceType
 
     @classmethod
     def from_backend_resource(cls, resource: connectors.BackendResource,
                               verbose: bool) -> 'ResourcesEntry':
-        return ResourcesEntry.construct(
+        return ResourcesEntry.model_construct(
             hostname=resource.name,
             backend=resource.backend,
             usage_fields=resource.converted_usage_fields,
@@ -164,7 +165,7 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
             upper_name = resource_type.name.upper()
             if resource_type.unit:
                 value = exposed_fields.get(resource_type.name, '0')
-                value = f'{common.convert_resource_value_str(value, target="Ki")}Ki'
+                value = f'{common.convert_resource_value_str(value, target='Ki')}Ki'
                 mapping[f'K8_{upper_name}'] = value
             else:
                 mapping[f'K8_{upper_name}'] = \
@@ -185,12 +186,12 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
     return mapping
 
 
-class TimeoutSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TimeoutSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the timeout spec. """
     exec_timeout: datetime.timedelta | None = None
     queue_timeout: datetime.timedelta | None = None
 
-    @pydantic.validator('exec_timeout', 'queue_timeout', pre=True)
+    @pydantic.field_validator('exec_timeout', 'queue_timeout', mode='before')
     @classmethod
     def validate_timeout(cls, value) -> Optional[datetime.timedelta]:
         if isinstance(value, (int, float)):
@@ -242,7 +243,7 @@ def split_assertion_rules(assertions: List[connectors.ResourceAssertion]) -> \
     return static_assertions, k8_assertions
 
 
-class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class WorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """ Represents the workflow spec from the workflow service. """
     name: task_common.NamePattern
     pool: str = ''
@@ -252,7 +253,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     timeout: TimeoutSpec = TimeoutSpec()
     backend: str = ''
 
-    @pydantic.root_validator()
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_tasks_groups(cls, values):
         """
@@ -280,12 +281,33 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             name_set.add(name)
 
         for task_spec in values.get('tasks', []):
-            _validate_name(task_spec.name)
+            if hasattr(task_spec, 'name'):
+                spec_name = task_spec.name
+            elif isinstance(task_spec, dict) and 'name' in task_spec:
+                spec_name = task_spec['name']
+            else:
+                continue
+            _validate_name(spec_name)
 
         for group_spec in values.get('groups', []):
-            _validate_name(group_spec.name)
-            for task_spec in group_spec.tasks:
-                _validate_name(task_spec.name)
+            if hasattr(group_spec, 'name'):
+                group_name = group_spec.name
+            elif isinstance(group_spec, dict) and 'name' in group_spec:
+                group_name = group_spec['name']
+            else:
+                continue
+            _validate_name(group_name)
+            group_tasks = (group_spec.tasks
+                           if hasattr(group_spec, 'tasks')
+                           else group_spec.get('tasks', []))
+            for task_spec in group_tasks:
+                if hasattr(task_spec, 'name'):
+                    spec_name = task_spec.name
+                elif isinstance(task_spec, dict) and 'name' in task_spec:
+                    spec_name = task_spec['name']
+                else:
+                    continue
+                _validate_name(spec_name)
 
         return values
 
@@ -367,7 +389,7 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         try:
             groups = [group.initialize_group_tasks(group_and_task_uuids, self.resources)
                       for group in self.groups]
-            if 'timeout' in self.dict(exclude_defaults=True):
+            if 'timeout' in self.model_fields_set:
                 return WorkflowSpec(name=self.name, groups=groups, timeout=self.timeout,
                                     resources=self.resources, backend=self.backend, pool=self.pool)
             return WorkflowSpec(name=self.name, groups=groups,
@@ -409,31 +431,29 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         pool_info = connectors.Pool.fetch_from_db(database, self.pool)
 
         # Validate topology requirements early (before async job creation)
-        if pool_info.topology_keys:
-            topology_keys = [
-                topology_module.TopologyKey(key=topology_key.key, label=topology_key.label)
-                for topology_key in pool_info.topology_keys
-            ]
-            task_infos = []
-            for group in self.groups:
-                for task_obj in group.tasks:
-                    topology_requirements = []
-                    if task_obj.resources.topology:
-                        for req in task_obj.resources.topology:
-                            is_required = (
-                                req.requirementType == connectors.TopologyRequirementType.REQUIRED
-                            )
-                            topology_requirements.append(topology_module.TopologyRequirement(
-                                key=req.key,
-                                group=req.group,
-                                required=is_required
-                            ))
-                    task_infos.append(topology_module.TaskTopology(
-                        name=task_obj.name,
-                        topology_requirements=topology_requirements
-                    ))
-            # This will raise ValueError if validation fails
-            topology_module.validate_topology_requirements(task_infos, topology_keys)
+        topology_keys = [
+            topology_module.TopologyKey(key=topology_key.key, label=topology_key.label)
+            for topology_key in pool_info.topology_keys
+        ]
+        task_infos = []
+        for group in self.groups:
+            for task_obj in group.tasks:
+                topology_requirements = []
+                if task_obj.resources.topology:
+                    for req in task_obj.resources.topology:
+                        is_required = (
+                            req.requirementType == connectors.TopologyRequirementType.REQUIRED
+                        )
+                        topology_requirements.append(topology_module.TopologyRequirement(
+                            key=req.key,
+                            group=req.group,
+                            required=is_required
+                        ))
+                task_infos.append(topology_module.TaskTopology(
+                    name=task_obj.name,
+                    topology_requirements=topology_requirements
+                ))
+        topology_module.validate_topology_requirements(task_infos, topology_keys)
 
         validated_resources_dict: Dict[connectors.ResourceSpec, bool] = {}
         validated_privilege_host_mount: Set[int] = set()
@@ -530,6 +550,10 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         workflow_config = database.get_workflow_configs()
         dataset_config = database.get_dataset_configs()
         image_hash_map: Dict[str, str] = {}
+        default_user_bucket = connectors.UserProfile.fetch_from_db(database, user).bucket
+        default_service_bucket = dataset_config.default_bucket
+        user_creds = database.get_all_data_creds(user)
+        generic_cred_cache: Dict[str, Any] = {}
         for group in self.groups:
             for group_task in group.tasks:
                 response = self.validate_registry(
@@ -562,13 +586,18 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
                 self.validate_data(
                     user, dataset_config, group_task, seen_data_input,
                     seen_data_output, workflow_config.credential_config.disable_data_validation,
-                    seen_bucket_input, seen_bucket_output)
-                self.validate_generic_cred(user, database, group_task)
+                    seen_bucket_input, seen_bucket_output,
+                    default_user_bucket, default_service_bucket, user_creds)
+                self.validate_generic_cred(user, database, group_task,
+                                           generic_cred_cache)
 
     def validate_generic_cred(self, user: str, database: connectors.PostgresConnector,
-                              group_task: task.TaskSpec):
+                              group_task: task.TaskSpec,
+                              generic_cred_cache: Dict[str, Any]):
         for cred_name, cred_map in group_task.credentials.items():
-            payload = database.get_generic_cred(user, cred_name)
+            if cred_name not in generic_cred_cache:
+                generic_cred_cache[cred_name] = database.get_generic_cred(user, cred_name)
+            payload = generic_cred_cache[cred_name]
             if isinstance(cred_map, str):
                 continue
             elif isinstance(cred_map, Dict):
@@ -622,12 +651,10 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     def validate_data(self, user: str, dataset_config: connectors.DatasetConfig,
                       group_task: task.TaskSpec, seen_uri_input: Set[str],
                       seen_uri_output: Set[str], disabled_data: List[str],
-                      seen_bucket_input: Set[str], seen_bucket_output: Set[str]):
-
-        postgres = connectors.PostgresConnector.get_instance()
-        default_user_bucket = connectors.UserProfile.fetch_from_db(postgres, user).bucket
-        default_service_bucket = postgres.get_dataset_configs().default_bucket
-        user_creds = postgres.get_all_data_creds(user)
+                      seen_bucket_input: Set[str], seen_bucket_output: Set[str],
+                      default_user_bucket: str | None,
+                      default_service_bucket: str,
+                      user_creds: Dict[str, credentials.StaticDataCredential]):
 
         def _validate_input_output(data_spec: Union[task.InputType, task.OutputType, task.TaskKPI],
                                    is_input: bool):
@@ -684,24 +711,35 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
             if bucket_info.scheme in disabled_data:
                 return
 
-            data_cred = task.fetch_creds(user, user_creds, bucket_info.uri)
+            access_type = storage.AccessType.READ if is_input else storage.AccessType.WRITE
+            uri_cache = seen_uri_input if is_input else seen_uri_output
 
-            if data_cred is None:
-                # User does not have any credentials, check if the backend
-                # supports environment authentication
-                if not bucket_info.supports_environment_auth:
-                    raise osmo_errors.OSMOCredentialError(
-                        f'Could not validate access to {bucket_info.uri} for user {user}.')
-            else:
-                # Check if user credentials have access to READ
-                if is_input and bucket_info.uri not in seen_uri_input:
-                    bucket_info.data_auth(data_cred, storage.AccessType.READ)
-                    seen_uri_input.add(bucket_info.uri)
+            if bucket_info.uri in uri_cache:
+                return
 
-                # Check if user credentials have access to WRITE
-                if not is_input and bucket_info.uri not in seen_uri_output:
-                    bucket_info.data_auth(data_cred, storage.AccessType.WRITE)
-                    seen_uri_output.add(bucket_info.uri)
+            # Credential resolution — strict priority, no cross-tier fallback:
+            #   1. User explicit credential (from their stored credentials in DB).
+            #   2. System default_credential on the bucket config (used only when the user
+            #      has no explicit credential for this profile — already enforced by
+            #      get_all_data_creds which merges them with user taking priority).
+            #   Both tiers are represented by user_creds.get(profile): if the user has their
+            #   own credential it wins; otherwise the bucket default is returned; None means
+            #   neither tier has anything configured.
+            #
+            #   3. No configured credential + backend does not support ambient → error.
+            #   4. No configured credential + backend supports ambient → skip submit-time
+            #      validation entirely and let the runtime (osmo-ctrl) perform the real check.
+            configured_cred = user_creds.get(bucket_info.profile)
+
+            if configured_cred is not None:
+                bucket_info.data_auth(configured_cred, access_type)
+                uri_cache.add(bucket_info.uri)
+            elif not bucket_info.supports_environment_auth:
+                raise osmo_errors.OSMOCredentialError(
+                    f'No credentials configured for {bucket_info.uri} (user {user}) '
+                    f'and the backend does not support environment authentication. '
+                    f'Run `osmo credential set` to add a credential.')
+            # else: ambient — no submit-time check; osmo-ctrl validates at runtime
 
         for input_data_spec in group_task.inputs:
             _validate_input_output(input_data_spec, True)
@@ -739,29 +777,48 @@ class WorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         base_spec = {
             'name': self.name,
             'groups': [group.saved_spec() for group in self.groups],
-            'resources': {key: resource.dict(exclude_defaults=True)
+            'resources': {key: resource.model_dump(exclude_defaults=True)
                           for key, resource in self.resources.items()}
         }
-        if 'timeout' in self.dict(exclude_defaults=True):
-            base_spec['timeout'] = self.timeout.dict()
+        if 'timeout' in self.model_fields_set:
+            base_spec['timeout'] = self.timeout.model_dump()
         return base_spec
 
 
-class VersionedWorkflowSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class VersionedWorkflowSpec(pydantic.BaseModel, extra='forbid'):
     """Control the WorkflowSpec version. """
     version: int = 2  # Default to OSMO workflow spec version 2
     workflow: WorkflowSpec
 
-    @pydantic.validator('version', pre=True, always=True)
+    @pydantic.field_validator('version', mode='before')
     @classmethod
-    def validate_version(cls, value: int) -> int:
-        """ Validates that the version is supported.  """
-        if value !=  2:
+    def validate_version(cls, value: Any) -> int:
+        """Validates that the version is supported.
+
+        mode='before' receives raw input (may be str from YAML/JSON),
+        so we must coerce before comparing.
+        """
+        if isinstance(value, bool):
             raise ValueError(f'Unsupported workflow version: {value}.')
-        return value
+        if isinstance(value, float):
+            if not value.is_integer():
+                raise ValueError(f'Unsupported workflow version: {value}.')
+            coerced = int(value)
+        elif isinstance(value, str):
+            try:
+                coerced = int(value)
+            except ValueError as exc:
+                raise ValueError(f'Unsupported workflow version: {value}.') from exc
+        elif isinstance(value, int):
+            coerced = value
+        else:
+            raise ValueError(f'Unsupported workflow version: {value}.')
+        if coerced != 2:
+            raise ValueError(f'Unsupported workflow version: {value}.')
+        return coerced
 
 
-class TemplateSpec(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TemplateSpec(pydantic.BaseModel, extra='forbid'):
     """ Template Spec. """
     file: str
     set_variables: List[str] = []
@@ -873,11 +930,11 @@ class Workflow(pydantic.BaseModel):
     status: WorkflowStatus = WorkflowStatus.PENDING
     timeout: TimeoutSpec = TimeoutSpec()
     priority: wf_priority.WorkflowPriority
-    cancelled_by: str | None
+    cancelled_by: str | None = None
     outputs: str = ''
     backend: str
     # TODO make pool not None
-    pool: str | None
+    pool: str | None = None
     version: int | None = 0
     failure_message: str | None = ''
     parent_name: task_common.NamePattern | None = None
@@ -886,9 +943,7 @@ class Workflow(pydantic.BaseModel):
     parent_job_id: int | None = None
     plugins: task_common.WorkflowPlugins = task_common.WorkflowPlugins()
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
     def insert_to_db(self, version: int = 2):
         """ Creates an entry in the database for the overall workflow. """
@@ -952,10 +1007,16 @@ class Workflow(pydantic.BaseModel):
                     insert_cmd,
                     (self.workflow_name, self.workflow_name,
                         self.workflow_name, self.workflow_uuid,
-                        self.user, self.submit_time, self.start_time, self.end_time,
-                        self.status.name, self.logs, exec_timeout, queue_timeout, self.backend,
-                        self.pool, version, self.failure_message, self.parent_name,
-                        self.parent_job_id, self.app_uuid, self.app_version, self.plugins.json(),
+                        self.user, self.submit_time,
+                        self.start_time, self.end_time,
+                        self.status.name, self.logs,
+                        exec_timeout, queue_timeout,
+                        self.backend,
+                        self.pool, version,
+                        self.failure_message, self.parent_name,
+                        self.parent_job_id, self.app_uuid,
+                        self.app_version,
+                        self.plugins.model_dump_json(),
                         self.priority.value))
                 break
             except osmo_errors.OSMODatabaseError as err:
@@ -1112,11 +1173,16 @@ class Workflow(pydantic.BaseModel):
         if fetch_groups:
             fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s order by start_time;'
             group_rows = database.execute_fetch_command(
-                fetch_cmd, (workflow_row['workflow_id'],), return_raw=True)
-            groups = [
-                task.TaskGroup.fetch_from_db(
-                    database, workflow_row['workflow_id'], row['name'], verbose)
-                for row in group_rows]
+                fetch_cmd, (workflow_row['workflow_id'],))
+            tasks_by_group = task.Task.list_all_task_rows_by_workflow(
+                database, workflow_row['workflow_id'], verbose)
+            for row in group_rows:
+                group_tasks = [
+                    task.Task.from_db_row(task_row, database)
+                    for task_row in tasks_by_group.get(row.name, [])
+                ]
+                groups.append(task.TaskGroup.from_db_row(
+                    row, database, verbose, preloaded_tasks=group_tasks))
 
         return Workflow(workflow_name=workflow_row['workflow_name'],
                         job_id=workflow_row['job_id'],
@@ -1255,14 +1321,10 @@ class Workflow(pydantic.BaseModel):
     def get_group_objs(self) -> List[task.TaskGroup]:
         """ Return task group objects by querying the task database. """
 
-        fetch_cmd = 'SELECT name FROM groups WHERE workflow_id = %s;'
-        groups_objs = []
+        fetch_cmd = 'SELECT * FROM groups WHERE workflow_id = %s;'
         group_rows = self.database.execute_fetch_command(fetch_cmd, (self.workflow_id,))
-        for group_row in group_rows:
-            group_obj = task.TaskGroup.fetch_from_db(self.database, self.workflow_id,
-                                                     group_row.name)
-            groups_objs.append(group_obj)
-        return groups_objs
+        return [task.TaskGroup.from_db_row(row, self.database, load_tasks=False)
+                for row in group_rows]
 
     def _has_running_tasks(self) -> bool:
         """ Returns true if there are any running tasks in the workflow. """

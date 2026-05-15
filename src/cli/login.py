@@ -58,13 +58,13 @@ def setup_parser(parser: argparse._SubParsersAction):
                                    'authenticate via web browser.')
     password_group = login_parser.add_mutually_exclusive_group()
     password_group.add_argument('--password', help='Password if logging in with credentials.')
-    password_group.add_argument('--password-file', type=argparse.FileType('r'),
+    password_group.add_argument('--password-file',
                                 help='File containing password if '\
                                      'logging in with credentials.').complete = shtab.FILE
 
     token_group = login_parser.add_mutually_exclusive_group()
     token_group.add_argument('--token', help='Token if logging in with credentials.')
-    token_group.add_argument('--token-file', type=argparse.FileType('r'),
+    token_group.add_argument('--token-file',
                              help='File containing the refresh token.').complete = shtab.FILE
 
     logout_parser = parser.add_parser('logout',
@@ -86,7 +86,7 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
         url: pydantic.AnyHttpUrl
     try:
         _ = UrlValidator(url=url)
-    except pydantic.error_wrappers.ValidationError as error:
+    except pydantic.ValidationError as error:
         raise osmo_errors.OSMOUserError(f'Bad url {url}: {error}')
 
     print(f'Logging in to {url}')
@@ -95,8 +95,8 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
     username = args.username
     password = args.password
     if args.password_file is not None:
-        password = args.password_file.read().strip('\n')
-        args.password_file.close()
+        with open(args.password_file, 'r', encoding='utf-8') as password_fh:
+            password = password_fh.read().strip('\n')
 
     # Login through device code flow
     if args.method == 'code':
@@ -113,8 +113,8 @@ def _login(service_client: client.ServiceClient, args: argparse.Namespace):
     # Login by directly reading the refresh token from a file or argument
     elif args.method == 'token':
         if args.token_file:
-            token = args.token_file.read().strip()
-            args.token_file.close()
+            with open(args.token_file, 'r', encoding='utf-8') as token_fh:
+                token = token_fh.read().strip()
         elif args.token:
             token = args.token
         else:

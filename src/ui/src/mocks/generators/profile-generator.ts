@@ -14,98 +14,36 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Profile Generator
- *
- * Generates user profile and settings data.
- */
-
 import { faker } from "@faker-js/faker";
+import { HttpResponse, delay } from "msw";
 import { MOCK_CONFIG } from "@/mocks/seed/types";
-import { hashString } from "@/mocks/utils";
+import { hashString, getMockDelay } from "@/mocks/utils";
+import { BUCKET_NAMES } from "@/mocks/generators/bucket-generator";
+import type { ProfileResponse, CredentialGetResponse } from "@/lib/api/generated";
 
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface GeneratedProfile {
-  username: string;
-  email: string;
-  display_name: string;
-  avatar_url?: string;
-  created_at: string;
-  last_login: string;
-  roles: string[];
-  teams: string[];
-}
-
-export interface GeneratedProfileSettings {
-  default_pool: string | null;
-  default_bucket: string | null;
-  default_priority: string;
-  notifications: {
-    email: boolean;
-    slack: boolean;
-    webhook_url?: string;
-  };
-  ui_preferences: {
-    theme: "light" | "dark" | "system";
-    workflows_per_page: number;
-    show_completed: boolean;
-    auto_refresh: boolean;
-    refresh_interval: number;
-  };
-  api_keys: GeneratedApiKey[];
-}
-
-export interface GeneratedApiKey {
-  id: string;
-  name: string;
-  prefix: string;
-  created_at: string;
-  last_used?: string;
-  expires_at?: string;
-}
-
-// Match production format
-export interface GeneratedCredential {
-  cred_name: string;
-  cred_type: "REGISTRY" | "DATA" | "GENERIC";
-  profile: string | null;
-}
-
-// ============================================================================
-// Generator Class
-// ============================================================================
+const BASE_SEED = 66666;
 
 export class ProfileGenerator {
-  private baseSeed: number;
+  private settings: {
+    email_notification?: boolean;
+    slack_notification?: boolean;
+    bucket?: string;
+    pool?: string;
+  } = {};
 
-  constructor(baseSeed: number = 66666) {
-    this.baseSeed = baseSeed;
-  }
+  private credentials = new Map<string, Record<string, string>>();
 
-  /**
-   * Capitalize first letter of a string
-   */
-  private capitalize(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
+  generateProfile(username?: string) {
+    faker.seed(BASE_SEED + (username ? hashString(username) : 0));
 
-  /**
-   * Generate a user profile
-   */
-  generateProfile(username?: string): GeneratedProfile {
-    faker.seed(this.baseSeed + (username ? hashString(username) : 0));
-
-    const user = username || faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
-    const firstName = user.split(".")[0] || user;
-    const lastName = user.split(".")[1] || "";
+    const user = username ?? faker.helpers.arrayElement(MOCK_CONFIG.workflows.users);
+    const [first = user, last = ""] = user.split(".");
+    const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
     return {
       username: user,
       email: `${user}@example.com`,
-      display_name: `${this.capitalize(firstName)} ${this.capitalize(lastName)}`.trim(),
+      display_name: `${capitalize(first)} ${capitalize(last)}`.trim(),
       avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${user}`,
       created_at: faker.date.past({ years: 3 }).toISOString(),
       last_login: faker.date.recent({ days: 7 }).toISOString(),
@@ -117,36 +55,12 @@ export class ProfileGenerator {
     };
   }
 
-  /**
-   * Get available bucket names (matches bucket generator's list)
-   */
-  getBucketNames(): string[] {
-    return [
-      "osmo-artifacts",
-      "osmo-checkpoints",
-      "osmo-datasets",
-      "osmo-models",
-      "ml-experiments",
-      "training-outputs",
-      "inference-cache",
-      "model-registry",
-    ];
-  }
-
-  /**
-   * Generate user settings
-   */
-  generateSettings(username?: string): GeneratedProfileSettings {
-    faker.seed(this.baseSeed + (username ? hashString(username) : 0) + 1000);
-
-    const pools = MOCK_CONFIG.pools.names;
-    const buckets = this.getBucketNames();
+  generateSettings(username?: string) {
+    faker.seed(BASE_SEED + (username ? hashString(username) : 0) + 1000);
 
     return {
-      // Always return a default pool (matching v4 prototype behavior)
-      default_pool: faker.helpers.arrayElement(pools),
-      // Always return a default bucket (matching v4 prototype behavior)
-      default_bucket: faker.helpers.arrayElement(buckets),
+      default_pool: faker.helpers.arrayElement(MOCK_CONFIG.pools.names),
+      default_bucket: faker.helpers.arrayElement(BUCKET_NAMES),
       default_priority: "NORMAL",
       notifications: {
         email: faker.datatype.boolean({ probability: 0.8 }),
@@ -162,18 +76,7 @@ export class ProfileGenerator {
         auto_refresh: true,
         refresh_interval: faker.helpers.arrayElement([5, 10, 30, 60]),
       },
-      api_keys: this.generateApiKeys(faker.number.int({ min: 0, max: 3 })),
-    };
-  }
-
-  /**
-   * Generate API keys
-   */
-  generateApiKeys(count: number): GeneratedApiKey[] {
-    const keys: GeneratedApiKey[] = [];
-
-    for (let i = 0; i < count; i++) {
-      keys.push({
+      api_keys: Array.from({ length: faker.number.int({ min: 0, max: 3 }) }, () => ({
         id: faker.string.uuid(),
         name: faker.helpers.arrayElement([
           "CI Pipeline",
@@ -190,29 +93,18 @@ export class ProfileGenerator {
         expires_at: faker.datatype.boolean({ probability: 0.3 })
           ? faker.date.future({ years: 1 }).toISOString()
           : undefined,
-      });
-    }
-
-    return keys;
+      })),
+    };
   }
 
-  /**
-   * Generate credentials list in production format
-   * Ensures at least one credential of each type (registry, data, generic)
-   */
-  generateCredentials(count: number = 5): GeneratedCredential[] {
-    faker.seed(this.baseSeed + 2000);
-    const credentials: GeneratedCredential[] = [];
+  generateCredentials(count: number = 5) {
+    faker.seed(BASE_SEED + 2000);
 
-    // Ensure we have at least one of each type
-    const types: Array<"REGISTRY" | "DATA" | "GENERIC"> = ["REGISTRY", "DATA", "GENERIC"];
+    const types = ["REGISTRY", "DATA", "GENERIC"] as const;
     const minCount = Math.max(count, types.length);
 
-    for (let i = 0; i < minCount; i++) {
-      // For the first 3 credentials, guarantee one of each type
-      // After that, pick randomly
+    return Array.from({ length: minCount }, (_, i) => {
       const cred_type = i < types.length ? types[i] : faker.helpers.arrayElement(types);
-
       const baseName = faker.helpers.arrayElement([
         "my-ngc-cred",
         "docker-hub-cred",
@@ -223,37 +115,107 @@ export class ProfileGenerator {
         "github-token",
       ]);
 
-      const cred_name = `${baseName}-${i}`;
+      const profile =
+        cred_type === "REGISTRY"
+          ? faker.helpers.arrayElement(["nvcr.io", "docker.io", "ghcr.io", "quay.io"])
+          : cred_type === "DATA"
+            ? `s3://${faker.location.countryCode().toLowerCase()}-bucket-${i}`
+            : "";
 
-      // Production format: profile field contains the URL/endpoint for registry/data, null for generic
-      let profile: string | null = null;
-      if (cred_type === "REGISTRY") {
-        profile = faker.helpers.arrayElement(["nvcr.io", "docker.io", "ghcr.io", "quay.io"]);
-      } else if (cred_type === "DATA") {
-        profile = `s3://${faker.location.countryCode().toLowerCase()}-bucket-${i}`;
-      }
+      return { cred_name: `${baseName}-${i}`, cred_type, profile };
+    });
+  }
 
-      credentials.push({
-        cred_name,
-        cred_type,
-        profile,
-      });
+  handleGetSettings = async (): Promise<ProfileResponse> => {
+    await delay(getMockDelay());
+
+    const userProfile = this.generateProfile("current.user");
+    const settings = this.generateSettings("current.user");
+    const pools = MOCK_CONFIG.pools.names;
+
+    const emailNotification = this.settings.email_notification ?? settings.notifications.email;
+    const slackNotification = this.settings.slack_notification ?? settings.notifications.slack;
+    const defaultBucket = this.settings.bucket ?? settings.default_bucket;
+    const defaultPool = this.settings.pool ?? settings.default_pool;
+
+    const accessiblePools = pools.includes(defaultPool) ? pools : [defaultPool, ...pools];
+
+    return {
+      profile: {
+        username: userProfile.email,
+        email_notification: emailNotification,
+        slack_notification: slackNotification,
+        bucket: defaultBucket,
+        pool: defaultPool,
+      },
+      roles: [],
+      pools: accessiblePools,
+    };
+  };
+
+  handlePostSettings = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+
+    const body = (await request.json()) as Record<string, unknown>;
+    if ("email_notification" in body) this.settings.email_notification = body.email_notification as boolean;
+    if ("slack_notification" in body) this.settings.slack_notification = body.slack_notification as boolean;
+    if ("bucket" in body) this.settings.bucket = body.bucket as string;
+    if ("pool" in body) this.settings.pool = body.pool as string;
+
+    return HttpResponse.json({ ...body, updated_at: new Date().toISOString() });
+  };
+
+  handleGetCredentials = async (): Promise<CredentialGetResponse> => {
+    await delay(getMockDelay());
+
+    if (this.credentials.size > 0) {
+      return { credentials: Array.from(this.credentials.values()) };
     }
 
-    return credentials;
-  }
+    const creds = this.generateCredentials(5);
+    for (const cred of creds) {
+      this.credentials.set(cred.cred_name, cred);
+    }
+    return { credentials: Array.from(this.credentials.values()) };
+  };
 
-  /**
-   * Get credential by name
-   */
-  getCredentialByName(name: string): GeneratedCredential | undefined {
-    const credentials = this.generateCredentials(10);
-    return credentials.find((c) => c.cred_name === name);
-  }
+  handlePostCredential = async ({
+    params,
+    request,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+    request: Request;
+  }): Promise<Response> => {
+    await delay(getMockDelay());
+
+    const name = String(params.name);
+    const body = (await request.json()) as Record<string, unknown>;
+
+    let cred_type: "REGISTRY" | "DATA" | "GENERIC" = "GENERIC";
+    let profile = "";
+
+    if (body.registry_credential && typeof body.registry_credential === "object") {
+      cred_type = "REGISTRY";
+      profile = String((body.registry_credential as Record<string, unknown>).registry ?? "");
+    } else if (body.data_credential && typeof body.data_credential === "object") {
+      cred_type = "DATA";
+      profile = String((body.data_credential as Record<string, unknown>).endpoint ?? "");
+    }
+
+    const credential = { cred_name: name, cred_type, profile };
+    this.credentials.set(name, credential);
+    return HttpResponse.json(credential);
+  };
+
+  handleDeleteCredential = async ({
+    params,
+  }: {
+    params: Record<string, string | readonly string[] | undefined>;
+  }): Promise<CredentialGetResponse> => {
+    await delay(getMockDelay());
+    this.credentials.delete(String(params.credName));
+    return { credentials: Array.from(this.credentials.values()) };
+  };
 }
-
-// ============================================================================
-// Singleton instance
-// ============================================================================
 
 export const profileGenerator = new ProfileGenerator();

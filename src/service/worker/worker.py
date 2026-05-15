@@ -16,13 +16,15 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 from functools import partial
 import logging
 import sys
 import threading
 import time
 import traceback
-from typing import Callable, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Iterable, Optional
 
 import kombu  # type: ignore
 import kombu.mixins  # type: ignore
@@ -33,6 +35,8 @@ import pydantic
 
 from src.lib.utils import common, osmo_errors
 import src.lib.utils.logging
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
 from src.utils.job import jobs, jobs_base
 from src.utils.metrics import metrics
 from src.utils import connectors, static_config
@@ -42,22 +46,31 @@ from src.utils.progress_check import progress
 # How long to keep uuids for deduplicating jobs
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 
+# Module-level pin for the ConfigMap watcher's daemon Observer thread.
+# A local in main() works today (worker.run() blocks for the process
+# lifetime) but is fragile to refactors that move the call into a
+# returning helper — silently dropping the reference would let the GC
+# stop the watcher mid-flight. The agent and logger pin to app.state for
+# the same reason; worker has no FastAPI app to use.
+_active_config_watcher: Any = None
+
 class WorkerConfig(connectors.RedisConfig, connectors.PostgresConfig,
                    src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
-                   metrics.MetricsCreatorConfig):
+                   metrics.MetricsCreatorConfig, ConfigFileMixin):
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write progress timestamps to (For liveness/startup probes)')
+        description='The file to write progress timestamps to (For liveness/startup probes)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_iter_frequency: str = pydantic.Field(
-        command_line='progress_iter_frequency',
-        env='OSMO_PROGRESS_ITER_FREQUENCY',
         default='15s',
         description='How often to write to progress file when processing tasks in a loop ('
                     'e.g. write to progress every 1 minute processed, like uploaded to DB). '
                     'Format needs to be <int><unit> where unit can be either s (seconds) and '
-                    'm (minutes).')
+                    'm (minutes).',
+        json_schema_extra={
+            'command_line': 'progress_iter_frequency',
+            'env': 'OSMO_PROGRESS_ITER_FREQUENCY'
+        })
 
 
 class Worker(kombu.mixins.ConsumerMixin):
@@ -67,7 +80,7 @@ class Worker(kombu.mixins.ConsumerMixin):
         self.config = config
         self.connection = connection
         self.context = jobs.JobExecutionContext(
-            postgres=connectors.PostgresConnector(self.config),
+            postgres=connectors.PostgresConnector.get_instance(),
             redis=self.config)
         self.redis_client = connectors.RedisConnector.get_instance().client
         self._worker_metrics = metrics.MetricCreator.get_meter_instance()
@@ -188,7 +201,14 @@ def get_service_job_queue_length(url: str, *args) \
     # pylint: disable=unused-argument
     redis_client = connectors.RedisConnector.get_instance().client
     for job_queue in connectors.JOBS:
-        length = redis_client.llen(f'{connectors.JOB_QUEUE_PREFIX}:{job_queue.name}')
+        # With priority queues, Kombu creates sub-queues per priority level.
+        # Priority 0 uses the base key; others use key + separator + priority.
+        base_key = f'{connectors.JOB_QUEUE_PREFIX}:{job_queue.name}'
+        length = redis_client.llen(base_key)
+        for step in connectors.PRIORITY_STEPS:
+            if step != 0:
+                length += redis_client.llen(
+                    f'{base_key}{connectors.PRIORITY_SEPARATOR}{step}')
         yield otelmetrics.Observation(length, {'job_type': job_queue.name})
 
 def get_backend_job_queue_length(url: str, *args) \
@@ -210,6 +230,11 @@ def main():
     worker_metrics = metrics.MetricCreator(config=config).get_meter_instance()
     worker_metrics.start_server()
     connectors.RedisConnector(config)
+    postgres = connectors.PostgresConnector(config)
+    # Pin to module-level global so the daemon Observer thread isn't GC'd.
+    global _active_config_watcher  # noqa: PLW0603
+    _active_config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres)
 
     if config.method != 'dev':
         worker_metrics.send_observable_gauge(

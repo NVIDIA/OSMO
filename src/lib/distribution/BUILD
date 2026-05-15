@@ -46,7 +46,7 @@ osmo_py_wheel(
     deps = [":osmo_dir"],
     requires = WHEEL_REQUIRES,
     distribution = "nvidia_osmo",
-    python_requires = ">=3.10,<3.12",
+    python_requires = ">=3.10,<3.15",
     strip_path_prefixes = [
         # IMPORTANT: Removes the prefix of the current running directory.
         # This allows the Python Wheel to be installed under the namespace `osmo`.

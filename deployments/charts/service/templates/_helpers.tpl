@@ -78,17 +78,6 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-The target port for the service
-*/}}
-{{- define "service.targetPort" -}}
-{{- if .Values.sidecars.envoy.enabled -}}
-envoy-http
-{{- else -}}
-8000
-{{- end -}}
-{{- end }}
-
-{{/*
 Service account name helper
 */}}
 {{- define "osmo.service-account-name" -}}
@@ -161,4 +150,57 @@ data:
   {{- toYaml .data | nindent 2 }}
 {{- end }}
 {{- end }}
+
+{{/*
+ConfigMap-mode mounts (shared by api-service, worker, agent, logger).
+All four services need the same configs ConfigMap and its referenced
+secrets so they can read the in-memory snapshot via ConfigMapWatcher
+instead of falling back to Postgres.
+
+OSMO_CONFIGMAP_NAME deliberately references services.service.serviceName
+(the API service) because the API owns the shared configs ConfigMap.
+*/}}
+{{- define "osmo.configmap-args" -}}
+{{- if .Values.services.configs.enabled }}
+- --config_file
+- /etc/osmo/configs/config.yaml
+{{- end }}
+{{- end -}}
+
+{{- define "osmo.configmap-env" -}}
+{{- if .Values.services.configs.enabled }}
+- name: POD_NAMESPACE
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.namespace
+- name: OSMO_CONFIGMAP_NAME
+  value: {{ .Values.services.service.serviceName }}-configs
+{{- end }}
+{{- end -}}
+
+{{- define "osmo.configmap-volume-mounts" -}}
+{{- if .Values.services.configs.enabled }}
+- name: configs
+  mountPath: /etc/osmo/configs
+  readOnly: true
+{{- range .Values.services.configs.secretRefs }}
+- name: secret-{{ .secretName }}
+  mountPath: /etc/osmo/secrets/{{ .secretName }}
+  readOnly: true
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{- define "osmo.configmap-volumes" -}}
+{{- if .Values.services.configs.enabled }}
+- name: configs
+  configMap:
+    name: {{ .Values.services.service.serviceName }}-configs
+{{- range .Values.services.configs.secretRefs }}
+- name: secret-{{ .secretName }}
+  secret:
+    secretName: {{ .secretName }}
+{{- end }}
+{{- end }}
+{{- end -}}
 

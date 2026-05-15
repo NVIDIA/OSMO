@@ -1,5 +1,5 @@
 ..
-  SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -72,8 +72,20 @@ After successful authentication, you are logged in. Welcome to OSMO.
 
   Successfully logged in. Welcome <Your Full Name>.
 
+Uninstall
+---------
+
+To uninstall the OSMO client, run the bundled uninstall script:
+
+.. code-block:: bash
+
+  $ /usr/local/osmo/uninstall.sh
+
+The script will show a list of files to be removed and prompt for confirmation before proceeding.
+
+===========
 Agent Skill
------------
+===========
 
 OSMO provides an agent skill that enables AI agents to interact with the OSMO CLI on your behalf.
 Once installed, agents in tools such as Claude Code, Cursor and Codex can check GPU resources,

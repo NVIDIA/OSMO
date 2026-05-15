@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "data",
@@ -30,4 +30,16 @@ go_library(
         "//src/runtime/pkg/metrics",
         "//src/runtime/pkg/osmo_errors:osmo_errors",
     ]
+)
+
+go_test(
+    name = "data_test",
+    srcs = [
+        "data_test.go",
+        "input_output_test.go",
+    ],
+    embed = [":data"],
+    deps = [
+        "//src/runtime/pkg/common:common",
+    ],
 )

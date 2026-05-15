@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -51,9 +51,10 @@ from src.lib.utils import (client, common, osmo_errors, paths, port_forward, pri
 
 
 INTERACTIVE_COMMANDS = ['bash', 'sh', 'zsh', 'fish', 'tcsh', 'csh', 'ksh']
+RESIZE_PREFIX = b'\x00RESIZE:'
 
 
-class TemplateData(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TemplateData(pydantic.BaseModel, extra='forbid'):
     """Pydantic model representing parsed template data from workflow files."""
     file: str
     set_variables: List[str]
@@ -259,7 +260,13 @@ def setup_parser(parser: argparse._SubParsersAction):
     list_parser.add_argument('--count', '-c',
                              default=20,
                              type=validation.positive_integer,
-                             help='Display the given count of workflows. Default value is 20.')
+                             help='Display the given count of workflows. Default value is 20. '
+                                  'Use --offset to skip results for pagination.')
+    list_parser.add_argument('--offset', '-f',
+                             default=0,
+                             type=validation.non_negative_integer,
+                             help='Skip the first N workflows (newest first, server-side order). '
+                                  'Use with --count to paginate results. Default is 0.')
     list_parser.add_argument('--name', '-n',
                              type=str,
                              help='Display workflows which contains the string.')
@@ -424,10 +431,8 @@ Forward UDP traffic from a task to your local machine::
     # Handle 'rsync' command
     rsync_parser = subparsers.add_parser(
         'rsync',
-        help='Rsync data from local machine to a remote workflow task.',
-        description='Syncs data from local machine to a remote workflow task via a persistent '
-                    'background daemon. It will continuously monitors the source path and '
-                    'automatically upload any changes to the remote task.\n\n'
+        help='Rsync data to/from a remote workflow task.',
+        description='Syncs data between local machine and a remote workflow task.\n\n'
                     '/osmo/run/workspace is always available as a remote path.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
@@ -436,84 +441,143 @@ Examples
 
 Upload to a task::
 
-    osmo workflow rsync <workflow_id> <task_name> <local_path>:<remote_path>
+    osmo workflow rsync upload <workflow_id> <task_name> <local_path>:<remote_path>
 
 Upload to lead task::
 
-    osmo workflow rsync <workflow_id> <local_path>:<remote_path>
+    osmo workflow rsync upload <workflow_id> <local_path>:<remote_path>
 
-Run a single upload::
+Run as a background daemon::
 
-    osmo workflow rsync <workflow_id> <local_path>:<remote_path> --once
+    osmo workflow rsync upload <workflow_id> <local_path>:<remote_path> --daemon
+
+Download from a task::
+
+    osmo workflow rsync download <workflow_id> <task_name> <remote_path>:<local_path>
+
+Download from lead task::
+
+    osmo workflow rsync download <workflow_id> <remote_path>:<local_path>
 
 Get the status of daemons::
 
-    osmo workflow rsync --status
+    osmo workflow rsync status
 
 Stop all daemons::
 
-    osmo workflow rsync --stop
+    osmo workflow rsync stop
 
 Stop a specific daemon::
 
-    osmo workflow rsync <workflow_id> --stop
+    osmo workflow rsync stop <workflow_id>
         ''')
-    rsync_parser.add_argument('workflow_id',
-                              nargs='?',
-                              help='The ID or UUID of the workflow to rsync to/from')
-    rsync_parser.add_argument('task',
-                              nargs='?',
-                              help='(Optional) The task to rsync upload to. If not provided, '
-                                   'the upload will be to the lead task of the first group.')
-    rsync_parser.add_argument('path',
-                              nargs='?',
-                              help='The src:dst path to rsync between.')
-    rsync_parser.add_argument('--status', '-s',
-                              action='store_true',
-                              help='Show the status of all rsync daemons')
-    rsync_parser.add_argument('--stop',
-                              action='store_true',
-                              help='Stop one or more rsync daemons')
-    rsync_parser.add_argument('--timeout',
-                              type=validation.positive_integer,
-                              default=10,
-                              help='The connection timeout period in seconds. '
-                                   'Default is 10 seconds.')
-    rsync_parser.add_argument('--upload-rate-limit',
-                              type=validation.positive_integer,
-                              help='Rate limit the upload speed in bytes per second. The upload '
-                                   'speed is also subjected to admin configured rate-limit.')
-    rsync_parser.add_argument('--poll-interval',
-                              type=validation.positive_float,
-                              help='The amount of time (seconds) between polling the task '
-                                   'for changes in daemon mode. If not provided, the '
-                                   'admin-configured default will be used.')
-    rsync_parser.add_argument('--debounce-delay',
-                              type=validation.positive_float,
-                              help='The amount of time (seconds) of inactivity after last '
-                                   'file change before a sync is triggered in daemon mode. If '
-                                   'not provided, the admin-configured default will be used.')
-    rsync_parser.add_argument('--reconcile-interval',
-                              type=validation.positive_float,
-                              help='The amount of time (seconds) between reconciling the upload '
-                                   'in daemon mode. This is used to ensure that failed uploads '
-                                   'during network interruptions will resume after connection is '
-                                   'restored. If not provided, the admin-configured default will '
-                                   'be used.')
-    rsync_parser.add_argument('--max-log-size',
-                              type=validation.positive_integer,
-                              default=2 * 1024 * 1024,
-                              help='The maximum log size in bytes for the daemon before log '
-                                   'rotation. Default is 2MB.')
-    rsync_parser.add_argument('--verbose',
-                              action='store_true',
-                              help='Enable verbose logging for the daemon.')
-    rsync_parser.add_argument('--once',
-                              action='store_true',
-                              help='Run a single rsync upload to the workflow. The upload will '
-                                   'be done in the foreground and will automatically exit once '
-                                   'the upload completes.')
-    rsync_parser.set_defaults(func=_rsync)
+    rsync_subparsers = rsync_parser.add_subparsers(dest='rsync_command')
+    rsync_subparsers.required = True
+
+    # --- upload subcommand ---
+    rsync_up_parser = rsync_subparsers.add_parser(
+        'upload',
+        help='Upload local data to a remote workflow task.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    rsync_up_parser.add_argument('workflow_id',
+                                 help='The ID or UUID of the workflow to rsync to')
+    rsync_up_parser.add_argument('task',
+                                 nargs='?',
+                                 help='(Optional) The task to upload to. If not provided, '
+                                      'the upload will be to the lead task of the first group.')
+    rsync_up_parser.add_argument('path',
+                                 nargs='?',
+                                 help='The <local_path>:<remote_path> to rsync between.')
+    rsync_up_parser.add_argument('--timeout',
+                                 type=validation.positive_integer,
+                                 default=10,
+                                 help='The connection timeout period in seconds. '
+                                      'Default is 10 seconds.')
+    rsync_up_parser.add_argument('--upload-rate-limit',
+                                 type=validation.positive_integer,
+                                 help='Rate limit the upload speed in bytes per second. The upload '
+                                      'speed is also subjected to admin configured rate-limit.')
+    rsync_up_parser.add_argument('--poll-interval',
+                                 type=validation.positive_float,
+                                 help='The amount of time (seconds) between polling the task '
+                                      'for changes in daemon mode. If not provided, the '
+                                      'admin-configured default will be used.')
+    rsync_up_parser.add_argument('--debounce-delay',
+                                 type=validation.positive_float,
+                                 help='The amount of time (seconds) of inactivity after last '
+                                      'file change before a sync is triggered in daemon mode. If '
+                                      'not provided, the admin-configured default will be used.')
+    rsync_up_parser.add_argument('--reconcile-interval',
+                                 type=validation.positive_float,
+                                 help='The amount of time (seconds) between reconciling '
+                                      'the upload in daemon mode. This is used to ensure '
+                                      'that failed uploads during network interruptions '
+                                      'will resume after connection is restored. If not '
+                                      'provided, the admin-configured default will be used.')
+    rsync_up_parser.add_argument('--max-log-size',
+                                 type=validation.positive_integer,
+                                 default=2 * 1024 * 1024,
+                                 help='The maximum log size in bytes for the daemon before log '
+                                      'rotation. Default is 2MB.')
+    rsync_up_parser.add_argument('--verbose',
+                                 action='store_true',
+                                 help='Enable verbose logging for the daemon.')
+    rsync_up_parser.add_argument('--daemon',
+                                 action='store_true',
+                                 help='Run as a background daemon that continuously monitors '
+                                      'the source path and uploads changes to the remote task.')
+    rsync_up_parser.add_argument('--no-progress',
+                                 action='store_true',
+                                 help='Suppress transfer progress output. By default, progress '
+                                      'is shown for foreground transfers.')
+    rsync_up_parser.set_defaults(func=_rsync_upload)
+
+    # --- download subcommand ---
+    rsync_down_parser = rsync_subparsers.add_parser(
+        'download',
+        help='Download data from a remote workflow task to local machine.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    rsync_down_parser.add_argument('workflow_id',
+                                   help='The ID or UUID of the workflow to rsync from')
+    rsync_down_parser.add_argument('task',
+                                   nargs='?',
+                                   help='(Optional) The task to download from. If not provided, '
+                                        'the download will be from the lead task of the '
+                                        'first group.')
+    rsync_down_parser.add_argument('path',
+                                   nargs='?',
+                                   help='The <remote_path>:<local_path> to rsync between.')
+    rsync_down_parser.add_argument('--timeout',
+                                   type=validation.positive_integer,
+                                   default=10,
+                                   help='The connection timeout period in seconds. '
+                                        'Default is 10 seconds.')
+    rsync_down_parser.add_argument('--no-progress',
+                                   action='store_true',
+                                   help='Suppress transfer progress output. By default, progress '
+                                        'is shown.')
+    rsync_down_parser.set_defaults(func=_rsync_download)
+
+    # --- status subcommand ---
+    rsync_status_parser = rsync_subparsers.add_parser(
+        'status',
+        help='Show the status of all rsync daemons.',
+    )
+    rsync_status_parser.set_defaults(func=_rsync_status_cmd)
+
+    # --- stop subcommand ---
+    rsync_stop_parser = rsync_subparsers.add_parser(
+        'stop',
+        help='Stop one or more rsync daemons.',
+    )
+    rsync_stop_parser.add_argument('workflow_id',
+                                   nargs='?',
+                                   help='(Optional) The workflow ID to filter daemons by.')
+    rsync_stop_parser.add_argument('--task',
+                                   help='(Optional) The task name to filter daemons by.')
+    rsync_stop_parser.set_defaults(func=_rsync_stop_cmd)
 
 
 def parse_file_for_template(workflow_contents: str, set_variables: List[str],
@@ -606,11 +670,11 @@ def print_submission_results(result, args: argparse.Namespace, parent_workflow_i
         else:
             message = 'Workflow submit successful.'
         print(f'{message}\n' \
-              f'Workflow ID        - {result["name"]}\n' \
-              f'Workflow Overview  - {result["overview"]}')
+              f'Workflow ID        - {result['name']}\n' \
+              f'Workflow Overview  - {result['overview']}')
         dashboard_url = result.get('dashboard_url')
         if dashboard_url is not None:
-            print(f'Workflow Dashboard - {result["dashboard_url"]}')
+            print(f'Workflow Dashboard - {result['dashboard_url']}')
         priority = wf_priority.WorkflowPriority(args.priority) \
             if hasattr(args, 'priority') and args.priority else wf_priority.WorkflowPriority.NORMAL
         if priority.preemptible:
@@ -687,7 +751,7 @@ def submit_workflow_helper(service_client: client.ServiceClient, args: argparse.
                                         payload=template_data.to_dict(), params=params)
 
         if args.dry:
-            print(f'{result["spec"]}')
+            print(f'{result['spec']}')
             return
 
         # Not a dry run, so reset the flag for the actual submission
@@ -817,7 +881,7 @@ def _validate_workflow(service_client: client.ServiceClient, args: argparse.Name
         f'api/pool/{args.pool}/workflow',
         payload=template_dict,
         params=params)
-    print(f'{result["logs"]}')
+    print(f'{result['logs']}')
 
 
 def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -855,7 +919,8 @@ def _workflow_logs(service_client: client.ServiceClient, args: argparse.Namespac
     except requests.exceptions.ChunkedEncodingError as error:
         # Check if this is specifically the timeout case with InvalidChunkLength
         error_str = str(error)
-        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+        if ('InvalidChunkLength' in error_str and "got length b''" in error_str) or \
+            ('Response ended prematurely' in error_str):
             print('\nLog stream has timed out or failed. '
                   'Please run the command again to continue viewing logs.')
             return
@@ -885,7 +950,8 @@ def _workflow_events(service_client: client.ServiceClient, args: argparse.Namesp
     except requests.exceptions.ChunkedEncodingError as error:
         # Check if this is specifically the timeout case with InvalidChunkLength
         error_str = str(error)
-        if 'InvalidChunkLength' in error_str and "got length b''" in error_str:
+        if ('InvalidChunkLength' in error_str and "got length b''" in error_str) or \
+            ('Response ended prematurely' in error_str):
             print('\nEvent stream has timed out or failed. '
                   'Please run the command again to continue viewing events.')
             return
@@ -906,7 +972,7 @@ def _cancel_workflow(service_client: client.ServiceClient, args: argparse.Namesp
             if args.format_type == 'json':
                 print(json.dumps(result, indent=common.JSON_INDENT_SIZE))
             else:
-                print(f'Cancel job for workflow {result["name"]} is submitted!')
+                print(f'Cancel job for workflow {result['name']} is submitted!')
         except (osmo_errors.OSMOServerError, osmo_errors.OSMOUserError) as error:
             print(f'Workflow cancelation failed for workflow {workflow_id}: {error}')
 
@@ -1028,7 +1094,7 @@ def _list_workflows(service_client: client.ServiceClient, args: argparse.Namespa
     while True:
         count = min(args.count - current_count, 1000)
         params['limit'] = count
-        params['offset'] = current_count
+        params['offset'] = args.offset + current_count
 
         workflow_result = service_client.request(
             client.RequestMethod.GET,
@@ -1244,7 +1310,7 @@ def _upload_localpath_dataset_inputs(
 
 async def _connect_stdin_stdout() -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """ Gets non-blocking reader and writer for stdin, stdout. """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     reader = asyncio.StreamReader()
     protocol = asyncio.StreamReaderProtocol(reader)
 
@@ -1267,18 +1333,40 @@ async def _connect_stdin_stdout() -> Tuple[asyncio.StreamReader, asyncio.StreamW
     return reader, writer
 
 
-async def send_terminal_size(ws: websockets.WebSocketClientProtocol):  # type: ignore
+def _get_terminal_size() -> bytes:
     s = struct.pack('HHHH', 0, 0, 0, 0)
     rows, cols = struct.unpack('HHHH', fcntl.ioctl(sys.stdin, termios.TIOCGWINSZ, s))[:2]
-    size_message = json.dumps({'Rows': rows, 'Cols': cols}).encode('utf-8')
-    await ws.send(size_message)
+    return json.dumps({'Rows': rows, 'Cols': cols}).encode('utf-8')
+
+
+async def send_terminal_size(ws: websockets.WebSocketClientProtocol):  # type: ignore
+    await ws.send(_get_terminal_size())
+
+
+async def _send_terminal_resize(ws: websockets.WebSocketClientProtocol):  # type: ignore
+    await ws.send(RESIZE_PREFIX + _get_terminal_size())
+
+
+async def _watch_terminal_resize(ws: websockets.WebSocketClientProtocol):  # type: ignore
+    loop = asyncio.get_running_loop()
+    resize_event = asyncio.Event()
+    loop.add_signal_handler(signal.SIGWINCH, resize_event.set)
+    try:
+        while True:
+            await resize_event.wait()
+            resize_event.clear()
+            await _send_terminal_resize(ws)
+    except (websockets.exceptions.ConnectionClosed, asyncio.CancelledError):
+        pass
+    finally:
+        loop.remove_signal_handler(signal.SIGWINCH)
 
 
 async def _run_exec_interactive(service_client: client.ServiceClient, args: argparse.Namespace,
                                 result: Dict[str, str], keep_alive: bool = False):
     router_address = result['router_address']
     headers = {'Cookie': result['cookie']}
-    endpoint = f'api/router/exec/{args.workflow_id}/client/{result["key"]}'
+    endpoint = f'api/router/exec/{args.workflow_id}/client/{result['key']}'
 
     old_tty = None
     try:
@@ -1302,10 +1390,10 @@ async def _run_exec_interactive(service_client: client.ServiceClient, args: argp
         writer.write(data)
         await writer.drain()
 
-        loop = asyncio.get_event_loop()
         coroutines = [
-            loop.create_task(port_forward.write_data(writer, ws)),
-            loop.create_task(port_forward.read_data(reader, ws))
+            asyncio.create_task(port_forward.write_data(writer, ws)),
+            asyncio.create_task(port_forward.read_data(reader, ws)),
+            asyncio.create_task(_watch_terminal_resize(ws)),
         ]
         done, pending = await asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED)
         for i in pending:
@@ -1334,7 +1422,7 @@ async def _run_exec_command(service_client: client.ServiceClient, args: argparse
                             task_name: str, result: Dict[str, str]):
     router_address = result['router_address']
     headers = {'Cookie': result['cookie']}
-    endpoint = f'api/router/exec/{args.workflow_id}/client/{result["key"]}'
+    endpoint = f'api/router/exec/{args.workflow_id}/client/{result['key']}'
 
     try:
         ws = await service_client.create_websocket(
@@ -1369,7 +1457,6 @@ def _exec_workflow(service_client: client.ServiceClient, args: argparse.Namespac
             raise osmo_errors.OSMOUserError('Keep-alive is not supported for exec groups.')
 
     params = {'entry_command': args.exec_entry_command}
-    loop = asyncio.get_event_loop()
     if args.task:
         endpoint = f'api/workflow/{args.workflow_id}/exec/task/{args.task}'
         if args.keep_alive:
@@ -1377,7 +1464,7 @@ def _exec_workflow(service_client: client.ServiceClient, args: argparse.Namespac
                 try:
                     result = service_client.request(
                         client.RequestMethod.POST, endpoint, params=params)
-                    loop.run_until_complete(
+                    asyncio.run(
                         _run_exec_interactive(
                             service_client,
                             args,
@@ -1393,15 +1480,26 @@ def _exec_workflow(service_client: client.ServiceClient, args: argparse.Namespac
         else:
             result = service_client.request(
                 client.RequestMethod.POST, endpoint, params=params)
-            loop.run_until_complete(_run_exec_interactive(service_client, args, result))
+            asyncio.run(_run_exec_interactive(service_client, args, result))
     else:
         endpoint = f'api/workflow/{args.workflow_id}/exec/group/{args.group}'
         result = service_client.request(
             client.RequestMethod.POST, endpoint, params=params)
-        coroutines = [
-            loop.create_task(_run_exec_command(service_client, args, i, result[i])) for i in result
-        ]
-        loop.run_until_complete(asyncio.wait(coroutines, return_when=asyncio.ALL_COMPLETED))
+        async def _run_group_exec():
+            coroutines = [
+                asyncio.create_task(
+                    _run_exec_command(
+                        service_client,
+                        args,
+                        task_name,
+                        result[task_name],
+                    )
+                )
+                for task_name in result
+            ]
+            await asyncio.wait(coroutines, return_when=asyncio.ALL_COMPLETED)
+
+        asyncio.run(_run_group_exec())
 
 
 def _port_forward(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -1418,8 +1516,9 @@ def _port_forward(service_client: client.ServiceClient, args: argparse.Namespace
             task_list.append(_single_port_forward(
                 service_client, args, local_port, remote_port,
                 result['router_address'], result['key'], result['cookie']))
-        await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
-    asyncio.get_event_loop().run_until_complete(_run())
+        await asyncio.wait([asyncio.create_task(t) for t in task_list],
+                           return_when=asyncio.FIRST_COMPLETED)
+    asyncio.run(_run())
 
 
 async def _single_port_forward(service_client: client.ServiceClient, args: argparse.Namespace,
@@ -1497,8 +1596,8 @@ def _rsync_status():
         'PID',
         'Status',
         'Last Synced',
-        'Source Path',
-        'Destination Path',
+        'Local Path',
+        'Remote Path',
         'Log File',
     ]
     table = common.osmo_table(header=keys)
@@ -1512,12 +1611,22 @@ def _rsync_status():
             daemon_metadata.pid,
             daemon_info.status.name,
             daemon_metadata.last_synced,
-            daemon_metadata.rsync_request.src,
-            daemon_metadata.rsync_request.original_dst_path,
+            daemon_metadata.rsync_request.local_path,
+            daemon_metadata.rsync_request.original_remote_path,
             daemon_info.log_file,
         ])
 
     print('\n' + table.draw() + '\n')
+
+
+def _rsync_status_cmd(  # pylint: disable=unused-argument
+    service_client: client.ServiceClient,
+    args: argparse.Namespace,
+):
+    """
+    Status subcommand handler.
+    """
+    _rsync_status()
 
 
 def _rsync_stop(args: argparse.Namespace):
@@ -1561,23 +1670,22 @@ def _rsync_stop(args: argparse.Namespace):
             )
 
 
-def _rsync(service_client: client.ServiceClient, args: argparse.Namespace):
+def _rsync_stop_cmd(  # pylint: disable=unused-argument
+    service_client: client.ServiceClient,
+    args: argparse.Namespace,
+):
     """
-    Main entrypoint for the rsync command.
+    Stop subcommand handler.
     """
-    if args.status:
-        _rsync_status()
-        return
+    _rsync_stop(args)
 
-    if args.stop:
-        _rsync_stop(args)
-        return
 
-    if not args.workflow_id:
-        raise osmo_errors.OSMOUserError('Workflow ID is required for rsync.')
-
+def _rsync_upload(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Upload subcommand handler.
+    """
     if not args.path and not args.task:
-        raise osmo_errors.OSMOUserError('Path is required for rsync.')
+        raise osmo_errors.OSMOUserError('Path is required for rsync upload.')
 
     if not args.path:
         # Only two arguments are provided (workflow_id and path)
@@ -1590,7 +1698,7 @@ def _rsync(service_client: client.ServiceClient, args: argparse.Namespace):
         args.workflow_id,
         args.task,
         args.path,
-        daemon=not args.once,
+        daemon=args.daemon,
         timeout=args.timeout,
         upload_rate_limit=args.upload_rate_limit,
         daemon_debounce_delay=args.debounce_delay,
@@ -1598,4 +1706,28 @@ def _rsync(service_client: client.ServiceClient, args: argparse.Namespace):
         daemon_reconcile_interval=args.reconcile_interval,
         daemon_max_log_size=args.max_log_size,
         daemon_verbose_logging=args.verbose,
+        show_progress=not args.daemon and not args.no_progress,
+    )
+
+
+def _rsync_download(service_client: client.ServiceClient, args: argparse.Namespace):
+    """
+    Download subcommand handler.
+    """
+    if not args.path and not args.task:
+        raise osmo_errors.OSMOUserError('Path is required for rsync download.')
+
+    if not args.path:
+        # Only two arguments are provided (workflow_id and path)
+        # Shift task argument to the path argument
+        args.path = args.task
+        args.task = None
+
+    rsync.rsync_download(
+        service_client,
+        args.workflow_id,
+        args.task,
+        args.path,
+        timeout=args.timeout,
+        show_progress=not args.no_progress,
     )

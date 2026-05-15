@@ -34,7 +34,7 @@ class DownloadTypeMetrics(enum.Enum):
     NOT_APPLICABLE = 'N/A'
 
 
-class TaskIOMetrics(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class TaskIOMetrics(pydantic.BaseModel, extra='forbid'):
     """  Represents metrics submitted by each user task in a workflow
     """
     group_name: task_common.NamePattern
@@ -50,8 +50,9 @@ class TaskIOMetrics(pydantic.BaseModel, extra=pydantic.Extra.forbid):
     download_type: DownloadTypeMetrics
 
 
-class TaskIO(pydantic.BaseModel, extra=pydantic.Extra.forbid, arbitrary_types_allowed=True):
+class TaskIO(pydantic.BaseModel):
     """ Represents the task object . """
+    model_config = pydantic.ConfigDict(extra='forbid', arbitrary_types_allowed=True)
     workflow_id: task_common.NamePattern
     group_name: task_common.NamePattern
     task_name: task_common.NamePattern

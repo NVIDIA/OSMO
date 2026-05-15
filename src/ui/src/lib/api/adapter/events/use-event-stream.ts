@@ -16,13 +16,15 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState, startTransition, useMemo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, startTransition, useMemo } from "react";
 import { useRafCallback } from "@react-hookz/web";
 
 import type { K8sEvent } from "@/lib/api/adapter/events/events-types";
 import { parseEventChunk } from "@/lib/api/adapter/events/events-parser";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
+import { parseStreamErrorResponse } from "@/lib/api/stream-error";
 import { isTransientError, getRetryDelay, abortableDelay, MAX_AUTO_RETRIES } from "@/lib/api/stream-retry";
+import { toProxiedPath } from "@/lib/config";
 
 // ============================================================================
 // Types
@@ -94,7 +96,8 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
   const { url, enabled = true, maxEvents = DEFAULT_MAX_EVENTS } = params;
 
   const [events, setEvents] = useState<K8sEvent[]>([]);
-  const [phase, setPhase] = useState<EventStreamPhase>("idle");
+  const [internalPhase, setPhase] = useState<EventStreamPhase>("idle");
+  const phase: EventStreamPhase = !enabled || !url ? "idle" : internalPhase;
   const [error, setError] = useState<Error | null>(null);
 
   const eventsRef = useRef<K8sEvent[]>([]);
@@ -133,7 +136,9 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
 
   // Store latest processChunk in a ref to avoid it being in useEffect deps
   const processChunkRef = useRef(processChunk);
-  processChunkRef.current = processChunk;
+  useLayoutEffect(() => {
+    processChunkRef.current = processChunk;
+  });
 
   // Restart counter to trigger effect re-run
   const [restartCount, setRestartCount] = useState(0);
@@ -144,7 +149,6 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
     if (!enabled || !url) {
       abortRef.current?.abort();
       abortRef.current = null;
-      setPhase("idle");
       return;
     }
 
@@ -157,18 +161,21 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
     // Reset state for new stream
     eventsRef.current = [];
     pendingRef.current = [];
-    setEvents([]);
-    setPhase("connecting");
-    setError(null);
+    const initStream = () => {
+      setEvents([]);
+      setPhase("connecting");
+      setError(null);
+    };
+    initStream();
 
     const runStream = async () => {
       let retryCount = 0;
 
       // Build absolute URL once — it won't change across retries.
-      const isAbsoluteUrl = url.startsWith("http://") || url.startsWith("https://");
-      const fullUrl = isAbsoluteUrl
-        ? new URL(url)
-        : new URL(url.startsWith("/") ? url : `/${url}`, window.location.origin);
+      // toProxiedPath strips the origin so requests route through the same-origin
+      // Next.js proxy when the UI is served from a different domain than the
+      // backend's service_base_url.
+      const fullUrl = new URL(toProxiedPath(url), window.location.origin);
 
       // ----------------------------------------------------------------
       // Retry loop: reconnects automatically on transient errors
@@ -186,7 +193,7 @@ export function useEventStream(params: UseEventStreamParams): UseEventStreamRetu
           handleRedirectResponse(response, "event streaming");
 
           if (!response.ok) {
-            throw new Error(`Stream failed: ${response.status} ${response.statusText}`);
+            throw new Error(await parseStreamErrorResponse(response));
           }
           if (!response.body) {
             throw new Error("Response body is not readable");

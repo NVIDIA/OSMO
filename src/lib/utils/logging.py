@@ -24,6 +24,7 @@ import datetime
 import enum
 import functools
 import inspect
+import json
 import logging
 import logging.handlers
 import os
@@ -128,29 +129,64 @@ class WorkflowLogContext:
             logging.getLogger().removeFilter(self._filter)
 
 
+class LogFormat(str, enum.Enum):
+    """
+    Output format for log records.
+
+    TEXT: legacy ServiceFormatter format (one human-readable line per record).
+    JSON: one JSON object per record, suitable for direct ingestion by
+          Loki/Elastic without a parser stage.
+    """
+    TEXT = 'text'
+    JSON = 'json'
+
+    @classmethod
+    def parse(cls, value: str | Self) -> Self:
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            try:
+                return cls(value.strip().lower())
+            except ValueError as error:
+                valid = ', '.join(f.value for f in cls)
+                raise ValueError(
+                    f'Invalid log format: "{value}". Valid formats are: {valid}',
+                ) from error
+        raise TypeError(f'Invalid log format type: {type(value).__name__}')
+
+
 class LoggingConfig(pydantic.BaseModel):
     """Manages the logging configuration"""
     log_level: LoggingLevel = pydantic.Field(
-        command_line='log_level',
         default=LoggingLevel.INFO,
-        description='The level of logging errors messages to record.')
+        description='The level of logging errors messages to record.',
+        json_schema_extra={'command_line': 'log_level'})
+    log_format: LogFormat = pydantic.Field(
+        default=LogFormat.TEXT,
+        description='The output format for log records (text or json).',
+        json_schema_extra={'command_line': 'log_format'})
     log_dir: Optional[str] = pydantic.Field(
-        command_line='log_dir',
         default=None,
-        description='The directory to write logs to.')
+        description='The directory to write logs to.',
+        json_schema_extra={'command_line': 'log_dir'})
     log_name: str = pydantic.Field(
-        command_line='log_name',
         default='',
-        description='The name of the log file.')
+        description='The name of the log file.',
+        json_schema_extra={'command_line': 'log_name'})
     k8s_log_level: LoggingLevel = pydantic.Field(
-        command_line='k8s_log_level',
         default=LoggingLevel.WARNING,
-        description='The level of k8s logging errors messages to record.')
+        description='The level of k8s logging errors messages to record.',
+        json_schema_extra={'command_line': 'k8s_log_level'})
 
-    @pydantic.validator('log_level', 'k8s_log_level', pre=True)
+    @pydantic.field_validator('log_level', 'k8s_log_level', mode='before')
     @classmethod
     def _parse_logging_levels(cls, v) -> LoggingLevel:
         return LoggingLevel.parse(v)
+
+    @pydantic.field_validator('log_format', mode='before')
+    @classmethod
+    def _parse_log_format(cls, v) -> LogFormat:
+        return LogFormat.parse(v)
 
 
 class ServiceFormatter(logging.Formatter):
@@ -185,6 +221,75 @@ class ServiceFormatter(logging.Formatter):
         return super().format(record)
 
 
+class JsonServiceFormatter(logging.Formatter):
+    """
+    JSON counterpart of ServiceFormatter. Emits one JSON object per record on a
+    single line, mirroring the fields surfaced by the text format so downstream
+    consumers (Loki, Elastic) can query them as structured metadata.
+
+    Field shape (stable, suitable for parser configuration):
+      timestamp:     ISO 8601 with milliseconds (matches ServiceFormatter)
+      level:         level name (e.g. INFO, ERROR)
+      service:       service name passed to init_logger / get_backend_logger
+      module:        record.module (matches %(module)s)
+      message:       formatted message body
+      backend:       set only for backend loggers (get_backend_logger)
+      workflow_uuid: set only when the WorkflowLogFilter or extra= adds it
+      exception:     set only when exc_info is provided (formatted traceback)
+      stack:         set only when stack_info is provided
+    """
+
+    def __init__(self, service: str, backend: Optional[str] = None):
+        super().__init__()
+        self._service = service
+        self._backend = backend
+
+    def formatTime(self, record, datefmt=None):
+        # pylint: disable=unused-argument
+        # pylint: disable=invalid-name
+        return datetime.datetime.fromtimestamp(record.created).astimezone().isoformat(
+            timespec='milliseconds')
+
+    def format(self, record):
+        payload: dict = {
+            'timestamp': self.formatTime(record),
+            'level': record.levelname,
+            'service': self._service,
+            'module': record.module,
+            'message': record.getMessage(),
+        }
+        if self._backend is not None:
+            payload['backend'] = self._backend
+        workflow_uuid = getattr(record, 'workflow_uuid', None)
+        if workflow_uuid:
+            payload['workflow_uuid'] = workflow_uuid
+        if record.exc_info:
+            payload['exception'] = self.formatException(record.exc_info)
+        if record.stack_info:
+            payload['stack'] = self.formatStack(record.stack_info)
+        return json.dumps(payload, default=str)
+
+
+def _make_service_formatter(
+    name: str,
+    config: LoggingConfig,
+    backend: Optional[str] = None,
+) -> logging.Formatter:
+    """
+    Build the formatter for either the main service logger (backend=None) or a
+    per-backend logger (backend=<name>), honoring config.log_format.
+    """
+    if config.log_format is LogFormat.JSON:
+        return JsonServiceFormatter(service=name, backend=backend)
+    if backend is None:
+        fmt = (f'%(asctime)s {name} [%(levelname)s] %(module)s: '
+               f'%(workflow_uuid_formatted)s%(message)s')
+    else:
+        fmt = (f'%(asctime)s {name} [%(levelname)s] {backend}: '
+               f'%(workflow_uuid_formatted)s%(message)s')
+    return ServiceFormatter(fmt)
+
+
 def init_logger(
     name: str,
     config: LoggingConfig,
@@ -211,8 +316,7 @@ def init_logger(
     if extra_handlers:
         handlers += extra_handlers
 
-    formatter = ServiceFormatter(
-        f'%(asctime)s {name} [%(levelname)s] %(module)s: %(workflow_uuid_formatted)s%(message)s')
+    formatter = _make_service_formatter(name, config)
     for handler in handlers:
         handler.setFormatter(formatter)
 
@@ -243,8 +347,7 @@ def get_backend_logger(name: str, backend: str, config: LoggingConfig) -> loggin
         event_log_handler = logging.FileHandler(file_path, encoding='utf-8')
         event_log_handler.setLevel(config.log_level.name)
 
-        formatter = ServiceFormatter(
-            f'%(asctime)s {name} [%(levelname)s] {backend}: %(workflow_uuid_formatted)s%(message)s')
+        formatter = _make_service_formatter(name, config, backend=backend)
         event_log_handler.setFormatter(formatter)
         event_logger.addHandler(event_log_handler)
 

@@ -20,6 +20,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -101,7 +102,8 @@ func userExec(entryCommand string, socketPath string, historyFilePath string) {
 	defer conn.Close()
 
 	// Read the first message from conn to get initial window size
-	dec := json.NewDecoder(conn)
+	connReader := bufio.NewReader(conn)
+	dec := json.NewDecoder(connReader)
 	var initSize struct {
 		Rows uint16 `json:"rows"`
 		Cols uint16 `json:"cols"`
@@ -153,9 +155,60 @@ func userExec(entryCommand string, socketPath string, historyFilePath string) {
 	waitGroup.Add(1)
 
 	go func() {
-		_, err = io.Copy(terminal, conn)
-		if err != nil {
-			log.Println("User Exec: Error writing to exec instance", err)
+		resizePrefix := []byte("\x00RESIZE:")
+		buf := make([]byte, 32*1024)
+		var carry []byte
+		for {
+			n, readErr := connReader.Read(buf)
+			if readErr != nil {
+				if readErr != io.EOF {
+					log.Println("User Exec: Error reading from connection", readErr)
+				}
+				return
+			}
+			var data []byte
+			if len(carry) > 0 {
+				data = append(carry, buf[:n]...)
+				carry = nil
+			} else {
+				data = buf[:n]
+			}
+
+			for len(data) > 0 {
+				idx := bytes.IndexByte(data, 0x00)
+				if idx == -1 {
+					terminal.Write(data)
+					break
+				}
+				if idx > 0 {
+					terminal.Write(data[:idx])
+					data = data[idx:]
+				}
+				if len(data) < len(resizePrefix) {
+					carry = append(carry, data...)
+					break
+				}
+				if !bytes.HasPrefix(data, resizePrefix) {
+					terminal.Write(data[:1])
+					data = data[1:]
+					continue
+				}
+				end := bytes.IndexByte(data[len(resizePrefix):], '}')
+				if end == -1 {
+					carry = append(carry, data...)
+					break
+				}
+				jsonEnd := len(resizePrefix) + end + 1
+				var size struct {
+					Rows uint16 `json:"Rows"`
+					Cols uint16 `json:"Cols"`
+				}
+				if jsonErr := json.Unmarshal(data[len(resizePrefix):jsonEnd], &size); jsonErr == nil {
+					pty.Setsize(terminal, &pty.Winsize{Rows: size.Rows, Cols: size.Cols})
+					execCmd.Process.Signal(syscall.SIGWINCH)
+				}
+				data = data[jsonEnd:]
+			}
 		}
 	}()
 

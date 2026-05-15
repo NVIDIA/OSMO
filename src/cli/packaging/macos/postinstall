@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,9 @@ set -e
 OSMO_CLI_INSTALL_PATH="/usr/local/osmo"
 OSMO_CLI_SYMLINK_PATH="/usr/local/bin"
 OSMO_CLI_AUTOCOMPLETE_DIR="/usr/local/share/zsh/site-functions"
+
+# Ensure symlink directory exists (may not exist on fresh macOS installs)
+mkdir -p "$OSMO_CLI_SYMLINK_PATH"
 
 # Create symlink
 ln -s -f "$OSMO_CLI_INSTALL_PATH/osmo" "$OSMO_CLI_SYMLINK_PATH/osmo"
@@ -42,6 +45,62 @@ if [ -f "$OSMO_CLI_INSTALL_PATH/autocomplete.zsh" ]; then
         echo ""
         echo "Then restart your terminal or run: source ~/.zshrc"
         echo "######################################################################"
+        echo ""
+    fi
+fi
+
+# Prompt to install the OSMO agent skill for AI coding agents.
+# Runs interactively via npx — the user selects agents, scope, and method.
+# Skipped if: non-interactive, npx missing, or skill already installed.
+OSMO_SKILL_INSTALLED=false
+for agent_dir in "$HOME/.claude" "$HOME/.codex" "$HOME/.agents"; do
+    if [ -f "$agent_dir/skills/osmo-agent/SKILL.md" ]; then
+        OSMO_SKILL_INSTALLED=true
+        break
+    fi
+done
+
+if [ -t 0 ] && [ "$OSMO_SKILL_INSTALLED" = false ]; then
+    echo ""
+    echo "######################################################################"
+    echo "OSMO Agent Skill"
+    echo ""
+    echo "Install the OSMO agent skill for AI coding agents"
+    echo "(Claude Code, Codex, etc.) to enable natural language"
+    echo "commands for managing compute resources and workflows."
+    echo "######################################################################"
+    echo ""
+
+    if command -v npx &> /dev/null; then
+        read -p "Install the OSMO agent skill? [Y/n]: " INSTALL_SKILL || INSTALL_SKILL="n"
+        INSTALL_SKILL="${INSTALL_SKILL:-y}"
+        if [ "$INSTALL_SKILL" = "y" ] || [ "$INSTALL_SKILL" = "Y" ]; then
+            if npx skills add nvidia/osmo; then
+                echo ""
+                echo "To remove:"
+                echo "  npx skills remove osmo-agent"
+                echo ""
+            else
+                echo ""
+                echo "Installation failed. To retry:"
+                echo "  npx skills add nvidia/osmo"
+                echo ""
+            fi
+        else
+            echo "To install later:"
+            echo "  npx skills add nvidia/osmo"
+            echo ""
+        fi
+    else
+        echo "npx not found. Install Node.js to continue:"
+        echo ""
+        if command -v brew &> /dev/null; then
+            echo "  brew install node"
+        fi
+        echo "  https://nodejs.org/en/download"
+        echo ""
+        echo "Then run:"
+        echo "  npx skills add nvidia/osmo"
         echo ""
     fi
 fi

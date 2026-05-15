@@ -229,9 +229,8 @@ class SwiftBackend(Boto3Backend):
     Swift Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['swift'] = pydantic.Field(
         default=common.StorageBackendType.SWIFT.value,
-        const=True,
         description='The scheme of the Swift backend.',
     )
 
@@ -242,7 +241,6 @@ class SwiftBackend(Boto3Backend):
 
     supports_batch_delete: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
@@ -298,10 +296,16 @@ class SwiftBackend(Boto3Backend):
         return f'{self.profile}/{self.container}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return f'https://{self.netloc}/v1/{self.namespace}/{self.container}/{self.path}'.rstrip('/')
 
@@ -390,21 +394,18 @@ class S3Backend(Boto3Backend):
     AWS S3 Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['s3'] = pydantic.Field(
         default=common.StorageBackendType.S3.value,
-        const=True,
         description='The scheme of the S3 backend.',
     )
 
     supports_batch_delete: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
     supports_environment_auth: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports environment authentication.',
     )
 
@@ -461,10 +462,41 @@ class S3Backend(Boto3Backend):
         return f'{self.profile}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
+
+        When the credential has an override_url (CAIOS, R2, Wasabi, MinIO,
+        etc.) we build a URL against that host. The default is virtual-host
+        addressing because that's what modern S3-compatibles expect; pass
+        addressing_style='path' for legacy bucket names or path-style-only
+        deployments.
         """
+        if override_url:
+            parsed = parse.urlparse(override_url)
+            scheme = parsed.scheme or 'https'
+            if parsed.netloc:
+                host = parsed.netloc
+                base_path = parsed.path.rstrip('/')
+            else:
+                # No scheme prefix on override_url: urlparse drops the whole
+                # input into 'path'. Split off the host from any base path so
+                # reverse-proxied endpoints like 'gateway.example.com/s3' keep
+                # the '/s3' prefix in the resulting link.
+                bare = parsed.path.lstrip('/')
+                host, _, rest = bare.partition('/')
+                base_path = ('/' + rest).rstrip('/') if rest else ''
+            if addressing_style == 'path':
+                return (
+                    f'{scheme}://{host}{base_path}/{self.container}/{self.path}'.rstrip('/')
+                )
+            return f'{scheme}://{self.container}.{host}{base_path}/{self.path}'.rstrip('/')
         return f'https://{self.container}.s3.{region}.amazonaws.com/{self.path}'.rstrip('/')
 
     @override
@@ -490,6 +522,16 @@ class S3Backend(Boto3Backend):
             self._validate_bucket_access(data_cred=data_cred)
             return
 
+        # Ambient credentials (IRSA, EC2 instance profile, EKS pod identity, etc.) rely on
+        # resource-based policies (bucket policies) in addition to identity-based IAM policies.
+        # SimulatePrincipalPolicy only evaluates identity policies, so it produces false
+        # negatives when access is granted exclusively via a bucket policy. For ambient
+        # credentials we fall back to a real head_bucket check, which is the true arbiter
+        # of whether the caller can reach the bucket.
+        if isinstance(data_cred, credentials.DefaultDataCredential):
+            self._validate_bucket_access(data_cred=data_cred)
+            return
+
         action = []
         if access_type == common.AccessType.READ:
             action.append('s3:GetObject')
@@ -498,26 +540,29 @@ class S3Backend(Boto3Backend):
         elif access_type == common.AccessType.DELETE:
             action.append('s3:DeleteObject')
 
-        match data_cred:
-            case credentials.StaticDataCredential():
-                session = boto3.Session(
-                    aws_access_key_id=data_cred.access_key_id,
-                    aws_secret_access_key=data_cred.access_key.get_secret_value(),
-                    region_name=self.region(data_cred),
-                )
-            case credentials.DefaultDataCredential():
-                session = boto3.Session(
-                    region_name=self.region(data_cred),
-                )
-            case _ as unreachable:
-                assert_never(unreachable)
+        session = boto3.Session(
+            aws_access_key_id=data_cred.access_key_id,
+            aws_secret_access_key=data_cred.access_key.get_secret_value(),
+            region_name=self.region(data_cred),
+        )
 
         iam_client: mypy_boto3_iam.client.IAMClient = session.client('iam')
         sts_client: mypy_boto3_sts.client.STSClient = session.client('sts')
 
         def _validate_auth():
             arn = sts_client.get_caller_identity()['Arn']
-            path = f'{self.container}/{self.path if self.path else "*"}'
+            # SimulatePrincipalPolicy requires an IAM role ARN, not an STS
+            # assumed-role session ARN. Convert when running under IRSA or
+            # instance roles where STS returns an assumed-role ARN.
+            # arn:<partition>:sts::<acct>:assumed-role/<path>/<role>/<session>
+            #   -> arn:<partition>:iam::<acct>:role/<path>/<role>
+            if ':assumed-role/' in arn:
+                parts = arn.split(':')
+                partition = parts[1]
+                account_id = parts[4]
+                role_path = parts[5].split('assumed-role/', 1)[1].rsplit('/', 1)[0]
+                arn = f'arn:{partition}:iam::{account_id}:role/{role_path}'
+            path = f'{self.container}/{self.path if self.path else '*'}'
 
             if path.endswith('/'):
                 # S3 IAM simulation will validate against an object with a trailing slash,
@@ -536,7 +581,7 @@ class S3Backend(Boto3Backend):
                 for result in results['EvaluationResults']:
                     if result['EvalDecision'] != 'allowed':
                         raise osmo_errors.OSMOCredentialError(
-                            f'Data key validation error: no {result["EvalActionName"]} '
+                            f'Data key validation error: no {result['EvalActionName']} '
                             f'access for s3://{path}')
 
         try:
@@ -564,9 +609,12 @@ class S3Backend(Boto3Backend):
         if data_cred.region is not None:
             return data_cred.region
 
+        # Route the precheck to the credential's endpoint so it actually targets
+        # the bucket's backend (CAIOS, MinIO, etc.) rather than AWS S3.
         s3_client = s3.create_client(
             data_cred=data_cred,
             scheme=self.scheme,
+            endpoint_url=data_cred.override_url,
         )
 
         def _get_region() -> str:
@@ -585,9 +633,8 @@ class GSBackend(Boto3Backend):
     Google Cloud Platform GS Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['gs'] = pydantic.Field(
         default=common.StorageBackendType.GS.value,
-        const=True,
         description='The scheme of the GS backend.',
     )
 
@@ -595,7 +642,6 @@ class GSBackend(Boto3Backend):
     # https://issuetracker.google.com/issues/162653700
     supports_batch_delete: Literal[False] = pydantic.Field(
         default=False,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
@@ -649,10 +695,16 @@ class GSBackend(Boto3Backend):
         return f'{self.profile}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return (
             f'https://storage.googleapis.com/storage/v1/b/{self.container}/o/{self.path}'
@@ -708,15 +760,13 @@ class TOSBackend(Boto3Backend):
     https://docs.byteplus.com/en/docs/tos/docs-compatibility-with-amazon-s3#appendix-tos-compatible-s3-apis
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['tos'] = pydantic.Field(
         default=common.StorageBackendType.TOS.value,
-        const=True,
         description='The scheme of the TOS backend.',
     )
 
     supports_batch_delete: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports batch delete.',
     )
 
@@ -771,10 +821,16 @@ class TOSBackend(Boto3Backend):
         return f'{self.profile}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return f'https://{self.container}.{self.netloc}/{self.path}'.rstrip('/')
 
@@ -819,9 +875,8 @@ class AzureBlobStorageBackend(common.StorageBackend):
     Azure Blob Storage Backend
     """
 
-    scheme: str = pydantic.Field(
+    scheme: Literal['azure'] = pydantic.Field(
         default=common.StorageBackendType.AZURE.value,
-        const=True,
         description='The scheme of the Azure Blob Storage backend.',
     )
 
@@ -832,7 +887,6 @@ class AzureBlobStorageBackend(common.StorageBackend):
 
     supports_environment_auth: Literal[True] = pydantic.Field(
         default=True,
-        const=True,
         description='Whether the backend supports environment authentication.',
     )
 
@@ -888,10 +942,16 @@ class AzureBlobStorageBackend(common.StorageBackend):
         return f'{self.profile}/{self.container}'
 
     @override
-    def parse_uri_to_link(self, region: str) -> str:
+    def parse_uri_to_link(
+        self,
+        region: str,
+        *,
+        override_url: str | None = None,
+        addressing_style: str | None = None,
+    ) -> str:
         # pylint: disable=unused-argument
         """
-        Returns the https link corresponding to the uri
+        Returns the https link corresponding to the uri.
         """
         return f'{self.endpoint}/{self.container}/{self.path}'.rstrip('/')
 

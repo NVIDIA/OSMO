@@ -30,6 +30,16 @@ export default defineConfig({
           path: './src/lib/api/fetcher.ts',
           name: 'customFetch',
         },
+        fetch: {
+          includeHttpResponseReturnType: false,
+        },
+        query: {
+          // TODO: Consider enabling useSuspenseQuery once adapter hooks are refactored to use
+          // Suspense boundaries. This would eliminate isLoading/null-coalescing patterns across
+          // all adapter hooks, but requires updating every consumer to use <Suspense> wrappers.
+          useInfinite: false,
+          useInvalidate: true,
+        },
       },
     },
   },
@@ -39,7 +49,7 @@ export default defineConfig({
       target: './openapi.json',
     },
     output: {
-      target: './e2e/mocks/generated-mocks.ts',
+      target: './src/mocks/generated-mocks.ts',
       mode: 'single',
       client: 'fetch',
       mock: {
@@ -51,9 +61,11 @@ export default defineConfig({
         mock: {
           properties: {
             // Customize specific fields for realistic data
-            '/.*name.*/': () => `pool-${Math.random().toString(36).slice(2, 7)}`,
             '/.*hostname.*/': () => `node-${Math.random().toString(36).slice(2, 7)}.cluster.local`,
             '/.*description.*/': 'A test resource',
+            // Workaround: Orval bug with allOf enum refs generates invalid spread syntax.
+            // BackendSchedulerType = { kai: 'kai' } — use the only valid value directly.
+            '/scheduler_type/': 'kai',
           },
         },
       },

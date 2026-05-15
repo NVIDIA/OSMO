@@ -14,19 +14,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Spec Generator - YAML and Jinja2 Template Generation
- *
- * Generates workflow specifications in two formats:
- * 1. Resolved YAML spec (concrete values)
- * 2. Jinja2 template spec (parameterized with variables)
- */
-
 import type { MockWorkflow } from "@/mocks/generators/workflow-generator";
 
-/**
- * Generate resolved YAML specification for a workflow
- */
 export function generateYamlSpec(workflow: MockWorkflow): string {
   const taskSpecs = workflow.groups.flatMap((g) =>
     g.tasks.map((t, idx) => {
@@ -152,9 +141,6 @@ ${taskSpecs.length > 0 ? taskSpecs.join("\n\n") : "  # No tasks defined\n  - nam
 `;
 }
 
-/**
- * Generate Jinja2 template specification for a workflow
- */
 export function generateTemplateSpec(workflow: MockWorkflow): string {
   const taskTemplates = workflow.groups.flatMap((g) =>
     g.tasks.map((t, idx) => {

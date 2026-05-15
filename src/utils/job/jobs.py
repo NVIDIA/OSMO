@@ -38,8 +38,10 @@ import yaml
 
 from src.lib.data import storage
 from src.lib.utils import common, osmo_errors, priority as wf_priority
+from src.lib.utils.redact import redact_pod_spec_env
 from src.utils import connectors
 from src.utils.job import app, backend_job_defs, common as task_common, kb_objects, task, workflow
+from src.utils.job.task import _encode_hstore
 from src.utils.job.jobs_base import Job, JobResult, JobStatus, update_progress_writer
 from src.utils.progress_check import progress
 
@@ -57,9 +59,7 @@ class JobExecutionContext(pydantic.BaseModel):
     postgres: connectors.PostgresConnector
     redis: connectors.RedisConfig
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = 'forbid'
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True, extra='forbid')
 
 
 def cleanup_workflow_group(context: JobExecutionContext, workflow_id: str, workflow_uuid: str,
@@ -132,7 +132,7 @@ class FrontendJob(Job):
         job into the job queue.
         """
         redis_client = connectors.RedisConnector.get_instance().client
-        serialized_job = self.json()
+        serialized_job = self.model_dump_json()
         timeout_time = time.time() + delay_duration.total_seconds()
         redis_client.zadd(DELAYED_JOB_QUEUE, {serialized_job: timeout_time})
         self.log_delayed_submission(delay_duration)
@@ -176,7 +176,7 @@ class SubmitWorkflow(WorkflowJob):
     spec: workflow.WorkflowSpec
     original_spec: Dict
     group_and_task_uuids: Dict[str, common.UuidPattern]
-    parent_workflow_id: task_common.NamePattern | None
+    parent_workflow_id: task_common.NamePattern | None = None
     app_uuid: str | None = None
     app_version: int | None = None
     task_db_keys: Dict[str, str] | None = None
@@ -184,9 +184,9 @@ class SubmitWorkflow(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-submit'
+        return f'{values['workflow_uuid']}-submit'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -205,7 +205,6 @@ class SubmitWorkflow(WorkflowJob):
         Executes the job. Returns true if the job was completed successful and can
         be removed from the message queue, or false if the job failed.
         """
-        last_timestamp = datetime.datetime.now()
         postgres = context.postgres
 
         # Create workflow and groups in database
@@ -217,49 +216,52 @@ class SubmitWorkflow(WorkflowJob):
             parent_workflow_id=self.parent_workflow_id, task_db_keys=self.task_db_keys,
             app_uuid=self.app_uuid, app_version=self.app_version,
             priority=self.priority)
-        version = self.original_spec['version'] if 'version' in self.original_spec else '2'
+        version = int(self.original_spec['version']) if 'version' in self.original_spec else 2
         workflow_obj.insert_to_db(version)
 
         self.workflow_id = workflow_obj.workflow_id
 
+        task_entries: list[tuple] = []
+        group_entries: list[tuple] = []
         for group_obj in workflow_obj.groups:
             group_obj.workflow_id_internal = workflow_obj.workflow_id
             group_obj.spec = \
                 group_obj.spec.parse(postgres, workflow_obj.workflow_id,
                                      self.group_and_task_uuids)
-            group_obj.insert_to_db()
+            group_entries.append((
+                group_obj.workflow_id_internal, group_obj.name,
+                group_obj.group_uuid, group_obj.spec.model_dump_json(),
+                task.TaskGroupStatus.SUBMITTING.name, None,
+                _encode_hstore(group_obj.remaining_upstream_groups),
+                _encode_hstore(group_obj.downstream_groups),
+                group_obj.scheduler_settings.model_dump_json()
+                if group_obj.scheduler_settings else None,
+                json.dumps(group_obj.group_template_resource_types),
+            ))
             for task_obj, task_obj_spec in zip(group_obj.tasks, group_obj.spec.tasks):
                 task_obj.workflow_id_internal = workflow_obj.workflow_id
-                task_obj.insert_to_db(
-                    gpu_count=task_obj_spec.resources.gpu or 0,
-                    cpu_count=task_obj_spec.resources.cpu or 0,
-                    disk_count=common.convert_resource_value_str(
+                workflow_uuid = task_obj.workflow_uuid if task_obj.workflow_uuid else ''
+                task_entries.append((
+                    task_obj.workflow_id_internal, task_obj.name, task_obj.group_name,
+                    task_obj.task_db_key, task_obj.retry_id, task_obj.task_uuid,
+                    task.TaskGroupStatus.WAITING.name,
+                    kb_objects.construct_pod_name(workflow_uuid, task_obj.task_uuid),
+                    None,
+                    task_obj_spec.resources.gpu or 0,
+                    task_obj_spec.resources.cpu or 0,
+                    common.convert_resource_value_str(
                         task_obj_spec.resources.storage or '0', 'GiB'),
-                    memory_count=common.convert_resource_value_str(
-                        task_obj_spec.resources.memory or '0', 'GiB'))
-
-                current_timestamp = datetime.datetime.now()
-                time_elapsed = last_timestamp - current_timestamp
-                if time_elapsed > progress_iter_freq:
-                    progress_writer.report_progress()
-                    last_timestamp = current_timestamp
+                    common.convert_resource_value_str(
+                        task_obj_spec.resources.memory or '0', 'GiB'),
+                    json.dumps(task_obj.exit_actions, default=common.pydantic_encoder),
+                    task_obj.lead,
+                ))
+        task.TaskGroup.batch_insert_groups_and_tasks(
+            postgres, group_entries, task_entries)
         progress_writer.report_progress()
 
         # Fetch workflow_obj to get latest info
         workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, workflow_obj.workflow_id)
-
-        # Enqueue a delayed job to check the queue timeout
-        if not workflow_obj.pool:
-            raise osmo_errors.OSMOUserError('No Pool Specified')
-        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-        workflow_config = context.postgres.get_workflow_configs()
-        queue_timeout = workflow_obj.timeout.queue_timeout or \
-            common.to_timedelta(pool_info.default_queue_timeout
-                                if pool_info.default_queue_timeout else
-                                workflow_config.default_queue_timeout)
-        check_queue_timeout = CheckQueueTimeout(workflow_id=workflow_obj.workflow_id,
-                                                workflow_uuid=self.workflow_uuid)
-        check_queue_timeout.send_delayed_job_to_queue(queue_timeout)
 
         # Check if workflow has been canceled.
         # If it hasn't, mark all the groups as WAITING
@@ -268,24 +270,31 @@ class SubmitWorkflow(WorkflowJob):
             # Determine which groups don't have prerequisites and enqueue CreateGroup jobs
             # for them
             backend_config_cache = connectors.BackendConfigCache()
+            ready_group_names: List[str] = []
+            scheduler_settings_by_group: Dict[str, str] = {}
             for group_obj in workflow_obj.groups:
                 group_obj.workflow_id_internal = workflow_obj.workflow_id
                 if not group_obj.remaining_upstream_groups:
                     backend_name = group_obj.spec.tasks[0].backend
                     backend = backend_config_cache.get(backend_name)
+                    ready_group_names.append(group_obj.name)
+                    if backend.scheduler_settings is not None:
+                        scheduler_settings_by_group[group_obj.name] = (
+                            backend.scheduler_settings.model_dump_json())
 
-                    group_obj.set_tasks_to_processing()
-                    group_obj.update_status_to_db(
-                        common.current_time(),
-                        task.TaskGroupStatus.PROCESSING,
-                        scheduler_settings=backend.scheduler_settings)
-                    submit_task = CreateGroup(
-                        backend=workflow_obj.backend,
-                        group_name=group_obj.name,
-                        workflow_id=workflow_obj.workflow_id,
-                        workflow_uuid=self.workflow_uuid,
-                        user=self.user)
-                    submit_task.send_job_to_queue()
+            transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
+                context.postgres, workflow_obj.workflow_id,
+                ready_group_names, common.current_time(),
+                scheduler_settings_by_group)
+
+            for group_name in transitioned_names:
+                submit_task = CreateGroup(
+                    backend=workflow_obj.backend,
+                    group_name=group_name,
+                    workflow_id=workflow_obj.workflow_id,
+                    workflow_uuid=self.workflow_uuid,
+                    user=self.user)
+                submit_task.send_job_to_queue()
 
         return JobResult()
 
@@ -309,7 +318,7 @@ class SubmitWorkflow(WorkflowJob):
                     time=common.current_time(), io_type=connectors.redis.IOType.OSMO_CTRL,
                     source='OSMO', retry_id=0, text='Failed SubmitWorkflow for workflow ' +
                     f'{workflow_obj.workflow_id} with error: {error}')
-            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+            redis_client.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
             redis_client.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
 
         for group_obj in workflow_obj.get_group_objs():
@@ -350,9 +359,9 @@ class UploadWorkflowFiles(WorkflowJob):
         # 16 bytes of the hash is enough to guarantee uniqueness
         all_paths = '\n'.join(file.path for file in values['files'])
         digest = hashlib.sha256(all_paths.encode('utf-8')).hexdigest()[:32]
-        return f'{values["workflow_uuid"]}-{digest}-upload-files'
+        return f'{values['workflow_uuid']}-{digest}-upload-files'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -381,32 +390,54 @@ class UploadWorkflowFiles(WorkflowJob):
 
         storage_client = storage.Client.create(
             data_credential=workflow_config.workflow_log.credential,
+            executor_params=storage.ExecutorParameters(
+                num_processes=1,
+                # Additional threads just for context switching between upload
+                # coroutines to be safe
+                num_threads=CONCURRENT_UPLOADS + 2,
+            ),
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            for file in self.files:
-                file_path = os.path.join(temp_dir, file.path)
-                with open(file_path, 'w+', encoding='utf-8') as local_file:
+        async def upload_file(file: File):
+            fd, tmp_path = tempfile.mkstemp()
+            try:
+                os.close(fd)
+                with open(tmp_path, 'w', encoding='utf-8') as local_file:
                     local_file.write(file.content)
                     local_file.flush()
 
-            # Trigger progress update (if applicable) whenever a file is uploaded
-            last_timestamp = datetime.datetime.now()
+                await progress_writer.report_progress_async()
 
-            def _upload_callback(upload_input, upload_resp) -> None:
-                # pylint: disable=unused-argument
-                nonlocal last_timestamp
-                current_timestamp = datetime.datetime.now()
-                time_elapsed = last_timestamp - current_timestamp
-                if time_elapsed > progress_iter_freq:
-                    progress_writer.report_progress()
-                    last_timestamp = current_timestamp
+                # Wrap the call in a concrete no-arg function to avoid
+                # overload issues during lint.
+                def _upload() -> storage.UploadSummary:
+                    return storage_client.upload_objects(
+                        source=tmp_path,
+                        destination_prefix=self.workflow_id,
+                        destination_name=file.path,
+                    )
 
-            storage_client.upload_objects(
-                source=os.path.join(temp_dir, '*'), # upload contents only
-                destination_prefix=self.workflow_id,
-                callback=_upload_callback,
+                await asyncio.to_thread(_upload)
+
+                await progress_writer.report_progress_async()
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+        semaphore = asyncio.Semaphore(CONCURRENT_UPLOADS)
+
+        async def upload_file_concurrently(file: File):
+            async with semaphore:
+                await upload_file(file)
+
+        async def run_uploads():
+            await asyncio.gather(
+                *(upload_file_concurrently(file) for file in self.files)
             )
+
+        asyncio.run(run_uploads())
 
         return JobResult()
 
@@ -420,9 +451,9 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{values["group_name"]}-submit'
+        return f'{values['workflow_uuid']}-{values['group_name']}-submit'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -461,6 +492,7 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
             workflow_config = context.postgres.get_workflow_configs()
             backend_config_cache = connectors.BackendConfigCache()
             workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+
             resources, pod_specs = group_obj.get_kb_specs(
                 self.workflow_uuid,
                 self.user,
@@ -473,14 +505,13 @@ class CreateGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCreateGroupMi
                 workflow_obj.plugins,
                 workflow_obj.priority,
             )
-
             self.k8s_resources = resources
             group_obj.update_group_template_resource_types()
 
             upload_task = UploadWorkflowFiles(
                 workflow_id=workflow_obj.workflow_id,
                 workflow_uuid=self.workflow_uuid,
-                files=[File(f'{task_name}.spec', yaml.dump(pod_spec))
+                files=[File(f'{task_name}.spec', yaml.dump(redact_pod_spec_env(pod_spec)))
                         for task_name, pod_spec in pod_specs.items()])
             upload_task.send_job_to_queue()
 
@@ -508,9 +539,9 @@ class CleanupGroup(BackendJob, WorkflowJob, backend_job_defs.BackendCleanupGroup
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{values["group_name"]}-backend-cleanup'
+        return f'{values['workflow_uuid']}-{values['group_name']}-backend-cleanup'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -579,7 +610,7 @@ class UpdateGroup(WorkflowJob):
 
         return '-'.join(name_list)
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_job_id(cls, values):
         """
@@ -599,7 +630,7 @@ class UpdateGroup(WorkflowJob):
                 f'Job id for an UpdateGroup is in valid: {job_id} should ends with {suffix}.')
         return values
 
-    @pydantic.root_validator
+    @pydantic.model_validator(mode='before')
     @classmethod
     def validate_retry_id(cls, values):
         """
@@ -699,15 +730,20 @@ class UpdateGroup(WorkflowJob):
                     else:
                         self._restart_task(redis_client, task_obj, total_timeout)
             else:
-                for task_obj in group_obj.tasks:
-                    if task_obj.name == self.task_name:
-                        continue
-                    # If group leader exits with a special failed status like
-                    # FAILED_EVICTED, the other tasks should be labeled as FAILED
-                    # (not FAILED_EVICTED)
-                    status = task.TaskGroupStatus.FAILED if self.status.failed() else self.status
-                    # TODO: Add a new status type for status caused by Lead Container finishing
-                    task_obj.update_status_to_db(update_time, status, 'Lead task finished')
+                # If group leader exits with a special failed status like
+                # FAILED_EVICTED, the other tasks should be labeled as FAILED
+                # (not FAILED_EVICTED)
+                sibling_status = task.TaskGroupStatus.FAILED if self.status.failed() \
+                    else self.status
+                task.Task.batch_update_status_to_db(
+                    database=context.postgres,
+                    workflow_id=self.workflow_id,
+                    group_name=self.group_name,
+                    update_time=update_time,
+                    status=sibling_status,
+                    message='Lead task finished',
+                    lead_task_name=self.task_name,
+                )
         else:  # Nonlead task finished
             if group_obj.spec.has_group_barrier():
                 self._remove_barrier(redis_client)
@@ -737,11 +773,15 @@ class UpdateGroup(WorkflowJob):
                     k8s_factory
                 )
             elif self.status.failed() and not group_obj.spec.ignoreNonleadStatus:
-                for task_obj in group_obj.tasks:
-                    if task_obj.name == self.task_name:
-                        continue
-                    task_obj.update_status_to_db(update_time, task.TaskGroupStatus.FAILED,
-                                                 f'Task {self.task_name} Failed.')
+                task.Task.batch_update_status_to_db(
+                    database=context.postgres,
+                    workflow_id=self.workflow_id,
+                    group_name=self.group_name,
+                    update_time=update_time,
+                    status=task.TaskGroupStatus.FAILED,
+                    message=f'Task {self.task_name} Failed.',
+                    lead_task_name=self.task_name,
+                )
         return update_status
 
     def schedule_cleanup_job(self, context: JobExecutionContext, workflow_obj: workflow.Workflow,
@@ -843,8 +883,10 @@ class UpdateGroup(WorkflowJob):
             # Need to check status here because the status could have changed due to fetch_status
             if group_obj.status == task.TaskGroupStatus.PROCESSING:
                 delayed_job = copy.deepcopy(self)
+                job_id_suffix = UpdateGroup._get_job_id(
+                    delayed_job.model_dump())
                 delayed_job.job_id = \
-                    f'{common.generate_unique_id(5)}-{UpdateGroup._get_job_id(delayed_job.dict())}'
+                    f'{common.generate_unique_id(5)}-{job_id_suffix}'
                 delayed_job.send_delayed_job_to_queue(
                     datetime.timedelta(minutes=1))
 
@@ -855,7 +897,8 @@ class UpdateGroup(WorkflowJob):
 
         workflow_config = context.postgres.get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        workflow_obj = workflow.Workflow.fetch_from_db(
+            context.postgres, self.workflow_id, fetch_groups=False)
         total_timeout = task_common.calculate_total_timeout(
             workflow_obj.workflow_id,
             workflow_obj.timeout.queue_timeout, workflow_obj.timeout.exec_timeout)
@@ -866,9 +909,15 @@ class UpdateGroup(WorkflowJob):
         if self.status.canceled() or \
             self.status in [task.TaskGroupStatus.FAILED_UPSTREAM,
                             task.TaskGroupStatus.FAILED_SERVER_ERROR]:
-            for task_obj in group_obj.tasks:
-                task_obj.update_status_to_db(update_time, self.status,
-                                             self.message, self.exit_code)
+            task.Task.batch_update_status_to_db(
+                database=context.postgres,
+                workflow_id=self.workflow_id,
+                group_name=self.group_name,
+                update_time=update_time,
+                status=self.status,
+                message=self.message,
+                exit_code=self.exit_code,
+            )
         else:
             pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
 
@@ -905,14 +954,35 @@ class UpdateGroup(WorkflowJob):
             if self.status == task.TaskGroupStatus.RESCHEDULED:
                 self.status = task.TaskGroupStatus.RUNNING
 
+            # Is the status being updated to scheduling? If so, schedule a per-group
+            # CheckQueueTimeout — the clock for queue_timeout starts when the group
+            # enters the backend k8s queue (SCHEDULING) and ends when it reaches RUNNING.
+            if group_obj.status.prescheduling() and \
+                    self.status == task.TaskGroupStatus.SCHEDULING:
+                if workflow_obj.timeout.queue_timeout is not None:
+                    queue_timeout = workflow_obj.timeout.queue_timeout
+                else:
+                    queue_timeout = common.to_timedelta(
+                        pool_info.default_queue_timeout
+                        if pool_info.default_queue_timeout
+                        else workflow_config.default_queue_timeout)
+                check_queue_timeout = CheckQueueTimeout(workflow_id=self.workflow_id,
+                                                        workflow_uuid=self.workflow_uuid,
+                                                        group_name=self.group_name)
+                check_queue_timeout.send_delayed_job_to_queue(queue_timeout)
+
             # Is the status being updated to running? If so, schedule a CheckRunTimeout task
             if group_obj.status.prerunning() and self.status == task.TaskGroupStatus.RUNNING:
-                exec_timeout = workflow_obj.timeout.exec_timeout or \
-                    common.to_timedelta(pool_info.default_exec_timeout
-                                        if pool_info.default_exec_timeout else
-                                        workflow_config.default_exec_timeout)
+                if workflow_obj.timeout.exec_timeout is not None:
+                    exec_timeout = workflow_obj.timeout.exec_timeout
+                else:
+                    exec_timeout = common.to_timedelta(
+                        pool_info.default_exec_timeout
+                        if pool_info.default_exec_timeout
+                        else workflow_config.default_exec_timeout)
                 check_run_timeout = CheckRunTimeout(workflow_id=self.workflow_id,
-                                                    workflow_uuid=self.workflow_uuid)
+                                                    workflow_uuid=self.workflow_uuid,
+                                                    group_name=self.group_name)
                 check_run_timeout.send_delayed_job_to_queue(exec_timeout)
 
         group_obj.update_status_to_db(update_time, self.status, self.message)
@@ -966,21 +1036,29 @@ class UpdateGroup(WorkflowJob):
         # launch downstream groups that can be launched
         elif group_obj.status == task.TaskGroupStatus.COMPLETED:
             downstream_groups = group_obj.update_downstream_groups_in_db()
-            for downstream_group_obj in downstream_groups:
+            if downstream_groups:
                 if not workflow_obj.pool:
                     raise osmo_errors.OSMOUserError('No Pool Specified')
-                downstream_group_obj.set_tasks_to_processing()
-                downstream_group_obj.update_status_to_db(
-                    common.current_time(),
-                    task.TaskGroupStatus.PROCESSING,
-                    scheduler_settings=backend.scheduler_settings)
-                submit_task = CreateGroup(
-                    backend=workflow_obj.backend,
-                    group_name=downstream_group_obj.name,
-                    workflow_id=self.workflow_id,
-                    workflow_uuid=self.workflow_uuid,
-                    user=self.user)
-                submit_task.send_job_to_queue()
+                downstream_names = [g.name for g in downstream_groups]
+                scheduler_settings_by_group: Dict[str, str] = {}
+                if backend.scheduler_settings is not None:
+                    for group_name in downstream_names:
+                        scheduler_settings_by_group[group_name] = (
+                            backend.scheduler_settings.model_dump_json())
+
+                transitioned_names = task.TaskGroup.batch_set_groups_to_processing(
+                    context.postgres, self.workflow_id,
+                    downstream_names, common.current_time(),
+                    scheduler_settings_by_group)
+
+                for group_name in transitioned_names:
+                    submit_task = CreateGroup(
+                        backend=workflow_obj.backend,
+                        group_name=group_name,
+                        workflow_id=self.workflow_id,
+                        workflow_uuid=self.workflow_uuid,
+                        user=self.user)
+                    submit_task.send_job_to_queue()
 
         return JobResult()
 
@@ -993,8 +1071,8 @@ class UpdateGroup(WorkflowJob):
             return
         workflow_config = context.postgres.get_workflow_configs()
         backend_config_cache = connectors.BackendConfigCache()
-        group_obj = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
-                                                 self.group_name)
+        group_obj = task.TaskGroup.fetch_metadata_from_db(context.postgres, self.workflow_id,
+                                                          self.group_name)
         backend: connectors.Backend | None = None
         try:
             backend = backend_config_cache.get(workflow_obj.backend)
@@ -1083,9 +1161,9 @@ class UpdateGroup(WorkflowJob):
             update_cmd,
             (task_obj.task_db_key, new_task.task_db_key))
 
-        # Refetch group so retry_id is updated
-        group = task.TaskGroup.fetch_from_db(context.postgres, self.workflow_id,
-                                             self.group_name)
+        # Refetch group metadata (tasks not needed — new_task is passed explicitly)
+        group = task.TaskGroup.fetch_metadata_from_db(context.postgres, self.workflow_id,
+                                                      self.group_name)
 
         # Get cleanup job
         labels = {
@@ -1106,7 +1184,7 @@ class UpdateGroup(WorkflowJob):
         # Get create job
         pod_list = {new_task.name: kb_objects.construct_pod_name(
             self.workflow_uuid, new_task.task_uuid)}
-        pod, _, = group.convert_to_pod_spec(
+        pod, _, _ = group.convert_to_pod_spec(
             new_task,
             spec,
             self.workflow_uuid,
@@ -1154,22 +1232,37 @@ class UpdateGroup(WorkflowJob):
         redis_client.delete(key)
 
     def _notify_barrier(self, database, redis_client, total_timeout: int):
-        key = task_common.barrier_key(self.workflow_id, self.group_name, task.GROUP_BARRIER_NAME)
+        barrier_key = task_common.barrier_key(
+            self.workflow_id, self.group_name, task.GROUP_BARRIER_NAME)
         count = task.TaskGroup.fetch_active_group_size(database, self.workflow_id, self.group_name)
-        barrier_set = redis_client.smembers(key)
+        barrier_set = redis_client.smembers(barrier_key)
 
         if len(barrier_set) >= count:
-            key = f'barrier-{common.generate_unique_id()}'
+            action_key = f'barrier-{common.generate_unique_id()}'
             attributes: Dict[str, str] = {'action': 'barrier'}
-            redis_client.set(key, json.dumps(attributes))
-            redis_client.expire(key, total_timeout, nx=True)
-            for name in barrier_set:
-                task_obj = task.Task.fetch_from_db(database, self.workflow_id, name.decode())
+
+            task_names = [name.decode() for name in barrier_set]
+            retry_ids = task.Task.batch_fetch_latest_retry_ids(
+                database, self.workflow_id, task_names)
+
+            pipe = redis_client.pipeline()
+            pipe.set(action_key, json.dumps(attributes))
+            pipe.expire(action_key, total_timeout, nx=True)
+
+            for task_name in task_names:
+                retry_id = retry_ids.get(task_name)
+                if retry_id is None:
+                    logging.warning('Task %s:%s not found in DB during barrier notification',
+                                    self.workflow_id, task_name)
+                    continue
                 logging.info('Notify %s:%s for barrier count meeting %d',
-                             self.workflow_id, task_obj.name, count)
+                             self.workflow_id, task_name, count)
                 queue_name = workflow.action_queue_name(
-                    self.workflow_id, task_obj.name, task_obj.retry_id)
-                redis_client.lpush(queue_name, key)
+                    self.workflow_id, task_name, retry_id)
+                pipe.lpush(queue_name, action_key)
+                pipe.expire(queue_name, total_timeout, nx=True)
+
+            pipe.execute()
 
     def _restart_task(self, redis_client, task_obj: task.Task, total_timeout: int):
         key = f'restart-{common.generate_unique_id()}'
@@ -1195,9 +1288,9 @@ class RescheduleTask(BackendJob, WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{values["task_name"]}-{values["retry_id"]}-reschedule'
+        return f'{values['workflow_uuid']}-{values['task_name']}-{values['retry_id']}-reschedule'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1209,7 +1302,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
         return value
 
     def _delay_cleanup_pod(self):
-        cleanup_job = CleanupGroup(**self.cleanup_job.dict())
+        cleanup_job = CleanupGroup(**self.cleanup_job.model_dump())
         # Update retry id label
         if cleanup_job.error_log_spec:
             cleanup_job.error_log_spec.labels['osmo.retry_id'] = str(self.retry_id)
@@ -1233,7 +1326,7 @@ class RescheduleTask(BackendJob, WorkflowJob):
         be removed from the message queue, or false if the job failed.
         """
         group_name = task.Task.fetch_group_name(context.postgres, self.workflow_id, self.task_name)
-        group = task.TaskGroup.fetch_from_db(
+        group = task.TaskGroup.fetch_metadata_from_db(
             context.postgres, self.workflow_id, group_name)
         if group.status.group_finished():
             # UpdateGroup changed status of all tasks and cleaned up
@@ -1293,9 +1386,9 @@ class CleanupWorkflow(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-cleanup'
+        return f'{values['workflow_uuid']}-cleanup'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1340,17 +1433,21 @@ class CleanupWorkflow(WorkflowJob):
                           f'abnormally, view task status at:\n{status_url}\n\n' +\
                           f'View task error logs at:\n{error_logs_url}\n{end_delimiter}'
             logs = connectors.redis.LogStreamBody(
-                time=common.current_time(), io_type=connectors.redis.IOType.DUMP,
-                source='OSMO', retry_id=0, text=log_message)
-            redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+                time=common.current_time(),
+                io_type=connectors.redis.IOType.DUMP,
+                source='OSMO', retry_id=0,
+                text=log_message)
+            log_key = f'{self.workflow_id}-logs'
+            redis_batch_pipeline.xadd(
+                log_key, json.loads(logs.model_dump_json()))
 
         logs = connectors.redis.LogStreamBody(
             time=common.current_time(), io_type=connectors.redis.IOType.END_FLAG,
             source='', retry_id=0, text='')
-        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.json()))
+        redis_batch_pipeline.xadd(f'{self.workflow_id}-logs', json.loads(logs.model_dump_json()))
         redis_batch_pipeline.expire(f'{self.workflow_id}-logs', connectors.MAX_LOG_TTL, nx=True)
         redis_batch_pipeline.xadd(common.get_workflow_events_redis_name(self.workflow_uuid),
-                                  json.loads(logs.json()))
+                                  json.loads(logs.model_dump_json()))
         redis_batch_pipeline.expire(common.get_workflow_events_redis_name(self.workflow_uuid),
                                     connectors.MAX_LOG_TTL, nx=True)
         for group in workflow_obj.groups:
@@ -1359,14 +1456,14 @@ class CleanupWorkflow(WorkflowJob):
                     redis_batch_pipeline.xadd(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
-                        json.loads(logs.json()))
+                        json.loads(logs.model_dump_json()))
                     redis_batch_pipeline.expire(
                         common.get_redis_task_log_name(
                             self.workflow_id, task_obj.name, retry_idx),
                         connectors.MAX_LOG_TTL, nx=True)
                 redis_batch_pipeline.xadd(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
-                    json.loads(logs.json()))
+                    json.loads(logs.model_dump_json()))
                 redis_batch_pipeline.expire(
                     f'{self.workflow_id}-{task_obj.task_uuid}-{task_obj.retry_id}-error-logs',
                     connectors.MAX_LOG_TTL, nx=True)
@@ -1516,9 +1613,9 @@ class CancelWorkflow(WorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-cancel'
+        return f'{values['workflow_uuid']}-cancel'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1553,13 +1650,13 @@ class CancelWorkflow(WorkflowJob):
                 message += f' {self.message}'
             if self.workflow_status == workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT:
                 limit_message = 'Task ran longer than the set limit'
-                if workflow_obj.timeout.exec_timeout:
+                if workflow_obj.timeout.exec_timeout is not None:
                     limit_message += \
                         f' of {common.readable_timedelta(workflow_obj.timeout.exec_timeout)}'
                 message = f'{limit_message}.'
             elif self.workflow_status == workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT:
                 limit_message = 'Task stayed in queue longer than the set limit'
-                if workflow_obj.timeout.queue_timeout:
+                if workflow_obj.timeout.queue_timeout is not None:
                     limit_message += \
                         f' of {common.readable_timedelta(workflow_obj.timeout.queue_timeout)}'
                 message = f'{limit_message}.'
@@ -1585,106 +1682,233 @@ class CancelWorkflow(WorkflowJob):
 
 class CheckRunTimeout(WorkflowJob):
     """
-    CheckRunTimeout job. When executed, it should create a CancelWorkflow job if the
-    target workflow is still running.
+    CheckRunTimeout job. When executed, it should mark the target group as
+    FAILED_EXEC_TIMEOUT if it has been running longer than the workflow's
+    exec_timeout. Per-group: each group has its own clock starting from when
+    that group entered RUNNING, and only that group is canceled on expiry
+    (downstream groups cascade via FAILED_UPSTREAM as usual).
+
+    Legacy: jobs serialized before group_name existed deserialize with
+    group_name=None and fall back to workflow-level enforcement.
     """
+    group_name: task_common.NamePattern | None = None
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{common.generate_unique_id(5)}-check_run_timeout'
+        group_name = values.get('group_name') or 'workflow'
+        return (f'{values['workflow_uuid']}-{group_name}'
+                f'-{common.generate_unique_id(5)}-check_run_timeout')
+
+    def _resolve_exec_timeout(self,
+                              context: JobExecutionContext,
+                              workflow_obj: workflow.Workflow) -> datetime.timedelta:
+        if workflow_obj.timeout.exec_timeout is not None:
+            return workflow_obj.timeout.exec_timeout
+        if not workflow_obj.pool:
+            raise osmo_errors.OSMOUserError('No Pool Specified')
+        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+        workflow_config = context.postgres.get_workflow_configs()
+        return common.to_timedelta(pool_info.default_exec_timeout
+                                   if pool_info.default_exec_timeout
+                                   else workflow_config.default_exec_timeout)
+
+    def _execute_per_group(self, context: JobExecutionContext,
+                           group_name: task_common.NamePattern) -> JobResult:
+        group_obj = task.TaskGroup.fetch_from_db(
+            context.postgres, self.workflow_id, group_name)
+        if group_obj.status.finished():
+            return JobResult()
+        if not group_obj.start_time:
+            return JobResult()
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        exec_timeout = self._resolve_exec_timeout(context, workflow_obj)
+        time_elapsed = datetime.datetime.now() - group_obj.start_time
+
+        if exec_timeout > time_elapsed:
+            logging.info('Execution timeout for workflow %s group %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, group_name, time_elapsed, exec_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckRunTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+                group_name=group_name,
+            ).send_delayed_job_to_queue(exec_timeout - time_elapsed)
+            return JobResult()
+
+        limit_message = 'Task ran longer than the set limit'
+        if workflow_obj.timeout.exec_timeout is not None:
+            limit_message += f' of {common.readable_timedelta(workflow_obj.timeout.exec_timeout)}'
+        UpdateGroup(
+            workflow_id=self.workflow_id,
+            workflow_uuid=self.workflow_uuid,
+            group_name=group_name,
+            status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT,
+            message=f'{limit_message}.',
+            user='osmo',
+        ).send_job_to_queue()
+        return JobResult()
+
+    def _execute_legacy_workflow_level(self, context: JobExecutionContext) -> JobResult:
+        logging.warning(
+            'CheckRunTimeout for workflow %s has no group_name; falling back to legacy '
+            'workflow-level timeout enforcement. This payload predates the per-group change.',
+            self.workflow_id, extra={'workflow_uuid': self.workflow_uuid})
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        if workflow_obj.status.finished() or not workflow_obj.start_time:
+            return JobResult()
+
+        exec_timeout = self._resolve_exec_timeout(context, workflow_obj)
+        time_elapsed = datetime.datetime.now() - workflow_obj.start_time
+        if exec_timeout > time_elapsed:
+            logging.info('Execution timeout for workflow %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, time_elapsed, exec_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckRunTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+            ).send_delayed_job_to_queue(exec_timeout - time_elapsed)
+        else:
+            CancelWorkflow(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid, user='osmo',
+                workflow_status=workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT,
+                task_status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT,
+            ).send_job_to_queue()
+        return JobResult()
 
     def execute(self, context: JobExecutionContext,
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
         """
-        Executes the job. Return true if the CancelWorkflow job is submitted.
+        Executes the job. With group_name, marks just that group as
+        FAILED_EXEC_TIMEOUT; without it (legacy payload), enforces workflow-level.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
-        if not workflow_obj.status.finished():
-            if workflow_obj.start_time:
-                time_elapsed = datetime.datetime.now() - workflow_obj.start_time
-
-                if not workflow_obj.pool:
-                    raise osmo_errors.OSMOUserError('No Pool Specified')
-                pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                workflow_config = context.postgres.get_workflow_configs()
-                exec_timeout = workflow_obj.timeout.exec_timeout or \
-                    common.to_timedelta(pool_info.default_exec_timeout
-                                        if pool_info.default_exec_timeout else
-                                        workflow_config.default_exec_timeout)
-                # Comparing two timedelta objects
-                if exec_timeout > time_elapsed:
-                    logging.info('Execution timeout for workflow %s increased from %s to %s, '
-                                'resubmitting it back to delayed job queue.',
-                                self.workflow_id, time_elapsed, exec_timeout,
-                                extra={'workflow_uuid': self.workflow_uuid})
-                    check_queue_timeout = CheckRunTimeout(workflow_id=self.workflow_id,
-                                                        workflow_uuid=self.workflow_uuid)
-                    # The amount of time left before hitting the new expiration timestamp
-                    delta = exec_timeout - time_elapsed
-                    check_queue_timeout.send_delayed_job_to_queue(delta)
-                else:
-                    cancel_job = CancelWorkflow(
-                        workflow_id=self.workflow_id,
-                        workflow_uuid=self.workflow_uuid, user='osmo',
-                        workflow_status=workflow.WorkflowStatus.FAILED_EXEC_TIMEOUT,
-                        task_status=task.TaskGroupStatus.FAILED_EXEC_TIMEOUT
-                    )
-                    cancel_job.send_job_to_queue()
-
-        return JobResult()
+        if self.group_name:
+            return self._execute_per_group(context, self.group_name)
+        return self._execute_legacy_workflow_level(context)
 
 class CheckQueueTimeout(WorkflowJob):
     """
-    CheckQueueTimeout job. When executed, it should create a CancelWorkflow job if the
-    target workflow is still pending (stuck in queue).
+    CheckQueueTimeout job. Per-group: queue_timeout measures how long a group
+    waits in the backend k8s queue for a node assignment — the window is just
+    the SCHEDULING phase. Once the group reaches INITIALIZING (node assigned,
+    image pulling starts) or beyond, the queue clock has stopped. If the group
+    is still in SCHEDULING after queue_timeout, mark it FAILED_QUEUE_TIMEOUT.
+
+    Legacy: jobs serialized before group_name existed deserialize with
+    group_name=None and fall back to workflow-level enforcement (cancels the
+    workflow if it has stayed in PENDING longer than queue_timeout from
+    submit_time).
     """
+    group_name: task_common.NamePattern | None = None
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["workflow_uuid"]}-{common.generate_unique_id(5)}-check_queue_timeout'
+        group_name = values.get('group_name') or 'workflow'
+        return (f'{values['workflow_uuid']}-{group_name}'
+                f'-{common.generate_unique_id(5)}-check_queue_timeout')
+
+    def _resolve_queue_timeout(self,
+                               context: JobExecutionContext,
+                               workflow_obj: workflow.Workflow) -> datetime.timedelta:
+        if workflow_obj.timeout.queue_timeout is not None:
+            return workflow_obj.timeout.queue_timeout
+        if not workflow_obj.pool:
+            raise osmo_errors.OSMOUserError('No Pool Specified')
+        pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
+        workflow_config = context.postgres.get_workflow_configs()
+        return common.to_timedelta(pool_info.default_queue_timeout
+                                   if pool_info.default_queue_timeout
+                                   else workflow_config.default_queue_timeout)
+
+    def _execute_per_group(self, context: JobExecutionContext,
+                           group_name: task_common.NamePattern) -> JobResult:
+        group_obj = task.TaskGroup.fetch_from_db(
+            context.postgres, self.workflow_id, group_name)
+        # Queue clock stops once a node is assigned (INITIALIZING) or beyond.
+        if group_obj.status != task.TaskGroupStatus.SCHEDULING:
+            return JobResult()
+        if not group_obj.scheduling_start_time:
+            return JobResult()
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        queue_timeout = self._resolve_queue_timeout(context, workflow_obj)
+        time_elapsed = datetime.datetime.now() - group_obj.scheduling_start_time
+
+        if queue_timeout > time_elapsed:
+            logging.info('Queue timeout for workflow %s group %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, group_name, time_elapsed, queue_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckQueueTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+                group_name=group_name,
+            ).send_delayed_job_to_queue(queue_timeout - time_elapsed)
+            return JobResult()
+
+        limit_message = 'Task stayed in queue longer than the set limit'
+        if workflow_obj.timeout.queue_timeout is not None:
+            limit_message += f' of {common.readable_timedelta(workflow_obj.timeout.queue_timeout)}'
+        UpdateGroup(
+            workflow_id=self.workflow_id,
+            workflow_uuid=self.workflow_uuid,
+            group_name=group_name,
+            status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
+            message=f'{limit_message}.',
+            user='osmo',
+        ).send_job_to_queue()
+        return JobResult()
+
+    def _execute_legacy_workflow_level(self, context: JobExecutionContext) -> JobResult:
+        logging.warning(
+            'CheckQueueTimeout for workflow %s has no group_name; falling back to legacy '
+            'workflow-level timeout enforcement. This payload predates the per-group change.',
+            self.workflow_id, extra={'workflow_uuid': self.workflow_uuid})
+
+        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
+        if workflow_obj.status != workflow.WorkflowStatus.PENDING:
+            return JobResult()
+        if not workflow_obj.submit_time:
+            return JobResult()
+
+        queue_timeout = self._resolve_queue_timeout(context, workflow_obj)
+        time_since_submission = datetime.datetime.now() - workflow_obj.submit_time
+        if queue_timeout > time_since_submission:
+            logging.info('Queue timeout for workflow %s increased from %s to %s, '
+                         'resubmitting it back to delayed job queue.',
+                         self.workflow_id, time_since_submission, queue_timeout,
+                         extra={'workflow_uuid': self.workflow_uuid})
+            CheckQueueTimeout(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid,
+            ).send_delayed_job_to_queue(queue_timeout - time_since_submission)
+        else:
+            CancelWorkflow(
+                workflow_id=self.workflow_id,
+                workflow_uuid=self.workflow_uuid, user='osmo',
+                workflow_status=workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT,
+                task_status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT,
+            ).send_job_to_queue()
+        return JobResult()
 
     def execute(self, context: JobExecutionContext,
                 progress_writer: progress.ProgressWriter,
                 progress_iter_freq: datetime.timedelta = \
                     datetime.timedelta(seconds=15)) -> JobResult:
         """
-        Executes the job. Return true if the CancelWorkflow job is submitted.
+        Executes the job. With group_name, marks just that group as
+        FAILED_QUEUE_TIMEOUT if it has been queueing too long; without it
+        (legacy payload), enforces the workflow-level PENDING timeout.
         """
-        workflow_obj = workflow.Workflow.fetch_from_db(context.postgres, self.workflow_id)
-        if workflow_obj.status == workflow.WorkflowStatus.PENDING:
-            if workflow_obj.submit_time:
-                time_since_submission = datetime.datetime.now() - workflow_obj.submit_time
-
-                if not workflow_obj.pool:
-                    raise osmo_errors.OSMOUserError('No Pool Specified')
-                pool_info = connectors.Pool.fetch_from_db(context.postgres, workflow_obj.pool)
-                workflow_config = context.postgres.get_workflow_configs()
-                queue_timeout = workflow_obj.timeout.queue_timeout or \
-                    common.to_timedelta(pool_info.default_queue_timeout
-                                        if pool_info.default_queue_timeout else
-                                        workflow_config.default_queue_timeout)
-                if queue_timeout > time_since_submission:
-                    logging.info('Queue timeout for workflow %s increased from %s to %s, '
-                                'resubmitting it back to delayed job queue.',
-                                self.workflow_id, time_since_submission, queue_timeout,
-                                extra={'workflow_uuid': self.workflow_uuid})
-                    check_queue_timeout = CheckQueueTimeout(workflow_id=self.workflow_id,
-                                                            workflow_uuid=self.workflow_uuid)
-                    # The amount of time left before hitting the new expiration timestamp
-                    delta = queue_timeout - time_since_submission
-                    check_queue_timeout.send_delayed_job_to_queue(delta)
-                else:
-                    cancel_job = CancelWorkflow(
-                        workflow_id=self.workflow_id,
-                        workflow_uuid=self.workflow_uuid, user='osmo',
-                        workflow_status=workflow.WorkflowStatus.FAILED_QUEUE_TIMEOUT,
-                        task_status=task.TaskGroupStatus.FAILED_QUEUE_TIMEOUT
-                    )
-                    cancel_job.send_job_to_queue()
-
-        return JobResult()
+        if self.group_name:
+            return self._execute_per_group(context, self.group_name)
+        return self._execute_legacy_workflow_level(context)
 
 
 class UploadApp(FrontendJob):
@@ -1697,9 +1921,9 @@ class UploadApp(FrontendJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["app_uuid"]}-{values["app_version"]}-upload-app'
+        return f'{values['app_uuid']}-{values['app_version']}-upload-app'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -1758,9 +1982,9 @@ class DeleteApp(FrontendJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["app_uuid"]}-{values["app_versions"]}-delete-app'
+        return f'{values['app_uuid']}-{values['app_versions']}-delete-app'
 
-    @pydantic.validator('job_id')
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """

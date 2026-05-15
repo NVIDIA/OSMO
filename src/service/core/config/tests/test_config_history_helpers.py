@@ -256,7 +256,7 @@ class TestConfigHistoryQueryParams(unittest.TestCase):
         with self.assertRaises(ValueError) as context:
             objects.ConfigHistoryQueryParams(config_types=['invalid_type'])
         self.assertIn('config_types', str(context.exception))
-        self.assertIn('not a valid enumeration member', str(context.exception))
+        self.assertIn('Input should be', str(context.exception))
 
     def test_at_timestamp_with_created_before(self):
         """Test validation of at_timestamp with created_before."""

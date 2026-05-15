@@ -18,9 +18,7 @@ global:
   osmoImageLocation: nvcr.io/nvidia/osmo
   osmoImageTag: latest
   imagePullSecret: imagepullsecret
-  serviceUrl: http://ingress-nginx-controller.ingress-nginx.svc.cluster.local
-  # serviceGrpcPort for backend-listener (gRPC to operator-service on TCP)
-  serviceGrpcPort: 50051
+  serviceUrl: http://osmo-gateway.osmo.svc.cluster.local
   backendNamespace: default
   backendTestNamespace: osmo-test
   backendName: default

@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,98 +41,11 @@ global:
     # node-type: cpu
     # zone: us-west-2a
 
-  ## Network configuration for backend operators
-  ##
-  network:
-    ## Whether to restrict egress traffic from workflow pods
-    ##
-    restrictEgress: false
-
-    ## Egress allowlist configuration for controlled external access
-    ##
-    allowlistEgress:
-      ## Enable egress allowlist with squid proxy
-      ##
-      enabled: false
-
-      ## Number of replicas for the squid proxy
-      ##
-      proxyReplicas: 1
-
-      ## Node selector for the squid proxy pod
-      #
-      nodeSelector: {}
-
-      ## Kubernetes namespace where the squid proxy will be deployed
-      ##
-      proxyNamespace: osmo-squid-proxy
-
-      ## Additional domains to allow through the proxy
-      ##
-      additionalAllowedDomains: []
-      # - "example.com"
-      # - "api.nvidia.com"
-
-      ## Additional source IP addresses to allow
-      ##
-      additionalAllowedSourceIps: []
-      # - "10.0.0.0/8"
-      # - "192.168.1.0/24"
-
-      ## Resource limits and requests for the squid proxy
-      ##
-      resources:
-        requests:
-          cpu: "2"
-          memory: "4Gi"
-        limits:
-          memory: "4Gi"
-
-      ## Sidecar containers for the proxy deployment
-      ##
-      sidecarContainers:
-        - name: bridge-proxy
-          image: envoyproxy/envoy:v1.34-latest
-          command:
-            - envoy
-            - -c
-            - /etc/envoy/envoy.yaml
-          ports:
-            - containerPort: 443
-              name: bridge-https
-            - containerPort: 11113
-              name: admin
-          volumeMounts:
-            - name: envoy-config
-              mountPath: /etc/envoy
-            - name: envoy-certs
-              mountPath: /certs
-
-      ## Additional volumes for the proxy deployment
-      ##
-      additionalVolumes:
-        - name: envoy-config
-          configMap:
-            name: bridge-envoy-config
-        - name: envoy-certs
-          secret:
-            secretName: bridge-envoy-certs
-
-      ## Host aliases for custom DNS resolution within proxy pods
-      ##
-      hostAliases: []
-
   ## OSMO service connection configuration
   ##
   ## URL of the OSMO service that backend operators will connect to
   ##
   serviceUrl: ""
-
-  ## gRPC port for backend-listener connection to operator-service
-  ## Only needed when using nginx ingress without TLS (TCP services)
-  ## Leave empty for HTTPS/ALB which use standard ports (443)
-  ##
-  serviceGrpcPort: ""
 
   ## Username for authenticating with OSMO service (when using password authentication)
   ##
@@ -190,6 +103,14 @@ global:
     ##
     k8sLogLevel: WARNING
 
+    ## Log output format for backend-operator services (uses Python utils/logging).
+    ## - "text" (default): legacy ServiceFormatter format used historically.
+    ## - "json": one JSON object per record, suitable for direct ingestion by
+    ##   Loki/Elastic without a parser stage.
+    ## Consumed by: backend-listener, backend-worker.
+    ##
+    logFormat: text
+
   ## Comma-separated list of namespaces to include in usage monitoring
   ##
   includeNamespaceUsage: 'osmo-staging,osmo-prod'
@@ -208,6 +129,68 @@ global:
   - key: "ops"
     operator: "Exists"
     effect: "NoSchedule"
+
+  ## NetworkPolicy configuration for the workflow (backend) namespace.
+  ## When enabled, restricts egress from workflow pods: external internet traffic is
+  ## allowed, but traffic to other cluster namespaces is blocked unless whitelisted.
+  ##
+  networkPolicy:
+    ## Enable the NetworkPolicy. When false, no NetworkPolicy is created and all
+    ## egress is unrestricted.
+    ##
+    enabled: false
+
+    ## Internal cluster CIDRs to exclude from the external egress allow rule.
+    ## This is what enforces namespace isolation — without it, the external allow
+    ## rule covers cluster-internal IPs too and the whitelist has no effect.
+    ##
+    ## Typically includes:
+    ##   - Pod CIDR      (e.g. 10.244.0.0/16 for flannel, 10.0.0.0/8 for EKS)
+    ##   - Service CIDR  (e.g. 10.96.0.0/12 for kubeadm default)
+    ##   - Node CIDR     (e.g. 192.168.0.0/16)
+    ##
+    clusterCIDRs: []
+    # - "10.0.0.0/8"
+    # - "10.96.0.0/12"
+
+    ## Namespace containing the cluster DNS service (CoreDNS/kube-dns).
+    ## Port 53 (TCP+UDP) egress is allowed to pods in this namespace.
+    ## Works correctly on Cilium and Calico eBPF. For iptables-based CNIs where
+    ## this may not match the kube-dns service IP, add an explicit ipBlock /32
+    ## for the DNS service IP via additionalEgressRules instead.
+    ##
+    dnsNamespace: kube-system
+
+    ## Namespaces that workflow pods are allowed to reach in addition to their
+    ## own namespace and the DNS namespace.
+    ##
+    allowedNamespaces: []
+    # - osmo        # agent namespace (backend operator)
+    # - monitoring  # Prometheus scraping
+    # - cert-manager
+
+    ## Raw NetworkPolicyEgressRule objects appended to the policy.
+    ## Use for IP-based allowances or anything not expressible via the above.
+    ## See https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#networkpolicyegressrule-v1-networking-k8s-io
+    ##
+    additionalEgressRules: []
+    # Example: allow HTTPS to a specific external CIDR
+    # - ports:
+    #   - port: 443
+    #     protocol: TCP
+    #   to:
+    #   - ipBlock:
+    #       cidr: 203.0.113.0/24
+    # Example: fix DNS on iptables-based CNIs (replace IP with your kube-dns ClusterIP)
+    #   kubectl get svc kube-dns -n kube-system -o jsonpath='{.spec.clusterIP}'
+    # - ports:
+    #   - port: 53
+    #     protocol: UDP
+    #   - port: 53
+    #     protocol: TCP
+    #   to:
+    #   - ipBlock:
+    #       cidr: 10.96.0.10/32
 
   ## Priority class configuration for backend workloads to be used for scheduling
   ## only used if kaischeduler plugin is enabled
@@ -233,7 +216,7 @@ global:
 ## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
 ##
 podMonitor:
-  enabled: true
+  enabled: false
 
 ## Configuration for individual backend operators
 ##
@@ -242,15 +225,13 @@ services:
   ## Listens for job requests and manages backend cluster state
   ##
   backendListener:
-    ## Use the Go-based v2 backend listener instead of the Python-based listener
-    ## When false (default), deploys the original Python backend-listener
-    ## When true, deploys the Go-based backend-listener-v2
+    ## Enable automatic node label updates based on cluster state
     ##
-    useV2: false
+    enableNodeLabelUpdate: false
 
-    ############################
-    ## Shared configuration   ##
-    ############################
+    ## Docker image name for the backend listener
+    ##
+    imageName: backend-listener
 
     ## Kubernetes image pull policy for the backend listener
     ##
@@ -268,13 +249,13 @@ services:
     ##
     serviceAccount: backend-listener
 
-    ## Maximum number of unacknowledged messages
+    ## Maximum number of unacknowledged websocket messages
     ##
-    maxUnackedMessages: 100
+    max_unacked_messages: 100
 
-    ## Enable updating node verified label based on availability
+    ## Time-to-live for pod cache entries (in seconds)
     ##
-    enableNodeLabelUpdate: false
+    podCacheTtl: 15
 
     ## Additional command line arguments to pass to the backend listener
     ##
@@ -346,72 +327,24 @@ services:
       limits:
         memory: "2Gi"
 
-    ########################################################
-    ## V1 (Python) configuration - remove when deprecating ##
-    ########################################################
-
-    ## Docker image name for the Python backend listener
-    ##
-    imageName: backend-listener
-
-    ## Time-to-live for pod cache entries (in seconds)
-    ##
-    podCacheTtl: 15
-
-    ## Kubernetes API client QPS setting
+    ## Kubernetes API client QPS (queries per second) setting.
     ##
     apiQps: 20
 
-    ## Kubernetes API client burst setting
+    ## Kubernetes API client burst setting.
     ##
     apiBurst: 30
 
-    ########################################################
-    ## V2 (Go) configuration                              ##
-    ########################################################
-
-    ## Resync period in seconds for Kubernetes informer
+    ## Startup probe tuning. Defaults sized for managed K8s (AKS/EKS) where
+    ## progress_check (PyInstaller-bundled Python) cold-starts past 15s on
+    ## small system-pool nodes. 60s timeout × 30 attempts = 150s tolerance.
+    ## Harmless on fast clusters (probe stops at first success).
     ##
-    resyncPeriodSec: 300
-
-    ## Time-to-live for state cache entries (in minutes)
-    ##
-    stateCacheTTLMin: 15
-
-    ## Usage flush interval in seconds for resource usage updates
-    ##
-    usageFlushIntervalSec: 15
-
-    ## Directory to write progress timestamps to (for liveness/startup probes)
-    ##
-    progressDir: /tmp/osmo/operator
-
-    ## Progress frequency in seconds (for periodic progress reporting when idle)
-    ##
-    progressFrequencySec: 15
-
-    ## Buffer size for event channel
-    ##
-    eventChanSize: 500
-
-    ## Time-to-live for event deduplication cache (in minutes)
-    ##
-    eventCacheTTLMin: 15
-
-    ## Buffer size for label update channel
-    ##
-    labelUpdateChanSize: 200
-
-    ## OpenTelemetry metrics configuration
-    ##
-    metrics:
-      ## Service component name for metrics
-      ##
-      component: "osmo-backend-listener"
-
-      ## Service version (defaults to image tag if not specified)
-      ##
-      version: ""
+    startupProbe:
+      failureThreshold: 30
+      periodSeconds: 5
+      timeoutSeconds: 60
+      initialDelaySeconds: 10
 
   ## Backend worker configuration
   ## Executes jobs received from the backend listener
@@ -470,6 +403,19 @@ services:
     # custom.label/key: "value"
     # environment: "production"
 
+    ## Extra RBAC rules added to the backend worker Role in the workflow namespace.
+    ## Use this to grant permissions for any Kubernetes resource kinds (vanilla or CRD)
+    ## that your group templates create. Each entry follows the standard PolicyRule format.
+    ## See the group templates section of the deployment guide for details.
+    ##
+    extraRBACRules: []
+    # - apiGroups: [""]
+    #   resources: ["configmaps"]
+    #   verbs: ["list", "create", "delete", "patch"]
+    # - apiGroups: ["resource.nvidia.com"]
+    #   resources: ["computedomains"]
+    #   verbs: ["list", "create", "delete", "patch"]
+
     ## Additional sidecar containers for the backend worker
     ##
     extraSidecarContainers: []
@@ -510,6 +456,17 @@ services:
         memory: "1Gi"
       limits:
         memory: "1Gi"
+
+    ## Startup probe tuning. Defaults sized for managed K8s (AKS/EKS) where
+    ## progress_check (PyInstaller-bundled Python) cold-starts past 15s on
+    ## small system-pool nodes. 60s timeout × 30 attempts = 150s tolerance.
+    ## Harmless on fast clusters (probe stops at first success).
+    ##
+    startupProbe:
+      failureThreshold: 30
+      periodSeconds: 5
+      timeoutSeconds: 60
+      initialDelaySeconds: 10
 
 
 ## Backend Test Runner CronJob Configuration

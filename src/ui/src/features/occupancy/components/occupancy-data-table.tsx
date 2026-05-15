@@ -1,22 +1,23 @@
-//SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
-
-//Licensed under the Apache License, Version 2.0 (the "License");
-//you may not use this file except in compliance with the License.
-//You may obtain a copy of the License at
-
-//http://www.apache.org/licenses/LICENSE-2.0
-
-//Unless required by applicable law or agreed to in writing, software
-//distributed under the License is distributed on an "AS IS" BASIS,
-//WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//See the License for the specific language governing permissions and
-//limitations under the License.
-
-//SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
 
 "use client";
 
 import { useMemo, useCallback, memo } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable } from "@/components/data-table/data-table";
 import { TableEmptyState } from "@/components/data-table/table-empty-state";
 import { TableLoadingSkeleton, TableErrorState } from "@/components/data-table/table-states";
@@ -24,24 +25,19 @@ import { useColumnVisibility } from "@/components/data-table/hooks/use-column-vi
 import type { SortState } from "@/components/data-table/types";
 import { useCompactMode } from "@/hooks/shared-preferences-hooks";
 import { TABLE_ROW_HEIGHTS } from "@/lib/config";
+import type { SearchChip } from "@/stores/types";
 import type { OccupancyGroup, OccupancyFlatRow, OccupancyGroupBy } from "@/lib/api/adapter/occupancy";
 import {
   MANDATORY_COLUMN_IDS,
   asOccupancyColumnIds,
   OCCUPANCY_COLUMN_SIZE_CONFIG,
 } from "@/features/occupancy/lib/occupancy-columns";
-import { createOccupancyColumns } from "@/features/occupancy/components/occupancy-column-defs";
+import { createOccupancyColumns, buildWorkflowsUrl } from "@/features/occupancy/components/occupancy-column-defs";
 import { useOccupancyTableStore } from "@/features/occupancy/stores/occupancy-table-store";
 import "@/features/occupancy/styles/occupancy.css";
 
-// Module-level constant — stable reference, no useMemo needed
 const FIXED_COLUMNS = Array.from(MANDATORY_COLUMN_IDS);
 
-// =============================================================================
-// Helpers
-// =============================================================================
-
-/** Flatten groups + expand state into a flat row array for DataTable */
 function flattenForTable(groups: OccupancyGroup[], expandedKeys: Set<string>): OccupancyFlatRow[] {
   return groups.flatMap((group, groupIndex) => {
     const parent: OccupancyFlatRow = {
@@ -66,19 +62,15 @@ function flattenForTable(groups: OccupancyGroup[], expandedKeys: Set<string>): O
   });
 }
 
-/** Stable row ID: parent = key, child = parentKey::key */
 function getRowId(row: OccupancyFlatRow): string {
   if (row._type === "parent") return row.key;
   return `${row.parentKey}::${row.key}`;
 }
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface OccupancyDataTableProps {
   groups: OccupancyGroup[];
   groupBy: OccupancyGroupBy;
+  searchChips: SearchChip[];
   expandedKeys: Set<string>;
   onToggleExpand: (key: string) => void;
   isLoading?: boolean;
@@ -86,23 +78,20 @@ export interface OccupancyDataTableProps {
   onRetry?: () => void;
 }
 
-// =============================================================================
-// Component
-// =============================================================================
-
 export const OccupancyDataTable = memo(function OccupancyDataTable({
   groups,
   groupBy,
+  searchChips,
   expandedKeys,
   onToggleExpand,
   isLoading = false,
   error,
   onRetry,
 }: OccupancyDataTableProps) {
+  const router = useRouter();
   const compactMode = useCompactMode();
   const rowHeight = compactMode ? TABLE_ROW_HEIGHTS.COMPACT : TABLE_ROW_HEIGHTS.NORMAL;
 
-  // Table store state
   const storeVisibleColumnIds = asOccupancyColumnIds(useOccupancyTableStore((s) => s.visibleColumnIds));
   const columnOrder = asOccupancyColumnIds(useOccupancyTableStore((s) => s.columnOrder));
   const setColumnOrder = useOccupancyTableStore((s) => s.setColumnOrder);
@@ -113,10 +102,9 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
 
   const columnVisibility = useColumnVisibility(columnOrder, storeVisibleColumnIds);
 
-  // Flatten groups into flat rows for DataTable (includes expanded children)
   const flatRows = useMemo(() => flattenForTable(groups, expandedKeys), [groups, expandedKeys]);
 
-  const columns = useMemo(() => createOccupancyColumns(groupBy), [groupBy]);
+  const columns = useMemo(() => createOccupancyColumns(groupBy, searchChips), [groupBy, searchChips]);
 
   const handleSortChange = useCallback(
     (newSort: SortState<string>) => {
@@ -125,20 +113,40 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
     [setSort],
   );
 
-  // Row click toggles expand on parent rows; no-op on children
   const handleRowClick = useCallback(
     (row: OccupancyFlatRow) => {
-      if (row._type === "parent") onToggleExpand(row.key);
+      if (row._type === "parent") {
+        onToggleExpand(row.key);
+      } else {
+        router.push(buildWorkflowsUrl(row, groupBy, searchChips));
+      }
     },
-    [onToggleExpand],
+    [onToggleExpand, router, groupBy, searchChips],
   );
 
-  // Row styling: zebra striping keyed on group index so parent + all children share the same stripe
+  const getRowHref = useCallback(
+    (row: OccupancyFlatRow) => {
+      if (row._type === "child") return buildWorkflowsUrl(row, groupBy, searchChips);
+      return undefined;
+    },
+    [groupBy, searchChips],
+  );
+
+  const getRowTitle = useCallback(
+    (row: OccupancyFlatRow) => {
+      if (row._type !== "child") return undefined;
+      if (groupBy === "pool") return `View ${row.key}'s workflows`;
+      return `View workflows for ${row.key}`;
+    },
+    [groupBy],
+  );
+
+  // Zebra striping keyed on group index so parent + children share the same stripe
   const rowClassName = useCallback((row: OccupancyFlatRow) => {
     const zebraClass =
       row._visualGroupIndex % 2 === 0 ? "bg-white dark:bg-zinc-950" : "bg-gray-100/60 dark:bg-zinc-900/50";
-    if (row._type === "child") return `occupancy-row occupancy-row--child ${zebraClass}`;
-    return `occupancy-row ${zebraClass}${row.isExpanded ? " font-medium" : ""}`;
+    if (row._type === "child") return `occupancy-row occupancy-row--child group/occ-child ${zebraClass}`;
+    return `occupancy-row group/occ-row ${zebraClass}${row.isExpanded ? " font-medium" : ""}`;
   }, []);
 
   const emptyContent = useMemo(() => <TableEmptyState message="No occupancy data available" />, []);
@@ -169,28 +177,24 @@ export const OccupancyDataTable = memo(function OccupancyDataTable({
         data={flatRows}
         columns={columns}
         getRowId={getRowId}
-        // Column management
         columnOrder={columnOrder}
         onColumnOrderChange={setColumnOrder}
         columnVisibility={columnVisibility}
         fixedColumns={FIXED_COLUMNS}
-        // Column sizing
         columnSizeConfigs={OCCUPANCY_COLUMN_SIZE_CONFIG}
         columnSizingPreferences={columnSizingPreferences}
         onColumnSizingPreferenceChange={setColumnSizingPreference}
-        // Sorting
         sorting={sortState ?? undefined}
         onSortingChange={handleSortChange}
-        // Layout
         rowHeight={rowHeight}
         compact={compactMode}
         className="text-sm"
         scrollClassName="scrollbar-styled flex-1"
-        // State
         isLoading={isLoading}
         emptyContent={emptyContent}
-        // Interaction
         onRowClick={handleRowClick}
+        getRowHref={getRowHref}
+        getRowTitle={getRowTitle}
         rowClassName={rowClassName}
       />
     </div>

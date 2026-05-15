@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 from functools import partial
 import json
 import sys
@@ -42,20 +44,21 @@ class DelayedJobMonitorConfig(connectors.RedisConfig, connectors.PostgresConfig,
     """Configuration for DelayedJobMonitor."""
     # The amount of time the monitor waits before polling again (in seconds)
     poll_interval: int = pydantic.Field(
-        command_line='poll_interval',
-        env='OSMO_POLL_INTERVAL',
         default=5,
-        description='How long to wait (In seconds) between checking the delayed job queue')
+        description='How long to wait (In seconds) between checking the delayed job queue',
+        json_schema_extra={'command_line': 'poll_interval', 'env': 'OSMO_POLL_INTERVAL'})
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write progress timestamps to (For liveness/startup probes)')
+        description='The file to write progress timestamps to (For liveness/startup probes)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     enable_metrics: bool = pydantic.Field(
-        command_line='enable_metrics',
-        env='OSMO_ENABLE_METRICS',
-        action='store_true',
-        description='Enable metrics collection')
+        default=False,
+        description='Enable metrics collection',
+        json_schema_extra={
+            'command_line': 'enable_metrics',
+            'env': 'OSMO_ENABLE_METRICS',
+            'action': 'store_true'
+        })
 
 
 class DelayedJobMonitor:

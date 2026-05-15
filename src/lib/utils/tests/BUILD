@@ -34,11 +34,67 @@ osmo_py_test(
     ]
 )
 
+osmo_py_test(
+    name = "test_port_forward",
+    srcs = ["test_port_forward.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:port_forward",
+    ]
+)
+
 
 osmo_py_test(
     name = "test_jinja_sandbox",
     srcs = ["test_jinja_sandbox.py"],
     deps = [
         "//src/lib/utils:jinja_sandbox",
+    ]
+)
+
+osmo_py_test(
+    name = "test_redact_secrets",
+    srcs = ["test_redact_secrets.py"],
+    deps = [
+        "//src/lib/utils:redact",
+    ]
+)
+
+osmo_py_test(
+    name = "test_workflow",
+    srcs = ["test_workflow.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:workflow",
+    ]
+)
+
+osmo_py_test(
+    name = "test_logging",
+    srcs = ["test_logging.py"],
+    deps = [
+        "//src/lib/utils:logging",
+    ]
+)
+
+osmo_py_test(
+    name = "test_client",
+    srcs = ["test_client.py"],
+    deps = [
+        requirement("pyyaml"),
+        "//src/lib/utils:client",
+        "//src/lib/utils:common",
+        "//src/lib/utils:login",
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:version",
+    ]
+)
+
+osmo_py_test(
+    name = "test_validation",
+    srcs = ["test_validation.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:validation",
     ]
 )

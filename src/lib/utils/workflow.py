@@ -41,28 +41,27 @@ def fetch_default_values(workflow_spec: str) -> str | None:
 
 def parse_workflow_spec(workflow_spec: str) -> Tuple[str, Dict | None]:
     """ Parse the workflow spec. """
-    workflow_pattern = re.compile(r'(^workflow:.*?)(?=^workflow:|\Z)',
-                                  re.DOTALL | re.MULTILINE)
-    workflows = workflow_pattern.findall(workflow_spec)
-    if len(workflows) > 1:
-        raise osmo_errors.OSMOUserError('Multiple workflows sections found in the workflow spec.')
+    section_pattern = re.compile(
+        r'^([a-zA-Z][a-zA-Z0-9_-]*):(.*?)(?=^[a-zA-Z][a-zA-Z0-9_-]*:|\Z)',
+        re.DOTALL | re.MULTILINE,
+    )
+    allowed_sections = {'workflow', 'default-values', 'version'}
+    sections: Dict[str, str] = {}
+    for match in section_pattern.finditer(workflow_spec):
+        key = match.group(1)
+        if key not in allowed_sections:
+            raise osmo_errors.OSMOUserError(
+                f'Unknown top-level key "{key}" found in the workflow spec.')
+        if key in sections:
+            raise osmo_errors.OSMOUserError(
+                f'Duplicate top-level key "{key}" found in the workflow spec.')
+        sections[key] = match.group(1) + ':' + match.group(2)
 
-    if workflows:
-        workflow_portion = workflows[0]
-    else:
+    if 'workflow' not in sections:
         raise osmo_errors.OSMOUserError('Workflow spec not found.')
 
-    default_values_pattern = re.compile(r'(^default-values:.*?)(?=^(?![#\s])\S|\Z)',
-                                        re.DOTALL | re.MULTILINE)
-    default_locs = default_values_pattern.findall(workflow_spec)
-    if len(default_locs) > 1:
-        raise osmo_errors.OSMOUserError(
-            'Multiple default-values sections found in the workflow spec.')
-
     default_values = None
+    if 'default-values' in sections:
+        default_values = yaml.safe_load(sections['default-values'])['default-values']
 
-    # Get default values from 'default-values'
-    if default_locs:
-        default_values = yaml.safe_load(default_locs[0])['default-values']
-
-    return workflow_portion, default_values
+    return sections['workflow'], default_values

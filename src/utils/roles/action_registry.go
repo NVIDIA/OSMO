@@ -172,6 +172,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== WORKFLOW ====================
 	ActionWorkflowCreate: {
 		{Path: "/api/pool/*/workflow", Methods: []string{"POST"}},
+		{Path: "/api/pool/*/workflow/*", Methods: []string{"POST"}},
 	},
 	ActionWorkflowList: {
 		{Path: "/api/workflow", Methods: []string{"GET"}},
@@ -192,6 +193,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	},
 	ActionWorkflowExec: {
 		{Path: "/api/workflow/*/exec", Methods: []string{"POST", "WEBSOCKET"}},
+		{Path: "/api/workflow/*/exec/*", Methods: []string{"POST", "WEBSOCKET"}},
 		{Path: "/api/router/exec/*/client/*", Methods: []string{"*"}},
 	},
 	ActionWorkflowPortForward: {
@@ -201,7 +203,10 @@ var ActionRegistry = map[string][]EndpointPattern{
 		{Path: "/api/router/webserver/*", Methods: []string{"GET"}},
 	},
 	ActionWorkflowRsync: {
+		// TODO: Refactor the /api/plugins/configs permissions to be more intuitive
+		{Path: "/api/plugins/configs", Methods: []string{"GET"}},
 		{Path: "/api/workflow/*/rsync", Methods: []string{"POST"}},
+		{Path: "/api/workflow/*/rsync/*", Methods: []string{"POST"}},
 		{Path: "/api/router/rsync/*/client/*", Methods: []string{"*"}},
 	},
 
@@ -227,6 +232,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== CREDENTIALS ====================
 	ActionCredentialsCreate: {
 		{Path: "/api/credentials", Methods: []string{"POST"}},
+		{Path: "/api/credentials/*", Methods: []string{"POST"}},
 	},
 	ActionCredentialsRead: {
 		{Path: "/api/credentials", Methods: []string{"GET"}},
@@ -255,6 +261,7 @@ var ActionRegistry = map[string][]EndpointPattern{
 	// ==================== APP ====================
 	ActionAppCreate: {
 		{Path: "/api/app", Methods: []string{"POST"}},
+		{Path: "/api/app/*", Methods: []string{"POST"}},
 	},
 	ActionAppRead: {
 		{Path: "/api/app", Methods: []string{"GET"}},
@@ -1142,6 +1149,9 @@ func CheckSemanticAction(
 
 // checkResolvedAction checks if a policy action string matches a pre-resolved
 // action and resource pair. Returns (true, result) on match, (false, _) otherwise.
+//
+// A policy with empty resources does not match non-empty resource targets
+// (unscoped policies don't grant scoped resource access).
 func checkResolvedAction(
 	policyActionStr string,
 	policyResources []string,
@@ -1150,9 +1160,9 @@ func checkResolvedAction(
 	// Universal wildcard — admin roles that should have access to all endpoints,
 	// even ones not registered in the action registry.
 	if policyActionStr == "*:*" || policyActionStr == "*" {
-		resourceAllowed := len(policyResources) == 0
+		resourceAllowed := len(policyResources) == 0 && resolvedResource == ""
 		for _, pr := range policyResources {
-			if pr == "*" {
+			if matchResource(pr, resolvedResource) {
 				resourceAllowed = true
 				break
 			}
@@ -1180,8 +1190,15 @@ func checkResolvedAction(
 		return false, AccessResult{}
 	}
 
-	// Check if the resource matches (if resources are specified)
-	if len(policyResources) > 0 {
+	// Check if the resource matches. An empty resources list only matches
+	// when the resolved resource is also empty (unscoped). This prevents
+	// policies like {"actions": ["auth:Token"], "resources": []} from
+	// granting access to resource-scoped paths (e.g., other users' tokens).
+	if len(policyResources) == 0 {
+		if resolvedResource != "" {
+			return false, AccessResult{}
+		}
+	} else {
 		resourceMatched := false
 		for _, policyResource := range policyResources {
 			if matchResource(policyResource, resolvedResource) {
@@ -1238,6 +1255,7 @@ func matchSemanticAction(pattern, action string) bool {
 // Supports wildcards:
 //   - "*" matches everything
 //   - "pool/*" matches all resources in pool scope
+//   - "pool/team-a*" matches all resources with prefix "pool/team-a"
 //   - "bucket/my-bucket" matches exact resource
 func matchResource(pattern, resource string) bool {
 	// Empty resource means no scope check is needed - always matches
@@ -1259,6 +1277,12 @@ func matchResource(pattern, resource string) bool {
 	if strings.HasSuffix(pattern, "/*") {
 		prefix := strings.TrimSuffix(pattern, "/*")
 		return strings.HasPrefix(resource, prefix+"/") || resource == prefix+"/*"
+	}
+
+	// Trailing wildcard prefix match (e.g., "pool/team-a*" matches "pool/team-a-gpu-03")
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(resource, prefix)
 	}
 
 	// Resource itself is a wildcard pattern (e.g., "pool/*" resource matches "pool/*" pattern)

@@ -344,89 +344,53 @@ Policy Examples
 Creating Custom Roles
 ----------------------
 
-Using the OSMO CLI
-^^^^^^^^^^^^^^^^^^
+.. include:: ../../_shared/configmap_banner.rst
 
-To create a custom role using the OSMO CLI:
+Add custom roles under ``services.configs.roles`` in your Helm values, then apply with ``helm upgrade`` (or let ArgoCD sync).
 
-1. **Fetch Existing Roles**
+.. code-block:: yaml
 
-   First, retrieve the current roles configuration:
-
-   .. code-block:: bash
-
-      $ osmo config show ROLE > roles.json
-
-2. **Edit the Configuration**
-
-   Add your new role to the ``roles.json`` file:
-
-   .. code-block:: json
-
-      [
-        {
-          "name": "new-role",
-          "description": "Demo new role",
-          "policies": [
-            {
-              "actions": [
-                  "dataset:*",
-                  "credentials:*"
-              ]
-            }
-          ],
-          "immutable": false
-        }
-      ]
-
-3. **Update the Roles**
-
-   Apply the updated configuration:
-
-   .. code-block:: bash
-
-      $ osmo config update ROLE -f roles.json
-      Successfully updated ROLE config
-
-Quality of Life Features
--------------------------
+   services:
+     configs:
+       enabled: true
+       roles:
+         new-role:
+           description: Demo new role
+           policies:
+             - actions:
+                 - dataset:*
+                 - credentials:*
 
 .. _auto_generating_pool_roles:
 
-Auto-Generating Pool Roles
+Pool Role Naming Convention
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For pool and backend roles, use the ``osmo config set`` CLI to automatically generate roles with required policies:
+For roles that grant access to a specific pool, follow the convention ``osmo-<pool-name>`` and include pool-scoped workflow policies:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-   $ osmo config set ROLE osmo-my-pool pool
-   Successfully set ROLE config "osmo-my-pool"
-
-This generates a role with the necessary permissions:
-
-.. code-block:: bash
-
-   $ osmo config show ROLE osmo-my-pool
-   {
-     "name": "osmo-my-pool",
-     "policies": [
-       {
-         "actions": [
-           "http:/api/pool/my-pool*:Post",
-           "http:/api/profile/*:*"
-         ]
-       }
-     ],
-     "immutable": false,
-     "description": "Generated Role for pool my-pool"
-   }
+   services:
+     configs:
+       roles:
+         osmo-my-pool:
+           description: Access to my-pool
+           policies:
+             - actions:
+                 - workflow:Create
+                 - workflow:Read
+                 - workflow:List
+                 - workflow:Cancel
+               resources:
+                 - pool/my-pool
+             - actions:
+                 - pool:List
+                 - profile:Read
+                 - profile:Update
 
 .. note::
 
    Pool access is determined by the role's policies, not its name. See :ref:`role_naming_for_pools` for more information.
-
-Learn more about the CLI at :ref:`cli_reference_config_set`.
 
 Common Use Cases
 -----------------
@@ -434,16 +398,9 @@ Common Use Cases
 Creating a Role for a Pool
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When creating a pool named ``my-pool``, create a corresponding role:
+When creating a pool named ``my-pool``, add a corresponding role in ``services.configs.roles`` as shown above, then:
 
-1. **Generate the Role**
-
-   .. code-block:: bash
-
-      $ osmo config set ROLE osmo-my-pool -p my-pool
-      Successfully created ROLE config
-
-2. **Assign the role to users**
+1. **Assign the role to users**
 
    Use the ``osmo user update`` CLI to assign the role to users:
 
@@ -481,7 +438,7 @@ Pool Access Issues
 --------------------
 
 1. **Check role policies**: Ensure the role has a policy allowing ``workflow:Create`` scoped to the target pool (e.g., ``resources: ["pool/my-pool"]``)
-2. **Check role assignment**: Ensure the user has the role in OSMO (via ``osmo user roles list <user_id>`` or IdP role mapping)
+2. **Check role assignment**: Ensure the user has the role in OSMO (via ``osmo user get <user_id>`` or IdP role mapping)
 3. **Review resource scope**: Verify the policy's ``resources`` field matches the pool name (e.g., ``pool/my-pool`` or ``pool/*``)
 
 .. _actions_resources_reference:
@@ -805,5 +762,5 @@ See Also
 - :doc:`identity_provider_setup` for configuring an IdP and role mapping
 - :doc:`authentication_flow` for understanding authentication
 - :ref:`roles_config` for complete role configuration reference
-- :doc:`../../install_backend/configure_pool` for pool configuration
+- :ref:`configure_pool` for pool configuration
 - ``osmo user --help`` and ``osmo token --help`` for user and token management CLI commands

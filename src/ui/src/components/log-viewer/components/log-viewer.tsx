@@ -18,7 +18,7 @@
 
 import { memo, useMemo, useRef, useCallback, useEffect, useState, startTransition, useDeferredValue } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { User, Cpu, ZoomIn, ZoomOut } from "lucide-react";
+import { User, Cpu, ZoomIn, ZoomOut, Download, ExternalLink, Tag, WrapText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFormattedHotkey, useModKey } from "@/hooks/use-hotkey-label";
 import type { LogEntry, HistogramBucket } from "@/lib/api/log-adapter/types";
@@ -36,7 +36,7 @@ import {
   type TimelineContainerHandle,
 } from "@/components/log-viewer/components/timeline/components/timeline-container";
 import { LogList, type LogListHandle } from "@/components/log-viewer/components/log-list";
-import { Footer } from "@/components/log-viewer/components/footer";
+import { ScrollPinControl } from "@/components/log-viewer/components/scroll-pin-control";
 import { LogViewerSkeleton } from "@/components/log-viewer/components/log-viewer-skeleton";
 import { useLogViewerStore } from "@/components/log-viewer/store/log-viewer-store";
 import { HISTOGRAM_BUCKET_JUMP_WINDOW_MS } from "@/components/log-viewer/lib/constants";
@@ -163,8 +163,8 @@ export interface LogViewerProps {
   data: LogViewerDataProps;
   /** Filter-related props (chips, scope) */
   filter: LogViewerFilterProps;
-  /** Timeline-related props (time range, presets, entity boundaries) */
-  timeline: LogViewerTimelineProps;
+  /** Timeline-related props (time range, presets, entity boundaries). Omit when entity hasn't started. */
+  timeline?: LogViewerTimelineProps;
   /** Additional CSS classes */
   className?: string;
   /** Whether to show the timeline histogram and time range controls (default: true) */
@@ -230,22 +230,9 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Destructure filter props
   const { filterChips, onFilterChipsChange, scope } = filter;
 
-  // Destructure timeline props
-  const {
-    filterStartTime,
-    filterEndTime,
-    displayStart,
-    displayEnd,
-    activePreset,
-    onFilterStartTimeChange,
-    onFilterEndTimeChange,
-    onPresetSelect,
-    onDisplayRangeChange,
-    onClearPendingDisplay,
-    entityStartTime,
-    entityEndTime,
-    now,
-  } = timeline;
+  // Timeline may be undefined if entity hasn't started yet.
+  // Derive a safe rendering flag so callers can't pass showTimeline={true} with timeline={undefined}.
+  const shouldShowTimeline = showTimeline && timeline != null;
   const { announcer } = useServices();
 
   // Scope-aware filter fields: hide "task" field when already scoped to a single task
@@ -318,40 +305,43 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
   // Handle histogram bucket click - jump to that time
   const handleBucketClick = useCallback(
     (bucket: HistogramBucket) => {
-      // Set time range around the clicked bucket using constant for window size
+      if (!timeline) return;
       const bucketTime = bucket.timestamp.getTime();
-      onFilterStartTimeChange(new Date(bucketTime - HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
-      onFilterEndTimeChange(new Date(bucketTime + HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
+      timeline.onFilterStartTimeChange(new Date(bucketTime - HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
+      timeline.onFilterEndTimeChange(new Date(bucketTime + HISTOGRAM_BUCKET_JUMP_WINDOW_MS));
       announcer.announce("Time range updated", "polite");
     },
-    [onFilterStartTimeChange, onFilterEndTimeChange, announcer],
+    [timeline, announcer],
   );
 
   // Handle preset selection
   const handlePresetSelect = useCallback(
     (preset: TimeRangePreset) => {
-      onPresetSelect(preset);
+      if (!timeline) return;
+      timeline.onPresetSelect(preset);
       const message = preset === "all" ? "all logs" : preset === "custom" ? "custom time range" : `last ${preset}`;
       announcer.announce(`Showing ${message}`, "polite");
     },
-    [onPresetSelect, announcer],
+    [timeline, announcer],
   );
 
   // Wrap time change handlers to clear pending display
   const handleStartTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onFilterStartTimeChange(time);
-      onClearPendingDisplay();
+      if (!timeline) return;
+      timeline.onFilterStartTimeChange(time);
+      timeline.onClearPendingDisplay();
     },
-    [onFilterStartTimeChange, onClearPendingDisplay],
+    [timeline],
   );
 
   const handleEndTimeChangeWithClear = useCallback(
     (time: Date | undefined) => {
-      onFilterEndTimeChange(time);
-      onClearPendingDisplay();
+      if (!timeline) return;
+      timeline.onFilterEndTimeChange(time);
+      timeline.onClearPendingDisplay();
     },
-    [onFilterEndTimeChange, onClearPendingDisplay],
+    [timeline],
   );
 
   // Handle zoom in - uses timeline's validated zoom logic (matches cmd+wheel up behavior)
@@ -476,24 +466,121 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
         />
       )}
 
-      {/* Section 1: Filter bar — excluded from focus redirect so dropdown items work */}
+      {/* Section 1: Filter bar + Actions — excluded from focus redirect so dropdown items work */}
       <div
-        className="shrink-0 border-b p-2"
+        className="shrink-0 border-b px-3 py-2"
         data-no-focus-redirect
       >
-        <FilterBar
-          ref={filterBarRef}
-          data={rawEntries}
-          fields={filterFields}
-          chips={filterChips}
-          onChipsChange={handleFilterChipsChange}
-          presets={LOG_FILTER_PRESETS}
-          placeholder={`Search logs (${searchShortcut})...`}
-        />
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <FilterBar
+              ref={filterBarRef}
+              data={rawEntries}
+              fields={filterFields}
+              chips={filterChips}
+              onChipsChange={handleFilterChipsChange}
+              presets={LOG_FILTER_PRESETS}
+              placeholder={`Search logs (${searchShortcut})...`}
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Scroll/Pin controls */}
+            <ScrollPinControl
+              isStreaming={isStreaming ?? false}
+              isPinned={isPinnedToBottom}
+              onScrollToBottom={handleJumpToBottom}
+              onTogglePin={handleTogglePin}
+            />
+
+            {/* Show task toggle (hidden when scoped to a single task) */}
+            {scope !== "task" && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={toggleShowTask}
+                    className={
+                      showTask
+                        ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
+                        : ""
+                    }
+                    aria-label={`${showTask ? "Hide" : "Show"} task`}
+                    aria-pressed={showTask}
+                  >
+                    <Tag className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{showTask ? "Hide" : "Show"} task</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Wrap lines toggle */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={toggleWrapLines}
+                  className={
+                    wrapLines
+                      ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
+                      : ""
+                  }
+                  aria-label={`${wrapLines ? "Disable" : "Enable"} line wrap`}
+                  aria-pressed={wrapLines}
+                >
+                  <WrapText className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{wrapLines ? "Disable" : "Enable"} line wrap</TooltipContent>
+            </Tooltip>
+
+            {/* Download button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleDownload}
+                  aria-label="Download logs"
+                >
+                  <Download className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Download logs</TooltipContent>
+            </Tooltip>
+
+            {/* External link - opens raw logs in new tab */}
+            {externalLogUrl && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    asChild
+                    aria-label="Open raw logs in new tab"
+                  >
+                    <a
+                      href={externalLogUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Open raw logs in new tab</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Section 2: Timeline Histogram — excluded from focus redirect so draggers work */}
-      {showTimeline && (
+      {shouldShowTimeline && timeline && (
         <div
           className="shrink-0 border-b px-3 py-2"
           data-no-focus-redirect
@@ -506,26 +593,26 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
             height={DEFAULT_HEIGHT}
             // Time range header with controls
             showTimeRangeHeader
-            filterStartTime={filterStartTime}
-            filterEndTime={filterEndTime}
-            displayStart={displayStart}
-            displayEnd={displayEnd}
+            filterStartTime={timeline.filterStartTime}
+            filterEndTime={timeline.filterEndTime}
+            displayStart={timeline.displayStart}
+            displayEnd={timeline.displayEnd}
             onFilterStartTimeChange={handleStartTimeChangeWithClear}
             onFilterEndTimeChange={handleEndTimeChangeWithClear}
-            onDisplayRangeChange={onDisplayRangeChange}
+            onDisplayRangeChange={timeline.onDisplayRangeChange}
             // Presets
             showPresets
-            activePreset={activePreset}
+            activePreset={timeline.activePreset}
             onPresetSelect={handlePresetSelect}
             // Collapsed state
             defaultCollapsed={timelineCollapsed}
             // Enable interactive draggers
             enableInteractiveDraggers
             // Entity boundaries for pan limits
-            entityStartTime={entityStartTime}
-            entityEndTime={entityEndTime}
+            entityStartTime={timeline.entityStartTime}
+            entityEndTime={timeline.entityEndTime}
             // Synchronized "NOW" timestamp
-            now={now}
+            now={timeline.now}
             // Zoom controls overlay
             customControls={
               <div className="flex flex-col gap-0.5 opacity-40 transition-opacity hover:opacity-100">
@@ -582,22 +669,6 @@ function LogViewerInner({ data, filter, timeline, className, showTimeline = true
           onScrollAwayFromBottom={handleScrollAwayFromBottom}
           isStale={isStale}
           hideTask={scope === "task"}
-        />
-      </div>
-
-      {/* Section 4: Footer */}
-      <div className="shrink-0">
-        <Footer
-          wrapLines={wrapLines}
-          onToggleWrapLines={toggleWrapLines}
-          showTask={scope === "task" ? false : showTask}
-          onToggleShowTask={scope === "task" ? undefined : toggleShowTask}
-          externalLogUrl={externalLogUrl}
-          onDownload={handleDownload}
-          isStreaming={isStreaming}
-          isPinnedToBottom={isPinnedToBottom}
-          onScrollToBottom={handleJumpToBottom}
-          onTogglePinnedToBottom={handleTogglePin}
         />
       </div>
     </div>

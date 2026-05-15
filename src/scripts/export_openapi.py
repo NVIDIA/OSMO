@@ -55,16 +55,37 @@ def main():
     # Generate OpenAPI spec
     openapi_spec = app.openapi()
 
-    # Explicitly set explode=True for all array query parameters.
-    # OpenAPI 3 implies explode=True by default for query params, but orval's
-    # fetch client generator only honors it when explicitly present in the spec.
+    # Post-process the spec for codegen consumers (orval).
+    #
+    # 1) Explicitly set `explode: true` for array query parameters.
+    #    OpenAPI 3 already defaults `style=form, explode=true` for query params,
+    #    but orval's fetch client generator only emits explode logic when the
+    #    field is present in the spec. Pydantic v2 emits nullable arrays as
+    #    `anyOf: [{type: array}, {type: null}]` (no top-level `type`), so check
+    #    both shapes.
+    #
+    # 2) Dedupe operationIds across HTTP methods. FastAPI emits the same
+    #    operationId for every method of a multi-method route (e.g.
+    #    `api_route(methods=['GET', 'HEAD'])`), which generates duplicate
+    #    TypeScript types and breaks `tsc`.
+    def _is_array_schema(schema: dict) -> bool:
+        if schema.get('type') == 'array':
+            return True
+        return any(sub.get('type') == 'array' for sub in schema.get('anyOf', []))
+
+    seen_operation_ids: set[str] = set()
     for path_item in openapi_spec.get('paths', {}).values():
-        for operation in path_item.values():
+        for method, operation in path_item.items():
             if not isinstance(operation, dict):
                 continue
             for param in operation.get('parameters', []):
-                if param.get('in') == 'query' and param.get('schema', {}).get('type') == 'array':
+                if param.get('in') == 'query' and _is_array_schema(param.get('schema', {})):
                     param.setdefault('explode', True)
+            operation_id = operation.get('operationId')
+            if operation_id and operation_id in seen_operation_ids:
+                operation['operationId'] = f'{operation_id}_{method.lower()}'
+            if operation.get('operationId'):
+                seen_operation_ids.add(operation['operationId'])
 
     # Format JSON
     indent = 2 if args.pretty else None

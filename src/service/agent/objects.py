@@ -56,7 +56,7 @@ class BackendDeleteType(enum.Enum):
 UNIQUE_JOB_TTL = 5 * 24 * 60 * 60
 
 
-class ListBackendsResponse(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ListBackendsResponse(pydantic.BaseModel, extra='forbid'):
     """ Object storing info for all backends. """
     backends: List[connectors.Backend]
 
@@ -196,7 +196,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
         self.redis_client.expire(key_name, UNIQUE_JOB_TTL, nx=True)
 
         # If this job was not the first to write into the database, it should not execute.
-        job_uuid = self.redis_client.get(key_name).decode()
+        job_uuid = self.redis_client.get(key_name).decode()  # type: ignore[union-attr]
         if job_uuid != job.job_uuid:
             logging.info('Skipping job %s because it is a duplicate', job, extra=job.log_labels())
             self._current_job = None
@@ -208,7 +208,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
             self.redis_client.expire(f'retry:{job.job_id}', UNIQUE_JOB_TTL, nx=True)
             workflow_config = self.context.postgres.get_workflow_configs()
             job_retry_limit = workflow_config.max_retry_per_job
-            if job_retry_count > job_retry_limit:
+            if job_retry_count > job_retry_limit:  # type: ignore[operator]
                 error_message = f'Job {job} failed after retrying {job_retry_limit} times'
                 logging.info(error_message, extra=job.log_labels())
                 self._current_job = CurrentJobContext(
@@ -239,7 +239,8 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     start_time=time.time())
 
                 # Do not Create the Group unless the status is Scheduling
-                pre_complete, message = job.prepare_execute(
+                pre_complete, message = await asyncio.to_thread(
+                    job.prepare_execute,
                     self.context, self._progress_writer, self._progress_iter_freq)
                 if not pre_complete:
                     result = jobs.JobResult(
@@ -254,7 +255,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                     job=job,
                     start_time=time.time())
 
-            compressed = zlib.compress(job.json().encode('utf-8'))
+            compressed = zlib.compress(job.model_dump_json().encode('utf-8'))
             await self.websocket.send_bytes(compressed)
 
 
@@ -310,7 +311,7 @@ class WebsocketWorker(kombu.mixins.ConsumerMixin):
                 self._current_job.log_redis.xadd(
                     f'{self._current_job.workflow.workflow_id}-' +\
                     f'{message_option.pod_log.task}-{message_option.pod_log.retry_id}-error-logs',
-                    json.loads(logs.json()),
+                    json.loads(logs.model_dump_json()),
                     maxlen=workflow_config.max_log_lines)
                 self._current_job.log_redis.expire(
                     f'{self._current_job.workflow.workflow_id}-' +\

@@ -33,6 +33,7 @@ export interface CachedSession {
   // FitAddon.proposeDimensions() returns NaN until the render service has measured dimensions
   readonly terminalReady: boolean;
   readonly onRenderDisposable: { dispose: () => void } | null;
+  readonly onResizeDisposable: { dispose: () => void } | null;
 }
 
 export type SessionUpdate = Partial<Omit<CachedSession, "key" | "workflowName" | "taskName" | "shell">>;

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,24 +37,30 @@ class AsymmetricKeyPair(pydantic.BaseModel):
     public_key: str
     private_key: pydantic.SecretStr
 
+    model_config = pydantic.ConfigDict(ignored_types=(property,))
+
     @classmethod
     def generate(cls) -> 'AsymmetricKeyPair':
         return AsymmetricKeyPair()  # type: ignore
 
-    @pydantic.root_validator()
-    @classmethod
-    def validate_valid_key(cls, values):
-
-        public = values['public_key']
+    @pydantic.model_validator(mode='after')
+    def validate_valid_key(self) -> 'AsymmetricKeyPair':
         # Make sure the keys are valid
-        jwk.JWK.from_json(public)
+        jwk.JWK.from_json(self.public_key)
         # TODO: Properly validate the private/public key match
-        return values
+        return self
+
+    def _get_cached_pem_key(self) -> bytes:
+        cached = self.__dict__.get('_pem_key_cache')
+        if cached is None:
+            cached = jwk.JWK.from_json(
+                self.private_key.get_secret_value()
+            ).export_to_pem(private_key=True, password=None)
+            self.__dict__['_pem_key_cache'] = cached
+        return cached
 
     def create_jwt(self, claims: Dict[str, Any]) -> str:
-        pem_key = jwk.JWK.from_json(self.private_key.get_secret_value()).export_to_pem(
-            private_key=True, password=None)
-        return jwt.encode(claims, key=pem_key, algorithm='RS256')
+        return jwt.encode(claims, key=self._get_cached_pem_key(), algorithm='RS256')
 
 
 class LoginInfo(pydantic.BaseModel):
@@ -88,13 +94,13 @@ class AuthenticationConfig(pydantic.BaseModel):
     # The maximum duration of a token
     max_token_duration: str = '365d'
 
-    @pydantic.validator('max_token_duration')
+    @pydantic.field_validator('max_token_duration')
     @classmethod
     def validate_max_token_duration(cls, value: str) -> str:
         try:
             common.to_timedelta(value)
         except ValueError as e:
-            raise osmo_errors.OSMOUserError(f'Invalid max_token_duration format: {str(e)}')
+            raise osmo_errors.OSMOUserError(f'Invalid max_token_duration format: {str(e)}') from e
         return value
 
     @classmethod
@@ -111,14 +117,11 @@ class AuthenticationConfig(pydantic.BaseModel):
             issuer=issuer,
             audience=issuer)
 
-    @pydantic.root_validator()
-    @classmethod
-    def validate_active_key(cls, values):
-        active_key = values.get('active_key')
-        keys = values.get('keys', [])
-        if active_key not in keys:
-            raise ValueError(f'active_key "{active_key}" not in keys')
-        return values
+    @pydantic.model_validator(mode='after')
+    def validate_active_key(self) -> 'AuthenticationConfig':
+        if self.active_key not in self.keys:
+            raise ValueError(f'active_key "{self.active_key}" not in keys')
+        return self
 
     def get_keyset(self) -> Dict:
         return {'keys': [

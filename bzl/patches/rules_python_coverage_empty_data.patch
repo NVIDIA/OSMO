@@ -1,0 +1,41 @@
+Tolerate empty coverage data in py_test coverage collection.
+
+Tests whose imports resolve outside the tracked source tree (e.g. imports from a
+built wheel via osmo_py_wheel_unpacked) collect no data. coverage.py then
+raises NoDataError from lcov_report(), which rules_python's stage 2 bootstrap
+surfaces as a test failure even though the test itself passed.
+
+Wrap lcov_report() in a try/except so that tests with no collectable coverage
+emit an empty lcov file instead of failing the run.
+
+diff --git a/python/private/stage2_bootstrap_template.py b/python/private/stage2_bootstrap_template.py
+--- a/python/private/stage2_bootstrap_template.py
++++ b/python/private/stage2_bootstrap_template.py
+@@ -357,13 +357,20 @@ def _maybe_collect_coverage(enable):
+             cov.stop()
+             lcov_path = os.path.join(coverage_dir, "pylcov.dat")
+             print_verbose_coverage("generating lcov from:", lcov_path)
+-            cov.lcov_report(
+-                outfile=lcov_path,
+-                # Ignore errors because sometimes instrumented files aren't
+-                # readable afterwards. e.g. if they come from /dev/fd or if
+-                # they were transient code-under-test in /tmp
+-                ignore_errors=True,
+-            )
++            try:
++                cov.lcov_report(
++                    outfile=lcov_path,
++                    # Ignore errors because sometimes instrumented files aren't
++                    # readable afterwards. e.g. if they come from /dev/fd or if
++                    # they were transient code-under-test in /tmp
++                    ignore_errors=True,
++                )
++            except coverage.CoverageException as err:
++                # Tests whose imports resolve outside the tracked source tree
++                # (e.g. from a built wheel) collect no data; coverage.py raises
++                # NoDataError. Emit an empty lcov so the test still passes.
++                print_verbose_coverage("lcov report failed, writing empty file:", err)
++                open(lcov_path, "w").close()
+             if os.path.isfile(lcov_path):
+                 unresolve_symlinks(lcov_path)
+     finally:

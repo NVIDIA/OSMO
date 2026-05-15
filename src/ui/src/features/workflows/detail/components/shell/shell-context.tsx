@@ -72,6 +72,7 @@ export function ShellProvider({ workflowName, children }: ShellProviderProps) {
       reconnectCallback: null,
       terminalReady: false,
       onRenderDisposable: null,
+      onResizeDisposable: null,
     });
   }, []);
 

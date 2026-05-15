@@ -40,6 +40,19 @@ global:
   ##
   serviceAccountName: osmo
 
+  ## External DNS hostname this OSMO deployment serves on
+  ## (e.g. "staging.osmo.nvidia.com").
+  ##
+  ## Used as the canonical fallback for:
+  ##   - services.service.hostname  (API service `--service_hostname`)
+  ##   - services.router.hostname   (router `--hostname` for session-key extraction)
+  ##   - gateway.envoy.hostname     (Ingress host rule + OAuth2 redirect URL)
+  ##
+  ## Each per-component hostname above takes precedence when explicitly set;
+  ## leaving them empty falls back to this global value.
+  ##
+  hostname: ""
+
   ## Logging configuration for all Osmo services
   ##
   logs:
@@ -54,6 +67,18 @@ global:
     ## Kubernetes system log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     ##
     k8sLogLevel: WARNING
+
+    ## Log output format for OSMO services that use utils/logging
+    ## (Go src/utils/logging and Python src/lib/utils/logging).
+    ## - "text" (default): legacy ServiceFormatter format used historically by
+    ##   OSMO services (one human-readable line per record).
+    ## - "json": one JSON object per record, suitable for direct ingestion by
+    ##   Loki/Elastic without a parser stage.
+    ## Consumed by: authz_sidecar (Go) and the Python services that wire
+    ## --log_format from this value (api, worker, agent, logger,
+    ## delayed-job-monitor, router).
+    ##
+    logFormat: text
 
 ## Service account configuration for core Osmo services
 ##
@@ -85,6 +110,188 @@ services:
     ## Path to the configuration file (used when enabled is true)
     ##
     path: /opt/osmo/config.yaml
+
+  ## UI service configuration
+  ##
+  ui:
+    ## Enable the UI workload in the merged service chart
+    ##
+    enabled: true
+
+    ## Number of UI service replicas to run
+    ##
+    replicas: 1
+
+    ## Docker image name for the UI service (without registry or tag)
+    ##
+    imageName: web-ui
+
+    ## Optional UI image tag override
+    ## Leave empty to use global.osmoImageTag
+    ##
+    imageTag: ""
+
+    ## Kubernetes image pull policy for the UI service
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the UI service
+    ##
+    serviceName: osmo-ui
+
+    ## Internal hostname used by the Next.js server for API requests
+    ##
+    apiHostname: osmo-gateway:80
+
+    ## Enable port-forwarding through the UI
+    ##
+    portForwardEnabled: false
+
+    ## Enable TLS for Next.js API requests
+    ##
+    nextjsSslEnabled: false
+
+    ## Container port for the UI service
+    ##
+    containerPort: 8000
+
+    ## Service account name for the UI pods
+    ##
+    serviceAccountName: osmo
+
+    ## Maximum HTTP header size in KB for the Node.js server
+    ##
+    maxHttpHeaderSizeKb: 128
+
+    ## Optional command override
+    ##
+    command: []
+
+    ## Optional args override
+    ##
+    args: []
+
+    ## Additional pod labels
+    ##
+    podLabels: {}
+
+    ## UI documentation base URL
+    ##
+    docsBaseUrl: https://nvidia.github.io/OSMO/main/user_guide/
+
+    ## CLI install script URL shown by the UI
+    ##
+    cliInstallScriptUrl: https://raw.githubusercontent.com/NVIDIA/OSMO/refs/heads/main/install.sh
+
+    ## Horizontal Pod Autoscaler (HPA) configuration
+    ##
+    scaling:
+      enabled: false
+      minReplicas: 1
+      maxReplicas: 3
+      hpaTarget: 85
+      customMetrics: []
+
+    ## Kubernetes service configuration
+    ##
+    service:
+      type: ""
+      port: 80
+      portName: http
+      protocol: TCP
+      labels: {}
+      annotations: {}
+      extraPorts: []
+      selector: {}
+
+    ## Node selector constraints for UI pod scheduling
+    ##
+    nodeSelector: {}
+
+    ## Topology spread constraints to distribute pods across nodes and zones
+    ##
+    topologySpreadConstraints:
+    - topologyKey: kubernetes.io/hostname
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Host aliases for the UI pods
+    ##
+    hostAliases: []
+
+    ## Tolerations for the UI pods
+    ##
+    tolerations: []
+
+    ## Resource requests and limits for the UI container
+    ##
+    resources: {}
+
+    ## Additional container ports
+    ##
+    extraPorts: []
+
+    ## Additional environment variables for the UI container
+    ##
+    extraEnvs: []
+
+    ## Environment variable sources from ConfigMaps or Secrets
+    ##
+    envFrom: []
+
+    ## Additional volume mounts for the UI container
+    ##
+    extraVolumeMounts: []
+
+    ## Additional volumes for the UI pod
+    ##
+    extraVolumes: []
+
+    ## Additional annotations for the UI pod
+    ##
+    extraPodAnnotations: {}
+
+    ## Additional sidecar or helper containers for the UI pod
+    ##
+    extraContainers: []
+
+    ## Optional init containers for the UI pod
+    ##
+    initContainers: []
+
+    ## Liveness probe configuration
+    ##
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 3
+
+    ## Startup probe configuration
+    ##
+    startupProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
+
+    ## Readiness probe configuration
+    ##
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      failureThreshold: 2
+      timeoutSeconds: 3
+      periodSeconds: 5
 
   ## Database migration configuration (pgroll)
   ## When enabled, a Helm pre-upgrade hook Job runs migrations before pods are updated.
@@ -228,6 +435,229 @@ services:
     ## Key name in the secret that contains the default admin password
     ##
     passwordSecretKey: password
+
+  ## Dynamic configuration loaded from ConfigMap.
+  ## When enabled, all configs are served from in-memory (parsed from the mounted
+  ## ConfigMap file). CLI/API writes return 409. The authz_sidecar reads roles
+  ## from the same file instead of PostgreSQL. Changes are detected via watchdog/inotify.
+  ##
+  configs:
+    ## Enable ConfigMap-based configuration.
+    ## When true: all configs served from in-memory (parsed from ConfigMap),
+    ## CLI/API writes return 409, authz_sidecar reads roles from file.
+    ## A malformed ConfigMap at startup causes the pod to crash-loop so
+    ## the rolling update stalls at the bad revision; old pods keep serving.
+    ## When false: configs in database, CLI/API works normally.
+    ##
+    enabled: false
+
+    ## Service config. service_base_url is auto-derived from
+    ## services.service.hostname if not set here.
+    ##
+    service: {}
+
+    ## Workflow config (limits, timeouts, image credentials).
+    ## Use secretName in config fields to reference K8s Secrets.
+    ## Each secretName must also be listed in secretRefs above.
+    ##
+    workflow:
+      max_num_tasks: 100
+      max_exec_timeout: "30d"
+      default_exec_timeout: "7d"
+
+    ## Dataset config (buckets, credentials).
+    ## Use credentialSecretName to reference K8s Secrets for bucket creds.
+    ##
+    dataset: {}
+
+    ## Pod templates applied to workflow containers.
+    ##
+    podTemplates:
+      default_ctrl:
+        spec:
+          containers:
+          - name: osmo-ctrl
+            resources:
+              limits:
+                cpu: "{{USER_CPU}}"
+                memory: "{{USER_MEMORY}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
+              requests:
+                cpu: "1"
+                memory: "1Gi"
+                ephemeral-storage: "1Gi"
+      default_user:
+        spec:
+          containers:
+          - name: "{{USER_CONTAINER_NAME}}"
+            resources:
+              limits:
+                cpu: "{{USER_CPU}}"
+                memory: "{{USER_MEMORY}}"
+                nvidia.com/gpu: "{{USER_GPU}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
+              requests:
+                cpu: "{{USER_CPU}}"
+                memory: "{{USER_MEMORY}}"
+                nvidia.com/gpu: "{{USER_GPU}}"
+                ephemeral-storage: "{{USER_STORAGE}}"
+
+    ## Resource validation rules.
+    ##
+    resourceValidations:
+      default_cpu:
+      - operator: LE
+        left_operand: "{{USER_CPU}}"
+        right_operand: "{{K8_CPU}}"
+        assert_message: "Value {{USER_CPU}} too high for CPU"
+      - operator: GT
+        left_operand: "{{USER_CPU}}"
+        right_operand: "0"
+        assert_message: "Value {{USER_CPU}} needs to be greater than 0 for CPU"
+      default_memory:
+      - operator: LE
+        left_operand: "{{USER_MEMORY}}"
+        right_operand: "{{K8_MEMORY}}"
+        assert_message: "Value {{USER_MEMORY}} too high for memory"
+      - operator: GT
+        left_operand: "{{USER_MEMORY}}"
+        right_operand: "0"
+        assert_message: "Value {{USER_MEMORY}} needs to be greater than 0 for memory"
+      default_gpu:
+      - operator: LE
+        left_operand: "{{USER_GPU}}"
+        right_operand: "{{K8_GPU}}"
+        assert_message: "GPU value {{USER_GPU}} too high for GPU"
+      - operator: GE
+        left_operand: "{{USER_GPU}}"
+        right_operand: "0"
+        assert_message: "GPU value {{USER_GPU}} cannot be negative"
+      default_storage:
+      - operator: LT
+        left_operand: "{{USER_STORAGE}}"
+        right_operand: "{{K8_STORAGE}}"
+        assert_message: "Value {{USER_STORAGE}} too high for storage"
+      - operator: GT
+        left_operand: "{{USER_STORAGE}}"
+        right_operand: "0"
+        assert_message: "Value {{USER_STORAGE}} needs to be greater than 0 for storage"
+
+    ## RBAC role definitions. Policies are product defaults.
+    ## Override external_roles per deployment to map IDP groups.
+    ##
+    roles:
+      osmo-admin:
+        description: "Admin role — full access to all resources"
+        policies:
+        - effect: Allow
+          actions: ["*:*"]
+          resources: ["*"]
+        external_roles: [osmo-admin]
+      osmo-user:
+        description: "User role — standard workflow and data operations"
+        policies:
+        - effect: Allow
+          actions:
+          - "app:*"
+          - "auth:Token"
+          - "credentials:*"
+          - "dataset:*"
+          - "pool:List"
+          - "profile:Read"
+          - "profile:Update"
+          - "resources:Read"
+          - "user:List"
+          - "workflow:Cancel"
+          - "workflow:Create"
+          - "workflow:Delete"
+          - "workflow:Exec"
+          - "workflow:List"
+          - "workflow:PortForward"
+          - "workflow:Read"
+          - "workflow:Rsync"
+          - "workflow:Update"
+          resources: ["*"]
+        external_roles: [osmo-user]
+      osmo-default:
+        description: "Default role — login, profile, health check"
+        policies:
+        - effect: Allow
+          actions:
+          - "auth:Login"
+          - "auth:Refresh"
+          - "auth:Token"
+          - "profile:*"
+          - "system:Health"
+          resources: ["*"]
+        external_roles: []
+      osmo-ctrl:
+        description: "Controller role — internal container communication"
+        policies:
+        - effect: Allow
+          actions: ["internal:Logger", "internal:Router"]
+          resources: ["*"]
+        external_roles: [osmo-ctrl]
+      osmo-backend:
+        description: "Backend role — internal operator communication"
+        policies:
+        - effect: Allow
+          actions: ["internal:Operator", "config:Read", "pool:List"]
+          resources: ["*"]
+        external_roles: [osmo-backend]
+
+    ## Backend cluster definitions. The "default" backend is created by
+    ## configure_app() on first deploy — include it here so ConfigMap mode
+    ## serves it from memory.
+    ##
+    backends:
+      default:
+        description: "Default backend"
+        scheduler_settings:
+          scheduler_type: kai
+          scheduler_name: kai-scheduler
+          scheduler_timeout: 30
+
+    ## Pool definitions. The "default" pool references the "default" backend.
+    ##
+    pools:
+      default:
+        description: "Default pool"
+        backend: default
+        default_platform: default
+        common_pod_template:
+          - default_ctrl
+          - default_user
+        common_resource_validations:
+          - default_cpu
+          - default_memory
+          - default_storage
+          - default_gpu
+        common_default_variables:
+          USER_CPU: 1
+          USER_GPU: 0
+          USER_MEMORY: "1Gi"
+          USER_STORAGE: "1Gi"
+        platforms:
+          default: {}
+
+    ## Backend test definitions.
+    ##
+    backendTests: {}
+
+    ## Group templates.
+    ##
+    groupTemplates: {}
+
+    ## K8s Secrets to mount into the service pods.
+    ## Each entry generates a volume + volumeMount at /etc/osmo/secrets/<secretName>/.
+    ## The Python config loader resolves secretName references in configs at runtime.
+    ##
+    ## Example:
+    ##   secretRefs:
+    ##   - secretName: my-bucket-cred        # mounts all keys
+    ##   - secretName: imagepullsecret       # mounts all keys
+    ##
+    secretRefs: []
 
   ## Redis cache service configuration
   ## Set enabled to false if using an external Redis deployment
@@ -380,6 +810,22 @@ services:
     ##
     initContainers: []
 
+    ## Startup probe — runs progress_check until the delayed job monitor
+    ## has reported progress at least once. failureThreshold * periodSeconds
+    ## (default 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "30"
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
+
     ## Node selector constraints for delayed job monitor pod scheduling
     ##
     nodeSelector: {}
@@ -472,6 +918,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the worker service
     ##
     imageName: worker
@@ -487,6 +937,22 @@ services:
     ## Init containers for worker
     ##
     initContainers: []
+
+    ## Startup probe — runs progress_check until the worker has reported
+    ## progress at least once. failureThreshold * periodSeconds (default
+    ## 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "300"
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for worker pod scheduling
     ##
@@ -583,6 +1049,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the API service
     ##
     imageName: service
@@ -599,8 +1069,8 @@ services:
     ##
     initContainers: []
 
-    ## Hostname on which the ingress is served
-    ## Leave empty to use the default cluster hostname
+    ## External DNS hostname for the API service (passed as `--service_hostname`).
+    ## When empty, falls back to global.hostname.
     ##
     hostname: ""
 
@@ -669,46 +1139,6 @@ services:
       ##
       logout_endpoint: ""
 
-    ## Ingress configuration for external access to the API service
-    ##
-    ingress:
-      ## Enable ingress for external access
-      ##
-      enabled: true
-
-      ## URL path prefix for all ingress rules
-      ##
-      prefix: /
-
-      ## Ingress controller class to use for routing traffic
-      ##
-      ingressClass: nginx
-
-      ## AWS Application Load Balancer (ALB) specific annotations
-      ##
-      albAnnotations:
-        ## Enable ALB-specific annotations in the ingress
-        ##
-        enabled: false
-
-        ## ARN of the SSL certificate for HTTPS traffic
-        ##
-        sslCertArn: arn:aws:acm:us-west-2:XXXXXXXXX:certificate/YYYYYYYY
-
-      ## Enable SSL/TLS encryption for the ingress
-      ##
-      sslEnabled: true
-
-      ## Name of the Kubernetes secret containing SSL/TLS certificates
-      ##
-      sslSecret: osmo-tls
-
-      ## Additional custom annotations for the ingress resource
-      ##
-      annotations: {}
-      # nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      # alb.ingress.kubernetes.io/target-type: ip
-
     ## Liveness probe configuration for the API service
     ##
     livenessProbe:
@@ -726,6 +1156,20 @@ services:
       ## How often to perform the probe
       ##
       periodSeconds: 45
+
+    ## Startup probe — kubelet waits up to failureThreshold * periodSeconds
+    ## (default 24 * 5 = 120s) for the API service to bind its TLS listener
+    ## after configmap/secret loads + task-metric registration. Once the
+    ## first probe succeeds, the startup phase ends and liveness takes over.
+    ##
+    startupProbe:
+      httpGet:
+        port: 8000
+        path: /api/version
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 5
 
     ## Node selector constraints for API service pod scheduling
     ##
@@ -795,14 +1239,172 @@ services:
     ##
     serviceAccountName: ""
 
-    ## Per-service Envoy proxy configuration overrides
-    ## These settings override the global sidecars.envoy configuration for this service only
-    ## Any field from sidecars.envoy can be specified here to override the global default
+
+  ## Router service configuration
+  ##
+  router:
+    ## Horizontal Pod Autoscaler (HPA) configuration
     ##
-    envoy: {}
-    # maxRequests: 200
-    # routes: [...]
-    # skipAuthPaths: [...]
+    scaling:
+      ## Minimum number of replicas when scaling is enabled
+      ##
+      minReplicas: 3
+
+      ## Maximum number of replicas when scaling is enabled
+      ##
+      maxReplicas: 5
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      memoryTarget: 80
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
+    ## Docker image name for the router service (without registry or tag)
+    ##
+    imageName: router
+
+    ## Override the router image tag independently from global.osmoImageTag.
+    ## Leave empty to use global.osmoImageTag. Useful for canary-deploying
+    ## a new router image without bumping the rest of the service chart.
+    ##
+    imageTag: ""
+
+    ## Kubernetes image pull policy for the router service
+    ## Options: Always, IfNotPresent, Never
+    ##
+    imagePullPolicy: Always
+
+    ## Kubernetes service name for the router service
+    ##
+    serviceName: osmo-router
+
+    ## Init containers for router service
+    ##
+    initContainers: []
+
+    ## External hostname on which the router is served (e.g. staging.osmo.nvidia.com).
+    ## Used by the router to extract a session key from the `Host` / `X-Forwarded-Host`
+    ## header — requests to `<key>.<hostname>` resolve to session `<key>`. Required for
+    ## subdomain-based session routing (webserver port-forwarding); otherwise the binary
+    ## falls back to its default of "localhost", which only matches `*.localhost`.
+    ## When empty, falls back to global.hostname; if that is also empty the chart omits
+    ## the `--hostname` flag and the binary's default applies.
+    ##
+    hostname: ""
+
+    ## Enable webserver functionality for wildcard subdomain support
+    ##
+    webserverEnabled: false
+
+    ## Additional command line arguments to pass to the router service
+    ##
+    extraArgs: []
+    # - "--debug"
+    # - "--config=/path/to/config"
+
+    ## Service account name override for the router service.
+    ## When empty, the chart-wide global.serviceAccountName is used.
+    ##
+    serviceAccountName: ""
+
+    ## Extra labels/annotations applied to the router pod.
+    ##
+    extraPodLabels: {}
+    extraPodAnnotations: {}
+
+    ## Extra container env vars. List of {name, value} or {name, valueFrom}.
+    ##
+    extraEnvs: []
+
+    ## Extra named container ports.
+    ##
+    extraPorts: []
+
+    ## Extra pod volumes and container volumeMounts.
+    ##
+    extraVolumes: []
+    extraVolumeMounts: []
+
+    ## Extra sidecar containers for the router pod.
+    ##
+    extraContainers: []
+
+    ## Host aliases for custom DNS resolution within the router pods
+    ##
+    hostAliases: []
+    # - ip: "192.168.1.100"
+    #   hostnames:
+    #   - "example.local"
+
+    ## Node selector constraints for router pod scheduling
+    ## Leave empty to allow scheduling on any node
+    ##
+    nodeSelector: {}
+    # kubernetes.io/os: linux
+    # node-type: cpu
+
+    ## Tolerations for pod scheduling on tainted nodes
+    ## Leave empty to use default tolerations
+    ##
+    tolerations: []
+    # - key: "node-type"
+    #   operator: "Equal"
+    #   value: "cpu"
+    #   effect: "NoSchedule"
+
+    ## Topology spread constraints to distribute pods across nodes/zones
+    ##
+    topologySpreadConstraints:
+    ## Spread pods across different availability zones
+    ##
+    - topologyKey: topology.kubernetes.io/zone
+      maxSkew: 1
+      whenUnsatisfiable: ScheduleAnyway
+
+    ## Resource limits and requests for the router container
+    ##
+    resources: {}
+    # limits:
+    #   cpu: 1000m
+    #   memory: 1Gi
+    # requests:
+    #   cpu: 500m
+    #   memory: 512Mi
+
+    ## Health check probes for the router container
+    ##
+    livenessProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      failureThreshold: 2
+      periodSeconds: 5
+      timeoutSeconds: 30
+
+    startupProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 3
+      initialDelaySeconds: 30
+
+    readinessProbe:
+      httpGet:
+        port: 8000
+        path: /api/router/version
+      periodSeconds: 5
+      failureThreshold: 2
+      timeoutSeconds: 30
+
 
   ## Logger service configuration for log collection and processing
   ##
@@ -825,6 +1427,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the logger service
     ##
     imageName: logger
@@ -840,6 +1446,24 @@ services:
     ## Init containers for logger service
     ##
     initContainers: []
+
+    ## Startup probe — runs progress_check until the logger has reported
+    ## progress at least once. failureThreshold * periodSeconds (default
+    ## 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "60"
+        - --progress_file
+        - /var/run/osmo/last_progress
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for logger service pod scheduling
     ##
@@ -939,6 +1563,10 @@ services:
       ##
       hpaCpuTarget: 80
 
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     ## Docker image name for the agent service
     ##
     imageName: agent
@@ -954,6 +1582,24 @@ services:
     ## Init containers for agent service
     ##
     initContainers: []
+
+    ## Startup probe — runs progress_check until the agent has reported
+    ## progress at least once. failureThreshold * periodSeconds (default
+    ## 24 * 5 = 120s) is how long the kubelet waits before declaring
+    ## CrashLoopBackOff.
+    ##
+    startupProbe:
+      exec:
+        command:
+        - progress_check
+        - --progress_interval
+        - "60"
+        - --progress_file
+        - /var/run/osmo/last_progress
+      failureThreshold: 24
+      periodSeconds: 5
+      timeoutSeconds: 15
+      initialDelaySeconds: 10
 
     ## Node selector constraints for agent service pod scheduling
     ##
@@ -981,7 +1627,7 @@ services:
       ## Resource limits (maximum allocation)
       ##
       limits:
-        memory: "500Mi"
+        memory: "1Gi"
 
     ## Tolerations for agent service pod scheduling on tainted nodes
     ##
@@ -1032,583 +1678,203 @@ services:
     # maxRequests: 100
     # routes: [...]
 
-  ## Message worker service configuration for processing backend messages
-  ##
-  messageWorker:
-    ## Horizontal Pod Autoscaler (HPA) configuration for the message worker service
-    ##
-    scaling:
-      ## Minimum number of message worker replicas
-      ##
-      minReplicas: 1
-
-      ## Maximum number of message worker replicas when scaling
-      ##
-      maxReplicas: 3
-
-      ## Target CPU utilization percentage for HPA scaling
-      ##
-      hpaMemoryTarget: 80
-      ## Target CPU utilization percentage for HPA scaling
-      ##
-      hpaCpuTarget: 80
-
-    ## Docker image name for the message worker service
-    ##
-    imageName: message-worker
-
-    ## Kubernetes image pull policy for the message worker service
-    ##
-    imagePullPolicy: Always
-
-    ## Kubernetes service name for the message worker service
-    ##
-    serviceName: osmo-message-worker
-
-    ## Init containers for message worker service
-    ##
-    initContainers: []
-
-    ## Host aliases for custom DNS resolution within the message worker pods
-    ##
-    hostAliases: []
-    # - ip: "192.168.1.100"
-    #   hostnames:
-    #   - "example.local"
-
-    ## Node selector constraints for message worker pod scheduling
-    ##
-    nodeSelector: {}
-    # kubernetes.io/os: linux
-    # node-type: cpu
-
-    ## Topology spread constraints to distribute message worker pods across zones
-    ##
-    topologySpreadConstraints:
-    ## Spread message worker pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
-    ## Progress file path for liveness/startup probes
-    ##
-    progressFile: /tmp/osmo/service/last_progress_message_worker
-
-    ## Frequency for writing progress timestamps while processing tasks
-    ##
-    progressIterFrequency: 15s
-
-    ## Resource limits and requests for the message worker container
-    ##
-    resources: {}
-    # limits:
-    #   cpu: 1000m
-    #   memory: 1Gi
-    # requests:
-    #   cpu: 500m
-    #   memory: 512Mi
-
-    ## Tolerations for message worker pod scheduling on tainted nodes
-    ##
-    tolerations: []
-    # - key: "node-type"
-    #   operator: "Equal"
-    #   value: "cpu"
-    #   effect: "NoSchedule"
-
-    ## Extra pod annotations for the message worker service
-    ##
-    extraPodAnnotations: {}
-
-    ## Extra environment variables for the message worker service container
-    ##
-    extraEnv: []
-
-    ## Extra command line arguments for the message worker service
-    ##
-    extraArgs: []
-
-    ## Extra volume mounts for the message worker service container
-    ##
-    extraVolumeMounts: []
-
-    ## Extra volumes for the message worker service pod
-    ##
-    extraVolumes: []
-
-    ## Extra sidecar containers for the message worker service pod
-    ##
-    extraSidecars: []
-
-    ## Service account name for the message worker service
-    ##
-    serviceAccountName: ""
-
-  ## Operator service configuration for handling backend operations
-  ##
-  operator:
-    ## Horizontal Pod Autoscaler (HPA) configuration for the operator service
-    ##
-    scaling:
-      ## Minimum number of operator service replicas
-      ##
-      minReplicas: 1
-
-      ## Maximum number of operator service replicas when scaling
-      ##
-      maxReplicas: 3
-
-      ## Target Memory utilization percentage for HPA scaling
-      ##
-      hpaMemoryTarget: 80
-      ## Target CPU utilization percentage for HPA scaling
-      ##
-      hpaCpuTarget: 80
-
-    ## Docker image name for the operator service
-    ##
-    imageName: operator-service
-
-    ## Kubernetes image pull policy for the operator service
-    ##
-    imagePullPolicy: Always
-
-    ## Kubernetes service name for the operator service
-    ##
-    serviceName: osmo-operator
-
-    ## Init containers for operator service
-    ##
-    initContainers: []
-
-    ## Host aliases for custom DNS resolution within the operator pods
-    ##
-    hostAliases: []
-    # - ip: "192.168.1.100"
-    #   hostnames:
-    #   - "example.local"
-
-    ## Node selector constraints for operator service pod scheduling
-    ##
-    nodeSelector: {}
-    # kubernetes.io/os: linux
-    # node-type: cpu
-
-    ## Topology spread constraints to distribute operator service pods across zones
-    ##
-    topologySpreadConstraints:
-    ## Spread operator service pods across different availability zones
-    ##
-    - topologyKey: topology.kubernetes.io/zone
-      maxSkew: 1
-      whenUnsatisfiable: ScheduleAnyway
-
-    ## Progress directory for writing progress timestamps
-    ##
-    progressDir: /tmp/osmo/service/operator
-
-    ## Progress frequency in seconds for periodic progress reporting
-    ##
-    progressFrequencySec: 15
-
-    ## Resource limits and requests for the operator service container
-    ##
-    resources:
-      ## Resource requests (guaranteed allocation)
-      ##
-      requests:
-        cpu: "500m"
-        memory: "512Mi"
-      ## Resource limits (maximum allocation)
-      ##
-      limits:
-        memory: "1Gi"
-
-    ## Tolerations for operator service pod scheduling on tainted nodes
-    ##
-    tolerations: []
-    # - key: "node-type"
-    #   operator: "Equal"
-    #   value: "cpu"
-    #   effect: "NoSchedule"
-
-    ## Extra pod annotations for the operator service
-    ##
-    extraPodAnnotations: {}
-
-    ## Extra environment variables for the operator service container
-    ##
-    extraEnv: []
-
-    ## Extra command line arguments for the operator service
-    ##
-    extraArgs: []
-
-    ## Extra volume mounts for the operator service container
-    ##
-    extraVolumeMounts: []
-
-    ## Extra volumes for the operator service pod
-    ##
-    extraVolumes: []
-
-    ## Extra sidecar containers for the operator service pod
-    ##
-    extraSidecars: []
-
-    ## Service account name for the operator service
-    ##
-    serviceAccountName: ""
-
-    ## Per-service Envoy proxy configuration overrides
-    ## These settings override the global sidecars.envoy configuration for this service only
-    ## Operator backend is gRPC and requires HTTP/2 for the service cluster
-    ##
-    envoy:
-      service:
-        useHttp2: true
-      ## JWT provider overrides for the operator service
-      ## The operator runs in a separate pod, so it must fetch JWKS from the
-      ## osmo-service Kubernetes service (osmoauth cluster) instead of localhost.
-      ##
-      jwt:
-        providers:
-        ## External OAuth provider configuration (provider 1)
-        ##
-        - issuer: ""
-          audience: ""
-          jwks_uri: ""
-          user_claim: unique_name
-          cluster: idp
-        ## External OAuth provider configuration (provider 2)
-        ##
-        - issuer: ""
-          audience: ""
-          jwks_uri: ""
-          user_claim: preferred_username
-          cluster: idp
-        ## Internal Osmo JWT provider configuration
-        ##
-        - issuer: osmo
-          audience: osmo
-          jwks_uri: http://osmo-service/api/auth/keys
-          user_claim: unique_name
-          cluster: osmoauth
-
 ## PodMonitor configuration (requires Prometheus Operator / monitoring.coreos.com CRD)
 ## Set enabled: false if the PodMonitor CRD is not installed in your cluster.
 ##
 podMonitor:
-  enabled: true
+  enabled: false
 
-## Configuration for service sidecar containers
+## Global configuration for extra ConfigMaps
+## These ConfigMaps can be used for custom configurations
 ##
-sidecars:
+extraConfigMaps: []
+# - name: custom-config
+#   data:
+#     config.yaml: |
+#       key: value
 
-  ## Global Envoy proxy configuration shared across all services
-  ## Applied to: osmo-service, osmo-logger, osmo-agent
-  ## To override these settings per-service, use services.<service>.envoy
-  ## Example: services.service.envoy.maxRequests to override maxRequests for API service only
+## ============================================================================
+## Gateway — standalone Envoy + OAuth2 Proxy + Authz as separate Deployments.
+##
+## When gateway.enabled is true, the chart deploys an independent Envoy proxy
+## tier that routes traffic to all upstream services (osmo-service, osmo-router,
+## osmo-ui). Authentication (OAuth2), authorization (Authz), and rate limiting
+## are handled at the gateway level rather than per-service.
+##
+## Envoy uses filesystem-based dynamic configuration (LDS/CDS) so that
+## listener and cluster changes are picked up automatically when the ConfigMap
+## is updated — no pod restart required.
+## ============================================================================
+gateway:
+  ## Name prefix for all gateway K8s resources (e.g. osmo-gateway-envoy)
   ##
-  envoy:
-    ## List of IP addresses to block
-    ##
-    blockedIPs: []
+  name: osmo-gateway
 
-    ## Enable Envoy proxy sidecar container
+  ## -----------------------------------------------------------------------
+  ## Gateway Envoy Proxy
+  ## -----------------------------------------------------------------------
+  envoy:
+    ## Enable Envoy deployment
     ##
     enabled: true
 
-    livenessProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 10
-      periodSeconds: 10
-      timeoutSeconds: 3
-
-    readinessProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 5
-      periodSeconds: 5
-      timeoutSeconds: 3
-
-    startupProbe:
-      httpGet:
-        path: /ready
-        port: 9901
-      initialDelaySeconds: 15
-      periodSeconds: 5
-      timeoutSeconds: 3
-
-    ## IDP (Identity Provider) configuration for JWT JWKS fetching
+    ## Horizontal Pod Autoscaler (HPA) configuration for Envoy
     ##
-    idp:
-      ## Hostname for the identity provider (e.g., login.microsoftonline.com)
+    scaling:
+      ## Minimum number of Envoy replicas
       ##
-      host: ""
-    ## Paths that are allowed to be accessed without authentication in the cluster
-    ##
-    inClusterPaths:
-      ## Enable in-cluster routing for specific paths
+      minReplicas: 2
+
+      ## Maximum number of Envoy replicas when scaling
       ##
-      enabled: false
+      maxReplicas: 6
 
-      ## Port for in-cluster communication
+      ## Target CPU utilization percentage for HPA scaling
       ##
-      port: 8081
+      hpaCpuTarget: 80
 
-      ## List of paths that are allowed to be accessed without authentication in the cluster
+      ## Target memory utilization percentage for HPA scaling
       ##
-      paths:
-      - /api/resources
-      - /api/configs/pool
-      - /api/bucket/list_dataset
-      - /api/workflow
-      - /api/router/version
-      - /api/task
+      hpaMemoryTarget: 80
 
-    ## Maximum number of concurrent requests Envoy will handle
-    ##
-    maxRequests: 100
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
 
-    ## Default service name for Envoy configuration
-    ##
-    serviceName: osmo
-
-    ## List of paths that are allowed to be accessed without authentication to the public
-    ##
-    skipAuthPaths:
-    - /api/version
-    - /api/auth/login
-    - /api/auth/keys
-    - /api/auth/refresh_token
-    - /api/auth/jwt/refresh_token
-    - /api/auth/jwt/access_token
-    - /client/version
-
-    ## Advanced routing configuration for Envoy proxy
-    ## Contains detailed regex-based routing rules for various API endpoints
-    ## including workflow logs, agent backends, pool management, data operations,
-    ## and client downloads. Each route specifies clusters, timeouts, and
-    ## rate limiting configurations as needed.
-    ##
-    routes:
-    - match:
-        safe_regex:
-          regex: "/api/workflow/[^/]+/logs"
-      route:
-        cluster: service
-        timeout: 0s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow_artifact
-              descriptor_value: workflow_artifact_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "/api/agent/worker/backend/[^/]+"
-      route:
-        cluster: service
-        timeout: 0s
-    - match:
-        safe_regex:
-          regex: "/api/agent/listener/[^/]+/backend/[^/]+"
-      route:
-        cluster: service
-        timeout: 0s
-    - match:
-        safe_regex:
-          regex: "^/api/pool(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "pool_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: pool
-              descriptor_value: pool_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "^/api/bucket(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "/api/workflow/[^/]+/spec"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow_artifact
-              descriptor_value: workflow_artifact_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: OSMO_USER
-    - match:
-        safe_regex:
-          regex: "^/api/workflow(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "workflow_artifact_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: workflow
-              descriptor_value: workflow_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "^/api/task(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "task_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: task
-              descriptor_value: task_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        safe_regex:
-          regex: "^/api/resources(/.*)?$"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "resource_path_limit"
-        - actions:
-          - generic_key:
-              descriptor_key: resource
-              descriptor_value: resource_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: "/client"
-      route:
-        cluster: service
-        timeout: 0s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "client_path_limit"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: "/api/configs"
-      route:
-        cluster: service
-        timeout: 60s
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-    - match:
-        prefix: /api/auth/jwt/refresh_token
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "refresh_token_path_limit"
-    - match:
-        prefix: /api/version
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - generic_key:
-              descriptor_key: version_path
-              descriptor_value: version_path_user_limit
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "version_path_limit"
-    - match:
-        prefix: "/"
-      route:
-        cluster: service
-        rate_limits:
-        - actions:
-          - request_headers:
-              header_name: X-OSMO-USER
-              descriptor_key: "OSMO_USER"
-        - actions:
-          - request_headers:
-              header_name: ":path"
-              descriptor_key: "PATH"
-
-    ## Envoy proxy container image
+    ## Envoy container image
     ##
     image: "envoyproxy/envoy:v1.29.0"
-
-    ## Init container image for setup tasks
-    ##
-    initImage: busybox
 
     ## Image pull policy for Envoy containers
     ##
     imagePullPolicy: IfNotPresent
+
+    ## Envoy log level
+    ##
+    logLevel: info
+
+    ## Listener port for incoming traffic
+    ##
+    listenerPort: 8080
+
+    ## Maximum size of all HTTP headers in KB
+    ##
+    maxHeadersSizeKb: 128
+
+    ## List of IP addresses to block at the gateway
+    ##
+    blockedIPs: []
+
+    ## External hostname (used for the Ingress `host:` rule, TLS hosts list, and
+    ## OAuth2 redirect URL). When empty, falls back to global.hostname.
+    ##
+    hostname: ""
+
+    ## Service account name for the Envoy pods
+    ##
+    serviceAccountName: ""
+
+    ## Default identity headers for unauthenticated requests.
+    ##
+    ## In minimal / demo deployments where oauth2Proxy and authz are both
+    ## disabled, no upstream sets the x-osmo-{user,roles,allowed-pools}
+    ## headers — the API treats every UI request as anonymous and returns
+    ## empty role/pool lists, so the UI shows blank pages.
+    ##
+    ## Setting these renders Envoy `request_headers_to_add` rules at the
+    ## gateway virtual host with `append_action: ADD_IF_ABSENT`. The chart
+    ## also conditionally drops these headers from the gateway's
+    ## `internal_only_headers` and Lua strip filter when oauth2Proxy and
+    ## authz are both disabled, so client-supplied identity (e.g. dev-mode
+    ## CLI's `x-osmo-user: <name>`) flows through; the default is only
+    ## injected when the client didn't set its own.
+    ##
+    ## SECURITY: in this mode the gateway TRUSTS the client's identity
+    ## headers. Any caller with network access can claim any user, any
+    ## role, and any pool. Only enable on clusters whose gateway is not
+    ## reachable from untrusted networks.
+    ##
+    ## In production (oauth2Proxy or authz enabled), client identity
+    ## headers are stripped at both the HCM and Lua-filter layers, so
+    ## defaultIdentity is irrelevant — authz/JWT is the canonical source.
+    ## Leave all three empty in that mode.
+    ##
+    defaultIdentity:
+      user: ""           # e.g. "admin"
+      roles: ""          # comma-separated, e.g. "osmo-admin"
+      allowedPools: ""   # comma-separated, e.g. "default"
+
+    ## Kubernetes Service configuration for the gateway.
+    ##
+    ## Two modes for external access:
+    ##   NLB (default): type=LoadBalancer — each deployment gets its own NLB
+    ##   ALB (shared):  type=ClusterIP + ingress.enabled=true — multiple
+    ##                  namespaces share a single ALB via group.name
+    ##
+    service:
+      ## Service type:
+      ##   LoadBalancer — direct NLB access (default, one LB per deployment)
+      ##   ClusterIP    — use with gateway.envoy.ingress for shared ALB
+      ##   NodePort     — use with KIND port mapping for local development
+      ##
+      type: LoadBalancer
+
+      ## HTTPS port for NLB TLS termination.
+      ## The NLB terminates TLS on this port and forwards plaintext to Envoy.
+      ## Set to null to expose only port 80 (e.g. for local development).
+      ##
+      httpsPort: 443
+
+      ## Fixed NodePort for the HTTP port (only used when type=NodePort).
+      ## KIND maps this to a host port for local access.
+      ##
+      nodePort: null
+
+      ## Annotations for the Service (e.g. AWS NLB annotations)
+      ##
+      annotations: {}
+
+    ## Ingress configuration for shared ALB mode.
+    ## Enable this and set service.type=ClusterIP when multiple namespaces
+    ## need to share a single load balancer (e.g. ALB with group.name).
+    ##
+    ingress:
+      ## Enable ALB Ingress (set service.type to ClusterIP when using this)
+      ##
+      enabled: false
+
+      ## Ingress controller class
+      ##
+      ingressClass: alb
+
+      ## AWS ALB-specific annotations
+      ##
+      albAnnotations:
+        enabled: false
+        groupName: osmo
+        groupOrder: "10"
+        sslCertArn: ""
+
+      ## Enable TLS on the Ingress
+      ##
+      sslEnabled: false
+
+      ## Secret name for TLS certificates
+      ##
+      sslSecret: osmo-tls
+
+      ## Additional annotations
+      ##
+      annotations: {}
+
+    ## SSL/TLS configuration for the Envoy listener (downstream).
+    ## The Secret must contain tls.crt and tls.key entries (kubernetes.io/tls type).
+    ## Mounted as a directory (not subPath) so Kubernetes symlink rotation
+    ## propagates cert renewals without a pod restart.
+    ##
+    ssl:
+      enabled: false
+      secretName: envoy-ssl-cert
 
     ## Security context for Envoy containers
     ##
@@ -1619,367 +1885,291 @@ sidecars:
       runAsNonRoot: true
       runAsUser: 1001
 
-
-    ## Volume mounts for Envoy containers
-    ##
-    extraVolumeMounts: []
-
-    ## Listener port for Envoy proxy
-    ##
-    listenerPort: 8080
-
-    ## Maximum size of all http headers in kb
-    ##
-    maxHeadersSizeKb: 128
-
-    ## Log level for Envoy proxy
-    ##
-    logLevel: info
-
     ## Resource limits and requests for Envoy containers
     ##
     resources:
       requests:
-        cpu: "100m"
-        memory: "64Mi"
-      limits:
+        cpu: "200m"
         memory: "128Mi"
+      limits:
+        memory: "256Mi"
 
-    ## SSL/TLS configuration
+    ## Health probes for Envoy containers
     ##
-    ssl:
-      enabled: false
-      cert:
-        secretName: envoy-ssl-cert
-        secretKey: cert
-      privateKey:
-        secretName: envoy-ssl-cert
-        secretKey: privateKey
+    livenessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 3
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 5
+      periodSeconds: 5
+      timeoutSeconds: 3
+    startupProbe:
+      httpGet:
+        path: /ready
+        port: 9901
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 3
 
-    ## Service configuration for Envoy proxy
+    ## Node selector for Envoy pods
     ##
-    service:
-      ## Port on which Envoy proxy listens
-      ##
-      port: 8000
+    nodeSelector: {}
 
-      ## Hostname for the Envoy service (leave empty for default)
-      ##
-      hostname: ""
-
-      ## Address for the main service backend
-      ##
-      address: 127.0.0.1
-
-    ## Osmo authentication service configuration (for JWKS fetch from api-service)
+    ## Tolerations for Envoy pods
     ##
-    osmoauth:
-      enabled: true
-      address: osmo-service
-      port: 80
-      hostname: ""
+    tolerations: []
 
-    ## JWT (JSON Web Token) authentication configuration
-    ##
-    jwt:
-      ## HTTP header name that contains the user information
-      ##
-      user_header: x-osmo-user
-
-      ## List of JWT providers for token validation
-      ##
-      ## An example when using Keycloak is:
-      ##
-      ## providers:
-      ## - issuer: https://auth-name.osmo.nvidia.com/realms/osmo
-      ##   audience: osmo-device
-      ##   jwks_uri: https://auth-name.osmo.nvidia.com/realms/osmo/protocol/openid-connect/certs
-      ##   user_claim: preferred_username
-      ##   cluster: idp
-      ##
-      ## An example when using Microsoft Azure AD is:
-      ##
-      ## providers:
-      ## - issuer: https://sts.windows.net/<id>/
-      ##   audience: <client-id>
-      ##   jwks_uri: https://login.microsoftonline.com/<id>/discovery/v2.0/keys
-      ##   user_claim: unique_name
-      ##   cluster: idp
-      providers:
-      ## External OAuth provider configuration (provider 1)
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: unique_name
-        cluster: idp
-      ## External OAuth provider configuration (provider 2)
-      ##
-      - issuer: ""
-        audience: ""
-        jwks_uri: ""
-        user_claim: preferred_username
-        cluster: idp
-      ## Internal Osmo JWT provider configuration
-      ##
-      - issuer: osmo
-        audience: osmo
-        jwks_uri: http://localhost:8000/api/auth/keys
-        user_claim: unique_name
-        cluster: service
-
-  ## OAuth2 Proxy sidecar configuration
-  ##
-  oauth2Proxy:
-    ## Enable OAuth2 Proxy sidecar container
-    ##
-    enabled: true
-
-    ## OAuth2 Proxy container image
-    ##
-    image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
-
-    ## Image pull policy
-    ##
-    imagePullPolicy: IfNotPresent
-
-    ## HTTP port for OAuth2 Proxy
-    ##
-    httpPort: 4180
-
-    ## Metrics port for OAuth2 Proxy
-    ##
-    metricsPort: 44180
-
-    ## OIDC provider type
-    ##
-    provider: oidc
-
-    ## OIDC issuer URL
-    ##
-    oidcIssuerUrl: ""
-
-    ## OAuth2 client ID
-    ##
-    clientId: ""
-
-    ## Cookie name for session management
-    ##
-    cookieName: _osmo_session
-
-    ## Whether to set the secure flag on cookies
-    ##
-    cookieSecure: true
-
-    ## Cookie domain (leave empty for default)
-    ##
-    cookieDomain: ""
-
-    ## Cookie expiration duration
-    ##
-    cookieExpire: 168h
-
-    ## Cookie refresh interval
-    ##
-    cookieRefresh: 1h
-
-    ## OAuth2 scopes to request
-    ##
-    scope: "openid email profile"
-
-    ## Pass the access token to upstream (disabled to reduce cookie size)
-    ##
-    passAccessToken: false
-
-    ## Use Redis (services.redis) as the session store instead of in-memory
-    ##
-    redisSessionStore: true
-
-    ## Use Kubernetes secrets for credentials
-    ##
-    useKubernetesSecrets: false
-
-    ## Kubernetes secret configuration (when useKubernetesSecrets is true)
-    ##
-    secretName: oauth2-proxy-secrets
-    clientSecretKey: client_secret
-    cookieSecretKey: cookie_secret
-
-    ## Secret file paths (when using vault or other secret managers)
-    ##
-    secretPaths:
-      clientSecret: /etc/oauth2-proxy/client-secret
-      cookieSecret: /etc/oauth2-proxy/cookie-secret
-
-    ## Additional arguments passed to oauth2-proxy
-    ##
-    extraArgs: []
-
-    ## Additional volume mounts
+    ## Extra volume mounts for the Envoy container.
+    ## Use this for namespace-local Secrets or ConfigMaps required by custom
+    ## gateway routes.
     ##
     extraVolumeMounts: []
 
-    ## Security context for OAuth2 Proxy container
+    ## Extra volumes for the Envoy pod.
     ##
+    extraVolumes: []
+
+    ## Identity Provider for JWKS discovery (e.g. login.microsoftonline.com)
+    ##
+    idp:
+      host: ""
+
+    ## Internal JWKS cluster — used for the "osmo" JWT issuer.
+    ## Points to the osmo-service K8s Service so Envoy can fetch the JWKS.
+    ##
+    internalJwks:
+      enabled: true
+      cluster: osmo-service-jwks
+      host: ""
+      port: ""
+
+    ## JWT authentication configuration
+    ##
+    jwt:
+      user_header: x-osmo-user
+      providers: []
+
+    ## Paths that bypass authentication (served without OAuth2 or JWT checks)
+    ##
+    skipAuthPaths:
+    - /api/version
+    - /api/auth/login
+    - /api/auth/keys
+    - /api/auth/refresh_token
+    - /api/auth/jwt/refresh_token
+    - /api/auth/jwt/access_token
+    - /api/router/version
+    - /client/version
+
+    ## Additional paths that bypass authentication, appended to skipAuthPaths.
+    ##
+    extraSkipAuthPaths: []
+
+    ## Route configuration for the osmo-router upstream.
+    ## Uses RING_HASH lb_policy with a cookie for session affinity.
+    ##
+    routerRoute:
+      prefix: /api/router
+      timeout: 0s
+      cookie:
+        name: _osmo_router_affinity
+        ttl: 60s
+
+    ## Advanced service routes for the osmo-service upstream.
+    ## Each entry is a standard Envoy route YAML block (match + route).
+    ## When empty, default routes for /api/ and /client/ are used.
+    ##
+    serviceRoutes: []
+
+    ## Extra routes inserted before the default osmo-service and osmo-ui routes.
+    ## Each item is rendered as an Envoy route. Use this for narrow external
+    ## upstream paths such as artifact download routes.
+    ##
+    extraRoutes: []
+
+    ## Extra clusters appended to Envoy CDS. Each item is rendered as an Envoy
+    ## Cluster resource and can be targeted by extraRoutes.
+    ##
+    extraClusters: []
+
+    ## Circuit breaker — max concurrent requests to the osmo-service upstream
+    ##
+    maxRequests: 100
+
+  ## -----------------------------------------------------------------------
+  ## Upstream services — K8s Service DNS names that the gateway routes to.
+  ## Override with FQDN (e.g. osmo-service.ns.svc.cluster.local) when the
+  ## gateway is in a different namespace than the upstream services.
+  ## -----------------------------------------------------------------------
+  upstreams:
+    service:
+      enabled: true
+      host: osmo-service
+      port: 80
+    router:
+      enabled: true
+      host: osmo-router-headless
+      ## Port 8000 (not 80) because the headless service resolves to pod IPs
+      ## directly, and Envoy connects to the pod port, not the Service port.
+      port: 8000
+    ui:
+      enabled: true
+      host: osmo-ui
+      port: 80
+    agent:
+      enabled: true
+      host: osmo-agent
+      port: 80
+    logger:
+      enabled: true
+      host: osmo-logger
+      port: 80
+
+  ## -----------------------------------------------------------------------
+  ## Gateway OAuth2 Proxy — handles OIDC authentication flows.
+  ## Deployed as its own pod so it can be scaled and updated independently.
+  ## -----------------------------------------------------------------------
+  oauth2Proxy:
+    enabled: true
+
+    ## Horizontal Pod Autoscaler (HPA) configuration for OAuth2 Proxy
+    ##
+    scaling:
+      ## Minimum number of OAuth2 Proxy replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of OAuth2 Proxy replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
+    image: "quay.io/oauth2-proxy/oauth2-proxy:v7.14.2"
+    imagePullPolicy: IfNotPresent
+    httpPort: 4180
+    metricsPort: 44180
+    provider: oidc
+    oidcIssuerUrl: ""
+    clientId: ""
+    cookieName: _osmo_session
+    cookieSecure: true
+    cookieDomain: ""
+    cookieExpire: 168h
+    cookieRefresh: 1h
+    scope: "openid email profile"
+    passAccessToken: false
+    redisSessionStore: true
+    useKubernetesSecrets: false
+    secretName: oauth2-proxy-secrets
+    clientSecretKey: client_secret
+    cookieSecretKey: cookie_secret
+    secretPaths:
+      clientSecret: /etc/oauth2-proxy/client-secret
+      cookieSecret: /etc/oauth2-proxy/cookie-secret
+    extraArgs: []
+    ## Extra environment variables for the oauth2-proxy container. Useful for
+    ## passing credentials from Secrets — e.g. Redis password via
+    ## OAUTH2_PROXY_REDIS_PASSWORD when redisSessionStore is enabled.
+    extraEnv: []
+    redis:
+      serviceName: ""
+      port: 6379
+      tlsEnabled: true
+      dbNumber: 0
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ["ALL"]
       runAsNonRoot: true
       runAsUser: 1001
-
-    ## Resource limits and requests
-    ##
     resources:
       requests:
         cpu: "50m"
         memory: "64Mi"
       limits:
         memory: "128Mi"
-
-  ## Rate limiting service configuration
-  ##
-  rateLimit:
-    ## Enable rate limiting service
-    ##
-    enabled: true
-
-    ## Rate limiting service image
-    ##
-    image: envoyproxy/ratelimit:9d8d70a8 # 2022/08/16
-
-    ## Image pull policy for rate limiting service
-    ##
-    imagePullPolicy: IfNotPresent
-
-    ## Redis configuration for rate limit storage
-    ##
-    redis:
-      ## Redis service name for rate limit data storage
-      ##
-      serviceName: ""
-
-      ## Redis port for rate limit data storage
-      ##
-      port: 6379
-
-    ## ConfigMap name for rate limiting configuration
-    ##
-    configName: ratelimit-config
-
-    ## Service name for rate limiting service
-    ##
-    serviceName: ratelimit
-
-    ## Node selector constraints for rate limiting pod scheduling
-    ##
     nodeSelector: {}
-    # kubernetes.io/os: linux
-
-    ## Tolerations for rate limiting pod scheduling on tainted nodes
-    ##
     tolerations: []
-    # - key: "dedicated"
-    #   operator: "Equal"
-    #   value: "ratelimit"
-    #   effect: "NoSchedule"
+    extraPodAnnotations: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    serviceAccountName: ""
 
-    ## Resource limits and requests for rate limiting service
-    ##
-    resources:
-      ## Resource requests (guaranteed allocation)
-      ##
-      requests:
-        cpu: "0.1"
-        memory: "200Mi"
-      ## Resource limits (maximum allocation)
-      ##
-      limits:
-        memory: "200Mi"
-
-    ## HTTP port for rate limiting service
-    ##
-    httpPort: 8090
-
-    ## gRPC port for rate limiting service
-    ##
-    grpcPort: 8091
-
-    ## Debug port for rate limiting service
-    ##
-    debugPort: 6070
-
-  ## Authorization sidecar configuration (role-based access control)
-  ## Implements Envoy External Authorization API for PostgreSQL-backed RBAC
-  ##
+  ## -----------------------------------------------------------------------
+  ## Gateway Authz — gRPC authorization service evaluating semantic RBAC
+  ## policies against PostgreSQL. Uses the shared services.postgres config.
+  ## -----------------------------------------------------------------------
   authz:
-    ## Enable authorization sidecar
-    ##
     enabled: true
 
-    ## Authorization sidecar Docker image
+    ## Horizontal Pod Autoscaler (HPA) configuration for Authz
     ##
+    scaling:
+      ## Minimum number of Authz replicas
+      ##
+      minReplicas: 1
+
+      ## Maximum number of Authz replicas when scaling
+      ##
+      maxReplicas: 3
+
+      ## Target CPU utilization percentage for HPA scaling
+      ##
+      hpaCpuTarget: 80
+
+      ## Target memory utilization percentage for HPA scaling
+      ##
+      hpaMemoryTarget: 80
+
+      ## Additional custom metrics for HPA scaling (list of autoscaling/v2 metric specs)
+      ##
+      customMetrics: []
+
     imageName: "authz-sidecar"
-
-    ## Image pull policy for authorization sidecar
-    ##
+    ## Override the image tag for authz. Defaults to global.osmoImageTag.
+    imageTag: ""
     imagePullPolicy: Always
-
-    ## gRPC port for authorization service
-    ##
     grpcPort: 50052
-
-    ## Extra environment variables for the API service container
-    ##
     extraEnv: []
-
-    ## PostgreSQL connection pool configuration
-    ## Note: Host, port, database, user, and password are inherited from services.postgres
-    ##
     postgres:
-      ## PostgreSQL SSL mode (disable, prefer, require, verify-full)
-      ##
       sslMode: prefer
-
-      ## Maximum number of connections in the pool
-      ##
       maxConns: 10
-
-      ## Minimum number of connections in the pool
-      ##
       minConns: 2
-
-      ## Maximum lifetime of a connection in minutes
-      ##
       maxConnLifetimeMin: 5
-
-    ## Role cache configuration
-    ##
     cache:
-      ## Cache time-to-live (how long to cache role policies in seconds)
-      ##
       ttl: 300
-
-      ## Maximum number of role combinations to cache
-      ##
       maxSize: 1000
-
-    ## Resource limits and requests for authorization sidecar
-    ##
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 10001
     resources:
-      ## Resource requests (guaranteed allocation)
-      ##
       requests:
         cpu: 100m
         memory: 128Mi
-      ## Resource limits (maximum allocation)
-      ##
       limits:
         cpu: 500m
         memory: 256Mi
-
-    ## Liveness probe configuration
-    ##
     livenessProbe:
       grpc:
         port: 50052
@@ -1987,9 +2177,6 @@ sidecars:
       periodSeconds: 10
       timeoutSeconds: 3
       failureThreshold: 3
-
-    ## Readiness probe configuration
-    ##
     readinessProbe:
       grpc:
         port: 50052
@@ -1997,21 +2184,92 @@ sidecars:
       periodSeconds: 5
       timeoutSeconds: 3
       failureThreshold: 2
+    nodeSelector: {}
+    tolerations: []
+    extraPodAnnotations: {}
+    extraVolumeMounts: []
+    extraVolumes: []
+    serviceAccountName: ""
 
-    ## Security context for authorization sidecar
-    ##
+  ## -----------------------------------------------------------------------
+  ## Gateway Rate Limiting — Redis-backed rate limiting via Envoy's
+  ## ratelimit filter. Deploys a standalone ratelimit service pod.
+  ## -----------------------------------------------------------------------
+  rateLimit:
+    enabled: false
+    replicas: 1
+    image: envoyproxy/ratelimit:9d8d70a8
+    imagePullPolicy: IfNotPresent
+    grpcPort: 8091
+    httpPort: 8090
+
+    redis:
+      serviceName: ""
+      port: 6379
+      tlsEnabled: true
+
+    config:
+      domain: ratelimit
+      descriptors: []
+
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop: ["ALL"]
       runAsNonRoot: true
-      runAsUser: 10001
+      runAsUser: 1001
+    resources:
+      requests:
+        cpu: "0.1"
+        memory: "200Mi"
+      limits:
+        memory: "200Mi"
+    nodeSelector: {}
+    tolerations: []
 
-## Global configuration for extra ConfigMaps
-## These ConfigMaps can be used for custom configurations
-##
-extraConfigMaps: []
-# - name: custom-config
-#   data:
-#     config.yaml: |
-#       key: value
+  ## Restrict upstream pod ingress to the gateway Envoy. Requires a CNI
+  ## that enforces NetworkPolicy (Calico, Cilium, AWS VPC CNI with
+  ## enable-network-policy-controller=true).
+  networkPolicies:
+    enabled: false
+    upstreams:
+    - name: osmo-service
+      podSelector:
+        app: osmo-service
+      port: 8000
+    - name: osmo-router
+      podSelector:
+        app: osmo-router
+      port: 8000
+    - name: osmo-ui
+      podSelector:
+        app: osmo-ui
+      port: 8000
+
+  ## TLS for gateway -> upstream traffic. Default: each service mints an
+  ## ephemeral self-signed cert in-process; Envoy connects with TLS but does
+  ## not validate (encryption-only — identity is provided by NetworkPolicy /
+  ## RBAC). UI is excluded; stays HTTP.
+  ##
+  ## To use externally-provisioned certs, set upstreamCerts.<service> to the
+  ## name of an existing kubernetes.io/tls Secret containing tls.crt + tls.key.
+  ## To make Envoy validate against a CA, set caSecret to an existing Secret
+  ## containing ca.crt. How those Secrets get created (cert-manager, Vault
+  ## CSI, sealed-secrets, manual, etc.) is up to the operator — OSMO just
+  ## consumes them.
+  tls:
+    enabled: true
+
+    ## Per-upstream server certs. Empty string = mint ephemeral self-signed
+    ## in-process. Otherwise the named Secret is mounted at /etc/osmo/tls
+    ## and uvicorn loads tls.crt + tls.key from it.
+    upstreamCerts:
+      service: ""
+      router: ""
+      agent: ""
+      logger: ""
+
+    ## Optional CA bundle for Envoy upstream validation. When set, Envoy
+    ## validates upstream certs against ca.crt from this Secret. When empty,
+    ## TLS is encryption-only (no validation).
+    caSecret: ""

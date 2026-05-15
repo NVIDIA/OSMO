@@ -143,6 +143,16 @@ function LogEntryRowInner({
             </button>
           )}
 
+          {/* Source marker — rendered independently of task */}
+          {entry.labels.source === "osmo" && (
+            <span
+              className="text-muted-foreground/70 hidden text-xs @[550px]:inline"
+              title="osmo system log"
+            >
+              [osmo]
+            </span>
+          )}
+
           {/* Task suffix - hides on narrow containers */}
           {showTask && entry.labels.task && (
             <span

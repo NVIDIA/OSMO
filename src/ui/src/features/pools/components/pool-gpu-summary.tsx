@@ -17,9 +17,10 @@
 "use client";
 
 import { memo } from "react";
-import { type LucideIcon, Server, Zap } from "lucide-react";
+import { type LucideIcon, Info, Server, Zap } from "lucide-react";
 import { ProgressBar } from "@/components/progress-bar";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { formatCompact } from "@/lib/utils";
 import type { Quota } from "@/lib/api/adapter/types";
 
@@ -36,6 +37,7 @@ function getUtilizationColor(percent: number): string {
 
 interface PoolGpuSummaryCardProps {
   label: string;
+  tooltip: string;
   icon: LucideIcon;
   used: number;
   free: number;
@@ -44,6 +46,7 @@ interface PoolGpuSummaryCardProps {
 
 const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
   label,
+  tooltip,
   icon: Icon,
   used,
   free,
@@ -56,9 +59,23 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
       <div className="flex items-center gap-1.5">
         <Icon className="h-3.5 w-3.5 shrink-0 text-amber-500" />
         <span className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">{label}</span>
-        <span className="ml-auto text-sm font-semibold text-zinc-600 tabular-nums dark:text-zinc-400">
-          {Math.round(percent)}%
-        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              className="inline-flex shrink-0 cursor-default"
+              aria-label={`${label} info`}
+            >
+              <Info className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            className="max-w-48"
+          >
+            {tooltip}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <ProgressBar
@@ -74,6 +91,10 @@ const PoolGpuSummaryCard = memo(function PoolGpuSummaryCard({
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{formatCompact(used)}</span>
           <span className="text-xs text-zinc-400 dark:text-zinc-500">/ {formatCompact(total)}</span>
           <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500">used</span>
+          <span className="mx-0.5 text-xs text-zinc-300 dark:text-zinc-600">·</span>
+          <span className="text-xs font-semibold text-zinc-500 tabular-nums dark:text-zinc-400">
+            {Math.round(percent)}%
+          </span>
         </div>
         <div className="flex items-baseline gap-1">
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{formatCompact(free)}</span>
@@ -97,6 +118,7 @@ export const PoolGpuSummary = memo(function PoolGpuSummary({ summary, isLoading 
           <>
             <PoolGpuSummaryCard
               label="GPU Quota"
+              tooltip="Maximum GPU allocation. High/normal priority workflows count against it."
               icon={Zap}
               used={summary.used}
               free={summary.free}
@@ -104,6 +126,7 @@ export const PoolGpuSummary = memo(function PoolGpuSummary({ summary, isLoading 
             />
             <PoolGpuSummaryCard
               label="GPU Capacity"
+              tooltip="Total physical GPUs. Capacity may be shared across pools."
               icon={Server}
               used={summary.totalUsage}
               free={summary.totalFree}

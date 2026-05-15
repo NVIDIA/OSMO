@@ -21,6 +21,7 @@ load("@osmo_tests_python_deps//:requirements.bzl", osmo_tests_requirement = "req
 
 osmo_py_test(
     name = "test_workflow_service",
+    size = "large",
     srcs = ["test_workflow_service.py"],
     deps = [
         "//src/service/core:service_lib",
@@ -42,6 +43,25 @@ py_test(
     deps = [
         "//src/service/core/workflow",
         "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+)
+
+py_test(
+    name = "test_task_entry_resources",
+    srcs = ["test_task_entry_resources.py"],
+    deps = [
+        "//src/service/core/workflow",
+        "//src/utils/job",
+    ],
+)
+
+py_test(
+    name = "test_helpers",
+    srcs = ["test_helpers.py"],
+    deps = [
+        "//src/lib/utils:osmo_errors",
+        "//src/service/core/workflow",
         "//src/utils/job",
     ],
 )

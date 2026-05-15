@@ -14,7 +14,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-load("//bzl:py.bzl", "osmo_py_library")
+load("//bzl:py.bzl", "osmo_py_library", "osmo_py_test")
 load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 osmo_py_library(
@@ -67,6 +67,7 @@ py_test(
     tags = ["manual"],
     deps = [
         "//src/lib/utils:common",
+        "//src/lib/utils:credentials",
         "//src/utils/connectors",
         "//src/utils/job",
     ]
@@ -80,6 +81,16 @@ py_test(
     tags = ["manual"],
     deps = [
         "//src/utils/job",
+    ]
+)
+
+py_test(
+    name = "test_backend_jobs",
+    srcs = [
+        "test_backend_jobs.py"
+    ],
+    deps = [
+        "//src/utils/job:backend_job",
     ]
 )
 
@@ -106,4 +117,18 @@ py_test(
         "//src/lib/utils:priority",
         "//src/utils/job",
     ]
+)
+
+osmo_py_test(
+    name = "test_task_db",
+    srcs = ["test_task_db.py"],
+    deps = [
+        "//src/lib/utils:common",
+        "//src/lib/utils:osmo_errors",
+        "//src/tests/common",
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ],
+    size = "large",
+    tags = ["requires-network"],
 )

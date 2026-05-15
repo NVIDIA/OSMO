@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Basic smoke test — no data I/O, no GPU. Succeeds iff OSMO can schedule a
+# trivial container on the pool and the backend-operator reports back.
+workflow:
+  name: verify-hello
+  timeout:
+    exec_timeout: 5m
+    queue_timeout: 5m
+  resources:
+    tiny:
+      cpu: 1
+      memory: 1Gi
+      storage: 1Gi
+  tasks:
+  - name: hello
+    image: alpine:3.20
+    resource: tiny
+    command: ["sh", "-c"]
+    args:
+    - |
+      set -e
+      echo "Hello from OSMO"
+      echo "Task ran on $(hostname) at $(date -u +%FT%TZ)"

@@ -43,11 +43,12 @@ class Manager(pydantic.BaseModel):
     Manager for a dataset.
     """
 
-    class Config:
-        arbitrary_types_allowed = True
-        extra = pydantic.Extra.forbid
-        frozen = True
-        keep_untouched = (functools.cached_property,)
+    model_config = pydantic.ConfigDict(
+        arbitrary_types_allowed=True,
+        extra='forbid',
+        frozen=True,
+        ignored_types=(functools.cached_property,),
+    )
 
     #########################
     #    Required fields    #
@@ -487,7 +488,7 @@ class Manager(pydantic.BaseModel):
                     f'{self.dataset.bucket} is a collection.',
                 )
             case _:
-                raise osmo_errors.OSMOUserError(f'Invalid dataset type: {info_result["type"]}')
+                raise osmo_errors.OSMOUserError(f'Invalid dataset type: {info_result['type']}')
 
     def update(
         self,

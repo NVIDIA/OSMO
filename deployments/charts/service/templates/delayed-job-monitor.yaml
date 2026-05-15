@@ -101,6 +101,8 @@ spec:
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
         - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.global.logs.logFormat | default "text" }}
         - --log_dir
         - /logs
         - --log_name
@@ -158,17 +160,10 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 15
 
-        # Give the container 60 seconds to startup
+        {{- with .Values.services.delayedJobMonitor.startupProbe }}
         startupProbe:
-          exec:
-            command:
-            - progress_check
-            - --progress_interval
-            - "30"
-          failureThreshold: 12
-          periodSeconds: 5
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
 
       {{- include "osmo.extra-sidecars" .Values.services.delayedJobMonitor | nindent 6 }}
       volumes:

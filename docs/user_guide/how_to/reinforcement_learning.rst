@@ -46,7 +46,7 @@ Building the Workflow
 
 You will first create a workflow spec file that specifies the training script to run.
 
-We will reference the commands in the Isaac Lab reinforcement learning `example for Stable Baselines 3 <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_existing_scripts.html#stable-baselines3>`_.
+We will reference the commands in the Isaac Lab reinforcement learning `example for Stable Baselines 3 <https://isaac-sim.github.io/IsaacLab/v2.3.0/source/overview/reinforcement-learning/rl_existing_scripts.html#stable-baselines3>`_.
 The Python modules are already installed in the Isaac Lab image, so we can skip that installation command,
 and use the training command directly.
 
@@ -174,11 +174,11 @@ Running Other Reinforcement Learning Examples
 ---------------------------------------------
 
 Isaac Lab supports other reinforcement learning libraries such as RL Games, RSL-RL, and SKRL too, and you can view
-all the examples in the `Isaac Lab documentation <https://isaac-sim.github.io/IsaacLab/release/2.2.0/source/overview/reinforcement-learning/rl_existing_scripts.html>`_.
+all the examples in the `Isaac Lab documentation <https://isaac-sim.github.io/IsaacLab/v2.3.0/source/overview/reinforcement-learning/rl_existing_scripts.html>`_.
 
 In this tutorial we were using Stable Baselines 3 to train the policy, but you can modify the entry script to use other libraries as well.
 
-For example, you can pick the `RSL-RL training script <https://isaac-sim.github.io/IsaacLab/release/2.2.0/source/overview/reinforcement-learning/rl_existing_scripts.html#rsl-rl>`_,
+For example, you can pick the `RSL-RL training script <https://isaac-sim.github.io/IsaacLab/v2.3.0/source/overview/reinforcement-learning/rl_existing_scripts.html#rsl-rl>`_,
 which will train a Franka arm robot to reach target locations. You can modify the entry script to call the new training script:
 
 .. code-block:: bash

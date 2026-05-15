@@ -25,7 +25,6 @@ OSMO makes it easy to upload and download data for your workflows. This tutorial
 
 * How data is used :ref:`inside a workflow <tutorials_working_with_data_inside_a_workflow>`.
 * How to work with :ref:`storage URLs <tutorials_working_with_data_storage_urls>`
-* How to work with :ref:`datasets <tutorials_working_with_data_datasets>`
 
 .. admonition:: Prerequisites
   :class: important
@@ -71,11 +70,11 @@ OSMO provides two directories for data management in every task:
     - |
       cat {{input:0}}/data.txt                # Reads the first input
       echo "Result" > {{output}}/result.txt   # Write output
-    
+
     inputs:
-    - dataset: {name: my_data}     # ← Downloads here
+    - url: s3://my-bucket/inputs/             # ← Downloads here
     outputs:
-    - dataset: {name: my_results}  # ← Uploads here
+    - url: s3://my-bucket/outputs/            # ← Uploads here
 
 .. seealso::
 
@@ -119,95 +118,6 @@ Download data directly from cloud storage using URLs:
   1. Access downloaded files at ``{{input:0}}/``.
   2. Files are downloaded from S3 before the task starts.
 
-.. _tutorials_working_with_data_datasets:
-
-Datasets
-========
-
-.. seealso::
-
-  Before you start, please make sure you have set a :ref:`profile_default_dataset_bucket`.
-
-What is a Dataset?
-------------------
-
-.. important::
-
-  A **dataset** is a versioned collection of files managed by OSMO. Datasets persist beyond
-  workflow execution and can be shared across workflows and teams.
-
-**Key characteristics:**
-
-* Datasets are versioned - each upload creates a new version
-* Content-addressed for efficient storage and deduplication
-* Accessible via CLI, workflows, and Web UI
-* Support filtering and metadata
-
-.. dropdown:: Dataset Naming Convention
-  :color: primary
-  :icon: info
-
-  Datasets use the pattern ``dataset_name:version``:
-
-  * ``training_data`` - Latest version
-  * ``training_data:v1`` - Specific version
-  * ``training_data:baseline`` - Named version
-
-Uploading a Dataset
--------------------
-
-To upload a dataset from a workflow task, write files to the ``{{output}}`` directory and
-specify a :kbd:`dataset` in the outputs:
-
-.. literalinclude:: ../../../../cookbook/tutorials/dataset_upload.yaml
-  :language: yaml
-  :start-after: SPDX-License-Identifier: Apache-2.0
-
-.. code-annotations::
-
-  1. Everything in ``{{output}}`` is uploaded to ``my_dataset`` after the task completes successfully.
-
-Once uploaded, you can download a dataset to your local machine using the CLI:
-
-.. code-block:: bash
-
-  # Download latest version
-  $ osmo dataset download my_dataset /tmp
-
-  # Download specific version
-  $ osmo dataset download my_dataset:1 /tmp
-
-Downloading a Dataset
----------------------
-
-To download a dataset in a workflow, add it to the task's inputs. To reference the dataset, use the
-:ref:`workflow_spec_special_tokens` ``{{input:#}}`` where # is the zero-based index of the input.
-
-.. literalinclude:: ../../../../cookbook/tutorials/dataset_download.yaml
-  :language: yaml
-  :start-after: SPDX-License-Identifier: Apache-2.0
-
-.. code-annotations::
-
-  1. Access the dataset at ``{{input:0}}/my_dataset/`` where ``{{input:0}}`` is the first input.
-  2. The dataset is downloaded before the task starts.
-
-Combining URLs and Datasets
-===========================
-
-You can mix URLs and datasets in the same workflow:
-
-.. literalinclude:: ../../../../cookbook/tutorials/data_and_dataset_combined.yaml
-  :language: yaml
-  :start-after: SPDX-License-Identifier: Apache-2.0
-
-.. code-annotations::
-
-  1. Download from OSMO dataset at ``{{input:0}}/my_dataset/``.
-  2. Download from S3 at ``{{input:1}}/``.
-  3. Upload to OSMO dataset.
-  4. Also upload to S3 bucket.
-
 Filtering Data
 ==============
 
@@ -219,8 +129,8 @@ Filter which files to download or upload using regex patterns:
 
 .. code-annotations::
 
-  1. Only download ``.txt`` files from the input dataset.
-  2. Only upload ``.json`` and ``.yaml`` files to the output dataset.
+  1. Only download ``.txt`` files from the input.
+  2. Only upload ``.json`` and ``.yaml`` files to the output.
 
 Next Steps
 ==========

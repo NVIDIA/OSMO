@@ -87,7 +87,7 @@ def process_chunk(body: Dict, kombu_message: message.Message,
             size=data_utils.convert_to_gib(upload_result.size),
             size_unit='GiB',
             failed_messages=upload_result.failed_messages,
-            benchmark_result=benchmark_result).dict(),
+            benchmark_result=benchmark_result).model_dump(),
             data_utils.QueueType.BENCHMARK)
     else:
         base_storage_backend = storage_backends.construct_storage_backend(output_location)
@@ -105,7 +105,7 @@ def process_chunk(body: Dict, kombu_message: message.Message,
             size=data_utils.convert_to_gib(download_result.size),
             size_unit='GiB',
             failed_messages=download_result.failed_messages,
-            benchmark_result=benchmark_result).dict(),
+            benchmark_result=benchmark_result).model_dump(),
             data_utils.QueueType.BENCHMARK)
     kombu_message.ack()
 

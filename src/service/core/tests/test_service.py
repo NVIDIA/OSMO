@@ -83,13 +83,13 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
     def test_get_client_version_with_config_override(self):
         # Arrange
-        test_version = version.VERSION.copy()
+        test_version = version.VERSION.model_copy()
         test_version.revision = str(int(test_version.revision) + 1)
         helpers.patch_configs(
             config_objects.PatchConfigRequest(
                 configs_dict=connectors.postgres.ServiceConfig(
                     cli_config=connectors.postgres.CliConfig(latest_version=str(test_version)),
-                ).dict(),
+                ).model_dump(),
             ),
             config_type=connectors.ConfigType.SERVICE,
             username='test@nvidia.com',
@@ -100,7 +100,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), test_version)
+        self.assertEqual(response.json(), test_version.model_dump())
 
     def test_get_client_version_without_config_override(self):
         # Arrange / Act
@@ -108,7 +108,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), version.VERSION)
+        self.assertEqual(response.json(), version.VERSION.model_dump())
 
     def test_get_client_version_plaintext(self):
         # Arrange / Act
@@ -127,11 +127,11 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
 
         # Assert
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), version.VERSION)
+        self.assertEqual(response.json(), version.VERSION.model_dump())
 
     def test_outdated_client_receives_no_update_prompt(self):
         # Arrange
-        test_version = version.VERSION.copy()
+        test_version = version.VERSION.model_copy()
         test_version.major = str(int(test_version.major) - 1)
 
         # Act
@@ -144,7 +144,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
     def test_outdated_client_receives_update_prompt_if_min_supported_version_is_set(self):
         # Arrange
         self.patch_cli_config(min_supported_version=str(version.VERSION))
-        test_version = version.VERSION.copy()
+        test_version = version.VERSION.model_copy()
         test_version.major = str(int(test_version.major) - 1)
 
         # Act
@@ -200,7 +200,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
         helpers.patch_configs(
             config_objects.PatchConfigRequest(
                 configs_dict=connectors.postgres.WorkflowConfig(
-                    workflow_info=connectors.postgres.WorkflowInfo(tags=tags)).dict(),
+                    workflow_info=connectors.postgres.WorkflowInfo(tags=tags)).model_dump(),
             ),
             config_type=connectors.ConfigType.WORKFLOW,
             username='test@nvidia.com',
@@ -456,7 +456,7 @@ class ServiceTestCase(service_fixture.ServiceTestFixture):
                         latest_version=latest_version,
                         min_supported_version=min_supported_version,
                     ),
-                ).dict(),
+                ).model_dump(),
             ),
             config_type=connectors.ConfigType.SERVICE,
             username='test@nvidia.com',

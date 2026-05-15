@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import base64
 import datetime
 import logging
@@ -28,16 +30,17 @@ import fastapi
 import fastapi.middleware.cors
 import fastapi.responses
 import uvicorn  # type: ignore
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor # type: ignore
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor  # type: ignore
 
-from src.lib.utils import common, osmo_errors, version
+from src.lib.utils import common, login, osmo_errors, version
 import src.lib.utils.logging
 from src.utils.metrics import metrics
 from src.service.agent import helpers as backend_helpers
 from src.service.core.app import app_service
 from src.service.core.auth import auth_service, objects as auth_objects
 from src.service.core.config import (
-    config_service, helpers as config_helpers, objects as config_objects
+    config_service, configmap_loader,
+    helpers as config_helpers, objects as config_objects,
 )
 from src.service.core.data import data_service, query
 from src.service.core.profile import profile_service
@@ -50,13 +53,14 @@ from src.utils.job import task as task_lib
 
 
 app = fastapi.FastAPI(docs_url='/api/docs', redoc_url=None, openapi_url='/api/openapi.json')
-misc_router = fastapi.APIRouter(tags = ['Misc API'])
+misc_router = fastapi.APIRouter(tags=['Misc API'])
 curr_cli_config = connectors.CliConfig()
 
 
 @app.middleware('http')
 async def check_client_version(request: fastapi.Request, call_next):
     client_version_str = request.headers.get(version.VERSION_HEADER)
+    token_name = request.headers.get(login.OSMO_TOKEN_NAME_HEADER)
     if client_version_str is None:
         return await call_next(request)
     client_version = version.Version.from_string(client_version_str)
@@ -70,7 +74,7 @@ async def check_client_version(request: fastapi.Request, call_next):
         if cli_info.latest_version else version.VERSION
     if cli_info.client_install_url:
         install_command = f'Please run the following command:\n' \
-                          f'curl -fsSL {cli_info.client_install_url} | bash'
+            f'curl -fsSL {cli_info.client_install_url} | bash'
     else:
         install_command = \
             'Please update by running the install command in the documentation.'
@@ -80,20 +84,58 @@ async def check_client_version(request: fastapi.Request, call_next):
                 client_version < version.Version.from_string(cli_info.min_supported_version):
             return fastapi.responses.JSONResponse(
                 status_code=400,
-                content={'message': 'Your client is out of date. Client version is ' + \
-                        f'{client_version_str} but the newest client version is '
-                        f'{newest_client_version}.\n{install_command}',
-                        'error_code': osmo_errors.OSMOError.error_code},
+                content={'message': 'Your client is out of date. Client version is ' +
+                         f'{client_version_str} but the newest client version is '
+                         f'{newest_client_version}.\n{install_command}',
+                         'error_code': osmo_errors.OSMOError.error_code},
             )
         suggest_version_update = True
+
+    warning_msg = ''
+    if token_name:
+        user_name = request.headers.get(login.OSMO_USER_HEADER)
+        if user_name:
+            try:
+                token = auth_objects.AccessToken.fetch_from_db(
+                    postgres, token_name, user_name)
+                today = datetime.datetime.now(datetime.timezone.utc).date()
+                expiry_date = token.expires_at.date()
+                if expiry_date <= today:
+                    return fastapi.responses.JSONResponse(
+                        status_code=400,
+                        content={
+                            'message': f'Access token {token_name} has expired.',
+                            'error_code': osmo_errors.OSMOError.error_code,
+                        },
+                    )
+                days_until_expiry = (expiry_date - today).days
+                if days_until_expiry <= 7:
+                    token_warning = (
+                        f'WARNING: Access token {token_name} is expiring '
+                        f'on {expiry_date} at 12AM UTC.')
+                    if warning_msg:
+                        warning_msg += f'\n{token_warning}'
+                    else:
+                        warning_msg = token_warning
+            except osmo_errors.OSMOUserError:
+                logging.warning('Failed to fetch access token for user %s and token %s',
+                                user_name, token_name)
+                pass
+
     response = await call_next(request)
+
     if suggest_version_update:
         response.headers[version.SERVICE_VERSION_HEADER] = str(newest_client_version)
-        warning_msg = (
+        version_warning = (
             f'WARNING: New client {newest_client_version} available.\n'
             f'Current version: {client_version_str}.\n'
             f'{install_command}')
-        response.headers[version.VERSION_WARNING_HEADER] = (
+        if warning_msg:
+            warning_msg = f'{version_warning}\n{warning_msg}'
+        else:
+            warning_msg = version_warning
+    if warning_msg:
+        response.headers[version.WARNING_HEADER] = (
             base64.b64encode(warning_msg.encode()).decode())
     return response
 
@@ -126,41 +168,48 @@ async def get_osmo_client_version(request: fastapi.Request):
     return client_version
 
 
-@misc_router.get('/health')
+@misc_router.get('/health', response_model=Dict[str, str])
 async def health():
     """ To be used for the readiness probe, but not liveness probe. That way, if this method is
     slow, no new traffic gets routed, instead of killing the service. """
     return {'status': 'OK'}
 
 
-@misc_router.get('/api/version')
+@misc_router.get('/api/version', response_model=version.Version)
 def get_version():
     return version.VERSION
 
 
-@misc_router.get('/api/users', response_class=common.PrettyJSONResponse)
+@misc_router.get(
+    '/api/users',
+    response_model=List[str],
+)
 def get_users() -> List[str]:
     """ Returns the values of all users who have submitted a workflow. """
     user_list = helpers.get_all_users()
     return [item.submitted_by for item in user_list]
 
 
-@misc_router.get('/api/tag')
+@misc_router.get('/api/tag', response_model=Dict[str, List[str]])
 def get_available_workflow_tags():
     """ Returns all workflow tags. """
     context = objects.WorkflowServiceContext.get()
     return {'tags': context.database.get_workflow_configs().workflow_info.tags}
 
 
-@misc_router.get('/api/plugins/configs', response_class=common.PrettyJSONResponse)
-def get_workflow_plugins_configs() -> Dict:
+@misc_router.get(
+    '/api/plugins/configs',
+    response_model=connectors.PluginsConfig,
+)
+def get_workflow_plugins_configs() -> connectors.PluginsConfig:
     """Get all the workflow plugins configurations"""
     context = objects.WorkflowServiceContext.get()
     workflow_configs = context.database.get_workflow_configs()
-    return workflow_configs.plugins_config.dict(by_alias=True)
+    return workflow_configs.plugins_config
 
 
 app.include_router(misc_router)
+
 
 @app.exception_handler(osmo_errors.OSMOUsageError)
 @app.exception_handler(osmo_errors.OSMOResourceError)
@@ -183,6 +232,7 @@ async def user_error_handler(request: fastapi.Request, error: osmo_errors.OSMOEr
     )
 
 
+@app.exception_handler(osmo_errors.OSMODataStorageError)
 @app.exception_handler(osmo_errors.OSMOBackendError)
 @app.exception_handler(osmo_errors.OSMOServerError)
 @app.exception_handler(Exception)
@@ -245,22 +295,22 @@ def set_default_backend_images(postgres: connectors.PostgresConnector):
 
     # If backend_images are already set, do not override them
     if curr_workflow_configs.backend_images.init and \
-        curr_workflow_configs.backend_images.client:
+            curr_workflow_configs.backend_images.client:
         return
 
     if postgres.config.osmo_image_location and \
-        postgres.config.osmo_image_tag:
+            postgres.config.osmo_image_tag:
         # Override default backend_images with deployment values
         backend_images = connectors.OsmoImageConfig(
             init=f'{postgres.config.osmo_image_location}/'
-                    f'init-container:{postgres.config.osmo_image_tag}',
+            f'init-container:{postgres.config.osmo_image_tag}',
             client=f'{postgres.config.osmo_image_location}/'
-                    f'client:{postgres.config.osmo_image_tag}',
+            f'client:{postgres.config.osmo_image_tag}',
         )
         config_service.patch_workflow_configs(
             request=config_objects.PatchConfigRequest(
                 configs_dict={
-                    'backend_images': backend_images.dict()
+                    'backend_images': backend_images.model_dump()
                 }
             ),
             username='System',
@@ -298,7 +348,7 @@ def set_client_install_url(postgres: connectors.PostgresConnector,
                            config: objects.WorkflowServiceConfig):
     curr_service_configs = postgres.get_service_configs()
     if curr_service_configs.cli_config.client_install_url != config.client_install_url:
-        updated_cli_config = curr_service_configs.cli_config.dict()
+        updated_cli_config = curr_service_configs.cli_config.model_dump()
         updated_cli_config['client_install_url'] = config.client_install_url
         config_service.patch_service_configs(
             request=config_objects.PatchConfigRequest(
@@ -408,7 +458,7 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
     )
     if login_info != service_configs_dict.service_auth.login_info:
         configs_dict['service_auth'] = {
-            'login_info': login_info.dict()
+            'login_info': login_info.model_dump()
         }
 
     if configs_dict:
@@ -421,11 +471,24 @@ def configure_app(target_app: fastapi.FastAPI, config: objects.WorkflowServiceCo
             username='',
         )
 
-    create_default_pool(postgres)
-    set_default_backend_images(postgres)
-    set_default_service_url(postgres)
-    set_client_install_url(postgres, config)
+    # In ConfigMap mode, the YAML snapshot is authoritative for these fields,
+    # so DB writes here are invisible to readers (the snapshot wins in
+    # get_configs) and just bloat the configs/pools tables on every restart.
+    # service_base_url in particular must come from the ConfigMap only —
+    # the Helm template auto-derives it from services.service.hostname, and
+    # falling back to a stale DB value would mask misconfiguration.
+    # setup_default_admin writes a user record (not a config row), so it
+    # stays unconditional.
+    if not config.config_file:
+        create_default_pool(postgres)
+        set_default_backend_images(postgres)
+        set_client_install_url(postgres, config)
+        set_default_service_url(postgres)
     setup_default_admin(postgres, config)
+
+    # Store on app state to prevent GC from killing the watcher thread.
+    target_app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres, is_api_service=True)
 
     # Instantiate QueryParser
     query.QueryParser()
@@ -484,7 +547,7 @@ def main():
         port = 8000
 
     try:
-        uvicorn.run(app, host=host, port=port)
+        uvicorn.run(app, host=host, port=port, log_config=None, **config.uvicorn_ssl_kwargs())
     except KeyboardInterrupt:
         sys.exit(0)
 

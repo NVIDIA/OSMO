@@ -17,7 +17,7 @@
 "use client";
 
 import React, { memo, useMemo, useCallback } from "react";
-import { CirclePile, Clock, AlertCircle, Server, Workflow, ArrowRight } from "lucide-react";
+import { CirclePile, Clock, AlertCircle, Server, Workflow, ChartColumn, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/shadcn/badge";
 import { Card, CardContent } from "@/components/shadcn/card";
 import { Link } from "@/components/link";
@@ -184,6 +184,19 @@ export const PanelContent = memo(function PanelContent({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">Workflows</div>
                   <div className="text-muted-foreground text-xs">View workflows that ran on this pool</div>
+                </div>
+                <ArrowRight className="text-muted-foreground size-4 shrink-0" />
+              </Link>
+
+              {/* Occupancy Link */}
+              <Link
+                href={`/occupancy?f=pool:${encodeURIComponent(pool.name)}&groupBy=pool`}
+                className="hover:bg-accent flex items-center gap-3 p-3 transition-colors"
+              >
+                <ChartColumn className="text-muted-foreground size-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">Occupancy</div>
+                  <div className="text-muted-foreground text-xs">View GPU usage by user in this pool</div>
                 </div>
                 <ArrowRight className="text-muted-foreground size-4 shrink-0" />
               </Link>

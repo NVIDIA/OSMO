@@ -19,6 +19,7 @@
 import { memo } from "react";
 import { ChevronsDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/shadcn/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 
 // =============================================================================
@@ -37,13 +38,6 @@ export interface ScrollPinControlProps {
   /** Additional CSS classes */
   className?: string;
 }
-
-// =============================================================================
-// Shared Styles
-// =============================================================================
-
-const toolbarButtonStyles =
-  "rounded p-1 transition-colors focus-nvidia disabled:pointer-events-none disabled:opacity-50";
 
 // =============================================================================
 // Component
@@ -70,20 +64,23 @@ function ScrollPinControlInner({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={handleClick}
           className={cn(
-            toolbarButtonStyles,
-            isHighlighted ? "bg-foreground text-background" : "hover:bg-accent",
+            isHighlighted
+              ? "bg-foreground text-background hover:bg-foreground hover:text-background dark:hover:bg-foreground dark:hover:text-background"
+              : "",
             className,
           )}
           aria-label={isHighlighted ? "Auto-following (click to disable)" : "Scroll to bottom"}
           aria-pressed={isHighlighted}
         >
           <ChevronsDown className="size-4" />
-        </button>
+        </Button>
       </TooltipTrigger>
-      <TooltipContent side="top">
+      <TooltipContent side="bottom">
         {isHighlighted ? "Auto-following (click to disable)" : "Scroll to bottom"}
       </TooltipContent>
     </Tooltip>

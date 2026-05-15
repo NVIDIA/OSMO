@@ -1,0 +1,184 @@
+[
+  {
+    "id": "osmo-agent-001",
+    "question": "Quick check — do I have any H100s available right now? Looking to test something later this afternoon.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to run osmo pool list, filtered the response to H100 pools the user has access to, and reported H100 capacity along with whether any H100 pools are at capacity.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand resource discovery",
+      "The agent executed 'osmo pool list' or equivalent to inspect pool capacity",
+      "The agent's response focused on H100 pools (other GPU types de-emphasized or omitted)",
+      "The agent reported effective H100 availability per pool and flagged any pools at capacity",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-002",
+    "question": "Can you show me a quick rundown of my recent OSMO workflows? Want to see what's still running and what's done.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to run osmo workflow list and presented the user's recent workflows in a table including name, pool, status, and duration, with clear status indicators for each workflow.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand the workflow-listing format",
+      "The agent executed 'osmo workflow list --format-type json' to fetch recent workflows",
+      "The agent presented results as a table with workflow name, pool, status, and duration",
+      "The agent used clear status indicators (icons or labels) for COMPLETED, FAILED, RUNNING, and PENDING workflows",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-003",
+    "question": "Is workflow gr00t-train-1 done yet? I kicked it off this morning and want to see how it's going.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to query the workflow's current status and fetched recent logs to summarize progress.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand the status-check procedure",
+      "The agent ran 'osmo workflow query gr00t-train-1' to retrieve current state and metadata",
+      "The agent fetched recent logs to summarize what stage the workflow is at",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-004",
+    "question": "How much memory is workflow gr00t-train-1 chewing through right now? My cluster admin is asking.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent recognized this as a live-resource-usage question, used osmo-agent to fetch the workflow's query JSON, surfaced the Grafana dashboard URL as the source of live metrics, and did not fabricate memory utilization numbers.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand resource-usage handling",
+      "The agent ran 'osmo workflow query gr00t-train-1' (or reused cached query JSON) to retrieve the Grafana URL",
+      "The agent rendered the grafana_url field as a clickable markdown link directing the user to live metrics",
+      "The agent did not invent specific memory utilization numbers — it pointed the user to Grafana for actual values",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-005",
+    "question": "Can you give me the Kubernetes dashboard link for workflow gr00t-train-1? Want to inspect the pod directly.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to query the workflow, extracted the dashboard_url field from the response, and rendered it as a clickable link for the user.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand link-extraction rules",
+      "The agent ran 'osmo workflow query gr00t-train-1' (or reused cached JSON) to retrieve the dashboard URL",
+      "The agent rendered the dashboard_url field as a clickable markdown link",
+      "If dashboard_url were null, the agent would say so explicitly rather than fabricate or omit silently",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-006",
+    "question": "Can you tell me what workflow gr00t-train-1 actually does? I inherited this from a teammate and want to understand it before I rerun it.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to fetch the workflow spec template and summarized the workflow's purpose, container image, command, and outputs in plain language without dumping the full YAML.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand the explain-workflow procedure",
+      "The agent ran 'osmo workflow spec gr00t-train-1 --template' to retrieve the original spec",
+      "The agent provided a concise plain-language summary covering what the workflow does, the container image and command it runs, and what outputs it produces",
+      "The agent did not produce a line-by-line YAML walkthrough",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-007",
+    "question": "I have a workflow.yaml ready to go in my current directory. Submit it to a free H100 pool — pick whichever H100 pool has capacity, you don't need to ask me.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to read workflow.yaml without modification, ran resource discovery to identify an H100 pool with free capacity, submitted the workflow to that pool, and reported the returned workflow ID.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md and read the user's workflow.yaml without modifying it",
+      "The agent ran 'osmo profile list' or 'osmo pool list' to identify a free H100 pool",
+      "The agent ran 'osmo workflow submit workflow.yaml --pool <h100-pool>' to actually submit the workflow",
+      "The agent reported the workflow ID returned by the submit command",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-008",
+    "question": "Submit my training job from jinja_workflow.yaml — I want to use 4 GPUs for this run. Go ahead and submit it; you don't need to ask for confirmation.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to submit the workflow while preserving Jinja template variables in jinja_workflow.yaml on disk, passing the GPU count through the --set flag at submit time rather than hardcoding values into the YAML, and reported the returned workflow ID.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md to understand Jinja template handling",
+      "The agent did not edit jinja_workflow.yaml — Jinja placeholders like {{num_gpu}} remained intact on disk after the run",
+      "The agent actually executed 'osmo workflow submit jinja_workflow.yaml --set num_gpu=4 --pool <pool>' (the user pre-authorized submission)",
+      "The agent reported the workflow ID returned by the submit command",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-009",
+    "question": "I need to generate about 1000 synthetic images for a robotics dataset using Isaac Sim on H100s. Set it up and submit — pick the H100 pool yourself, no need to ask for confirmation.",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to fetch the OSMO cookbook README, picked a relevant Isaac Sim SDG example, fetched the per-workflow README and YAML, computed how many submissions were needed based on per-run throughput, and actually submitted the workflow the appropriate number of times to an H100 pool.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md and the cookbook-fetching reference to understand the cookbook adaptation procedure",
+      "The agent fetched the OSMO cookbook README and the per-workflow README/YAML for an Isaac Sim SDG workflow from the public OSMO repository",
+      "The agent computed the number of submissions needed by dividing the user's target image count by the per-run throughput stated in the README",
+      "The agent actually executed 'osmo workflow submit' the computed number of times against an H100 pool (the user pre-authorized submission)",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-010",
+    "question": "What GPUs does NVIDIA actually make these days? I'm putting together a doc for my team and want a quick rundown.",
+    "expected_skill": null,
+    "expected_script": null,
+    "ground_truth": "The agent recognized this as a general NVIDIA product question with no connection to OSMO compute orchestration and answered it directly without invoking osmo-agent.",
+    "expected_behavior": [
+      "The agent did not invoke osmo-agent or run any osmo CLI commands",
+      "The agent identified the question as a general NVIDIA-product question outside OSMO's scope",
+      "The agent answered with information about NVIDIA's current GPU lineup (e.g., data center, consumer, edge product lines)",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-011",
+    "question": "What resources are available to me right now?",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to run osmo profile list and osmo pool list, then presented pools grouped by GPU type with an Effective availability column (min of Quota Free and Total Free) and the user's default pool annotated.",
+    "expected_behavior": [
+      "The agent ran 'osmo profile list' and 'osmo pool list' to discover accessible pools",
+      "The agent's response groups pools under GPU-type section headers (e.g. GB200 Pools, H100 Pools, L40S Pools)",
+      "Each pool table includes columns Pool, Quota Free, Physically Free, and Effective, with Effective = min(Quota Free, Total Free) and rows sorted by Effective descending",
+      "The user's default pool is annotated with (default)",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-012",
+    "question": "Are there any H100s I can use right now?",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to inspect pool availability and focused the response on the user's accessible H100 pools, reporting Effective availability for each and flagging any H100 pools that are at capacity.",
+    "expected_behavior": [
+      "The agent ran 'osmo pool list' to inspect pool capacity",
+      "The agent's response focused on H100 pools and de-emphasized or omitted other GPU types",
+      "The agent reported Effective availability (min of Quota Free and Total Free) for each H100 pool",
+      "If any H100 pool has Effective = 0, the agent flagged it as at capacity",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  },
+  {
+    "id": "osmo-agent-013",
+    "question": "My workflow stuck-train-1 has been queued for over an hour and still hasn't started running. What's going on?",
+    "expected_skill": "osmo-agent",
+    "expected_script": null,
+    "ground_truth": "The agent used osmo-agent to diagnose an unschedulable workflow: ran osmo workflow query stuck-train-1 to confirm PENDING status, osmo workflow events stuck-train-1 to surface FailedScheduling events, osmo workflow spec stuck-train-1 to read the resource request, and osmo resource list to inspect per-node available capacity, then explained in plain language that the workflow's resource ask exceeds what any single node in the pool currently has free.",
+    "expected_behavior": [
+      "The agent read the osmo-agent SKILL.md and the troubleshooting reference to understand the PENDING diagnosis flow",
+      "The agent ran 'osmo workflow query stuck-train-1' to confirm the workflow is in PENDING status",
+      "The agent ran 'osmo workflow events stuck-train-1' to surface scheduler failure events (e.g. FailedScheduling)",
+      "The agent ran 'osmo workflow spec stuck-train-1' to read the workflow's resource request",
+      "The agent ran 'osmo resource list' to inspect per-node available capacity in the target pool",
+      "The agent synthesized a plain-language explanation of why the workflow can't schedule (e.g. the per-task resource ask exceeds any single node's free capacity)",
+      "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+    ]
+  }
+]

@@ -104,25 +104,25 @@ def _run_setting_list(service_client: client.ServiceClient, args: argparse.Names
             with open(os.path.expanduser(login_file), 'r', encoding='utf-8') as file:
                 login_dict = yaml.safe_load(file.read())
                 if login_dict.get('name', None):
-                    print(f'{common.TAB}name: {login_dict["name"]}')
+                    print(f'{common.TAB}name: {login_dict['name']}')
         except FileNotFoundError:
             pass
         profile_result = result.get('profile', {})
         email = profile_result.get('username', '')
         print(f'{common.TAB}email: {email}')
         print('notifications:\n'
-              f'{common.TAB}email: {profile_result.get("email_notification", "")}\n'
-              f'{common.TAB}slack: {profile_result.get("slack_notification", "")}\n'
+              f'{common.TAB}email: {profile_result.get('email_notification', '')}\n'
+              f'{common.TAB}slack: {profile_result.get('slack_notification', '')}\n'
               'bucket:\n'
-              f'{common.TAB}default: {profile_result.get("bucket", "")}\n'
+              f'{common.TAB}default: {profile_result.get('bucket', '')}\n'
               'pool:\n'
-              f'{common.TAB}default: {profile_result.get("pool", "")}\n'
+              f'{common.TAB}default: {profile_result.get('pool', '')}\n'
               f'{common.TAB}accessible:')
         for pool_name in result.get('pools', []):
             print(f'{common.TAB}{common.TAB}- {pool_name}')
         token_result = result.get('token')
         if token_result:
-            print(f'token: {token_result.get("name", "")}')
+            print(f'token: {token_result.get('name', '')}')
             expires_at = common.convert_str_to_time(token_result['expires_at'].split('T')[0],
                                                     '%Y-%m-%d').date()
             print(f'{common.TAB}expires_at: {expires_at}')

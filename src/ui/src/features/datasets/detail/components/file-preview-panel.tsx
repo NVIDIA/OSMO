@@ -24,7 +24,7 @@
  * - image/* → <img> via proxy
  * - video/* → <video controls> via proxy
  * - other  → "preview unavailable" message
- * - 401/403 → lock icon + "bucket must be public" error
+ * - 401/403 → lock icon + "access denied" error
  * - 404    → "file not found" error
  * - No URL → metadata-only view
  */
@@ -62,6 +62,10 @@ interface FilePreviewPanelProps {
   file: DatasetFile;
   /** Current directory path (empty = root) */
   path: string;
+  /** Dataset bucket name — required for service-proxied file access */
+  bucket: string;
+  /** Dataset name — required for service-proxied file access */
+  datasetName: string;
   onClose: () => void;
 }
 
@@ -74,12 +78,25 @@ interface HeadResult {
 // HEAD preflight fetch
 // =============================================================================
 
-function toProxyUrl(url: string): string {
-  return getBasePathUrl(`/proxy/dataset/file?url=${encodeURIComponent(url)}`);
+function toProxyUrl(
+  bucket: string,
+  datasetName: string,
+  file: { storagePath: string; relativePath?: string; name?: string },
+): string {
+  const params = new URLSearchParams({ bucket, name: datasetName, storagePath: file.storagePath });
+  // Forward original filename so the service can derive a useful Content-Type
+  // (storage_path is hash-keyed and carries no extension).
+  const filename = file.relativePath ?? file.name;
+  if (filename) params.set("filename", filename);
+  return getBasePathUrl(`/proxy/dataset/file?${params}`);
 }
 
-async function fetchHeadResult(url: string): Promise<HeadResult> {
-  const response = await fetch(toProxyUrl(url), { method: "HEAD" });
+async function fetchHeadResult(
+  bucket: string,
+  datasetName: string,
+  file: { storagePath: string; relativePath?: string; name?: string },
+): Promise<HeadResult> {
+  const response = await fetch(toProxyUrl(bucket, datasetName, file), { method: "HEAD" });
   const contentType = response.headers.get("Content-Type") ?? "";
   return { status: response.status, contentType };
 }
@@ -207,9 +224,15 @@ function TextPreview({ url, contentType, fileName }: { url: string; contentType:
   );
 }
 
-function PreviewContent({ url, contentType, fileName }: { url: string; contentType: string; fileName: string }) {
-  const proxyUrl = toProxyUrl(url);
-
+function PreviewContent({
+  proxyUrl,
+  contentType,
+  fileName,
+}: {
+  proxyUrl: string;
+  contentType: string;
+  fileName: string;
+}) {
   if (isImageType(contentType, fileName)) {
     return (
       <div className="flex flex-1 items-center justify-center overflow-auto p-4">
@@ -279,22 +302,22 @@ type PreviewState =
   | { kind: "error"; retry: () => void }
   | { kind: "denied" }
   | { kind: "not-found" }
-  | { kind: "ready"; url: string; contentType: string };
+  | { kind: "ready"; proxyUrl: string; contentType: string };
 
 function resolvePreviewState(
-  url: string | undefined,
+  proxyUrl: string | undefined,
   isLoading: boolean,
   error: unknown,
   head: HeadResult | undefined,
   retry: () => void,
 ): PreviewState {
-  if (!url) return { kind: "no-url" };
+  if (!proxyUrl) return { kind: "no-url" };
   if (isLoading) return { kind: "loading" };
   if (error) return { kind: "error", retry };
   if (!head) return { kind: "loading" };
   if (head.status === 401 || head.status === 403) return { kind: "denied" };
   if (head.status === 404) return { kind: "not-found" };
-  if (head.status === 200) return { kind: "ready", url, contentType: head.contentType };
+  if (head.status === 200) return { kind: "ready", proxyUrl, contentType: head.contentType };
   // Unexpected status (e.g. 500) — treat as retriable error
   return { kind: "error", retry };
 }
@@ -303,24 +326,41 @@ function resolvePreviewState(
 // Main component
 // =============================================================================
 
-export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onClose }: FilePreviewPanelProps) {
+export const FilePreviewPanel = memo(function FilePreviewPanel({
+  file,
+  path,
+  bucket,
+  datasetName,
+  onClose,
+}: FilePreviewPanelProps) {
   const relativePath = file.relativePath ?? (path ? `${path}/${file.name}` : file.name);
+  // Preview requires storagePath — the proxy no longer accepts arbitrary URLs.
+  const previewSource = file.storagePath
+    ? { storagePath: file.storagePath, relativePath: file.relativePath, name: file.name }
+    : undefined;
+  const proxyUrl = previewSource ? toProxyUrl(bucket, datasetName, previewSource) : undefined;
 
-  // HEAD preflight — only when we have a URL to check
+  // HEAD preflight — only when we have a source to check
   const {
     data: head,
     isLoading: headLoading,
     error: headError,
     refetch,
   } = useQuery({
-    queryKey: ["file-preview-head", file.url],
-    queryFn: () => fetchHeadResult(file.url!),
-    enabled: !!file.url,
-    staleTime: Infinity,
+    queryKey: ["file-preview-head", proxyUrl],
+    queryFn: () => {
+      // Type narrowed by `enabled` below; assertion mirrors the React Query contract.
+      if (!previewSource) throw new Error("preview source not available");
+      return fetchHeadResult(bucket, datasetName, previewSource);
+    },
+    enabled: !!previewSource,
+    // staleTime: 0 — auth-sensitive: a cached 401/403 must re-validate when
+    // the user's session changes. Default React Query cadence is fine.
+    staleTime: 0,
     retry: false,
   });
 
-  const previewState = resolvePreviewState(file.url, headLoading, headError, head, () => void refetch());
+  const previewState = resolvePreviewState(proxyUrl, headLoading, headError, head, () => void refetch());
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -366,13 +406,13 @@ export const FilePreviewPanel = memo(function FilePreviewPanel({ file, path, onC
         {previewState.kind === "denied" && (
           <PreviewError
             icon="lock"
-            message="The bucket must be public to preview files. Contact your administrator to enable public access."
+            message="Access denied. The storage bucket may require credentials or the file may not be accessible."
           />
         )}
         {previewState.kind === "not-found" && <PreviewError message="File not found at this path." />}
         {previewState.kind === "ready" && (
           <PreviewContent
-            url={previewState.url}
+            proxyUrl={previewState.proxyUrl}
             contentType={previewState.contentType}
             fileName={file.name}
           />

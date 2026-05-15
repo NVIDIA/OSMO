@@ -140,7 +140,7 @@ def _list_users(service_client: client.ServiceClient, args: argparse.Namespace):
     if args.format_type == 'json':
         print(json.dumps(result, indent=2, default=str))
     else:
-        print(f'Total users: {result.get("total_results", len(users))}')
+        print(f'Total users: {result.get('total_results', len(users))}')
         print()
         collection_header = ['User ID', 'Created At']
         table = common.osmo_table(header=collection_header)
@@ -168,9 +168,9 @@ def _create_user(service_client: client.ServiceClient, args: argparse.Namespace)
     if args.format_type == 'json':
         print(json.dumps(result, indent=2, default=str))
     else:
-        print(f'User created: {result.get("id")}')
+        print(f'User created: {result.get('id')}')
         if args.roles:
-            print(f'Roles assigned: {", ".join(args.roles)}')
+            print(f'Roles assigned: {', '.join(args.roles)}')
 
 
 def _update_user(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -227,12 +227,12 @@ def _get_user(service_client: client.ServiceClient, args: argparse.Namespace):
     if args.format_type == 'json':
         print(json.dumps(result, indent=2, default=str))
     else:
-        print(f'User ID: {result.get("id")}')
+        print(f'User ID: {result.get('id')}')
         created_at = result.get('created_at', '-')
         if created_at and created_at != '-':
             created_at = created_at.split('T')[0]
         print(f'Created At: {created_at}')
-        print(f'Created By: {result.get("created_by") or "-"}')
+        print(f'Created By: {result.get('created_by') or '-'}')
 
         roles = result.get('roles', [])
         if roles:
@@ -241,7 +241,7 @@ def _get_user(service_client: client.ServiceClient, args: argparse.Namespace):
                 assigned_at = role.get('assigned_at', '-')
                 if assigned_at and assigned_at != '-':
                     assigned_at = assigned_at.split('T')[0]
-                print(f'  - {role.get("role_name")} (assigned by {role.get("assigned_by")} '
+                print(f'  - {role.get('role_name')} (assigned by {role.get('assigned_by')} '
                       f'on {assigned_at})')
         else:
             print('\nRoles: None')

@@ -23,7 +23,6 @@ import datetime
 import enum
 import hashlib
 import heapq
-import json
 import math
 import os
 import random
@@ -33,7 +32,6 @@ import time
 from typing import Annotated, Any, Callable, Coroutine, Dict, Generator, Iterable, Iterator, List, NamedTuple, Optional, Set, Tuple
 import uuid
 
-import fastapi
 import pydantic
 import pytz
 import requests  # type: ignore
@@ -96,8 +94,10 @@ APP_VERSION_REGEX = \
 UUID_REGEX = r'[a-f0-9]{32}'
 GROUP_UUID_REGEX = r'osmo-[a-f0-9]{32}'
 OLD_UUID_REGEX = r'[a-z2-7]{26}'
-UuidPattern = Annotated[str,
-                        pydantic.Field(regex=f'^{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX}$')]
+UuidPattern = Annotated[
+    str,
+    pydantic.Field(
+        pattern=f'^{UUID_REGEX}|{OLD_UUID_REGEX}|{GROUP_UUID_REGEX}$')]
 
 WFID_REGEX = r'[a-zA-Z]([a-zA-Z0-9_-]*[a-zA-Z0-9])?-\d+$'
 RESOURCE_REGEX = r'(?P<size>(\d+(?:\.\d+)?))(?P<unit>([a-zA-Z]*))'
@@ -169,9 +169,23 @@ TAB = '  '
 def pydantic_encoder(obj):
     ''' Allows pydantic objects to be used for json.dumps '''
     if isinstance(obj, pydantic.BaseModel):
-        return obj.dict()
+        return obj.model_dump()
     elif isinstance(obj, enum.Enum):
         return obj.value
+    elif isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.date):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.time):
+        return obj.isoformat()
+    elif isinstance(obj, datetime.timedelta):
+        return obj.total_seconds()
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    elif isinstance(obj, (set, frozenset)):
+        return list(obj)
+    elif isinstance(obj, bytes):
+        return obj.decode('utf-8', errors='replace')
     raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
 
 
@@ -594,9 +608,38 @@ def _convert_str_to_time(duration: str) -> Tuple[int, str]:
     return int(duration[:-1]), duration[-1]
 
 
+_ISO8601_DURATION_RE = re.compile(
+    r'^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$'
+)
+
+
+def _parse_iso8601_duration(duration: str) -> datetime.timedelta | None:
+    """ Parses an ISO 8601 duration string (e.g. PT10S, PT1H30M) into a timedelta. """
+    match = _ISO8601_DURATION_RE.match(duration)
+    if not match:
+        return None
+    if not any(match.group(i) for i in range(1, 5)):
+        return None
+    days = int(match.group(1)) if match.group(1) else 0
+    hours = int(match.group(2)) if match.group(2) else 0
+    minutes = int(match.group(3)) if match.group(3) else 0
+    seconds = float(match.group(4)) if match.group(4) else 0
+    return datetime.timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+
+
 def to_timedelta(duration: str) -> datetime.timedelta:
     """ Converts time duration str to datetime.timedelta instance. """
-    error_message = f'Cannot recognize duration: {duration}. Only support xd, xh, xm, xs, xms, xus'
+    error_message = (
+        f'Cannot recognize duration: {duration}. '
+        'Only support ISO 8601 (e.g. PT10S) or xd, xh, xm, xs, xms, xus'
+    )
+
+    if duration.startswith('P'):
+        result = _parse_iso8601_duration(duration)
+        if result is not None:
+            return result
+        raise ValueError(error_message)
+
     try:
         value, unit = _convert_str_to_time(duration)
     except ValueError as error:
@@ -787,17 +830,6 @@ def verify_dict_keys(data: Dict):
                 raise osmo_errors.OSMOUserError('Keys can only consist of lower and upper ' +
                                                 f'case letters, numbers, "-" and "_": {key}')
 
-
-class PrettyJSONResponse(fastapi.Response):
-    media_type = 'application/json'
-
-    def render(self, content: Any) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-            indent=4,
-        ).encode('utf-8')
 
 
 def strategic_merge_patch(original: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
@@ -1034,7 +1066,8 @@ async def first_completed(coroutines: List[Coroutine], **kwargs):
     """
     Run all awaitables in parallel and return the first one that completes.
     """
-    done, pending = await asyncio.wait(coroutines, return_when=asyncio.FIRST_COMPLETED, **kwargs)
+    tasks = [asyncio.ensure_future(c) for c in coroutines]
+    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED, **kwargs)
     for task in pending:
         try:
             task.cancel()
@@ -1159,7 +1192,7 @@ def convert_utc_datetime_to_user_zone(utc_time: str) -> str:
         raise osmo_errors.OSMOError(f'Invalid time format: {utc_time}')
     user_timezone = datetime.datetime.now(datetime.timezone.utc).astimezone().tzinfo
     user_datetime = utc_datetime.replace(tzinfo=pytz.UTC).astimezone(user_timezone)
-    return f'{user_datetime.strftime("%b %d, %Y %H:%M %Z")}'
+    return f'{user_datetime.strftime('%b %d, %Y %H:%M %Z')}'
 
 
 def convert_timezone(date_value: str) -> str:

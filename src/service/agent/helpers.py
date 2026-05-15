@@ -112,15 +112,16 @@ def create_backend(name: str,
         insert_cmd,
         (name, message.k8s_uid, message.k8s_namespace, '',
          '',
-         connectors.BackendSchedulerSettings().json(),
+         connectors.BackendSchedulerSettings().model_dump_json(),
          common.current_time(), common.current_time(), '', router_address,
          message.version))
     if k8s_info[0].k8s_uid != message.k8s_uid:
         raise osmo_errors.OSMOBackendError(f'Backend {name} is already being used by a '
                                            'different cluster')
 
-    if k8s_info[0].is_new:
-        config_helpers.update_backend_queues(connectors.Backend.fetch_from_db(postgres, name))
+    # Snapshot pre-UPDATE; passed to update_backend_queues below so it can
+    # clean up old scheduler resources on scheduler_type / namespace changes.
+    previous_backend = connectors.Backend.fetch_from_db(postgres, name)
 
     # Update node_conditions column to set the prefix while preserving existing values
     update_cmd = '''
@@ -153,6 +154,17 @@ def create_backend(name: str,
                                                     name,
                                                     message.k8s_namespace,
                                                     message.version, message.node_condition_prefix))
+
+    # MUST run after the UPDATE above: queue names embed k8s_namespace
+    # (`osmo-pool-<ns>-<pool>`), so the fetched backend has to reflect the
+    # just-written namespace. previous_backend (snapshot pre-UPDATE) lets
+    # update_backend_queues clean up old scheduler resources on
+    # scheduler_type / namespace transitions. Idempotent on every reconnect:
+    # the worker no-ops unchanged specs.
+    config_helpers.update_backend_queues(
+        connectors.Backend.fetch_from_db(postgres, name),
+        previous_backend,
+    )
 
     # Only create a single history entry for the backend creation or update
     if k8s_info[0].is_new:
@@ -454,7 +466,7 @@ def keep_pod_conditions(message: backend_messages.ConditionMessage) -> bool:
     """
     if message.type == 'ContainersReady':
         return False
-    if message.type in ['Initialized', 'Ready'] and message.status is False:
+    if message.type in ['Initialized', 'Ready'] and message.status == 'False':
         return False
     return True
 
@@ -506,7 +518,7 @@ def send_pod_conditions(
                 text=condition_log)
 
             redis_client.xadd(common.get_workflow_events_redis_name(message.workflow_uuid),
-                              json.loads(log_body.json()),
+                              json.loads(log_body.model_dump_json()),
                               maxlen=max_event_log_lines)
 
             # Update the latest timestamp
@@ -554,7 +566,7 @@ def send_pod_event(message: backend_messages.PodEventBody,
             retry_id=retry_id,
             text=event_log)
         redis_client.xadd(common.get_workflow_events_redis_name(workflow_uuid),
-                          json.loads(log_body.json()),
+                          json.loads(log_body.model_dump_json()),
                           maxlen=max_event_log_lines)
         redis_client.set(timestamp_key, message.timestamp.timestamp())
         redis_client.expire(timestamp_key, connectors.MAX_LOG_TTL, nx=True)
@@ -634,7 +646,7 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                 ack_body = backend_messages.AckBody(uuid=message.uuid)
                 ack_message = backend_messages.MessageBody(
                     type=backend_messages.MessageType.ACK,
-                    body=ack_body.dict()
+                    body=ack_body.model_dump()
                 )
                 message_options = {
                     message.type.value: message.body
@@ -707,7 +719,7 @@ async def backend_listener_impl(websocket: fastapi.WebSocket, name: str):
                     ) from db_err
             finally:
                 if ack_message:
-                    await websocket.send_text(ack_message.json())
+                    await websocket.send_text(ack_message.model_dump_json())
 
     except fastapi.WebSocketDisconnect as err:  # The websocket is closed by client
         logging.info(
@@ -731,7 +743,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
     try:
         # Get backend info from database and send node conditions
         backend_info = connectors.Backend.fetch_from_db(postgres, name)
-        node_conditions = backend_info.node_conditions.dict()
+        node_conditions = backend_info.node_conditions.model_dump()
 
         # Send node conditions to backend listener
         message = backend_messages.MessageBody(
@@ -740,7 +752,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                 rules=node_conditions.get('rules', {})
             )
         )
-        await websocket.send_text(message.json())
+        await websocket.send_text(message.model_dump_json())
         logging.info('Sent node conditions to backend %s', name)
 
         async with redis.asyncio.from_url(config.redis_url) as redis_client:
@@ -748,7 +760,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                 try:
                     queue_name = connectors.backend_action_queue_name(name)
                     # Use async blocking brpop which yields control while waiting
-                    result = await redis_client.brpop(queue_name)
+                    result = await redis_client.brpop(queue_name)  # type: ignore[misc]
                     if result is not None:
                         _, attrributes = result
                         logging.info('Sending action to backend %s from queue: %s with key: %s',
@@ -760,7 +772,7 @@ async def backend_listener_control_impl(websocket: fastapi.WebSocket, name: str)
                             body=backend_messages.NodeConditionsBody(
                                 rules=json_fields.get('rules', {})
                             ))
-                        await websocket.send_text(message.json())
+                        await websocket.send_text(message.model_dump_json())
                 except (ConnectionError,
                         asyncio.exceptions.TimeoutError) as conn_error:
                     # Handle connection/timeout errors

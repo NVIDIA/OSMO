@@ -20,13 +20,13 @@ from collections import abc
 from datetime import datetime
 import json
 import logging
-import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Type
 
 import pydantic
 import yaml
 
 from src.lib.utils import common, osmo_errors
+from src.service.core.config import configmap_guard
 from src.utils.job import backend_jobs, kb_objects, workflow
 from src.service.core.config import objects as configs_objects
 from src.service.core.workflow import objects
@@ -105,9 +105,14 @@ def put_configs(
         should_serialize: Whether to serialize the config before storing.
                             Skip serialization when rolling back a config.
 
+    Raises:
+        OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
+
     Returns:
         Dict containing the updated configuration
     """
+    configmap_guard.reject_if_configmap_mode(username)
+
     postgres = connectors.PostgresConnector.get_instance()
     if should_serialize:
         updated_configs = request.configs.serialize(postgres)
@@ -152,7 +157,12 @@ def patch_configs(
 
     Returns:
         Dict containing the updated configuration fields.
+
+    Raises:
+        OSMOUserError(409): If the config is managed by ConfigMap in configmap mode.
     """
+    configmap_guard.reject_if_configmap_mode(username)
+
     postgres = connectors.PostgresConnector.get_instance()
     current_configs_dict = postgres.get_configs(config_type).plaintext_dict(
         by_alias=True, exclude_unset=True)
@@ -167,16 +177,20 @@ def patch_configs(
             updated_configs_fields[key] = value
 
     try:
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.FORBID)
-
-        configs: connectors.DynamicConfig
+        config_class: Type[connectors.DynamicConfig]
         if config_type == connectors.ConfigType.SERVICE:
-            configs = connectors.ServiceConfig(**updated_configs_fields)
+            config_class = connectors.ServiceConfig
         elif config_type == connectors.ConfigType.WORKFLOW:
-            configs = connectors.WorkflowConfig(**updated_configs_fields)
+            config_class = connectors.WorkflowConfig
         elif config_type == connectors.ConfigType.DATASET:
-            configs = connectors.DatasetConfig(**updated_configs_fields)
+            config_class = connectors.DatasetConfig
+        else:
+            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
+
+        configs = config_class(**updated_configs_fields)
+
+        if config_type == connectors.ConfigType.DATASET and isinstance(
+                configs, connectors.DatasetConfig):
             try:
                 for _, bucket_config in configs.buckets.items():
                     connectors.BucketMode(bucket_config.mode.lower())
@@ -184,13 +198,8 @@ def patch_configs(
             except ValueError as _:
                 raise osmo_errors.OSMOUserError(
                     f'Bucket mode {bucket_config.mode} is not valid. Valid modes are '
-                    f'{", ".join([member.value for member in connectors.BucketMode])}')
+                    f'{', '.join([member.value for member in connectors.BucketMode])}')
 
-        else:
-            raise osmo_errors.OSMOServerError(f'Config type: {config_type.value} unknown')
-
-        if postgres.get_method() != 'dev':
-            connectors.ExtraArgBaseModel.set_extra(connectors.ExtraType.IGNORE)
         updated_configs = configs.serialize(postgres)
         for key, value in updated_configs.items():
             postgres.set_config(key, value, config_type)
@@ -209,8 +218,10 @@ def patch_configs(
         tags=request.tags,
     )
 
-    new_configs_dict = postgres.get_configs(config_type).dict(by_alias=True, exclude_unset=True)
+    new_configs_dict = postgres.get_configs(config_type).model_dump(
+        by_alias=True, exclude_unset=True)
     return {key: value for key, value in new_configs_dict.items() if key in request.configs_dict}
+
 
 def backend_action_request_helper(payload: Dict[str, Any], name: str):
 
@@ -241,26 +252,6 @@ def _update_backend_helper(
             values.append(f'{key} = %s')
             params.append(value)
         if key == 'node_conditions' and value:
-            # Validate node condition rules
-            try:
-                node_conditions_dict = json.loads(value)
-                rules = node_conditions_dict.get('rules', {}) or {}
-                # Enforce: 'Ready' can only be set to 'True' if explicitly provided
-                for pattern, status_regex in rules.items():
-                    try:
-                        if re.match(pattern, 'Ready') and status_regex != 'True':
-                            raise osmo_errors.OSMOUserError(
-                                "Overriding 'Ready' rule is not allowed; only 'True' is permitted")
-                    except re.error:
-                        # Ignore invalid regex here;
-                        # other logic already guards re errors during matching
-                        continue
-            except json.JSONDecodeError as e:
-                raise osmo_errors.OSMOUserError(
-                    f'Invalid JSON in node_conditions: {e}') from e
-            except (KeyError, TypeError) as e:
-                raise osmo_errors.OSMOUserError(
-                    f'Invalid node_conditions format: {e}') from e
             send_update = True
         if key == 'tests' and value:
             # Check for duplicates in the original list
@@ -276,7 +267,7 @@ def _update_backend_helper(
     params.append(configs['name'])
 
     update_cmd = (
-        f'UPDATE backends SET {", ".join(values)} WHERE name = %s RETURNING name;'
+        f'UPDATE backends SET {', '.join(values)} WHERE name = %s RETURNING name;'
     )
     result = postgres.execute_fetch_command(update_cmd, tuple(params))
     if not result:
@@ -302,7 +293,7 @@ def create_backend_config_history_entry(
     backends = connectors.Backend.list_from_db(postgres)
 
     backends_list = [
-        backend.dict(by_alias=True, exclude_unset=True)
+        backend.model_dump(by_alias=True, exclude_unset=True)
         for backend in backends
     ]
 
@@ -334,11 +325,11 @@ def update_backend(
     postgres = connectors.PostgresConnector.get_instance()
     try:
         old_backend = connectors.Backend.fetch_from_db(postgres, name)
-    except pydantic.error_wrappers.ValidationError as e:
+    except pydantic.ValidationError as e:
         logging.warning('Failed to get previous backend %s: %s', name, e)
         old_backend = None
     _update_backend_helper(postgres, configs_objects.BackendConfigWithName(
-        **request.configs.dict(), name=name))
+        **request.configs.model_dump(), name=name))
 
     create_backend_config_history_entry(
         postgres, name, username, request.description or f"Updated backend \'{name}\'", request.tags
@@ -425,7 +416,7 @@ def delete_backend(
     postgres.execute_commit_command(delete_resource_cmd, (name,))
 
     backends = [
-        backend.dict(by_alias=True, exclude_unset=True)
+        backend.model_dump(by_alias=True, exclude_unset=True)
         for backend in connectors.Backend.list_from_db(postgres)
     ]
 
@@ -449,7 +440,7 @@ def create_pool_config_history_entry(
     Add a history entry for a pool config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    pools = connectors.fetch_editable_pool_config(postgres).dict(
+    pools = connectors.fetch_editable_pool_config(postgres).model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -472,7 +463,7 @@ def create_dataset_config_history_entry(
     Add a history entry for a dataset config.
     """
     postgres = connectors.PostgresConnector.get_instance()
-    dataset_configs = postgres.get_dataset_configs().dict(
+    dataset_configs = postgres.get_dataset_configs().model_dump(
         by_alias=True, exclude_unset=True
     )
     postgres.create_config_history_entry(
@@ -747,14 +738,13 @@ def update_backend_tests_cronjobs(backend_name: str, current_tests: List[str],
         for test_name in current_tests:
             try:
                 test_config = connectors.BackendTests.fetch_from_db(postgres, test_name)
-                test_configs[test_name] = test_config.dict(by_alias=True, exclude_unset=True)
+                test_configs[test_name] = test_config.model_dump(by_alias=True, exclude_unset=True)
             except osmo_errors.OSMOError as error:
                 logging.error('Failed to fetch test config for test %s: %s', test_name, error)
                 continue
 
         logging.info('Fetched %d test configs for backend %s', len(test_configs), backend_name,
                      extra={'workflow_uuid': getattr(context, 'workflow_uuid', None)})
-        print(test_configs)
         # Create SynchronizeBackendTest job with test configurations
         sync_job = backend_jobs.BackendSynchronizeBackendTest(
             backend=backend_name,

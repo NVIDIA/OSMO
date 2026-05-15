@@ -33,12 +33,12 @@ import {
   useDeleteUsersCredentialApiCredentialsCredNameDelete,
   type CredentialOptions,
   type UserProfile as BackendUserProfile,
-  type getPoolQuotasApiPoolQuotaGetResponse,
-  type getResourcesApiResourcesGetResponse,
-  type getVersionApiVersionGetResponse,
-  type getNotificationSettingsApiProfileSettingsGetResponse,
-  type getBucketInfoApiBucketGetResponse,
-  type getUserCredentialApiCredentialsGetResponse,
+  type PoolResponse,
+  type PoolResourcesResponse as GeneratedPoolResourcesResponse,
+  type Version as BackendVersion,
+  type ProfileResponse,
+  type BucketInfoResponse,
+  type CredentialGetResponse,
 } from "@/lib/api/generated";
 import { QUERY_STALE_TIME_EXPENSIVE_MS, QUERY_STALE_TIME } from "@/lib/config";
 import { naturalCompare } from "@/lib/utils";
@@ -51,7 +51,6 @@ import {
   transformVersionResponse,
   transformUserProfile,
   transformCredentialList,
-  transformCredential,
 } from "@/lib/api/adapter/transforms";
 
 import {
@@ -84,9 +83,8 @@ export function usePools(enabled = true) {
     {
       query: {
         enabled,
-        select: useCallback((rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
-          if (!rawData.data) return { pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA };
-          return transformPoolsResponse(rawData.data);
+        select: useCallback((data: PoolResponse) => {
+          return transformPoolsResponse(data);
         }, []),
       },
     },
@@ -109,10 +107,7 @@ export function useFilteredPools(params: PoolFilterParams = {}, refetchInterval 
   // FUTURE: When backend supports filtering, include params in query key
   const query = useQuery({
     queryKey: POOLS_QUERY_KEY,
-    queryFn: async () => {
-      const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
-      return transformPoolsResponse(rawResponse.data);
-    },
+    queryFn: () => getPoolQuotasApiPoolQuotaGet({ all_pools: true }).then(transformPoolsResponse),
     staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
     // Auto-refresh support
     refetchInterval,
@@ -145,9 +140,8 @@ export function useFilteredPools(params: PoolFilterParams = {}, refetchInterval 
  * Fetch pools for server-side use (SSR/prefetching).
  * Uses the generated API client with clean customFetch (no serverFetch/MSW).
  */
-export async function fetchPools() {
-  const rawResponse = await getPoolQuotasApiPoolQuotaGet({ all_pools: true });
-  return transformPoolsResponse(rawResponse.data);
+export function fetchPools() {
+  return getPoolQuotasApiPoolQuotaGet({ all_pools: true }).then(transformPoolsResponse);
 }
 
 export type { PoolFilterParams, FilteredPoolsResult, PoolMetadata };
@@ -162,9 +156,8 @@ export function usePool(poolName: string, enabled = true) {
       query: {
         enabled,
         select: useCallback(
-          (rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
-            if (!rawData.data) return null;
-            return transformPoolDetail(rawData.data, poolName);
+          (data: PoolResponse) => {
+            return transformPoolDetail(data, poolName);
           },
           [poolName],
         ),
@@ -189,9 +182,9 @@ export function usePoolResources(poolName: string) {
     {
       query: {
         select: useCallback(
-          (rawData: getResourcesApiResourcesGetResponse): PoolResourcesResponse => {
-            if (!rawData.data) return { resources: [], platforms: [] };
-            return transformResourcesResponse(rawData.data, poolName);
+          (data: ResourcesResponse | GeneratedPoolResourcesResponse): PoolResourcesResponse => {
+            if (!("resources" in data)) return { resources: [], platforms: [] };
+            return transformResourcesResponse(data as ResourcesResponse, poolName);
           },
           [poolName],
         ),
@@ -213,9 +206,9 @@ export function useAllResources() {
     { all_pools: true },
     {
       query: {
-        select: useCallback((rawData: getResourcesApiResourcesGetResponse): AllResourcesResponse => {
-          if (!rawData.data) return { resources: [], pools: [], platforms: [] };
-          return transformAllResourcesResponse(rawData.data);
+        select: useCallback((data: ResourcesResponse | GeneratedPoolResourcesResponse): AllResourcesResponse => {
+          if (!("resources" in data)) return { resources: [], pools: [], platforms: [] };
+          return transformAllResourcesResponse(data as ResourcesResponse);
         }, []),
       },
     },
@@ -239,9 +232,8 @@ export function useVersion() {
       // Version never changes during a session — cache forever
       staleTime: Infinity,
       gcTime: Infinity,
-      select: useCallback((rawData: getVersionApiVersionGetResponse) => {
-        if (!rawData.data) return null;
-        return transformVersionResponse(rawData.data);
+      select: useCallback((data: BackendVersion) => {
+        return transformVersionResponse(data);
       }, []),
     },
   });
@@ -262,8 +254,9 @@ export async function fetchResources(
   params: Omit<ResourceFilterParams, "all_pools"> & PaginationParams,
 ): Promise<PaginatedResourcesResult> {
   // Pass all filter params to the adapter shim - it handles client-side filtering
-  return fetchPaginatedResources({ ...params, all_pools: true }, () =>
-    getResourcesApiResourcesGet({ all_pools: true }).then((res) => res.data),
+  return fetchPaginatedResources(
+    { ...params, all_pools: true },
+    () => getResourcesApiResourcesGet({ all_pools: true }) as Promise<ResourcesResponse>,
   );
 }
 
@@ -271,14 +264,11 @@ export { invalidateResourcesCache };
 export { getResourceFilterOptions };
 
 // WORKAROUND: Must query all_pools=true to get full memberships (Issue: BACKEND_TODOS.md#7)
-function extractPoolMemberships(data: unknown, resourceName: string): PoolMembership[] {
-  let backendResources: ResourcesResponse["resources"] = [];
-  try {
-    const parsed = typeof data === "string" ? JSON.parse(data) : data;
-    backendResources = (parsed as ResourcesResponse)?.resources ?? [];
-  } catch {
-    return [];
-  }
+function extractPoolMemberships(
+  data: ResourcesResponse | GeneratedPoolResourcesResponse,
+  resourceName: string,
+): PoolMembership[] {
+  const backendResources: ResourcesResponse["resources"] = ("resources" in data ? data.resources : undefined) ?? [];
 
   const backendResource = backendResources.find((r) => {
     const nameField = (r.exposed_fields as Record<string, unknown>)?.node;
@@ -339,7 +329,7 @@ export function useResourceDetail(
     // Get pool memberships - prefer fetched data over resource's initial data
     let memberships = resource.poolMemberships;
     if (resourcesQuery.data) {
-      const fetched = extractPoolMemberships(resourcesQuery.data.data, resource.name);
+      const fetched = extractPoolMemberships(resourcesQuery.data, resource.name);
       if (fetched.length > 0) {
         memberships = fetched;
       }
@@ -355,7 +345,7 @@ export function useResourceDetail(
     const taskConfigByPool: Record<string, Record<string, TaskConfig>> = {};
 
     if (poolsQuery.data) {
-      const allPools = transformPoolsResponse(poolsQuery.data.data).pools;
+      const allPools = transformPoolsResponse(poolsQuery.data).pools;
       const poolsMap = new Map(allPools.map((p: Pool) => [p.name, p]));
 
       for (const poolName of pools) {
@@ -405,14 +395,11 @@ export function useResourceDetail(
 import {
   useGetWorkflowApiWorkflowNameGet,
   type WorkflowQueryResponse,
-  type getWorkflowApiWorkflowNameGetResponse,
   useExecIntoTaskApiWorkflowNameExecTaskTaskNamePost,
   usePortForwardTaskApiWorkflowNamePortforwardTaskNamePost,
   usePortForwardWebserverApiWorkflowNameWebserverTaskNamePost,
   useGetUsersApiUsersGet,
 } from "@/lib/api/generated";
-
-type WorkflowQueryData = getWorkflowApiWorkflowNameGetResponse;
 
 interface UseWorkflowParams {
   name: string;
@@ -424,7 +411,7 @@ interface UseWorkflowParams {
    */
   refetchInterval?:
     | number
-    | ((query: Query<WorkflowQueryData, Error, WorkflowQueryData, readonly unknown[]>) => number);
+    | ((query: Query<WorkflowQueryResponse, Error, WorkflowQueryResponse, readonly unknown[]>) => number);
 }
 
 interface UseWorkflowReturn {
@@ -435,7 +422,7 @@ interface UseWorkflowReturn {
   isNotFound: boolean;
 }
 
-// WORKAROUND: Timestamps need normalization (Issue: BACKEND_TODOS.md#16) and string parsing (Issue: BACKEND_TODOS.md#1)
+// WORKAROUND: Timestamps need normalization (Issue: BACKEND_TODOS.md#16)
 //
 // This hook uses TanStack Query's built-in structural sharing to prevent infinite re-renders
 // when the backend returns semantically identical data with new object references.
@@ -443,7 +430,6 @@ interface UseWorkflowReturn {
 // deep equality checks and preserves references when data is semantically identical.
 export function useWorkflow({ name, verbose = true, refetchInterval = 0 }: UseWorkflowParams): UseWorkflowReturn {
   // Parse and transform the workflow response using TanStack Query's select option
-  // WORKAROUND: API returns string that needs parsing (BACKEND_TODOS.md#1)
   // WORKAROUND: Timestamps may lack timezone suffix (BACKEND_TODOS.md#16)
   const { data, isLoading, error, refetch } = useGetWorkflowApiWorkflowNameGet(
     name,
@@ -451,14 +437,14 @@ export function useWorkflow({ name, verbose = true, refetchInterval = 0 }: UseWo
     {
       query: {
         // Transform at query level - structural sharing prevents re-renders on identical data
-        select: useCallback((rawData: WorkflowQueryData) => {
-          if (!rawData) return null;
+        select: useCallback((data: WorkflowQueryResponse) => {
+          if (!data) return null;
           try {
-            const payload = rawData.data;
-            const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
-            return normalizeWorkflowTimestamps(parsed) as WorkflowQueryResponse;
+            return normalizeWorkflowTimestamps(
+              data as unknown as Record<string, unknown>,
+            ) as unknown as WorkflowQueryResponse;
           } catch {
-            console.error("Failed to parse workflow response:", rawData);
+            console.error("Failed to parse workflow response:", data);
             return null;
           }
         }, []),
@@ -493,14 +479,13 @@ export function useWorkflow({ name, verbose = true, refetchInterval = 0 }: UseWo
  * Fetch a single workflow by name for server-side use (SSR/prefetching).
  * Uses the generated API client with clean customFetch (no serverFetch/MSW).
  */
-export async function fetchWorkflowByName(name: string, verbose = true) {
+export async function fetchWorkflowByName(name: string, verbose = true): Promise<Record<string, unknown> | null> {
   const { getWorkflowApiWorkflowNameGet } = await import("../generated");
 
   try {
     const response = await getWorkflowApiWorkflowNameGet(name, { verbose });
-    const payload = response.data;
-    const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
-    return normalizeWorkflowTimestamps(parsed);
+    if (!response) return null;
+    return normalizeWorkflowTimestamps(response as unknown as Record<string, unknown>);
   } catch (_error) {
     // 404 or other errors - return null
     return null;
@@ -536,9 +521,8 @@ export function usePoolNames(enabled: boolean = true) {
       query: {
         enabled,
         staleTime: QUERY_STALE_TIME_EXPENSIVE_MS,
-        select: useCallback((rawData: getPoolQuotasApiPoolQuotaGetResponse) => {
-          if (!rawData.data) return { pools: [], sharingGroups: [], gpuSummary: EMPTY_QUOTA };
-          return transformPoolsResponse(rawData.data);
+        select: useCallback((data: PoolResponse) => {
+          return transformPoolsResponse(data);
         }, []),
       },
     },
@@ -555,9 +539,6 @@ export function usePoolNames(enabled: boolean = true) {
  *
  * IMPORTANT: This can return 1000s of users - virtualization required in dropdown!
  *
- * WORKAROUND: Backend returns string[] but OpenAPI types response as string.
- * This is the same issue as pools/resources (BACKEND_TODOS.md #1).
- *
  * @param enabled - Whether to fetch data (default: true). Set to false for lazy loading.
  */
 export function useUsers(enabled: boolean = true) {
@@ -570,12 +551,7 @@ export function useUsers(enabled: boolean = true) {
 
   const users = useMemo(() => {
     if (!data) return [];
-    // WORKAROUND: API returns string[] but OpenAPI types as string (BACKEND_TODOS.md #1)
-    const payload = data.data;
-    const parsed = typeof payload === "string" ? JSON.parse(payload) : payload;
-    const userList = parsed as unknown as string[];
-
-    return userList.sort(naturalCompare);
+    return [...data].sort(naturalCompare);
   }, [data]);
 
   return { users, isLoading, error };
@@ -769,14 +745,10 @@ export function useProfile({ enabled = true }: { enabled?: boolean } = {}) {
       queryKey: profileKeys.detail(),
       staleTime: QUERY_STALE_TIME.STANDARD,
       enabled,
-      select: useCallback((rawData: getNotificationSettingsApiProfileSettingsGetResponse) => {
-        if (!rawData.data) return null;
-        // Backend returns ProfileResponse { profile: UserProfile, pools: string[] }
-        const response = rawData.data as { profile?: unknown; pools?: string[] };
-        const profile = transformUserProfile(response.profile);
-        // Merge accessible pools from the response
-        if (response.pools && Array.isArray(response.pools)) {
-          profile.pool.accessible = response.pools;
+      select: useCallback((data: ProfileResponse) => {
+        const profile = transformUserProfile(data.profile);
+        if (data.pools) {
+          profile.pool.accessible = data.pools;
         }
         return profile;
       }, []),
@@ -818,15 +790,7 @@ export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
         queryKey: [...profileKeys.all, "buckets"] as const,
         staleTime: QUERY_STALE_TIME.STANDARD,
         enabled,
-        select: useCallback((rawData: getBucketInfoApiBucketGetResponse) => {
-          const data = rawData.data;
-          if (!data || typeof data !== "object") {
-            return { buckets: [], defaultBucket: "" };
-          }
-          const response = data as {
-            default?: string;
-            buckets?: Record<string, { path: string; description: string; mode: string; default_cred: boolean }>;
-          };
+        select: useCallback((data: BucketInfoResponse) => {
           const buckets: Array<{
             name: string;
             path: string;
@@ -835,21 +799,19 @@ export function useBuckets({ enabled = true }: { enabled?: boolean } = {}) {
             defaultCredential: boolean;
           }> = [];
 
-          if (response.buckets) {
-            for (const [name, info] of Object.entries(response.buckets)) {
-              buckets.push({
-                name,
-                path: info.path,
-                description: info.description,
-                mode: info.mode,
-                defaultCredential: info.default_cred,
-              });
-            }
+          for (const [name, info] of Object.entries(data.buckets)) {
+            buckets.push({
+              name,
+              path: info.path,
+              description: info.description,
+              mode: info.mode,
+              defaultCredential: info.default_cred,
+            });
           }
 
           return {
             buckets,
-            defaultBucket: response.default || "",
+            defaultBucket: data.default || "",
           };
         }, []),
       },
@@ -888,12 +850,8 @@ export function useCredentials({ enabled = true }: { enabled?: boolean } = {}) {
       queryKey: profileKeys.credentials(),
       staleTime: QUERY_STALE_TIME.STANDARD,
       enabled,
-      select: useCallback((rawData: getUserCredentialApiCredentialsGetResponse) => {
-        const data = rawData.data;
-        if (!data) return [];
-        // Backend returns string that needs parsing
-        const parsed = typeof data === "string" ? JSON.parse(data) : data;
-        return transformCredentialList(parsed);
+      select: useCallback((data: CredentialGetResponse) => {
+        return transformCredentialList(data);
       }, []),
     },
   });
@@ -952,8 +910,7 @@ export function useUpdateProfile() {
         backendPayload.pool = update.pool.default;
       }
 
-      const result = await mutation.mutateAsync({ data: backendPayload });
-      return transformUserProfile(result.data);
+      await mutation.mutateAsync({ data: backendPayload });
     },
     [mutation],
   );
@@ -1000,11 +957,10 @@ export function useUpsertCredential() {
       // Extract cred_name for URL path, rest is the body payload
       const { cred_name, ...backendPayload } = credential;
 
-      const result = await mutation.mutateAsync({
+      await mutation.mutateAsync({
         credName: cred_name,
         data: backendPayload as CredentialOptions,
       });
-      return transformCredential(result.data);
     },
     [mutation],
   );

@@ -149,7 +149,6 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
 
   const { workflow, groupsWithLayout, isLoading, error, refetch, isNotFound, isTerminal } = useWorkflowDetail({
     name,
-    refetchInterval: autoRefresh.effectiveInterval,
   });
 
   // Terminal workflows force interval to 0 (display only - polling already stopped)
@@ -483,5 +482,3 @@ function WorkflowDetailContent({ name, initialView }: WorkflowDetailInnerProps) 
     </ShellProvider>
   );
 }
-
-export { WorkflowDetailInner as WorkflowDetailInnerWithProvider };

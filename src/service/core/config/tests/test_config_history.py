@@ -81,14 +81,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Test first service config update
         first_service_config = {
             'cli_config': {
-                'latest_version': 'test-cli',
+                'latest_version': '1.0.0',
                 'min_supported_version': '1.0.0',
-                'credential': {
-                    'endpoint': 's3://test-bucket',
-                    'access_key_id': 'test-key',
-                    'access_key': 'test-secret',
-                    'region': 'us-east-1',
-                },
             }
         }
         first_tags = ['service-update', 'cli-config']
@@ -104,14 +98,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Test second service config update
         second_service_config = {
             'cli_config': {
-                'latest_version': 'updated-cli',
+                'latest_version': '2.0.0',
                 'min_supported_version': '2.0.0',
-                'credential': {
-                    'endpoint': 's3://new-bucket',
-                    'access_key_id': 'new-key',
-                    'access_key': 'new-secret',
-                    'region': 'us-west-1',
-                },
             }
         }
         second_tags = ['service-update', 'cli-update']
@@ -134,7 +122,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=first_tags,
         )
         config = history['configs'][-2]['data']
-        self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
+        self.assertEqual(config['cli_config']['latest_version'], '1.0.0')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '1.0.0')
         self._verify_history_entry(
@@ -145,7 +133,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=second_tags,
         )
         config = history['configs'][-1]['data']
-        self.assertEqual(config['cli_config']['latest_version'], 'updated-cli')
+        self.assertEqual(config['cli_config']['latest_version'], '2.0.0')
         self.assertEqual(config['cli_config']
                          ['min_supported_version'], '2.0.0')
 
@@ -171,11 +159,8 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             expected_tags=rollback_tags,
         )
         config = history['configs'][-1]['data']
-        self.assertEqual(config['cli_config']['latest_version'], 'test-cli')
+        self.assertEqual(config['cli_config']['latest_version'], '1.0.0')
         self.assertEqual(config['cli_config']['min_supported_version'], '1.0.0')
-        self.assertEqual(config['cli_config']['credential']['endpoint'], 's3://test-bucket')
-        self.assertEqual(config['cli_config']['credential']['access_key_id'], 'test-key')
-        self.assertEqual(config['cli_config']['credential']['region'], 'us-east-1')
 
     def test_workflow_config_history(self):
         """Test history entries for workflow config operations."""
@@ -1019,7 +1004,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         # Create multiple service config updates to have multiple revisions
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v1'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.1'}},
                 description='First service update',
                 tags=['first-update']
             ),
@@ -1028,7 +1013,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v2'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.2'}},
                 description='Second service update',
                 tags=['second-update']
             ),
@@ -1037,7 +1022,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
 
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v3'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.3'}},
                 description='Third service update',
                 tags=['third-update']
             ),
@@ -1152,7 +1137,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         initial_tags = ['initial-tag', 'service-tag']
         config_service.patch_service_configs(
             request=objects.PatchConfigRequest(
-                configs_dict={'cli_config': {'latest_version': 'test-cli-v1'}},
+                configs_dict={'cli_config': {'latest_version': '1.0.1'}},
                 description='Initial service update',
                 tags=initial_tags
             ),
@@ -1290,7 +1275,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
                 second_revision=initial_history_entry['revision'],
             ),
         )
-        self.assertEqual(response.first_data, initial_history_entry['data'])
+        self.assertEqual(response.first_data.model_dump(mode='json'), initial_history_entry['data'])
         self.assertEqual(response.second_data, initial_history_entry['data'])
 
         # Test 2: Add the new bucket
@@ -1302,7 +1287,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
             ),
         )
         self.assertEqual(
-            response.first_data,
+            response.first_data.model_dump(mode='json'),
             initial_history_entry['data']
         )
         self.assertEqual(
@@ -1341,7 +1326,7 @@ class ConfigHistoryTestCase(fixture.ServiceTestFixture):
         )
         self.assertEqual(
             response.second_data['buckets']['test-bucket-1']['default_credential']['access_key'],
-            f'********** <secret changed in r{updated_access_key_history_entry["revision"]}>'
+            f'********** <secret changed in r{updated_access_key_history_entry['revision']}>'
         )
 
         # Test 7: Non-existent revision

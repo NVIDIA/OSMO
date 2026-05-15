@@ -37,3 +37,43 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_access_token",
+    srcs = [
+        "test_access_token.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
+py_test(
+    name = "test_app",
+    srcs = [
+        "test_app.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
+py_test(
+    name = "test_bucket",
+    srcs = [
+        "test_bucket.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
+
+py_test(
+    name = "test_credential",
+    srcs = [
+        "test_credential.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)

@@ -29,6 +29,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { handleRedirectResponse } from "@/lib/api/handle-redirect";
+import { toProxiedPath } from "@/lib/config";
 import type { WorkflowQueryResponse } from "@/lib/api/adapter/types";
 
 // =============================================================================
@@ -70,13 +71,12 @@ const SPEC_GC_TIME = 30 * 60 * 1000;
 /**
  * Fetch spec directly from the backend URL (workflow.spec / workflow.template_spec).
  *
- * Uses the default credentials mode ("same-origin") so that:
- * - Production (same origin behind Envoy): cookies are sent for auth
- * - Local dev (cross-origin, different port): cookies are omitted,
- *   allowing the backend's Access-Control-Allow-Origin: * to work
+ * Uses toProxiedPath to strip the origin from absolute backend URLs so requests
+ * route through the same-origin Next.js proxy when the UI is served from a
+ * different domain than the backend's service_base_url.
  */
 async function fetchSpec(specUrl: string): Promise<string> {
-  const response = await fetch(specUrl, {
+  const response = await fetch(toProxiedPath(specUrl), {
     method: "GET",
     headers: {
       Accept: "text/plain",

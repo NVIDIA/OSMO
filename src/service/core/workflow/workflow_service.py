@@ -35,6 +35,7 @@ import fastapi.staticfiles
 
 from src.lib.data import storage
 from src.lib.utils import common, credentials, login, osmo_errors, priority as wf_priority
+from src.lib.utils.redact import redact_secrets
 from src.utils.job import common as job_common, jobs, workflow, task
 from src.service.core.workflow import helpers, objects
 from src.utils import connectors
@@ -47,7 +48,6 @@ router_pool = fastapi.APIRouter(tags = ['Pool API'])
 
 
 FETCH_TASK_LIMIT = 1000
-
 
 class ActionType(enum.Enum):
     EXEC = 'exec'
@@ -91,10 +91,14 @@ class BaseResourceUsage:
     total_usage: int = 0
 
 
-@router_pool.get('/api/pool', response_class=common.PrettyJSONResponse)
-def get_pools(all_pools: bool = True,
-              pools: List[str] | None = fastapi.Query(default = None)) -> \
-                   connectors.MinimalPoolConfig | objects.PoolResponse:
+@router_pool.get(
+    '/api/pool',
+    response_model=connectors.MinimalPoolConfig,
+)
+def get_pools(
+    all_pools: bool = True,
+    pools: List[str] | None = fastapi.Query(default = None),
+) -> connectors.MinimalPoolConfig:
     """
     Returns information regarding pools to users.
 
@@ -210,7 +214,11 @@ def calculate_pool_quotas(
         merged_nodes: frozenset[str] = frozenset().union(
             *(node_sets[pool].nodes for pool in component_pools)
         )
-        pools_by_nodeset[NodeSet(start_nodeset.backend, merged_nodes)] = component_pools
+        nodeset_key = NodeSet(start_nodeset.backend, merged_nodes)
+        if nodeset_key in pools_by_nodeset:
+            pools_by_nodeset[nodeset_key].extend(component_pools)
+        else:
+            pools_by_nodeset[nodeset_key] = component_pools
 
     gpu_usage_by_nodeset = {
         nodeset: sum((node_gpu_usage.get(node, NodeGpuUsage()) for node in nodeset.nodes),
@@ -263,7 +271,7 @@ def calculate_pool_quotas(
             )
 
             node_set_response.pools.append(objects.PoolResourceUsage(
-                **pool_config.dict(),
+                **pool_config.model_dump(),
                 resource_usage=resource_usage
             ))
 
@@ -282,7 +290,10 @@ def calculate_pool_quotas(
     )
 
 
-@router_pool.get('/api/pool_quota', response_class=common.PrettyJSONResponse)
+@router_pool.get(
+    '/api/pool_quota',
+    response_model=objects.PoolResponse,
+)
 def get_pool_quotas(all_pools: bool = True,
                     pools: List[str] | None = fastapi.Query(default = None)) -> \
                         objects.PoolResponse:
@@ -564,7 +575,10 @@ def cancel_workflow(name: str,
     return objects.CancelResponse(name=workflow_response.name)
 
 
-@router.get('/api/workflow', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/workflow',
+    response_model=objects.ListResponse,
+)
 def list_workflow(users: List[str] | None = fastapi.Query(default = None),
                   name: str | None = None,
                   statuses: List[workflow.WorkflowStatus] | None = \
@@ -614,7 +628,10 @@ def list_workflow(users: List[str] | None = fastapi.Query(default = None),
                                              more_entries=has_more_entries)
 
 
-@router.get('/api/workflow/{name}/task/{task_name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/workflow/{name}/task/{task_name}',
+    response_model=objects.TaskEntry,
+)
 def get_workflow_task(name: str, task_name: str) -> objects.TaskEntry:
     """ Returns the task (with the latest retry_id) with the given name in the workflow. """
     context = objects.WorkflowServiceContext.get()
@@ -622,7 +639,11 @@ def get_workflow_task(name: str, task_name: str) -> objects.TaskEntry:
     return objects.TaskEntry.from_db_row(task_row)
 
 
-@router.get('/api/task', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/task',
+    response_model=objects.ListTaskSummaryResponse | objects.ListTaskResponse |
+    objects.ListTaskAggregatedResponse,
+)
 def list_task(workflow_id: str | None = None,
               statuses: List[task.TaskGroupStatus] | None = \
                   fastapi.Query(default = None),
@@ -672,7 +693,10 @@ def list_task(workflow_id: str | None = None,
     return objects.ListTaskResponse.from_db_rows(rows, service_url)
 
 
-@router.get('/api/workflow/{name}', response_class=common.PrettyJSONResponse)
+@router.get(
+    '/api/workflow/{name}',
+    response_model=objects.WorkflowQueryResponse,
+)
 def get_workflow(name: str, skip_groups: bool = False, verbose: bool = False
                  ) -> objects.WorkflowQueryResponse:
     """ Returns the workflow with the given name in the database. """
@@ -881,8 +905,29 @@ def download_workflow_spec(workflow_id: str, use_template: bool = False):
 @router.get('/api/workflow/{name}/spec', response_class=fastapi.responses.PlainTextResponse)
 def get_workflow_spec(name: str, use_template: bool = False) -> Any:
     """ Returns the workflow spec. """
-    return fastapi.responses.StreamingResponse(download_workflow_spec(name, use_template))
-
+    context = objects.WorkflowServiceContext.get()
+    rows = context.database.execute_fetch_command('''
+        WITH task_creds AS (
+            SELECT cred.key AS cred_name, cred.value AS cred_map
+            FROM groups,
+                 jsonb_array_elements(spec->'tasks') AS task_spec,
+                 jsonb_each(task_spec->'credentials') AS cred
+            WHERE workflow_id = %s
+        )
+        SELECT DISTINCT item AS name FROM (
+            SELECT cred_name AS item FROM task_creds
+            UNION ALL
+            SELECT kv.value AS item
+            FROM task_creds,
+                 jsonb_each_text(cred_map) AS kv
+            WHERE jsonb_typeof(cred_map) = 'object'
+        ) items;
+    ''', (name,))
+    cred_allowlist = frozenset(row.name for row in rows)
+    return fastapi.responses.StreamingResponse(
+        redact_secrets(download_workflow_spec(name, use_template), cred_allowlist),
+        media_type='application/yaml'
+    )
 
 @router.post('/api/workflow/{name}/tag')
 def tag_workflow(name: str,
@@ -896,7 +941,10 @@ def tag_workflow(name: str,
     helpers.set_workflow_tags(name, add, remove)
 
 
-@router_resource.get('/api/resources', response_class=common.PrettyJSONResponse)
+@router_resource.get(
+    '/api/resources',
+    response_model=objects.ResourcesResponse | objects.PoolResourcesResponse,
+)
 def get_resources(pools: List[str] | None = fastapi.Query(default = None),
                   platforms: List[str] | None = fastapi.Query(default = None),
                   all_pools: bool = False,
@@ -918,7 +966,10 @@ def get_resources(pools: List[str] | None = fastapi.Query(default = None),
         pools=pools_arg, platforms=(platforms if pools and platforms else None))
 
 
-@router_resource.get('/api/resources/{name}', response_class=common.PrettyJSONResponse)
+@router_resource.get(
+    '/api/resources/{name}',
+    response_model=objects.ResourcesResponse,
+)
 def get_one_resource(name: str) -> objects.ResourcesResponse:
     """ Returns the request resource's information. """
     result = objects.get_resources(resource_name=name)
@@ -927,7 +978,10 @@ def get_one_resource(name: str) -> objects.ResourcesResponse:
     return result
 
 
-@router_credentials.get('/api/credentials', response_class=common.PrettyJSONResponse)
+@router_credentials.get(
+    '/api/credentials',
+    response_model=objects.CredentialGetResponse,
+)
 def get_user_credential(
     user_header: Optional[str] =
         fastapi.Header(alias=login.OSMO_USER_HEADER, default=None)) \
@@ -1064,7 +1118,7 @@ def action_request_helper(action_type: ActionType, payload: Dict[str, Any], name
         router_info = objects.RouterResponse(router_address=router_address, key=key, cookie=cookie)
         router_infos[task_obj.name] = router_info
         action_attributes: Dict[str, Any] = {
-            'action': action_type.value, **router_info.dict(), **payload}
+            'action': action_type.value, **router_info.model_dump(), **payload}
 
         # Create redis object
         redis_client.set(key, json.dumps(action_attributes))

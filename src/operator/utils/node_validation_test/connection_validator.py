@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import yaml
 import os
 import logging
@@ -37,38 +39,39 @@ class URLTestConfig(pydantic.BaseModel):
     method: str = pydantic.Field(default='GET', description='HTTP method to use')
     timeout: int = pydantic.Field(
         default=30, description='Timeout in seconds for the connection test')
-    expected_status_code: int = pydantic.Field(
-        default=200, description='Expected HTTP status code')
+    expected_status_code: Optional[int] = pydantic.Field(
+        default=None, description='Expected HTTP status code (None means any non-5xx is success)')
     condition_name: Optional[str] = pydantic.Field(
         default='ServiceConnectionTestFailure', description='Custom condition name for this URL')
+    retriable_status_codes: List[int] = pydantic.Field(
+        default=[429, 503], description='Status codes that should trigger retry')
 
 
 class ConnectionTestConfig(test_base.NodeTestConfig):
     """Configuration for connection validation tests."""
 
     condition_name: str = pydantic.Field(
-        command_line='condition_name',
         default='ServiceConnectionTestFailure',
-        description='Condition name for service connection failure')
+        description='Condition name for service connection failure',
+        json_schema_extra={'command_line': 'condition_name'})
     test_url: Optional[str] = pydantic.Field(
-        command_line='test_url',
         default=None,
-        description='Single URL to test connection to')
+        description='Single URL to test connection to',
+        json_schema_extra={'command_line': 'test_url'})
     test_timeout: int = pydantic.Field(
-        command_line='test_timeout',
         default=30,
-        description='Default timeout in seconds for connection tests')
+        description='Default timeout in seconds for connection tests',
+        json_schema_extra={'command_line': 'test_timeout'})
     url_configs_filepath: Optional[str] = pydantic.Field(
-        command_line='url_configs_filepath',
         default=os.path.join(os.path.dirname(__file__), 'connection_validator.yaml'),
-        description='Path to a YAML file containing url_configs list'
-    )
+        description='Path to a YAML file containing url_configs list',
+        json_schema_extra={'command_line': 'url_configs_filepath'})
     url_configs: Optional[List[URLTestConfig]] = pydantic.Field(
         default=None,
         description='List of URLTestConfig items loaded from YAML'
     )
 
-    @pydantic.root_validator(pre=True)
+    @pydantic.model_validator(mode='before')
     @classmethod
     def load_url_configs_from_file(cls, values):
         """
@@ -119,6 +122,13 @@ class ConnectionValidator(test_base.NodeTestBase):
 
         Returns:
             NodeCondition on success, None on failure (to trigger retry/backoff).
+
+        Status code handling:
+            - If expected_status_code is set, only that code is considered success
+            - If expected_status_code is None (default):
+                - Retriable codes (429, 503) trigger retry
+                - Any other 5xx indicates service is down
+                - All other codes (2xx, 3xx, 4xx) indicate service is reachable
         """
         try:
             logging.info('Testing URL: %s', url_config.url)
@@ -128,21 +138,50 @@ class ConnectionValidator(test_base.NodeTestBase):
                 timeout=url_config.timeout,
             )
 
-            if response.status_code != url_config.expected_status_code:
-                logging.error(
-                    'Unexpected status code from %s: %s != %s',
+            status_code = response.status_code
+
+            # If expected_status_code is explicitly set, use strict matching
+            if url_config.expected_status_code is not None:
+                if status_code != url_config.expected_status_code:
+                    logging.error(
+                        'Unexpected status code from %s: %s != %s',
+                        url_config.url,
+                        status_code,
+                        url_config.expected_status_code,
+                    )
+                    return None
+            else:
+                # Check if status code is retriable (e.g., 429 rate limiting, 503 unavailable)
+                if status_code in url_config.retriable_status_codes:
+                    logging.warning(
+                        'Retriable status code from %s: %s, will retry',
+                        url_config.url,
+                        status_code,
+                    )
+                    return None
+
+                # Any 5xx not already caught by retriable_status_codes is a service failure
+                if status_code >= 500:
+                    logging.error(
+                        'Service failure status code from %s: %s',
+                        url_config.url,
+                        status_code,
+                    )
+                    return None
+
+                # Any other status code (2xx, 3xx, 4xx) means service is reachable
+                logging.info(
+                    'Service reachable at %s with status code %s',
                     url_config.url,
-                    response.status_code,
-                    url_config.expected_status_code,
+                    status_code,
                 )
-                return None
 
             logging.info('URL test passed: %s (%s)', url_config.url, url_config.condition_name)
             return test_base.NodeCondition(
                 type=url_config.condition_name or self.config.condition_name,
                 status='False',
                 reason='ServiceConnectionSuccess',
-                message=f'Connection test passed: {url_config.url}',
+                message=f'Connection test passed: {url_config.url} (status: {status_code})',
             )
         except requests.RequestException as e:
             logging.error('Connection test failed for %s: %s', url_config.url, str(e))

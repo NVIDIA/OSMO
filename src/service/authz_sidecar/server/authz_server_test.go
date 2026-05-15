@@ -20,10 +20,59 @@ package server
 
 import (
 	"context"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
+
+	envoy_api_v3_core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	envoy_service_auth_v3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
 
 	"go.corp.nvidia.com/osmo/utils/roles"
 )
+
+func TestDeduplicateRoles(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []string
+		want  []string
+	}{
+		{
+			name:  "no duplicates",
+			input: []string{"a", "b", "c"},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "with duplicates preserves first occurrence",
+			input: []string{"a", "b", "a", "c", "b"},
+			want:  []string{"a", "b", "c"},
+		},
+		{
+			name:  "default role appended does not duplicate",
+			input: []string{"osmo-admin", "osmo-default", "osmo-default"},
+			want:  []string{"osmo-admin", "osmo-default"},
+		},
+		{
+			name:  "empty input",
+			input: []string{},
+			want:  []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := deduplicateRoles(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("deduplicateRoles() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("deduplicateRoles()[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
 
 func TestLegacyMatchMethod(t *testing.T) {
 	// Test the legacy method matching from the roles package
@@ -630,5 +679,211 @@ func TestCheckRolesAccess(t *testing.T) {
 				t.Errorf("CheckRolesAccess() role = %q, want %q", result.RoleName, tt.wantRole)
 			}
 		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// File-backed authz server tests
+// ---------------------------------------------------------------------------
+
+func writeTestConfigFile(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test config: %v", err)
+	}
+	return path
+}
+
+func newFileBackedTestServer(t *testing.T, configPath string) *AuthzServer {
+	t.Helper()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	store := roles.NewFileRoleStore(configPath, logger)
+	if err := store.Load(); err != nil {
+		t.Fatalf("failed to load file store: %v", err)
+	}
+	return NewFileBackedAuthzServer(store, logger)
+}
+
+func makeFileBackedCheckRequest(user, path, method, roleNames string) *envoy_service_auth_v3.CheckRequest {
+	headers := map[string]string{
+		"x-osmo-user":  user,
+		"x-osmo-roles": roleNames,
+	}
+	return &envoy_service_auth_v3.CheckRequest{
+		Attributes: &envoy_service_auth_v3.AttributeContext{
+			Request: &envoy_service_auth_v3.AttributeContext_Request{
+				Http: &envoy_service_auth_v3.AttributeContext_HttpRequest{
+					Path:    path,
+					Method:  method,
+					Headers: headers,
+				},
+			},
+			Source: &envoy_service_auth_v3.AttributeContext_Peer{
+				Address: &envoy_api_v3_core.Address{},
+			},
+		},
+	}
+}
+
+const testConfigYAML = `
+roles:
+  osmo-admin:
+    description: "Admin"
+    policies:
+    - effect: Allow
+      actions: ["*:*"]
+      resources: ["*"]
+    external_roles: [admin-group]
+  osmo-user:
+    description: "User"
+    policies:
+    - effect: Allow
+      actions:
+      - "workflow:Read"
+      - "workflow:Create"
+      - "pool:List"
+      - "profile:Read"
+      resources: ["*"]
+    external_roles: [user-group]
+  osmo-default:
+    description: "Default"
+    policies:
+    - effect: Allow
+      actions:
+      - "auth:Login"
+      - "system:Health"
+      resources: ["*"]
+    external_roles: []
+pools:
+  default:
+    backend: default
+  gpu-large:
+    backend: gpu-cluster
+`
+
+func TestFileBackedCheck_AdminAccess(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	req := makeFileBackedCheckRequest("admin@test.com", "/api/workflow/123", "GET", "admin-group")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() != nil {
+		t.Errorf("expected allow, got deny")
+	}
+}
+
+func TestFileBackedCheck_UserAccess(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	// /api/profile/settings GET → profile:Read which osmo-user has
+	req := makeFileBackedCheckRequest("user@test.com", "/api/profile/settings", "GET", "user-group")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() != nil {
+		t.Errorf("expected allow for profile:Read, got deny")
+	}
+}
+
+func TestFileBackedCheck_UserDenied(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	// User group doesn't have config:Write
+	req := makeFileBackedCheckRequest("user@test.com", "/api/configs/service", "PATCH", "user-group")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() == nil {
+		t.Errorf("expected deny for config write, got allow")
+	}
+}
+
+func TestFileBackedCheck_ExternalRoleResolution(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	// Send external IDP role "admin-group" — should resolve to osmo-admin
+	req := makeFileBackedCheckRequest("boss@test.com", "/api/configs/pool", "DELETE", "admin-group")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.GetDeniedResponse() != nil {
+		t.Errorf("admin-group should resolve to osmo-admin with *:* access")
+	}
+}
+
+func TestFileBackedCheck_UnknownRole(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	// Unknown external role — only gets osmo-default (login/health)
+	req := makeFileBackedCheckRequest("nobody@test.com", "/api/workflow", "GET", "unknown-group")
+	resp, err := server.Check(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// osmo-default only has auth:Login and system:Health, not workflow:Read
+	if resp.GetDeniedResponse() == nil {
+		t.Errorf("unknown role should be denied workflow access")
+	}
+}
+
+func TestFileBackedMigrateRoles_Skipped(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	err := server.MigrateRoles(context.Background())
+	if err != nil {
+		t.Errorf("MigrateRoles should be no-op for file-backed server, got: %v", err)
+	}
+}
+
+func TestFileBackedResolveRoles(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	resolved, err := server.resolveRoles(context.Background(), []string{"osmo-admin", "osmo-user"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resolved) != 2 {
+		t.Errorf("expected 2 roles, got %d", len(resolved))
+	}
+	names := map[string]bool{}
+	for _, r := range resolved {
+		names[r.Name] = true
+	}
+	if !names["osmo-admin"] || !names["osmo-user"] {
+		t.Errorf("expected osmo-admin and osmo-user, got %v", names)
+	}
+}
+
+func TestFileBackedComputeAllowedPools(t *testing.T) {
+	path := writeTestConfigFile(t, testConfigYAML)
+	server := newFileBackedTestServer(t, path)
+
+	adminRole := &roles.Role{
+		Name: "osmo-admin",
+		Policies: []roles.RolePolicy{
+			{
+				Effect:    roles.EffectAllow,
+				Actions:   roles.RoleActions{{Action: "*:*"}},
+				Resources: []string{"*"},
+			},
+		},
+	}
+	pools := server.computeAllowedPools(context.Background(), "admin@test.com", []*roles.Role{adminRole})
+	if len(pools) != 2 {
+		t.Errorf("expected 2 pools (default, gpu-large), got %d: %v", len(pools), pools)
 	}
 }

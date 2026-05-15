@@ -61,9 +61,9 @@ class ResponseMode(enum.Enum):
 
 
 def handle_response(response, mode: ResponseMode = ResponseMode.JSON):
-    if response.headers.get(version.VERSION_WARNING_HEADER) is not None:
+    if response.headers.get(version.WARNING_HEADER) is not None:
         warning = base64.b64decode(
-            response.headers.get(version.VERSION_WARNING_HEADER)).decode()
+            response.headers.get(version.WARNING_HEADER)).decode()
         print(warning, file=sys.stderr)
     if response.status_code != 200:
         logging.error('Server responded with status code %s', response.status_code)
@@ -179,7 +179,7 @@ class LoginManager():
         if 'message' in result:
             print(result['message'], flush=True)
         elif 'verification_uri_complete' in result:
-            print(f'Visit {result["verification_uri_complete"]} and complete authentication.')
+            print(f'Visit {result['verification_uri_complete']} and complete authentication.')
         else:
             print(f'Visit {user_url} and enter the following code: {user_code}', flush=True)
 
@@ -248,7 +248,7 @@ class LoginManager():
         login_dir = client_configs.get_client_config_dir()
         login_file = login_dir  + '/login.yaml'
         with open(os.path.expanduser(login_file), 'w', encoding='utf-8') as file:
-            login_dict = login_storage.dict()
+            login_dict = login_storage.model_dump()
             login_dict['name'] = login_storage.name
             yaml.dump(login_dict, file)
 

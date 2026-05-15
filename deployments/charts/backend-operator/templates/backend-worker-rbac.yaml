@@ -36,6 +36,9 @@ rules:
 - apiGroups: ["scheduling.run.ai"]
   resources: ["queues"]
   verbs: ["list", "delete", "create", "update", "get"]
+- apiGroups: ["kai.scheduler"]
+  resources: ["topologies"]
+  verbs: ["list", "delete", "create", "update", "get"]
 ---
 # ClusterRoleBinding for Backend Worker
 kind: ClusterRoleBinding
@@ -68,6 +71,9 @@ rules:
 - apiGroups: ["scheduling.run.ai"]
   resources: ["podgroups"]
   verbs: ["list", "delete", "create"]
+{{- with (((.Values.services).backendWorker).extraRBACRules) }}
+{{ toYaml . }}
+{{- end }}
 ---
 # Role Binding for Backend Worker
 kind: RoleBinding

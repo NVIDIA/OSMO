@@ -316,16 +316,23 @@ export const GroupNode = memo(function GroupNode({ data }: GroupNodeProps) {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // Memoize tasks array with natural sort order
-  const tasks = useMemo(
-    () =>
-      [...(group.tasks || [])].sort((a, b) => {
-        if (a.lead && !b.lead) return -1;
-        if (!a.lead && b.lead) return 1;
-        return naturalCompare(a.name, b.name);
-      }),
-    [group.tasks],
-  );
+  // Deduplicate to latest retry per task name, then sort with leads first
+  const tasks = useMemo(() => {
+    const allTasks = group.tasks || [];
+    // Keep only the highest retry_id for each task name
+    const latestByName = new Map<string, (typeof allTasks)[number]>();
+    for (const task of allTasks) {
+      const existing = latestByName.get(task.name);
+      if (!existing || task.retry_id > existing.retry_id) {
+        latestByName.set(task.name, task);
+      }
+    }
+    return [...latestByName.values()].sort((a, b) => {
+      if (a.lead && !b.lead) return -1;
+      if (!a.lead && b.lead) return 1;
+      return naturalCompare(a.name, b.name);
+    });
+  }, [group.tasks]);
   // const tasks = group.tasks || [];
   const totalCount = tasks.length;
   const isSingleTask = totalCount === 1;

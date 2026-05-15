@@ -136,6 +136,7 @@ describe("Shell Session Isolation", () => {
     reconnectCallback: null,
     terminalReady: false,
     onRenderDisposable: null,
+    onResizeDisposable: null,
   });
 
   beforeEach(() => {

@@ -112,11 +112,14 @@ spec:
         - {{ .Values.global.logs.logLevel }}
         - --k8s_log_level
         - {{ .Values.global.logs.k8sLogLevel }}
+        - --log_format
+        - {{ .Values.global.logs.logFormat | default "text" }}
         - --log_dir
         - /logs
         - --log_name
         - worker
         {{- end }}
+        {{- include "osmo.configmap-args" . | nindent 8 }}
         {{- range $arg := .Values.services.worker.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
@@ -125,6 +128,7 @@ spec:
         - name: OSMO_SCHEMA_VERSION
           value: {{ .Values.services.migration.targetSchema }}
         {{- end }}
+        {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- include "osmo.extra-env" .Values.services.worker | nindent 8 }}
         {{- if .Values.services.postgres.password }}
         - name: OSMO_POSTGRES_PASSWORD
@@ -141,7 +145,7 @@ spec:
               name: redis-secret
               key: redis-password
         {{- end }}
-        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.worker.extraVolumeMounts }}
+        {{- if or .Values.services.configFile.enabled .Values.global.logs.enabled .Values.services.configs.enabled .Values.services.worker.extraVolumeMounts }}
         volumeMounts:
         {{- end }}
         {{- if .Values.services.configFile.enabled}}
@@ -149,6 +153,7 @@ spec:
           name: mek-volume
           subPath: mek.yaml
         {{- end }}
+        {{- include "osmo.configmap-volume-mounts" . | nindent 8 }}
         {{- if .Values.global.logs.enabled }}
         - name: logs
           mountPath: /logs
@@ -169,16 +174,10 @@ spec:
           timeoutSeconds: 15
 
         # Give the container 60 seconds to startup
+        {{- with .Values.services.worker.startupProbe }}
         startupProbe:
-          exec:
-            command:
-            - progress_check
-            - --progress_interval
-            - "300"
-          failureThreshold: 12
-          periodSeconds: 5
-          timeoutSeconds: 15
-          initialDelaySeconds: 10
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
 
       {{- include "osmo.extra-sidecars" .Values.services.worker | nindent 6 }}
       volumes:
@@ -196,6 +195,7 @@ spec:
             name: mek-config
           name: mek-volume
         {{- end}}
+        {{- include "osmo.configmap-volumes" . | nindent 8 }}
 
 ---
 
@@ -228,3 +228,6 @@ spec:
       target:
         type: Utilization
         averageUtilization: {{ .Values.services.worker.scaling.hpaCpuTarget }}
+  {{- with .Values.services.worker.scaling.customMetrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}

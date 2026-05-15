@@ -89,10 +89,13 @@ export const fetchPoolByName = cache(async (poolName: string): Promise<Pool | nu
       pools: [poolName],
       all_pools: false,
     });
-    return transformPoolDetail(response.data, poolName);
-  } catch (_error) {
-    // 404 or other errors - return null
-    return null;
+    return transformPoolDetail(response, poolName);
+  } catch (error) {
+    const { isApiError } = await import("../fetcher");
+    if (isApiError(error) && error.status === 404) {
+      return null;
+    }
+    throw error;
   }
 });
 

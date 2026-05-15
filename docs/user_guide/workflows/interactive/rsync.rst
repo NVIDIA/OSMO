@@ -21,7 +21,7 @@
 Rsync
 ================================================
 
-Rsync upload to a running task in your workflow from your local machine using ``rsync`` command.
+Rsync data to and from a running task in your workflow using the ``rsync`` command.
 For detailed CLI options, see :ref:`osmo workflow rsync <cli_reference_workflow_rsync>`.
 
 .. caution::
@@ -30,25 +30,36 @@ For detailed CLI options, see :ref:`osmo workflow rsync <cli_reference_workflow_
 
 .. hint::
 
-    If ``task`` is not provided, the upload will be to the lead task of the first group.
+    If ``task`` is not provided, the operation will target the lead task of the first group.
 
 .. hint::
 
     ``/osmo/run/workspace`` is always available as a remote path.
 
-Daemon
+Upload
 ======
 
-The rsync command will start a daemon that will upload the files/directories to the task continuously.
+Upload files or directories from your local machine to a running task.
+By default, the upload runs in the foreground and exits once complete.
 
 .. code-block:: bash
 
-  $ osmo workflow rsync wf-id ~/my/path:/osmo/run/workspace
+  $ osmo workflow rsync upload wf-id ~/my/path:/osmo/run/workspace
+
+Daemon mode
+-----------
+
+Pass ``--daemon`` to start a background daemon that continuously monitors
+the source path and uploads changes to the remote task.
+
+.. code-block:: bash
+
+  $ osmo workflow rsync upload wf-id ~/my/path:/osmo/run/workspace --daemon
   Rsync daemon started in detached process: PID 80754
   To view daemon logs: tail -f ~/.local/state/osmo/rsync/rsync_daemon_wf-id_task-name.log
 
-Logs
-====
+Daemon logs
+^^^^^^^^^^^
 
 The daemon will output logs to the designated log file.
 
@@ -66,31 +77,48 @@ The daemon will output logs to the designated log file.
   2025-05-29 10:39:55,121 - 26720 - rsync.py:433 - osmo.rsync - INFO - Uploading /my/path
   2025-05-29 10:39:55,694 - 26720 - rsync.py:482 - osmo.rsync - INFO - Rsync upload completed successfully for wf-id/task-name
 
-Status
-======
+Download
+========
 
-To get the status of all rsync daemons, you can use the ``osmo workflow rsync --status`` command.
+Download files or directories from a running task to your local machine.
+The download runs in the foreground and exits once complete. The local
+destination path is treated as a directory — downloaded files are placed inside it.
 
 .. code-block:: bash
 
-  $ osmo workflow rsync --status
+  $ osmo workflow rsync download wf-id /osmo/run/workspace/my_data:/tmp/output
 
-  Workflow ID   Task Name   PID     Status    Last Synced                  Source Path   Destination Path      Log File
-  =======================================================================================================================================================================
-  wf-id         task-name   26720   RUNNING   2025-05-29T10:39:55.696803   /my/path      /osmo/run/workspace   ~/.local/state/osmo/rsync/rsync_daemon_wf-id_task-name.log
+To download a single file:
+
+.. code-block:: bash
+
+  $ osmo workflow rsync download wf-id /osmo/run/workspace/results.csv:/tmp/output
+
+Daemon status
+=============
+
+To get the status of all rsync daemons, use the ``osmo workflow rsync status`` command.
+
+.. code-block:: bash
+
+  $ osmo workflow rsync status
+
+  Workflow ID   Task Name   PID     Status    Last Synced                  Local Path   Remote Path           Log File
+  ====================================================================================================================================================================
+  wf-id         task-name   26720   RUNNING   2025-05-29T10:39:55.696803   /my/path     /osmo/run/workspace   ~/.local/state/osmo/rsync/rsync_daemon_wf-id_task-name.log
 
 Stopping daemon(s)
 ==================
 
-To stop a specific daemon, you can use the ``osmo workflow rsync wf-id task-name --stop`` command.
+To stop a specific daemon, use ``osmo workflow rsync stop wf-id --task task-name``.
 
-To stop all daemons for a workflow, you can use the ``osmo workflow rsync wf-id --stop`` command.
+To stop all daemons for a workflow, use ``osmo workflow rsync stop wf-id``.
 
-Finally, to stop all daemons, you can use the ``osmo workflow rsync --stop`` command.
+Finally, to stop all daemons, use ``osmo workflow rsync stop``.
 
 .. code-block:: bash
 
-  $ osmo workflow rsync --stop
+  $ osmo workflow rsync stop
   Are you sure you want to stop all running daemons?
 
           * wf-id_1/task-name

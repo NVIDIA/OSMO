@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,12 @@ Unit tests for the storage common module.
 import unittest
 
 from src.lib.data.storage import common
+from src.lib.data.storage.core import executor
+from src.lib.data.storage.tests.executor_test_helpers import (
+    TestStorageClientFactory,
+    test_thread_worker,
+    test_worker_inputs,
+)
 
 
 class TestCommon(unittest.TestCase):
@@ -142,6 +148,23 @@ class TestCommon(unittest.TestCase):
             common.remap_destination_name('a/b/c/d/1.txt', False, 'new_name'),
             'a/b/c/d/new_name',
         )
+
+    def test_multi_process_executor_runs_job_with_explicit_context(self):
+        job_context = executor.run_job(
+            thread_worker=test_thread_worker,
+            thread_worker_input_gen=test_worker_inputs(),
+            client_factory=TestStorageClientFactory(),
+            enable_progress_tracker=False,
+            executor_params=executor.ExecutorParameters(
+                num_processes=2,
+                num_threads=1,
+                num_threads_inflight_multiplier=1,
+                chunk_queue_size_multiplier=1,
+            ),
+        )
+
+        self.assertEqual(job_context.output.total if job_context.output else None, 6)
+        self.assertEqual(job_context.errors, [])
 
 
 if __name__ == '__main__':

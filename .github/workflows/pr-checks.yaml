@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       docs: ${{ steps.filter.outputs.docs }}
       ui: ${{ steps.filter.outputs.ui }}
+      brev: ${{ steps.filter.outputs.brev }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
@@ -63,6 +64,10 @@ jobs:
             ui:
               - '.github/workflows/pr-checks.yaml'
               - 'src/ui/**'
+            brev:
+              - '.github/workflows/pr-checks.yaml'
+              - 'deployments/brev/**'
+              - 'MODULE.bazel'
 
   #######################
   #      CI Tests       #
@@ -133,6 +138,11 @@ jobs:
         github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.fork == false
       )
+    # Serialize across PRs on the self-hosted runner: 16 GB main + 4 GB DinD
+    # leaves no room for two concurrent runs on a 24 GB host.
+    concurrency:
+      group: ci-internal-self-hosted
+      cancel-in-progress: false
     runs-on: self-hosted
     environment:
       name: internal-ci
@@ -141,12 +151,12 @@ jobs:
       COMPOSE_PROJECT_NAME: ci-${{ github.run_id }}
       DOCKER_BUILDKIT: "1"
     container:
-      # python:3.10.18-bullseye pinned to digest for security (amd64)
-      image: python:3.10.18-bullseye@sha256:4e96d6c7c610e5b2a46ff8a36cc76a159d57a5b865d580eda29d51afdc1a1923
+      # python:3.14.2-bookworm pinned to digest for security (amd64)
+      image: python:3.14.2-bookworm@sha256:bee107ebb973b658218ed57303beb7a8fd9f187dd574a740bc62bc88ea39b629
       env:
         DOCKER_HOST: "tcp://docker:2375"
         DOCKER_TLS_CERTDIR: ""
-      options: --memory=8g --cpus=4 --memory-swap=8g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
+      options: --memory=16g --cpus=4 --memory-swap=16g --pids-limit=4096 -v /var/run/docker.sock:/var/run/docker.sock
     services:
       docker:
         # docker:29.2.1-dind pinned to digest for security
@@ -188,6 +198,9 @@ jobs:
           echo "Docker version: $(docker --version)"
           echo "Git LFS version: $(git-lfs --version)"
 
+      - name: Clean up stale LFS hooks
+        run: rm -f .git/hooks/pre-push .git/hooks/post-checkout .git/hooks/post-commit .git/hooks/post-merge || true
+
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
@@ -199,15 +212,25 @@ jobs:
           bazelisk-cache: true
           bazelisk-version: 1.27.0
 
-      - name: Run Tests
+      - name: Run Tests with Coverage
         run: |
-          bazel test --config=ci \
+          bazel coverage --config=ci \
             --remote_cache=${{ secrets.BAZEL_REMOTE_CACHE_URL }} \
             --test_env=DOCKER_HOST=tcp://docker:2375 \
             --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker \
             --test_output=errors \
             -- \
             //...
+
+      - name: Upload coverage to Codecov
+        if: always() && !cancelled()
+        continue-on-error: true
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: bazel-out/_coverage/_coverage_report.dat
+          flags: backend
+          fail_ci_if_error: false
 
       - name: Docker cleanup
         if: always()
@@ -256,6 +279,26 @@ jobs:
           docker system df 2>/dev/null || true
 
   #######################
+  #    Brev Checks      #
+  #######################
+  brev:
+    needs: [check-paths]
+    if: needs.check-paths.outputs.brev == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@4fd964a13a440a8aeb0be47350db2fc640f19ca8
+        with:
+          bazelisk-cache: true
+          bazelisk-version: 1.27.0
+
+      - name: Run brev tests
+        run: bazel test --test_output=errors //deployments/brev/...
+
+  #######################
   #    Docs Build       #
   #######################
   docs-build:
@@ -271,7 +314,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: '3.10.18'
+          python-version: '3.14.2'
 
       - name: Install dependencies
         run: |
@@ -434,8 +477,24 @@ jobs:
           restore-keys: |
             nextjs-${{ hashFiles('src/ui/pnpm-lock.yaml') }}-
 
-      - name: Validate UI
+      - name: Install dependencies
         working-directory: src/ui
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm validate
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: src/ui
+        run: pnpm exec playwright install chromium
+
+      - name: Validate UI with Coverage
+        working-directory: src/ui
+        run: pnpm validate:coverage
+
+      - name: Upload UI coverage to Codecov
+        if: always() && !cancelled()
+        continue-on-error: true
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.5.3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: src/ui/coverage/lcov.info
+          flags: ui
+          fail_ci_if_error: false

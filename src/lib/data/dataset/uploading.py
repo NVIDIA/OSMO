@@ -146,6 +146,8 @@ def dataset_upload_remote_file_entry_generator(
     data_cred = storage_client.data_credential
     url_base = storage_backend.parse_uri_to_link(
         region=storage_backend.region(data_cred),
+        override_url=data_cred.override_url,
+        addressing_style=data_cred.addressing_style,
     )
 
     # Iterate over the objects in the remote path.
@@ -282,6 +284,7 @@ def dataset_upload_worker(
             etag = utils_common.etag_checksum(upload_entry.source)
 
             destination: storage.StorageBackend = upload_entry.destination
+            destination_data_cred = destination.resolved_data_credential
 
             def _callback(
                 upload_input: uploading.UploadWorkerInput,
@@ -293,7 +296,11 @@ def dataset_upload_worker(
                     relative_path=upload_entry.relative_path,
                     storage_path=os.path.join(destination.uri, etag),
                     url=os.path.join(
-                        destination.parse_uri_to_link(upload_entry.destination_region),
+                        destination.parse_uri_to_link(
+                            upload_entry.destination_region,
+                            override_url=destination_data_cred.override_url,
+                            addressing_style=destination_data_cred.addressing_style,
+                        ),
                         etag,
                     ),
                     size=upload_entry.size,

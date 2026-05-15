@@ -24,6 +24,7 @@
 "use client";
 
 import { useMemo, useCallback, memo, useRef, useEffect, useState } from "react";
+import { useSyncedRef } from "@react-hookz/web";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Folder, File, FileText, FileImage, FileVideo, Copy, Database } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
@@ -351,10 +352,16 @@ export const FileBrowserTable = memo(function FileBrowserTable({
 
   const tableAreaRef = useRef<HTMLDivElement>(null);
 
-  // Auto-focus first row when data first loads or when the directory changes,
-  // but only if nothing else on the page currently has focus.
+  // Stable ref to sortedFiles — updated automatically by useSyncedRef without
+  // triggering re-renders. Lets the focus effect read the current length without
+  // including sortedFiles in the dependency array.
+  const sortedFilesRef = useSyncedRef(sortedFiles);
+
+  // Auto-focus first row when the user navigates to a new directory.
+  // Dep is `path` (not `sortedFiles`) so the effect only fires on directory change,
+  // not on every sort/filter update (which creates a new array reference each render).
   useEffect(() => {
-    if (sortedFiles.length === 0) return;
+    if (sortedFilesRef.current.length === 0) return;
 
     const activeEl = document.activeElement;
     const isBodyFocused = !activeEl || activeEl === document.body;
@@ -366,7 +373,7 @@ export const FileBrowserTable = memo(function FileBrowserTable({
       firstRow?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(raf);
-  }, [sortedFiles]);
+  }, [path, sortedFilesRef]);
 
   // Handle directory navigation and selection shortcuts
   const handleKeyDown = useCallback(

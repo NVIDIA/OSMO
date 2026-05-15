@@ -82,12 +82,12 @@ def _run_info_command(service_client: client.ServiceClient, args: argparse.Names
                 sum(element['size'] for element in result['versions']),
             )
             print(f'Name: {args.name}\n'
-                  f'ID: {result["id"]}\n'
-                  f'Bucket: {result["bucket"]}\n'
-                  f'Type: {result["type"]}\n'
-                  f'Created By: {result["created_by"]}\n'
+                  f'ID: {result['id']}\n'
+                  f'Bucket: {result['bucket']}\n'
+                  f'Type: {result['type']}\n'
+                  f'Created By: {result['created_by']}\n'
                   f'Create Date: '
-                  f'{common.convert_utc_datetime_to_user_zone(result["created_date"])}\n'
+                  f'{common.convert_utc_datetime_to_user_zone(result['created_date'])}\n'
                   f'Size: {collection_sum}\n')
 
             if result['labels']:
@@ -102,10 +102,10 @@ def _run_info_command(service_client: client.ServiceClient, args: argparse.Names
             print(f'{table.draw()}\n')
         else:
             print(f'Name: {args.name}\n'
-                  f'ID: {result["id"]}\n'
-                  f'Bucket: {result["bucket"]}\n'
-                  f'Type: {result["type"]}\n'
-                  f'Stored Size: {common.storage_convert(result["hash_location_size"])}\n')
+                  f'ID: {result['id']}\n'
+                  f'Bucket: {result['bucket']}\n'
+                  f'Type: {result['type']}\n'
+                  f'Stored Size: {common.storage_convert(result['hash_location_size'])}\n')
             if result['labels']:
                 print('Labels:')
                 print(textwrap.indent(yaml.dump(result['labels']), prefix='  '))
@@ -446,7 +446,7 @@ def _run_delete_command(service_client: client.ServiceClient, args: argparse.Nam
         print(json.dumps(json_output, indent=common.JSON_INDENT_SIZE))
     else:
         print(f'Dataset {dataset.name} in bucket {dataset.bucket} has been deleted.\n'
-              f'Cleaned up {common.storage_convert(delete_result["cleaned_size"])}.')
+              f'Cleaned up {common.storage_convert(delete_result['cleaned_size'])}.')
 
 
 def _run_tag_command(service_client: client.ServiceClient, args: argparse.Namespace):
@@ -483,8 +483,13 @@ def _run_list_command(service_client: client.ServiceClient, args: argparse.Names
     Args:
         args: Parsed command line arguments.
     """
-    params = {'name': args.name, 'user': args.user, 'all_users': args.all, 'buckets': args.bucket,
-              'count': args.count, 'order': args.order.upper()}
+    params = {'all_users': args.all, 'count': args.count, 'order': args.order.upper()}
+    if args.name:
+        params['name'] = args.name
+    if args.user:
+        params['user'] = args.user
+    if args.bucket:
+        params['buckets'] = args.bucket
     result = service_client.request(
         client.RequestMethod.GET,
         'api/bucket/list_dataset',
@@ -1018,6 +1023,7 @@ def setup_parser(parser: argparse._SubParsersAction):
     """
     dataset_parser = parser.add_parser('dataset',
                                        help='Dataset CLI.')
+    dataset_parser.set_defaults(is_dataset_command=True)
     subparsers = dataset_parser.add_subparsers(dest='command')
     subparsers.required = True
 

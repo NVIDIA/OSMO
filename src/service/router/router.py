@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
+import contextlib
 import asyncio
 import datetime
 import logging
@@ -31,56 +34,56 @@ import uvicorn  # type: ignore
 from src.lib.utils import common, version
 import src.lib.utils.logging
 from src.service.router import helper
-from src.utils import connectors, static_config
+from src.utils import connectors, ssl_config, static_config
 
 
 class RouterServiceConfig(src.lib.utils.logging.LoggingConfig, static_config.StaticConfig,
-                          connectors.PostgresConfig):
+                          ssl_config.SSLConfig, connectors.PostgresConfig):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the router service.')
+        description='The url to bind to when serving the router service.',
+        json_schema_extra={'command_line': 'host'})
     hostname: str = pydantic.Field(
-        command_line='hostname',
         default='localhost',
-        description='The DNS hostname of the router service.')
+        description='The DNS hostname of the router service.',
+        json_schema_extra={'command_line': 'hostname'})
     timeout: int = pydantic.Field(
-        command_line='timeout',
         default=60,
-        description='Timeout for router connections.')
+        description='Timeout for router connections.',
+        json_schema_extra={'command_line': 'timeout'})
     webserver_initial_timeout: int = pydantic.Field(
-        command_line='webserver_initial_timeout',
-        default=60 * 60,  # 1 hour in seconds
-        description='Initial timeout for webserver connections.')
+        default=60 * 60,
+        # 1 hour in seconds
+        description='Initial timeout for webserver connections.',
+        json_schema_extra={'command_line': 'webserver_initial_timeout'})
     webserver_nonactive_timeout: int = pydantic.Field(
-        command_line='webserver_nonactive_timeout',
-        default=30 * 60,  # 30 minutes in seconds
-        description='Timeout for non-activewebserver connections.')
+        default=30 * 60,
+        # 30 minutes in seconds
+        description='Timeout for non-activewebserver connections.',
+        json_schema_extra={'command_line': 'webserver_nonactive_timeout'})
     sticky_cookies: List[str] = pydantic.Field(
-        command_line='sticky_cookies',
-        default=['AWSALB', 'AWSALBCORS'],
-        description='List of sticky cookies to send to the webserver.')
+        default=['_osmo_router_affinity'],
+        description='List of sticky cookies to send to the webserver.',
+        json_schema_extra={'command_line': 'sticky_cookies'})
 
 
 class RouterConnection(pydantic.BaseModel):
     """Model representing a router connection with websocket and synchronization events."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
     wait_connect: Optional[asyncio.Event] = None
     wait_close: Optional[asyncio.Event] = None
     websocket: Optional[fastapi.WebSocket] = None
 
-    class Config:
-        arbitrary_types_allowed = True
-
 
 class WebserverConnection(pydantic.BaseModel):
     """Model representing a webserver connection with websocket and synchronization events."""
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
+
     wait_close: asyncio.Event
     last_active_time: datetime.datetime
     websocket: fastapi.WebSocket
-
-    class Config:
-        arbitrary_types_allowed = True
 
 
 class ConnectionPayload(pydantic.BaseModel):
@@ -192,11 +195,10 @@ async def run_connect_client(
         backend_ws = connections[key].websocket
         close = connections[key].wait_close
 
-        loop = asyncio.get_event_loop()
         if backend_ws is not None:
             coroutines = [
-                    loop.create_task(copy_data(client_ws, backend_ws)),
-                    loop.create_task(copy_data(backend_ws, client_ws))
+                    asyncio.create_task(copy_data(client_ws, backend_ws)),
+                    asyncio.create_task(copy_data(backend_ws, client_ws))
                 ]
             await common.gather_cancel(*coroutines)
     except fastapi.WebSocketDisconnect as err:
@@ -242,7 +244,7 @@ async def webserver_http_request(request: fastapi.Request, ctrl_key: str):
     sticky_cookies = RouterServiceConfig.load().sticky_cookies
     cookie_str = ', '.join(f'{k}={v}' for k, v in request.cookies.items() if k in sticky_cookies)
     await ctrl_ws.send_json(
-        ConnectionPayload(key=conn_key, cookie=cookie_str).dict(exclude_none=True))
+        ConnectionPayload(key=conn_key, cookie=cookie_str).model_dump(exclude_none=True))
     try:
         await asyncio.wait_for(connect.wait(), RouterServiceConfig.load().timeout)
         ws = connections[conn_key].websocket
@@ -337,7 +339,7 @@ async def webserver_ws_request(ws: fastapi.WebSocket, ctrl_key: str):
                 cookies.append(cookie.strip())
     cookie_str = ', '.join(cookies)
     await ctrl_ws.send_json(
-        ConnectionPayload(key=conn_key, cookie=cookie_str, type='ws', payload=payload).dict())
+        ConnectionPayload(key=conn_key, cookie=cookie_str, type='ws', payload=payload).model_dump())
 
     close = None
     try:
@@ -345,12 +347,11 @@ async def webserver_ws_request(ws: fastapi.WebSocket, ctrl_key: str):
         backend_ws = connections[conn_key].websocket
         close = connections[conn_key].wait_close
 
-        loop = asyncio.get_event_loop()
         if backend_ws is not None:
             coroutines = [
-                loop.create_task(copy_websocket(backend_ws, ws)),
-                loop.create_task(copy_websocket(ws, backend_ws)),
-                loop.create_task(update_last_active_time(ctrl_key))
+                asyncio.create_task(copy_websocket(backend_ws, ws)),
+                asyncio.create_task(copy_websocket(ws, backend_ws)),
+                asyncio.create_task(update_last_active_time(ctrl_key))
             ]
             await common.gather_cancel(*coroutines)
 
@@ -423,15 +424,22 @@ def main():
 
     connectors.PostgresConnector(config)
 
-    uvicorn_config = uvicorn.Config(app, host=host, port=port)
-    uvicorn_server = uvicorn.Server(config=uvicorn_config)
-    loop = asyncio.get_event_loop()
-    check_timeout_task = loop.create_task(check_webserver_timeout())
+    async def run_server():
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
+        uvicorn_server = uvicorn.Server(config=uvicorn_config)
+        check_timeout_task = asyncio.create_task(check_webserver_timeout())
+        try:
+            await uvicorn_server.serve()
+        finally:
+            check_timeout_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await check_timeout_task
+
     try:
-        loop.run_until_complete(uvicorn_server.serve())
+        asyncio.run(run_server())
     except KeyboardInterrupt:
         pass
-    check_timeout_task.cancel()
 
 
 if __name__ == '__main__':

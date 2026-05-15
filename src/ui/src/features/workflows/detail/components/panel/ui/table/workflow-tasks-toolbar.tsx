@@ -14,14 +14,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * WorkflowTasksToolbar Component
- *
- * Toolbar for the workflow tasks table with search/filter capabilities.
- * Uses the canonical TableToolbar component with task-specific search fields
- * and status presets.
- */
-
 "use client";
 
 import { memo } from "react";
@@ -29,30 +21,16 @@ import type { SearchChip, ResultsCount } from "@/components/filter-bar/lib/types
 import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { useTaskTableStore } from "@/features/workflows/detail/components/panel/core/stores/task-table-store";
 import { OPTIONAL_COLUMNS } from "@/features/workflows/detail/components/panel/core/lib/task-columns";
-import {
-  TASK_SEARCH_FIELDS,
-  TASK_PRESETS,
-} from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import { TASK_SEARCH_FIELDS } from "@/features/workflows/detail/components/panel/core/lib/task-search-fields";
+import { TASK_GROUP_STATUS_PRESETS } from "@/lib/task-group-status-presets";
 import type { TaskWithDuration } from "@/features/workflows/detail/lib/workflow-types";
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface WorkflowTasksToolbarProps {
-  /** All tasks for FilterBar autocomplete */
   tasks: TaskWithDuration[];
-  /** Current search chips */
   searchChips: SearchChip[];
-  /** Callback when chips change */
   onSearchChipsChange: (chips: SearchChip[]) => void;
-  /** Results count for displaying "N results" or "M of N results" */
   resultsCount?: ResultsCount;
 }
-
-// =============================================================================
-// Component
-// =============================================================================
 
 export const WorkflowTasksToolbar = memo(function WorkflowTasksToolbar({
   tasks,
@@ -74,7 +52,7 @@ export const WorkflowTasksToolbar = memo(function WorkflowTasksToolbar({
       onSearchChipsChange={onSearchChipsChange}
       defaultField="name"
       placeholder="Search tasks... (try 'name:', 'status:', 'node:', 'duration:')"
-      searchPresets={TASK_PRESETS}
+      searchPresets={TASK_GROUP_STATUS_PRESETS}
       resultsCount={resultsCount}
     />
   );

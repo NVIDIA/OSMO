@@ -65,7 +65,8 @@ import { useShellSession } from "@/components/shell/lib/shell-cache";
 import type { SiblingTask, BreadcrumbSegment } from "@/features/workflows/detail/components/panel/core/lib/panel-types";
 import type { TaskDetailsProps } from "@/features/workflows/detail/components/panel/ui/task/task-types";
 import { TaskGroupStatus } from "@/lib/api/generated";
-import { isTaskTerminal } from "@/lib/api/status-metadata.generated";
+import { isTaskFailed, isTaskTerminal } from "@/lib/api/status-metadata.generated";
+import { toProxiedPath } from "@/lib/config";
 
 interface OverviewTabProps {
   task: TaskDetailsProps["task"];
@@ -218,6 +219,7 @@ const OverviewTab = memo(function OverviewTab({
   isStandaloneTask,
 }: OverviewTabProps) {
   const hasError = task.exit_code !== undefined && task.exit_code !== null && task.exit_code !== 0;
+  const isFailed = isTaskFailed(task.status);
 
   // Render function for dependency pills
   const renderDependencyPill = useCallback(
@@ -243,17 +245,19 @@ const OverviewTab = memo(function OverviewTab({
           <CardContent className="min-w-0 overflow-hidden p-3">
             <TaskTimeline task={task} />
 
-            {/* Exit status - shown after timeline when non-zero */}
-            {hasError && (
+            {/* Error/failure info - shown for any failed status */}
+            {isFailed && (
               <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/30">
                 <div className="flex items-start gap-2">
                   <XCircle className="mt-0.5 size-4 shrink-0 text-red-500 dark:text-red-400" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
-                      Exit Code: {task.exit_code}
-                    </div>
+                    {hasError && (
+                      <div className="flex items-center gap-2 text-sm font-medium text-red-800 dark:text-red-300">
+                        Exit Code: {task.exit_code}
+                      </div>
+                    )}
                     {task.failure_message && (
-                      <p className="mt-1 text-xs wrap-break-word text-red-700 dark:text-red-400">
+                      <p className={cn("text-xs wrap-break-word text-red-700 dark:text-red-400", hasError && "mt-1")}>
                         {task.failure_message}
                       </p>
                     )}
@@ -291,7 +295,7 @@ const OverviewTab = memo(function OverviewTab({
               </Link>
             ) : null,
             copyable: true,
-            copyValue: task.node_name,
+            copyValue: task.node_name ?? undefined,
             mono: true,
             truncate: true,
             show: !!task.node_name,
@@ -323,6 +327,11 @@ interface TaskDetailsInternalProps extends TaskDetailsProps {
   setSelectedTab?: (tab: TaskTab) => void;
 }
 
+/**
+ * Detail panel for a single workflow task. Renders tabbed content including
+ * logs, events, shell, and spec views. Memoized to avoid re-renders when
+ * sibling tasks or unrelated workflow state changes.
+ */
 export const TaskDetails = memo(function TaskDetails({
   group,
   allGroups,
@@ -586,7 +595,7 @@ export const TaskDetails = memo(function TaskDetails({
           scrollable={false}
           className="p-0"
         >
-          {activeTab === "logs" && workflowName && task.logs && (
+          {activeTab === "logs" && workflowName && (
             <div className="absolute inset-0">
               <LogViewerContainer
                 logUrl={task.logs}
@@ -604,15 +613,17 @@ export const TaskDetails = memo(function TaskDetails({
               />
             </div>
           )}
-          {activeTab === "logs" && (!task.logs || !workflowName) && (
+          {activeTab === "logs" && !workflowName && (
             <div className="flex h-full items-center justify-center p-4">
               <EmptyTabPrompt
                 icon={TextSearch}
                 title="Task Logs"
                 description="View stdout/stderr output from the task execution"
-                url={task.logs}
+                url={task.logs ? toProxiedPath(task.logs) : task.logs}
                 secondaryAction={
-                  task.error_logs ? { url: task.error_logs, label: "View Error Logs", icon: AlertCircle } : undefined
+                  task.error_logs
+                    ? { url: toProxiedPath(task.error_logs), label: "View Error Logs", icon: AlertCircle }
+                    : undefined
                 }
               />
             </div>

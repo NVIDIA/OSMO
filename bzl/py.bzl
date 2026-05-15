@@ -139,10 +139,14 @@ import glob
 pythonpath = ["{runfiles_dir}/_main"]
 local_runfiles_dir = "{runfiles_dir}"
 local_main_dir = "{runfiles_dir}/_main"
+
 if os.path.isdir("/osmo_workspace+"):
     local_runfiles_dir = "/osmo_workspace+" + local_runfiles_dir
     local_main_dir = local_runfiles_dir + "/osmo_workspace+"
-    pythonpath.append(local_runfiles_dir + "/osmo_workspace+")
+
+osmo_ws_path = local_runfiles_dir + "/osmo_workspace+"
+if os.path.isdir(osmo_ws_path):
+    pythonpath.append(osmo_ws_path)
 
 # Add all site-packages directories
 site_packages = glob.glob(local_runfiles_dir + "/rules_python++pip+*/site-packages")

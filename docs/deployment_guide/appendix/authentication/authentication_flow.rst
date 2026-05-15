@@ -70,7 +70,19 @@ Scripts and the CLI then authenticate by sending the access token in the ``Autho
 Token-based login (service-issued JWT)
 --------------------------------------
 
-For compatibility with flows that expect a JWT (e.g. some CLI or internal callers), OSMO can issue its own JWTs. For example, a client can exchange an access token for a short-lived JWT via the appropriate auth endpoint. Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` and the service's public key). The resulting JWT carries the same user and roles; Envoy validates it and sets ``x-osmo-user`` and ``x-osmo-roles`` as before.
+For compatibility with flows that expect a JWT (e.g. some CLI or internal callers), OSMO can issue its own JWTs.
+A client exchanges an access token for a short-lived JWT by POSTing to ``/api/auth/jwt/access_token``.
+Envoy must be configured to accept JWTs issued by OSMO (e.g. via ``osmoauth`` and the service's public key).
+
+.. note::
+
+   In ``POST /api/auth/jwt/access_token``, ``access_token`` names the token type being exchanged, not the body field. The body field is ``token``:
+
+   .. code-block:: bash
+
+      curl -X POST "$GATEWAY/api/auth/jwt/access_token" \
+          -H "Content-Type: application/json" \
+          -d '{"token":"<access-token-value>"}'
 
 Operating with an identity provider
 ===================================
@@ -132,7 +144,7 @@ Troubleshooting
 Verify IdP configuration (redirect URIs, client ID/secret), Envoy OAuth2 and JWT provider settings (issuer, audience, JWKS URI), and that the IdP is reachable from the cluster.
 
 **User has no permissions (403)**
-Check that the user has roles in OSMO (via ``osmo user roles list <user_id>`` or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
+Check that the user has roles in OSMO (via ``osmo user get <user_id>`` or IdP mapping). Verify ``x-osmo-user`` and ``x-osmo-roles`` in Envoy logs. Ensure the role has policies that allow the requested action (see :doc:`roles_policies`).
 
 **Token validation failures**
 Ensure issuer and audience in Envoy match the JWT. Check JWKS URI connectivity from Envoy. For access tokens, ensure the token exists and is not expired.

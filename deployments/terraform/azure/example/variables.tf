@@ -190,10 +190,9 @@ variable "postgres_username" {
 }
 
 variable "postgres_password" {
-  description = "PostgreSQL admin password"
+  description = "PostgreSQL admin password — required, no default. Pass via --postgres-password to deploy-osmo-minimal.sh or set TF_VAR_postgres_password."
   type        = string
   sensitive   = true
-  default     = "changeme123!"
 }
 
 variable "postgres_backup_retention_days" {
@@ -214,33 +213,37 @@ variable "postgres_extensions" {
   default     = ["hstore", "uuid-ossp", "pg_stat_statements"]
 }
 
-# Redis Cache Variables
+# Azure Managed Redis Variables (OSMO requires Redis 7+).
+# SKU families and their size letters:
+#   Balanced_B*         (B0, B1, B3, B5, B10, ..., B1000)        general purpose
+#   ComputeOptimized_X* (X3, X5, X10, ..., X700)                 more cores per dollar
+#   MemoryOptimized_M*  (M10, M20, ..., M2000)                   more RAM per dollar
+#   FlashOptimized_A*   (A250, A500, ..., A4500)                 RAM-on-NVMe, cheap at scale
+#
+# Default ComputeOptimized_X3 — empirically validated against eastus2 capacity
+# (2026-05-01: Balanced_B0/B1/B3 all returned AllocationFailed; X3/M10/A250
+# allocated cleanly). X3 is small (3GB) + cheap (~$200/mo) and the X family
+# tends to have reliable capacity in busy regions. Override TF_REDIS_SKU_NAME
+# for different tiers.
 variable "redis_sku_name" {
-  description = "Redis SKU name (Basic, Standard, Premium)"
+  description = "Azure Managed Redis SKU (e.g. ComputeOptimized_X3, MemoryOptimized_M10, Balanced_B0)."
   type        = string
-  default     = "Standard"
-}
+  default     = "ComputeOptimized_X3"
 
-variable "redis_family" {
-  description = "Redis family (C for Basic/Standard, P for Premium)"
-  type        = string
-  default     = "C"
-}
-
-variable "redis_capacity" {
-  description = "Redis cache capacity (0-6 for Basic/Standard C family, 1-5 for Premium P family)"
-  type        = number
-  default     = 1
+  validation {
+    condition     = can(regex("^(Balanced_B|ComputeOptimized_X|MemoryOptimized_M|FlashOptimized_A)[0-9]+$", var.redis_sku_name))
+    error_message = "redis_sku_name must be a Managed Redis SKU (Balanced_B*, ComputeOptimized_X*, MemoryOptimized_M*, or FlashOptimized_A*)."
+  }
 }
 
 variable "redis_version" {
-  description = "Redis version (must be 7 or higher)"
+  description = "Redis version. OSMO requires Redis 7+, which on Azure is only available via Azure Managed Redis (azurerm_managed_redis). The basic azurerm_redis_cache resource caps at 6, and azurerm_redis_enterprise_cluster is retired."
   type        = string
   default     = "7"
 
   validation {
     condition     = tonumber(var.redis_version) >= 7
-    error_message = "Redis version must be 7 or higher."
+    error_message = "OSMO requires Redis 7 or higher (Azure Managed Redis)."
   }
 }
 
@@ -255,4 +258,49 @@ variable "log_analytics_retention_days" {
   description = "The workspace data retention in days"
   type        = number
   default     = 30
+}
+
+# Optional GPU node pool — disabled by default to keep `example` minimal.
+variable "gpu_node_pool_enabled" {
+  description = "Provision an optional GPU node pool tainted with sku=gpu:NoSchedule"
+  type        = bool
+  default     = false
+}
+
+variable "gpu_vm_size" {
+  description = "Azure VM size for GPU nodes (e.g. Standard_NC24ads_A100_v4, Standard_NC40ads_H100_v5)"
+  type        = string
+  default     = "Standard_NC24ads_A100_v4"
+}
+
+variable "gpu_node_pool_min_size" {
+  description = "Minimum number of nodes in the GPU pool"
+  type        = number
+  default     = 0
+}
+
+variable "gpu_node_pool_max_size" {
+  description = "Maximum number of nodes in the GPU pool"
+  type        = number
+  default     = 4
+}
+
+variable "gpu_node_pool_priority" {
+  description = "Node pool priority: Regular (default) or Spot"
+  type        = string
+  default     = "Regular"
+
+  validation {
+    condition     = contains(["Regular", "Spot"], var.gpu_node_pool_priority)
+    error_message = "gpu_node_pool_priority must be 'Regular' or 'Spot'."
+  }
+}
+
+# Optional Storage Account for OSMO workflow data — disabled by default.
+# When false, BYO an existing Storage Account by setting STORAGE_ACCOUNT and
+# STORAGE_KEY env vars before running configure-storage.sh --backend azure-blob.
+variable "storage_account_enabled" {
+  description = "Provision an Azure Storage Account for OSMO workflow data"
+  type        = bool
+  default     = false
 }

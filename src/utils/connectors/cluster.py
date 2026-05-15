@@ -20,7 +20,7 @@ import kubernetes  # type: ignore
 import pydantic
 
 
-class ClusterConfig(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class ClusterConfig(pydantic.BaseModel, extra='forbid'):
     """ A class for managing the config for the execution cluster. """
     cluster_host: str = pydantic.Field(
         default='https://localhost:6443',
@@ -33,13 +33,13 @@ class ClusterConnector:
     def __init__(self, config: ClusterConfig):
         self._config = config
 
-    def core_v1_api(self) -> kubernetes.client.api.core_v1_api.CoreV1Api:
+    def core_v1_api(self) -> kubernetes.client.CoreV1Api:
         """ Gets kubernetes CoreV1Api. """
         client = kubernetes.client.ApiClient(self._kb_client_config())
         api = kubernetes.client.CoreV1Api(api_client=client)
         return api
 
-    def custom_api(self) -> kubernetes.client.api.custom_objects_api.CustomObjectsApi:
+    def custom_api(self) -> kubernetes.client.CustomObjectsApi:
         """ Gets kubernetes CustomObjectsApi. """
         client = kubernetes.client.ApiClient(self._kb_client_config())
         api = kubernetes.client.CustomObjectsApi(api_client=client)

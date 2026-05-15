@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,6 +36,36 @@ osmo_py_test(
     size = "large",
     tags = [
         "requires-network",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
+    name = "test_group_templates",
+    srcs = ["test_group_templates.py"],
+    deps = [
+        ":fixture",
+        "//src/lib/utils:common",
+        "//src/lib/utils:osmo_errors",
+        "//src/lib/utils:priority",
+        "//src/service/core:service_lib",
+        "//src/tests/common",
+        "//src/tests/common/storage",
+    ],
+    size = "large",
+    tags = [
+        "requires-network",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_test(
+    name = "test_asyncio_startup",
+    srcs = ["test_asyncio_startup.py"],
+    deps = [
+        "//src/service/agent:agent_service_lib",
+        "//src/service/logger:logger_lib",
+        "//src/service/router:router_lib",
     ],
     visibility = ["//visibility:public"],
 )

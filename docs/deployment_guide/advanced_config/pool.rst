@@ -134,6 +134,8 @@ Pools organize compute resources in a hierarchical structure:
 Practical Guide
 ===============
 
+.. include:: ../_shared/configmap_banner.rst
+
 Heterogeneous Pools
 ---------------------
 
@@ -148,141 +150,117 @@ Discover node labels and tolerations for your hardware:
   $ kubectl get nodes -o jsonpath='{.items[*].metadata.labels}' | jq -r 'to_entries[] | select(.key | startswith("nvidia.com/gpu.product")) | .value'
   $ kubectl get nodes -o jsonpath='{.items[*].metadata.tolerations}'
 
-**Step 2: Create Pod Templates for Each GPU Type**
+**Step 2: Define Pod Templates for Each GPU Type**
 
-Create pod templates that target specific hardware using node selectors and tolerations:
+Pod templates are reusable Kubernetes pod fragments — they provide node selectors, tolerations, and other scheduling hints. Define them under ``services.configs.podTemplates``:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  # L40S pod template
-  $ cat << EOF > l40s_pod_template.json
-  {
-    "l40s": {
-      "spec": {
-        "nodeSelector": {
-          "nvidia.com/gpu.product": "NVIDIA-L40S"
-        }
-      }
-    }
-  }
-  EOF
+  services:
+    configs:
+      enabled: true
+      podTemplates:
+        l40s:
+          spec:
+            nodeSelector:
+              nvidia.com/gpu.product: NVIDIA-L40S
+        a100:
+          spec:
+            nodeSelector:
+              nvidia.com/gpu.product: NVIDIA-A100
+            tolerations:
+              - key: nvidia.com/gpu.product
+                operator: Equal
+                value: NVIDIA-A100
+                effect: NoSchedule
 
-.. code-block:: bash
+**Step 3: Define the Pool with Platforms**
 
-  # A100 pod template with tolerations
-  $ cat << EOF > a100_pod_template.json
-  {
-    "a100": {
-      "spec": {
-        "nodeSelector": {
-          "nvidia.com/gpu.product": "NVIDIA-A100"
-        },
-        "tolerations": [
-          {
-            "key": "nvidia.com/gpu.product",
-            "operator": "Equal",
-            "value": "NVIDIA-A100",
-            "effect": "NoSchedule"
-          }
-        }
-      }
-    }
-  }
-  EOF
+Add the pool under ``services.configs.pools`` and reference the pod templates via ``override_pod_template``. The example below also references ``default_user`` and ``default_ctrl``, ``default_cpu``, ``default_memory``, and ``default_storage`` — these are **built-in pod templates and resource validations** that ship with the Helm chart defaults (see ``services.configs.podTemplates`` and ``services.configs.resourceValidations`` in the chart's ``values.yaml``). You can use them as-is, override them by re-declaring with the same name in your values, or drop the references from the pool.
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ osmo config update POD_TEMPLATE l40s --file l40s_pod_template.json
+  services:
+    configs:
+      pools:
+        heterogeneous_pool:
+          backend: default
+          default_platform: l40s_platform
+          description: Simulation and training pool
+          common_default_variables:
+            USER_CPU: 1
+            USER_GPU: 0
+            USER_MEMORY: 1Gi
+            USER_STORAGE: 1Gi
+          common_resource_validations:
+            - default_cpu
+            - default_memory
+            - default_storage
+          common_pod_template:
+            - default_user
+            - default_ctrl
+          platforms:
+            l40s_platform:
+              description: L40S platform
+              host_network_allowed: false
+              privileged_allowed: false
+              default_variables: {}
+              resource_validations: []
+              override_pod_template:
+                - l40s
+              allowed_mounts: []
+            a100_platform:
+              description: A100 platform
+              host_network_allowed: false
+              privileged_allowed: false
+              default_variables: {}
+              resource_validations: []
+              override_pod_template:
+                - a100
+              allowed_mounts: []
 
-  $ osmo config update POD_TEMPLATE a100 --file a100_pod_template.json
-
-**Step 3: Create Pool with Platforms**
-
-Configure the pool that references both pod templates via ``platforms``:
-
-.. code-block:: bash
-
-  $ cat << EOF > platform_config.json
-  {
-    "pools": {
-      "heterogeneous_pool": {
-        "name": "heterogeneous_pool",
-        "backend": "default",
-        "default_platform": "l40s_platform",
-        "description": "Simulation and training pool",
-        "common_default_variables": {
-            "USER_CPU": 1,
-            "USER_GPU": 0,
-            "USER_MEMORY": "1Gi",
-            "USER_STORAGE": "1Gi"
-        },
-        "common_resource_validations": [
-            "default_cpu",
-            "default_memory",
-            "default_storage"
-        ],
-        "common_pod_template": [
-            "default_user",
-            "default_ctrl"
-        ],
-        "platforms": {
-            "l40s_platform": {
-                "description": "L40S platform",
-                "host_network_allowed": false,
-                "privileged_allowed": false,
-                "default_variables": {},
-                "resource_validations": [],
-                "override_pod_template": ["l40s"],
-                "allowed_mounts": []
-            },
-            "a100_platform": {
-                "description": "A100 platform",
-                "host_network_allowed": false,
-                "privileged_allowed": false,
-                "default_variables": {},
-                "resource_validations": [],
-                "override_pod_template": ["a100"],
-                "allowed_mounts": []
-            }
-        }
-      }
-    }
-  }
-  EOF
-
-Apply the pool configuration:
+**Step 4: Apply the Helm values**
 
 .. code-block:: bash
 
-  $ osmo config update POOL --file platform_config.json
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
 
-Validate the pool configuration:
+Once the roll out completes, verify the pool:
 
 .. code-block:: bash
 
   $ osmo resource list --pool heterogeneous_pool
 
 
-**Step 4: Create a Role for the Pool**
+**Step 5: Create a Role for the Pool**
 
-Create a role to allow submitting to the pool using the ``osmo config set`` CLI:
+Add a role under ``services.configs.roles`` to grant access to the pool:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ osmo config set ROLE osmo-heterogeneous_pool pool
+  services:
+    configs:
+      roles:
+        osmo-heterogeneous_pool:
+          description: Submit workflows to heterogeneous_pool
+          policies:
+            - action: workflow:Create
+              resource: pool/heterogeneous_pool
+            - action: workflow:Read
+              resource: pool/heterogeneous_pool
 
-Users that have this role will now be able to submit workflows to the newly created pool.
+Users with this role can submit workflows to the new pool.
 
 .. note::
 
-  For more info, see :ref:`auto_generating_pool_roles`.
+  For more info on role conventions, see :ref:`auto_generating_pool_roles`.
 
-**Step 5: Assign the role to users**
+**Step 6: Assign the role to users**
 
 Assign the role ``osmo-heterogeneous_pool`` to users so they can access the pool:
 
-- **Without an IdP:** Use the OSMO user and role APIs (e.g. create users with ``POST /api/auth/user``, then assign the role with ``POST /api/auth/user/{id}/roles``). See :doc:`../appendix/authentication/roles_policies` and the user management design (e.g. ``external/projects/PROJ-148-auth-rework/PROJ-148-user-management.md``).
-- **With an IdP:** You can assign the role via the same APIs, and/or map an IdP group to this role using :ref:`idp_role_mapping` so that users in that group get the role when they log in.
+- **Without an IdP:** Use the OSMO user and role APIs (e.g. create users with ``POST /api/auth/user``, then assign the role with ``POST /api/auth/user/{id}/roles``). See :doc:`../appendix/authentication/roles_policies`.
+- **With an IdP:** Map an IdP group to this role using :ref:`idp_role_mapping` so that users in that group get the role when they log in.
 
 
 Additional Examples
@@ -294,44 +272,36 @@ Additional Examples
 
     Configure a pool for training workloads with GB200 platform:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "robotics-training": {
-          "description": "High-performance GPU pool for robotics model training",
-          "backend": "gpu-cluster-01",
-          "default_platform": "h100-platform",
-          "common_default_variables": {
-            "USER_CPU": 16,
-            "USER_GPU": 1,
-            "USER_MEMORY": "64Gi",
-            "USER_STORAGE": "500Gi"
-          },
-          "common_resource_validations": [
-            "default_cpu",
-            "default_memory",
-            "default_storage",
-            "gpu_training_validation"
-          ],
-          "common_pod_template": [
-            "default_amd64",
-            "training_optimized",
-            "high_memory"
-          ],
-          "platforms": {
-            "gb200-platform": {
-              "description": "GB200 GPUs for high performance training",
-              "override_pod_template": [
-                "training_gb200_template"
-              ],
-              "default_variables": {
-                "USER_MEMORY": "80Gi"
-              }
-            }
-          }
-          }
-        }
-      }
+      services:
+        configs:
+          pools:
+            robotics-training:
+              description: High-performance GPU pool for robotics model training
+              backend: gpu-cluster-01
+              default_platform: h100-platform
+              common_default_variables:
+                USER_CPU: 16
+                USER_GPU: 1
+                USER_MEMORY: 64Gi
+                USER_STORAGE: 500Gi
+              common_resource_validations:
+                - default_cpu
+                - default_memory
+                - default_storage
+                - gpu_training_validation
+              common_pod_template:
+                - default_amd64
+                - training_optimized
+                - high_memory
+              platforms:
+                gb200-platform:
+                  description: GB200 GPUs for high performance training
+                  override_pod_template:
+                    - training_gb200_template
+                  default_variables:
+                    USER_MEMORY: 80Gi
 
 .. dropdown:: **Simulation Pool** - Graphics-Optimized Pool
     :color: info
@@ -339,50 +309,40 @@ Additional Examples
 
     Configure a pool for simulation workloads with L40/L40S platforms:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "robotics-simulation": {
-          "description": "Graphics-optimized pool for robotics simulation",
-          "backend": "graphics-cluster-01",
-          "default_platform": "l40-platform",
-          "common_default_variables": {
-            "USER_CPU": 8,
-            "USER_GPU": 1,
-            "USER_MEMORY": "32Gi",
-            "USER_STORAGE": "200Gi"
-          },
-          "common_resource_validations": [
-            "default_cpu",
-            "default_memory",
-            "default_storage",
-            "simulation_gpu_validation"
-          ],
-          "common_pod_template": [
-            "default_amd64",
-            "simulation_optimized",
-            "graphics_drivers"
-          ],
-          "platforms": {
-            "l40-platform": {
-              "description": "L40 GPUs for standard simulation",
-              "override_pod_template": [
-                "simulation_l40_template"
-              ]
-            },
-            "l40s-platform": {
-              "description": "L40S GPUs for high-fidelity simulation",
-              "override_pod_template": [
-                "simulation_l40s_template"
-              ],
-              "default_variables": {
-                "USER_MEMORY": "48Gi"
-              }
-            }
-          }
-          }
-        }
-      }
+      services:
+        configs:
+          pools:
+            robotics-simulation:
+              description: Graphics-optimized pool for robotics simulation
+              backend: graphics-cluster-01
+              default_platform: l40-platform
+              common_default_variables:
+                USER_CPU: 8
+                USER_GPU: 1
+                USER_MEMORY: 32Gi
+                USER_STORAGE: 200Gi
+              common_resource_validations:
+                - default_cpu
+                - default_memory
+                - default_storage
+                - simulation_gpu_validation
+              common_pod_template:
+                - default_amd64
+                - simulation_optimized
+                - graphics_drivers
+              platforms:
+                l40-platform:
+                  description: L40 GPUs for standard simulation
+                  override_pod_template:
+                    - simulation_l40_template
+                l40s-platform:
+                  description: L40S GPUs for high-fidelity simulation
+                  override_pod_template:
+                    - simulation_l40s_template
+                  default_variables:
+                    USER_MEMORY: 48Gi
 
 .. dropdown:: **Inference Pool** - NVIDIA Jetsons Pool
     :color: info
@@ -390,44 +350,37 @@ Additional Examples
 
     Configure a pool for inference workloads with NVIDIA Jetsons:
 
-    .. code-block:: json
+    .. code-block:: yaml
 
-      {
-        "robotics-inference": {
-          "description": "NVIDIA Jetsons pool for model inference",
-          "backend": "inference-cluster-01",
-          "default_platform": "jetson-thor-platform",
-          "common_default_variables": {
-            "USER_CPU": 4,
-            "USER_GPU": 0,
-            "USER_MEMORY": "16Gi",
-            "USER_STORAGE": "50Gi"
-          },
-          "common_resource_validations": [
-            "default_cpu",
-            "default_memory",
-            "default_storage",
-            "inference_validation"
-          ],
-          "common_pod_template": [
-            "default_amd64",
-            "inference_optimized",
-            "low_latency"
-          ],
-          "platforms": {
-            "jetson-thor-platform": {
-              "description": "Jetson Thor platform for edge AI inference",
-              "override_pod_template": [
-                "inference_jetson_thor_template"
-              ],
-              "default_variables": {
-                "USER_GPU": 1,
-                "USER_MEMORY": "8Gi"
-              }
-            }
-          }
-        }
-      }
+      services:
+        configs:
+          pools:
+            robotics-inference:
+              description: NVIDIA Jetsons pool for model inference
+              backend: inference-cluster-01
+              default_platform: jetson-thor-platform
+              common_default_variables:
+                USER_CPU: 4
+                USER_GPU: 0
+                USER_MEMORY: 16Gi
+                USER_STORAGE: 50Gi
+              common_resource_validations:
+                - default_cpu
+                - default_memory
+                - default_storage
+                - inference_validation
+              common_pod_template:
+                - default_amd64
+                - inference_optimized
+                - low_latency
+              platforms:
+                jetson-thor-platform:
+                  description: Jetson Thor platform for edge AI inference
+                  override_pod_template:
+                    - inference_jetson_thor_template
+                  default_variables:
+                    USER_GPU: 1
+                    USER_MEMORY: 8Gi
 
 
 Enabling Topology-Aware Scheduling
@@ -442,6 +395,8 @@ appropriate Kubernetes labels applied.
 
   ``topology_keys`` can only be configured on pools backed by a KAI Scheduler backend.
   Configuring it on a pool with an unsupported scheduler will be rejected.
+
+.. include:: ../_shared/configmap_banner.rst
 
 **Step 1: Verify Node Labels**
 
@@ -458,30 +413,28 @@ Add a ``topology_keys`` list to your pool configuration, ordered from **coarsest
 granularity. Each entry maps a user-friendly ``key`` name (which users reference in their
 workflow specs) to the actual Kubernetes node ``label``:
 
-.. code-block:: bash
+.. code-block:: yaml
 
-  $ cat << EOF > topology_pool.json
-  {
-    "pools": {
-      "my-pool": {
-        "name": "my-pool",
-        "backend": "my-backend",
-        "topology_keys": [
-          {"key": "zone",       "label": "topology.kubernetes.io/zone"},
-          {"key": "spine",      "label": "topology.kubernetes.io/spine"},
-          {"key": "rack",       "label": "topology.kubernetes.io/rack"},
-          {"key": "gpu-clique", "label": "nvidia.com/gpu-clique"}
-        ]
-      }
-    }
-  }
-  EOF
+  services:
+    configs:
+      pools:
+        my-pool:
+          backend: my-backend
+          topology_keys:
+            - key: zone
+              label: topology.kubernetes.io/zone
+            - key: spine
+              label: topology.kubernetes.io/spine
+            - key: rack
+              label: topology.kubernetes.io/rack
+            - key: gpu-clique
+              label: nvidia.com/gpu-clique
 
-**Step 3: Apply the Pool Configuration**
+**Step 3: Apply the Helm values**
 
 .. code-block:: bash
 
-  $ osmo config update POOL --file topology_pool.json
+  helm upgrade osmo deployments/charts/service -f my-values.yaml
 
 OSMO will create a KAI Topology CRD in the cluster for this pool. Users can then reference
 the configured key names when specifying topology requirements in their workflow specs.

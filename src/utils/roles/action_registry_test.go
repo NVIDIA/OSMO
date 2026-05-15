@@ -1043,3 +1043,455 @@ func TestCheckPolicyAccessDenyPrecedence(t *testing.T) {
 		t.Errorf("CheckPolicyAccess(GET /api/workflow/abc): want allowed, got denied")
 	}
 }
+
+// TestMatchResourceTrailingWildcard verifies that trailing wildcard patterns
+// work across all resource types.
+func TestMatchResourceTrailingWildcard(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  string
+		resource string
+		want     bool
+	}{
+		// Pool resources
+		{
+			name:     "pool trailing wildcard matches longer name",
+			pattern:  "pool/team-a*",
+			resource: "pool/team-a-gpu-03",
+			want:     true,
+		},
+		{
+			name:     "pool trailing wildcard matches exact prefix",
+			pattern:  "pool/team-a*",
+			resource: "pool/team-a",
+			want:     true,
+		},
+		{
+			name:     "pool trailing wildcard does not match different prefix",
+			pattern:  "pool/team-a*",
+			resource: "pool/team-b",
+			want:     false,
+		},
+		{
+			name:     "pool trailing wildcard does not match different scope",
+			pattern:  "pool/team-a*",
+			resource: "bucket/team-a-gpu-03",
+			want:     false,
+		},
+
+		// Bucket resources
+		{
+			name:     "bucket trailing wildcard matches longer name",
+			pattern:  "bucket/data-v*",
+			resource: "bucket/data-v2-archive",
+			want:     true,
+		},
+		{
+			name:     "bucket trailing wildcard matches exact prefix",
+			pattern:  "bucket/data-v*",
+			resource: "bucket/data-v",
+			want:     true,
+		},
+		{
+			name:     "bucket trailing wildcard does not match different prefix",
+			pattern:  "bucket/data-v*",
+			resource: "bucket/logs-v2",
+			want:     false,
+		},
+
+		// Config resources
+		{
+			name:     "config trailing wildcard matches longer name",
+			pattern:  "config/service-*",
+			resource: "config/service-prod-01",
+			want:     true,
+		},
+		{
+			name:     "config trailing wildcard does not match different prefix",
+			pattern:  "config/service-*",
+			resource: "config/global-settings",
+			want:     false,
+		},
+
+		// Backend resources
+		{
+			name:     "backend trailing wildcard matches longer name",
+			pattern:  "backend/cluster-us*",
+			resource: "backend/cluster-us-east-1",
+			want:     true,
+		},
+		{
+			name:     "backend trailing wildcard does not match different prefix",
+			pattern:  "backend/cluster-us*",
+			resource: "backend/cluster-eu-west-1",
+			want:     false,
+		},
+
+		// User resources
+		{
+			name:     "user trailing wildcard matches longer name",
+			pattern:  "user/svc-*",
+			resource: "user/svc-pipeline-bot",
+			want:     true,
+		},
+		{
+			name:     "user trailing wildcard does not match different prefix",
+			pattern:  "user/svc-*",
+			resource: "user/admin-alice",
+			want:     false,
+		},
+
+		// General wildcard behavior
+		{
+			name:     "slash wildcard still works",
+			pattern:  "pool/*",
+			resource: "pool/team-a-gpu-03",
+			want:     true,
+		},
+		{
+			name:     "universal wildcard still works",
+			pattern:  "*",
+			resource: "pool/team-a-gpu-03",
+			want:     true,
+		},
+		{
+			name:     "exact match still works",
+			pattern:  "pool/team-a",
+			resource: "pool/team-a",
+			want:     true,
+		},
+		{
+			name:     "exact match does not prefix match without wildcard",
+			pattern:  "pool/team-a",
+			resource: "pool/team-a-gpu-03",
+			want:     false,
+		},
+		{
+			name:     "empty resource always matches",
+			pattern:  "pool/team-a*",
+			resource: "",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchResource(tt.pattern, tt.resource)
+			if got != tt.want {
+				t.Errorf("matchResource(%q, %q) = %v, want %v", tt.pattern, tt.resource, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestCheckPolicyAccessTrailingWildcardPool verifies end-to-end that a role
+// with a trailing wildcard resource like "pool/team-a*" grants access to
+// workflow creation on pools matching that prefix.
+func TestCheckPolicyAccessTrailingWildcardPool(t *testing.T) {
+	role := &Role{
+		Name: "test-pool-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "workflow:*"}},
+				Resources: []string{"pool/team-a*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// POST /api/pool/team-a-gpu-03/workflow should be allowed
+	result := CheckPolicyAccess(ctx, converted, "/api/pool/team-a-gpu-03/workflow", "POST", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for pool/team-a-gpu-03, got denied")
+	}
+
+	// POST /api/pool/team-a/workflow should also be allowed
+	result = CheckPolicyAccess(ctx, converted, "/api/pool/team-a/workflow", "POST", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for pool/team-a, got denied")
+	}
+
+	// POST /api/pool/team-b/workflow should be denied
+	result = CheckPolicyAccess(ctx, converted, "/api/pool/team-b/workflow", "POST", nil)
+	if result.Allowed {
+		t.Errorf("want denied for pool/team-b, got allowed")
+	}
+}
+
+// TestCheckPolicyAccessTrailingWildcardBucket verifies end-to-end that
+// trailing wildcard resources work for dataset/bucket operations.
+func TestCheckPolicyAccessTrailingWildcardBucket(t *testing.T) {
+	role := &Role{
+		Name: "test-bucket-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "dataset:*"}},
+				Resources: []string{"bucket/data-v*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// GET /api/bucket/data-v2-archive should be allowed
+	result := CheckPolicyAccess(ctx, converted, "/api/bucket/data-v2-archive", "GET", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for bucket/data-v2-archive, got denied")
+	}
+
+	// GET /api/bucket/data-v should be allowed
+	result = CheckPolicyAccess(ctx, converted, "/api/bucket/data-v", "GET", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for bucket/data-v, got denied")
+	}
+
+	// GET /api/bucket/logs-v2 should be denied
+	result = CheckPolicyAccess(ctx, converted, "/api/bucket/logs-v2", "GET", nil)
+	if result.Allowed {
+		t.Errorf("want denied for bucket/logs-v2, got allowed")
+	}
+}
+
+// TestCheckPolicyAccessTrailingWildcardConfig verifies end-to-end that
+// trailing wildcard resources work for config operations.
+func TestCheckPolicyAccessTrailingWildcardConfig(t *testing.T) {
+	role := &Role{
+		Name: "test-config-role",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   []RoleAction{{Action: "config:*"}},
+				Resources: []string{"config/service-*"},
+			},
+		},
+	}
+	converted := ConvertRoleToSemantic(role)
+	if converted == nil {
+		t.Fatal("ConvertRoleToSemantic returned nil")
+	}
+
+	ctx := context.Background()
+
+	// GET /api/configs/service-prod-01 should be allowed
+	result := CheckPolicyAccess(ctx, converted, "/api/configs/service-prod-01", "GET", nil)
+	if !result.Allowed {
+		t.Errorf("want allowed for config/service-prod-01, got denied")
+	}
+
+	// GET /api/configs/global-settings should be denied
+	result = CheckPolicyAccess(ctx, converted, "/api/configs/global-settings", "GET", nil)
+	if result.Allowed {
+		t.Errorf("want denied for config/global-settings, got allowed")
+	}
+}
+
+// TestEmptyResourcesDeniesResourceScopedAccess verifies that a policy with
+// an empty resources list cannot access resource-scoped endpoints. This
+// prevents privilege escalation where e.g. auth:Token with no resources
+// could manage other users' tokens.
+func TestEmptyResourcesDeniesResourceScopedAccess(t *testing.T) {
+	ctx := context.Background()
+
+	// A policy with auth:Token and no resources should only allow
+	// the user's own token endpoints, not admin endpoints for other users.
+	tokenRole := &Role{
+		Name: "token-user",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: ActionAuthToken}},
+				Resources: []string{},
+			},
+		},
+	}
+
+	// Own tokens (unscoped) — should be allowed
+	result := CheckPolicyAccess(ctx, tokenRole, "/api/auth/access_token", "GET", nil)
+	if !result.Allowed {
+		t.Error("empty resources should allow unscoped /api/auth/access_token")
+	}
+
+	result = CheckPolicyAccess(ctx, tokenRole, "/api/auth/access_token/my-token", "DELETE", nil)
+	if !result.Allowed {
+		t.Error("empty resources should allow unscoped /api/auth/access_token/my-token")
+	}
+
+	// Other user's tokens (resource-scoped) — must be denied
+	result = CheckPolicyAccess(ctx, tokenRole, "/api/auth/user/alice/access_token", "GET", nil)
+	if result.Allowed {
+		t.Error("empty resources must deny resource-scoped /api/auth/user/alice/access_token")
+	}
+
+	result = CheckPolicyAccess(ctx, tokenRole, "/api/auth/user/alice/access_token/tok1", "DELETE", nil)
+	if result.Allowed {
+		t.Error("empty resources must deny resource-scoped /api/auth/user/alice/access_token/tok1")
+	}
+}
+
+// TestExplicitResourceAllowsResourceScopedAccess verifies that a policy with
+// an explicit resource grant can access resource-scoped endpoints.
+func TestExplicitResourceAllowsResourceScopedAccess(t *testing.T) {
+	ctx := context.Background()
+
+	// Admin token policy with explicit user/* resource
+	adminTokenRole := &Role{
+		Name: "token-admin",
+		Policies: []RolePolicy{
+			{
+				Effect:    EffectAllow,
+				Actions:   RoleActions{{Action: ActionAuthToken}},
+				Resources: []string{"user/*"},
+			},
+		},
+	}
+
+	// Other user's tokens — should be allowed with explicit resource grant
+	result := CheckPolicyAccess(ctx, adminTokenRole, "/api/auth/user/alice/access_token", "GET", nil)
+	if !result.Allowed {
+		t.Error("explicit user/* resource should allow /api/auth/user/alice/access_token")
+	}
+
+	result = CheckPolicyAccess(ctx, adminTokenRole, "/api/auth/user/bob/access_token/tok1", "DELETE", nil)
+	if !result.Allowed {
+		t.Error("explicit user/* resource should allow /api/auth/user/bob/access_token/tok1")
+	}
+}
+
+// TestWildcardEmptyResourcesDeniesResourceScoped verifies that even a *:*
+// policy with empty resources cannot access resource-scoped endpoints.
+func TestWildcardEmptyResourcesDeniesResourceScoped(t *testing.T) {
+	ctx := context.Background()
+
+	role := &Role{
+		Name: "wildcard-no-resources",
+		Policies: []RolePolicy{
+			{
+				Effect:  EffectAllow,
+				Actions: RoleActions{{Action: "*:*"}},
+			},
+		},
+	}
+
+	// Unscoped path — should be allowed
+	result := CheckPolicyAccess(ctx, role, "/api/profile/settings", "GET", nil)
+	if !result.Allowed {
+		t.Error("*:* with empty resources should allow unscoped paths")
+	}
+
+	// Resource-scoped path — must be denied
+	result = CheckPolicyAccess(ctx, role, "/api/auth/user/alice/access_token", "GET", nil)
+	if result.Allowed {
+		t.Error("*:* with empty resources must deny resource-scoped paths")
+	}
+}
+
+// TestEmptyResourcesAcrossActionTypes verifies the empty-resources-denies-scoped
+// behavior applies consistently across different action types, including partial
+// wildcards like config:* and the universal wildcard *:*.
+func TestEmptyResourcesAcrossActionTypes(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		action      string
+		path        string
+		method      string
+		wantAllowed bool
+	}{
+		// Unscoped paths — should be allowed with empty resources
+		{
+			name:        "workflow:List unscoped allowed",
+			action:      "workflow:List",
+			path:        "/api/workflow",
+			method:      "GET",
+			wantAllowed: true,
+		},
+		{
+			name:        "auth:Token own tokens (unscoped) allowed",
+			action:      ActionAuthToken,
+			path:        "/api/auth/access_token",
+			method:      "GET",
+			wantAllowed: true,
+		},
+		{
+			name:        "*:* on unscoped path allowed",
+			action:      "*:*",
+			path:        "/api/profile/settings",
+			method:      "GET",
+			wantAllowed: true,
+		},
+		// Resource-scoped paths — must be denied with empty resources
+		{
+			name:        "auth:Token other user's tokens (scoped) denied",
+			action:      ActionAuthToken,
+			path:        "/api/auth/user/alice/access_token",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "dataset:* on specific bucket (scoped) denied",
+			action:      "dataset:*",
+			path:        "/api/bucket/my-bucket",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "config:* on specific config (scoped) denied",
+			action:      "config:*",
+			path:        "/api/configs/my-config",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "*:* on other user's tokens (scoped) denied",
+			action:      "*:*",
+			path:        "/api/auth/user/alice/access_token",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "*:* on specific config (scoped) denied",
+			action:      "*:*",
+			path:        "/api/configs/my-config",
+			method:      "GET",
+			wantAllowed: false,
+		},
+		{
+			name:        "*:* on specific bucket (scoped) denied",
+			action:      "*:*",
+			path:        "/api/bucket/my-bucket",
+			method:      "GET",
+			wantAllowed: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			role := &Role{
+				Name: "empty-resources",
+				Policies: []RolePolicy{
+					{
+						Effect:    EffectAllow,
+						Actions:   RoleActions{{Action: tt.action}},
+						Resources: []string{},
+					},
+				},
+			}
+			result := CheckPolicyAccess(ctx, role, tt.path, tt.method, nil)
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v", result.Allowed, tt.wantAllowed)
+			}
+		})
+	}
+}

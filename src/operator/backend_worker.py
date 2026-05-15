@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import asyncio
 import json
 import logging
@@ -86,7 +88,7 @@ class JobContext(backend_jobs.BackendJobExecutionContext):
     async def forward_messages(self, websocket):
         while True:
             message = await self.message_queue.get()
-            await websocket.send(message.json())
+            await websocket.send(message.model_dump_json())
             self.message_queue.task_done()
 
     async def clear_queue(self):

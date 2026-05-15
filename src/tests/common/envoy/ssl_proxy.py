@@ -19,6 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 import itertools
 import logging
 import os
+import socket
 import tempfile
 from typing import Dict, List
 
@@ -122,7 +123,7 @@ class SSLProxy(network.NetworkAwareContainer):
 
         for eligible_backend in eligible_backends:
             ssl_proxy_backends.append(SslProxyBackend(
-                **eligible_backend.dict(),
+                **eligible_backend.model_dump(),
                 assigned_ports=[next(assigned_ports)
                                 for _ in eligible_backend.ports]
             ))
@@ -218,6 +219,18 @@ exec envoy -c /etc/envoy/envoy.yaml
         if response.text.strip() != ENVOY_LIVE_STATUS:
             raise ConnectionError(f'Envoy is not ready yet: {response.text}')
 
+        # Verify each proxy listener is accepting TCP connections. Envoy may report LIVE
+        # on the admin port before all forwarding listeners have finished binding.
+        for assigned_ports in self.backend_alias_to_assigned_ports.values():
+            for assigned_port in assigned_ports.values():
+                proxy_port = self.get_exposed_port(assigned_port)
+                try:
+                    with socket.create_connection((host, proxy_port), timeout=1):
+                        pass
+                except (socket.error, OSError) as e:
+                    raise requests.ConnectionError(
+                        f'Proxy listener not ready at {host}:{proxy_port}') from e
+
     def start(self):
         super().start()
         utils.copy_file_to_container(
@@ -228,8 +241,8 @@ exec envoy -c /etc/envoy/envoy.yaml
             self._container, self.rendered_config_path, ENVOY_CONFIG_CONTAINER_FILE)
         self._wait_until_ready()
 
-    def stop(self):
-        super().stop()
+    def stop(self, force: bool = True, delete_volume: bool = True) -> None:
+        super().stop(force=force, delete_volume=delete_volume)
         if os.path.exists(self.rendered_config_path):
             os.remove(self.rendered_config_path)
 

@@ -16,6 +16,8 @@ limitations under the License.
 SPDX-License-Identifier: Apache-2.0
 """
 
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
 import asyncio
 import copy
 import datetime
@@ -36,7 +38,7 @@ from urllib.parse import urlparse
 
 import kubernetes  # type: ignore
 import opentelemetry.metrics as otelmetrics
-import pydantic  # type: ignore
+import pydantic
 import urllib3  # type: ignore
 import websockets
 import websockets.exceptions
@@ -91,7 +93,7 @@ def get_container_exit_code(container_name: str, exit_code: int) -> int:
     return exit_code
 
 
-class PodErrorInfo(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PodErrorInfo(pydantic.BaseModel, extra='forbid'):
     """ Lightweight class for storing information about pod failure"""
     error_message: str = ''
     exit_codes: Dict[str, int] = {}
@@ -113,10 +115,10 @@ class PodErrorInfo(pydantic.BaseModel, extra=pydantic.Extra.forbid):
         return None
 
 
-class PodWaitingStatus(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class PodWaitingStatus(pydantic.BaseModel, extra='forbid'):
     """ Lightweight class for storing information about pod status. """
     waiting_on_error: bool
-    waiting_reason: str | None
+    waiting_reason: str | None = None
     error_info: PodErrorInfo = pydantic.Field(default_factory=PodErrorInfo)
 
 
@@ -683,7 +685,8 @@ def refresh_resource_database(node_send_queue: helpers.EnqueueCallback,
                     _continue=continue_token,
                     limit=list_pods_page_size
                 )
-                pod_list_aggregated.items.extend(pod_list.items)
+                if pod_list_aggregated is not None:
+                    pod_list_aggregated.items.extend(pod_list.items)
             else:
                 pod_list = api.list_pod_for_all_namespaces(
                     limit=list_pods_page_size)
@@ -697,7 +700,8 @@ def refresh_resource_database(node_send_queue: helpers.EnqueueCallback,
             continue_token = pod_list.metadata._continue  # pylint: disable=protected-access
 
             if not continue_token:
-                pod_list_aggregated.metadata = pod_list.metadata
+                if pod_list_aggregated is not None:
+                    pod_list_aggregated.metadata = pod_list.metadata
                 break
 
             if progress_writer:
@@ -930,7 +934,7 @@ def calculate_pod_status(pod: Any) -> Tuple[task.TaskGroupStatus, str, Optional[
                     # When a container fails to create, the pod will not be Ready.
                     # The lastTransitionTime of this condition is the closest timestamp.
                     if condition.type == 'Ready' and condition.status == 'False':
-                        now = datetime.datetime.now()
+                        now = datetime.datetime.now(datetime.timezone.utc)
                         last_transition_time = condition.last_transition_time
                         if last_transition_time:
                             time_diff = now - last_transition_time
@@ -1022,7 +1026,7 @@ def send_pod_conditions(event_send_queue: helpers.EnqueueCallback,
         retry_id: Retry ID
         conditions_messages: List of condition messages to send
     """
-    pod_conditions_key = (task_uuid, tuple(c.json() for c in conditions_messages))
+    pod_conditions_key = (task_uuid, tuple(c.model_dump_json() for c in conditions_messages))
 
     if not check_ttl_cache(pod_conditions_cache, pod_conditions_key):
         pod_conditions_message = backend_messages.MessageBody(
@@ -1617,10 +1621,10 @@ async def websocket_connect(progress_writer: progress.ProgressWriter,
                         k8s_namespace=config.namespace,
                         version=str(version.VERSION),
                         node_condition_prefix=config.node_condition_prefix))
-                await websocket.send(init_message.json())
+                await websocket.send(init_message.model_dump_json())
 
                 for message in unack_messages.list_messages():
-                    await websocket.send(message.json())
+                    await websocket.send(message.model_dump_json())
                     progress_writer.report_progress()
 
                 async def _send_message():
@@ -1629,7 +1633,7 @@ async def websocket_connect(progress_writer: progress.ProgressWriter,
                             message = await asyncio.wait_for(
                                 message_queue.get(), timeout=TIMEOUT_SEC)
                             await unack_messages.add_message(message)
-                            await websocket.send(message.json())
+                            await websocket.send(message.model_dump_json())
                             message_queue.task_done()
                             send_backend_message_transmission_count(
                                 event_type=connection_type.value)
@@ -1778,7 +1782,7 @@ async def main():
     unack_heartbeat_messages = UnackMessages(WebSocketConnectionType.HEARTBEAT,
                                              config.max_unacked_messages)
 
-    backend_message_queues = {
+    backend_message_queues: Dict[str, asyncio.Queue | UnackMessages] = {
         'control_receive_queue': control_receive_queue,
         'pod_send_queue': pod_send_queue,
         'node_send_queue': node_send_queue,

@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,25 @@ load("@osmo_python_deps//:requirements.bzl", "requirement")
 
 
 osmo_py_library(
+    name = "configmap_loader_lib",
+    srcs = [
+        "configmap_events.py",
+        "configmap_guard.py",
+        "configmap_loader.py",
+    ],
+    deps = [
+        requirement("kubernetes"),
+        requirement("pydantic"),
+        requirement("pyyaml"),
+        requirement("watchdog"),
+        "//src/lib/utils:common",
+        "//src/utils:configmap_state",
+        "//src/utils/connectors",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+osmo_py_library(
     name = "config",
     srcs = [
         "config_history_helpers.py",
@@ -29,12 +48,14 @@ osmo_py_library(
         "objects.py",
     ],
     deps = [
+        ":configmap_loader_lib",
         requirement("fastapi"),
         requirement("pydantic"),
         "//src/lib/utils:common",
         "//src/lib/utils:osmo_errors",
         "//src/lib/utils:config_history",
         "//src/service/core/workflow:workflow",
+        "//src/utils:configmap_state",
         "//src/utils/connectors",
         "//src/utils/job:job",
         "//src/utils/job:backend_job",

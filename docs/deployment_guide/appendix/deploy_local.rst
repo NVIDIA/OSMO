@@ -101,17 +101,6 @@ Install `nvkind <https://github.com/NVIDIA/nvkind>`_ by following the `prerequis
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=ingress,nvidia.com/gpu.deploy.operands=false"
-        extraPortMappings:
-          - containerPort: 30080
-            hostPort: 80
-            protocol: TCP
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
               node-labels: "node_group=kai-scheduler,nvidia.com/gpu.deploy.operands=false"
       - role: worker
         kubeadmConfigPatches:
@@ -130,6 +119,10 @@ Install `nvkind <https://github.com/NVIDIA/nvkind>`_ by following the `prerequis
           nodeRegistration:
             kubeletExtraArgs:
               node-labels: "node_group=service,nvidia.com/gpu.deploy.operands=false"
+        extraPortMappings:
+          - containerPort: 30080
+            hostPort: 80
+            protocol: TCP
       - role: worker
         kubeadmConfigPatches:
         - |
@@ -196,17 +189,6 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
           kind: JoinConfiguration
           nodeRegistration:
             kubeletExtraArgs:
-              node-labels: "node_group=ingress"
-        extraPortMappings:
-          - containerPort: 30080
-            hostPort: 80
-            protocol: TCP
-      - role: worker
-        kubeadmConfigPatches:
-        - |
-          kind: JoinConfiguration
-          nodeRegistration:
-            kubeletExtraArgs:
               node-labels: "node_group=kai-scheduler"
       - role: worker
         kubeadmConfigPatches:
@@ -225,6 +207,10 @@ If your workstation does not have a GPU, follow these steps for a standard CPU-o
           nodeRegistration:
             kubeletExtraArgs:
               node-labels: "node_group=service"
+        extraPortMappings:
+          - containerPort: 30080
+            hostPort: 80
+            protocol: TCP
       - role: worker
         kubeadmConfigPatches:
         - |
@@ -253,8 +239,7 @@ Both commands create a Kubernetes cluster on your workstation with a control pla
 
 **Control Plane**
 
-* 2 worker nodes labeled ``node_group=service`` for API server and workflow engine
-* 1 worker node labeled ``node_group=ingress`` for NGINX ingress
+* 2 worker nodes labeled ``node_group=service`` for API server, workflow engine, and gateway (Envoy)
 * 1 worker node labeled ``node_group=kai-scheduler`` for KAI scheduler
 
 **Compute Layer**
@@ -305,13 +290,13 @@ Deploy the complete OSMO platform with a single Helm command:
 Step 4: Configure Access
 =========================
 
-Add a host entry to access OSMO from your browser:
+Add an entry to /etc/hosts so your browser and CLI can reach OSMO by hostname:
 
 .. code-block:: bash
 
    $ echo "127.0.0.1 quick-start.osmo" | sudo tee -a /etc/hosts
 
-This allows you to visit ``http://quick-start.osmo`` in your web browser.
+The KIND cluster maps host port 80 to the gateway's NodePort, so OSMO is accessible at ``http://quick-start.osmo`` with no port-forward needed.
 
 Step 5: Install OSMO CLI
 =========================

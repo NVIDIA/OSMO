@@ -14,7 +14,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useRef, useCallback, useEffect, startTransition } from "react";
+import { useRef, useCallback, useEffect, useLayoutEffect, startTransition } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -23,6 +23,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { useDebounceCallback, useResizeObserver } from "usehooks-ts";
 
 import { useExecIntoTask } from "@/lib/api/adapter/hooks";
+import { toProxiedWsHost } from "@/lib/config";
 import { updateALBCookies } from "@/lib/auth/cookies";
 import {
   type ShellState,
@@ -98,6 +99,12 @@ export interface UseShellReturn {
 
 const sharedEncoder = new TextEncoder();
 
+/**
+ * Manage an interactive shell session for a workflow task. Opens a WebSocket
+ * exec connection via the router, attaches an xterm.js terminal, and exposes
+ * controls for resize, search, and session lifecycle. Multiple concurrent
+ * sessions are keyed by `sessionKey`.
+ */
 export function useShell(options: UseShellOptions): UseShellReturn {
   const {
     sessionKey,
@@ -253,6 +260,17 @@ export function useShell(options: UseShellOptions): UseShellReturn {
           }
         });
 
+        const onResizeDisposable = terminal.onResize(({ cols, rows }) => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          const prefix = new Uint8Array([0x00]);
+          const payload = sharedEncoder.encode(`RESIZE:${JSON.stringify({ Rows: rows, Cols: cols })}`);
+          const msg = new Uint8Array(prefix.length + payload.length);
+          msg.set(prefix, 0);
+          msg.set(payload, prefix.length);
+          ws.send(msg);
+        });
+        _updateSession(sessionKey, { onResizeDisposable });
+
         const timeout = setTimeout(() => {
           dispatch({ type: "TIMEOUT" });
         }, SHELL_CONFIG.BACKEND_INIT_TIMEOUT_MS);
@@ -327,15 +345,8 @@ export function useShell(options: UseShellOptions): UseShellReturn {
         params: { entry_command: shellRef.current },
       });
 
-      if (response.status !== 200) {
-        dispatch({ type: "API_ERROR", error: "Exec request failed" });
-        _updateSession(sessionKey, { isConnecting: false });
-        return;
-      }
-
-      const execData = response.data;
-      if (execData.cookie) {
-        updateALBCookies(execData.cookie);
+      if (response.cookie) {
+        updateALBCookies(response.cookie);
       }
 
       const currentSession = _getSession(sessionKey);
@@ -399,6 +410,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       if (currentSession.onDataDisposable) {
         currentSession.onDataDisposable.dispose();
       }
+      if (currentSession.onResizeDisposable) {
+        currentSession.onResizeDisposable.dispose();
+      }
 
       // Connect terminal input to WebSocket output
       const onDataDisposable = terminal.onData((data) => {
@@ -412,8 +426,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
       _updateSession(sessionKey, { onDataDisposable });
 
       const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const routerAddress = execData.router_address.replace(/^https?:/, wsProtocol);
-      const wsUrl = `${routerAddress}/api/router/exec/${workflowNameRef.current}/client/${execData.key}`;
+      const wsUrl = `${wsProtocol}//${toProxiedWsHost(response.router_address)}/api/router/exec/${workflowNameRef.current}/client/${response.key}`;
 
       dispatch({ type: "API_SUCCESS", terminal, wsUrl });
 
@@ -598,6 +611,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
     if (session.onDataDisposable) {
       session.onDataDisposable.dispose();
     }
+    if (session.onResizeDisposable) {
+      session.onResizeDisposable.dispose();
+    }
     if (session.onRenderDisposable) {
       session.onRenderDisposable.dispose();
     }
@@ -689,6 +705,7 @@ export function useShell(options: UseShellOptions): UseShellReturn {
             reconnectCallback: null,
             terminalReady: false,
             onRenderDisposable: null,
+            onResizeDisposable: null,
           });
         }
       }
@@ -736,7 +753,9 @@ export function useShell(options: UseShellOptions): UseShellReturn {
 
   // Register reconnect callback for external triggers (use ref to avoid infinite loops)
   const connectRef = useRef(connect);
-  connectRef.current = connect;
+  useLayoutEffect(() => {
+    connectRef.current = connect;
+  });
 
   useEffect(() => {
     const stableReconnect = () => connectRef.current();

@@ -14,111 +14,50 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-/**
- * Pool Generator
- *
- * Generates pool data matching PoolResourceUsage from the OpenAPI spec.
- * Uses deterministic seeding for infinite, memory-efficient pagination.
- *
- * Returns data in PoolResponse format for /api/pool_quota endpoint.
- */
-
 import { faker } from "@faker-js/faker";
+import { delay } from "msw";
+import { getMockDelay } from "@/mocks/utils";
 import { getGlobalMockConfig } from "@/mocks/global-config";
-
-// Import types directly from generated API spec
 import type {
   PoolResourceUsage,
   PoolResources,
   ResourceUsage,
   PoolResponse,
-  PoolNodeSetResourceUsage,
   PlatformMinimal,
 } from "@/lib/api/generated";
 import { PoolStatus } from "@/lib/api/generated";
-
 import {
   MOCK_CONFIG,
-  type PoolPatterns,
   SHARED_POOL_ALPHA,
   SHARED_POOL_BETA,
   SHARED_PLATFORM,
   ALPHA_EXTRA_PLATFORM,
 } from "@/mocks/seed/types";
 
-// Re-export for convenience
-export type { PoolResourceUsage, PoolResponse };
-export { PoolStatus };
-
-// ============================================================================
-// Generator Configuration
-// ============================================================================
-
-interface GeneratorConfig {
-  /** Total pools available */
-  total: number;
-  baseSeed: number;
-  patterns: PoolPatterns;
-}
-
-const DEFAULT_CONFIG: GeneratorConfig = {
-  total: MOCK_CONFIG.volume.pools,
-  baseSeed: 54321,
-  patterns: MOCK_CONFIG.pools,
-};
-
-// ============================================================================
-// Generator Class
-// ============================================================================
+const BASE_SEED = 54321;
 
 export class PoolGenerator {
-  private config: GeneratorConfig;
-
-  constructor(config: Partial<GeneratorConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
-  }
-
   get total(): number {
     return getGlobalMockConfig().pools;
   }
 
-  set total(value: number) {
-    getGlobalMockConfig().pools = value;
-  }
-
-  /**
-   * Generate a PoolResourceUsage at a specific index.
-   * DETERMINISTIC: Same index always produces the same pool.
-   * Matches the format expected by transformPoolsResponse.
-   */
   generate(index: number): PoolResourceUsage {
-    faker.seed(this.config.baseSeed + index);
+    faker.seed(BASE_SEED + index);
 
-    // Generate unique name based on index
-    const baseName = this.config.patterns.names[index % this.config.patterns.names.length];
-    const name =
-      index < this.config.patterns.names.length
-        ? baseName
-        : `${baseName}-${Math.floor(index / this.config.patterns.names.length)}`;
+    const name = this.nameForIndex(index);
+    const platform = faker.helpers.arrayElement(MOCK_CONFIG.pools.platforms);
+    const region = faker.helpers.arrayElement(MOCK_CONFIG.pools.regions);
+    const gpuType = faker.helpers.arrayElement(MOCK_CONFIG.pools.gpuTypes);
 
-    const platform = faker.helpers.arrayElement(this.config.patterns.platforms);
-    const region = faker.helpers.arrayElement(this.config.patterns.regions);
-    const gpuType = faker.helpers.arrayElement(this.config.patterns.gpuTypes);
-
-    // GPU capacity
-    const totalGpus = faker.helpers.arrayElement(this.config.patterns.quota.gpuCounts);
+    const totalGpus = faker.helpers.arrayElement(MOCK_CONFIG.pools.quota.gpuCounts);
     // Index 1: simulate oversubscribed pool where usage exceeds capacity
     const isOversubscribed = index === 1;
-    const utilization = isOversubscribed ? 1.2 : faker.number.float(this.config.patterns.quota.utilizationRange);
+    const utilization = isOversubscribed ? 1.2 : faker.number.float(MOCK_CONFIG.pools.quota.utilizationRange);
     const usedGpus = Math.floor(totalGpus * utilization);
     const availableGpus = totalGpus - usedGpus;
 
     const resources: PoolResources = {
-      gpu: {
-        guarantee: totalGpus,
-        maximum: totalGpus,
-        weight: 1,
-      },
+      gpu: { guarantee: totalGpus, maximum: totalGpus, weight: 1 },
     };
 
     const resourceUsage: ResourceUsage = {
@@ -136,12 +75,10 @@ export class PoolGenerator {
       { value: PoolStatus.MAINTENANCE, weight: 0.07 },
     ]);
 
-    // Platform configuration - some pools have multiple platforms
     const platforms: Record<string, PlatformMinimal> = {};
     const isSharedPool = name === SHARED_POOL_ALPHA || name === SHARED_POOL_BETA;
 
     if (isSharedPool) {
-      // Shared pools always have the common platform
       platforms[SHARED_PLATFORM] = {
         description: `${gpuType} shared platform in ${region}`,
         host_network_allowed: false,
@@ -149,8 +86,6 @@ export class PoolGenerator {
         allowed_mounts: ["/data", "/models", "/scratch"],
         default_mounts: ["/data"],
       };
-
-      // Alpha pool additionally has an extra platform (covers half the resources)
       if (name === SHARED_POOL_ALPHA) {
         platforms[ALPHA_EXTRA_PLATFORM] = {
           description: `${gpuType} on-prem platform`,
@@ -161,7 +96,6 @@ export class PoolGenerator {
         };
       }
     } else {
-      // Always include the primary platform
       platforms[platform] = {
         description: `${gpuType} platform in ${region}`,
         host_network_allowed: false,
@@ -170,7 +104,6 @@ export class PoolGenerator {
         default_mounts: ["/data"],
       };
 
-      // ~40% of pools have 2+ platforms, ~20% have 3+, ~10% have 4+
       const platformCount = faker.helpers.weightedArrayElement([
         { value: 1, weight: 0.4 },
         { value: 2, weight: 0.25 },
@@ -183,12 +116,12 @@ export class PoolGenerator {
 
       if (platformCount > 1) {
         const additionalPlatforms = faker.helpers.arrayElements(
-          this.config.patterns.platforms.filter((p) => p !== platform),
-          Math.min(platformCount - 1, this.config.patterns.platforms.length - 1),
+          MOCK_CONFIG.pools.platforms.filter((p) => p !== platform),
+          Math.min(platformCount - 1, MOCK_CONFIG.pools.platforms.length - 1),
         );
         for (const addPlatform of additionalPlatforms) {
           platforms[addPlatform] = {
-            description: `${faker.helpers.arrayElement(this.config.patterns.gpuTypes)} platform`,
+            description: `${faker.helpers.arrayElement(MOCK_CONFIG.pools.gpuTypes)} platform`,
             host_network_allowed: faker.datatype.boolean(),
             privileged_allowed: false,
             allowed_mounts: ["/data", "/models"],
@@ -216,54 +149,20 @@ export class PoolGenerator {
     };
   }
 
-  /**
-   * Generate a page of pools.
-   * MEMORY EFFICIENT: Only generates items for the requested page.
-   */
-  generatePage(offset: number, limit: number): { entries: PoolResourceUsage[]; total: number } {
-    const entries: PoolResourceUsage[] = [];
-    const total = this.total; // Use getter to read from global config
-
-    const start = Math.max(0, offset);
-    const end = Math.min(offset + limit, total);
-
-    for (let i = start; i < end; i++) {
-      entries.push(this.generate(i));
-    }
-
-    return { entries, total };
-  }
-
-  /**
-   * Generate PoolResponse for /api/pool_quota endpoint.
-   * Returns all pools wrapped in node_sets structure.
-   */
   generatePoolResponse(pools?: string[]): PoolResponse {
-    let poolList: PoolResourceUsage[];
+    const poolList = pools?.length
+      ? pools.map((name) => this.getByName(name)).filter((p): p is PoolResourceUsage => p !== null)
+      : Array.from({ length: this.total }, (_, i) => this.generate(i));
 
-    if (pools && pools.length > 0) {
-      // Filter to specific pools
-      poolList = pools.map((name) => this.getByName(name)).filter((p): p is PoolResourceUsage => p !== null);
-    } else {
-      // Return all pools
-      poolList = this.generatePage(0, this.total).entries; // Use getter to read from global config
-    }
-
-    // Calculate resource sum
     let totalUsed = 0;
     let totalCapacity = 0;
-
     for (const pool of poolList) {
       totalUsed += parseInt(pool.resource_usage.quota_used || "0", 10);
       totalCapacity += parseInt(pool.resource_usage.total_capacity || "0", 10);
     }
 
-    const nodeSet: PoolNodeSetResourceUsage = {
-      pools: poolList,
-    };
-
     return {
-      node_sets: [nodeSet],
+      node_sets: [{ pools: poolList }],
       resource_sum: {
         quota_used: `${totalUsed}`,
         quota_free: `${totalCapacity - totalUsed}`,
@@ -275,67 +174,63 @@ export class PoolGenerator {
     };
   }
 
-  /**
-   * Get pool by name.
-   */
   getByName(name: string): PoolResourceUsage | null {
-    // Check known names first
-    const knownIndex = this.config.patterns.names.indexOf(name);
+    const knownIndex = MOCK_CONFIG.pools.names.indexOf(name);
     if (knownIndex >= 0 && knownIndex < this.total) {
-      // Use getter
       return this.generate(knownIndex);
     }
 
-    // Check generated names (name-N format)
     const match = name.match(/^(.+)-(\d+)$/);
     if (match) {
       const [, baseName, numStr] = match;
-      const baseIndex = this.config.patterns.names.indexOf(baseName);
+      const baseIndex = MOCK_CONFIG.pools.names.indexOf(baseName);
       if (baseIndex >= 0) {
-        const index = baseIndex + parseInt(numStr, 10) * this.config.patterns.names.length;
+        const index = baseIndex + parseInt(numStr, 10) * MOCK_CONFIG.pools.names.length;
         if (index < this.total) {
-          // Use getter
           return this.generate(index);
         }
       }
     }
 
-    // Not found
     return null;
   }
 
-  /**
-   * Get all pool names (up to total).
-   */
   getPoolNames(): string[] {
-    const names: string[] = [];
-    for (let i = 0; i < this.total; i++) {
-      // Use getter
-      const baseName = this.config.patterns.names[i % this.config.patterns.names.length];
-      const name =
-        i < this.config.patterns.names.length
-          ? baseName
-          : `${baseName}-${Math.floor(i / this.config.patterns.names.length)}`;
-      names.push(name);
-    }
-    return names;
+    return Array.from({ length: this.total }, (_, i) => this.nameForIndex(i));
   }
-}
 
-// ============================================================================
-// Singleton instance
-// ============================================================================
+  private nameForIndex(index: number): string {
+    const baseName = MOCK_CONFIG.pools.names[index % MOCK_CONFIG.pools.names.length];
+    return index < MOCK_CONFIG.pools.names.length
+      ? baseName
+      : `${baseName}-${Math.floor(index / MOCK_CONFIG.pools.names.length)}`;
+  }
+
+  handleGetPoolQuota = async ({ request }: { request: Request }): Promise<PoolResponse> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const poolsParam = url.searchParams.get("pools");
+    if (poolsParam && url.searchParams.get("all_pools") !== "true") {
+      return this.generatePoolResponse(poolsParam.split(",").map((p) => p.trim()));
+    }
+    return this.generatePoolResponse();
+  };
+
+  handleListPools = async ({ request }: { request: Request }): Promise<Response> => {
+    await delay(getMockDelay());
+    const url = new URL(request.url);
+    const allPools = url.searchParams.get("all_pools") === "true";
+    const poolsParam = url.searchParams.get("pools");
+    let poolNames: string[];
+    if (poolsParam) {
+      poolNames = poolsParam.split(",").map((p) => p.trim());
+    } else if (allPools) {
+      poolNames = this.getPoolNames();
+    } else {
+      poolNames = this.getPoolNames().slice(0, 10);
+    }
+    return new Response(poolNames.join("\n"), { headers: { "Content-Type": "text/plain" } });
+  };
+}
 
 export const poolGenerator = new PoolGenerator();
-
-// ============================================================================
-// Configuration helpers
-// ============================================================================
-
-export function setPoolTotal(total: number): void {
-  poolGenerator.total = total;
-}
-
-export function getPoolTotal(): number {
-  return poolGenerator.total;
-}

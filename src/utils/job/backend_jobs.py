@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Set, Type
 import kubernetes.client as kb_client  # type: ignore
 import kubernetes.client.exceptions as kb_exceptions  # type: ignore
 import kubernetes.dynamic as kb_dynamic  # type: ignore
+import kubernetes.dynamic.exceptions as kb_dynamic_exceptions  # type: ignore
 import pydantic
 import urllib3  # type: ignore
 import yaml
@@ -130,8 +131,8 @@ class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkfl
 
         for resource in self.k8s_resources:
             resource['metadata']['namespace'] = namespace
-            message = f'Creating {resource["kind"]} named {resource["metadata"]["name"]} '\
-                      f'in namespace {resource["metadata"]["namespace"]}'
+            message = f'Creating {resource['kind']} named {resource['metadata']['name']} '\
+                      f'in namespace {resource['metadata']['namespace']}'
             logging.info(message, extra={'workflow_uuid': self.workflow_uuid})
 
             try:
@@ -143,17 +144,17 @@ class BackendCreateGroup(backend_job_defs.BackendCreateGroupMixin, BackendWorkfl
                 reason = body.get('reason', body.get('message', str(api_exception.body)))
                 if reason == 'AlreadyExists':
                     result.message = reason
-                    message = f'Skipping creation of {resource["kind"]} named '\
-                              f'{resource["metadata"]["name"]} '\
-                              f'in namespace {resource["metadata"]["namespace"]} '\
+                    message = f'Skipping creation of {resource['kind']} named '\
+                              f'{resource['metadata']['name']} '\
+                              f'in namespace {resource['metadata']['namespace']} '\
                               'because it already exists'
                     logging.warning(message, extra={'workflow_uuid': self.workflow_uuid})
                 else:
                     raise
             # Handle connection errors and retry
             except urllib3.exceptions.ProtocolError as error:
-                error_message = f'Connection error when creating {resource["kind"]} named '\
-                    f'{resource["metadata"]["name"]}: {error}'
+                error_message = f'Connection error when creating {resource['kind']} named '\
+                    f'{resource['metadata']['name']}: {error}'
                 logging.error(error_message, extra={'workflow_uuid': self.workflow_uuid})
                 return JobResult(status=JobStatus.FAILED_RETRY, message=error_message)
             finally:
@@ -191,7 +192,7 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
         for pod in failed_pods:
             for container in pod.spec.init_containers + pod.spec.containers:
                 # Note which pod it is
-                name = f'{pod.metadata.labels.get("osmo.task_name", "")}: {container.name}'
+                name = f'{pod.metadata.labels.get('osmo.task_name', '')}: {container.name}'
                 task_uuid = pod.metadata.labels.get('osmo.task_uuid', None)
                 retry_id = pod.metadata.labels.get('osmo.retry_id', 0)
                 yield f'Logs for container {name} ...\n', task_uuid, retry_id, False
@@ -259,8 +260,8 @@ class BackendCleanupGroup(backend_job_defs.BackendCleanupGroupMixin, BackendWork
                              if resources else []
             error_message = f'Error: {error}. ' if error else ''
             return f'CleanupJob {self.job_id} for group {self.group_name} '\
-                    f'listed pods [{",".join(resources_list)}] '\
-                    f'{"before" if before else "after"} deletion. '\
+                    f'listed pods [{','.join(resources_list)}] '\
+                    f'{'before' if before else 'after'} deletion. '\
                     f'{error_message}'
 
         for cleanup in cleanup_specs_list:
@@ -415,7 +416,7 @@ class LabelNode(BackendWorkflowJob):
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["node_name"]}-{common.generate_unique_id(5)}-labelnode'
+        return f'{values['node_name']}-{common.generate_unique_id(5)}-labelnode'
 
     def execute(self, context: BackendJobExecutionContext,
                 progress_writer: progress.ProgressWriter,
@@ -443,6 +444,34 @@ class LabelNode(BackendWorkflowJob):
         return JobResult()
 
 
+def _immutable_target_already_current(target: Dict, existing: Dict) -> bool:
+    """Return True iff `existing`'s meaningful content already matches `target`.
+
+    Used by BackendSynchronizeQueues to skip the delete+recreate cycle on
+    immutable CRDs (e.g. KAI Topology) when the spec hasn't changed.
+
+    Compared: `apiVersion` + `kind` + `spec` (deep equal) plus
+    `metadata.labels` (each target label must be present and equal in
+    existing). Server-managed metadata (resourceVersion, uid, generation,
+    managedFields, creationTimestamp, selfLink) and `status` are ignored.
+    `apiVersion` is included as a hedge against API version bumps (e.g.
+    scheduling.run.ai/v2 -> v3): without it the helper would say "current"
+    even though the resource needs to be migrated.
+    """
+    if target.get('apiVersion') != existing.get('apiVersion'):
+        return False
+    if target.get('kind') != existing.get('kind'):
+        return False
+    if target.get('spec') != existing.get('spec'):
+        return False
+    target_labels = (target.get('metadata') or {}).get('labels') or {}
+    existing_labels = (existing.get('metadata') or {}).get('labels') or {}
+    for key, value in target_labels.items():
+        if existing_labels.get(key) != value:
+            return False
+    return True
+
+
 class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, BackendJob):
     """Synchronizes scheduler K8s objects (queues, topologies, etc.)
     in the backend to match configuration"""
@@ -453,9 +482,9 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["backend"]}-modify-queues-{common.generate_unique_id()}'
+        return f'{values['backend']}-modify-queues-{common.generate_unique_id()}'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """
@@ -502,7 +531,15 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
                                cleanup_spec: backend_job_defs.BackendCleanupSpec):
         """Synchronizes K8s objects for a specific cleanup spec"""
         # Get existing objects
-        objects = self._get_objects(context, cleanup_spec)
+        try:
+            objects = self._get_objects(context, cleanup_spec)
+        except kb_dynamic_exceptions.ResourceNotFoundError:
+            logging.warning(
+                'CRD not found on backend, skipping sync for %s/%s',
+                cleanup_spec.effective_api_version,
+                cleanup_spec.effective_kind,
+            )
+            return
         all_objects: Dict[str, Dict] = {obj['metadata']['name']: obj for obj in objects}
 
         # Filter k8s_resources to only those matching this cleanup spec
@@ -519,10 +556,28 @@ class BackendSynchronizeQueues(backend_job_defs.BackendSynchronizeQueuesMixin, B
             if obj_name in all_objects:
                 # Object exists - check if it needs to be recreated (immutable) or updated
                 if obj_kind in self.immutable_kinds:
-                    # Delete and recreate for immutable kinds
-                    logging.info('Recreating immutable %s object: %s', obj_kind, obj_name)
-                    self._delete_object(context, cleanup_spec, obj_name)
-                    self._apply_object(context, cleanup_spec, obj, resource_version=None)
+                    # Skip the delete+recreate when the existing object's spec
+                    # already matches the target. Without this guard, every
+                    # backend re-registration churned every immutable CRD
+                    # (e.g. KAI Topology) — the brief gap between delete and
+                    # recreate makes pods that reference the CRD error with
+                    # "topology not found" while the new resource is being
+                    # written. Idempotent re-syncs (same spec) should no-op.
+                    existing = all_objects[obj_name]
+                    if _immutable_target_already_current(obj, existing):
+                        # Info-level (not debug): the no-op path is now the
+                        # steady-state on reconnects, and visibility into
+                        # "did the sync run, did it find the spec current?"
+                        # matters for triaging "are queues up-to-date?"
+                        # without redeploying with --log-level=debug.
+                        logging.info(
+                            'Immutable %s %s already current — skipping recreate',
+                            obj_kind, obj_name)
+                    else:
+                        logging.info(
+                            'Recreating immutable %s object: %s', obj_kind, obj_name)
+                        self._delete_object(context, cleanup_spec, obj_name)
+                        self._apply_object(context, cleanup_spec, obj, resource_version=None)
                 else:
                     # Update existing object
                     original = all_objects[obj_name]
@@ -579,9 +634,9 @@ class BackendSynchronizeBackendTest(backend_job_defs.BackendSynchronizeBackendTe
 
     @classmethod
     def _get_job_id(cls, values):
-        return f'{values["backend"]}-sync-tests-{common.generate_unique_id()}'
+        return f'{values['backend']}-sync-tests-{common.generate_unique_id()}'
 
-    @pydantic.validator('job_id', check_fields=False)
+    @pydantic.field_validator('job_id')
     @classmethod
     def validate_job_id(cls, value: str) -> str:
         """

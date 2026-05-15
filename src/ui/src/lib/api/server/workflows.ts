@@ -102,13 +102,7 @@ export const fetchWorkflows = cache(async (params: WorkflowsQueryParams = {}): P
     submitted_after: params.submitted_after,
   };
 
-  const response = await listWorkflowApiWorkflowGet(apiParams);
-
-  // Parse string response if needed (backend quirk)
-  const rawData = response.data;
-  const parsed = typeof rawData === "string" ? JSON.parse(rawData) : rawData;
-
-  return parsed as WorkflowsListResponse;
+  return listWorkflowApiWorkflowGet(apiParams);
 });
 
 /**
@@ -136,7 +130,7 @@ export const fetchWorkflowByName = cache(
  *
  * CLEAN PATH: Uses generated client → customFetch (no MSW imports)
  */
-const fetchWorkflowByNameRaw = cache(async (name: string, verbose = true): Promise<unknown> => {
+const fetchWorkflowByNameRaw = cache(async (name: string, verbose = true): Promise<WorkflowQueryResponse> => {
   // Import generated client for clean path
   const { getWorkflowApiWorkflowNameGet } = await import("../generated");
 
@@ -244,14 +238,10 @@ export async function prefetchWorkflowsList(
         submitted_after: submittedAfter,
       });
 
-      // Parse the response (backend returns string)
-      const workflows = response?.workflows ?? [];
-
-      // Return in PaginatedResponse format expected by usePaginatedData
       return {
-        items: workflows,
-        hasMore: workflows.length === 50,
-        nextOffset: workflows.length === 50 ? 50 : undefined,
+        items: response.workflows,
+        hasMore: response.more_entries,
+        nextOffset: response.more_entries ? 50 : undefined,
         total: undefined,
         filteredTotal: undefined,
       };

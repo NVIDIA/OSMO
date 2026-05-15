@@ -37,6 +37,10 @@ query --noexperimental_check_external_repository_files
 build --sandbox_default_allow_network=false
 build --incompatible_default_to_explicit_init_py
 
+# Suppress compiler warnings from external dependencies (e.g. protobuf)
+build --per_file_copt=external/.*@-w
+build --host_per_file_copt=external/.*@-w
+
 # Disable pipstar (cross-platform wheel resolution) to reduce analysis-phase memory
 build --repo_env=RULES_PYTHON_ENABLE_PIPSTAR=0
 
@@ -85,3 +89,8 @@ build:ci --nokeep_state_after_build
 # Testcontainers Environment
 build:ci --test_env=DOCKER_HOST=tcp://docker:2375
 build:ci --test_env=TESTCONTAINERS_HOST_OVERRIDE=docker
+
+# Coverage: use with `bazel coverage`
+coverage --combined_report=lcov
+coverage --test_tag_filters=-nocoverage
+coverage --build_tests_only

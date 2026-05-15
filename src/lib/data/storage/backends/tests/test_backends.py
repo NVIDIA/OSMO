@@ -22,6 +22,7 @@ import unittest
 from typing import cast
 from unittest import mock
 
+from src.lib.data.storage import constants
 from src.lib.data.storage.backends import azure, backends, s3
 from src.lib.data.storage.credentials import credentials
 from src.lib.data.storage.core import header
@@ -502,6 +503,229 @@ class IsAwsEndpointTest(unittest.TestCase):
             self.assertFalse(backends._is_aws_endpoint(url), url)
 
 
+class GetS3AddressingStyleTest(unittest.TestCase):
+    """Tests for _get_s3_addressing_style helper."""
+
+    # pylint: disable=protected-access
+
+    def test_no_endpoint_returns_none(self):
+        """AWS S3 (no custom endpoint): defer to boto3 default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertIsNone(s3._get_s3_addressing_style('s3', None))
+
+    def test_custom_endpoint_returns_virtual(self):
+        """Custom endpoint defaults to virtual-hosted style."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            self.assertEqual(
+                s3._get_s3_addressing_style('s3', 'https://cwobject.com'),
+                'virtual',
+            )
+
+    def test_env_override_wins(self):
+        """OSMO_S3_ADDRESSING_STYLE overrides the default for both endpoint cases."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
+            self.assertEqual(s3._get_s3_addressing_style('s3', 'https://cwobject.com'), 'path')
+            self.assertEqual(s3._get_s3_addressing_style('s3', None), 'path')
+
+    def test_aws_s3_force_path_style_returns_path(self):
+        """AWS_S3_FORCE_PATH_STYLE=true preserves localstack/MinIO chart deployments."""
+        for value in ('true', 'True', 'TRUE', '1'):
+            with mock.patch.dict('os.environ', {'AWS_S3_FORCE_PATH_STYLE': value}, clear=True):
+                self.assertEqual(
+                    s3._get_s3_addressing_style('s3', 'http://localstack-s3.osmo:4566'),
+                    'path',
+                    value,
+                )
+
+    def test_osmo_override_beats_aws_force_path(self):
+        """OSMO_S3_ADDRESSING_STYLE takes precedence over AWS_S3_FORCE_PATH_STYLE."""
+        with mock.patch.dict('os.environ', {
+            s3.OSMO_S3_ADDRESSING_STYLE: 'virtual',
+            'AWS_S3_FORCE_PATH_STYLE': 'true',
+        }):
+            self.assertEqual(
+                s3._get_s3_addressing_style('s3', 'http://localstack-s3.osmo:4566'),
+                'virtual',
+            )
+
+    def test_env_override_normalizes_case_and_whitespace(self):
+        """OSMO_S3_ADDRESSING_STYLE is trimmed and lowercased before use."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: '  Virtual  '}):
+            self.assertEqual(s3._get_s3_addressing_style('s3', None), 'virtual')
+
+    def test_env_override_invalid_raises(self):
+        """An unsupported OSMO_S3_ADDRESSING_STYLE value surfaces a clear error
+        rather than silently flowing into botocore."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'virtua'}):
+            with self.assertRaises(ValueError) as ctx:
+                s3._get_s3_addressing_style('s3', 'https://cwobject.com')
+        self.assertIn(s3.OSMO_S3_ADDRESSING_STYLE, str(ctx.exception))
+        self.assertIn("'virtua'", str(ctx.exception))
+
+
+class S3BackendParseUriToLinkTest(unittest.TestCase):
+    """Tests for S3Backend.parse_uri_to_link override-aware URL building."""
+
+    def _backend(self, uri: str = 's3://my-bucket/foo/bar') -> backends.S3Backend:
+        return cast(backends.S3Backend, backends.construct_storage_backend(uri))
+
+    def test_no_override_uses_aws_pattern(self):
+        """Without an override_url, fall back to the AWS-host pattern (preserved)."""
+        link = self._backend().parse_uri_to_link('us-east-1')
+        self.assertEqual(link, 'https://my-bucket.s3.us-east-1.amazonaws.com/foo/bar')
+
+    def test_override_url_uses_virtual_host(self):
+        """With an override_url, build a virtual-host URL against the custom endpoint
+        (CAIOS, R2, Wasabi, MinIO with wildcard DNS)."""
+        link = self._backend().parse_uri_to_link(
+            'US-EAST-14A',
+            override_url='https://cwobject.com',
+        )
+        self.assertEqual(link, 'https://my-bucket.cwobject.com/foo/bar')
+
+    def test_override_url_path_style(self):
+        """addressing_style='path' yields a path-style URL — needed for
+        localstack/MinIO setups without wildcard DNS."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='http://localstack-s3.osmo:4566',
+            addressing_style='path',
+        )
+        self.assertEqual(link, 'http://localstack-s3.osmo:4566/my-bucket/foo/bar')
+
+    def test_override_url_preserves_scheme(self):
+        """Scheme of the override is preserved in the link."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='http://minio.local:9000',
+        )
+        self.assertEqual(link, 'http://my-bucket.minio.local:9000/foo/bar')
+
+    def test_override_url_preserves_base_path_virtual_host(self):
+        """Reverse-proxied endpoint (gateway.example.com/s3) keeps the /s3 prefix."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='https://gateway.example.com/s3',
+        )
+        self.assertEqual(link, 'https://my-bucket.gateway.example.com/s3/foo/bar')
+
+    def test_override_url_preserves_base_path_path_style(self):
+        """Reverse-proxied endpoint with addressing_style=path preserves base path."""
+        link = self._backend().parse_uri_to_link(
+            'us-east-1',
+            override_url='https://gateway.example.com/s3',
+            addressing_style='path',
+        )
+        self.assertEqual(link, 'https://gateway.example.com/s3/my-bucket/foo/bar')
+
+
+class S3BackendRegionTest(unittest.TestCase):
+    """Tests for S3Backend.region() endpoint routing."""
+
+    @mock.patch('src.lib.data.storage.backends.s3.create_client')
+    def test_region_inference_targets_override_url(self, mock_create_client):
+        """When the credential has override_url but no region, the precheck must
+        target that endpoint — not AWS S3 — so GetBucketLocation actually hits
+        the right backend (e.g., CAIOS, MinIO)."""
+        mock_s3_client = mock.Mock()
+        mock_s3_client.get_bucket_location.return_value = {'LocationConstraint': 'us-east-1'}
+        mock_create_client.return_value = mock_s3_client
+
+        s3_backend = cast(backends.S3Backend, backends.construct_storage_backend(
+            uri='s3://my-caios-bucket/data',
+        ))
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://my-caios-bucket',
+            access_key_id='ak',
+            access_key='sk',
+            override_url='https://cwobject.com',
+            # region intentionally not set: forces the GetBucketLocation path.
+        )
+
+        result = s3_backend.region(data_cred=data_cred)
+
+        self.assertEqual(result, 'us-east-1')
+        mock_create_client.assert_called_once()
+        call_kwargs = mock_create_client.call_args.kwargs
+        self.assertEqual(call_kwargs.get('endpoint_url'), 'https://cwobject.com')
+
+
+class GetBotoConfigTest(unittest.TestCase):
+    """Tests for _get_boto_config addressing_style selection."""
+
+    # pylint: disable=protected-access
+
+    @staticmethod
+    def _s3_options(config) -> dict:
+        # botocore.config.Config exposes 's3' as an instance attribute when set,
+        # but it's not in the type stubs — read defensively.
+        return getattr(config, 's3', None) or {}
+
+    def test_aws_s3_no_addressing_style(self):
+        """AWS S3 (no endpoint): no addressing_style is set, boto3 picks the default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('s3')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_custom_endpoint_uses_virtual(self):
+        """Custom endpoint sets addressing_style=virtual."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
+
+    def test_swift_endpoint_keeps_boto_default(self):
+        """Swift uses path-style S3 API paths and should not inherit S3 virtual defaults."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('swift', endpoint_url='https://swift.example.com')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_gs_endpoint_keeps_boto_default(self):
+        """GS should not inherit the S3 custom-endpoint virtual default."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('gs', endpoint_url='https://storage.googleapis.com')
+        self.assertNotIn('addressing_style', self._s3_options(config))
+
+    def test_credential_addressing_style_overrides_default(self):
+        """Credential-level addressing_style is passed to botocore config."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config(
+                's3',
+                endpoint_url='https://cwobject.com',
+                addressing_style='path',
+            )
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
+    def test_tos_unchanged(self):
+        """TOS still hardcodes virtual regardless of endpoint."""
+        with mock.patch.dict('os.environ', {}, clear=True):
+            config = s3._get_boto_config('tos')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'virtual')
+
+    def test_env_override_to_path(self):
+        """OSMO_S3_ADDRESSING_STYLE=path reverts custom endpoints to path-style."""
+        with mock.patch.dict('os.environ', {s3.OSMO_S3_ADDRESSING_STYLE: 'path'}):
+            config = s3._get_boto_config('s3', endpoint_url='https://cwobject.com')
+        self.assertEqual(self._s3_options(config).get('addressing_style'), 'path')
+
+
+class CredentialAddressingStyleTest(unittest.TestCase):
+    """Tests for carrying S3 addressing style through data credentials."""
+
+    def test_static_credential_to_decrypted_dict_includes_addressing_style(self):
+        data_cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket',
+            access_key_id='ak',
+            access_key='sk',
+            region='us-east-1',
+            override_url='https://cwobject.com',
+            addressing_style='virtual',
+        )
+
+        result = data_cred.to_decrypted_dict()
+
+        self.assertEqual(result['addressing_style'], 'virtual')
+
+
 class WorkflowConfigCredentialTest(unittest.TestCase):
     """Tests for WorkflowConfig credential type support."""
 
@@ -533,6 +757,93 @@ class WorkflowConfigCredentialTest(unittest.TestCase):
 
         # Assert
         self.assertIsNone(config.workflow_data.credential)
+
+    def test_workflow_config_data_with_default_credential(self):
+        """Test WorkflowConfig DataConfig accepts DefaultDataCredential."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://bucket.io/workflows',
+            region='us-west-2',
+        )
+
+        config = postgres.WorkflowConfig(
+            workflow_data=postgres.DataConfig(credential=default_cred),
+        )
+
+        credential = config.workflow_data.credential
+        self.assertIsInstance(credential, credentials.DefaultDataCredential)
+        assert isinstance(credential, credentials.DefaultDataCredential)
+        self.assertEqual(credential.endpoint, 's3://bucket.io/workflows')
+        self.assertEqual(credential.region, 'us-west-2')
+
+    def test_workflow_config_log_with_default_credential(self):
+        """Test WorkflowConfig LogConfig accepts DefaultDataCredential."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://log-bucket.io/logs',
+            region='us-east-1',
+        )
+
+        config = postgres.WorkflowConfig(
+            workflow_log=postgres.LogConfig(credential=default_cred),
+        )
+
+        self.assertIsInstance(
+            config.workflow_log.credential,
+            credentials.DefaultDataCredential,
+        )
+
+    def test_default_credential_to_decrypted_dict_no_keys(self):
+        """Test DefaultDataCredential.to_decrypted_dict has no access keys."""
+        default_cred = credentials.DefaultDataCredential(
+            endpoint='s3://bucket.io/data',
+            region='us-west-2',
+        )
+
+        result = default_cred.to_decrypted_dict()
+
+        self.assertEqual(result['endpoint'], 's3://bucket.io/data')
+        self.assertEqual(result['region'], 'us-west-2')
+        self.assertNotIn('access_key_id', result)
+        self.assertNotIn('access_key', result)
+
+
+class EndpointValidationErrorTest(unittest.TestCase):
+    """Tests for the helpful error message produced by validate_endpoint."""
+
+    def _build_with(self, endpoint: str) -> osmo_errors.OSMOUserError:
+        with self.assertRaises(osmo_errors.OSMOUserError) as ctx:
+            credentials.StaticDataCredential(
+                endpoint=endpoint,
+                access_key_id='k',
+                access_key='s',
+            )
+        return ctx.exception
+
+    def test_http_url_with_port_directs_operator_to_override_url(self):
+        err = str(self._build_with('http://minio.local:9000/bucket'))
+        self.assertIn('override_url=http://minio.local:9000', err)
+
+    def test_https_no_path_directs_operator_to_override_url(self):
+        err = str(self._build_with('https://host.example'))
+        self.assertIn('override_url', err)
+        self.assertIn("'https://host.example'", err)
+
+    def test_non_url_value_is_quoted_in_message(self):
+        err = str(self._build_with('not-a-url'))
+        self.assertIn("'not-a-url'", err)
+
+    def test_error_lists_every_registered_scheme(self):
+        """Drift guard: adding a new backend must surface in operator-facing errors."""
+        err = str(self._build_with('not-a-url'))
+        for scheme in constants.STORAGE_BACKEND_SCHEMES:
+            self.assertIn(f'{scheme}://', err)
+
+    def test_valid_endpoint_still_accepted(self):
+        cred = credentials.StaticDataCredential(
+            endpoint='s3://bucket/prefix',
+            access_key_id='k',
+            access_key='s',
+        )
+        self.assertEqual(cred.endpoint, 's3://bucket/prefix')
 
 
 if __name__ == '__main__':

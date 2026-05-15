@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Grants the osmo service the minimum RBAC needed to emit K8s Events
+# on the osmo-configs ConfigMap. Operators see these in the ArgoCD UI,
+# `kubectl describe configmap`, and `kubectl get events`.
+{{- if .Values.services.configs.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.services.service.serviceName }}-configmap-events
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+rules:
+# Emit Events on reload failures/recoveries.
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "get", "patch"]
+# Read the osmo-configs ConfigMap to fetch its UID. `kubectl describe
+# configmap` filters associated events by involvedObject.uid, so without
+# this the events wouldn't appear in that view (though they'd still be
+# visible in `kubectl get events --field-selector` and the ArgoCD UI).
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["{{ .Values.services.service.serviceName }}-configs"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.services.service.serviceName }}-configmap-events
+  labels:
+    app: {{ .Values.services.service.serviceName }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.services.service.serviceName }}-configmap-events
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.serviceAccount.name | default .Values.global.serviceAccountName }}
+{{- end }}

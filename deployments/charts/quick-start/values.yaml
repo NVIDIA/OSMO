@@ -70,56 +70,35 @@ global:
     ##
     region: "us-east-1"
 
-## Ingress NGINX Controller configuration
-##
-ingress-nginx:
-  ## Override the full name of the ingress-nginx resources
-  ##
-  fullnameOverride: quick-start
-  ## Controller configuration for traffic routing
-  ##
-  controller:
-    ## Set controller name to empty string to remove the -controller suffix
-    ##
-    name: ""
-    ## Node selector constraints for ingress controller pod scheduling
-    ##
-    nodeSelector:
-      ## Schedule ingress controller on service nodes
-      ##
-      node_group: ingress
-    ## Service configuration for ingress controller
-    ##
-    service:
-      ## Service type for ingress controller (NodePort for local access)
-      ##
-      type: NodePort
-      ## NodePort configuration for external access
-      ##
-      nodePorts:
-        ## HTTP port for external access to ingress controller
-        ##
-        http: 30080
-    ## Init containers for ingress controller
-    ##
-    ## Wait for the web UI to be up before starting ingress controller
-    ##
-    extraInitContainers:
-    - name: wait-for-web-ui
-      image: busybox:1.37.0
-      command:
-      - sh
-      - -c
-      - |
-        until nc -z osmo-ui 80; do
-          echo "Waiting for web-ui..."
-          sleep 2
-        done
-        echo "Web UI is ready"
-
 ## OSMO main service configuration
 ##
 service:
+  ## Gateway configuration — routes all external traffic through Envoy
+  ##
+  gateway:
+    ## Name the gateway service "quick-start" so that http://quick-start.osmo
+    ## resolves to the gateway via /etc/hosts + KIND port mapping.
+    ##
+    name: quick-start
+    envoy:
+      ## Scale to 1 replica for local development
+      ##
+      scaling:
+        minReplicas: 1
+        maxReplicas: 1
+      ## NodePort for KIND — maps host port 80 to gateway via KIND extraPortMappings
+      ##
+      service:
+        type: NodePort
+        nodePort: 30080
+        httpsPort: null
+    ## Disable auth components for local development
+    ##
+    oauth2Proxy:
+      enabled: false
+    authz:
+      enabled: false
+
   ## Configuration for individual OSMO services
   ##
   services:
@@ -204,7 +183,7 @@ service:
     ## Main API service configuration
     ##
     service:
-      ## Hostname for the OSMO service ingress
+      ## Hostname for the OSMO service
       ##
       hostname: quick-start.osmo
       ## Kubernetes image pull policy for the API service
@@ -219,12 +198,6 @@ service:
         ## Maximum number of API service replicas
         ##
         maxReplicas: 1
-      ## Ingress configuration for external access to the API service
-      ##
-      ingress:
-        ## Enable SSL/TLS encryption for the ingress
-        ##
-        sslEnabled: false
       ## Init containers for API service
       ##
       ## Wait for data infra to be up before starting service
@@ -462,65 +435,57 @@ service:
       - name: AWS_DEFAULT_REGION
         value: us-east-1
 
-    ## Message worker service configuration for processing backend messages
+    ## UI service configuration
     ##
-    messageWorker:
-      ## Kubernetes image pull policy for the message worker service
+    ui:
+      ## Enable rendering of the UI Deployment/Service/HPA
       ##
-      imagePullPolicy: IfNotPresent
-      ## Horizontal Pod Autoscaler (HPA) configuration for the message worker service
+      enabled: true
+      ## Init containers for UI service
       ##
-      scaling:
-        ## Minimum number of message worker replicas
-        ##
-        minReplicas: 1
-        ## Maximum number of message worker replicas
-        ##
-        maxReplicas: 1
-      ## Init containers for message worker service
-      ##
-      ## Wait for data infra to be up before starting service
+      ## Wait for the API service to be up before starting the UI
       ##
       initContainers:
-      - name: wait-for-postgres
+      - name: wait-for-service
         image: busybox:1.37.0
         command:
         - sh
         - -c
         - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
+          until nc -z osmo-service 80; do
+            echo "Waiting for osmo-service..."
             sleep 2
           done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
+          echo "OSMO service is ready"
+      ## Skip authentication for UI service
+      ##
+      skipAuth: true
+      ## Hostname for the UI service
+      ##
+      hostname: quick-start.osmo
+      ## API hostname — point at the gateway for server-side rendering
+      ##
+      apiHostname: quick-start.osmo.svc.cluster.local:80
 
-    ## Operator service configuration for handling backend operations
+    ## Router service configuration
     ##
-    operator:
-      ## Kubernetes image pull policy for the operator service
+    router:
+      ## Hostname for the router service
+      ##
+      hostname: quick-start.osmo
+      ## Kubernetes image pull policy for the router service
       ##
       imagePullPolicy: IfNotPresent
-      ## Horizontal Pod Autoscaler (HPA) configuration for the operator service
+      ## Horizontal Pod Autoscaler (HPA) configuration for the router service
       ##
       scaling:
-        ## Minimum number of operator replicas
+        ## Minimum number of router service replicas
         ##
         minReplicas: 1
-        ## Maximum number of operator replicas
+        ## Maximum number of router service replicas
         ##
         maxReplicas: 1
-      ## Init containers for operator service
+      ## Init containers for router service
       ##
       ## Wait for data infra to be up before starting service
       ##
@@ -598,185 +563,6 @@ service:
   podMonitor:
     enabled: false
 
-  ## Configuration for service sidecar containers
-  ##
-  sidecars:
-    ## Envoy proxy sidecar configuration
-    ##
-    envoy:
-      ## Enable Envoy proxy sidecar container
-      ##
-      enabled: false
-    ## OAuth2 Proxy sidecar configuration
-    ##
-    oauth2Proxy:
-      ## Enable OAuth2 Proxy sidecar container
-      ##
-      enabled: false
-    ## Authorization sidecar configuration
-    ##
-    authz:
-      ## Enable authorization sidecar
-      ##
-      enabled: false
-    ## Rate limiting sidecar configuration
-    ##
-    rateLimit:
-      ## Enable rate limiting service
-      ##
-      enabled: false
-
-## Web UI service configuration
-##
-web-ui:
-  ## Configuration for web UI services
-  ##
-  services:
-    ## Main UI service configuration
-    ##
-    ui:
-      ## Init containers for UI service
-      ##
-      ## Wait for the API service to be up before starting the UI
-      ##
-      initContainers:
-      - name: wait-for-service
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z osmo-service 80; do
-            echo "Waiting for osmo-service..."
-            sleep 2
-          done
-          echo "OSMO service is ready"
-      ## Skip authentication for UI service
-      ##
-      skipAuth: true
-      ## Hostname for the UI service ingress
-      ##
-      hostname: quick-start.osmo
-      ## Ingress configuration for external access to the UI service
-      ##
-      ingress:
-        ## Enable SSL/TLS encryption for the ingress
-        ##
-        sslEnabled: false
-
-  ## Configuration for web UI sidecar containers
-  ##
-  sidecars:
-    ## Envoy proxy sidecar configuration
-    ##
-    envoy:
-      ## Enable Envoy proxy sidecar container
-      ##
-      enabled: false
-    ## OAuth2 Proxy sidecar configuration
-    ##
-    oauth2Proxy:
-      ## Enable OAuth2 Proxy sidecar container
-      ##
-      enabled: false
-
-## Router service configuration
-##
-router:
-  ## Configuration for router services
-  ##
-  services:
-    ## Configuration file service settings
-    ##
-    configFile:
-      ## Enable external configuration file loading (MEK configuration)
-      ##
-      enabled: true
-      ## Path to the Master Encryption Key (MEK) configuration file
-      ##
-      path: /home/osmo/config/mek.yaml
-
-    ## Main router service configuration
-    ##
-    service:
-      ## Hostname for the router service ingress
-      ##
-      hostname: quick-start.osmo
-      ## Kubernetes image pull policy for the router service
-      ##
-      imagePullPolicy: IfNotPresent
-      ## Horizontal Pod Autoscaler (HPA) configuration for the router service
-      ##
-      scaling:
-        ## Minimum number of router service replicas
-        ##
-        minReplicas: 1
-        ## Maximum number of router service replicas
-        ##
-        maxReplicas: 1
-      ## Ingress configuration for external access to the router service
-      ##
-      ingress:
-        ## Enable SSL/TLS encryption for the ingress
-        ##
-        sslEnabled: false
-      ## Init containers for router service
-      ##
-      ## Wait for data infra to be up before starting service
-      ##
-      initContainers:
-      - name: wait-for-postgres
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z postgres 5432; do
-            echo "Waiting for postgres..."
-            sleep 2
-          done
-          echo "Postgres is ready"
-      - name: wait-for-redis
-        image: busybox:1.37.0
-        command:
-        - sh
-        - -c
-        - |
-          until nc -z redis 6379; do
-            echo "Waiting for redis..."
-            sleep 2
-          done
-          echo "Redis is ready"
-
-    ## PostgreSQL database service configuration
-    ##
-    postgres:
-      ## PostgreSQL password
-      ##
-      password: "osmo"
-
-  ## Configuration for router service sidecar containers
-  ##
-  sidecars:
-    ## Envoy proxy sidecar configuration
-    ##
-    envoy:
-      ## Enable Envoy proxy sidecar container
-      ##
-      enabled: false
-    ## OAuth2 Proxy sidecar configuration
-    ##
-    oauth2Proxy:
-      ## Enable OAuth2 Proxy sidecar container
-      ##
-      enabled: false
-    ## Authorization sidecar configuration
-    ##
-    authz:
-      ## Enable authorization sidecar
-      ##
-      enabled: false
-
 ## Backend operator configuration for managing compute workloads
 ##
 backend-operator:
@@ -785,7 +571,7 @@ backend-operator:
   global:
     ## OSMO service URL for backend operator communication
     ##
-    serviceUrl: http://quick-start.osmo
+    serviceUrl: http://quick-start.osmo.svc.cluster.local
     ## Kubernetes namespace for backend operator
     ##
     agentNamespace: osmo
@@ -816,10 +602,10 @@ backend-operator:
       imagePullPolicy: IfNotPresent
       ## Init containers for backend listener service
       ##
-      ## Wait for the agent service to be up before starting backend listener
+      ## Wait for the gateway to be up before starting backend listener
       ##
       initContainers:
-      - name: wait-for-ingress
+      - name: wait-for-gateway
         image: busybox:1.37.0
         command:
         - sh
@@ -829,7 +615,7 @@ backend-operator:
             echo "Waiting for quick-start..."
             sleep 2
           done
-          echo "OSMO quick start ingress is ready"
+          echo "OSMO gateway is ready"
       - name: wait-for-token
         image: alpine:3.18
         command:
@@ -841,7 +627,7 @@ backend-operator:
           set -e
           apk add --no-cache curl jq
           echo "Waiting for backend-operator-token to be created..."
-          until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
+          until curl -s http://quick-start/api/auth/user/backend-operator/access_token | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
             echo "Token backend-operator-token not found, waiting..."
             sleep 2
           done
@@ -867,10 +653,10 @@ backend-operator:
       imagePullPolicy: IfNotPresent
       ## Init containers for backend worker service
       ##
-      ## Wait for the agent service to be up before starting backend worker
+      ## Wait for the gateway to be up before starting backend worker
       ##
       initContainers:
-      - name: wait-for-ingress
+      - name: wait-for-gateway
         image: busybox:1.37.0
         command:
         - sh
@@ -880,7 +666,7 @@ backend-operator:
             echo "Waiting for quick-start..."
             sleep 2
           done
-          echo "OSMO quick start ingress is ready"
+          echo "OSMO gateway is ready"
       - name: wait-for-token
         image: alpine:3.18
         command:
@@ -892,7 +678,7 @@ backend-operator:
           set -e
           apk add --no-cache curl jq
           echo "Waiting for backend-operator-token to be created..."
-          until curl -s http://quick-start.osmo/api/auth/access_token/service | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
+          until curl -s http://quick-start/api/auth/user/backend-operator/access_token | jq -e '.[] | select(.token_name == "backend-operator-token")' >/dev/null 2>&1; do
             echo "Token backend-operator-token not found, waiting..."
             sleep 2
           done
@@ -922,4 +708,3 @@ backend-operator:
     ## Enable backend test runner
     ##
     enabled: false
-

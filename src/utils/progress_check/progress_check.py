@@ -26,18 +26,16 @@ from src.utils.progress_check import progress
 
 class ProgressCheckConfig(static_config.StaticConfig):
     progress_interval: str = pydantic.Field(
-        command_line='progress_interval',
-        env='OSMO_PROGRESS_INTERVAL',
         default='10',
         description='Check for progress within the last <progress_interval> seconds. Exit with ' +
                     'code 0 if there was progress, otherwise exit with code 1. To check multiple ' +
-                    'files, it may be a list of intervals separated by ":"')
+                    'files, it may be a list of intervals separated by ":"',
+        json_schema_extra={'command_line': 'progress_interval', 'env': 'OSMO_PROGRESS_INTERVAL'})
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
         description='The file to read progress timestamps from (For liveness/startup probes). To ' +
-                    'check multiple files, a list may be provided delimited by ":"')
+                    'check multiple files, a list may be provided delimited by ":"',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
 
 
 def main():

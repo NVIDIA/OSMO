@@ -44,6 +44,26 @@ JOBS = [
     kombu.Queue('delete_app', EXCHANGE, routing_key='DeleteApp'),
 ]
 
+# Priority levels for the job queue. Lower values = higher priority.
+# Kombu's Redis transport uses these to create sub-queues per priority level
+# and BRPOP checks higher-priority keys first.
+PRIORITY_STEPS = [0, 3, 6, 9]
+DEFAULT_JOB_PRIORITY = 6
+
+# Maps job routing keys to priority values. Jobs not listed use DEFAULT_JOB_PRIORITY.
+JOB_PRIORITY = {
+    'CancelWorkflow': 0,
+    'UpdateGroup': 0,
+    'SubmitWorkflow': 3,
+    'CleanupWorkflow': 3,
+    'RescheduleTask': 3,
+    'CheckRunTimeout': 6,
+    'CheckQueueTimeout': 6,
+    'UploadWorkflowFiles': 9,
+    'UploadApp': 9,
+    'DeleteApp': 9,
+}
+
 BACKEND_JOBS = [
     kombu.Queue('backend_submit_group', EXCHANGE, routing_key='CreateGroup'),
     kombu.Queue('backend_cleanup_group', EXCHANGE, routing_key='CleanupGroup'),
@@ -59,38 +79,40 @@ BACKEND_JOB_QUEUE_PREFIX = '{osmo}:{job-queue}:{backend}'
 # Options to pass to the kombu redis transport. Here we set a global key prefix that is
 # used to calculate the slot hash. This way, all queues made by kombu end up in the same
 # slot and hence same shard. This is needed to avoid crossslot key errors when using a redis
-# cluster
-TRANSPORT_OPTIONS = {'global_keyprefix': f'{JOB_QUEUE_PREFIX}:'}
+# cluster.
+# 'queue_order_strategy': 'priority' enables priority-based consumption via BRPOP ordering.
+TRANSPORT_OPTIONS = {
+    'global_keyprefix': f'{JOB_QUEUE_PREFIX}:',
+    'queue_order_strategy': 'priority',
+    'priority_steps': PRIORITY_STEPS,
+}
+
+PRIORITY_SEPARATOR = '\x06\x16'
 
 MAX_LOG_TTL = 20 * 24 * 60 * 60
 
 class RedisConfig(pydantic.BaseModel):
     """Manages the configuration for the redis database"""
     redis_host: str = pydantic.Field(
-        command_line='redis_host',
-        env='OSMO_REDIS_HOST',
         default='localhost',
-        description='The hostname of the redis server to connect to.')
+        description='The hostname of the redis server to connect to.',
+        json_schema_extra={'command_line': 'redis_host', 'env': 'OSMO_REDIS_HOST'})
     redis_port: int = pydantic.Field(
-        command_line='redis_port',
-        env='OSMO_REDIS_PORT',
         default=6379,
-        description='The port of the redis server to connect to.')
+        description='The port of the redis server to connect to.',
+        json_schema_extra={'command_line': 'redis_port', 'env': 'OSMO_REDIS_PORT'})
     redis_password: Optional[str] = pydantic.Field(
-        command_line='redis_password',
-        env='OSMO_REDIS_PASSWORD',
         default=None,
-        description='The password, if any, to authenticate with the redis server')
+        description='The password, if any, to authenticate with the redis server',
+        json_schema_extra={'command_line': 'redis_password', 'env': 'OSMO_REDIS_PASSWORD'})
     redis_tls_enable: bool = pydantic.Field(
-        command_line='redis_tls_enable',
-        env='OSMO_REDIS_TLS_ENABLE',
         default=False,
-        description='Flag to connect to redis server using TLS, false by default')
+        description='Flag to connect to redis server using TLS, false by default',
+        json_schema_extra={'command_line': 'redis_tls_enable', 'env': 'OSMO_REDIS_TLS_ENABLE'})
     redis_db_number: int = pydantic.Field(
-        command_line='redis_db_number',
-        env='OSMO_REDIS_DB_NUMBER',
         default=0,
-        description='Redis database number to connect to. Default value is 0')
+        description='Redis database number to connect to. Default value is 0',
+        json_schema_extra={'command_line': 'redis_db_number', 'env': 'OSMO_REDIS_DB_NUMBER'})
 
     @property
     def redis_url(self):
@@ -160,7 +182,7 @@ class IOType(enum.Enum):
         return self.name in ('STDOUT', 'STDERR', 'DOWNLOAD', 'UPLOAD')
 
 
-class LogStreamBody(pydantic.BaseModel, extra=pydantic.Extra.forbid):
+class LogStreamBody(pydantic.BaseModel, extra='forbid'):
     """ Represents the log stream body. """
     source: str
     retry_id: int

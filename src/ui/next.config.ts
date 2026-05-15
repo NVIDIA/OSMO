@@ -198,12 +198,12 @@ const nextConfig: NextConfig = {
             // This allows Turbopack aliasing to work (aliases work for imports, not file discovery)
             "@/app/api/[...path]/route.impl": "@/app/api/[...path]/route.impl.production",
 
-            // Dataset manifest server action - alias to production version (zero mock code)
-            "@/lib/api/server/dataset-actions": "@/lib/api/server/dataset-actions.production",
-
             // Dataset file proxy route - alias to production version (zero mock code)
             "@/app/proxy/dataset/file/route.impl":
               "@/app/proxy/dataset/file/route.impl.production",
+
+            // Auth server utilities - alias to production version (zero env fallbacks)
+            "@/lib/auth/server": "@/lib/auth/server.production",
           }
         : {},
   },

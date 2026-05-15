@@ -19,7 +19,7 @@
 import { memo } from "react";
 import { Cpu, HardDrive, MemoryStick, Zap } from "lucide-react";
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { formatCompact } from "@/lib/utils";
+import { formatCompact, formatBytes } from "@/lib/utils";
 import type { OccupancyTotals } from "@/lib/api/adapter/occupancy";
 
 // =============================================================================
@@ -36,13 +36,27 @@ interface KpiCardProps {
   value: number;
   Icon: React.ElementType;
   colorClass: string;
+  isBytes?: boolean;
 }
 
 // =============================================================================
 // Card
 // =============================================================================
 
-const KpiCard = memo(function KpiCard({ label, value, Icon, colorClass }: KpiCardProps) {
+const KpiCard = memo(function KpiCard({ label, value, Icon, colorClass, isBytes = false }: KpiCardProps) {
+  let display: React.ReactNode;
+  if (isBytes) {
+    const { value: val, unit } = formatBytes(value);
+    display = (
+      <>
+        {val}
+        <span className="ml-1 text-base font-medium text-zinc-400">{unit}</span>
+      </>
+    );
+  } else {
+    display = formatCompact(value);
+  }
+
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex items-center gap-1.5">
@@ -52,7 +66,7 @@ const KpiCard = memo(function KpiCard({ label, value, Icon, colorClass }: KpiCar
         <span className="text-xs font-medium tracking-wider text-zinc-500 uppercase dark:text-zinc-400">{label}</span>
       </div>
       <div className="mt-2 tabular-nums">
-        <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{formatCompact(value)}</span>
+        <span className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">{display}</span>
       </div>
     </div>
   );
@@ -95,12 +109,14 @@ export const OccupancySummary = memo(function OccupancySummary({ totals, isLoadi
         value={totals.memory}
         Icon={MemoryStick}
         colorClass="text-purple-500"
+        isBytes
       />
       <KpiCard
         label="Storage"
         value={totals.storage}
         Icon={HardDrive}
         colorClass="text-zinc-500"
+        isBytes
       />
     </div>
   );

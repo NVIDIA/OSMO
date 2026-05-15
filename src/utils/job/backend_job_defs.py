@@ -102,12 +102,14 @@ class BackendSynchronizeQueuesMixin(pydantic.BaseModel):
     - Objects in both cleanup_specs and k8s_resources will be updated (or recreated if immutable)
     - Objects in k8s_resources not matching cleanup_specs will be created
 
-    NOTE: cleanup_specs Union type can be removed after the next release. This is for
-    backwards compatibility with existing BackendSynchronizeQueuesMixin jobs that might
-    be enqueued when OSMO is redeployed with a new version.
+    NOTE: cleanup_specs Union type and empty-list default can be removed after the next
+    release. They exist for backwards compatibility with existing BackendSynchronizeQueuesMixin
+    jobs that might be enqueued when OSMO is redeployed with a new version (the Union handles
+    older jobs with a single spec instead of a list, and the default handles older jobs that
+    predate this field entirely — those jobs will deserialize as a no-op).
     """
     # Search for objects using these specs (one per object type)
-    cleanup_specs: Union[List[BackendCleanupSpec], BackendCleanupSpec]
+    cleanup_specs: Union[List[BackendCleanupSpec], BackendCleanupSpec] = []
     # The k8s specs for all objects to create/update in the backend
     # Can contain mixed types (Queues, Topologies, etc.)
     k8s_resources: List[Dict]

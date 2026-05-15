@@ -45,64 +45,12 @@ MIGRATION PATH:
 ### 1. Incorrect Response Types for Pool/Resource APIs
 
 **Priority:** High
-**Status:** Active workaround in `transforms.ts` and `hooks.ts`
+**Status:** ✅ FIXED — `response_model=` added to all visible endpoints (2026-03-14)
 
-Several API endpoints have incorrect response types in the OpenAPI schema. They're typed as returning `string` but actually return structured JSON objects.
-
-**Root cause:** The backend's OpenAPI spec generation is missing proper response type annotations. In `openapi.json`, these endpoints have:
-```json
-"responses": {
-  "200": {
-    "content": {
-      "application/json": {
-        "schema": { "type": "string" }  // ← Wrong: should be "$ref": "#/components/schemas/..."
-      }
-    }
-  }
-}
-```
-
-**Affected endpoints:**
-| Endpoint | OpenAPI Says | Actually Returns |
-|----------|--------------|------------------|
-| `GET /api/pool_quota` | `string` | `PoolResponse` |
-| `GET /api/resources` | `string` | `ResourcesResponse` |
-| `GET /api/resources/{name}` | `string` | `ResourcesResponse` |
-| `GET /api/configs/service` | `string` | Config object |
-| `GET /api/configs/workflow` | `string` | Config object |
-| `GET /api/configs/dataset` | `string` | Config object |
-
-**Generated code consequence:**
-```typescript
-// generated.ts (orval correctly follows the spec, but spec is wrong)
-return customFetch<string>({ url: `/api/resources`, ... });
-//                 ^^^^^^ Should be ResourcesResponse
-```
-
-**Workarounds:**
-```typescript
-// transforms.ts - Cast unknown to actual type
-export function transformPoolsResponse(rawResponse: unknown): PoolsResponse {
-  const response = rawResponse as PoolResponse | undefined;
-  // ...
-}
-
-// hooks.ts:257 - Cast to unknown to satisfy function signature
-getResourcesApiResourcesGet({ all_pools: true }).then((res) => res as unknown)
-```
-
-**Fix (backend):** Add explicit response models to FastAPI endpoints:
-```python
-# Python/FastAPI - Add response_model annotation
-@router.get("/api/resources", response_model=ResourcesResponse)
-def get_resources(...) -> ResourcesResponse:
-    ...
-```
-
-This will cause the OpenAPI spec to correctly reference the schema:
-```json
-"schema": { "$ref": "#/components/schemas/ResourcesResponse" }
-```
+Generated types now correctly reference `PoolResponse`, `ResourcesResponse`, `WorkflowQueryResponse`,
+`SrcServiceCoreWorkflowObjectsListResponse`, `CredentialGetResponse`, `BucketInfoResponse`,
+`ProfileResponse`, `DataListResponse`, `DataInfoResponse`. All `JSON.parse` string-guards and
+`unknown` parameter types removed from the adapter layer.
 
 ---
 
@@ -139,22 +87,13 @@ function parseNumber(value: string | number | undefined | null): number {
 ### 4. Version Endpoint Returns Unknown Type
 
 **Priority:** Low
-**Status:** Active workaround in `transforms.ts`
+**Status:** ✅ FIXED — `response_model=version.Version` added (2026-03-14)
 
-The `GET /api/version` endpoint has no response type defined in the OpenAPI schema.
+`GET /api/version` now emits `$ref: Version` in the OpenAPI spec. `transformVersionResponse`
+no longer needs runtime type checks or `String()` coercions.
 
-**Workaround:**
-```typescript
-// types.ts - manually defined
-export interface Version {
-  major: string;
-  minor: string;
-  revision: string;
-  hash?: string;
-}
-```
-
-**Fix:** Add proper Pydantic response model to version endpoint.
+Note: The adapter `Version` type in `types.ts` is kept because the generated `Version` has
+`minor?` and `revision?` as optional, while the UI guarantees them as required strings.
 
 ---
 
@@ -883,255 +822,12 @@ for status in PoolStatus:
 2. Remove hardcoded `STATUS_DISPLAYS` from `pools/constants.ts`
 3. Use generated metadata
 
+
 ---
 
-### 22. WebSocket Shell Resize Messages Corrupt User Input Buffer
+### 22. ~~WebSocket Shell Resize Messages Corrupt User Input Buffer~~ — FIXED
 
-**Priority:** Critical
-**Status:** Partial workaround in UI (`use-websocket-shell.ts`) - **does not fix input corruption**
-
-The WebSocket shell implementation sends terminal resize messages as JSON strings (`{"Rows":39,"Cols":132}`) over the same WebSocket channel as user input and shell output. These resize messages are being echoed back to the client and appear in the terminal buffer.
-
-**Root cause:** In `external/src/runtime/cmd/user/user.go`, the `userExec` function:
-
-1. **Line 103-112**: Reads the INITIAL resize message on connection:
-   ```go
-   var initSize struct {
-       Rows uint16 `json:"rows"`
-       Cols uint16 `json:"cols"`
-   }
-   if err := dec.Decode(&initSize); err != nil {
-       // ...
-   }
-   ```
-
-2. **Line 147**: Sets initial PTY size:
-   ```go
-   if err := pty.Setsize(terminal, &pty.Winsize{Rows: initSize.Rows, Cols: initSize.Cols}); err != nil {
-   ```
-
-3. **Line 155-160**: Blindly copies ALL subsequent WebSocket data to PTY:
-   ```go
-   go func() {
-       _, err = io.Copy(terminal, conn)  // ← Problem: includes resize messages!
-       // ...
-   }()
-   ```
-
-4. **Line 162-168**: Copies PTY output back to WebSocket:
-   ```go
-   go func() {
-       _, err = io.Copy(conn, terminal)  // ← Echoes resize messages back
-       // ...
-   }()
-   ```
-
-**What happens:**
-- User resizes terminal → Client sends `{"Rows":39,"Cols":132}` via WebSocket
-- `io.Copy(terminal, conn)` writes this JSON string to the PTY input stream
-- The JSON enters bash's **input buffer** (not visible yet - no echo)
-- User types a command and presses Enter
-- Bash attempts to execute the buffered content: `Rows:39Rows:39` (JSON mangled by bash parsing) + user's command
-- Result: `bash: Rows:39Rows:39: command not found`
-
-**This is worse than visual pollution - it actively corrupts user input!**
-
-**Additional issues:**
-- **Duplicate resize events**: UI was sending duplicate resize events when dimensions hadn't changed (fixed in UI with deduplication)
-- **No separation of control vs data**: Resize messages and user input share the same channel
-
-**Ideal solution (backend fix):**
-
-The proper architectural solution is to **multiplex control frames and user data** so they don't interfere with each other. There are several approaches:
-
-**Option 1: Framed message protocol (RECOMMENDED)**
-
-Wrap all WebSocket messages in a frame envelope that distinguishes message types:
-
-```go
-type MessageType string
-
-const (
-    MessageTypeData   MessageType = "data"    // User keyboard input / shell output
-    MessageTypeResize MessageType = "resize"  // Terminal resize
-    MessageTypePing   MessageType = "ping"    // Keepalive
-    MessageTypePong   MessageType = "pong"    // Keepalive response
-)
-
-type Frame struct {
-    Type    MessageType     `json:"type"`
-    Payload json.RawMessage `json:"payload"`
-}
-
-type ResizePayload struct {
-    Rows uint16 `json:"rows"`
-    Cols uint16 `json:"cols"`
-}
-
-type DataPayload struct {
-    Data []byte `json:"data"`  // base64 encoded
-}
-
-// WebSocket message handler
-go func() {
-    decoder := json.NewDecoder(conn)
-    for {
-        var frame Frame
-        if err := decoder.Decode(&frame); err != nil {
-            break
-        }
-
-        switch frame.Type {
-        case MessageTypeResize:
-            var resize ResizePayload
-            json.Unmarshal(frame.Payload, &resize)
-            pty.Setsize(terminal, &pty.Winsize{Rows: resize.Rows, Cols: resize.Cols})
-
-        case MessageTypeData:
-            var data DataPayload
-            json.Unmarshal(frame.Payload, &data)
-            terminal.Write(data.Data)
-
-        case MessageTypePing:
-            // Respond with pong
-            sendFrame(conn, Frame{Type: MessageTypePong, Payload: nil})
-        }
-    }
-}()
-```
-
-Client sends:
-```json
-{"type":"resize","payload":{"rows":39,"cols":132}}
-{"type":"data","payload":{"data":"bHMgLWxhCg=="}}
-```
-
-**Benefits:**
-- Clean separation of control vs data
-- Extensible: Easy to add new message types (ping/pong, session control, file transfer)
-- Self-documenting: Message type is explicit
-- No ambiguity: Cannot accidentally interpret control message as user input
-
-**Option 2: Binary framing with length prefix**
-
-Use WebSocket binary frames with a simple protocol:
-```
-[1 byte: message type][4 bytes: length][N bytes: payload]
-```
-
-- `type=0x00`: User data (raw bytes)
-- `type=0x01`: Resize (4 bytes: rows, cols as uint16)
-- `type=0x02`: Ping
-- `type=0x03`: Pong
-
-**Benefits:**
-- Efficient: No JSON parsing overhead for user data
-- Fast: Binary protocol is faster than JSON
-- Clear: Type byte makes intent explicit
-
-**Drawbacks:**
-- Less human-readable (harder to debug)
-- More complex parsing logic
-
-**Option 3: Separate WebSocket connections**
-
-Use two WebSocket connections:
-- `ws://host/api/router/exec/{workflow}/client/{key}/data` - User I/O stream
-- `ws://host/api/router/exec/{workflow}/client/{key}/control` - Control messages
-
-**Benefits:**
-- Complete separation
-- Can use different protocols for each (binary for data, JSON for control)
-
-**Drawbacks:**
-- Two connections = more resources
-- Harder to keep in sync
-- Complicates client-side state management
-
-**Recommended approach:**
-
-**Option 1 (Framed message protocol)** is the best balance of:
-- Clean separation of concerns (no mixing control/data)
-- Extensibility (easy to add new message types)
-- Debuggability (JSON is human-readable)
-- Industry standard (similar to JSON-RPC, LSP, DAP protocols)
-
-This is how most modern terminal protocols work:
-- VS Code Remote: Uses framed JSON messages over WebSocket
-- Docker exec API: Uses HTTP/2 with separate streams for stdin/stdout/stderr
-- Kubernetes exec: Uses SPDY/WebSocket with subprotocol headers
-
-**Current UI workarounds (PARTIAL - doesn't fix input corruption):**
-
-1. **Resize message filtering** (`use-websocket-shell.ts` lines 179-207):
-   ```typescript
-   ws.onmessage = (event) => {
-       // Filter out resize messages that might be echoed back
-       // NOTE: This only prevents echoes in output, NOT input buffer corruption!
-       const text = new TextDecoder().decode(data);
-       if (text.match(/^\{"Rows":\d+,"Cols":\d+\}$/)) {
-           console.debug("[Shell] Filtered resize message:", text);
-           return;  // Don't write to terminal
-       }
-       onDataRef.current?.(data);
-   };
-   ```
-   **Limitation:** This only filters messages coming FROM the server. It cannot prevent the backend from writing resize JSON to the PTY input buffer.
-
-2. **Duplicate event prevention** (`use-shell.ts` lines 250-273):
-   ```typescript
-   // Track last resize dimensions to prevent duplicate events
-   const lastDimensionsRef = useRef<{ cols: number; rows: number } | null>(null);
-
-   if (onResize) {
-       const last = lastDimensionsRef.current;
-       if (!last || last.cols !== proposed.cols || last.rows !== proposed.rows) {
-           lastDimensionsRef.current = { cols: proposed.cols, rows: proposed.rows };
-           onResize(proposed.cols, proposed.rows);
-       }
-   }
-   ```
-   **Limitation:** Reduces frequency but doesn't solve the fundamental problem - any resize still corrupts input.
-
-**Impact:**
-- **Data corruption**: Resize messages corrupt the shell's input buffer, causing "command not found" errors
-- **Unpredictable behavior**: JSON gets mangled by bash parsing (`{"Rows":39}` → `Rows:39Rows:39`)
-- **User commands fail**: Any command entered after a resize has garbage prepended to it
-- **Confusing UX**: Users see cryptic "command not found" errors for commands they didn't type
-- **Client-side filtering insufficient**: Our filter only catches echoes from server, can't prevent PTY input corruption
-- **Extra client complexity**: UI must filter control messages from data stream (only helps with echoes, not input corruption)
-- **Race conditions**: If resize message is split across packets, filter might miss it
-- **Not extensible**: Adding new control messages (ping/pong, file transfer) requires more brittle filtering
-- **Violates separation of concerns**: Control plane and data plane are mixed
-
-**Note:** The client-side workaround in `use-websocket-shell.ts` only prevents resize message **echoes** from appearing in the output. It cannot prevent the resize JSON from corrupting the PTY input buffer on the backend. This is a **critical backend issue** that requires the framed protocol fix.
-
-**When fixed (with framed protocol):**
-1. Remove resize message filtering from `use-websocket-shell.ts`
-2. Update client to send/receive framed messages:
-   ```typescript
-   // Send resize
-   ws.send(JSON.stringify({ type: "resize", payload: { rows: 39, cols: 132 } }));
-
-   // Send user input
-   ws.send(JSON.stringify({ type: "data", payload: { data: base64(input) } }));
-
-   // Receive messages
-   ws.onmessage = (event) => {
-       const frame = JSON.parse(event.data);
-       if (frame.type === "data") {
-           terminal.write(atob(frame.payload.data));
-       }
-   };
-   ```
-3. Protocol is now extensible for future features (ping/pong, file transfer, etc.)
-4. No ambiguity or filtering needed
-
-**Migration path:**
-1. Backend implements framed protocol with backward compatibility (detect old vs new clients)
-2. Update UI to use framed protocol
-3. Deprecate old protocol after transition period
-4. Remove backward compatibility code
+**Status:** ✅ FIXED — Backend now handles `\x00RESIZE:{"Rows":N,"Cols":N}` control messages via a null-byte prefix protocol. UI sends resize messages with a `0x00` prefix byte that the backend intercepts before the PTY stream, preventing input buffer corruption.
 
 ---
 
@@ -1377,7 +1073,7 @@ Option B: Include pod phase in plain text header
 | #19 Status sort order not generated | Low | status-utils.ts | Use generated sortOrder |
 | #20 Fuzzy search indexes hardcoded | Low | workflow-constants.ts | Derive from generated labels |
 | #21 PoolStatus needs metadata | Low | pools/constants.ts | Use generated pool metadata |
-| #22 Shell resize corrupts input | **CRITICAL** | use-websocket-shell.ts, use-shell.ts | Backend framed protocol required |
+| #22 Shell resize corrupts input | **CRITICAL** | ~~use-websocket-shell.ts, use-shell.ts~~ | ✅ FIXED — null-byte prefix protocol |
 | #23 Dataset pagination missing offset | **High** | datasets.ts (fetch-all workaround) | Add offset param to API |
 | #24 Events API lacks pod status data | Medium | events-parser.ts, events-utils.ts, events-grouping.ts | Use actual pod status from API |
 | #25 Dataset API missing sort_by, distinct dates | **High** | datasets-shim.ts (client-side filter/sort) | Delete shim, pass params to API |

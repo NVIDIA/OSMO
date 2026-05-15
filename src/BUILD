@@ -101,7 +101,7 @@ pkg_tar(
 
 oci_image(
     name = "osmo_docker_distroless_image_amd64",
-    base = "@distroless_python3_10_linux_amd64",
+    base = "@distroless_python3_14_linux_amd64",
     tars = [
         "//src:group_tar",
         "//src:passwd_tar",
@@ -121,7 +121,7 @@ oci_image(
 
 oci_image(
     name = "osmo_docker_distroless_image_arm64",
-    base = "@distroless_python3_10_linux_arm64",
+    base = "@distroless_python3_14_linux_arm64_v8",
     tars = [
         "//src:group_tar",
         "//src:passwd_tar",
@@ -141,7 +141,7 @@ oci_image(
 
 oci_image(
     name = "osmo_docker_client_image_amd64",
-    base = "@distroless_python3_10_linux_amd64",
+    base = "@distroless_python3_14_linux_amd64",
     tars = [
         # Client base packages (tree, ca-certificates, /osmo dir)
         "@debian_packages//tree/amd64:data",
@@ -177,7 +177,7 @@ oci_image(
 
 oci_image(
     name = "osmo_docker_client_image_arm64",
-    base = "@distroless_python3_10_linux_arm64",
+    base = "@distroless_python3_14_linux_arm64_v8",
     tars = [
         # Client base packages (tree, ca-certificates, /osmo dir)
         "@debian_packages_arm64//tree/arm64:data",

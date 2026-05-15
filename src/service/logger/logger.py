@@ -1,5 +1,5 @@
 """
-SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. # pylint: disable=line-too-long
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@ limitations under the License.
 
 SPDX-License-Identifier: Apache-2.0
 """
+from src.utils import ssl_init  # noqa: F401  # pylint: disable=unused-import,ungrouped-imports,wrong-import-position
+
+import contextlib
 import asyncio
 from urllib.parse import urlparse
 
@@ -25,27 +28,29 @@ import uvicorn  # type: ignore
 import src.lib.utils.logging
 from src.service.logger import ctrl_websocket
 from src.service.core.auth import auth_service
-from src.utils import connectors, static_config
+from src.service.core.config import configmap_loader
+from src.service.core.config.configmap_loader import ConfigFileMixin
+from src.utils import connectors, ssl_config, static_config
 from src.utils.progress_check import progress
 
 
 class LoggerServiceConfig(connectors.RedisConfig, connectors.PostgresConfig,
-                          src.lib.utils.logging.LoggingConfig, static_config.StaticConfig):
+                          src.lib.utils.logging.LoggingConfig,
+                          static_config.StaticConfig,
+                          ssl_config.SSLConfig, ConfigFileMixin):
     """Config settings for the logger service"""
     host: str = pydantic.Field(
-        command_line='host',
         default='http://0.0.0.0:8000',
-        description='The url to bind to when serving the workflow service.')
+        description='The url to bind to when serving the workflow service.',
+        json_schema_extra={'command_line': 'host'})
     progress_file: str = pydantic.Field(
-        command_line='progress_file',
-        env='OSMO_PROGRESS_FILE',
         default='/var/run/osmo/last_progress',
-        description='The file to write node watch progress timestamps to (For liveness/startup)')
+        description='The file to write node watch progress timestamps to (For liveness/startup)',
+        json_schema_extra={'command_line': 'progress_file', 'env': 'OSMO_PROGRESS_FILE'})
     progress_period: int = pydantic.Field(
-        command_line='progress_period',
-        env='OSMO_PROGRESS_PERIOD',
         default=30,
-        description='The amount of time to wait between updating progress')
+        description='The amount of time to wait between updating progress',
+        json_schema_extra={'command_line': 'progress_period', 'env': 'OSMO_PROGRESS_PERIOD'})
 
 
 app = fastapi.FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -69,7 +74,10 @@ async def put_workflow_logs(websocket: fastapi.WebSocket, name: str, task_name: 
 def main():
     config = LoggerServiceConfig.load()
     src.lib.utils.logging.init_logger('logger', config)
-    _ = connectors.PostgresConnector(config)
+    postgres = connectors.PostgresConnector(config)
+    # Pin the watcher on app.state so the daemon Observer thread isn't GC'd.
+    app.state.config_watcher = configmap_loader.start_config_watcher(
+        config.config_file, postgres)
     parsed_url = urlparse(config.host)
     host = parsed_url.hostname if parsed_url.hostname else ''
     if parsed_url.port:
@@ -83,16 +91,19 @@ def main():
             progress_writer.report_progress()
             await asyncio.sleep(config.progress_period)
 
-    uvicorn_config = uvicorn.Config(app, host=host, port=port)
-    uvicorn_server = uvicorn.Server(config=uvicorn_config)
-    loop = asyncio.get_event_loop()
-    liveness_task = loop.create_task(liveness_update())
-    loop.run_until_complete(uvicorn_server.serve())
-    liveness_task.cancel()
-    try:
-        loop.run_until_complete(liveness_task)
-    except asyncio.exceptions.CancelledError:
-        pass
+    async def run_server():
+        uvicorn_config = uvicorn.Config(app, host=host, port=port, log_config=None,
+                                        **config.uvicorn_ssl_kwargs())
+        uvicorn_server = uvicorn.Server(config=uvicorn_config)
+        liveness_task = asyncio.create_task(liveness_update())
+        try:
+            await uvicorn_server.serve()
+        finally:
+            liveness_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await liveness_task
+
+    asyncio.run(run_server())
 
 
 if __name__ == '__main__':
