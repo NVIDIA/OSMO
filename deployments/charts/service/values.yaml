@@ -1545,6 +1545,13 @@ services:
   ## Agent service configuration for client communication and management
   ##
   agent:
+    ## Deploy the Python agent service. The Go operator-service (PROJ-147)
+    ## replaces this; deployments running the v2 (Go) backend-listener should
+    ## set this to false to stop emitting the agent Deployment. Default is
+    ## true to preserve backwards compatibility for deployments still on the
+    ## v1 (Python) backend-listener.
+    enabled: true
+
     ## Horizontal Pod Autoscaler (HPA) configuration for the agent service
     ##
     scaling:

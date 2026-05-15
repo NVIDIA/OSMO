@@ -14,6 +14,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+{{/* Agent is gated behind services.agent.enabled. PROJ-147's operator-service
+     replaces it; deployments on the Go v2 backend-listener should set
+     services.agent.enabled: false. */}}
+{{- if .Values.services.agent.enabled }}
+
 {{/* Create a copy of the shared sidecar config values */}}
 
 apiVersion: apps/v1
@@ -273,3 +278,4 @@ spec:
   {{- with .Values.services.agent.scaling.customMetrics }}
   {{- toYaml . | nindent 2 }}
   {{- end }}
+{{- end }}
