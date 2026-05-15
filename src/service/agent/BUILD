@@ -154,6 +154,7 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_amd64",
     tars = [
         ":agent_service_image_layers",
+        ":message_worker_image_layers",
         "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
@@ -193,6 +194,7 @@ oci_image(
     base = "//src:osmo_docker_distroless_image_arm64",
     tars = [
         ":agent_service_image_layers",
+        ":message_worker_image_layers",
         "//src/utils/progress_check:progress_check_image_layers",
     ],
     visibility = ["//visibility:public"],
