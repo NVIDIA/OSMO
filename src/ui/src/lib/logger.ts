@@ -17,17 +17,34 @@
 /**
  * Simple logger that can be configured for different environments.
  *
- * In production, errors are logged. Warnings are suppressed unless debug mode is enabled.
+ * In production, errors are logged. Warnings/info/debug are suppressed unless dev mode.
  * In development, all logs are shown.
+ *
+ * Module-level user context (mirrors backend WorkflowLogContext): once set via
+ * setLogUserId, every log line is prefixed with `[user=<id>]`.
  */
 
 const isDev = process.env.NODE_ENV === "development";
+
+let currentUserId: string | null = null;
+
+export function setLogUserId(userId: string | null): void {
+  currentUserId = userId;
+}
+
+export function clearLogUserId(): void {
+  currentUserId = null;
+}
+
+function buildPrefix(): string {
+  return currentUserId ? `[OSMO] [user=${currentUserId}]` : "[OSMO]";
+}
 
 /**
  * Log an error. Always logged.
  */
 export function logError(message: string, ...args: unknown[]): void {
-  console.error(`[OSMO] ${message}`, ...args);
+  console.error(`${buildPrefix()} ${message}`, ...args);
 }
 
 /**
@@ -35,6 +52,24 @@ export function logError(message: string, ...args: unknown[]): void {
  */
 export function logWarn(message: string, ...args: unknown[]): void {
   if (isDev) {
-    console.warn(`[OSMO] ${message}`, ...args);
+    console.warn(`${buildPrefix()} ${message}`, ...args);
+  }
+}
+
+/**
+ * Log an info message. Only logged in development.
+ */
+export function logInfo(message: string, ...args: unknown[]): void {
+  if (isDev) {
+    console.info(`${buildPrefix()} ${message}`, ...args);
+  }
+}
+
+/**
+ * Log a debug message. Only logged in development.
+ */
+export function logDebug(message: string, ...args: unknown[]): void {
+  if (isDev) {
+    console.debug(`${buildPrefix()} ${message}`, ...args);
   }
 }
