@@ -20,7 +20,6 @@ import (
 	"flag"
 	"log/slog"
 	"os"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +38,6 @@ var (
 	metricsAddr          = flag.String("metrics-bind-address", ":8080", "metrics bind address")
 	probeAddr            = flag.String("health-probe-bind-address", ":8081", "health probe bind address")
 	enableLeaderElection = flag.Bool("leader-elect", false, "enable leader election")
-	statusReportAddress  = flag.String("status-report-address", "", "gRPC address for reporting OSMOTaskGroup status to the API server")
 )
 
 func main() {
@@ -69,20 +67,6 @@ func main() {
 	}
 	reconciler := taskgroupcontroller.NewTaskGroupReconciler(manager.GetClient(), manager.GetScheme())
 	reconciler.LogCollector = taskgroupcontroller.NewKubernetesLogCollector(clientset)
-	statusReporter, closeStatusReporter, err := taskgroupcontroller.NewGRPCStatusReporter(
-		*statusReportAddress,
-		10*time.Second,
-	)
-	if err != nil {
-		slog.Error("failed to create status reporter", slog.String("error", err.Error()))
-		os.Exit(1)
-	}
-	defer func() {
-		if err := closeStatusReporter(); err != nil {
-			slog.Warn("failed to close status reporter", slog.String("error", err.Error()))
-		}
-	}()
-	reconciler.StatusReporter = statusReporter
 	if err := ctrl.NewControllerManagedBy(manager).
 		For(&taskgroupv1alpha1.OSMOTaskGroup{}).
 		Complete(reconciler); err != nil {

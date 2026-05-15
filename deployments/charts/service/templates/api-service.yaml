@@ -156,13 +156,6 @@ spec:
         env:
         - name: OSMO_DISABLE_TASK_METRICS
           value: {{ .Values.services.service.disableTaskMetrics | quote }}
-        {{- if .Values.services.taskGroupStatusReceiver.enabled }}
-        - name: OSMO_TASKGROUP_STATUS_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: {{ required "services.taskGroupStatusReceiver.sharedTokenSecretName is required when taskGroupStatusReceiver is enabled" .Values.services.taskGroupStatusReceiver.sharedTokenSecretName }}
-              key: {{ .Values.services.taskGroupStatusReceiver.sharedTokenSecretKey }}
-        {{- end }}
         {{- include "osmo.configmap-env" . | nindent 8 }}
         {{- if .Values.services.migration.enabled }}
         - name: OSMO_SCHEMA_VERSION

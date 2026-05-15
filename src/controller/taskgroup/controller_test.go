@@ -20,36 +20,30 @@ import (
 	"context"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	taskgroupv1alpha1 "go.corp.nvidia.com/osmo/apis/taskgroup/v1alpha1"
 )
 
-func TestUpdateStatusReportsThroughGRPCBoundary(t *testing.T) {
+func TestUpdateStatusWritesCRStatusOnly(t *testing.T) {
 	ctx := context.Background()
 	otg := testOTG(taskgroupv1alpha1.ModeActive)
 	kubernetesClient := newFakeClient(t, otg)
-	reporter := &recordingStatusReporter{}
 	reconciler := NewTaskGroupReconciler(kubernetesClient, kubernetesClient.Scheme())
-	reconciler.StatusReporter = reporter
 
 	if err := reconciler.updateStatus(ctx, otg, taskgroupv1alpha1.OSMOTaskGroupStatus{
 		Phase: taskgroupv1alpha1.PhaseRunning,
 	}); err != nil {
 		t.Fatalf("updateStatus() error = %v", err)
 	}
-	if reporter.phase != taskgroupv1alpha1.PhaseRunning {
-		t.Fatalf("reported phase = %q, want %q", reporter.phase, taskgroupv1alpha1.PhaseRunning)
+	updated := &taskgroupv1alpha1.OSMOTaskGroup{}
+	if err := kubernetesClient.Get(ctx, types.NamespacedName{
+		Namespace: otg.Namespace,
+		Name:      otg.Name,
+	}, updated); err != nil {
+		t.Fatalf("Get() error = %v", err)
 	}
-}
-
-type recordingStatusReporter struct {
-	phase taskgroupv1alpha1.OSMOTaskGroupPhase
-}
-
-func (r *recordingStatusReporter) ReportStatus(
-	_ context.Context,
-	_ *taskgroupv1alpha1.OSMOTaskGroup,
-	status taskgroupv1alpha1.OSMOTaskGroupStatus,
-) error {
-	r.phase = status.Phase
-	return nil
+	if updated.Status.Phase != taskgroupv1alpha1.PhaseRunning {
+		t.Fatalf("status phase = %q, want %q", updated.Status.Phase, taskgroupv1alpha1.PhaseRunning)
+	}
 }

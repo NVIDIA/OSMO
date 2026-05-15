@@ -16,8 +16,6 @@
 
 package taskgroup
 
-import pb "go.corp.nvidia.com/osmo/proto/operator"
-
 type conditionReport struct {
 	Type      string `json:"type"`
 	Status    string `json:"status"`
@@ -38,36 +36,4 @@ type taskStatusUpdateReport struct {
 	ExitCode     int32             `json:"exit_code,omitempty"`
 	Backend      string            `json:"backend,omitempty"`
 	Conditions   []conditionReport `json:"conditions,omitempty"`
-}
-
-func taskStatusUpdateReportsToProto(
-	reports []taskStatusUpdateReport,
-) []*pb.TaskStatusUpdate {
-	updates := make([]*pb.TaskStatusUpdate, 0, len(reports))
-	for _, report := range reports {
-		conditions := make([]*pb.Condition, 0, len(report.Conditions))
-		for _, condition := range report.Conditions {
-			conditions = append(conditions, &pb.Condition{
-				Type:      condition.Type,
-				Status:    condition.Status,
-				Reason:    condition.Reason,
-				Message:   condition.Message,
-				Timestamp: condition.Timestamp,
-			})
-		}
-		updates = append(updates, &pb.TaskStatusUpdate{
-			WorkflowUuid: report.WorkflowUUID,
-			TaskUuid:     report.TaskUUID,
-			RetryId:      report.RetryID,
-			Container:    report.Container,
-			Node:         report.Node,
-			PodIp:        report.PodIP,
-			Message:      report.Message,
-			Status:       report.Status,
-			ExitCode:     report.ExitCode,
-			Backend:      report.Backend,
-			Conditions:   conditions,
-		})
-	}
-	return updates
 }

@@ -28,15 +28,9 @@ type DeleteOTGRequest = pb.DeleteOTGRequest
 type DeleteOTGResponse = pb.DeleteOTGResponse
 type GetOTGStatusRequest = pb.GetOTGStatusRequest
 type GetOTGStatusResponse = pb.GetOTGStatusResponse
-type ReportOTGStatusRequest = pb.ReportOTGStatusRequest
-type ReportOTGStatusResponse = pb.ReportOTGStatusResponse
 
 type OperatorServiceServer interface {
 	CreateOTG(context.Context, *CreateOTGRequest) (*CreateOTGResponse, error)
 	DeleteOTG(context.Context, *DeleteOTGRequest) (*DeleteOTGResponse, error)
 	GetOTGStatus(context.Context, *GetOTGStatusRequest) (*GetOTGStatusResponse, error)
-}
-
-type TaskGroupStatusServiceServer interface {
-	ReportOTGStatus(context.Context, *ReportOTGStatusRequest) (*ReportOTGStatusResponse, error)
 }

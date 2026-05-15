@@ -48,39 +48,3 @@ message GetOTGStatusResponse {
   string phase = 1;
   string status_json = 2;
 }
-
-message Condition {
-  string type = 1;
-  string status = 2;
-  string reason = 3;
-  string message = 4;
-  string timestamp = 5;
-}
-
-message TaskStatusUpdate {
-  string workflow_uuid = 1;
-  string task_uuid = 2;
-  int32 retry_id = 3;
-  string container = 4;
-  string node = 5;
-  string pod_ip = 6;
-  string message = 7;
-  string status = 8;
-  int32 exit_code = 9;
-  string backend = 10;
-  repeated Condition conditions = 11;
-}
-
-message ReportOTGStatusRequest {
-  string namespace = 1;
-  string name = 2;
-  string workflow_uuid = 3;
-  string group_uuid = 4;
-  string phase = 5;
-  string status_json = 6;
-  repeated TaskStatusUpdate task_status_updates = 7;
-}
-
-message ReportOTGStatusResponse {
-  bool accepted = 1;
-}

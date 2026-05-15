@@ -42,7 +42,6 @@ type TaskGroupReconciler struct {
 	Handlers         map[taskgroupv1alpha1.RuntimeType]RuntimeHandler
 	FinalizerTimeout time.Duration
 	LogCollector     LogCollector
-	StatusReporter   StatusReporter
 }
 
 func NewTaskGroupReconciler(
@@ -105,10 +104,7 @@ func (r *TaskGroupReconciler) updateStatus(
 	if err := r.Status().Update(ctx, otg); err != nil {
 		return err
 	}
-	if r.StatusReporter == nil {
-		return nil
-	}
-	return r.StatusReporter.ReportStatus(ctx, otg, status)
+	return nil
 }
 
 func (r *TaskGroupReconciler) finalize(

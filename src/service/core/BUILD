@@ -26,7 +26,6 @@ osmo_py_library(
     name = "service_lib",
     srcs = [
         "service.py",
-        "taskgroup_status.py",
     ],
     deps = [
         requirement("diskcache"),
@@ -48,7 +47,6 @@ osmo_py_library(
         "//src/service/core/workflow",
         "//src/service/logger:ctrl_websocket",
         "//src/utils:ssl_init",
-        "//src/utils:backend_messages",
     ],
     data = [
         "//src/lib/utils:version.yaml",

@@ -27,7 +27,3 @@ service OperatorService {
   rpc DeleteOTG(DeleteOTGRequest) returns (DeleteOTGResponse);
   rpc GetOTGStatus(GetOTGStatusRequest) returns (GetOTGStatusResponse);
 }
-
-service TaskGroupStatusService {
-  rpc ReportOTGStatus(ReportOTGStatusRequest) returns (ReportOTGStatusResponse);
-}

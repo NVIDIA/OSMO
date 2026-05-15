@@ -66,22 +66,11 @@ spec:
         - --health-probe-bind-address
         - :8081
         - --leader-elect={{ .Values.services.taskGroupController.leaderElection }}
-        {{- if .Values.services.taskGroupController.statusReportAddress }}
-        - --status-report-address
-        - {{ .Values.services.taskGroupController.statusReportAddress | quote }}
-        {{- end }}
         {{- range $arg := .Values.services.taskGroupController.extraArgs }}
         - {{ $arg | quote }}
         {{- end }}
-        {{- if or .Values.services.taskGroupController.statusTokenSecretName .Values.services.taskGroupController.extraEnvs }}
+        {{- if .Values.services.taskGroupController.extraEnvs }}
         env:
-        {{- if .Values.services.taskGroupController.statusTokenSecretName }}
-        - name: OSMO_TASKGROUP_STATUS_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: {{ .Values.services.taskGroupController.statusTokenSecretName }}
-              key: {{ .Values.services.taskGroupController.statusTokenSecretKey }}
-        {{- end }}
         {{- with .Values.services.taskGroupController.extraEnvs }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

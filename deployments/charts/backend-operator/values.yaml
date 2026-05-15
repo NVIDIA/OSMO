@@ -492,16 +492,6 @@ services:
     ##
     serviceAccount: taskgroup-controller
 
-    ## gRPC address for sending status back to the API-side status receiver.
-    ## Leave empty to update only the OSMOTaskGroup status subresource.
-    ##
-    statusReportAddress: ""
-
-    ## Secret containing the shared status token when statusReportAddress is set.
-    ##
-    statusTokenSecretName: ""
-    statusTokenSecretKey: token
-
     ## Controller leader election.
     ##
     leaderElection: false

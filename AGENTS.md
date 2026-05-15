@@ -104,7 +104,6 @@ Entry point: `service/core/service.py`. Framework: FastAPI + Uvicorn + OpenTelem
 | `service/logger/` | Receives structured logs from osmo-ctrl containers. Persists task metrics to PostgreSQL. Distributed barriers via Redis. |
 | `service/delayed_job_monitor/` | Polls Redis for scheduled jobs, promotes to main queue when ready. |
 | `service/operator/` | Go gRPC/HTTP service for single-cluster `OSMOTaskGroup` CRD create/delete/status reads. |
-| `service/core/taskgroup_status_receiver/` | API-side Go gRPC receiver for `OSMOTaskGroup` controller status reports; forwards to the Core Service internal status endpoint. |
 
 ### Python Libraries (`lib/`)
 
@@ -168,6 +167,7 @@ Features: Tab completion (shtab), response formatting (`formatters.py`), spec ed
 
 | Package | Purpose |
 |---------|---------|
+| `controller/taskgroup/` | Controller-runtime reconciler for `OSMOTaskGroup`; renders KAI Pods/PodGroups and updates CR status in the backend cluster. |
 | `roles/` | Semantic RBAC. Actions like `workflow:Create`, `dataset:Read`. LRU cache with TTL. Role sync from IDP. Pool access evaluation. |
 | `postgres/` | PostgreSQL client with pgx connection pool and pgroll schema version support. |
 | `redis/` | Redis client with optional TLS. |
