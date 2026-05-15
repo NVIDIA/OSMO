@@ -416,10 +416,27 @@ class BuildResourceLookupTableTest(unittest.TestCase):
         self.assertEqual(result['K8_CPU'], '0')
         self.assertEqual(result['K8_GPU'], '0')
 
-    # SUSPECTED BUG: workflow.py:build_resource_lookup_table raises IndexError
-    # when platform_workflow_allocatable_fields is None/empty, but the except
-    # clause only catches KeyError. The None/empty fallback path appears
-    # unreachable. We exercise the KeyError fallback path below instead.
+    def test_falls_back_when_platform_workflow_allocatable_fields_is_none(self):
+        entry = self._make_resource_entry(
+            exposed_fields={'cpu': '8', 'gpu': '4', 'storage': '100', 'memory': '32'},
+            platform_workflow_allocatable_fields=None,
+        )
+        result = workflow.build_resource_lookup_table(entry, 'pool1', 'platform1')
+        self.assertEqual(result['K8_CPU'], '8')
+        self.assertEqual(result['K8_GPU'], '4')
+        self.assertEqual(result['K8_STORAGE'], '100Gi')
+        self.assertEqual(result['K8_MEMORY'], '32Gi')
+
+    def test_falls_back_when_platform_workflow_allocatable_fields_is_empty(self):
+        entry = self._make_resource_entry(
+            exposed_fields={'cpu': '8', 'gpu': '4', 'storage': '100', 'memory': '32'},
+            platform_workflow_allocatable_fields={},
+        )
+        result = workflow.build_resource_lookup_table(entry, 'pool1', 'platform1')
+        self.assertEqual(result['K8_CPU'], '8')
+        self.assertEqual(result['K8_GPU'], '4')
+        self.assertEqual(result['K8_STORAGE'], '100Gi')
+        self.assertEqual(result['K8_MEMORY'], '32Gi')
 
     def test_falls_back_when_pool_missing_from_platform_workflow_fields(self):
         entry = self._make_resource_entry(

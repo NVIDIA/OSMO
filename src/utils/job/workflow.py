@@ -170,7 +170,7 @@ def build_resource_lookup_table(resource_entry: ResourcesEntry,
             else:
                 mapping[f'K8_{upper_name}'] = \
                     exposed_fields.get(resource_type.name, '0')
-    except KeyError:
+    except (KeyError, IndexError):
         # Fall back to pre-existing logic if the new allocatable fields can't be
         # found in the platform_allocatable_fields dictionary
         exposed_fields = resource_entry.exposed_fields
