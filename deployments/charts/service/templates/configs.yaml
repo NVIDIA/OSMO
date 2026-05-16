@@ -33,7 +33,19 @@ data:
     {{- end }}
     {{- if $cfg.workflow }}
     workflow:
-      {{- toYaml $cfg.workflow | nindent 6 }}
+      {{- $workflow := deepCopy $cfg.workflow }}
+      {{- $backendImages := get $workflow "backend_images" | default dict }}
+      {{- if kindIs "map" $backendImages }}
+      {{- $credential := get $backendImages "credential" | default dict }}
+      {{- if kindIs "map" $credential }}
+      {{- $secretName := get $credential "secretName" | default "" }}
+      {{- if and $secretName (eq (include "osmo.config-secret-ref-enabled" (dict "root" $ "secretName" $secretName) | trim) "false") }}
+      {{- $_ := set $backendImages "credential" dict }}
+      {{- $_ := set $workflow "backend_images" $backendImages }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- toYaml $workflow | nindent 6 }}
     {{- end }}
     {{- if $cfg.dataset }}
     dataset:
