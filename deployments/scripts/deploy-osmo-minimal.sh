@@ -539,12 +539,31 @@ verify_provider_config() {
 bootstrap_microk8s() {
     if command -v microk8s &>/dev/null && microk8s status --wait-ready --timeout 5 &>/dev/null; then
         log_info "MicroK8s already installed and ready — skipping bootstrap"
-        return 0
+    else
+        log_info "Bootstrapping MicroK8s..."
+        local args=()
+        [[ "$ENABLE_MICROK8S_GPU" == "true" ]] && args+=(--gpu)
+        sudo "$SCRIPT_DIR/microk8s/install.sh" "${args[@]}"
     fi
-    log_info "Bootstrapping MicroK8s..."
-    local args=()
-    [[ "$ENABLE_MICROK8S_GPU" == "true" ]] && args+=(--gpu)
-    sudo "$SCRIPT_DIR/microk8s/install.sh" "${args[@]}"
+    # Stub the `nvidia` RuntimeClass when running CPU-only. Older chart versions
+    # render `runtimeClassName: nvidia` on every workflow Pod, expecting the GPU
+    # Operator to have registered it. Without --gpu the operator is absent and
+    # workflows hit "pod rejected: RuntimeClass nvidia not found". Apply runs
+    # whether or not bootstrap ran above so the stub is also created on re-runs
+    # that hit the skip path. The GPU addon owns the real class when --gpu, so
+    # we only stub in the CPU-only branch.
+    if [[ "$ENABLE_MICROK8S_GPU" != "true" ]]; then
+        if ! microk8s kubectl get runtimeclass nvidia &>/dev/null; then
+            log_info "Stubbing 'nvidia' RuntimeClass (handler=runc) for CPU-only workflows"
+            microk8s kubectl apply -f - <<'EOF'
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: nvidia
+handler: runc
+EOF
+        fi
+    fi
 }
 
 ###############################################################################

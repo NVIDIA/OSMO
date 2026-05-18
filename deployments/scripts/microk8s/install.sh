@@ -173,26 +173,6 @@ for dir in .cache .config .kube .helm .local; do
     [[ -e "$path" ]] && chown -R "$REAL_USER:$REAL_USER" "$path"
 done
 
-# ── 9. Stub nvidia RuntimeClass when running CPU-only ────────────────────────
-# Older chart versions render `runtimeClassName: nvidia` on every workflow Pod
-# spec, expecting the GPU Operator to have registered it. Without --gpu we
-# don't install the operator, so workflow pods would fail with
-# "pod rejected: RuntimeClass nvidia not found". Stub it to runc so CPU-only
-# workflows schedule. The GPU addon installs the real RuntimeClass and would
-# overwrite this stub, so we only create it in the CPU-only branch.
-if [[ "$ENABLE_GPU" != "true" ]]; then
-    if ! microk8s kubectl get runtimeclass nvidia &>/dev/null; then
-        echo "==> Creating stub 'nvidia' RuntimeClass (handler=runc) for CPU-only mode"
-        microk8s kubectl apply -f - <<'EOF'
-apiVersion: node.k8s.io/v1
-kind: RuntimeClass
-metadata:
-  name: nvidia
-handler: runc
-EOF
-    fi
-fi
-
 echo ""
 echo "==> MicroK8s ready. Verify with:"
 echo "    kubectl get nodes"
