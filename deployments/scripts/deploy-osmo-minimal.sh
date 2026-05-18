@@ -124,7 +124,14 @@ General Options:
   --destroy              Destroy all resources (azure/aws: TF destroy; microk8s/byo: OSMO ns cleanup)
   --dry-run              Show what would be done without making changes
   --non-interactive      Fail if required parameters are missing (for CI/CD)
-  --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io
+  --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io.
+                         Auto-defaults --ngc-secret-name to "nvcr-secret" and
+                         creates the docker-registry secret from the key.
+  --ngc-secret-name NAME Name of the K8s docker-registry secret to use for NGC
+                         pulls. Empty (default) means no pull-secret plumbing —
+                         pods pull anonymously, works for public images only.
+                         Set explicitly to reference a pre-created secret
+                         (e.g. AKS-managed "imagepullsecret").
   --storage-backend X    Storage backend: auto|minio|s3|azure-blob|byo|none (default: auto)
   --auth-method X        Storage auth: static|workload-identity (default: static)
                          workload-identity REQUIRES caller-provisioned cloud
@@ -181,6 +188,10 @@ Environment Variables:
                          for prerelease testing.
   BACKEND_TOKEN_EXPIRY   Backend token expiry date (default: 2027-01-01)
   NGC_API_KEY            NGC API key (alternative to --ngc-api-key flag)
+  NGC_SECRET_NAME        K8s docker-registry secret name (alternative to
+                         --ngc-secret-name flag). Empty = no pull-secret
+                         plumbing. Auto-set to "nvcr-secret" when NGC_API_KEY
+                         is provided without an explicit name.
 
 Examples:
   # Interactive Azure deployment
@@ -247,6 +258,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ngc-api-key)
             NGC_API_KEY="$2"; shift 2 ;;
+        --ngc-secret-name)
+            NGC_SECRET_NAME="$2"; shift 2 ;;
         --helm-values)
             OSMO_HELM_VALUES_FILES+=("$2"); shift 2 ;;
         --service-helm-values)
