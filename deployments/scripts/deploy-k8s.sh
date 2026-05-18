@@ -476,8 +476,9 @@ create_image_pull_secrets() {
     fi
 
     if [[ -z "$NGC_API_KEY" ]]; then
-        log_warning "NGC_API_KEY not set and $NGC_SECRET_NAME missing from all OSMO namespaces — skipping creation"
-        log_warning "Either set NGC_API_KEY, or pre-create $NGC_SECRET_NAME in osmo-minimal/osmo-operator/osmo-workflows"
+        log_info "NGC_API_KEY not set and $NGC_SECRET_NAME missing from all OSMO namespaces — pull-secret plumbing disabled"
+        log_info "  Workflow + service pods will pull anonymously; works with public images only (e.g. nvcr.io/nvidia/osmo)"
+        log_info "  To use private images, set NGC_API_KEY (or --ngc-api-key) and re-run"
         return
     fi
 
@@ -654,13 +655,16 @@ service_set_flags() {
     sets+=" --set services.configs.workflow.backend_images.init=${OSMO_IMAGE_REGISTRY}/init-container:${OSMO_IMAGE_TAG}"
     sets+=" --set services.configs.workflow.backend_images.client=${OSMO_IMAGE_REGISTRY}/client:${OSMO_IMAGE_TAG}"
 
-    # Override the NGC pull secret reference when the cluster ships a secret
-    # with a non-default name (e.g. `imagepullsecret` on infra-managed AKS).
-    # service.yaml's secretRefs is `[nvcr-secret]`; the storage fragment
+    # NGC pull-secret plumbing. service.yaml ships with empty secretRefs and
+    # no backend_images.credential, so we add them via --set only when a pull
+    # secret is actually present. Result: no-NGC-key deploys against public
+    # images skip the secret mount entirely (no FailedMount, no configmap
+    # loader rejecting an unreadable .dockerconfigjson). The storage fragment
     # appends data/log/app secret refs in static mode (or none in WI mode).
-    if [[ "$has_pull_secret" == "true" && "$NGC_SECRET_NAME" != "nvcr-secret" ]]; then
+    if [[ "$has_pull_secret" == "true" ]]; then
         sets+=" --set services.configs.secretRefs[0].secretName=${NGC_SECRET_NAME}"
         sets+=" --set services.configs.workflow.backend_images.credential.secretName=${NGC_SECRET_NAME}"
+        sets+=" --set services.configs.workflow.backend_images.credential.secretKey=.dockerconfigjson"
     fi
 
     echo "$sets"

@@ -8,7 +8,7 @@
 # tooling needed before the cluster-agnostic OSMO install phases run:
 #   - snapd (auto-installed if missing — cloud Ubuntu images often skip it)
 #   - microk8s 1.31/stable
-#   - kubectl, helm, helmfile
+#   - kubectl, helm
 #   - Standard K8s addons: dns, hostpath-storage, helm3, rbac, minio
 #   - Optional GPU addon (--gpu) with the host-driver symlink workaround
 #   - Containerd Docker Hub creds patch (only if ~/.docker/config.json exists)
@@ -120,7 +120,7 @@ if ! microk8s status --wait-ready --timeout 300; then
     exit 1
 fi
 
-# ── 3. Install kubectl, helm, helmfile ───────────────────────────────────────
+# ── 3. Install kubectl, helm ─────────────────────────────────────────────────
 if ! command -v kubectl &>/dev/null; then
     echo "==> Installing kubectl"
     snap install kubectl --classic
@@ -128,12 +128,6 @@ fi
 if ! command -v helm &>/dev/null; then
     echo "==> Installing helm"
     snap install helm --classic
-fi
-if ! command -v helmfile &>/dev/null; then
-    echo "==> Installing helmfile"
-    HELMFILE_VERSION="${HELMFILE_VERSION:-1.4.4}"
-    curl -sL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
-        | tar xz -C /usr/local/bin helmfile
 fi
 
 # ── 4. Enable addons ─────────────────────────────────────────────────────────
@@ -178,6 +172,26 @@ for dir in .cache .config .kube .helm .local; do
     path="$REAL_HOME/$dir"
     [[ -e "$path" ]] && chown -R "$REAL_USER:$REAL_USER" "$path"
 done
+
+# ── 9. Stub nvidia RuntimeClass when running CPU-only ────────────────────────
+# Older chart versions render `runtimeClassName: nvidia` on every workflow Pod
+# spec, expecting the GPU Operator to have registered it. Without --gpu we
+# don't install the operator, so workflow pods would fail with
+# "pod rejected: RuntimeClass nvidia not found". Stub it to runc so CPU-only
+# workflows schedule. The GPU addon installs the real RuntimeClass and would
+# overwrite this stub, so we only create it in the CPU-only branch.
+if [[ "$ENABLE_GPU" != "true" ]]; then
+    if ! microk8s kubectl get runtimeclass nvidia &>/dev/null; then
+        echo "==> Creating stub 'nvidia' RuntimeClass (handler=runc) for CPU-only mode"
+        microk8s kubectl apply -f - <<'EOF'
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: nvidia
+handler: runc
+EOF
+    fi
+fi
 
 echo ""
 echo "==> MicroK8s ready. Verify with:"
