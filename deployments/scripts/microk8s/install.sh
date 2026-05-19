@@ -8,7 +8,7 @@
 # tooling needed before the cluster-agnostic OSMO install phases run:
 #   - snapd (auto-installed if missing — cloud Ubuntu images often skip it)
 #   - microk8s 1.31/stable
-#   - kubectl, helm, helmfile
+#   - kubectl, helm
 #   - Standard K8s addons: dns, hostpath-storage, helm3, rbac, minio
 #   - Optional GPU addon (--gpu) with the host-driver symlink workaround
 #   - Containerd Docker Hub creds patch (only if ~/.docker/config.json exists)
@@ -120,7 +120,7 @@ if ! microk8s status --wait-ready --timeout 300; then
     exit 1
 fi
 
-# ── 3. Install kubectl, helm, helmfile ───────────────────────────────────────
+# ── 3. Install kubectl, helm ─────────────────────────────────────────────────
 if ! command -v kubectl &>/dev/null; then
     echo "==> Installing kubectl"
     snap install kubectl --classic
@@ -128,12 +128,6 @@ fi
 if ! command -v helm &>/dev/null; then
     echo "==> Installing helm"
     snap install helm --classic
-fi
-if ! command -v helmfile &>/dev/null; then
-    echo "==> Installing helmfile"
-    HELMFILE_VERSION="${HELMFILE_VERSION:-1.4.4}"
-    curl -sL "https://github.com/helmfile/helmfile/releases/download/v${HELMFILE_VERSION}/helmfile_${HELMFILE_VERSION}_linux_amd64.tar.gz" \
-        | tar xz -C /usr/local/bin helmfile
 fi
 
 # ── 4. Enable addons ─────────────────────────────────────────────────────────

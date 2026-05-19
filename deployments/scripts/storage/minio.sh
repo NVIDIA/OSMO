@@ -23,7 +23,7 @@ KUBECTL="${KUBECTL:-kubectl}"
 NAMESPACE="${NAMESPACE:?NAMESPACE not set}"
 OUTPUT_VALUES="${OUTPUT_VALUES:?OUTPUT_VALUES not set}"
 AUTH_METHOD="${AUTH_METHOD:-static}"
-NGC_SECRET_NAME="${NGC_SECRET_NAME:-nvcr-secret}"
+NGC_SECRET_NAME="${NGC_SECRET_NAME:-}"
 
 # MinIO is a self-hosted in-cluster S3 — no cloud-vendor identity provider.
 # Workload identity is meaningless here.

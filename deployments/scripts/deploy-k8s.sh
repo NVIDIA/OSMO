@@ -60,7 +60,20 @@ OSMO_CHART_VERSION="${OSMO_CHART_VERSION:-}"
 OSMO_IMAGE_TAG="${OSMO_IMAGE_TAG:-latest}"
 BACKEND_TOKEN_EXPIRY="${BACKEND_TOKEN_EXPIRY:-2027-01-01}"
 NGC_API_KEY="${NGC_API_KEY:-}"
-NGC_SECRET_NAME="${NGC_SECRET_NAME:-nvcr-secret}"
+# NGC pull-secret name. Empty by default → no NGC plumbing anywhere (volume
+# mount, --set global.imagePullSecret, secretRefs entry, backend_images
+# credential). Opt in by either:
+#   - --ngc-api-key K            → name auto-defaults to "nvcr-secret"; the
+#                                  script creates the docker-registry secret
+#                                  from the key.
+#   - --ngc-secret-name X / env  → references an existing pre-created secret
+#                                  in the OSMO namespaces (e.g. AKS-managed
+#                                  "imagepullsecret"). Combine with
+#                                  --ngc-api-key to also create the secret.
+# Default-empty replaces the older "always 'nvcr-secret', detect via kubectl
+# probe" model which silently re-introduced FailedMount when the implied
+# secret didn't exist.
+NGC_SECRET_NAME="${NGC_SECRET_NAME:-}"
 BACKEND_OPERATOR_USER="${BACKEND_OPERATOR_USER:-backend-operator}"
 
 # DB-init pod used to issue `CREATE DATABASE` against an existing managed
@@ -156,6 +169,10 @@ parse_k8s_args() {
                 NGC_API_KEY="$2"
                 shift 2
                 ;;
+            --ngc-secret-name)
+                NGC_SECRET_NAME="$2"
+                shift 2
+                ;;
             --helm-values)
                 OSMO_HELM_VALUES_FILES+=("$2")
                 shift 2
@@ -195,6 +212,14 @@ setup_provider() {
     if [[ -z "$PROVIDER" ]]; then
         log_error "Provider not specified. Use --provider azure|aws"
         exit 1
+    fi
+
+    # Auto-default NGC_SECRET_NAME when only --ngc-api-key was passed: the
+    # legacy one-flag UX ("here is my key, make it work") still works without
+    # forcing the caller to also pass --ngc-secret-name. Caller-set values
+    # (env or --ngc-secret-name) win.
+    if [[ -n "$NGC_API_KEY" && -z "$NGC_SECRET_NAME" ]]; then
+        NGC_SECRET_NAME="nvcr-secret"
     fi
 
     # Load outputs file
@@ -448,6 +473,20 @@ data:
 }
 
 create_image_pull_secrets() {
+    # Single gate for all NGC pull-secret plumbing. Empty NGC_SECRET_NAME =
+    # caller didn't opt in (no --ngc-api-key, no --ngc-secret-name, no env).
+    # Skip secret creation + propagation entirely; service_set_flags and
+    # backend_operator_set_flags also gate on this so the helm install
+    # doesn't emit `global.imagePullSecret`, `secretRefs[0]`, or
+    # `backend_images.credential` for a name that resolves to nothing.
+    if [[ -z "$NGC_SECRET_NAME" ]]; then
+        log_info "NGC pull-secret plumbing disabled (no --ngc-api-key, no --ngc-secret-name, no NGC_SECRET_NAME env)"
+        log_info "  Workflow + service pods will pull anonymously; works with public images only (e.g. nvcr.io/nvidia/osmo)"
+        log_info "  To use private images: --ngc-api-key K (auto-names secret 'nvcr-secret')"
+        log_info "  To reuse a pre-created secret: --ngc-secret-name X"
+        return
+    fi
+
     # Find a namespace that already has the named pull secret (externally
     # managed); copy it to any namespace that's missing it. This handles the
     # common case of an `imagepullsecret` provisioned out-of-band by infra.
@@ -476,8 +515,8 @@ create_image_pull_secrets() {
     fi
 
     if [[ -z "$NGC_API_KEY" ]]; then
-        log_warning "NGC_API_KEY not set and $NGC_SECRET_NAME missing from all OSMO namespaces — skipping creation"
-        log_warning "Either set NGC_API_KEY, or pre-create $NGC_SECRET_NAME in osmo-minimal/osmo-operator/osmo-workflows"
+        log_warning "--ngc-secret-name $NGC_SECRET_NAME set but no NGC_API_KEY and secret missing from all OSMO namespaces"
+        log_warning "  Pre-create the secret in osmo-minimal/osmo-operator/osmo-workflows, or pass --ngc-api-key to create it now"
         return
     fi
 
@@ -587,9 +626,14 @@ service_set_flags() {
     sets+=" --set global.osmoImageLocation=${OSMO_IMAGE_REGISTRY}"
     sets+=" --set global.osmoImageTag=${OSMO_IMAGE_TAG}"
 
+    # Single source of truth: NGC_SECRET_NAME is non-empty iff the caller
+    # opted into pull-secret plumbing (--ngc-api-key auto-defaults it to
+    # "nvcr-secret"; --ngc-secret-name / NGC_SECRET_NAME env set it directly).
+    # No kubectl-existence probe — that path caused stale-secret confusion
+    # where a pre-existing nvcr-secret in the namespace silently re-engaged
+    # plumbing the caller hadn't asked for.
     local has_pull_secret=false
-    if [[ -n "$NGC_API_KEY" ]] \
-        || $RUN_KUBECTL "get secret $NGC_SECRET_NAME -n $OSMO_NAMESPACE" &>/dev/null; then
+    if [[ -n "$NGC_SECRET_NAME" ]]; then
         sets+=" --set global.imagePullSecret=${NGC_SECRET_NAME}"
         has_pull_secret=true
     fi
@@ -654,13 +698,14 @@ service_set_flags() {
     sets+=" --set services.configs.workflow.backend_images.init=${OSMO_IMAGE_REGISTRY}/init-container:${OSMO_IMAGE_TAG}"
     sets+=" --set services.configs.workflow.backend_images.client=${OSMO_IMAGE_REGISTRY}/client:${OSMO_IMAGE_TAG}"
 
-    # Override the NGC pull secret reference when the cluster ships a secret
-    # with a non-default name (e.g. `imagepullsecret` on infra-managed AKS).
-    # service.yaml's secretRefs is `[nvcr-secret]`; the storage fragment
-    # appends data/log/app secret refs in static mode (or none in WI mode).
-    if [[ "$has_pull_secret" == "true" && "$NGC_SECRET_NAME" != "nvcr-secret" ]]; then
+    # NGC pull-secret plumbing in the rendered configmap. Gated on
+    # has_pull_secret (= NGC_SECRET_NAME non-empty); service.yaml ships
+    # without these defaults so the no-opt-in path leaves both empty and
+    # the chart's secretRefs range iterates nothing.
+    if [[ "$has_pull_secret" == "true" ]]; then
         sets+=" --set services.configs.secretRefs[0].secretName=${NGC_SECRET_NAME}"
         sets+=" --set services.configs.workflow.backend_images.credential.secretName=${NGC_SECRET_NAME}"
+        sets+=" --set services.configs.workflow.backend_images.credential.secretKey=.dockerconfigjson"
     fi
 
     echo "$sets"
@@ -672,8 +717,7 @@ backend_operator_set_flags() {
     sets+=" --set global.osmoImageLocation=${OSMO_IMAGE_REGISTRY}"
     sets+=" --set global.osmoImageTag=${OSMO_IMAGE_TAG}"
 
-    if [[ -n "$NGC_API_KEY" ]] \
-        || $RUN_KUBECTL "get secret $NGC_SECRET_NAME -n $OSMO_OPERATOR_NAMESPACE" &>/dev/null; then
+    if [[ -n "$NGC_SECRET_NAME" ]]; then
         sets+=" --set global.imagePullSecret=${NGC_SECRET_NAME}"
     fi
 

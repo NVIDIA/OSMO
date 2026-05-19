@@ -31,7 +31,7 @@ KUBECTL="${KUBECTL:-kubectl}"
 NAMESPACE="${NAMESPACE:?NAMESPACE not set}"
 OUTPUT_VALUES="${OUTPUT_VALUES:?OUTPUT_VALUES not set}"
 AUTH_METHOD="${AUTH_METHOD:-static}"
-NGC_SECRET_NAME="${NGC_SECRET_NAME:-nvcr-secret}"
+NGC_SECRET_NAME="${NGC_SECRET_NAME:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"

@@ -56,29 +56,24 @@ services:
     # /etc/osmo/secrets/<name>/ so the config loader can resolve `secretName`
     # references at boot.
     #
-    # service.yaml only owns the NGC pull-secret reference (used by
-    # workflow.backend_images.credential below — needed in every auth mode for
-    # pulling osmo images). The workflow-data/log/app secret refs are added by
-    # the storage fragment in static auth mode; they're absent in
-    # workload-identity mode (no secrets to mount; SDK uses the SA's WI token).
-    #
-    # deploy-k8s.sh's --set global.imagePullSecret tracks NGC_SECRET_NAME to
-    # override `nvcr-secret` when the cluster's pull secret has a different name.
-    secretRefs:
-      - secretName: nvcr-secret
+    # No literal entries here. deploy-k8s.sh appends the NGC pull-secret entry
+    # via --set only when NGC_API_KEY is provided (or an existing secret named
+    # NGC_SECRET_NAME is detected in the namespace). The storage fragment adds
+    # the workflow-data/log/app refs in static auth mode (none in WI mode).
+    # Keeping the default empty lets no-NGC-key deploys with public images
+    # complete cleanly — the chart would otherwise mount a missing secret and
+    # the config loader would reject the invalid credential block.
 
-    workflow:
-      # backend_images: the init + client (osmo_ctrl) container images that the
-      # backend-worker injects into every workflow Pod. The chart has no defaults
-      # for `init` / `client` — deploy-k8s.sh always --sets them from
-      # OSMO_IMAGE_REGISTRY + OSMO_IMAGE_TAG, so no literals here. The
-      # `credential` block IS the real default (.dockerconfigjson is K8s-standard,
-      # nvcr-secret is the NGC default secret name; deploy-k8s.sh only --sets
-      # secretName when NGC_SECRET_NAME differs from the default).
-      backend_images:
-        credential:
-          secretName: nvcr-secret
-          secretKey: .dockerconfigjson
+    # workflow: {} (not bare `workflow:`) — a key with only comments below
+    # parses as null and breaks `helm --set services.configs.workflow.foo=bar`
+    # with "interface conversion: interface {} is nil, not map[...]".
+    workflow: {}
+      # backend_images: init + client (osmo_ctrl) container images that the
+      # backend-worker injects into every workflow Pod. The chart has no
+      # defaults for `init` / `client` — deploy-k8s.sh --sets them from
+      # OSMO_IMAGE_REGISTRY + OSMO_IMAGE_TAG. The `credential` block is also
+      # added via --set, but only when NGC_API_KEY is provided or an existing
+      # pull secret is detected. With public images it is omitted entirely.
 
       # workflow_data / workflow_log / workflow_app credential blocks are owned
       # entirely by the storage values fragment (configure-storage.sh writes
@@ -188,6 +183,13 @@ gateway:
   authz:
     enabled: false
   envoy:
+    # Single replica by default for minimal deploys. The chart default is 2
+    # (HPA floor for HA in production). On single-node clusters the second
+    # replica just doubles CPU/memory pressure for no resilience win — there
+    # is only one node to schedule on. HPA can still scale up to maxReplicas
+    # (chart default 6) under load.
+    scaling:
+      minReplicas: 1
     # With oauth2Proxy + authz both off, no upstream sets the
     # x-osmo-{user,roles,allowed-pools} headers. Inject defaults so the UI
     # shows pages instead of empty role/pool lists for the local admin.

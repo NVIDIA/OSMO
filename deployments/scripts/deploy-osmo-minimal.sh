@@ -124,7 +124,14 @@ General Options:
   --destroy              Destroy all resources (azure/aws: TF destroy; microk8s/byo: OSMO ns cleanup)
   --dry-run              Show what would be done without making changes
   --non-interactive      Fail if required parameters are missing (for CI/CD)
-  --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io
+  --ngc-api-key KEY      NGC API key for pulling images and Helm charts from nvcr.io.
+                         Auto-defaults --ngc-secret-name to "nvcr-secret" and
+                         creates the docker-registry secret from the key.
+  --ngc-secret-name NAME Name of the K8s docker-registry secret to use for NGC
+                         pulls. Empty (default) means no pull-secret plumbing —
+                         pods pull anonymously, works for public images only.
+                         Set explicitly to reference a pre-created secret
+                         (e.g. AKS-managed "imagepullsecret").
   --storage-backend X    Storage backend: auto|minio|s3|azure-blob|byo|none (default: auto)
   --auth-method X        Storage auth: static|workload-identity (default: static)
                          workload-identity REQUIRES caller-provisioned cloud
@@ -181,6 +188,10 @@ Environment Variables:
                          for prerelease testing.
   BACKEND_TOKEN_EXPIRY   Backend token expiry date (default: 2027-01-01)
   NGC_API_KEY            NGC API key (alternative to --ngc-api-key flag)
+  NGC_SECRET_NAME        K8s docker-registry secret name (alternative to
+                         --ngc-secret-name flag). Empty = no pull-secret
+                         plumbing. Auto-set to "nvcr-secret" when NGC_API_KEY
+                         is provided without an explicit name.
 
 Examples:
   # Interactive Azure deployment
@@ -247,6 +258,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --ngc-api-key)
             NGC_API_KEY="$2"; shift 2 ;;
+        --ngc-secret-name)
+            NGC_SECRET_NAME="$2"; shift 2 ;;
         --helm-values)
             OSMO_HELM_VALUES_FILES+=("$2"); shift 2 ;;
         --service-helm-values)
@@ -539,12 +552,31 @@ verify_provider_config() {
 bootstrap_microk8s() {
     if command -v microk8s &>/dev/null && microk8s status --wait-ready --timeout 5 &>/dev/null; then
         log_info "MicroK8s already installed and ready — skipping bootstrap"
-        return 0
+    else
+        log_info "Bootstrapping MicroK8s..."
+        local args=()
+        [[ "$ENABLE_MICROK8S_GPU" == "true" ]] && args+=(--gpu)
+        sudo "$SCRIPT_DIR/microk8s/install.sh" "${args[@]}"
     fi
-    log_info "Bootstrapping MicroK8s..."
-    local args=()
-    [[ "$ENABLE_MICROK8S_GPU" == "true" ]] && args+=(--gpu)
-    sudo "$SCRIPT_DIR/microk8s/install.sh" "${args[@]}"
+    # Stub the `nvidia` RuntimeClass when running CPU-only. Older chart versions
+    # render `runtimeClassName: nvidia` on every workflow Pod, expecting the GPU
+    # Operator to have registered it. Without --gpu the operator is absent and
+    # workflows hit "pod rejected: RuntimeClass nvidia not found". Apply runs
+    # whether or not bootstrap ran above so the stub is also created on re-runs
+    # that hit the skip path. The GPU addon owns the real class when --gpu, so
+    # we only stub in the CPU-only branch.
+    if [[ "$ENABLE_MICROK8S_GPU" != "true" ]]; then
+        if ! microk8s kubectl get runtimeclass nvidia &>/dev/null; then
+            log_info "Stubbing 'nvidia' RuntimeClass (handler=runc) for CPU-only workflows"
+            microk8s kubectl apply -f - <<'EOF'
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: nvidia
+handler: runc
+EOF
+        fi
+    fi
 }
 
 ###############################################################################
