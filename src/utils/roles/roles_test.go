@@ -1212,6 +1212,114 @@ func TestRoleActions_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestRoleActions_UnmarshalJSON_NullLiteral verifies that the top-level JSON
+// literal `null` does not error and produces a nil/empty RoleActions slice.
+// json.Unmarshal of `null` into `[]json.RawMessage` leaves it nil, so the
+// for loop is skipped and *ra is assigned an empty slice.
+func TestRoleActions_UnmarshalJSON_NullLiteral(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`null`), &actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(actions) != 0 {
+		t.Errorf("len(actions) = %d, want 0", len(actions))
+	}
+}
+
+// TestRoleActions_MarshalJSON_NilReceiver verifies marshaling a nil
+// RoleActions produces an empty array, not the JSON literal `null`. The
+// MarshalJSON method allocates a fresh slice and emits it even when the
+// receiver is nil.
+func TestRoleActions_MarshalJSON_NilReceiver(t *testing.T) {
+	var actions RoleActions // nil
+	data, err := json.Marshal(actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(data) != `[]` {
+		t.Errorf("data = %s, want []", string(data))
+	}
+}
+
+// TestRoleActions_UnmarshalJSON_EmptyStringElement verifies that a JSON empty
+// string (`""`) inside the array produces a RoleAction whose Action field is
+// the empty string. Such an action is neither semantic (Action == "") nor
+// legacy (no path/base/method set), which exercises the boundary of the two
+// predicate methods.
+func TestRoleActions_UnmarshalJSON_EmptyStringElement(t *testing.T) {
+	var actions RoleActions
+	err := json.Unmarshal([]byte(`[""]`), &actions)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("len(actions) = %d, want 1", len(actions))
+	}
+	if actions[0].Action != "" {
+		t.Errorf("actions[0].Action = %q, want empty", actions[0].Action)
+	}
+	if actions[0].IsSemanticAction() {
+		t.Errorf("empty-string action should not be semantic")
+	}
+	if actions[0].IsLegacyAction() {
+		t.Errorf("empty-string action should not be legacy")
+	}
+}
+
+// TestRolePolicy_RoundTripWithEffect verifies marshal/unmarshal of a policy
+// with Effect=Deny preserves all fields including the policy effect. The
+// MarshalJSON of RoleActions inside RolePolicy must produce a parseable JSON
+// payload that the inverse UnmarshalJSON consumes without loss.
+func TestRolePolicy_RoundTripWithEffect(t *testing.T) {
+	original := RolePolicy{
+		Effect: EffectDeny,
+		Actions: RoleActions{
+			{Action: "workflow:Delete"},
+			{Base: "http", Path: "/api/admin", Method: "DELETE"},
+		},
+		Resources: []string{"workflow/prod-*"},
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+
+	var roundTripped RolePolicy
+	if err := json.Unmarshal(data, &roundTripped); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if roundTripped.Effect != EffectDeny {
+		t.Errorf("Effect = %q, want %q", roundTripped.Effect, EffectDeny)
+	}
+	if len(roundTripped.Actions) != 2 {
+		t.Fatalf("len(Actions) = %d, want 2", len(roundTripped.Actions))
+	}
+	if roundTripped.Actions[0].Action != "workflow:Delete" {
+		t.Errorf("Actions[0].Action = %q, want workflow:Delete",
+			roundTripped.Actions[0].Action)
+	}
+	if roundTripped.Actions[1].Path != "/api/admin" {
+		t.Errorf("Actions[1].Path = %q, want /api/admin",
+			roundTripped.Actions[1].Path)
+	}
+	if len(roundTripped.Resources) != 1 || roundTripped.Resources[0] != "workflow/prod-*" {
+		t.Errorf("Resources = %v, want [workflow/prod-*]", roundTripped.Resources)
+	}
+}
+
+// TestPolicyEffect_Constants asserts the wire format of the PolicyEffect
+// constants — these strings appear in stored role JSON and any change is a
+// breaking compatibility break.
+func TestPolicyEffect_Constants(t *testing.T) {
+	if string(EffectAllow) != "Allow" {
+		t.Errorf("EffectAllow = %q, want %q", EffectAllow, "Allow")
+	}
+	if string(EffectDeny) != "Deny" {
+		t.Errorf("EffectDeny = %q, want %q", EffectDeny, "Deny")
+	}
+}
+
 // contains is a tiny substring helper to avoid pulling in strings just for
 // error message assertions.
 func contains(haystack, needle string) bool {
