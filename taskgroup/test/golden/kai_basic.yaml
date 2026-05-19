@@ -1,0 +1,23 @@
+# Golden-file fixture: simplest possible KAI TaskGroup. Use as the input to a render test
+# that asserts the produced Pod + PodGroup match the expected output.
+apiVersion: workflow.osmo.nvidia.com/v1alpha1
+kind: OSMOTaskGroup
+metadata:
+  name: hello-world
+  namespace: default
+spec:
+  workflowId: hello-world
+  groupIndex: 0
+  groupName: hello
+  runtimeType: kai
+  runtimeConfig:
+    gangScheduling: true
+    minAvailable: 1
+    tasks:
+      - name: worker-0
+        lead: true
+        image: nvcr.io/nvidia/base/ubuntu:22.04_20240212
+        resources:
+          cpu: "1"
+          memory: 1Gi
+        command: ["bash", "-c", "echo hello && sleep 10"]

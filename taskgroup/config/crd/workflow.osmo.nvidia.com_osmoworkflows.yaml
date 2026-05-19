@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmoworkflows.workflow.osmo.nvidia.com
+spec:
+  group: workflow.osmo.nvidia.com
+  names:
+    kind: OSMOWorkflow
+    listKind: OSMOWorkflowList
+    plural: osmoworkflows
+    singular: osmoworkflow
+    shortNames: [owf]
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - { name: Phase,  type: string,  jsonPath: .status.phase }
+        - { name: Groups, type: integer, jsonPath: .status.groupsTotal }
+        - { name: Done,   type: integer, jsonPath: .status.groupsSucceeded }
+        - { name: Age,    type: date,    jsonPath: .metadata.creationTimestamp }
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [groups]
+              properties:
+                groups:
+                  type: array
+                  items:
+                    type: object
+                    required: [name, runtimeType]
+                    properties:
+                      name:        { type: string }
+                      dependsOn:   { type: array, items: { type: string } }
+                      cluster:     { type: string }
+                      runtimeType: { type: string, enum: [kai, nim, ray, dynamo, grove] }
+                      runtimeConfig:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                timeout: { type: string }
+                owner:   { type: string }
+            status:
+              type: object
+              properties:
+                phase: { type: string, enum: [Pending, Running, Succeeded, Failed, Terminating] }
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:               { type: string }
+                      status:             { type: string }
+                      reason:             { type: string }
+                      message:            { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                groups:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                groupsTotal:     { type: integer }
+                groupsSucceeded: { type: integer }
+                groupsFailed:    { type: integer }
+                observedGeneration: { type: integer }
+                message:         { type: string }

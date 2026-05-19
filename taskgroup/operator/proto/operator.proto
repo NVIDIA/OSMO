@@ -1,0 +1,223 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+// The Operator Service is the central control-plane gateway. It accepts long-lived
+// bidirectional gRPC streams from per-cluster TaskGroup Controllers. Through that one
+// stream:
+//
+//   - Operator Service sends commands to the controller (CreateOTG, DeleteOTG, GetLogs,
+//     Drain).
+//   - Controller sends events back (status updates, command acks, heartbeats).
+//
+// Crucially: the controller is always the gRPC *client*. It initiates the outbound
+// connection to the Operator Service. The Operator Service is never asked to dial into a
+// cluster. This is what makes the design work for NAT'd / edge / private clusters.
+
+syntax = "proto3";
+
+package osmo.taskgroup.v1alpha1;
+
+option go_package = "github.com/nvidia/osmo/taskgroup/operator/proto;operatorpb";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+// ------------------------------------------------------------------------------------------
+// ClusterSession — the only RPC controllers use to talk to the Operator Service.
+// ------------------------------------------------------------------------------------------
+
+service ClusterSession {
+  // Connect is the long-lived bidirectional stream a controller opens at startup.
+  // First message must be a Hello; subsequent messages carry status events and command
+  // acknowledgements. The server pushes commands back over the same stream.
+  rpc Connect(stream ControllerEnvelope) returns (stream OperatorEnvelope);
+}
+
+// ControllerEnvelope is everything a controller sends to the Operator Service.
+message ControllerEnvelope {
+  oneof body {
+    Hello          hello     = 1;
+    OTGStatusEvent status    = 2;
+    CommandAck     ack       = 3;
+    LogChunk       log_chunk = 4;  // server-streamed logs in response to a GetLogs command
+    Heartbeat      heartbeat = 5;
+  }
+}
+
+// OperatorEnvelope is everything the Operator Service pushes to a controller.
+message OperatorEnvelope {
+  oneof body {
+    HelloAck     hello_ack = 1;
+    CreateOTG    create    = 2;
+    DeleteOTG    delete    = 3;
+    GetLogs      get_logs  = 4;
+    Drain        drain     = 5;
+    Heartbeat    heartbeat = 6;
+  }
+}
+
+// ------------------------------------------------------------------------------------------
+// Session initialization
+// ------------------------------------------------------------------------------------------
+
+message Hello {
+  // ClusterID matches an OSMOCluster CR's metadata.name in the control cluster.
+  string cluster_id              = 1;
+  // ControllerVersion is the controller binary build version. Used to detect skew.
+  string controller_version      = 2;
+  // SupportedRuntimes lists registered runtimeTypes (kai, nim, ray, ...). The control
+  // plane uses this to validate workflow group runtime targets.
+  repeated string supported_runtimes = 3;
+  // Token is a short-lived bearer token issued at cluster registration time. Validated
+  // by the Operator Service on Hello to prove the controller is allowed to register
+  // for this cluster_id.
+  string token                   = 4;
+}
+
+message HelloAck {
+  // SessionID is generated server-side and included in subsequent commands for tracing.
+  string session_id = 1;
+}
+
+// ------------------------------------------------------------------------------------------
+// Commands (server → controller)
+// ------------------------------------------------------------------------------------------
+
+message CreateOTG {
+  // CommandID is the controller's ack key.
+  string command_id = 1;
+  // OTGYaml is the serialized OSMOTaskGroup CR. The controller applies it to its local
+  // K8s API.
+  bytes  otg_yaml   = 2;
+}
+
+message DeleteOTG {
+  string command_id = 1;
+  string namespace  = 2;
+  string name       = 3;
+}
+
+message GetLogs {
+  // CommandID identifies this request so the controller can stream LogChunks back tagged
+  // with it.
+  string command_id   = 1;
+  string namespace    = 2;
+  string pod_name     = 3;
+  string container    = 4;  // typically "user"
+  bool   follow       = 5;
+  int64  tail_lines   = 6;  // 0 = no tail limit
+}
+
+message Drain {
+  // Drain tells the controller to stop accepting new commands. In-flight TaskGroups
+  // continue to completion. Used during operator-service upgrades and graceful
+  // cluster decommissioning.
+  string reason = 1;
+}
+
+// ------------------------------------------------------------------------------------------
+// Events (controller → server)
+// ------------------------------------------------------------------------------------------
+
+message OTGStatusEvent {
+  string                    namespace  = 1;
+  string                    name       = 2;
+  OTGStatus                 status     = 3;
+  google.protobuf.Timestamp event_time = 4;
+}
+
+message CommandAck {
+  string command_id = 1;
+  bool   ok         = 2;
+  string error      = 3;  // non-empty if ok == false
+}
+
+message LogChunk {
+  string command_id = 1;  // matches the originating GetLogs.command_id
+  bytes  data       = 2;
+  bool   eof        = 3;
+}
+
+message Heartbeat {
+  google.protobuf.Timestamp sent_at = 1;
+}
+
+// ------------------------------------------------------------------------------------------
+// Shared status types
+// ------------------------------------------------------------------------------------------
+
+message OTGStatus {
+  string phase                            = 1;
+  repeated OTGCondition conditions        = 2;
+  repeated OTGTaskState tasks             = 3;
+  int64 observed_generation               = 4;
+  int32 retries                           = 5;
+  string message                          = 6;
+}
+
+message OTGCondition {
+  string type                                  = 1;
+  string status                                = 2;
+  string reason                                = 3;
+  string message                               = 4;
+  google.protobuf.Timestamp last_transition    = 5;
+}
+
+message OTGTaskState {
+  string name                                  = 1;
+  string pod_name                              = 2;
+  string state                                 = 3;
+  google.protobuf.Timestamp start_time         = 4;
+  google.protobuf.Timestamp end_time           = 5;
+  int32 exit_code                              = 6;
+  string message                               = 7;
+}
+
+// ------------------------------------------------------------------------------------------
+// BarrierService — Phase 4. Defined here so callers code against a stable contract.
+// Currently the server returns UNIMPLEMENTED.
+// ------------------------------------------------------------------------------------------
+
+service BarrierService {
+  rpc RegisterBarrier(RegisterBarrierRequest) returns (BarrierHandle);
+  rpc Arrive(ArriveRequest) returns (ArriveResponse);
+  rpc WaitForCompletion(WaitForCompletionRequest) returns (stream BarrierEvent);
+}
+
+message RegisterBarrierRequest {
+  string workflow_id                = 1;
+  string barrier_id                 = 2;
+  int32  expected                   = 3;
+  google.protobuf.Duration ttl      = 4;
+}
+
+message BarrierHandle {
+  string workflow_id = 1;
+  string barrier_id  = 2;
+}
+
+message ArriveRequest {
+  string workflow_id = 1;
+  string barrier_id  = 2;
+  string participant = 3;
+}
+
+message ArriveResponse { int32 remaining = 1; }
+
+message WaitForCompletionRequest {
+  string workflow_id           = 1;
+  string barrier_id            = 2;
+  google.protobuf.Duration ttl = 3;
+}
+
+message BarrierEvent {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    ARRIVAL          = 1;
+    COMPLETE         = 2;
+    TIMEOUT          = 3;
+  }
+  Kind   kind        = 1;
+  string participant = 2;
+  int32  remaining   = 3;
+}

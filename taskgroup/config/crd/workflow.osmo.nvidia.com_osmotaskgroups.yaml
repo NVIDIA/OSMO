@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# OSMOTaskGroup CRD manifest. Apply with:
+#   kubectl apply -f config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml
+#
+# This is the minimal hand-written schema for Phase 1. A future commit will replace it with
+# a controller-gen-produced manifest (with full validation) once we add make targets.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: osmotaskgroups.workflow.osmo.nvidia.com
+spec:
+  group: workflow.osmo.nvidia.com
+  names:
+    kind: OSMOTaskGroup
+    listKind: OSMOTaskGroupList
+    plural: osmotaskgroups
+    singular: osmotaskgroup
+    shortNames:
+      - otg
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Runtime
+          type: string
+          jsonPath: .spec.runtimeType
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Workflow
+          type: string
+          jsonPath: .spec.workflowId
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: [spec]
+          properties:
+            spec:
+              type: object
+              required: [workflowId, groupIndex, groupName, runtimeType]
+              properties:
+                workflowId:
+                  type: string
+                groupIndex:
+                  type: integer
+                  minimum: 0
+                groupName:
+                  type: string
+                runtimeType:
+                  type: string
+                  enum: [kai, nim, ray, dynamo, grove]
+                runtimeConfig:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                timeout:
+                  type: string
+                maxRetries:
+                  type: integer
+                  minimum: 0
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: [Pending, Running, Succeeded, Failed, Terminating]
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:               { type: string }
+                      status:             { type: string }
+                      reason:             { type: string }
+                      message:            { type: string }
+                      lastTransitionTime: { type: string, format: date-time }
+                tasks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:     { type: string }
+                      podName:  { type: string }
+                      state:    { type: string }
+                      message:  { type: string }
+                      exitCode: { type: integer }
+                runtimeStatus:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                observedGeneration:
+                  type: integer
+                retries:
+                  type: integer
+                message:
+                  type: string
