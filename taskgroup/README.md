@@ -41,63 +41,25 @@ See [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) for the architectural map.
 
 ## Quick start
 
+### Local dev (process against a kubeconfig)
+
 ```bash
-# 1. Apply CRDs.
 cd taskgroup
 kubectl apply -f config/crd/
-
-# 2. Create the namespace where workflows + task groups live.
 kubectl create namespace osmo-workflows
+go run ./cmd/controller --kubeconfig ~/.kube/config &
+go run ./cmd/apiserver --kubeconfig ~/.kube/config &
 
-# 3. Run the controllers. They watch your current-context cluster.
-go run ./cmd/controller --kubeconfig ~/.kube/config
-
-# 4. In another terminal, run the API server.
-go run ./cmd/apiserver --kubeconfig ~/.kube/config
-
-# 5. Submit a workflow via the HTTP API.
 curl -X POST http://localhost:8088/v1/workflows \
-  -H "Authorization: Bearer vivianp@nvidia.com" \
+  -H "Authorization: Bearer me@example.com" \
   -H "Content-Type: application/json" \
-  -d @- <<'EOF'
-{
-  "groups": [
-    {
-      "name": "hello",
-      "runtimeType": "kai",
-      "runtimeConfig": {
-        "gangScheduling": true,
-        "minAvailable": 1,
-        "tasks": [{
-          "name": "worker-0",
-          "lead": true,
-          "image": "nvcr.io/nvidia/base/ubuntu:22.04_20240212",
-          "resources": {"cpu": "1", "memory": "1Gi"},
-          "command": ["bash", "-c", "echo hello && sleep 10"]
-        }]
-      }
-    }
-  ]
-}
-EOF
+  -d @deploy/sample-workflow.json
 ```
 
-The API server returns `{"id":"wf-xxxxx","namespace":"osmo-workflows"}`. You can then:
+### Live cluster deployment (kind, EKS, AKS, GKE …)
 
-```bash
-# Watch CRs directly:
-kubectl get osmoworkflow -n osmo-workflows
-kubectl get osmotaskgroup -n osmo-workflows
-kubectl get pods -n osmo-workflows
-
-# Or through the API server:
-curl -H "Authorization: Bearer vivianp@nvidia.com" \
-  http://localhost:8088/v1/workflows/wf-xxxxx
-
-# Cancel:
-curl -X DELETE -H "Authorization: Bearer vivianp@nvidia.com" \
-  http://localhost:8088/v1/workflows/wf-xxxxx
-```
+See **[`deploy/QUICKSTART.md`](./deploy/QUICKSTART.md)** for the full kind walkthrough:
+build images → load → `kubectl apply -k deploy/` → curl a workflow → observe via kubectl.
 
 ## How the pieces talk
 

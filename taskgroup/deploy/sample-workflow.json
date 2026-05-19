@@ -1,0 +1,25 @@
+{
+  "groups": [
+    {
+      "name": "hello",
+      "runtimeType": "kai",
+      "runtimeConfig": {
+        "gangScheduling": true,
+        "minAvailable": 1,
+        "tasks": [
+          {
+            "name": "worker-0",
+            "lead": true,
+            "image": "busybox:1.36",
+            "resources": {
+              "cpu": "100m",
+              "memory": "64Mi"
+            },
+            "command": ["sh", "-c"],
+            "args": ["echo hello from OSMOTaskGroup && sleep 5"]
+          }
+        ]
+      }
+    }
+  ]
+}

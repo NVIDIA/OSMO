@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+# Multi-stage build: golang:1.22 → distroless.
+#
+# Build context expected to be the taskgroup/ directory:
+#   docker build -f deploy/Dockerfile.controller -t osmo-taskgroup-controller:v0.1.0 .
+
+FROM golang:1.22 AS build
+WORKDIR /src
+
+# Cache module downloads separately from source for faster rebuilds.
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags='-s -w' -o /out/controller ./cmd/controller
+
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=build /out/controller /controller
+USER 65532:65532
+ENTRYPOINT ["/controller"]

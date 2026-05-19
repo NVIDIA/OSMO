@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# RBAC for the controller (Workflow + TaskGroup) and the API server.
+# - Controller: needs CRUD on OSMOWorkflow/OSMOTaskGroup, create on Pods + KAI PodGroup,
+#   read on Events, status subresources, leader election lease.
+# - API Server: needs CRUD on OSMOWorkflow only.
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: taskgroup-controller
+  namespace: osmo-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: taskgroup-controller
+rules:
+  # Our CRDs
+  - apiGroups: ["workflow.osmo.nvidia.com"]
+    resources: ["osmoworkflows", "osmoworkflows/status", "osmoworkflows/finalizers",
+                "osmotaskgroups", "osmotaskgroups/status", "osmotaskgroups/finalizers",
+                "osmoclusters", "osmoclusters/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Pods + Events that controller renders / reads for status.
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+
+  # KAI Scheduler PodGroups. Required by the kai runtime.
+  - apiGroups: ["scheduling.kai.run.ai"]
+    resources: ["podgroups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Leader election lease (only needed if --leader-elect is true).
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: taskgroup-controller
+subjects:
+  - kind: ServiceAccount
+    name: taskgroup-controller
+    namespace: osmo-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: taskgroup-controller
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: taskgroup-apiserver
+  namespace: osmo-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: taskgroup-apiserver
+rules:
+  # API server only needs to read and write OSMOWorkflow CRs (not OSMOTaskGroup —
+  # those are created by the workflow controller). Reading status for GET endpoints.
+  - apiGroups: ["workflow.osmo.nvidia.com"]
+    resources: ["osmoworkflows", "osmoworkflows/status"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: taskgroup-apiserver
+subjects:
+  - kind: ServiceAccount
+    name: taskgroup-apiserver
+    namespace: osmo-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: taskgroup-apiserver

@@ -1,0 +1,84 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Stateless API server deployment + ClusterIP service. Phase 1 uses StaticTokenAuth
+# (development-only); a future revision should swap in a real IDP integration.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskgroup-apiserver
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-apiserver
+    app.kubernetes.io/component: apiserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: taskgroup-apiserver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: taskgroup-apiserver
+        app.kubernetes.io/component: apiserver
+    spec:
+      serviceAccountName: taskgroup-apiserver
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apiserver
+          image: osmo-taskgroup-apiserver:v0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --bind=:8088
+            - --workflow-namespace=osmo-workflows
+          ports:
+            - name: http
+              containerPort: 8088
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskgroup-apiserver
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-apiserver
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8088
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: taskgroup-apiserver

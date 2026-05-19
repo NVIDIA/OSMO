@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Apply with:  kubectl apply -k deploy/
+#
+# Order: namespaces → CRDs → RBAC → workloads. Kustomize emits in the order resources are
+# listed here, so the CRDs are applied before the deployments that depend on them.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - ../config/crd/workflow.osmo.nvidia.com_osmoworkflows.yaml
+  - ../config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml
+  - ../config/crd/workflow.osmo.nvidia.com_osmoclusters.yaml
+  - rbac.yaml
+  - controller.yaml
+  - apiserver.yaml

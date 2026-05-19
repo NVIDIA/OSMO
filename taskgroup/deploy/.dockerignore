@@ -1,0 +1,7 @@
+.git
+.gitignore
+README.md
+PROJECT_STRUCTURE.md
+test/
+deploy/
+*.md
