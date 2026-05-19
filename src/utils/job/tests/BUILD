@@ -60,6 +60,17 @@ py_test(
 )
 
 py_test(
+    name = "test_workflow_helpers",
+    srcs = [
+        "test_workflow_helpers.py"
+    ],
+    deps = [
+        "//src/utils/connectors",
+        "//src/utils/job",
+    ]
+)
+
+py_test(
     name = "test_task",
     srcs = [
         "test_task.py"
