@@ -6,7 +6,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // RuntimeType discriminates the runtime-specific shape of OSMOTaskGroupSpec.RuntimeConfig.
@@ -38,10 +38,14 @@ type OSMOTaskGroupSpec struct {
 	// +kubebuilder:validation:Enum=kai;nim;ray;dynamo;grove
 	RuntimeType RuntimeType `json:"runtimeType"`
 
-	// RuntimeConfig holds the runtime-specific configuration. Exactly one of the typed
-	// fields below should be populated, matching RuntimeType. Unstructured is used as the
-	// transport so the CRD schema doesn't need to grow when new runtimes are added.
-	RuntimeConfig *unstructured.Unstructured `json:"runtimeConfig,omitempty"`
+	// RuntimeConfig holds the runtime-specific configuration. The shape depends on
+	// RuntimeType — e.g. for "kai" the bytes deserialize to KAIRuntimeConfig. We use
+	// runtime.RawExtension (not Unstructured) because it round-trips JSON correctly
+	// through the apiserver and `json.Unmarshal` produces a usable []byte for the
+	// runtime-specific decoder.
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	RuntimeConfig runtime.RawExtension `json:"runtimeConfig,omitempty"`
 
 	// Timeout bounds how long the task group is allowed to run before being terminated.
 	// Optional. If unset, defaults to 24h.
@@ -90,13 +94,15 @@ type TaskState struct {
 // RuntimeStatus is opaque runtime-specific payload — the controller writes it, the API server
 // generally does not interpret it.
 type OSMOTaskGroupStatus struct {
-	Phase              Phase              `json:"phase,omitempty"`
-	Conditions         []metav1.Condition `json:"conditions,omitempty"`
-	Tasks              []TaskState        `json:"tasks,omitempty"`
-	RuntimeStatus      *unstructured.Unstructured `json:"runtimeStatus,omitempty"`
-	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
-	Retries            int                `json:"retries,omitempty"`
-	Message            string             `json:"message,omitempty"`
+	Phase              Phase                `json:"phase,omitempty"`
+	Conditions         []metav1.Condition   `json:"conditions,omitempty"`
+	Tasks              []TaskState          `json:"tasks,omitempty"`
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	RuntimeStatus      runtime.RawExtension `json:"runtimeStatus,omitempty"`
+	ObservedGeneration int64                `json:"observedGeneration,omitempty"`
+	Retries            int                  `json:"retries,omitempty"`
+	Message            string               `json:"message,omitempty"`
 }
 
 // OSMOTaskGroup is the Schema for the osmotaskgroups API.

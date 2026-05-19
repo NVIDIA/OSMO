@@ -26,13 +26,15 @@ rules:
                 "osmoclusters", "osmoclusters/status"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
-  # Pods + Events that controller renders / reads for status.
+  # Pods: create (render) + read (status mapper) + delete (cleanup if no owner-ref cascade).
+  # No update/patch — Pods are immutable.
   - apiGroups: [""]
-    resources: ["pods", "pods/log"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Events: emitted by controller-runtime's record.EventRecorder for visibility.
   - apiGroups: [""]
     resources: ["events"]
-    verbs: ["get", "list", "watch", "create", "patch"]
+    verbs: ["create", "patch"]
 
   # KAI Scheduler PodGroups. Required by the kai runtime.
   - apiGroups: ["scheduling.kai.run.ai"]

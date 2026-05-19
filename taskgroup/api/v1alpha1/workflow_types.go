@@ -5,7 +5,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // OSMOWorkflow is the parent resource that orchestrates a DAG of OSMOTaskGroup CRs.
@@ -71,7 +71,9 @@ type WorkflowGroup struct {
 	RuntimeType RuntimeType `json:"runtimeType"`
 
 	// RuntimeConfig is forwarded verbatim into the rendered OSMOTaskGroup's spec.runtimeConfig.
-	RuntimeConfig *unstructured.Unstructured `json:"runtimeConfig,omitempty"`
+	// +kubebuilder:validation:Schemaless
+	// +kubebuilder:pruning:PreserveUnknownFields
+	RuntimeConfig runtime.RawExtension `json:"runtimeConfig,omitempty"`
 }
 
 // OSMOWorkflowStatus is the observed state. Updated by the Workflow Controller based on

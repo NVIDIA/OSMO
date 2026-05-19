@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -115,18 +114,18 @@ func (r *Reconciler) Finalize(_ context.Context, _ *v1alpha1.OSMOTaskGroup) erro
 	return nil
 }
 
-// unmarshalConfig decodes the unstructured RuntimeConfig field into the typed KAI config.
+// unmarshalConfig decodes the raw RuntimeConfig bytes into the typed KAI config. The
+// CRD declares runtimeConfig as a Schemaless / PreserveUnknownFields field, so the
+// apiserver stores whatever JSON the client submitted verbatim. This decoder is the only
+// place that interprets it for the KAI runtime.
 func unmarshalConfig(otg *v1alpha1.OSMOTaskGroup) (*v1alpha1.KAIRuntimeConfig, error) {
-	if otg.Spec.RuntimeConfig == nil {
+	raw := otg.Spec.RuntimeConfig.Raw
+	if len(raw) == 0 {
 		return nil, fmt.Errorf("runtimeConfig is empty")
-	}
-	raw, err := json.Marshal(otg.Spec.RuntimeConfig.Object)
-	if err != nil {
-		return nil, err
 	}
 	var cfg v1alpha1.KAIRuntimeConfig
 	if err := json.Unmarshal(raw, &cfg); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("decoding kai runtimeConfig: %w", err)
 	}
 	return &cfg, nil
 }
@@ -135,5 +134,4 @@ func unmarshalConfig(otg *v1alpha1.OSMOTaskGroup) (*v1alpha1.KAIRuntimeConfig, e
 var (
 	_ runtimes.Reconciler   = (*Reconciler)(nil)
 	_ runtimes.StatusMapper = (*StatusMapper)(nil)
-	_ corev1.Pod            = corev1.Pod{}
 )

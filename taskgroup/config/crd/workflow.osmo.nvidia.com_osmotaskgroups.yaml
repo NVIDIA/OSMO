@@ -87,11 +87,16 @@ spec:
                   items:
                     type: object
                     properties:
-                      name:     { type: string }
-                      podName:  { type: string }
-                      state:    { type: string }
-                      message:  { type: string }
-                      exitCode: { type: integer }
+                      name:      { type: string }
+                      podName:   { type: string }
+                      state:     { type: string }
+                      message:   { type: string }
+                      exitCode:  { type: integer }
+                      startTime: { type: string, format: date-time }
+                      endTime:   { type: string, format: date-time }
+                      container:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                 runtimeStatus:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true

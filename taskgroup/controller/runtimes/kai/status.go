@@ -7,6 +7,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -93,15 +94,17 @@ func (m *StatusMapper) Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1
 		out.Phase = v1alpha1.PhasePending
 	}
 
-	out.Conditions = []metav1.Condition{readyCondition(out.Phase)}
+	// Carry forward any existing conditions (preserves transition timestamps when the
+	// status hasn't actually changed). The status mapper is called from the top-level
+	// Reconciler which writes the returned Status wholesale, so we must include them
+	// here ourselves rather than relying on a partial patch.
+	out.Conditions = append(out.Conditions, otg.Status.Conditions...)
+	meta.SetStatusCondition(&out.Conditions, readyCondition(out.Phase))
 	return out, nil
 }
 
 func readyCondition(p v1alpha1.Phase) metav1.Condition {
-	c := metav1.Condition{
-		Type:               v1alpha1.ConditionReady,
-		LastTransitionTime: metav1.Now(),
-	}
+	c := metav1.Condition{Type: v1alpha1.ConditionReady}
 	switch p {
 	case v1alpha1.PhaseSucceeded:
 		c.Status = metav1.ConditionTrue
@@ -116,5 +119,7 @@ func readyCondition(p v1alpha1.Phase) metav1.Condition {
 		c.Status = metav1.ConditionFalse
 		c.Reason = "Pending"
 	}
+	// meta.SetStatusCondition fills LastTransitionTime only when the status field
+	// actually changes, which is the behavior we want.
 	return c
 }

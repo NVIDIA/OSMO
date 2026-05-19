@@ -17,6 +17,7 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
 	"github.com/nvidia/osmo/taskgroup/controller"
@@ -60,6 +61,7 @@ func main() {
 		LeaderElection:         leaderElect,
 		LeaderElectionID:       "taskgroup.controller.workflow.osmo.nvidia.com",
 		HealthProbeBindAddress: probeAddr,
+		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
 	})
 	if err != nil {
 		logger.Error(err, "creating manager")

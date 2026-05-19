@@ -4,8 +4,6 @@
       "name": "hello",
       "runtimeType": "kai",
       "runtimeConfig": {
-        "gangScheduling": true,
-        "minAvailable": 1,
         "tasks": [
           {
             "name": "worker-0",

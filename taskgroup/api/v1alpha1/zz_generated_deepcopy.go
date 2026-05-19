@@ -37,9 +37,7 @@ func (in *OSMOTaskGroup) DeepCopyObject() runtime.Object { return in.DeepCopy() 
 
 func (in *OSMOTaskGroupSpec) DeepCopyInto(out *OSMOTaskGroupSpec) {
 	*out = *in
-	if in.RuntimeConfig != nil {
-		out.RuntimeConfig = in.RuntimeConfig.DeepCopy()
-	}
+	in.RuntimeConfig.DeepCopyInto(&out.RuntimeConfig)
 	if in.Timeout != nil {
 		out.Timeout = new(metav1.Duration)
 		*out.Timeout = *in.Timeout
@@ -60,9 +58,7 @@ func (in *OSMOTaskGroupStatus) DeepCopyInto(out *OSMOTaskGroupStatus) {
 			in.Tasks[i].DeepCopyInto(&out.Tasks[i])
 		}
 	}
-	if in.RuntimeStatus != nil {
-		out.RuntimeStatus = in.RuntimeStatus.DeepCopy()
-	}
+	in.RuntimeStatus.DeepCopyInto(&out.RuntimeStatus)
 }
 
 func (in *TaskState) DeepCopyInto(out *TaskState) {
@@ -145,9 +141,7 @@ func (in *WorkflowGroup) DeepCopyInto(out *WorkflowGroup) {
 	if in.DependsOn != nil {
 		out.DependsOn = append([]string(nil), in.DependsOn...)
 	}
-	if in.RuntimeConfig != nil {
-		out.RuntimeConfig = in.RuntimeConfig.DeepCopy()
-	}
+	in.RuntimeConfig.DeepCopyInto(&out.RuntimeConfig)
 }
 
 func (in *OSMOWorkflowStatus) DeepCopyInto(out *OSMOWorkflowStatus) {

@@ -124,16 +124,28 @@ func podName(otg *v1alpha1.OSMOTaskGroup, taskName string) string {
 	return fmt.Sprintf("%s-%s", otg.Name, taskName)
 }
 
+// schedulerName picks the scheduler each Pod requests.
+//
+//   - Explicit cfg.SchedulerName wins (op can pin to anything: kai-scheduler, volcano, ...)
+//   - With gang scheduling on, default to "kai-scheduler"
+//   - With gang scheduling off, return "" so the cluster's default scheduler picks the
+//     pod up. This is what makes the kind quickstart work without KAI Scheduler installed.
 func schedulerName(cfg *v1alpha1.KAIRuntimeConfig) string {
 	if cfg.SchedulerName != "" {
 		return cfg.SchedulerName
 	}
-	return "kai-scheduler"
+	if gangScheduling(cfg) {
+		return "kai-scheduler"
+	}
+	return ""
 }
 
+// gangScheduling determines whether the runtime renders a PodGroup. Defaults to false
+// so the development happy-path works without KAI Scheduler installed; production
+// workloads that need gang scheduling set GangScheduling: true explicitly.
 func gangScheduling(cfg *v1alpha1.KAIRuntimeConfig) bool {
 	if cfg.GangScheduling == nil {
-		return true
+		return false
 	}
 	return *cfg.GangScheduling
 }

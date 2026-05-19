@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -46,7 +46,7 @@ type Reconciler struct {
 // changes on children trigger a parent reconcile).
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.OSMOWorkflow{}, builder.WithPredicates()).
+		For(&v1alpha1.OSMOWorkflow{}).
 		Watches(
 			&v1alpha1.OSMOTaskGroup{},
 			handler.EnqueueRequestsFromMapFunc(r.taskGroupToWorkflow),
@@ -146,12 +146,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	wf.Status.GroupsSucceeded = succeeded
 	wf.Status.GroupsFailed = failed
 	wf.Status.ObservedGeneration = wf.Generation
-	wf.Status.Conditions = []metav1.Condition{{
-		Type:               v1alpha1.ConditionReady,
-		Status:             readyStatus(wf.Status.Phase),
-		Reason:             string(wf.Status.Phase),
-		LastTransitionTime: metav1.Now(),
-	}}
+	// meta.SetStatusCondition keeps LastTransitionTime stable when the condition's
+	// Status field doesn't change, avoiding reconcile-feedback loops.
+	meta.SetStatusCondition(&wf.Status.Conditions, metav1.Condition{
+		Type:   v1alpha1.ConditionReady,
+		Status: readyStatus(wf.Status.Phase),
+		Reason: string(wf.Status.Phase),
+	})
 
 	if err := r.Client.Status().Update(ctx, &wf); err != nil {
 		logger.Error(err, "writing workflow status")

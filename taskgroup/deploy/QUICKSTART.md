@@ -32,31 +32,38 @@ kind load docker-image osmo-taskgroup-controller:v0.1.0 --name osmo-tg
 kind load docker-image osmo-taskgroup-apiserver:v0.1.0  --name osmo-tg
 ```
 
-## 3. Install KAI PodGroup CRD (dev shim)
+## 3. Install CRDs (must precede the controller)
 
-On a cluster without the real KAI Scheduler, install the stripped-down CRD so the
-controller can create PodGroup resources. They won't gang-schedule, but Pods will still
-run via the default scheduler.
+CRDs need to be Established before the controller's watch starts, otherwise the first
+reconcile will error out.
 
 ```bash
+kubectl apply -f config/crd/
+kubectl wait --for=condition=Established crd/osmoworkflows.workflow.osmo.nvidia.com  --timeout=60s
+kubectl wait --for=condition=Established crd/osmotaskgroups.workflow.osmo.nvidia.com --timeout=60s
+kubectl wait --for=condition=Established crd/osmoclusters.workflow.osmo.nvidia.com   --timeout=60s
+```
+
+**Only if you want to run gang-scheduled workflows**, also install KAI:
+
+```bash
+# Real install (production):
+#   https://github.com/NVIDIA/KAI-scheduler
+
+# Or for dev only (CRD shim — no scheduler, just lets the controller create PodGroups):
 kubectl apply -f deploy/dev/kai-podgroup-crd.yaml
 ```
 
-For production, install KAI Scheduler proper from
-[github.com/NVIDIA/KAI-scheduler](https://github.com/NVIDIA/KAI-scheduler).
+The sample workflow in this quickstart does **not** require KAI — it leaves
+`gangScheduling` unset (default: off), so Pods run via the cluster's default scheduler.
 
-## 4. Apply the full deployment
+## 4. Apply the rest of the deployment
 
 ```bash
 kubectl apply -k deploy/
 ```
 
-This applies, in order:
-- Namespaces (`osmo-system`, `osmo-workflows`)
-- CRDs (OSMOWorkflow, OSMOTaskGroup, OSMOCluster)
-- RBAC (ServiceAccount + ClusterRole + ClusterRoleBinding for both controller and apiserver)
-- Controller Deployment
-- API Server Deployment + Service
+(Kustomize applies CRDs again here; that's a no-op since you applied them in step 3.)
 
 Wait for the workloads:
 
@@ -127,8 +134,9 @@ kind delete cluster --name osmo-tg
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Controller in CrashLoopBackOff | RBAC missing for KAI PodGroup | Apply `deploy/dev/kai-podgroup-crd.yaml` if KAI Scheduler is not installed |
-| OSMOWorkflow stays Pending forever | Controller can't reach the workflow CR | Check `kubectl logs -n osmo-system deploy/taskgroup-controller` |
+| Controller error: `no matches for kind OSMOTaskGroup` | CRDs weren't Established before controller started | Re-apply CRDs and wait for `kubectl wait --for=condition=Established` |
+| Pod stuck in Pending with `schedulerName: kai-scheduler` | Workflow set `gangScheduling: true` but no KAI Scheduler in cluster | Either remove `gangScheduling: true` from the workflow or install KAI Scheduler |
+| Pod stuck in Pending (default scheduler) | Insufficient cluster resources, node taints, image pull | Check `kubectl describe pod` events |
 | 401 on API submit | Missing `Authorization: Bearer …` header | StaticTokenAuth needs *any* non-empty bearer token in Phase 1 |
-| Pod stuck in Pending | No matching scheduler, no resources | Check `kubectl describe pod` events. On kind, the default scheduler should schedule because we have no real KAI |
 | Workflow goes Failed immediately | `cluster:` field set on a group but no multi-cluster routing wired | Phase 1 supports only `cluster: ""` (empty/local). Remove the field from your workflow |
+| `kubectl apply -k deploy/` says "no such file" for kustomization | Wrong cwd — kustomization's relative paths assume `taskgroup/` | `cd taskgroup/` first |

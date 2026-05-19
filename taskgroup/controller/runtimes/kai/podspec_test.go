@@ -46,8 +46,10 @@ func TestRenderPod_BasicShape(t *testing.T) {
 	if pod.Namespace != "default" {
 		t.Errorf("namespace mismatch: got %s", pod.Namespace)
 	}
-	if pod.Spec.SchedulerName != "kai-scheduler" {
-		t.Errorf("expected default kai-scheduler, got %s", pod.Spec.SchedulerName)
+	// With no GangScheduling override (defaults to false), SchedulerName should be
+	// empty so the cluster's default scheduler picks up the pod.
+	if pod.Spec.SchedulerName != "" {
+		t.Errorf("expected empty SchedulerName when gangScheduling=false, got %s", pod.Spec.SchedulerName)
 	}
 	if pod.Spec.RestartPolicy != corev1.RestartPolicyNever {
 		t.Errorf("expected RestartPolicyNever, got %s", pod.Spec.RestartPolicy)
@@ -136,6 +138,29 @@ func TestRenderPod_CredentialAsEnv(t *testing.T) {
 	}
 	if hfTokenEnv.ValueFrom.SecretKeyRef.Key != "token" {
 		t.Errorf("secret key: %s", hfTokenEnv.ValueFrom.SecretKeyRef.Key)
+	}
+}
+
+func TestRenderPod_GangSchedulingForcesKaiScheduler(t *testing.T) {
+	otg := &v1alpha1.OSMOTaskGroup{
+		ObjectMeta: metav1.ObjectMeta{Name: "hello", Namespace: "default"},
+	}
+	yes := true
+	cfg := &v1alpha1.KAIRuntimeConfig{GangScheduling: &yes}
+	pod := renderPod(otg, cfg, v1alpha1.TaskTemplate{Name: "w", Image: "x"})
+	if pod.Spec.SchedulerName != "kai-scheduler" {
+		t.Errorf("with gangScheduling=true SchedulerName should be kai-scheduler, got %q", pod.Spec.SchedulerName)
+	}
+}
+
+func TestRenderPod_ExplicitSchedulerNameOverrides(t *testing.T) {
+	otg := &v1alpha1.OSMOTaskGroup{
+		ObjectMeta: metav1.ObjectMeta{Name: "h", Namespace: "default"},
+	}
+	cfg := &v1alpha1.KAIRuntimeConfig{SchedulerName: "volcano"}
+	pod := renderPod(otg, cfg, v1alpha1.TaskTemplate{Name: "w", Image: "x"})
+	if pod.Spec.SchedulerName != "volcano" {
+		t.Errorf("explicit SchedulerName should win, got %q", pod.Spec.SchedulerName)
 	}
 }
 

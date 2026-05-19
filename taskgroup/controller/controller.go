@@ -16,16 +16,20 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
+	"github.com/nvidia/osmo/taskgroup/controller/runtimes/kai"
 )
 
 // PeriodicReconcileInterval bounds how stale the controller's status push can be in the
@@ -56,13 +60,42 @@ type StatusReporter interface {
 	Report(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) error
 }
 
-// SetupWithManager registers the Reconciler with a controller-runtime Manager. The
-// reconciler watches OSMOTaskGroup CRs and is also re-enqueued periodically to drive
-// the drift-detection sweep.
+// SetupWithManager registers the Reconciler with a controller-runtime Manager.
+//
+// Watch wiring:
+//   - For:    OSMOTaskGroup itself
+//   - Owns:   Pods rendered by the KAI runtime (so Pod status events trigger reconcile)
+//   - Watches: KAI PodGroup (unstructured; mapped to its owning OSMOTaskGroup by labels)
+//
+// Without the Pod ownership watch, status only refreshes on the 60s periodic loop, which
+// is longer than fast-running test pods (busybox echo) take to finish.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// PodGroup is a CRD owned by KAI Scheduler. We watch it via unstructured so the
+	// controller doesn't need a typed import for KAI.
+	podGroup := &unstructured.Unstructured{}
+	podGroup.SetGroupVersionKind(kai.PodGroupGVK)
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.OSMOTaskGroup{}, builder.WithPredicates()).
+		For(&v1alpha1.OSMOTaskGroup{}).
+		Owns(&corev1.Pod{}).
+		Watches(
+			podGroup,
+			handler.EnqueueRequestsFromMapFunc(r.podGroupToOSMOTaskGroup),
+		).
 		Complete(r)
+}
+
+// podGroupToOSMOTaskGroup maps a PodGroup back to its owning OSMOTaskGroup using the
+// shared workflow-id + group-name labels. The mapping is identity in single-cluster
+// Phase 1: PodGroup.Name == OSMOTaskGroup.Name (see kai/podgroup.go).
+func (r *Reconciler) podGroupToOSMOTaskGroup(_ context.Context, obj client.Object) []reconcile.Request {
+	name := obj.GetName()
+	if name == "" {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Name: name, Namespace: obj.GetNamespace()},
+	}}
 }
 
 // Reconcile is the controller-runtime entrypoint. It loads the CR, applies the finalizer
