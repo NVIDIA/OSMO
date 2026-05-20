@@ -4,7 +4,6 @@
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -16,11 +15,7 @@ import (
 type RuntimeType string
 
 const (
-	RuntimeKAI    RuntimeType = "kai"
-	RuntimeNIM    RuntimeType = "nim"
-	RuntimeRay    RuntimeType = "ray"
-	RuntimeDynamo RuntimeType = "dynamo"
-	RuntimeGrove  RuntimeType = "grove"
+	RuntimeKAI RuntimeType = "kai"
 )
 
 // OSMOTaskGroupSpec is the desired state of an OSMOTaskGroup.
@@ -35,7 +30,7 @@ type OSMOTaskGroupSpec struct {
 	GroupName string `json:"groupName"`
 
 	// RuntimeType selects which runtime reconciler interprets RuntimeConfig.
-	// +kubebuilder:validation:Enum=kai;nim;ray;dynamo;grove
+	// +kubebuilder:validation:Enum=kai
 	RuntimeType RuntimeType `json:"runtimeType"`
 
 	// RuntimeConfig holds the runtime-specific configuration. The shape depends on
@@ -77,22 +72,21 @@ const (
 
 // TaskState captures the per-task status reported by a runtime.
 type TaskState struct {
-	Name      string             `json:"name"`
-	PodName   string             `json:"podName,omitempty"`
-	State     string             `json:"state"`
-	StartTime *metav1.Time       `json:"startTime,omitempty"`
-	EndTime   *metav1.Time       `json:"endTime,omitempty"`
-	ExitCode  *int32             `json:"exitCode,omitempty"`
-	Message   string             `json:"message,omitempty"`
-	Container *corev1.ContainerStatus `json:"container,omitempty"`
+	Name      string       `json:"name"`
+	PodName   string       `json:"podName,omitempty"`
+	State     string       `json:"state"`
+	StartTime *metav1.Time `json:"startTime,omitempty"`
+	EndTime   *metav1.Time `json:"endTime,omitempty"`
+	ExitCode  *int32       `json:"exitCode,omitempty"`
+	Message   string       `json:"message,omitempty"`
 }
 
 // OSMOTaskGroupStatus is the observed state of an OSMOTaskGroup. The top-level fields
 // (Phase, Conditions, ObservedGeneration, Retries, Message) are normalized across runtimes
-// so the OSMO API server / Postgres reconciler has a stable interpretation surface.
+// so the workflow controller and any UI have a stable interpretation surface.
 //
-// RuntimeStatus is opaque runtime-specific payload — the controller writes it, the API server
-// generally does not interpret it.
+// RuntimeStatus is opaque runtime-specific payload — the runtime reconciler writes it;
+// the workflow controller does not interpret it.
 type OSMOTaskGroupStatus struct {
 	Phase              Phase                `json:"phase,omitempty"`
 	Conditions         []metav1.Condition   `json:"conditions,omitempty"`

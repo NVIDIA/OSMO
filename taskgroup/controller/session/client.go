@@ -8,18 +8,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"gopkg.in/yaml.v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/yaml"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
 	operatorpb "github.com/nvidia/osmo/taskgroup/operator/proto"
@@ -32,10 +31,15 @@ type Config struct {
 	Token             string        // plaintext bearer; SHA-256 must match the registered hash
 	SupportedRuntimes []string      // reported in Hello; informational
 	ControllerVersion string        // reported in Hello
+	Namespace         string        // OTG namespace this controller manages; used for resync
 	HeartbeatInterval time.Duration // default 30s
 	MinBackoff        time.Duration // default 1s
 	MaxBackoff        time.Duration // default 60s
 	SendBuffer        int           // outbound queue depth, default 64
+
+	// Dial, when non-nil, replaces the default gRPC dial. Tests use this with bufconn
+	// dialers; production leaves it nil.
+	Dial func(ctx context.Context, endpoint string) (*grpc.ClientConn, error)
 }
 
 // Client maintains a long-lived bidi stream to the Operator Service.
@@ -50,9 +54,6 @@ type Client struct {
 	k8s client.Client
 
 	queue chan *operatorpb.ControllerEnvelope
-
-	mu        sync.Mutex
-	connected bool
 }
 
 // NewClient constructs a session client.
@@ -111,8 +112,14 @@ func (c *Client) Run(ctx context.Context) error {
 func (c *Client) runOnce(ctx context.Context) error {
 	logger := log.FromContext(ctx).WithName("session-client")
 
-	// Phase 2 MVP: insecure transport (plain HTTP/2). Production should require TLS.
-	conn, err := grpc.DialContext(ctx, c.cfg.OperatorEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dial := c.cfg.Dial
+	if dial == nil {
+		// Phase 2 MVP: insecure transport (plain HTTP/2). Production should require TLS.
+		dial = func(ctx context.Context, ep string) (*grpc.ClientConn, error) {
+			return grpc.DialContext(ctx, ep, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		}
+	}
+	conn, err := dial(ctx, c.cfg.OperatorEndpoint)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
 	}
@@ -142,9 +149,6 @@ func (c *Client) runOnce(ctx context.Context) error {
 		return fmt.Errorf("expected HelloAck, got %T", ack.Body)
 	}
 	logger.Info("session established")
-
-	c.setConnected(true)
-	defer c.setConnected(false)
 
 	streamCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -222,18 +226,32 @@ func (c *Client) handleCommand(ctx context.Context, env *operatorpb.OperatorEnve
 		c.handleCreate(ctx, body.Create)
 	case *operatorpb.OperatorEnvelope_Delete:
 		c.handleDelete(ctx, body.Delete)
-	case *operatorpb.OperatorEnvelope_GetLogs:
-		// Phase 2 placeholder: ack with EOF so the requester unblocks.
-		c.enqueue(&operatorpb.ControllerEnvelope{
-			Body: &operatorpb.ControllerEnvelope_LogChunk{LogChunk: &operatorpb.LogChunk{
-				CommandId: body.GetLogs.CommandId, Eof: true,
-			}},
-		})
-	case *operatorpb.OperatorEnvelope_Drain:
-		// Informational in Phase 2.
+	case *operatorpb.OperatorEnvelope_Resync:
+		c.handleResync(ctx, body.Resync)
 	case *operatorpb.OperatorEnvelope_Heartbeat, *operatorpb.OperatorEnvelope_HelloAck:
 		// no-op
 	}
+}
+
+// handleResync lists every OSMOTaskGroup in the requested namespace and pushes a status
+// event for each, restoring the operator's view of remote state after a restart or
+// reconnect. Dropping events on a full queue is acceptable — the next reconcile push
+// will catch them up.
+func (c *Client) handleResync(ctx context.Context, req *operatorpb.ResyncRequest) {
+	logger := log.FromContext(ctx).WithName("session-client").WithValues("command", "Resync")
+	var list v1alpha1.OSMOTaskGroupList
+	opts := []client.ListOption{}
+	if req.Namespace != "" {
+		opts = append(opts, client.InNamespace(req.Namespace))
+	}
+	if err := c.k8s.List(ctx, &list, opts...); err != nil {
+		logger.Error(err, "resync list failed")
+		return
+	}
+	for i := range list.Items {
+		c.PushStatus(&list.Items[i])
+	}
+	logger.Info("resync pushed", "count", len(list.Items))
 }
 
 func (c *Client) handleCreate(ctx context.Context, cmd *operatorpb.CreateOTG) {
@@ -309,27 +327,16 @@ func (c *Client) Report(_ context.Context, otg *v1alpha1.OSMOTaskGroup) error {
 	return nil
 }
 
-// Connected reports whether the gRPC stream is currently established.
-func (c *Client) Connected() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.connected
-}
-
-func (c *Client) setConnected(v bool) {
-	c.mu.Lock()
-	c.connected = v
-	c.mu.Unlock()
-}
-
 // convertStatus turns a CR-level OSMOTaskGroupStatus into the proto-wire shape.
-// Preserves all condition + task fields so the control side sees identical state.
+// All scalar fields plus RuntimeStatus (opaque bytes) round-trip identically; ExitCode
+// uses an explicit HasExitCode flag to disambiguate "exit 0" from "not exited yet."
 func convertStatus(in v1alpha1.OSMOTaskGroupStatus) *operatorpb.OTGStatus {
 	out := &operatorpb.OTGStatus{
 		Phase:              string(in.Phase),
 		ObservedGeneration: in.ObservedGeneration,
 		Retries:            int32(in.Retries),
 		Message:            in.Message,
+		RuntimeStatus:      append([]byte(nil), in.RuntimeStatus.Raw...),
 	}
 	for _, c := range in.Conditions {
 		cond := &operatorpb.OTGCondition{
@@ -358,6 +365,7 @@ func convertStatus(in v1alpha1.OSMOTaskGroupStatus) *operatorpb.OTGStatus {
 		}
 		if t.ExitCode != nil {
 			task.ExitCode = *t.ExitCode
+			task.HasExitCode = true
 		}
 		out.Tasks = append(out.Tasks, task)
 	}

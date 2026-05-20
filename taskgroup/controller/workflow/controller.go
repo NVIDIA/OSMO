@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -75,6 +76,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if err := r.Client.Get(ctx, req.NamespacedName, &wf); err != nil {
 		return reconcile.Result{}, client.IgnoreNotFound(err)
 	}
+	statusBefore := *wf.Status.DeepCopy()
 
 	if !wf.DeletionTimestamp.IsZero() {
 		return r.reconcileDelete(ctx, &wf)
@@ -105,7 +107,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		dispatcher, err := r.dispatcherFor(group.Cluster)
 		if err != nil {
 			logger.Error(err, "no dispatcher for cluster", "cluster", group.Cluster)
-			// Mark the group Failed; workflow rollup will pick it up.
 			if wf.Status.Groups == nil {
 				wf.Status.Groups = map[string]v1alpha1.WorkflowGroupStatus{}
 			}
@@ -114,6 +115,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				Message: err.Error(),
 			}
 			continue
+		}
+		// Record the dispatch intent on the workflow's annotations BEFORE calling
+		// Create. If the controller crashes after Create but before the status write,
+		// reconcileDelete still finds this group and can issue a DeleteOTG to the right
+		// remote cluster — preventing orphaned remote OTGs.
+		if err := r.recordDispatchIntent(ctx, &wf, group); err != nil {
+			logger.Error(err, "recording dispatch intent", "group", groupName)
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
 		}
 		ref, err := dispatcher.Create(ctx, &wf, group)
 		if err != nil {
@@ -162,9 +171,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		Reason: string(wf.Status.Phase),
 	})
 
-	if err := r.Client.Status().Update(ctx, &wf); err != nil {
-		logger.Error(err, "writing workflow status")
-		return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+	if !equality.Semantic.DeepEqual(statusBefore, wf.Status) {
+		if err := r.Client.Status().Update(ctx, &wf); err != nil {
+			logger.Error(err, "writing workflow status")
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+		}
 	}
 
 	return reconcile.Result{RequeueAfter: PeriodicReconcileInterval}, nil
@@ -222,23 +233,25 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, wf *v1alpha1.OSMOWorkf
 		return reconcile.Result{}, nil // K8s will GC
 	}
 
-	// For each remote group, send a Delete. Local groups skip (owner-ref cascade
-	// handles them).
+	// Build the set of remote groups to clean up from two sources:
+	//   1. status.Groups — populated after a successful dispatch + status write.
+	//   2. dispatch-intent annotations — populated BEFORE the Create call. This catches
+	//      groups that were dispatched but for which the status write never landed
+	//      (controller crashed in between, status conflict, etc.).
+	targets := remoteDispatchTargets(wf)
+
 	remaining := 0
-	for groupName, gs := range wf.Status.Groups {
-		if gs.TaskGroupRef.Cluster == "" || gs.TaskGroupRef.Name == "" {
-			continue
-		}
-		dispatcher, err := r.dispatcherFor(gs.TaskGroupRef.Cluster)
+	for _, t := range targets {
+		dispatcher, err := r.dispatcherFor(t.Cluster)
 		if err != nil {
 			// Cluster might not be connected right now. Don't block delete forever —
-			// log and continue. The remote OTG will eventually be cleaned up by its
-			// own controller's workflow-ID label garbage collection (Phase 3+).
-			logger.Info("remote cluster unreachable; skipping cleanup", "cluster", gs.TaskGroupRef.Cluster, "group", groupName, "error", err.Error())
+			// log and continue. The remote OTG is cleaned up by its own controller's
+			// workflow-ID label garbage collection when present.
+			logger.Info("remote cluster unreachable; skipping cleanup", "cluster", t.Cluster, "group", t.Group, "error", err.Error())
 			continue
 		}
-		if err := dispatcher.Delete(ctx, gs.TaskGroupRef); err != nil {
-			logger.Info("remote delete failed; will retry", "cluster", gs.TaskGroupRef.Cluster, "group", groupName, "error", err.Error())
+		if err := dispatcher.Delete(ctx, t.Ref); err != nil {
+			logger.Info("remote delete failed; will retry", "cluster", t.Cluster, "group", t.Group, "error", err.Error())
 			remaining++
 		}
 	}
@@ -251,6 +264,86 @@ func (r *Reconciler) reconcileDelete(ctx context.Context, wf *v1alpha1.OSMOWorkf
 		return reconcile.Result{}, fmt.Errorf("removing finalizer: %w", err)
 	}
 	return reconcile.Result{}, nil
+}
+
+// recordDispatchIntent annotates the OSMOWorkflow with the cluster:group:otgName triple
+// for an in-flight remote dispatch. Persisted BEFORE the Create call so
+// reconcileDelete can recover from a crash window between dispatch and status write.
+// Local-cluster groups skip the annotation — local owner refs handle cascade delete.
+func (r *Reconciler) recordDispatchIntent(ctx context.Context, wf *v1alpha1.OSMOWorkflow, group v1alpha1.WorkflowGroup) error {
+	if group.Cluster == "" {
+		return nil
+	}
+	key := dispatchIntentAnnotation(group.Name)
+	val := group.Cluster + "/" + otgName(wf.Name, group.Name)
+	if wf.Annotations[key] == val {
+		return nil
+	}
+	if wf.Annotations == nil {
+		wf.Annotations = map[string]string{}
+	}
+	wf.Annotations[key] = val
+	return r.Client.Update(ctx, wf)
+}
+
+// remoteDispatchTarget identifies one remote OSMOTaskGroup to clean up.
+type remoteDispatchTarget struct {
+	Group   string
+	Cluster string
+	Ref     v1alpha1.TaskGroupRef
+}
+
+// remoteDispatchTargets unions status.Groups remote entries and dispatch-intent
+// annotations so reconcileDelete sees every remote group, including ones whose status
+// write never landed.
+func remoteDispatchTargets(wf *v1alpha1.OSMOWorkflow) []remoteDispatchTarget {
+	seen := map[string]struct{}{}
+	var out []remoteDispatchTarget
+	for groupName, gs := range wf.Status.Groups {
+		if gs.TaskGroupRef.Cluster == "" || gs.TaskGroupRef.Name == "" {
+			continue
+		}
+		out = append(out, remoteDispatchTarget{
+			Group:   groupName,
+			Cluster: gs.TaskGroupRef.Cluster,
+			Ref:     gs.TaskGroupRef,
+		})
+		seen[gs.TaskGroupRef.Cluster+"/"+gs.TaskGroupRef.Name] = struct{}{}
+	}
+	for key, val := range wf.Annotations {
+		if !isDispatchIntentAnnotation(key) {
+			continue
+		}
+		cluster, name, ok := parseDispatchIntent(val)
+		if !ok {
+			continue
+		}
+		if _, dupe := seen[cluster+"/"+name]; dupe {
+			continue
+		}
+		out = append(out, remoteDispatchTarget{
+			Group:   dispatchIntentGroup(key),
+			Cluster: cluster,
+			Ref:     v1alpha1.TaskGroupRef{Cluster: cluster, Namespace: wf.Namespace, Name: name},
+		})
+	}
+	return out
+}
+
+const dispatchIntentPrefix = "workflow.osmo.nvidia.com/dispatch-intent."
+
+func dispatchIntentAnnotation(group string) string { return dispatchIntentPrefix + group }
+func isDispatchIntentAnnotation(k string) bool {
+	return len(k) > len(dispatchIntentPrefix) && k[:len(dispatchIntentPrefix)] == dispatchIntentPrefix
+}
+func dispatchIntentGroup(k string) string { return k[len(dispatchIntentPrefix):] }
+func parseDispatchIntent(v string) (cluster, name string, ok bool) {
+	for i := 0; i < len(v); i++ {
+		if v[i] == '/' {
+			return v[:i], v[i+1:], true
+		}
+	}
+	return "", "", false
 }
 
 func (r *Reconciler) markFailed(ctx context.Context, wf *v1alpha1.OSMOWorkflow, cause error) error {

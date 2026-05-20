@@ -156,10 +156,27 @@ func TestClusterSessionServer_HelloHappyAndReplacement(t *testing.T) {
 	}
 
 	// Open a second stream from the same cluster_id — the server should replace the
-	// session. The first stream's Recv should error out.
+	// session and terminate the first stream within a few hundred ms (NOT wait for the
+	// ctx timeout). Drain any already-queued envelopes (e.g. ResyncRequest) on the way.
 	second := openStream()
 	_ = second
-	_, err := first.Recv()
+	terminated := make(chan error, 1)
+	go func() {
+		var err error
+		for {
+			_, err = first.Recv()
+			if err != nil {
+				break
+			}
+		}
+		terminated <- err
+	}()
+	var err error
+	select {
+	case err = <-terminated:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first stream did not terminate within 2s of replacement")
+	}
 	if err == nil {
 		t.Fatal("expected first stream to be terminated after replacement")
 	}

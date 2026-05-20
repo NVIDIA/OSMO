@@ -28,19 +28,14 @@ type Session struct {
 	done chan struct{}
 }
 
-// send-side helpers (used by SessionRegistry.Send below).
-//
-// SendEnvelope returns ErrClusterNotConnected if the session has already been torn down,
-// avoiding the classic "send on closed channel" panic. Concurrent callers + concurrent
-// teardown are safe.
+// sendEnvelope pushes onto the outbound queue, or returns ErrClusterNotConnected if the
+// session has been torn down. Safe under concurrent shutdown — the select wakes via the
+// done channel before any close-on-active-channel race window opens.
 func (s *Session) sendEnvelope(env *operatorpb.OperatorEnvelope) error {
 	s.mu.RLock()
 	done := s.done
 	out := s.send
 	s.mu.RUnlock()
-	if done == nil {
-		return ErrClusterNotConnected
-	}
 	select {
 	case <-done:
 		return ErrClusterNotConnected
@@ -140,6 +135,15 @@ func (r *SessionRegistry) Send(clusterID string, env *operatorpb.OperatorEnvelop
 		return ErrClusterNotConnected
 	}
 	return sess.sendEnvelope(env)
+}
+
+// isCurrent reports whether the given session pointer is the cluster's currently
+// registered session. Used by the stream handler to avoid clobbering state written by a
+// replacement session when an old goroutine's defer runs.
+func (r *SessionRegistry) isCurrent(clusterID string, sess *Session) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.sessions[clusterID] == sess
 }
 
 // Connected reports whether a given cluster has a live session right now.

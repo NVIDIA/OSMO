@@ -44,13 +44,15 @@ type ClusterSessionServer struct {
 	ControllerVersion string
 }
 
-// Connect is the one bidi RPC. The server reads ControllerEnvelopes on one goroutine
-// and writes OperatorEnvelopes on another, both gated by the stream's context.
+// Connect is the one bidi RPC. The server reads ControllerEnvelopes and writes
+// OperatorEnvelopes on background goroutines, returning as soon as any of three
+// conditions occur: the gRPC stream errors, the session is replaced/unregistered, or
+// the parent context is cancelled. Returning from Connect closes the underlying gRPC
+// stream, which unblocks the client's Recv with an error.
 func (s *ClusterSessionServer) Connect(stream operatorpb.ClusterSession_ConnectServer) error {
 	ctx := stream.Context()
 	logger := log.FromContext(ctx).WithName("cluster-session")
 
-	// Phase 1 of a session: wait for Hello.
 	first, err := stream.Recv()
 	if err != nil {
 		return status.Errorf(codes.Unauthenticated, "expected Hello: %v", err)
@@ -60,27 +62,25 @@ func (s *ClusterSessionServer) Connect(stream operatorpb.ClusterSession_ConnectS
 		return status.Error(codes.InvalidArgument, "first message must be Hello")
 	}
 
-	// Authenticate. Wrong token = treat as unauthenticated, log internally but don't
-	// leak details to the caller.
 	if err := s.Auth.Authenticate(ctx, hello.ClusterId, hello.Token); err != nil {
 		logger.Info("hello rejected", "cluster", hello.ClusterId, "error", err.Error())
 		return status.Error(codes.Unauthenticated, "unauthorized")
 	}
 	logger = logger.WithValues("cluster", hello.ClusterId)
 
-	// Register this stream as THE session for this cluster. Replaces any prior session
-	// (its done channel will be closed by Register, signalling that goroutine to exit).
 	sess := s.Sessions.Register(hello.ClusterId, SendBufferSize)
 	defer s.Sessions.Unregister(hello.ClusterId, sess)
 
-	// Update OSMOCluster.status.connection = Connected. Best-effort — if it fails we
-	// keep the session alive (the status is informational, the registry is the truth).
 	s.updateClusterConnection(ctx, hello, v1alpha1.ClusterConnected)
-	defer s.updateClusterConnection(context.Background(), hello, v1alpha1.ClusterDisconnected)
+	defer func() {
+		// Only the session that is still the current registration writes Disconnected.
+		// A session that has been replaced must not clobber the new session's
+		// Connected state on its way out.
+		if s.Sessions.isCurrent(hello.ClusterId, sess) {
+			s.updateClusterConnection(context.Background(), hello, v1alpha1.ClusterDisconnected)
+		}
+	}()
 
-	// Reply with HelloAck on the send channel. sendEnvelope is safe even if the session
-	// has been torn down by a concurrent re-Register (returns ErrClusterNotConnected
-	// rather than panicking).
 	if err := sess.sendEnvelope(&operatorpb.OperatorEnvelope{
 		Body: &operatorpb.OperatorEnvelope_HelloAck{HelloAck: &operatorpb.HelloAck{
 			SessionId: hello.ClusterId + ":" + time.Now().UTC().Format(time.RFC3339Nano),
@@ -89,10 +89,16 @@ func (s *ClusterSessionServer) Connect(stream operatorpb.ClusterSession_ConnectS
 		return status.Error(codes.Aborted, "session terminated before HelloAck")
 	}
 
-	// Writer goroutine: pulls envelopes off the session's send channel and writes to the
-	// gRPC stream. Returns when the session's done channel is closed (registry shutdown
-	// or Unregister), or when the gRPC stream errors.
+	// Ask the controller to push the current status of every OSMOTaskGroup it owns so a
+	// freshly started or restarted operator recovers cross-cluster status without
+	// waiting for the next event. Failure to enqueue is non-fatal.
+	_ = sess.sendEnvelope(&operatorpb.OperatorEnvelope{
+		Body: &operatorpb.OperatorEnvelope_Resync{Resync: &operatorpb.ResyncRequest{}},
+	})
+
 	writerErr := make(chan error, 1)
+	readerErr := make(chan error, 1)
+
 	go func() {
 		for {
 			select {
@@ -112,30 +118,32 @@ func (s *ClusterSessionServer) Connect(stream operatorpb.ClusterSession_ConnectS
 		}
 	}()
 
-	// Reader loop: process ControllerEnvelopes. Runs until Recv error, ctx cancel, or
-	// the writer reports an error.
-	logger.Info("session established")
-	for {
-		select {
-		case err := <-writerErr:
-			if err != nil {
-				logger.Error(err, "writer failed")
-				return err
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				readerErr <- nil
+				return
 			}
-			return nil
-		default:
+			if err != nil {
+				readerErr <- err
+				return
+			}
+			s.handleControllerEnvelope(ctx, hello.ClusterId, msg)
 		}
+	}()
 
-		msg, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			logger.Info("controller closed stream")
-			return nil
-		}
-		if err != nil {
-			logger.Error(err, "recv failed")
-			return err
-		}
-		s.handleControllerEnvelope(ctx, hello.ClusterId, msg)
+	logger.Info("session established")
+	select {
+	case err := <-writerErr:
+		return err
+	case err := <-readerErr:
+		return err
+	case <-sess.done:
+		// Replaced or explicitly unregistered. Return to close the underlying stream.
+		return nil
+	case <-ctx.Done():
+		return nil
 	}
 }
 
@@ -145,11 +153,9 @@ func (s *ClusterSessionServer) handleControllerEnvelope(ctx context.Context, clu
 	case *operatorpb.ControllerEnvelope_Status:
 		s.Status.Publish(ctx, StatusEvent{ClusterID: clusterID, Event: body.Status})
 	case *operatorpb.ControllerEnvelope_Ack:
-		// Command acks are informational — log and move on. A Workflow Controller can
-		// be made ack-aware later; for Phase 2 MVP we treat the controller having
-		// received the command as sufficient.
-	case *operatorpb.ControllerEnvelope_LogChunk:
-		// Phase 2+ when log streaming is wired through. No-op for now.
+		// Command acks are informational; the workflow controller is not currently
+		// ack-aware. The Send/recv path treats a controller receiving the command as
+		// sufficient.
 	case *operatorpb.ControllerEnvelope_Heartbeat:
 		// Keepalive — nothing to do.
 	default:

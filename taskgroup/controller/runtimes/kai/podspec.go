@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
@@ -156,7 +155,3 @@ func minAvailable(cfg *v1alpha1.KAIRuntimeConfig) int32 {
 	}
 	return int32(len(cfg.Tasks))
 }
-
-// Ensure the resource package compile reference stays even when only Quantity is used
-// via embedded fields — keeps go vet happy on minimal builds.
-var _ = resource.Quantity{}

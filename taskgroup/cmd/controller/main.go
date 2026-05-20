@@ -4,15 +4,14 @@
 // Command controller runs the OSMOTaskGroup controllers.
 //
 // In a single-cluster all-in-one deployment, both the Workflow Controller and the
-// TaskGroup Controller run here, plus optionally the Operator Service (in a separate
-// binary, cmd/operator). The Workflow Controller dispatches CRs locally; no session
-// stream is involved.
+// TaskGroup Controller run here. The Workflow Controller dispatches CRs locally; no
+// session stream is involved.
 //
 // In a split deployment:
 //
 //   - Control cluster runs: --enable-workflow-controller=true
 //     --enable-taskgroup-controller=true (optional)
-//     --operator-bus-enabled=true (in-process bus to send commands to remote clusters)
+//     --operator-serve-bind=:9000 (in-process Operator Service for fan-out to remotes)
 //
 //   - Backend cluster runs: --enable-taskgroup-controller=true
 //     --enable-workflow-controller=false
@@ -25,7 +24,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -37,10 +35,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	v1alpha1 "github.com/nvidia/osmo/taskgroup/api/v1alpha1"
-	"github.com/nvidia/osmo/taskgroup/controller"
 	"github.com/nvidia/osmo/taskgroup/controller/runtimes"
 	"github.com/nvidia/osmo/taskgroup/controller/runtimes/kai"
 	"github.com/nvidia/osmo/taskgroup/controller/session"
+	"github.com/nvidia/osmo/taskgroup/controller/taskgroup"
 	"github.com/nvidia/osmo/taskgroup/controller/workflow"
 	"github.com/nvidia/osmo/taskgroup/internal/k8s"
 	osmolog "github.com/nvidia/osmo/taskgroup/internal/log"
@@ -76,7 +74,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Optional session client to the central Operator Service.
 	var sessionClient *session.Client
 	if cfg.operatorEndpoint != "" {
 		if cfg.clusterID == "" || cfg.clusterTokenFile == "" {
@@ -94,6 +91,7 @@ func main() {
 			Token:             string(token),
 			SupportedRuntimes: []string{string(v1alpha1.RuntimeKAI)},
 			ControllerVersion: ControllerVersion,
+			Namespace:         cfg.taskGroupNamespace,
 		}, mgr.GetClient())
 		if err != nil {
 			logger.Error(err, "constructing session client")
@@ -102,17 +100,16 @@ func main() {
 	}
 
 	if cfg.enableTaskGroup {
-		dispatcher := controller.NewDispatcher()
+		dispatcher := taskgroup.NewDispatcher()
 		if err := registerRuntimes(dispatcher, mgr); err != nil {
 			logger.Error(err, "registering runtimes")
 			os.Exit(1)
 		}
-		tgr := &controller.Reconciler{
+		tgr := &taskgroup.Reconciler{
 			Client:     mgr.GetClient(),
 			Scheme:     mgr.GetScheme(),
 			Dispatcher: dispatcher,
 		}
-		// Wire status push when running in backend-cluster mode (session client present).
 		if sessionClient != nil {
 			tgr.StatusReporter = sessionClient
 		}
@@ -178,8 +175,6 @@ func main() {
 		logger.Info("Workflow controller enabled", "taskgroup_namespace", cfg.taskGroupNamespace, "remote_dispatch", commandBus != nil)
 	}
 
-	// Run the session client alongside the manager. It uses the same lifecycle: ctx
-	// cancel on signal handlers fires both shutdowns.
 	mgrCtx := ctrl.SetupSignalHandler()
 	if sessionClient != nil {
 		go func() {
@@ -191,17 +186,8 @@ func main() {
 			"endpoint", cfg.operatorEndpoint,
 			"cluster_id", cfg.clusterID,
 		)
-
-		// The TaskGroup Reconciler in this backend invokes the status reporter
-		// after every successful reconcile. Wire the session client as the reporter
-		// so status updates flow up through the gRPC stream to the central Workflow
-		// Controller.
-		// Wired below where the TaskGroup Reconciler is constructed (look for
-		// StatusReporter assignment).
 	}
 
-	// In the control cluster (statusBus set), bridge incoming OTGStatusEvents from
-	// backend clusters into OSMOWorkflow.Status.Groups[name].
 	if statusBus != nil {
 		workflow.StartRemoteStatusBridge(mgrCtx, mgr.GetClient(), statusBus)
 		logger.Info("remote status bridge started")
@@ -244,27 +230,12 @@ func parseFlags() flags {
 	return f
 }
 
-func registerRuntimes(d *controller.Dispatcher, mgr ctrl.Manager) error {
+func registerRuntimes(d *taskgroup.Dispatcher, mgr ctrl.Manager) error {
 	deps := runtimes.Dependencies{Client: mgr.GetClient()}
-
-	factories := map[v1alpha1.RuntimeType]runtimes.Factory{
-		v1alpha1.RuntimeKAI: kai.New,
-		// Phase 3+:
-		// v1alpha1.RuntimeNIM:    nim.New,
-		// v1alpha1.RuntimeRay:    ray.New,
-		// v1alpha1.RuntimeDynamo: dynamo.New,
-		// v1alpha1.RuntimeGrove:  grove.New,
+	rt, err := kai.New(deps)
+	if err != nil {
+		return fmt.Errorf("constructing kai runtime: %w", err)
 	}
-	for t, f := range factories {
-		rt, err := f(deps)
-		if err != nil {
-			return fmt.Errorf("constructing %s runtime: %w", t, err)
-		}
-		d.Register(t, rt)
-	}
+	d.Register(v1alpha1.RuntimeKAI, rt)
 	return nil
 }
-
-// ctxBackground is a small helper to silence the unused import warning when nothing else
-// references context. Kept in case future wiring needs it.
-var _ = context.Background

@@ -100,12 +100,6 @@ func (d *LocalDispatcher) Delete(ctx context.Context, ref v1alpha1.TaskGroupRef)
 	return client.IgnoreNotFound(d.Client.Delete(ctx, otg))
 }
 
-// remoteDispatcher dispatches CRs to another cluster via the Operator Service's session
-// stream. Phase 2 implementation. Phase 1 returns an error if used.
-//
-// Wire in by injecting a session.RemoteSink (defined in operator/session) that resolves
-// cluster_id → stream and sends ControllerEnvelope{OperatorEnvelope_Create} on it.
-
 // otgName generates a stable, K8s-DNS-label-safe OSMOTaskGroup name from a workflow name
 // and group name. Deterministic so retries are idempotent.
 func otgName(workflowName, groupName string) string {

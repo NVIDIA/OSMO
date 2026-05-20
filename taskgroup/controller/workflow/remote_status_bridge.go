@@ -5,8 +5,6 @@ package workflow
 
 import (
 	"context"
-	"strings"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -18,14 +16,11 @@ import (
 )
 
 // StartRemoteStatusBridge subscribes to the operator's StatusBus and projects every
-// OTGStatusEvent into the corresponding OSMOWorkflow.Status.Groups[name] entry.
+// OTGStatusEvent into the corresponding OSMOWorkflow.Status.Groups[name] entry. Returns
+// immediately after starting a background goroutine that runs until ctx is cancelled.
 //
-// This is the "bus subscriber" side of the cross-cluster status flow. Without this,
-// remote groups stay Pending forever (only the local-watch path in
-// refreshLocalStatuses gets executed for local groups).
-//
-// Returns immediately after starting a background goroutine that runs until ctx is
-// cancelled.
+// Without this subscriber, remote groups stay Pending forever — only the local-watch
+// path in refreshLocalStatuses sees state changes for local groups.
 func StartRemoteStatusBridge(ctx context.Context, c client.Client, bus *operator.StatusBus) {
 	logger := log.FromContext(ctx).WithName("remote-status-bridge")
 	events := make(chan operator.StatusEvent, 64)
@@ -48,11 +43,9 @@ func StartRemoteStatusBridge(ctx context.Context, c client.Client, bus *operator
 }
 
 // applyRemoteStatus locates the parent OSMOWorkflow for one remote OTG and updates its
-// Status.Groups entry. The lookup uses the conventional naming applied by
-// RemoteDispatcher: OTG name = "<workflow>-<group>".
-//
-// If the OTG isn't from one of our workflows (no recognizable workflow prefix) we drop
-// the event silently — could be cross-namespace traffic or another tenant.
+// Status.Groups entry. The lookup matches OTG name + cluster against each workflow's
+// group definitions; mismatches are dropped silently (cross-namespace traffic, foreign
+// workflow, etc.).
 func applyRemoteStatus(ctx context.Context, c client.Client, ev operator.StatusEvent) error {
 	if ev.Event == nil || ev.Event.GetStatus() == nil {
 		return nil
@@ -60,10 +53,6 @@ func applyRemoteStatus(ctx context.Context, c client.Client, ev operator.StatusE
 	otgName := ev.Event.GetName()
 	otgNamespace := ev.Event.GetNamespace()
 
-	// Reconstruct workflow name from OTG name. Since OTG names are deterministic
-	// ("<workflow>-<group>") we can search for the matching workflow, but to keep it
-	// simple we expect the workflow name to be a prefix. List workflows in the OTG's
-	// namespace and find the one whose name + group concatenation matches.
 	var wfs v1alpha1.OSMOWorkflowList
 	if err := c.List(ctx, &wfs, client.InNamespace(otgNamespace)); err != nil {
 		return err
@@ -84,10 +73,11 @@ func applyRemoteStatus(ctx context.Context, c client.Client, ev operator.StatusE
 		}
 	}
 	if wf == nil {
-		return nil // unknown event; drop
+		return nil
 	}
 
-	// Update the matching group's status entry, preserving the TaskGroupRef.
+	// Re-fetch the workflow so the status update lands on the latest resourceVersion. A
+	// conflict here is benign — the next event re-attempts.
 	wfFresh := &v1alpha1.OSMOWorkflow{}
 	if err := c.Get(ctx, types.NamespacedName{Name: wf.Name, Namespace: wf.Namespace}, wfFresh); err != nil {
 		return err
@@ -98,12 +88,26 @@ func applyRemoteStatus(ctx context.Context, c client.Client, ev operator.StatusE
 	prev := wfFresh.Status.Groups[matchedGroup]
 	now := metav1.Now()
 	wfFresh.Status.Groups[matchedGroup] = v1alpha1.WorkflowGroupStatus{
-		Phase:        v1alpha1.Phase(ev.Event.GetStatus().GetPhase()),
-		TaskGroupRef: prev.TaskGroupRef, // keep
+		Phase:        coercePhase(ev.Event.GetStatus().GetPhase()),
+		TaskGroupRef: prev.TaskGroupRef,
 		LastUpdated:  &now,
 		Message:      ev.Event.GetStatus().GetMessage(),
 	}
 	return c.Status().Update(ctx, wfFresh)
+}
+
+// coercePhase maps a wire-side phase string to a known v1alpha1.Phase. Unknown values
+// fall back to PhasePending — the next event from the controller will overwrite.
+func coercePhase(s string) v1alpha1.Phase {
+	switch v1alpha1.Phase(s) {
+	case v1alpha1.PhasePending,
+		v1alpha1.PhaseRunning,
+		v1alpha1.PhaseSucceeded,
+		v1alpha1.PhaseFailed,
+		v1alpha1.PhaseTerminating:
+		return v1alpha1.Phase(s)
+	}
+	return v1alpha1.PhasePending
 }
 
 // otgNameFor matches the naming dispatcher.go uses. Re-declared here to avoid a circular
@@ -111,10 +115,3 @@ func applyRemoteStatus(ctx context.Context, c client.Client, ev operator.StatusE
 func otgNameFor(workflowName, groupName string) string {
 	return workflowName + "-" + groupName
 }
-
-// matchPrefix is a small string helper; exists for tests.
-func matchPrefix(name, prefix string) bool { return strings.HasPrefix(name, prefix) }
-
-// Silence the unused import warning if otgNameFor + matchPrefix end up unused.
-var _ = time.Now
-var _ = matchPrefix

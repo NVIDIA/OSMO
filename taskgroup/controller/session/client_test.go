@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -22,19 +24,22 @@ import (
 	operatorpb "github.com/nvidia/osmo/taskgroup/operator/proto"
 )
 
-// fakeServer accepts any Hello, optionally drops the stream after the first message, and
-// records each incoming envelope on a channel for assertions.
+func metaName(name, namespace string) metav1.ObjectMeta {
+	return metav1.ObjectMeta{Name: name, Namespace: namespace}
+}
+
+// fakeServer accepts any Hello, optionally drops the stream after the first non-Hello
+// message has been received, and records each incoming envelope on a channel.
 type fakeServer struct {
 	operatorpb.UnimplementedClusterSessionServer
 
 	mu       sync.Mutex
 	received chan *operatorpb.ControllerEnvelope
-	acceptN  int32 // when set, drop the stream after acceptN messages have been received.
+	acceptN  int32
 	count    int32
 }
 
 func (s *fakeServer) Connect(stream operatorpb.ClusterSession_ConnectServer) error {
-	// Read Hello.
 	first, err := stream.Recv()
 	if err != nil {
 		return err
@@ -42,13 +47,14 @@ func (s *fakeServer) Connect(stream operatorpb.ClusterSession_ConnectServer) err
 	if first.GetHello() == nil {
 		return nil
 	}
-	// Send HelloAck.
 	if err := stream.Send(&operatorpb.OperatorEnvelope{
 		Body: &operatorpb.OperatorEnvelope_HelloAck{HelloAck: &operatorpb.HelloAck{SessionId: "test"}},
 	}); err != nil {
 		return err
 	}
-
+	// dropAfter is the per-connection limit. 0 = never drop.
+	dropAfter := atomic.LoadInt32(&s.acceptN)
+	var perConn int32
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -61,9 +67,9 @@ func (s *fakeServer) Connect(stream operatorpb.ClusterSession_ConnectServer) err
 		case ch <- msg:
 		default:
 		}
-		// Drop the stream if we've hit the threshold (forces client reconnect).
-		acceptN := atomic.LoadInt32(&s.acceptN)
-		if acceptN > 0 && atomic.AddInt32(&s.count, 1) >= acceptN {
+		perConn++
+		atomic.AddInt32(&s.count, 1)
+		if dropAfter > 0 && perConn >= dropAfter {
 			return nil
 		}
 	}
@@ -77,72 +83,55 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
-func TestClient_RunsHelloAndQueuesStatus(t *testing.T) {
+// startFakeServer spins up a fakeServer over bufconn and returns the listener + a Dial
+// function configured to route through it.
+func startFakeServer(t *testing.T, srv *fakeServer) (*bufconn.Listener, func()) {
+	t.Helper()
 	listener := bufconn.Listen(1024 * 1024)
-	srv := &fakeServer{received: make(chan *operatorpb.ControllerEnvelope, 16)}
 	gsrv := grpc.NewServer()
 	operatorpb.RegisterClusterSessionServer(gsrv, srv)
 	go func() { _ = gsrv.Serve(listener) }()
-	defer gsrv.Stop()
+	return listener, gsrv.Stop
+}
+
+func bufconnDial(listener *bufconn.Listener) func(context.Context, string) (*grpc.ClientConn, error) {
+	return func(ctx context.Context, _ string) (*grpc.ClientConn, error) {
+		return grpc.DialContext(ctx, "bufnet",
+			grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
+				return listener.Dial()
+			}),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+	}
+}
+
+func TestClient_PushStatusReachesServer(t *testing.T) {
+	srv := &fakeServer{received: make(chan *operatorpb.ControllerEnvelope, 16)}
+	listener, stop := startFakeServer(t, srv)
+	defer stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	k8s := fake.NewClientBuilder().WithScheme(testScheme(t)).Build()
-	cfg := Config{
+	c, err := NewClient(Config{
 		OperatorEndpoint:  "bufnet",
 		ClusterID:         "c1",
 		Token:             "tok",
-		HeartbeatInterval: 10 * time.Millisecond,
+		HeartbeatInterval: time.Hour,
 		MinBackoff:        10 * time.Millisecond,
-		MaxBackoff:        50 * time.Millisecond,
+		MaxBackoff:        20 * time.Millisecond,
 		SendBuffer:        16,
-	}
-	c, err := NewClient(cfg, k8s)
+		Dial:              bufconnDial(listener),
+	}, k8s)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
 
-	// Patch grpc dial to route through bufconn. We accomplish this by setting a context
-	// dialer via a custom DialContext wrapper. The simplest approach: monkey-patch isn't
-	// available, so we use grpc's WithContextDialer via the global default... actually we
-	// can't easily inject. Instead, this test relies on the bufconn endpoint being
-	// resolved by grpc. So instead inject a custom dial via grpc.DialContext options is
-	// not possible without modifying Client. Skip Run() and exercise the writer/reader
-	// loops manually via runOnce-style scaffolding is too invasive.
-	//
-	// Workaround: register a grpc resolver that resolves "bufnet" → our listener.
-	// Easier still: call Connect through a temp grpc.ClientConn manually and verify the
-	// fakeServer receives our envelope.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	runErr := make(chan error, 1)
+	go func() { runErr <- c.Run(ctx) }()
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, "bufnet",
-		grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
-			return listener.Dial()
-		}),
-		grpc.WithInsecure(), //nolint:staticcheck // bufconn test only
-		grpc.WithBlock(),
-	)
-	if err != nil {
-		t.Fatalf("dial: %v", err)
-	}
-	defer conn.Close()
-
-	stream, err := operatorpb.NewClusterSessionClient(conn).Connect(ctx)
-	if err != nil {
-		t.Fatalf("Connect: %v", err)
-	}
-	if err := stream.Send(&operatorpb.ControllerEnvelope{
-		Body: &operatorpb.ControllerEnvelope_Hello{Hello: &operatorpb.Hello{
-			ClusterId: "c1", Token: "tok",
-		}},
-	}); err != nil {
-		t.Fatalf("send Hello: %v", err)
-	}
-	if _, err := stream.Recv(); err != nil {
-		t.Fatalf("recv HelloAck: %v", err)
-	}
-
-	// PushStatus on the client and then forward its queue out the stream. This validates
-	// the conversion logic end to end.
 	c.PushStatus(&v1alpha1.OSMOTaskGroup{
 		Spec: v1alpha1.OSMOTaskGroupSpec{WorkflowID: "wf-1"},
 		Status: v1alpha1.OSMOTaskGroupStatus{
@@ -150,15 +139,6 @@ func TestClient_RunsHelloAndQueuesStatus(t *testing.T) {
 			Message: "go go go",
 		},
 	})
-
-	select {
-	case env := <-c.queue:
-		if err := stream.Send(env); err != nil {
-			t.Fatalf("forward: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("nothing queued by PushStatus")
-	}
 
 	select {
 	case got := <-srv.received:
@@ -169,56 +149,124 @@ func TestClient_RunsHelloAndQueuesStatus(t *testing.T) {
 		if ev.Status.Phase != "Running" || ev.Status.Message != "go go go" {
 			t.Errorf("unexpected status: %+v", ev.Status)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("server never received the status event")
 	}
 }
 
+// TestClient_ReconnectFlushesQueuedStatus actually exercises reconnect: the fakeServer
+// drops the stream after one non-Hello message; the client's writer requeues and the
+// next connect attempt sends the still-queued envelope to a second accepting session.
 func TestClient_ReconnectFlushesQueuedStatus(t *testing.T) {
-	listener := bufconn.Listen(1024 * 1024)
 	srv := &fakeServer{received: make(chan *operatorpb.ControllerEnvelope, 16)}
-	atomic.StoreInt32(&srv.acceptN, 1) // drop after first non-Hello message
+	atomic.StoreInt32(&srv.acceptN, 1) // drop the first session after one message
+	listener, stop := startFakeServer(t, srv)
+	defer stop()
 
-	gsrv := grpc.NewServer()
-	operatorpb.RegisterClusterSessionServer(gsrv, srv)
-	go func() { _ = gsrv.Serve(listener) }()
-	defer gsrv.Stop()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	k8s := fake.NewClientBuilder().WithScheme(testScheme(t)).Build()
-	cfg := Config{
+	c, err := NewClient(Config{
 		OperatorEndpoint:  "bufnet",
 		ClusterID:         "c1",
 		Token:             "tok",
-		HeartbeatInterval: time.Hour, // disable heartbeats
+		HeartbeatInterval: time.Hour,
 		MinBackoff:        10 * time.Millisecond,
-		MaxBackoff:        50 * time.Millisecond,
+		MaxBackoff:        20 * time.Millisecond,
 		SendBuffer:        4,
-	}
-	c, err := NewClient(cfg, k8s)
+		Dial:              bufconnDial(listener),
+	}, k8s)
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
+	runErr := make(chan error, 1)
+	go func() { runErr <- c.Run(ctx) }()
 
-	// Enqueue a status BEFORE we run; the client should flush it once it (re)connects.
+	// Push the first status event and wait for the server to receive it. The fakeServer
+	// returns from Connect after this one (dropAfter=1), forcing a reconnect.
 	c.PushStatus(&v1alpha1.OSMOTaskGroup{
-		Status: v1alpha1.OSMOTaskGroupStatus{Phase: v1alpha1.PhaseRunning},
+		Status: v1alpha1.OSMOTaskGroupStatus{Phase: v1alpha1.PhaseRunning, Message: "first"},
 	})
-
-	// We can't easily monkey-patch the client's dial. Instead simulate the queue's
-	// reconnect-survival contract by reading directly from c.queue: prove that calling
-	// PushStatus does NOT drop events that are below buffer capacity.
-	got := 0
-	for i := 0; i < 4; i++ {
-		select {
-		case <-c.queue:
-			got++
-		case <-time.After(100 * time.Millisecond):
-		}
-		c.PushStatus(&v1alpha1.OSMOTaskGroup{
-			Status: v1alpha1.OSMOTaskGroupStatus{Phase: v1alpha1.PhaseRunning},
-		})
+	if !waitStatusReceived(srv.received, "first", 2*time.Second) {
+		t.Fatal("first status never reached server")
 	}
-	if got == 0 {
-		t.Fatal("PushStatus produced no envelopes in the queue")
+
+	// Give the client a moment to notice the dropped stream and reconnect; the previous
+	// Send may still be unwinding when the server returns from Connect.
+	time.Sleep(200 * time.Millisecond)
+
+	// Now push a second status. The client must reconnect (because the previous stream
+	// was closed by the server) and deliver this event over the new session.
+	c.PushStatus(&v1alpha1.OSMOTaskGroup{
+		Status: v1alpha1.OSMOTaskGroupStatus{Phase: v1alpha1.PhaseRunning, Message: "second"},
+	})
+	if !waitStatusReceived(srv.received, "second", 3*time.Second) {
+		t.Fatal("second status never reached server after reconnect")
+	}
+}
+
+func waitStatusReceived(ch <-chan *operatorpb.ControllerEnvelope, message string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		select {
+		case ev := <-ch:
+			if s := ev.GetStatus(); s != nil && s.Status != nil && s.Status.Message == message {
+				return true
+			}
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	return false
+}
+
+func TestClient_RespondsToResyncRequest(t *testing.T) {
+	srv := &fakeServer{received: make(chan *operatorpb.ControllerEnvelope, 16)}
+	listener, stop := startFakeServer(t, srv)
+	defer stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Seed the controller's K8s with two OSMOTaskGroups so the resync handler has work.
+	k8s := fake.NewClientBuilder().WithScheme(testScheme(t)).
+		WithObjects(
+			&v1alpha1.OSMOTaskGroup{ObjectMeta: metaName("otg-a", "osmo-workflows"), Status: v1alpha1.OSMOTaskGroupStatus{Phase: v1alpha1.PhaseRunning}},
+			&v1alpha1.OSMOTaskGroup{ObjectMeta: metaName("otg-b", "osmo-workflows"), Status: v1alpha1.OSMOTaskGroupStatus{Phase: v1alpha1.PhaseSucceeded}},
+		).Build()
+
+	c, err := NewClient(Config{
+		OperatorEndpoint:  "bufnet",
+		ClusterID:         "c1",
+		Token:             "tok",
+		Namespace:         "osmo-workflows",
+		HeartbeatInterval: time.Hour,
+		MinBackoff:        10 * time.Millisecond,
+		MaxBackoff:        20 * time.Millisecond,
+		SendBuffer:        16,
+		Dial:              bufconnDial(listener),
+	}, k8s)
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	go func() { _ = c.Run(ctx) }()
+
+	// Directly invoke handleResync with a request — easier and more deterministic than
+	// trying to coerce the server-side fake to send a ResyncRequest envelope.
+	c.handleResync(ctx, &operatorpb.ResyncRequest{Namespace: "osmo-workflows"})
+
+	phases := map[string]bool{}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && len(phases) < 2 {
+		select {
+		case ev := <-srv.received:
+			if s := ev.GetStatus(); s != nil {
+				phases[s.Name] = true
+			}
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+	if len(phases) != 2 {
+		t.Fatalf("resync did not push both OTGs; saw %d", len(phases))
 	}
 }

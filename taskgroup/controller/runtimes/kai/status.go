@@ -54,14 +54,11 @@ func (m *StatusMapper) Map(ctx context.Context, otg *v1alpha1.OSMOTaskGroup) (v1
 		}
 		for j := range p.Status.ContainerStatuses {
 			cs := p.Status.ContainerStatuses[j]
-			if cs.Name == "user" {
-				ts.Container = &p.Status.ContainerStatuses[j]
-				if cs.State.Terminated != nil {
-					code := cs.State.Terminated.ExitCode
-					ts.ExitCode = &code
-					et := cs.State.Terminated.FinishedAt
-					ts.EndTime = &et
-				}
+			if cs.Name == "user" && cs.State.Terminated != nil {
+				code := cs.State.Terminated.ExitCode
+				ts.ExitCode = &code
+				et := cs.State.Terminated.FinishedAt
+				ts.EndTime = &et
 				break
 			}
 		}

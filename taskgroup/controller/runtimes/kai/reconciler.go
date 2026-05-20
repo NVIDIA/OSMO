@@ -8,12 +8,15 @@ import (
 	"encoding/json"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -27,7 +30,34 @@ func New(deps runtimes.Dependencies) (runtimes.Runtime, error) {
 	return runtimes.Runtime{
 		Reconciler:   r,
 		StatusMapper: &StatusMapper{client: deps.Client},
+		Watches:      installWatches,
 	}, nil
+}
+
+// installWatches adds the KAI-specific watches to the controller builder. The OSMOTaskGroup
+// owns its Pods directly (cascade delete on Pod), and we also watch KAI PodGroup objects
+// via unstructured because their status changes drive OTG phase transitions.
+func installWatches(b *builder.Builder) *builder.Builder {
+	podGroup := &unstructured.Unstructured{}
+	podGroup.SetGroupVersionKind(PodGroupGVK)
+	return b.
+		Owns(&corev1.Pod{}).
+		Watches(
+			podGroup,
+			handler.EnqueueRequestsFromMapFunc(podGroupToOSMOTaskGroup),
+		)
+}
+
+// podGroupToOSMOTaskGroup maps a PodGroup back to its owning OSMOTaskGroup via the
+// identity-name convention (PodGroup.Name == OSMOTaskGroup.Name).
+func podGroupToOSMOTaskGroup(_ context.Context, obj client.Object) []reconcile.Request {
+	name := obj.GetName()
+	if name == "" {
+		return nil
+	}
+	return []reconcile.Request{{
+		NamespacedName: types.NamespacedName{Name: name, Namespace: obj.GetNamespace()},
+	}}
 }
 
 // Reconciler implements runtimes.Reconciler for the KAI runtime.

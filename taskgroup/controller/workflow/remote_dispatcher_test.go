@@ -76,6 +76,9 @@ func TestRemoteDispatcher_CreateProducesCreateOTGEnvelope(t *testing.T) {
 		if otg.Labels[v1alpha1.LabelGroupName] != "group-a" {
 			t.Errorf("missing or wrong group-name label: %v", otg.Labels)
 		}
+		if otg.Labels[v1alpha1.LabelRuntimeType] != string(v1alpha1.RuntimeKAI) {
+			t.Errorf("missing or wrong runtime-type label: %v", otg.Labels)
+		}
 		// Status must be stripped.
 		if otg.Status.Phase != "" {
 			t.Errorf("expected empty Status on outgoing CreateOTG, got phase %q", otg.Status.Phase)
@@ -144,3 +147,54 @@ func TestRemoteDispatcher_DeleteProducesEnvelope(t *testing.T) {
 
 // Smoke: make sure the operatorpb import isn't unused if we trim assertions later.
 var _ = operatorpb.OperatorEnvelope{}
+
+// TestRemoteDispatcher_RuntimeConfigRoundTrips ensures the runtime.RawExtension payload
+// survives the dispatch encode/decode round-trip. This is the wire contract — both ends
+// must use a K8s-aware YAML codec (sigs.k8s.io/yaml), not a plain YAML library, because
+// runtime.RawExtension is opaque to non-JSON-aware codecs.
+func TestRemoteDispatcher_RuntimeConfigRoundTrips(t *testing.T) {
+	reg := operator.NewSessionRegistry()
+	sess := reg.Register("backend-a", 4)
+	bus := &operator.CommandBus{Sessions: reg}
+	d := &RemoteDispatcher{
+		ClusterID: "backend-a",
+		Namespace: "osmo-workflows",
+		Bus:       bus,
+	}
+
+	wf := &v1alpha1.OSMOWorkflow{ObjectMeta: metav1.ObjectMeta{Name: "wf-1"}}
+	group := v1alpha1.WorkflowGroup{
+		Name:        "g",
+		Cluster:     "backend-a",
+		RuntimeType: v1alpha1.RuntimeKAI,
+		RuntimeConfig: runtime.RawExtension{
+			Raw: []byte(`{"replicas":3,"resources":{"cpu":"4","memory":"16Gi"}}`),
+		},
+	}
+	if _, err := d.Create(context.Background(), wf, group); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	env := <-sess.Drain()
+	create := env.GetCreate()
+	if create == nil {
+		t.Fatalf("expected CreateOTG envelope")
+	}
+
+	// Receiver-side: decode with the same codec the session client uses.
+	var decoded v1alpha1.OSMOTaskGroup
+	if err := yaml.Unmarshal(create.OtgYaml, &decoded); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(decoded.Spec.RuntimeConfig.Raw) == 0 {
+		t.Fatal("RuntimeConfig.Raw was lost in the round-trip")
+	}
+	// The codec normalizes whitespace; compare the parsed JSON shape, not the byte string.
+	var got map[string]any
+	if err := yaml.Unmarshal(decoded.Spec.RuntimeConfig.Raw, &got); err != nil {
+		t.Fatalf("decode inner JSON: %v", err)
+	}
+	if rep, _ := got["replicas"].(float64); rep != 3 {
+		t.Errorf("replicas = %v, want 3", got["replicas"])
+	}
+}

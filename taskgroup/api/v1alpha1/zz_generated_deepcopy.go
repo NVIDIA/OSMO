@@ -73,9 +73,6 @@ func (in *TaskState) DeepCopyInto(out *TaskState) {
 		out.ExitCode = new(int32)
 		*out.ExitCode = *in.ExitCode
 	}
-	if in.Container != nil {
-		out.Container = in.Container.DeepCopy()
-	}
 }
 
 func (in *OSMOTaskGroupList) DeepCopyInto(out *OSMOTaskGroupList) {
@@ -160,6 +157,15 @@ func (in *OSMOWorkflowStatus) DeepCopyInto(out *OSMOWorkflowStatus) {
 			out.Groups[k] = copied
 		}
 	}
+}
+
+func (in *OSMOWorkflowStatus) DeepCopy() *OSMOWorkflowStatus {
+	if in == nil {
+		return nil
+	}
+	out := new(OSMOWorkflowStatus)
+	in.DeepCopyInto(out)
+	return out
 }
 
 func (in *WorkflowGroupStatus) DeepCopyInto(out *WorkflowGroupStatus) {

@@ -5,8 +5,8 @@
 // bidirectional gRPC streams from per-cluster TaskGroup Controllers. Through that one
 // stream:
 //
-//   - Operator Service sends commands to the controller (CreateOTG, DeleteOTG, GetLogs,
-//     Drain).
+//   - Operator Service sends commands to the controller (CreateOTG, DeleteOTG,
+//     ResyncRequest).
 //   - Controller sends events back (status updates, command acks, heartbeats).
 //
 // Crucially: the controller is always the gRPC *client*. It initiates the outbound
@@ -19,7 +19,6 @@ package osmo.taskgroup.v1alpha1;
 
 option go_package = "github.com/nvidia/osmo/taskgroup/operator/proto;operatorpb";
 
-import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 // ------------------------------------------------------------------------------------------
@@ -39,7 +38,6 @@ message ControllerEnvelope {
     Hello          hello     = 1;
     OTGStatusEvent status    = 2;
     CommandAck     ack       = 3;
-    LogChunk       log_chunk = 4;  // server-streamed logs in response to a GetLogs command
     Heartbeat      heartbeat = 5;
   }
 }
@@ -47,12 +45,11 @@ message ControllerEnvelope {
 // OperatorEnvelope is everything the Operator Service pushes to a controller.
 message OperatorEnvelope {
   oneof body {
-    HelloAck     hello_ack = 1;
-    CreateOTG    create    = 2;
-    DeleteOTG    delete    = 3;
-    GetLogs      get_logs  = 4;
-    Drain        drain     = 5;
-    Heartbeat    heartbeat = 6;
+    HelloAck       hello_ack = 1;
+    CreateOTG      create    = 2;
+    DeleteOTG      delete    = 3;
+    Heartbeat      heartbeat = 6;
+    ResyncRequest  resync    = 7;
   }
 }
 
@@ -65,8 +62,8 @@ message Hello {
   string cluster_id              = 1;
   // ControllerVersion is the controller binary build version. Used to detect skew.
   string controller_version      = 2;
-  // SupportedRuntimes lists registered runtimeTypes (kai, nim, ray, ...). The control
-  // plane uses this to validate workflow group runtime targets.
+  // SupportedRuntimes lists registered runtimeTypes (kai, ...). The control plane uses
+  // this to validate workflow group runtime targets.
   repeated string supported_runtimes = 3;
   // Token is a short-lived bearer token issued at cluster registration time. Validated
   // by the Operator Service on Hello to prove the controller is allowed to register
@@ -79,6 +76,15 @@ message HelloAck {
   string session_id = 1;
 }
 
+// ResyncRequest asks the controller to push the current status of every OSMOTaskGroup in
+// the given namespace. Sent by the Operator Service immediately after HelloAck so a
+// reconnected (or restarted) operator catches up on remote state without waiting for the
+// next reconcile-driven event.
+message ResyncRequest {
+  // Namespace to enumerate. Empty = all namespaces accessible to the controller.
+  string namespace = 1;
+}
+
 // ------------------------------------------------------------------------------------------
 // Commands (server → controller)
 // ------------------------------------------------------------------------------------------
@@ -87,7 +93,8 @@ message CreateOTG {
   // CommandID is the controller's ack key.
   string command_id = 1;
   // OTGYaml is the serialized OSMOTaskGroup CR. The controller applies it to its local
-  // K8s API.
+  // K8s API. Both ends must use a K8s-aware YAML codec (sigs.k8s.io/yaml) so that
+  // runtime.RawExtension and metav1.Time round-trip correctly.
   bytes  otg_yaml   = 2;
 }
 
@@ -95,24 +102,6 @@ message DeleteOTG {
   string command_id = 1;
   string namespace  = 2;
   string name       = 3;
-}
-
-message GetLogs {
-  // CommandID identifies this request so the controller can stream LogChunks back tagged
-  // with it.
-  string command_id   = 1;
-  string namespace    = 2;
-  string pod_name     = 3;
-  string container    = 4;  // typically "user"
-  bool   follow       = 5;
-  int64  tail_lines   = 6;  // 0 = no tail limit
-}
-
-message Drain {
-  // Drain tells the controller to stop accepting new commands. In-flight TaskGroups
-  // continue to completion. Used during operator-service upgrades and graceful
-  // cluster decommissioning.
-  string reason = 1;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -132,12 +121,6 @@ message CommandAck {
   string error      = 3;  // non-empty if ok == false
 }
 
-message LogChunk {
-  string command_id = 1;  // matches the originating GetLogs.command_id
-  bytes  data       = 2;
-  bool   eof        = 3;
-}
-
 message Heartbeat {
   google.protobuf.Timestamp sent_at = 1;
 }
@@ -153,6 +136,11 @@ message OTGStatus {
   int64 observed_generation               = 4;
   int32 retries                           = 5;
   string message                          = 6;
+  // RuntimeStatus is the opaque runtime-specific payload (runtime.RawExtension bytes).
+  // The control side does not parse it; it is mirrored into OSMOTaskGroupStatus.RuntimeStatus
+  // so the workflow controller and any UI can interpret it the same way they would on the
+  // backend cluster.
+  bytes runtime_status                    = 7;
 }
 
 message OTGCondition {
@@ -171,53 +159,7 @@ message OTGTaskState {
   google.protobuf.Timestamp end_time           = 5;
   int32 exit_code                              = 6;
   string message                               = 7;
-}
-
-// ------------------------------------------------------------------------------------------
-// BarrierService — Phase 4. Defined here so callers code against a stable contract.
-// Currently the server returns UNIMPLEMENTED.
-// ------------------------------------------------------------------------------------------
-
-service BarrierService {
-  rpc RegisterBarrier(RegisterBarrierRequest) returns (BarrierHandle);
-  rpc Arrive(ArriveRequest) returns (ArriveResponse);
-  rpc WaitForCompletion(WaitForCompletionRequest) returns (stream BarrierEvent);
-}
-
-message RegisterBarrierRequest {
-  string workflow_id                = 1;
-  string barrier_id                 = 2;
-  int32  expected                   = 3;
-  google.protobuf.Duration ttl      = 4;
-}
-
-message BarrierHandle {
-  string workflow_id = 1;
-  string barrier_id  = 2;
-}
-
-message ArriveRequest {
-  string workflow_id = 1;
-  string barrier_id  = 2;
-  string participant = 3;
-}
-
-message ArriveResponse { int32 remaining = 1; }
-
-message WaitForCompletionRequest {
-  string workflow_id           = 1;
-  string barrier_id            = 2;
-  google.protobuf.Duration ttl = 3;
-}
-
-message BarrierEvent {
-  enum Kind {
-    KIND_UNSPECIFIED = 0;
-    ARRIVAL          = 1;
-    COMPLETE         = 2;
-    TIMEOUT          = 3;
-  }
-  Kind   kind        = 1;
-  string participant = 2;
-  int32  remaining   = 3;
+  // HasExitCode disambiguates "exit code 0" (process exited cleanly) from "no exit code
+  // yet" (process is still running). When false, exit_code should be ignored.
+  bool has_exit_code                           = 8;
 }
