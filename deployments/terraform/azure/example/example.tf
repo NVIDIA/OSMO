@@ -252,7 +252,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
   max_count             = var.gpu_node_pool_max_size
   auto_scaling_enabled  = true
   vnet_subnet_id        = azurerm_subnet.private[0].id
-  zones                 = ["1", "3"]
+  zones                 = var.availability_zones
   os_disk_size_gb       = 100
   priority              = var.gpu_node_pool_priority
   eviction_policy       = var.gpu_node_pool_priority == "Spot" ? "Delete" : null

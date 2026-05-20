@@ -867,8 +867,9 @@ render_gpu_pool_values() {
     # not `nvidia.com/gpu.present` (which doesn't exist as a label name). Use
     # the value-bearing label selector and count rows — `kubectl get nodes -l`
     # output doesn't include the label NAME in any column, so grepping the
-    # output for the selector string would always return no match.
-    if [ "$(kubectl get nodes -l nvidia.com/gpu=present --no-headers 2>/dev/null | wc -l)" -gt 0 ]; then
+    # output for the selector string would always return no match. Route
+    # through $RUN_KUBECTL so private/provider-routed flows honor the wrapper.
+    if [ "$($RUN_KUBECTL get nodes -l nvidia.com/gpu=present --no-headers 2>/dev/null | wc -l)" -gt 0 ]; then
         detected="true"
     fi
 
