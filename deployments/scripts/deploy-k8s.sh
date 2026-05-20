@@ -387,8 +387,11 @@ spec:
     $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
 }
 
-# Returns 0 if the OSMO database has user tables in the public schema,
-# 1 otherwise (incl. probe failure — caller treats unknown as empty).
+# Returns:
+#   0 - DB has user tables (caller must block destructive ops).
+#   1 - DB verified empty, OR check is not applicable (in-cluster DB not yet
+#       up, no PG creds in env — both are normal first-install states).
+#   2 - Probe failed/timed out. Caller cannot prove safety; should block.
 db_has_existing_data() {
     if [[ "${OSMO_IN_CLUSTER_DB:-false}" == "true" ]]; then
         return 1
@@ -444,15 +447,15 @@ spec:
             return 1
         elif [[ "$phase" == "Failed" ]]; then
             $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-            return 1
+            return 2
         fi
         sleep 2
         waited=$((waited + 2))
     done
 
-    log_warning "MEK probe pod did not complete within ${max_wait}s (phase=${phase:-unknown}) — proceeding without DB check"
+    log_warning "MEK probe pod did not complete within ${max_wait}s (phase=${phase:-unknown})"
     $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-    return 1
+    return 2
 }
 
 ###############################################################################
@@ -518,7 +521,9 @@ create_secrets() {
             log_warning "RESET_MEK=true — replacing existing MEK. Data encrypted with the previous key will be unreadable."
         else
             # Refuse to mint a new MEK if the DB still has encrypted data from a previous install.
-            if db_has_existing_data; then
+            db_has_existing_data
+            local probe_result=$?
+            if [[ "$probe_result" == "0" ]]; then
                 log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has user tables."
                 log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
                 log_error "  - Restore the previous 'mek-config' ConfigMap from backup, OR"
@@ -526,6 +531,11 @@ create_secrets() {
                 log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
                 log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
                 log_error "  - Pass RESET_MEK=true to acknowledge data loss and proceed."
+                exit 1
+            elif [[ "$probe_result" == "2" ]]; then
+                log_error "Could not verify whether '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST has existing data (probe pod failed or timed out)."
+                log_error "Refusing to mint a fresh MEK without confirmation — minting against a populated DB silently orphans encrypted columns."
+                log_error "Retry once Postgres connectivity is healthy, or pass RESET_MEK=true to acknowledge data loss and proceed."
                 exit 1
             fi
             log_info "Generating Master Encryption Key (MEK) — first install"
