@@ -136,6 +136,12 @@ const (
 	// FinalizerLogCollection ensures the controller flushes container logs to object storage
 	// before Kubernetes cascade-deletes the rendered child resources.
 	FinalizerLogCollection = "workflow.osmo.nvidia.com/log-collection"
+
+	// FinalizerRemoteCleanup blocks OSMOWorkflow deletion until the Workflow Controller
+	// has dispatched DeleteOTG commands for every remote (cross-cluster) OSMOTaskGroup
+	// it created. Cross-cluster owner references don't exist in Kubernetes, so without
+	// this the remote children would leak.
+	FinalizerRemoteCleanup = "workflow.osmo.nvidia.com/remote-cleanup"
 )
 
 // Label keys.

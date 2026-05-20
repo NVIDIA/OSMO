@@ -68,45 +68,55 @@ func (s *ClusterSessionServer) Connect(stream operatorpb.ClusterSession_ConnectS
 	}
 	logger = logger.WithValues("cluster", hello.ClusterId)
 
-	// Register this stream as THE session for this cluster. Replaces any prior session.
-	sendCh := make(chan *operatorpb.OperatorEnvelope, SendBufferSize)
-	cancelCh := s.Sessions.Register(hello.ClusterId, sendCh)
-	defer s.Sessions.Unregister(hello.ClusterId, cancelCh)
-	defer close(sendCh)
+	// Register this stream as THE session for this cluster. Replaces any prior session
+	// (its done channel will be closed by Register, signalling that goroutine to exit).
+	sess := s.Sessions.Register(hello.ClusterId, SendBufferSize)
+	defer s.Sessions.Unregister(hello.ClusterId, sess)
 
 	// Update OSMOCluster.status.connection = Connected. Best-effort — if it fails we
 	// keep the session alive (the status is informational, the registry is the truth).
 	s.updateClusterConnection(ctx, hello, v1alpha1.ClusterConnected)
 	defer s.updateClusterConnection(context.Background(), hello, v1alpha1.ClusterDisconnected)
 
-	// Reply with HelloAck on the send channel (will go through the writer goroutine).
-	sendCh <- &operatorpb.OperatorEnvelope{
+	// Reply with HelloAck on the send channel. sendEnvelope is safe even if the session
+	// has been torn down by a concurrent re-Register (returns ErrClusterNotConnected
+	// rather than panicking).
+	if err := sess.sendEnvelope(&operatorpb.OperatorEnvelope{
 		Body: &operatorpb.OperatorEnvelope_HelloAck{HelloAck: &operatorpb.HelloAck{
 			SessionId: hello.ClusterId + ":" + time.Now().UTC().Format(time.RFC3339Nano),
 		}},
+	}); err != nil {
+		return status.Error(codes.Aborted, "session terminated before HelloAck")
 	}
 
-	// Writer goroutine: pulls envelopes off sendCh and writes to the stream. Returns on
-	// channel close (deferred above) or context cancel.
+	// Writer goroutine: pulls envelopes off the session's send channel and writes to the
+	// gRPC stream. Returns when the session's done channel is closed (registry shutdown
+	// or Unregister), or when the gRPC stream errors.
 	writerErr := make(chan error, 1)
 	go func() {
-		for env := range sendCh {
-			if err := stream.Send(env); err != nil {
-				writerErr <- err
+		for {
+			select {
+			case env, ok := <-sess.Drain():
+				if !ok {
+					writerErr <- nil
+					return
+				}
+				if err := stream.Send(env); err != nil {
+					writerErr <- err
+					return
+				}
+			case <-ctx.Done():
+				writerErr <- nil
 				return
 			}
 		}
-		writerErr <- nil
 	}()
 
-	// Reader loop: process ControllerEnvelopes. Runs until Recv error, cancel signal, or
-	// context cancel.
+	// Reader loop: process ControllerEnvelopes. Runs until Recv error, ctx cancel, or
+	// the writer reports an error.
 	logger.Info("session established")
 	for {
 		select {
-		case <-cancelCh:
-			// Replaced by a newer Hello from the same cluster_id.
-			return status.Error(codes.Aborted, "session superseded")
 		case err := <-writerErr:
 			if err != nil {
 				logger.Error(err, "writer failed")

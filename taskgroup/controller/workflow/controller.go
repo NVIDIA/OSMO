@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -76,10 +77,17 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	if !wf.DeletionTimestamp.IsZero() {
-		// Cascade delete is handled by Kubernetes via owner references on local
-		// OSMOTaskGroups. Remote task groups (Phase 2) need explicit delete via the
-		// session stream; the workflow CR sits with a finalizer until they're gone.
-		return reconcile.Result{}, nil
+		return r.reconcileDelete(ctx, &wf)
+	}
+
+	// Add the remote-cleanup finalizer on first sight when there are remote groups.
+	// Local-only groups don't need it (K8s owner refs handle cascade locally), but the
+	// finalizer is harmless when there are none.
+	if controllerutil.AddFinalizer(&wf, v1alpha1.FinalizerRemoteCleanup) {
+		if err := r.Client.Update(ctx, &wf); err != nil {
+			return reconcile.Result{}, fmt.Errorf("adding finalizer: %w", err)
+		}
+		return reconcile.Result{Requeue: true}, nil
 	}
 
 	// Validate + dispatch ready groups.
@@ -203,6 +211,46 @@ func (r *Reconciler) refreshLocalStatuses(ctx context.Context, wf *v1alpha1.OSMO
 		}
 	}
 	return nil
+}
+
+// reconcileDelete runs the finalizer logic before the OSMOWorkflow can be garbage-
+// collected. Local OSMOTaskGroup children are cleaned up by K8s owner-ref cascade.
+// Remote children (cross-cluster) need an explicit DeleteOTG via the Operator Service.
+func (r *Reconciler) reconcileDelete(ctx context.Context, wf *v1alpha1.OSMOWorkflow) (reconcile.Result, error) {
+	logger := log.FromContext(ctx)
+	if !controllerutil.ContainsFinalizer(wf, v1alpha1.FinalizerRemoteCleanup) {
+		return reconcile.Result{}, nil // K8s will GC
+	}
+
+	// For each remote group, send a Delete. Local groups skip (owner-ref cascade
+	// handles them).
+	remaining := 0
+	for groupName, gs := range wf.Status.Groups {
+		if gs.TaskGroupRef.Cluster == "" || gs.TaskGroupRef.Name == "" {
+			continue
+		}
+		dispatcher, err := r.dispatcherFor(gs.TaskGroupRef.Cluster)
+		if err != nil {
+			// Cluster might not be connected right now. Don't block delete forever —
+			// log and continue. The remote OTG will eventually be cleaned up by its
+			// own controller's workflow-ID label garbage collection (Phase 3+).
+			logger.Info("remote cluster unreachable; skipping cleanup", "cluster", gs.TaskGroupRef.Cluster, "group", groupName, "error", err.Error())
+			continue
+		}
+		if err := dispatcher.Delete(ctx, gs.TaskGroupRef); err != nil {
+			logger.Info("remote delete failed; will retry", "cluster", gs.TaskGroupRef.Cluster, "group", groupName, "error", err.Error())
+			remaining++
+		}
+	}
+	if remaining > 0 {
+		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
+	}
+
+	controllerutil.RemoveFinalizer(wf, v1alpha1.FinalizerRemoteCleanup)
+	if err := r.Client.Update(ctx, wf); err != nil {
+		return reconcile.Result{}, fmt.Errorf("removing finalizer: %w", err)
+	}
+	return reconcile.Result{}, nil
 }
 
 func (r *Reconciler) markFailed(ctx context.Context, wf *v1alpha1.OSMOWorkflow, cause error) error {

@@ -35,6 +35,11 @@ rules:
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["create", "patch"]
+  # Secrets: read-only. The Operator Service's ClusterAuthenticator reads the
+  # tokenSecretRef Secret on every Hello to validate cluster tokens.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch"]
 
   # KAI Scheduler PodGroups. Required by the kai runtime.
   - apiGroups: ["scheduling.kai.run.ai"]

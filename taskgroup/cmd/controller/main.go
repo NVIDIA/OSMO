@@ -112,11 +112,18 @@ func main() {
 			Scheme:     mgr.GetScheme(),
 			Dispatcher: dispatcher,
 		}
+		// Wire status push when running in backend-cluster mode (session client present).
+		if sessionClient != nil {
+			tgr.StatusReporter = sessionClient
+		}
 		if err := tgr.SetupWithManager(mgr); err != nil {
 			logger.Error(err, "setting up TaskGroup reconciler")
 			os.Exit(1)
 		}
-		logger.Info("TaskGroup controller enabled", "registered_runtimes", dispatcher.Registered())
+		logger.Info("TaskGroup controller enabled",
+			"registered_runtimes", dispatcher.Registered(),
+			"status_push", sessionClient != nil,
+		)
 	}
 
 	// Optionally embed the Operator Service in this same process. When enabled, the
@@ -124,16 +131,17 @@ func main() {
 	// instead of needing a separate gRPC hop. This is the "control cluster" deployment
 	// shape: one binary owns the workflow controller + operator service.
 	var commandBus *operator.CommandBus
+	var statusBus *operator.StatusBus
 	if cfg.operatorServeBind != "" {
 		sessions := operator.NewSessionRegistry()
-		bus := operator.NewStatusBus()
+		statusBus = operator.NewStatusBus()
 		commandBus = &operator.CommandBus{Sessions: sessions}
 
 		svc := &operator.ClusterSessionServer{
 			Client:            mgr.GetClient(),
 			Auth:              &operator.ClusterAuthenticator{Client: mgr.GetClient()},
 			Sessions:          sessions,
-			Status:            bus,
+			Status:            statusBus,
 			ControllerVersion: ControllerVersion,
 		}
 		listener, err := net.Listen("tcp", cfg.operatorServeBind)
@@ -183,6 +191,20 @@ func main() {
 			"endpoint", cfg.operatorEndpoint,
 			"cluster_id", cfg.clusterID,
 		)
+
+		// The TaskGroup Reconciler in this backend invokes the status reporter
+		// after every successful reconcile. Wire the session client as the reporter
+		// so status updates flow up through the gRPC stream to the central Workflow
+		// Controller.
+		// Wired below where the TaskGroup Reconciler is constructed (look for
+		// StatusReporter assignment).
+	}
+
+	// In the control cluster (statusBus set), bridge incoming OTGStatusEvents from
+	// backend clusters into OSMOWorkflow.Status.Groups[name].
+	if statusBus != nil {
+		workflow.StartRemoteStatusBridge(mgrCtx, mgr.GetClient(), statusBus)
+		logger.Info("remote status bridge started")
 	}
 
 	if err := mgr.Start(mgrCtx); err != nil {

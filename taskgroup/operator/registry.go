@@ -15,87 +15,134 @@ import (
 var ErrClusterNotConnected = errors.New("cluster has no live session")
 
 // Session represents one connected backend cluster's bidi stream.
+//
+// The session holds:
+//   - send: bounded channel pushed by callers, drained by the gRPC writer goroutine
+//   - done: closed by the session owner (the stream goroutine) when the session is
+//     ending. Send() consults this to avoid pushing onto a closed-or-stale channel.
 type Session struct {
 	ClusterID string
 
-	// send pushes one envelope onto the stream toward the controller. Bounded buffer
-	// — if the controller can't keep up the send blocks, which back-pressures the
-	// caller (typically the Workflow Controller's RemoteDispatcher).
-	send chan<- *operatorpb.OperatorEnvelope
+	mu   sync.RWMutex
+	send chan *operatorpb.OperatorEnvelope
+	done chan struct{}
 }
+
+// send-side helpers (used by SessionRegistry.Send below).
+//
+// SendEnvelope returns ErrClusterNotConnected if the session has already been torn down,
+// avoiding the classic "send on closed channel" panic. Concurrent callers + concurrent
+// teardown are safe.
+func (s *Session) sendEnvelope(env *operatorpb.OperatorEnvelope) error {
+	s.mu.RLock()
+	done := s.done
+	out := s.send
+	s.mu.RUnlock()
+	if done == nil {
+		return ErrClusterNotConnected
+	}
+	select {
+	case <-done:
+		return ErrClusterNotConnected
+	case out <- env:
+		return nil
+	}
+}
+
+// shutdown is called by the session's owner goroutine to signal "no more sends past this
+// point." After shutdown returns, sendEnvelope will return ErrClusterNotConnected for any
+// subsequent call. The owner is responsible for draining any remaining envelopes from
+// `send` if needed (typically not — the gRPC stream is also closing).
+func (s *Session) shutdown() {
+	s.mu.Lock()
+	if s.done != nil {
+		select {
+		case <-s.done:
+			// already closed
+		default:
+			close(s.done)
+		}
+	}
+	s.mu.Unlock()
+}
+
+// Drain returns a receive-only view of the send channel, used by the gRPC writer
+// goroutine to read pending envelopes. Reading until the channel is closed is the
+// owner's natural shutdown signal.
+func (s *Session) Drain() <-chan *operatorpb.OperatorEnvelope { return s.send }
 
 // SessionRegistry tracks live cluster sessions and demultiplexes commands to the right
 // stream. Safe for concurrent use. One Session per cluster_id at a time — a second Hello
-// from the same cluster_id replaces the existing session (and signals the previous to
-// close).
+// from the same cluster_id replaces the existing session (the previous one is signalled
+// via its done channel).
 type SessionRegistry struct {
 	mu       sync.RWMutex
-	sessions map[string]*registryEntry
-}
-
-type registryEntry struct {
-	session *Session
-	cancel  chan struct{} // closed by the new owner when replacing
+	sessions map[string]*Session
 }
 
 // NewSessionRegistry returns an empty registry.
 func NewSessionRegistry() *SessionRegistry {
-	return &SessionRegistry{sessions: make(map[string]*registryEntry)}
+	return &SessionRegistry{sessions: make(map[string]*Session)}
 }
 
-// Register installs a new session for the given clusterID. Returns a `cancel` channel
-// that is closed when a future Register replaces this session — the caller's stream
-// goroutine should watch this channel and shut down when it fires. The send channel
-// becomes the path to push OperatorEnvelopes toward the controller.
-func (r *SessionRegistry) Register(clusterID string, send chan<- *operatorpb.OperatorEnvelope) (cancel <-chan struct{}) {
+// Register installs a new session for the given clusterID. Returns the session (caller
+// uses .drain() to read envelopes for the gRPC writer, and .shutdown() to signal end-of-
+// life from the reader path). A second Register for the same cluster_id replaces the
+// previous session — the previous session's `done` channel is closed, which both
+// signals its goroutines to stop and immediately makes `Send` to that session return
+// ErrClusterNotConnected.
+//
+// `bufferSize` bounds the outbound queue; recommended 64+.
+func (r *SessionRegistry) Register(clusterID string, bufferSize int) *Session {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// If a previous session exists for this cluster_id, signal it to exit.
 	if prev, ok := r.sessions[clusterID]; ok {
-		close(prev.cancel)
+		// Signal the previous session to exit. The owner goroutine will return from
+		// its read loop; new Sends already see ErrClusterNotConnected.
+		prev.shutdown()
 	}
 
-	entry := &registryEntry{
-		session: &Session{ClusterID: clusterID, send: send},
-		cancel:  make(chan struct{}),
+	sess := &Session{
+		ClusterID: clusterID,
+		send:      make(chan *operatorpb.OperatorEnvelope, bufferSize),
+		done:      make(chan struct{}),
 	}
-	r.sessions[clusterID] = entry
-	return entry.cancel
+	r.sessions[clusterID] = sess
+	return sess
 }
 
 // Unregister removes the cluster's session if (and only if) it's still the one indicated
-// by the cancel channel. Called by the stream handler on Connect return.
-func (r *SessionRegistry) Unregister(clusterID string, cancel <-chan struct{}) {
+// by the passed Session pointer. Called by the stream handler on Connect return.
+func (r *SessionRegistry) Unregister(clusterID string, sess *Session) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	entry, ok := r.sessions[clusterID]
+	current, ok := r.sessions[clusterID]
 	if !ok {
 		return
 	}
-	if entry.cancel == cancel {
+	if current == sess {
 		delete(r.sessions, clusterID)
 	}
+	// In either case make sure the session's done is closed so any blocked sender
+	// unsticks immediately.
+	sess.shutdown()
 }
 
-// Send delivers an OperatorEnvelope to the named cluster's stream. Blocks until the
-// underlying buffered channel can accept the message; the caller controls timeouts via
-// the provided ctx.
-//
-// Returns ErrClusterNotConnected if no session is live for the cluster_id.
+// Send delivers an OperatorEnvelope to the named cluster's stream. Returns
+// ErrClusterNotConnected if there is no live session, OR if the session is in the middle
+// of being torn down. Safe under any concurrent register/unregister.
 func (r *SessionRegistry) Send(clusterID string, env *operatorpb.OperatorEnvelope) error {
 	r.mu.RLock()
-	entry, ok := r.sessions[clusterID]
+	sess, ok := r.sessions[clusterID]
 	r.mu.RUnlock()
 	if !ok {
 		return ErrClusterNotConnected
 	}
-	entry.session.send <- env
-	return nil
+	return sess.sendEnvelope(env)
 }
 
-// Connected reports whether a given cluster has a live session right now. Used by the
-// Workflow Controller to decide whether to dispatch or back off.
+// Connected reports whether a given cluster has a live session right now.
 func (r *SessionRegistry) Connected(clusterID string) bool {
 	r.mu.RLock()
 	_, ok := r.sessions[clusterID]
@@ -103,8 +150,8 @@ func (r *SessionRegistry) Connected(clusterID string) bool {
 	return ok
 }
 
-// List returns the currently connected cluster IDs. Used by metrics and the OSMOCluster
-// status reconciler.
+// List returns the currently connected cluster IDs. Used for metrics and the
+// OSMOCluster status reconciler.
 func (r *SessionRegistry) List() []string {
 	r.mu.RLock()
 	out := make([]string, 0, len(r.sessions))

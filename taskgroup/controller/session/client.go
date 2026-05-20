@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/yaml.v2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -299,6 +300,15 @@ func (c *Client) PushStatus(otg *v1alpha1.OSMOTaskGroup) {
 	})
 }
 
+// Report implements controller.StatusReporter. Called by the TaskGroup Reconciler after
+// each successful reconcile cycle. We just enqueue an OTGStatusEvent — the writer
+// goroutine will flush it on the stream. Errors here are non-fatal; the periodic
+// reconcile on the control side picks up any drops.
+func (c *Client) Report(_ context.Context, otg *v1alpha1.OSMOTaskGroup) error {
+	c.PushStatus(otg)
+	return nil
+}
+
 // Connected reports whether the gRPC stream is currently established.
 func (c *Client) Connected() bool {
 	c.mu.Lock()
@@ -313,6 +323,7 @@ func (c *Client) setConnected(v bool) {
 }
 
 // convertStatus turns a CR-level OSMOTaskGroupStatus into the proto-wire shape.
+// Preserves all condition + task fields so the control side sees identical state.
 func convertStatus(in v1alpha1.OSMOTaskGroupStatus) *operatorpb.OTGStatus {
 	out := &operatorpb.OTGStatus{
 		Phase:              string(in.Phase),
@@ -321,20 +332,34 @@ func convertStatus(in v1alpha1.OSMOTaskGroupStatus) *operatorpb.OTGStatus {
 		Message:            in.Message,
 	}
 	for _, c := range in.Conditions {
-		out.Conditions = append(out.Conditions, &operatorpb.OTGCondition{
+		cond := &operatorpb.OTGCondition{
 			Type:    c.Type,
 			Status:  string(c.Status),
 			Reason:  c.Reason,
 			Message: c.Message,
-		})
+		}
+		if !c.LastTransitionTime.IsZero() {
+			cond.LastTransition = timestamppb.New(c.LastTransitionTime.Time)
+		}
+		out.Conditions = append(out.Conditions, cond)
 	}
 	for _, t := range in.Tasks {
-		out.Tasks = append(out.Tasks, &operatorpb.OTGTaskState{
+		task := &operatorpb.OTGTaskState{
 			Name:    t.Name,
 			PodName: t.PodName,
 			State:   t.State,
 			Message: t.Message,
-		})
+		}
+		if t.StartTime != nil {
+			task.StartTime = timestamppb.New(t.StartTime.Time)
+		}
+		if t.EndTime != nil {
+			task.EndTime = timestamppb.New(t.EndTime.Time)
+		}
+		if t.ExitCode != nil {
+			task.ExitCode = *t.ExitCode
+		}
+		out.Tasks = append(out.Tasks, task)
 	}
 	return out
 }
