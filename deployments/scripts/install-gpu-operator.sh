@@ -35,7 +35,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-GPU_OPERATOR_VERSION="${GPU_OPERATOR_VERSION:-v25.3.4}"
+# v25.10.1 is the first release containing PR #1757, which fixes the
+# ClusterPolicy validator.plugin null-rendering bug (NVIDIA/gpu-operator#1745)
+# that breaks chart install on K8s 1.33+ schema validation. Earlier v25.3.x
+# releases fail with "spec.validator.plugin: Invalid value: 'null'" on install.
+GPU_OPERATOR_VERSION="${GPU_OPERATOR_VERSION:-v25.10.1}"
 GPU_OPERATOR_NAMESPACE="${GPU_OPERATOR_NAMESPACE:-gpu-operator}"
 GPU_OPERATOR_RELEASE="${GPU_OPERATOR_RELEASE:-gpu-operator}"
 NO_GPU="${NO_GPU:-0}"

@@ -167,7 +167,7 @@ Azure-specific Options:
   --cluster-name NAME    AKS cluster name (default: osmo-cluster)
   --region REGION        Azure region (default: East US 2)
   --environment ENV      Environment name (default: dev)
-  --k8s-version VER      Kubernetes version (default: 1.32.9)
+  --k8s-version VER      Kubernetes version (default: 1.33.11)
 
 AWS-specific Options:
   --aws-region REGION    AWS region (default: us-west-2)
