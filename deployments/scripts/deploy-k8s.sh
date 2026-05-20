@@ -387,6 +387,74 @@ spec:
     $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
 }
 
+# Returns 0 if the OSMO database has user tables in the public schema,
+# 1 otherwise (incl. probe failure — caller treats unknown as empty).
+db_has_existing_data() {
+    if [[ "${OSMO_IN_CLUSTER_DB:-false}" == "true" ]]; then
+        return 1
+    fi
+    if [[ -z "${POSTGRES_HOST:-}" || -z "${POSTGRES_PASSWORD:-}" || -z "${POSTGRES_USERNAME:-}" ]]; then
+        return 1
+    fi
+
+    local probe_pod="${OSMO_DB_OPS_POD}-mek-check"
+    $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+
+    local escaped_password
+    escaped_password=$(printf '%s' "$POSTGRES_PASSWORD" | sed "s/'/'\\\\''/g")
+    local probe_manifest="apiVersion: v1
+kind: Pod
+metadata:
+  name: $probe_pod
+  namespace: $OSMO_NAMESPACE
+spec:
+  containers:
+    - name: $probe_pod
+      image: $POSTGRES_OPS_IMAGE
+      env:
+        - name: PGPASSWORD
+          value: '$escaped_password'
+        - name: PGHOST
+          value: '$POSTGRES_HOST'
+        - name: PGUSER
+          value: '$POSTGRES_USERNAME'
+        - name: PGDATABASE
+          value: '${POSTGRES_DB_NAME:-osmo}'
+      command:
+        - /bin/bash
+        - -c
+        - |
+          psql -tAc \"SELECT count(*) FROM information_schema.tables WHERE table_schema='public';\"
+  restartPolicy: Never"
+
+    $RUN_KUBECTL_APPLY_STDIN "$probe_manifest" > /dev/null 2>&1 || return 1
+
+    local max_wait=60
+    local waited=0
+    while [[ $waited -lt $max_wait ]]; do
+        local phase
+        phase=$($RUN_KUBECTL "get pod $probe_pod --namespace $OSMO_NAMESPACE -o jsonpath={.status.phase}" 2>/dev/null)
+        if [[ "$phase" == "Succeeded" ]]; then
+            local table_count
+            table_count=$($RUN_KUBECTL "logs $probe_pod --namespace $OSMO_NAMESPACE" 2>/dev/null | grep -oE '^[0-9]+$' | head -1)
+            $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+            if [[ -n "$table_count" && "$table_count" -gt 0 ]]; then
+                return 0
+            fi
+            return 1
+        elif [[ "$phase" == "Failed" ]]; then
+            $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+            return 1
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+
+    log_warning "MEK probe pod did not complete within ${max_wait}s (phase=${phase:-unknown}) — proceeding without DB check"
+    $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+    return 1
+}
+
 ###############################################################################
 # Secrets Functions
 ###############################################################################
@@ -449,6 +517,17 @@ create_secrets() {
         if [[ "$mek_exists" == "true" && "$RESET_MEK" == "true" ]]; then
             log_warning "RESET_MEK=true — replacing existing MEK. Data encrypted with the previous key will be unreadable."
         else
+            # Refuse to mint a new MEK if the DB still has encrypted data from a previous install.
+            if db_has_existing_data; then
+                log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has user tables."
+                log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
+                log_error "  - Restore the previous 'mek-config' ConfigMap from backup, OR"
+                log_error "  - Wipe the database before re-running:"
+                log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
+                log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
+                log_error "  - Pass RESET_MEK=true to acknowledge data loss and proceed."
+                exit 1
+            fi
             log_info "Generating Master Encryption Key (MEK) — first install"
         fi
         local random_key=$(openssl rand -base64 32 | tr -d '\n')
@@ -632,10 +711,8 @@ service_set_flags() {
     # No kubectl-existence probe — that path caused stale-secret confusion
     # where a pre-existing nvcr-secret in the namespace silently re-engaged
     # plumbing the caller hadn't asked for.
-    local has_pull_secret=false
     if [[ -n "$NGC_SECRET_NAME" ]]; then
         sets+=" --set global.imagePullSecret=${NGC_SECRET_NAME}"
-        has_pull_secret=true
     fi
 
     sets+=" --set services.postgres.serviceName=${POSTGRES_HOST}"
@@ -698,15 +775,6 @@ service_set_flags() {
     sets+=" --set services.configs.workflow.backend_images.init=${OSMO_IMAGE_REGISTRY}/init-container:${OSMO_IMAGE_TAG}"
     sets+=" --set services.configs.workflow.backend_images.client=${OSMO_IMAGE_REGISTRY}/client:${OSMO_IMAGE_TAG}"
 
-    # NGC pull-secret plumbing in the rendered configmap. Gated on
-    # has_pull_secret (= NGC_SECRET_NAME non-empty); service.yaml ships
-    # without these defaults so the no-opt-in path leaves both empty and
-    # the chart's secretRefs range iterates nothing.
-    if [[ "$has_pull_secret" == "true" ]]; then
-        sets+=" --set services.configs.secretRefs[0].secretName=${NGC_SECRET_NAME}"
-        sets+=" --set services.configs.workflow.backend_images.credential.secretName=${NGC_SECRET_NAME}"
-        sets+=" --set services.configs.workflow.backend_images.credential.secretKey=.dockerconfigjson"
-    fi
 
     echo "$sets"
 }
@@ -863,13 +931,8 @@ render_gpu_pool_values() {
 
     local force="${OSMO_GPU_POOL_ENABLED:-auto}"
     local detected="false"
-    # GPU Operator labels GPU nodes with `nvidia.com/gpu=present` (key/value),
-    # not `nvidia.com/gpu.present` (which doesn't exist as a label name). Use
-    # the value-bearing label selector and count rows — `kubectl get nodes -l`
-    # output doesn't include the label NAME in any column, so grepping the
-    # output for the selector string would always return no match. Route
-    # through $RUN_KUBECTL so private/provider-routed flows honor the wrapper.
-    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu=present --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
+    # GPU Operator NFD labels GPU nodes with `nvidia.com/gpu.present=true`.
+    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu.present=true --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
         detected="true"
     fi
 
