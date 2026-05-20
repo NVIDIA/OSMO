@@ -36,7 +36,7 @@ create_workflow_cred_secrets() {
             --from-literal=endpoint="$endpoint" \
             --from-literal=region="$region" \
             --from-literal=override_url="$override_url" \
-            "${addressing_style_arg[@]}" \
+            ${addressing_style_arg[@]+"${addressing_style_arg[@]}"} \
             --dry-run=client -o yaml | $KUBECTL apply -f -
     done
 }
