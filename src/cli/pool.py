@@ -78,12 +78,17 @@ def fetch_default_pool(service_client: client.ServiceClient) -> str:
     if default_pool:
         return default_pool
     # No profile default. If the backend exposes exactly one pool, auto-pick it.
-    pool_response = list_pools(service_client)
-    pool_names = {pool['name']
-                  for nodeset in pool_response.get('node_sets', [])
-                  for pool in nodeset.get('pools', [])}
-    if len(pool_names) == 1:
-        return next(iter(pool_names))
+    # Swallow probe errors so the user-facing message stays "no default pool set"
+    # rather than a transport stack trace.
+    try:
+        pool_response = list_pools(service_client)
+        pool_names = {pool['name']
+                      for nodeset in pool_response.get('node_sets', [])
+                      for pool in nodeset.get('pools', [])}
+        if len(pool_names) == 1:
+            return next(iter(pool_names))
+    except Exception:  # pylint: disable=broad-except
+        pass
     raise osmo_errors.OSMOUserError('No default pool set. Set a default pool using '
                                     '"osmo profile set pool <profile_name>" '
                                     'or specify a pool using --pool or -p.')

@@ -77,3 +77,13 @@ py_test(
         "//src/cli:cli_lib",
     ]
 )
+
+py_test(
+    name = "test_pool",
+    srcs = [
+        "test_pool.py"
+    ],
+    deps = [
+        "//src/cli:cli_lib",
+    ]
+)
