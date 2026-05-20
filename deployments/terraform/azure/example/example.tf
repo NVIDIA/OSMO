@@ -252,16 +252,22 @@ resource "azurerm_kubernetes_cluster_node_pool" "gpu" {
   max_count             = var.gpu_node_pool_max_size
   auto_scaling_enabled  = true
   vnet_subnet_id        = azurerm_subnet.private[0].id
-  zones                 = var.availability_zones
+  zones                 = ["1", "3"]
   os_disk_size_gb       = 100
   priority              = var.gpu_node_pool_priority
   eviction_policy       = var.gpu_node_pool_priority == "Spot" ? "Delete" : null
   spot_max_price        = var.gpu_node_pool_priority == "Spot" ? -1 : null
 
-  node_taints = ["sku=gpu:NoSchedule"]
+  # Use the NVIDIA-standard taint key. GPU Operator (clusterpolicy.spec.
+  # daemonsets.tolerations), NFD worker DaemonSet, NIM Operator's NIMService
+  # pods, and KAI Scheduler's mutating webhook all default-tolerate
+  # `nvidia.com/gpu:NoSchedule`. Non-standard taint keys (e.g. `sku=gpu`)
+  # require extending tolerations across every NVIDIA chart and break the
+  # GPU Operator's GPU-detection cascade when the NFD worker can't land on
+  # the GPU node.
+  node_taints = ["nvidia.com/gpu=present:NoSchedule"]
   node_labels = {
     "nvidia.com/gpu" = "present"
-    "sku"            = "gpu"
   }
 
   tags = local.tags

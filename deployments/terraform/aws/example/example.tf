@@ -155,13 +155,18 @@ module "eks" {
 
         labels = {
           "nvidia.com/gpu" = "present"
-          "sku"            = "gpu"
         }
 
+        # Use the NVIDIA-standard taint key. GPU Operator, NFD worker, NIM
+        # Operator's NIMService pods, and KAI Scheduler's mutating webhook
+        # all default-tolerate `nvidia.com/gpu:NoSchedule`. Non-standard taint
+        # keys (e.g. `sku=gpu`) require extending tolerations across every
+        # NVIDIA chart and break the GPU Operator's GPU-detection cascade
+        # when the NFD worker can't land on the GPU node.
         taints = {
           gpu = {
-            key    = "sku"
-            value  = "gpu"
+            key    = "nvidia.com/gpu"
+            value  = "present"
             effect = "NO_SCHEDULE"
           }
         }
