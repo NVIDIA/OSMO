@@ -138,6 +138,13 @@ RUN_KUBECTL_APPLY_STDIN=""
 RUN_HELM="helm"
 RUN_HELM_WITH_VALUES=""
 
+# Populated by create_database() from the in-pod psql probe. Used by
+# create_secrets() to refuse a fresh MEK against a populated DB. Values:
+#   ""        — probe didn't run (in-cluster DB mode, or BYO without PG creds)
+#   <int>     — number of user tables in public schema (0 = empty DB)
+#   "UNKNOWN" — probe ran but result couldn't be parsed (treat as unsafe)
+DB_TABLE_COUNT=""
+
 ###############################################################################
 # Parse Arguments
 ###############################################################################
@@ -350,6 +357,8 @@ spec:
           psql -h \$PGHOST -U \$PGUSER -d postgres -c 'CREATE DATABASE \"${POSTGRES_DB_NAME:-osmo}\";' 2>&1 || echo 'Database may already exist (this is OK)'
           echo 'Verifying database connection...'
           psql -h \$PGHOST -U \$PGUSER -d ${POSTGRES_DB_NAME:-osmo} -c 'SELECT 1 as connected;' && echo 'SUCCESS: Database ${POSTGRES_DB_NAME:-osmo} is ready!'
+          COUNT=\$(psql -h \$PGHOST -U \$PGUSER -d ${POSTGRES_DB_NAME:-osmo} -tAc \"SELECT count(*) FROM information_schema.tables WHERE table_schema='public';\")
+          echo \"OSMO_DB_TABLE_COUNT=\$COUNT\"
   restartPolicy: Never"
 
     log_info "Creating database initialization pod..."
@@ -366,14 +375,21 @@ spec:
         if [[ "$status" == "Succeeded" ]]; then
             log_success "Database created successfully"
             echo "--- Database creation logs ---"
-            $RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true
+            local pod_logs
+            pod_logs=$($RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true)
+            echo "$pod_logs"
             echo "---"
+            DB_TABLE_COUNT=$(echo "$pod_logs" | sed -n 's/^OSMO_DB_TABLE_COUNT=\([0-9][0-9]*\)$/\1/p' | tail -1)
+            if [[ -z "$DB_TABLE_COUNT" ]]; then
+                DB_TABLE_COUNT="UNKNOWN"
+            fi
             $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
             return 0
         elif [[ "$status" == "Failed" ]]; then
             log_warning "Database creation pod failed, checking logs..."
             $RUN_KUBECTL "logs $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE" 2>/dev/null || true
             $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
+            DB_TABLE_COUNT="UNKNOWN"
             return 0
         fi
 
@@ -385,77 +401,7 @@ spec:
 
     log_warning "Timeout waiting for database creation, continuing anyway..."
     $RUN_KUBECTL "delete pod $OSMO_DB_OPS_POD --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-}
-
-# Returns:
-#   0 - DB has user tables (caller must block destructive ops).
-#   1 - DB verified empty, OR check is not applicable (in-cluster DB not yet
-#       up, no PG creds in env — both are normal first-install states).
-#   2 - Probe failed/timed out. Caller cannot prove safety; should block.
-db_has_existing_data() {
-    if [[ "${OSMO_IN_CLUSTER_DB:-false}" == "true" ]]; then
-        return 1
-    fi
-    if [[ -z "${POSTGRES_HOST:-}" || -z "${POSTGRES_PASSWORD:-}" || -z "${POSTGRES_USERNAME:-}" ]]; then
-        return 1
-    fi
-
-    local probe_pod="${OSMO_DB_OPS_POD}-mek-check"
-    $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-
-    local escaped_password
-    escaped_password=$(printf '%s' "$POSTGRES_PASSWORD" | sed "s/'/'\\\\''/g")
-    local probe_manifest="apiVersion: v1
-kind: Pod
-metadata:
-  name: $probe_pod
-  namespace: $OSMO_NAMESPACE
-spec:
-  containers:
-    - name: $probe_pod
-      image: $POSTGRES_OPS_IMAGE
-      env:
-        - name: PGPASSWORD
-          value: '$escaped_password'
-        - name: PGHOST
-          value: '$POSTGRES_HOST'
-        - name: PGUSER
-          value: '$POSTGRES_USERNAME'
-        - name: PGDATABASE
-          value: '${POSTGRES_DB_NAME:-osmo}'
-      command:
-        - /bin/bash
-        - -c
-        - |
-          psql -tAc \"SELECT count(*) FROM information_schema.tables WHERE table_schema='public';\"
-  restartPolicy: Never"
-
-    $RUN_KUBECTL_APPLY_STDIN "$probe_manifest" > /dev/null 2>&1 || return 1
-
-    local max_wait=60
-    local waited=0
-    while [[ $waited -lt $max_wait ]]; do
-        local phase
-        phase=$($RUN_KUBECTL "get pod $probe_pod --namespace $OSMO_NAMESPACE -o jsonpath={.status.phase}" 2>/dev/null)
-        if [[ "$phase" == "Succeeded" ]]; then
-            local table_count
-            table_count=$($RUN_KUBECTL "logs $probe_pod --namespace $OSMO_NAMESPACE" 2>/dev/null | grep -oE '^[0-9]+$' | head -1)
-            $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-            if [[ -n "$table_count" && "$table_count" -gt 0 ]]; then
-                return 0
-            fi
-            return 1
-        elif [[ "$phase" == "Failed" ]]; then
-            $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-            return 2
-        fi
-        sleep 2
-        waited=$((waited + 2))
-    done
-
-    log_warning "MEK probe pod did not complete within ${max_wait}s (phase=${phase:-unknown})"
-    $RUN_KUBECTL "delete pod $probe_pod --namespace $OSMO_NAMESPACE --ignore-not-found=true" > /dev/null 2>&1 || true
-    return 2
+    DB_TABLE_COUNT="UNKNOWN"
 }
 
 ###############################################################################
@@ -517,25 +463,24 @@ create_secrets() {
         log_info "MEK ConfigMap already present in $OSMO_NAMESPACE — preserving (re-using existing key)"
         log_info "  Pass RESET_MEK=true (or --reset-mek) to force a fresh key — DESTRUCTIVE if DB has encrypted data"
     else
-        if [[ "$mek_exists" == "true" && "$RESET_MEK" == "true" ]]; then
-            log_warning "RESET_MEK=true — replacing existing MEK. Data encrypted with the previous key will be unreadable."
+        if [[ "$RESET_MEK" == "true" ]]; then
+            log_warning "RESET_MEK=true — minting a fresh MEK. Data encrypted with any previous key will be unreadable."
         else
-            # Refuse to mint a new MEK if the DB still has encrypted data from a previous install.
-            db_has_existing_data
-            local probe_result=$?
-            if [[ "$probe_result" == "0" ]]; then
-                log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has user tables."
+            # Refuse to mint a new MEK if the DB still has encrypted data from a
+            # previous install. $DB_TABLE_COUNT is populated by create_database.
+            if [[ "$DB_TABLE_COUNT" == "UNKNOWN" ]]; then
+                log_error "Could not verify whether '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST has existing data (db-ops probe failed or timed out)."
+                log_error "Refusing to mint a fresh MEK without confirmation — minting against a populated DB silently orphans encrypted columns."
+                log_error "Retry once Postgres connectivity is healthy, or pass RESET_MEK=true to acknowledge data loss and proceed."
+                exit 1
+            elif [[ -n "$DB_TABLE_COUNT" && "$DB_TABLE_COUNT" -gt 0 ]]; then
+                log_error "MEK ConfigMap 'mek-config' not found in $OSMO_NAMESPACE, but the database '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST already has $DB_TABLE_COUNT user table(s)."
                 log_error "Generating a new MEK now would orphan every encrypted column (service_auth.private_key, workflow secrets, ...). To resolve:"
                 log_error "  - Restore the previous 'mek-config' ConfigMap from backup, OR"
                 log_error "  - Wipe the database before re-running:"
                 log_error "      psql -h $POSTGRES_HOST -U ${POSTGRES_USERNAME} -d postgres \\"
                 log_error "        -c 'DROP DATABASE IF EXISTS ${POSTGRES_DB_NAME:-osmo}; CREATE DATABASE ${POSTGRES_DB_NAME:-osmo};'"
                 log_error "  - Pass RESET_MEK=true to acknowledge data loss and proceed."
-                exit 1
-            elif [[ "$probe_result" == "2" ]]; then
-                log_error "Could not verify whether '${POSTGRES_DB_NAME:-osmo}' on $POSTGRES_HOST has existing data (probe pod failed or timed out)."
-                log_error "Refusing to mint a fresh MEK without confirmation — minting against a populated DB silently orphans encrypted columns."
-                log_error "Retry once Postgres connectivity is healthy, or pass RESET_MEK=true to acknowledge data loss and proceed."
                 exit 1
             fi
             log_info "Generating Master Encryption Key (MEK) — first install"
