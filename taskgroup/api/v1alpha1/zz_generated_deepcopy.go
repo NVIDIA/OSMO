@@ -220,6 +220,10 @@ func (in *OSMOClusterSpec) DeepCopyInto(out *OSMOClusterSpec) {
 		out.GPUTypes = append([]string(nil), in.GPUTypes...)
 	}
 	in.Network.DeepCopyInto(&out.Network)
+	if in.TokenSecretRef != nil {
+		out.TokenSecretRef = new(SecretRef)
+		*out.TokenSecretRef = *in.TokenSecretRef
+	}
 }
 
 func (in *ClusterNetwork) DeepCopyInto(out *ClusterNetwork) {

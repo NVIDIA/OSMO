@@ -1,46 +1,93 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-// Command operator is the gRPC Operator Service.
+// Command operator runs the gRPC Operator Service.
 //
-// Phase 1: skeleton only. The proto contract is fixed (operator/proto/operator.proto), but
-// the server handlers return Unimplemented. The point of having this binary now is so the
-// build system, CI, and deployment manifests already know about it; filling in the handlers
-// is incremental.
+// Phase 2 MVP: insecure (plain HTTP/2 gRPC) transport. Backend clusters connect outbound
+// to this endpoint, authenticate with a per-cluster bearer token (whose SHA-256 hash is
+// stored in an OSMOCluster.spec.tokenSecretRef Secret), and hold a long-lived bidi
+// stream. The Operator Service forwards commands from the Workflow Controller onto the
+// right stream and fans status events back out via an in-process status bus.
+//
+// Production hardening (out of scope for the MVP): TLS / mTLS, per-cluster rate limits,
+// audit log of every command issued, structured token rotation.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"google.golang.org/grpc"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/nvidia/osmo/taskgroup/internal/k8s"
 	osmolog "github.com/nvidia/osmo/taskgroup/internal/log"
+	"github.com/nvidia/osmo/taskgroup/operator"
+	operatorpb "github.com/nvidia/osmo/taskgroup/operator/proto"
 )
 
+// ControllerVersion is the operator binary version reported back to controllers in
+// HelloAck. Overridden at build time with -ldflags='-X main.ControllerVersion=...'.
+var ControllerVersion = "dev"
+
 func main() {
-	var bind string
-	flag.StringVar(&bind, "bind", ":9000", "Address to bind the gRPC server on.")
+	var (
+		kubeconfig string
+		bind       string
+	)
+	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig. Empty = in-cluster.")
+	flag.StringVar(&bind, "bind", ":9000", "Address the gRPC server binds to.")
 	flag.Parse()
 
-	logger := osmolog.New().WithName("taskgroup-operator")
-	logger.Info("Operator Service starting", "bind", bind)
+	ctrl.SetLogger(osmolog.New())
+	logger := ctrl.Log.WithName("taskgroup-operator")
 
-	// TODO(phase-2): start a gRPC server here.
-	// Implementation outline:
-	//   1. listener, err := net.Listen("tcp", bind)
-	//   2. s := grpc.NewServer()
-	//   3. operatorpb.RegisterOperatorServiceServer(s, &server{client: k8sClient})
-	//   4. operatorpb.RegisterBarrierServiceServer(s, &barrierServer{store: barrierStore})
-	//   5. s.Serve(listener)
-	//
-	// The k8sClient is constructed from internal/k8s.Config + the controller-runtime
-	// dynamic client (so the server can write CRs without typed bindings).
-	//
-	// Phase 4 wires in the barrier.Store implementation (Postgres-backed).
-	//
-	// For Phase 1, exit cleanly so callers don't think the binary is broken.
+	cfg, err := k8s.Config(kubeconfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "loading kubeconfig: %v\n", err)
+		os.Exit(1)
+	}
+	c, err := client.New(cfg, client.Options{Scheme: k8s.Scheme()})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "constructing K8s client: %v\n", err)
+		os.Exit(1)
+	}
 
-	fmt.Fprintln(os.Stderr, "operator service is a Phase 1 skeleton — handlers not yet implemented.")
-	fmt.Fprintln(os.Stderr, "see cmd/operator/main.go for the implementation outline.")
-	os.Exit(0)
+	registry := operator.NewSessionRegistry()
+	bus := operator.NewStatusBus()
+	server := &operator.ClusterSessionServer{
+		Client:            c,
+		Auth:              &operator.ClusterAuthenticator{Client: c},
+		Sessions:          registry,
+		Status:            bus,
+		ControllerVersion: ControllerVersion,
+	}
+
+	listener, err := net.Listen("tcp", bind)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "listen %s: %v\n", bind, err)
+		os.Exit(1)
+	}
+
+	grpcServer := grpc.NewServer()
+	operatorpb.RegisterClusterSessionServer(grpcServer, server)
+
+	stopCh := make(chan os.Signal, 1)
+	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-stopCh
+		logger.Info("shutting down")
+		grpcServer.GracefulStop()
+	}()
+
+	logger.Info("operator service listening", "bind", bind, "version", ControllerVersion)
+	if err := grpcServer.Serve(listener); err != nil {
+		fmt.Fprintf(os.Stderr, "gRPC server: %v\n", err)
+		os.Exit(1)
+	}
 }

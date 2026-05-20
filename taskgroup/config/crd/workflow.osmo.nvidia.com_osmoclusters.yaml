@@ -41,6 +41,12 @@ spec:
                     config:
                       type: object
                       additionalProperties: { type: string }
+                tokenSecretRef:
+                  type: object
+                  required: [name]
+                  properties:
+                    name:      { type: string }
+                    namespace: { type: string }
             status:
               type: object
               properties:

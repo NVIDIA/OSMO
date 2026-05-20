@@ -1,0 +1,138 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Backend-cluster deployment: TaskGroup Controller + session client only.
+# Connects outbound to the control cluster's Operator Service. No inbound exposure.
+#
+# Before applying, edit the marked placeholders:
+#   - CLUSTER_ID: must match an OSMOCluster CR's metadata.name in the control cluster
+#   - OPERATOR_ENDPOINT: the control cluster's Operator Service (e.g. operator.osmo.example.com:9000)
+#
+# The cluster's bearer token is provisioned as a separate Secret out-of-band. See
+# multicluster-quickstart.md for token generation and registration steps.
+
+---
+# OSMOTaskGroup CRD (this cluster will receive these from the control cluster).
+# Apply config/crd/workflow.osmo.nvidia.com_osmotaskgroups.yaml separately.
+
+# The cluster's bearer token. Provision out-of-band; never check the plain token into git.
+# This file shows the expected shape — generate the actual Secret with:
+#
+#   TOKEN=$(openssl rand -hex 32)
+#   kubectl create secret generic taskgroup-cluster-token \
+#     -n osmo-system --from-literal=token="${TOKEN}"
+#
+# Then on the control cluster:
+#   echo -n "${TOKEN}" | sha256sum  # → put this hex value into the tokenHash Secret
+#
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: taskgroup-backend
+  namespace: osmo-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: taskgroup-backend
+rules:
+  # Receive OSMOTaskGroup CRs (only on this cluster) and reconcile them locally.
+  - apiGroups: ["workflow.osmo.nvidia.com"]
+    resources: ["osmotaskgroups", "osmotaskgroups/status", "osmotaskgroups/finalizers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+  - apiGroups: ["scheduling.kai.run.ai"]
+    resources: ["podgroups"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: taskgroup-backend
+subjects:
+  - kind: ServiceAccount
+    name: taskgroup-backend
+    namespace: osmo-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: taskgroup-backend
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskgroup-backend
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-backend
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: taskgroup-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: taskgroup-backend
+    spec:
+      serviceAccountName: taskgroup-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: nvcr.io/nvstaging/osmo/taskgroup-controller:v0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --enable-workflow-controller=false
+            - --enable-taskgroup-controller=true
+            - --operator-endpoint=CHANGEME_OPERATOR_ENDPOINT:9000   # e.g. operator.osmo.example.com:9000
+            - --cluster-id=CHANGEME_CLUSTER_ID                       # e.g. coreweave-h100
+            - --cluster-token-file=/var/run/secrets/osmo/token
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+          ports:
+            - { name: metrics, containerPort: 8080 }
+            - { name: probes,  containerPort: 8081 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: probes }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probes }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: token
+              mountPath: /var/run/secrets/osmo
+              readOnly: true
+      volumes:
+        - name: token
+          secret:
+            secretName: taskgroup-cluster-token
+            items:
+              - key: token
+                path: token

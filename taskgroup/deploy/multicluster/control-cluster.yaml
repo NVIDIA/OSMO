@@ -1,0 +1,100 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Control-cluster deployment: API server + Workflow Controller + Operator Service.
+# All three run as separate Pods; the controller binary embeds the Operator Service
+# gRPC server in-process (--operator-serve-bind) so the Workflow Controller can share
+# the in-memory CommandBus.
+#
+# Apply with:
+#   kubectl apply -k deploy/multicluster/control-cluster.yaml/   # see kustomization below
+#
+# Or piece-by-piece for clarity:
+#   kubectl apply -f deploy/namespace.yaml
+#   kubectl apply -f config/crd/
+#   kubectl apply -f deploy/rbac.yaml
+#   kubectl apply -f deploy/apiserver.yaml
+#   kubectl apply -f deploy/multicluster/control-cluster.yaml
+#
+# Backend clusters get a different manifest (see backend-cluster.yaml). They never see
+# OSMOWorkflow CRs — they only run a TaskGroup Controller + session client that connects
+# back to this control cluster's operator-service endpoint.
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskgroup-control
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-control
+    app.kubernetes.io/component: control-plane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: taskgroup-control
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: taskgroup-control
+    spec:
+      serviceAccountName: taskgroup-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: controller
+          image: nvcr.io/nvstaging/osmo/taskgroup-controller:v0.1.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --taskgroup-namespace=osmo-workflows
+            - --enable-workflow-controller=true
+            - --enable-taskgroup-controller=false
+            - --operator-serve-bind=:9000
+            - --metrics-bind-address=:8080
+            - --health-probe-bind-address=:8081
+            - --leader-elect=false
+          ports:
+            - { name: metrics, containerPort: 8080 }
+            - { name: probes,  containerPort: 8081 }
+            - { name: grpc,    containerPort: 9000 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: probes }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probes }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+
+---
+# Service exposing the in-process Operator Service gRPC port to backend clusters.
+# Type LoadBalancer for cross-cluster reach. In environments without LB controllers,
+# use NodePort or an Ingress with gRPC support. Backend clusters need DNS or stable IP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskgroup-operator-service
+  namespace: osmo-system
+  labels:
+    app.kubernetes.io/name: taskgroup-operator
+spec:
+  type: LoadBalancer
+  ports:
+    - name: grpc
+      port: 9000
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: taskgroup-control

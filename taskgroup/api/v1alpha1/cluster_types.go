@@ -53,6 +53,23 @@ type OSMOClusterSpec struct {
 	// GPUTypes lists the GPU SKUs available on this cluster (informational, used by
 	// schedulers and the API server's quota checks).
 	GPUTypes []string `json:"gpuTypes,omitempty"`
+
+	// TokenSecretRef points at a Secret in the Operator Service's namespace that holds
+	// the SHA-256 hash of this cluster's bearer token. The Operator Service compares
+	// the hash of an incoming Hello.token against this value before accepting the
+	// session. The plain token itself is provisioned out-of-band into the backend
+	// cluster (as a separate Secret mounted into the controller pod) and never lives
+	// in the OSMOCluster CR.
+	//
+	// Secret data shape (key → value):
+	//   tokenHash: <hex-encoded sha256 of the plaintext bearer token>
+	TokenSecretRef *SecretRef `json:"tokenSecretRef,omitempty"`
+}
+
+// SecretRef is a namespaced reference to a Kubernetes Secret.
+type SecretRef struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // ClusterNetwork captures the deployment's choice of cross-cluster mesh for one cluster.
