@@ -869,7 +869,7 @@ render_gpu_pool_values() {
     # output doesn't include the label NAME in any column, so grepping the
     # output for the selector string would always return no match. Route
     # through $RUN_KUBECTL so private/provider-routed flows honor the wrapper.
-    if [ "$($RUN_KUBECTL get nodes -l nvidia.com/gpu=present --no-headers 2>/dev/null | wc -l)" -gt 0 ]; then
+    if [ "$($RUN_KUBECTL "get nodes -l nvidia.com/gpu=present --no-headers" 2>/dev/null | wc -l)" -gt 0 ]; then
         detected="true"
     fi
 
