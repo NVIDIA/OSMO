@@ -65,6 +65,19 @@ TF_PROJECT_NAME="${TF_PROJECT_NAME:-osmo}"
 # create new standard-tier clusters.
 TF_K8S_VERSION="${TF_K8S_VERSION:-1.33.11}"
 
+# GPU node-pool inputs (used by azure_generate_tfvars to render gpu_min/gpu_max
+# + gpu_vm_size). Empty TF_GPU_COUNT + TF_GPU_NODE_POOL_ENABLED=false means
+# CPU-only cluster. Populated by azure_configure_interactively when the user
+# opts in via the GPU prompt.
+TF_GPU_NODE_POOL_ENABLED="${TF_GPU_NODE_POOL_ENABLED:-false}"
+TF_GPU_COUNT="${TF_GPU_COUNT:-0}"
+TF_GPU_VM_SIZE="${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
+
+# Candidate Azure regions to scan when the user answers "idk" to the region
+# prompt. The first region with sufficient H100 quota for the requested GPU
+# count wins. Override with TF_REGION_CANDIDATES="region1 region2 ...".
+TF_REGION_CANDIDATES="${TF_REGION_CANDIDATES:-eastus2 swedencentral westus3 southcentralus westeurope}"
+
 # Private cluster detection
 IS_PRIVATE_CLUSTER=false
 
@@ -224,6 +237,54 @@ azure_get_current_subscription_name() {
     az account show --query "name" -o tsv 2>/dev/null || echo ""
 }
 
+# Describe an Azure VM SKU. Echoes a single tab-separated line "<family>\t<vcpus>"
+# so a single `az` call can serve both the quota filter and the vCPU-per-node
+# sizing. Object projection (vs. array) keeps the output on one line under
+# `-o tsv` — array form renders each element on its own line which would
+# break the caller's `read family vcpus`. Empty fields on no-match — callers
+# treat missing data as "0 available".
+# Args: gpu_vm_size
+azure_describe_vm_sku() {
+    local sku="$1"
+    az vm list-skus --size "$sku" --resource-type virtualMachines -o tsv \
+        --query "[0].{f:family, v:capabilities[?name=='vCPUs'].value | [0]}" 2>/dev/null \
+        | head -1
+}
+
+# Iterate through TF_REGION_CANDIDATES looking for the first region whose
+# remaining quota for the GPU SKU's family >= (count × vCPUs-per-node).
+# Echoes the chosen region (empty if none qualifies).
+# Args: gpu_vm_size gpu_count subscription_id
+azure_find_region_with_gpu_quota() {
+    local sku="$1" count="$2" sub="$3"
+    if ! [[ "$count" =~ ^[1-9][0-9]*$ ]]; then return 0; fi
+    local family vcpus_per_node
+    read -r family vcpus_per_node <<<"$(azure_describe_vm_sku "$sku")"
+    if [[ -z "$family" || -z "$vcpus_per_node" ]]; then
+        log_warning "  az vm list-skus returned no family/vCPU data for '$sku' — auto-search cannot continue."
+        return 0
+    fi
+    local need=$(( count * vcpus_per_node ))
+    log_info "  Auto-search: looking for region with $need vCPU free in family '$family' (sku=$sku, $vcpus_per_node vCPU/node)"
+    local region
+    for region in $TF_REGION_CANDIDATES; do
+        local used limit free
+        # Object projection keeps used+limit on one tab-separated line under
+        # `-o tsv`. Array form (`[0].[currentValue,limit]`) renders each
+        # element on its own line which breaks `read -r used limit`.
+        read -r used limit <<<"$(az vm list-usage -l "$region" --subscription "$sub" -o tsv \
+                    --query "[?contains(name.value, '$family')] | [0].{u:currentValue, l:limit}" 2>/dev/null)"
+        if [[ -z "$used" || -z "$limit" ]]; then continue; fi
+        free=$(( limit - used ))
+        log_info "    $region: used=$used limit=$limit free=$free vCPU"
+        if [[ "$free" -ge "$need" ]]; then
+            echo "$region"
+            return 0
+        fi
+    done
+    return 0
+}
+
 azure_configure_interactively() {
     echo ""
     echo -e "${BLUE}╔══════════════════════════════════════════════════════════════════╗${NC}"
@@ -354,6 +415,9 @@ azure_configure_interactively() {
     echo "  Region:              $TF_REGION"
     echo "  Kubernetes Version:  $TF_K8S_VERSION"
     echo "  Environment:         $TF_ENVIRONMENT"
+    if [[ "$TF_GPU_NODE_POOL_ENABLED" == "true" ]]; then
+        echo "  GPU node pool:       $TF_GPU_COUNT x $TF_GPU_VM_SIZE"
+    fi
     echo ""
 
     local confirm=$(prompt_value "Proceed with this configuration? (yes/no)" "yes")
@@ -425,8 +489,12 @@ log_analytics_sku            = "PerGB2018"
 log_analytics_retention_days = 30
 
 # Optional GPU node pool
-# Triggered by --gpu-node-pool on deploy-osmo-minimal.sh
+# Triggered by --gpu-node-pool on deploy-osmo-minimal.sh, or by answering "yes"
+# to the GPU prompt in azure_configure_interactively.
 gpu_node_pool_enabled = ${TF_GPU_NODE_POOL_ENABLED:-false}
+gpu_vm_size           = "${TF_GPU_VM_SIZE:-Standard_NC40ads_H100_v5}"
+gpu_min               = ${TF_GPU_COUNT:-0}
+gpu_max               = ${TF_GPU_COUNT:-0}
 
 # Optional Azure Blob Storage Account for workflow data
 # Triggered by --storage-backend azure-blob on deploy-osmo-minimal.sh
