@@ -11,14 +11,17 @@ description: >
   run the post-install smoke tests. Targets OSMO 6.3 (ConfigMap mode).
 license: Apache-2.0
 compatibility: >
-  REQUIRES OSMO >= 6.3 (ConfigMap mode). The chart's default "latest"
-  currently resolves to 6.2 GA which is NOT supported by this skill — you
-  must explicitly pin OSMO_CHART_VERSION + OSMO_IMAGE_TAG + OSMO_CLI_REF to
-  a 6.3.x version (see "Picking chart, image, and CLI versions"). Also
-  requires kubectl, helm, jq, and the osmo CLI on PATH (the deploy script
-  will install osmo from GitHub if missing). Cloud providers also need
-  terraform >= 1.9 plus az login (Azure) or aws configure (AWS). MicroK8s
-  provider requires Ubuntu 22.04 + sudo; --gpu requires NVIDIA driver >= 525.
+  REQUIRES OSMO >= 6.3 (ConfigMap mode). Earlier 6.2 CLI-write mode is NOT
+  supported (runtime signal: helm install fails or chart attempts
+  `osmo config update` and gets HTTP 409). The default "latest" channel
+  may resolve to a 6.2 release — explicitly pin OSMO_CHART_VERSION +
+  OSMO_IMAGE_TAG + OSMO_CLI_REF to a 6.3.x release; use
+  `--list-chart-versions` to discover the latest available tags. See
+  "Picking chart, image, and CLI versions". Also requires kubectl, helm,
+  jq, and the osmo CLI on PATH (the deploy script will install osmo from
+  GitHub if missing). Cloud providers also need terraform >= 1.9 plus
+  az login (Azure) or aws configure (AWS). MicroK8s provider requires
+  Ubuntu 22.04 + sudo; --gpu requires NVIDIA driver >= 525.
 metadata:
   author: nvidia
   version: "1.0.0"
@@ -32,7 +35,7 @@ Activate when the user asks to install, deploy, set up, stand up, or provision O
 
 Do **not** activate for general OSMO usage questions (running workflows, CLI usage, troubleshooting a running deployment) — those belong to the `osmo-agent` skill.
 
-**This skill requires OSMO >= 6.3 (ConfigMap mode).** Earlier versions are not supported — the chart's HTTP 409 on `osmo config update` is the runtime signal that the cluster landed on 6.2 (CLI-write mode). The current GA (`latest`) is **older than 6.3**, so a deploy with default env vars will land on the unsupported version. You MUST set the three version pins before invoking the script — see "Picking chart, image, and CLI versions" below.
+**This skill requires OSMO >= 6.3 (ConfigMap mode).** Earlier 6.2 CLI-write mode is not supported — the chart's HTTP 409 on `osmo config update` is the runtime signal that the cluster landed on 6.2. If the default `latest` channel still resolves to a 6.2 release, the deploy with no env-var pins lands on the unsupported variant. You MUST set the three version pins to a 6.3.x release before invoking the script — see "Picking chart, image, and CLI versions" below. Run `--list-chart-versions` to discover the latest available tags.
 
 ## Workflow
 
@@ -80,7 +83,7 @@ When the user asks to deploy OSMO without supplying every flag/env, prompt for t
 **Azure-only prompts (provider=azure, when not already supplied via flags/env):**
 
 4. **"Azure subscription ID?"** — if not set via `--subscription-id` or `TF_SUBSCRIPTION_ID`, default to `$(az account show --query id -o tsv)` and ask the user to confirm or override.
-5. **"Resource group name?"** — if not set via `--resource-group` or `TF_RESOURCE_GROUP`. The group must already exist (`az group show -n <rg>`); if not, prompt the user to create it (`az group create -n <rg> -l <region>`) before continuing.
+5. **"Resource group name?"** — if not set via `--resource-group` or `TF_RESOURCE_GROUP`. The deploy preflight auto-creates the group (tagged `osmo-deploy-managed=true`) when `TF_RESOURCE_GROUP` is set and the group doesn't already exist — so the agent should pass the chosen name and let the script handle creation. Check with `az group show -n <rg>` if you want to see whether it pre-exists; create manually with `az group create -n <rg> -l <region>` only if you want the group to outlive future `terraform destroy` runs.
 
 **AWS-only prompts:** AWS region (`--aws-region`) and profile (`--aws-profile`) — defaults `us-west-2` / `default` are usually fine; only re-prompt if the user explicitly didn't pick a region.
 
@@ -88,38 +91,41 @@ Once these are collected, invoke the script in `--non-interactive` mode with the
 
 ## Picking chart, image, and CLI versions
 
-**This skill requires OSMO >= 6.3 (ConfigMap mode). Pinning is mandatory, not optional.**
+**This skill requires OSMO >= 6.3 (ConfigMap mode). Pinning all three env vars below is mandatory, not optional.**
 
 The script's default behavior (no env vars set) resolves to:
 - `OSMO_CHART_VERSION` empty → helm picks the latest **stable** chart in repo
 - `OSMO_IMAGE_TAG=latest` → most recent **GA** image
 - `OSMO_CLI_REF=main` → bootstraps the **latest GA** CLI via the upstream `install.sh`
 
-Today the latest GA is **older than 6.3**, so leaving any of these at default lands you on an unsupported version. The Helm install fails (e.g. on Ingress validation), or the CLI's wire format doesn't match the service, or the chart attempts `osmo config update` and gets HTTP 409 in 6.3 ConfigMap mode.
+If the latest GA is still on 6.2, leaving any of these at default lands you on the unsupported CLI-write-mode variant. The Helm install fails (e.g. on Ingress validation), or the CLI's wire format doesn't match the service, or the chart attempts `osmo config update` and gets HTTP 409 in ConfigMap mode.
 
-### Required: set all three pins to a 6.3.x version
+### Required: discover + pin all three to a 6.3.x release
 
 ```bash
-# Step 1: discover the latest 6.3.x (release or RC). Authoritative — passes --devel.
+# Step 1: discover the latest available 6.3.x chart/image/CLI tags
+# (passes --devel so prerelease RCs appear).
 ./scripts/deploy-osmo-minimal.sh --list-chart-versions
 
 # Step 2: pin all three env vars to the same release before invoking the deploy.
-export OSMO_CHART_VERSION=<6.3.x chart version from step 1>
-export OSMO_IMAGE_TAG=<matching 6.3.x image tag>
-export OSMO_CLI_REF=<matching 6.3.x release tag>
+#   - Use the latest non-prerelease 6.3.x release if one exists.
+#   - Otherwise pin to the latest 6.3.x prerelease RC.
+export OSMO_CHART_VERSION=<chart version from step 1>
+export OSMO_IMAGE_TAG=<matching app/image tag>
+export OSMO_CLI_REF=<matching CLI release tag>
 ```
 
-The chart version + image tag are usually a 1:1 release pair (e.g. chart `1.3.x` ↔ image `6.3.x`). The CLI release tag matches the image tag.
+The chart version + image/app tag + CLI tag are published together as a release pair. Match them — don't mix.
 
 ### Why each pin matters (each is independently required)
 
-- **`OSMO_CHART_VERSION`** — helm's "latest" resolution can roll forward unexpectedly. Pinning a specific 6.3.x chart prevents both (a) accidentally landing on a pre-6.3 chart and (b) drifting between deploys.
+- **`OSMO_CHART_VERSION`** — helm's "latest" resolution can roll forward unexpectedly. Pinning a specific 6.3.x chart prevents both (a) accidentally landing on a 6.2 chart and (b) drifting between deploys.
 - **`OSMO_IMAGE_TAG`** — must match the chart's expected app version. The chart's templates assume specific image entrypoints and env contracts that change across minor releases.
 - **`OSMO_CLI_REF`** — the `osmo` CLI's wire format (auth, workflow submit/get, configmap loading) must match the service. A CLI from a different minor version often connects but fails at the first non-trivial call. The deploy script's `install_osmo_cli_if_missing` honors `OSMO_CLI_REF` by downloading the matching installer directly to `$HOME/.local/bin` (no sudo); override the destination via `OSMO_CLI_TARGET`.
 
 ### Prerelease vs release within 6.3.x
 
-Both stable and prerelease versions are published to `nvidia/osmo`. Prerelease tags (`*-prerelease-rc*`) are hidden from `helm search` by default — that's why `--list-chart-versions` passes `--devel`. Use the latest non-prerelease 6.3.x if one exists; otherwise pin to the latest 6.3.x prerelease RC. The pinning workflow above is identical either way.
+Both stable and prerelease 6.3.x versions are published to `nvidia/osmo`. Prerelease tags (`*-prerelease-rc*`) are hidden from `helm search` by default — that's why `--list-chart-versions` passes `--devel`. The pinning workflow above is identical either way.
 
 ## Storage backends
 

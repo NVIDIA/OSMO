@@ -182,13 +182,15 @@ resolve_osmo_api_service() {
 # Install the osmo CLI from GitHub if missing. Idempotent.
 #
 # Env knobs:
-#   OSMO_CLI_REF     — pin to a release tag (e.g. 6.3.0-prerelease-rc9). When
-#                      set to a non-"main" value, download the matching
+#   OSMO_CLI_REF     — pin to a release tag from github.com/NVIDIA/OSMO/releases.
+#                      Discover available tags with
+#                      `deploy-osmo-minimal.sh --list-chart-versions`.
+#                      When set to a non-"main" value, download the matching
 #                      Linux/macOS installer directly from
 #                      github.com/NVIDIA/OSMO/releases/download/<ref>/ instead
 #                      of piping the (mutable) main install.sh — the latter
 #                      always resolves to the latest GA, which mismatches when
-#                      deploying a prerelease chart/image.
+#                      deploying a different channel.
 #   OSMO_CLI_TARGET  — install destination directory. Default:
 #                      $HOME/.local/bin (no sudo). Override to /usr/local/bin
 #                      for system-wide install (requires sudo).

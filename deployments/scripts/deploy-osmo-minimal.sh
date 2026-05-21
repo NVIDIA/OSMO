@@ -200,12 +200,15 @@ Environment Variables:
                          RCs are not tagged "latest" and helm search hides
                          them unless --devel is passed (handled internally
                          when this var is set).
-  OSMO_CLI_REF           Pin osmo CLI to a release tag (e.g.
-                         6.3.0-prerelease-rc9) when deploying a prerelease.
-                         Default "main" pipes install.sh which always
-                         resolves to the latest GA — mismatches a prerelease
-                         service. Pinned ref installs without sudo to
-                         OSMO_CLI_TARGET ($HOME/.local/bin by default).
+  OSMO_CLI_REF           Pin osmo CLI to a release tag from
+                         github.com/NVIDIA/OSMO/releases. Required when
+                         deploying a channel that doesn't match the latest
+                         GA. Default "main" pipes install.sh which always
+                         resolves to the latest GA — pin this when you
+                         pin OSMO_CHART_VERSION/OSMO_IMAGE_TAG. Pinned ref
+                         installs without sudo to OSMO_CLI_TARGET
+                         ($HOME/.local/bin by default). Discover available
+                         tags with --list-chart-versions.
   OSMO_CLI_TARGET        Install dir for the osmo CLI binary (default:
                          $HOME/.local/bin). Override to /usr/local/bin for
                          system-wide install — requires sudo.
@@ -348,6 +351,11 @@ while [[ $# -gt 0 ]]; do
             # or exit non-zero if none qualifies. Used by the osmo-deploy
             # skill's interactive flow when the user answers "idk" to the
             # region prompt.
+            if [[ $# -lt 3 ]]; then
+                echo "ERROR: --find-gpu-region requires 2 arguments: <SKU> <COUNT>" >&2
+                echo "Example: $0 --find-gpu-region Standard_NC40ads_H100_v5 3" >&2
+                exit 2
+            fi
             FIND_GPU_REGION_SKU="$2"; FIND_GPU_REGION_COUNT="$3"; shift 3 ;;
         *)
             shift
